@@ -11456,6 +11456,18 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [sendingMediaComment, setSendingMediaComment] = useState(false);
     const [mediaCity, setMediaCity] = useState('');
     const [mediaTimeFilter, setMediaTimeFilter] = useState('ALL');
+    const [mediaUsername, setMediaUsername] = useState('');
+    const [mediaDateFrom, setMediaDateFrom] = useState(null);
+    const [mediaDateTo, setMediaDateTo] = useState(null);
+    const [showMediaFilter, setShowMediaFilter] = useState(false);
+    const [showMediaDateRange, setShowMediaDateRange] = useState(false);
+    const [postsCity, setPostsCity] = useState('');
+    const [postsUsername, setPostsUsername] = useState('');
+    const [postsTimeFilter, setPostsTimeFilter] = useState('ALL');
+    const [postsDateFrom, setPostsDateFrom] = useState(null);
+    const [postsDateTo, setPostsDateTo] = useState(null);
+    const [showPostsFilter, setShowPostsFilter] = useState(false);
+    const [showPostsDateRange, setShowPostsDateRange] = useState(false);
     const [showMediaShare, setShowMediaShare] = useState(false);
     const [mediaShareUri, setMediaShareUri] = useState(null);
     const [mediaShareCaption, setMediaShareCaption] = useState('');
@@ -15195,12 +15207,33 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {/* ── MEDIA ── */}
                     {activeTab === 'media' && (() => {
                         const now = Date.now();
+                        const MEDIA_DATE_OPTS = [['ALL',t.allFilter],['TODAY',t.todayFilter],['WEEK',t.weekFilter],['MONTH',t.monthFilter]];
+                        const mediaDateFilterLabel = () => {
+                            if (mediaTimeFilter === 'CUSTOM') {
+                                const fmt = (d) => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}`;
+                                if (mediaDateFrom && mediaDateTo) return `${fmt(mediaDateFrom)}–${fmt(mediaDateTo)}`;
+                                if (mediaDateFrom) return `${fmt(mediaDateFrom)}+`;
+                                return t.dateRangeTitle;
+                            }
+                            return (MEDIA_DATE_OPTS.find(([v]) => v === mediaTimeFilter) || MEDIA_DATE_OPTS[0])[1];
+                        };
+                        const mediaFilterActive = !!(mediaCity || mediaUsername || mediaTimeFilter !== 'ALL');
                         const filtered = mediaPosts.filter(p => {
                             if (mediaCity) {
                                 const c = (p.user?.city || '').toLowerCase();
                                 if (!c.includes(mediaCity.toLowerCase())) return false;
                             }
-                            if (mediaTimeFilter !== 'ALL') {
+                            if (mediaUsername.trim()) {
+                                const q = mediaUsername.trim().toLowerCase();
+                                const uname = (p.user?.username || '').toLowerCase();
+                                const fname = (p.user?.fullName || '').toLowerCase();
+                                if (!uname.includes(q) && !fname.includes(q)) return false;
+                            }
+                            if (mediaTimeFilter === 'CUSTOM') {
+                                const postMs = new Date(p.createdAt).getTime();
+                                if (mediaDateFrom && postMs < new Date(mediaDateFrom.getFullYear(), mediaDateFrom.getMonth(), mediaDateFrom.getDate()).getTime()) return false;
+                                if (mediaDateTo && postMs > new Date(mediaDateTo.getFullYear(), mediaDateTo.getMonth(), mediaDateTo.getDate(), 23, 59, 59, 999).getTime()) return false;
+                            } else if (mediaTimeFilter !== 'ALL') {
                                 const age = now - new Date(p.createdAt).getTime();
                                 if (mediaTimeFilter === 'TODAY'  && age > 86400000)     return false;
                                 if (mediaTimeFilter === 'WEEK'   && age > 604800000)    return false;
@@ -15227,28 +15260,63 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         ))}
                                     </ScrollView>
                                 )}
-                                {/* Filtreler + paylaş */}
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 8, flexWrap: 'wrap' }}>
-                                    <TextInput
-                                        style={{ flex: 1, minWidth: 100, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border }}
-                                        placeholder={t.mediaCityPh}
-                                        placeholderTextColor={colors.textMuted}
-                                        value={mediaCity}
-                                        onChangeText={setMediaCity}
-                                    />
+                                {/* Paylaş + Filtrele */}
+                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                                     <TouchableOpacity onPress={() => setShowMediaTypeSheet(true)}
                                         style={{ backgroundColor: cfg.color + '20', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: cfg.color + '50' }}>
                                         <Text style={{ color: cfg.color, fontWeight: '800', fontSize: 12 }}>{t.mediaShareBtn}</Text>
                                     </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setShowMediaFilter(true)}
+                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: mediaFilterActive ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: mediaFilterActive ? cfg.color + '50' : colors.border }}>
+                                        <Text style={{ color: mediaFilterActive ? cfg.color : colors.textMuted, fontWeight: '800', fontSize: 12 }}>{t.filterBtn}</Text>
+                                    </TouchableOpacity>
                                 </View>
-                                <View style={{ flexDirection: 'row', gap: 3, marginBottom: 10 }}>
-                                    {[['ALL',t.allFilter],['TODAY',t.todayFilter],['WEEK',t.weekFilter],['MONTH',t.monthFilter]].map(([v, label]) => (
-                                        <TouchableOpacity key={v} onPress={() => setMediaTimeFilter(v)}
-                                            style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: mediaTimeFilter === v ? cfg.color : colors.surface2, borderWidth: 1, borderColor: mediaTimeFilter === v ? cfg.color : colors.border }}>
-                                            <Text style={{ color: mediaTimeFilter === v ? '#fff' : colors.textMuted, fontSize: 11, fontWeight: '700' }}>{label}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
+                                <Modal visible={showMediaFilter} animationType="slide" transparent onRequestClose={() => setShowMediaFilter(false)}>
+                                    <View style={s.modalOverlay}>
+                                        <View style={s.modalBox}>
+                                            <View style={s.modalHeader}>
+                                                <Text style={s.modalTitle}>{t.filterBtn}</Text>
+                                                <TouchableOpacity onPress={() => setShowMediaFilter(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+                                            </View>
+                                            <Text style={s.fieldLabel}>{t.mediaCityPh}</Text>
+                                            <TextInput style={s.fieldInput} value={mediaCity} onChangeText={setMediaCity}
+                                                placeholder={t.mediaCityPh} placeholderTextColor={colors.textMuted} />
+                                            <Text style={[s.fieldLabel, { marginTop: 10 }]}>{t.filterUsernameLabel}</Text>
+                                            <TextInput style={s.fieldInput} value={mediaUsername} onChangeText={setMediaUsername}
+                                                placeholder={t.filterUsernamePh} placeholderTextColor={colors.textMuted} autoCapitalize="none" />
+                                            <Text style={[s.fieldLabel, { marginTop: 10 }]}>{t.dateRangeTitle}</Text>
+                                            <TouchableOpacity onPress={() => setShowMediaDateRange(true)}
+                                                style={{ backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: mediaTimeFilter !== 'ALL' ? cfg.color : colors.border, paddingHorizontal: 11, paddingVertical: 10 }}>
+                                                <Text style={{ color: mediaTimeFilter !== 'ALL' ? cfg.color : colors.textMuted, fontWeight: '700', fontSize: 13 }}>📅 {mediaDateFilterLabel()}</Text>
+                                            </TouchableOpacity>
+                                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+                                                <TouchableOpacity
+                                                    onPress={() => { setMediaCity(''); setMediaUsername(''); setMediaTimeFilter('ALL'); setMediaDateFrom(null); setMediaDateTo(null); }}
+                                                    style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 10, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+                                                    <Text style={{ color: colors.textSecondary, fontWeight: '700' }}>{t.dateRangeClear}</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => setShowMediaFilter(false)}
+                                                    style={{ flex: 1, backgroundColor: cfg.color, borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}>
+                                                    <Text style={{ color: '#fff', fontWeight: '800' }}>{t.dateRangeApply}</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    </View>
+                                </Modal>
+                                <DateRangePickerModal
+                                    visible={showMediaDateRange}
+                                    dateFrom={mediaDateFrom}
+                                    dateTo={mediaDateTo}
+                                    quickOptions={MEDIA_DATE_OPTS}
+                                    activeQuick={mediaTimeFilter}
+                                    onQuickSelect={(val) => { setMediaTimeFilter(val); setMediaDateFrom(null); setMediaDateTo(null); setShowMediaDateRange(false); }}
+                                    onApply={(from, to) => {
+                                        setMediaTimeFilter(!from && !to ? 'ALL' : 'CUSTOM');
+                                        setMediaDateFrom(from); setMediaDateTo(to);
+                                        setShowMediaDateRange(false);
+                                    }}
+                                    onClose={() => setShowMediaDateRange(false)}
+                                />
                                 {/* Instagram akışı */}
                                 {filtered.length === 0
                                     ? <EmptyState emoji="📸" text={t.emptyMedia} />
@@ -15660,7 +15728,43 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                     {/* ── VENUES ── */}
                     {/* ── TEXT POSTS ── */}
-                    {activeTab === 'posts' && (
+                    {activeTab === 'posts' && (() => {
+                        const now = Date.now();
+                        const POSTS_DATE_OPTS = [['ALL',t.allFilter],['TODAY',t.todayFilter],['WEEK',t.weekFilter],['MONTH',t.monthFilter]];
+                        const postsDateFilterLabel = () => {
+                            if (postsTimeFilter === 'CUSTOM') {
+                                const fmt = (d) => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}`;
+                                if (postsDateFrom && postsDateTo) return `${fmt(postsDateFrom)}–${fmt(postsDateTo)}`;
+                                if (postsDateFrom) return `${fmt(postsDateFrom)}+`;
+                                return t.dateRangeTitle;
+                            }
+                            return (POSTS_DATE_OPTS.find(([v]) => v === postsTimeFilter) || POSTS_DATE_OPTS[0])[1];
+                        };
+                        const postsFilterActive = !!(postsCity || postsUsername || postsTimeFilter !== 'ALL');
+                        const filteredPosts = textPosts.filter(p => {
+                            if (postsCity) {
+                                const c = (p.user?.city || '').toLowerCase();
+                                if (!c.includes(postsCity.toLowerCase())) return false;
+                            }
+                            if (postsUsername.trim()) {
+                                const q = postsUsername.trim().toLowerCase();
+                                const uname = (p.user?.username || '').toLowerCase();
+                                const fname = (p.user?.fullName || '').toLowerCase();
+                                if (!uname.includes(q) && !fname.includes(q)) return false;
+                            }
+                            if (postsTimeFilter === 'CUSTOM') {
+                                const postMs = new Date(p.createdAt).getTime();
+                                if (postsDateFrom && postMs < new Date(postsDateFrom.getFullYear(), postsDateFrom.getMonth(), postsDateFrom.getDate()).getTime()) return false;
+                                if (postsDateTo && postMs > new Date(postsDateTo.getFullYear(), postsDateTo.getMonth(), postsDateTo.getDate(), 23, 59, 59, 999).getTime()) return false;
+                            } else if (postsTimeFilter !== 'ALL') {
+                                const age = now - new Date(p.createdAt).getTime();
+                                if (postsTimeFilter === 'TODAY'  && age > 86400000)     return false;
+                                if (postsTimeFilter === 'WEEK'   && age > 604800000)    return false;
+                                if (postsTimeFilter === 'MONTH'  && age > 2592000000)   return false;
+                            }
+                            return true;
+                        });
+                        return (
                         <>
                             <View style={{ backgroundColor: colors.surface2, borderRadius: 12, padding: 9, marginBottom: 12, borderWidth: 1, borderColor: colors.border }}>
                                 <TextInput
@@ -15684,14 +15788,67 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                 </View>
                             </View>
-                            {textPosts.length === 0
+                            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 10 }}>
+                                <TouchableOpacity onPress={() => setShowPostsFilter(true)}
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: postsFilterActive ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: postsFilterActive ? cfg.color + '50' : colors.border }}>
+                                    <Text style={{ color: postsFilterActive ? cfg.color : colors.textMuted, fontWeight: '800', fontSize: 12 }}>{t.filterBtn}</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <Modal visible={showPostsFilter} animationType="slide" transparent onRequestClose={() => setShowPostsFilter(false)}>
+                                <View style={s.modalOverlay}>
+                                    <View style={s.modalBox}>
+                                        <View style={s.modalHeader}>
+                                            <Text style={s.modalTitle}>{t.filterBtn}</Text>
+                                            <TouchableOpacity onPress={() => setShowPostsFilter(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+                                        </View>
+                                        <Text style={s.fieldLabel}>{t.mediaCityPh}</Text>
+                                        <TextInput style={s.fieldInput} value={postsCity} onChangeText={setPostsCity}
+                                            placeholder={t.mediaCityPh} placeholderTextColor={colors.textMuted} />
+                                        <Text style={[s.fieldLabel, { marginTop: 10 }]}>{t.filterUsernameLabel}</Text>
+                                        <TextInput style={s.fieldInput} value={postsUsername} onChangeText={setPostsUsername}
+                                            placeholder={t.filterUsernamePh} placeholderTextColor={colors.textMuted} autoCapitalize="none" />
+                                        <Text style={[s.fieldLabel, { marginTop: 10 }]}>{t.dateRangeTitle}</Text>
+                                        <TouchableOpacity onPress={() => setShowPostsDateRange(true)}
+                                            style={{ backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: postsTimeFilter !== 'ALL' ? cfg.color : colors.border, paddingHorizontal: 11, paddingVertical: 10 }}>
+                                            <Text style={{ color: postsTimeFilter !== 'ALL' ? cfg.color : colors.textMuted, fontWeight: '700', fontSize: 13 }}>📅 {postsDateFilterLabel()}</Text>
+                                        </TouchableOpacity>
+                                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+                                            <TouchableOpacity
+                                                onPress={() => { setPostsCity(''); setPostsUsername(''); setPostsTimeFilter('ALL'); setPostsDateFrom(null); setPostsDateTo(null); }}
+                                                style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 10, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+                                                <Text style={{ color: colors.textSecondary, fontWeight: '700' }}>{t.dateRangeClear}</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => setShowPostsFilter(false)}
+                                                style={{ flex: 1, backgroundColor: cfg.color, borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}>
+                                                <Text style={{ color: '#fff', fontWeight: '800' }}>{t.dateRangeApply}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                </View>
+                            </Modal>
+                            <DateRangePickerModal
+                                visible={showPostsDateRange}
+                                dateFrom={postsDateFrom}
+                                dateTo={postsDateTo}
+                                quickOptions={POSTS_DATE_OPTS}
+                                activeQuick={postsTimeFilter}
+                                onQuickSelect={(val) => { setPostsTimeFilter(val); setPostsDateFrom(null); setPostsDateTo(null); setShowPostsDateRange(false); }}
+                                onApply={(from, to) => {
+                                    setPostsTimeFilter(!from && !to ? 'ALL' : 'CUSTOM');
+                                    setPostsDateFrom(from); setPostsDateTo(to);
+                                    setShowPostsDateRange(false);
+                                }}
+                                onClose={() => setShowPostsDateRange(false)}
+                            />
+                            {filteredPosts.length === 0
                                 ? <EmptyState emoji="✏️" text={t.emptyPosts} />
-                                : textPosts.map(post => (
+                                : filteredPosts.map(post => (
                                     <TextPostCard key={post.id} post={post} cfg={cfg} />
                                 ))
                             }
                         </>
-                    )}
+                        );
+                    })()}
 
                     {/* ── SPORTS TICKETS (Ticketmaster — ulusal + uluslararasi) ── */}
                     {activeTab === 'tickets' && (
