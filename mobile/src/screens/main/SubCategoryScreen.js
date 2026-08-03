@@ -8130,7 +8130,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             setTournMatches(Array.isArray(data) ? data : []);
             setScoreEntry(null);
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+            if (e?.response) {
+                Alert.alert('', e?.response?.data?.message || t.actionFailed);
+            } else {
+                // Sunucudan yanıt gelmeden bağlantı koptuysa skor aslında zaten kaydedilmiş
+                // olabilir (bkz. ilan oluşturmadaki aynı desen) — kullanıcıya yanlışlıkla
+                // "başarısız" demek yerine maçlar yeniden çekilip gerçek duruma bakılır.
+                const refreshed = await fetchMatches();
+                const stillPending = refreshed.some(m => m.id === scoreEntry.matchId && m.status !== 'COMPLETED');
+                if (stillPending) Alert.alert('', e?.message || t.actionFailed);
+                else setScoreEntry(null);
+            }
         } finally { setSubmittingScore(false); }
     };
 
@@ -8607,8 +8617,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         )}
 
         {/* IN_PROGRESS: matches & standings Modal */}
-        <Modal visible={showMatchesModal} animationType="slide" transparent onRequestClose={() => { setShowMatchesModal(false); setHighlightMatchId(null); }}>
-            <View style={[s.modalOverlay, { justifyContent:'flex-end' }]}>
+        <Modal visible={showMatchesModal} animationType="slide" transparent onRequestClose={() => { setShowMatchesModal(false); setHighlightMatchId(null); }} android_keyboardInputMode="adjustNothing">
+            <View style={s.modalOverlay}>
+                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                 <View style={[s.modalBox, { maxHeight:'90%' }]}>
                     <View style={s.modalHeader}>
                         <Text style={s.modalTitle}>📋 Maçlar & Puan Tablosu</Text>
@@ -9034,6 +9045,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     <View style={{ height:16 }} />
                     </ScrollView>
                 </View>
+                </KeyboardAvoidingView>
             </View>
         </Modal>
 
