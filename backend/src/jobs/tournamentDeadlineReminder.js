@@ -223,14 +223,82 @@ async function advanceStuckDynamicRounds() {
     }
 }
 
+/** Play-off turu (çeyrek final/yarı final/final) rakipleri belli olunca (readyAt) turnuva
+ *  sahibine 3 günlük bir pencere tanınır — bu sürede kendi tarihini atayabilir (bkz.
+ *  assignPlayoffRoundDeadline). Sahibi 3 gün içinde atamazsa bu job devreye girer ve o
+ *  turun maçlarına otomatik olarak 7 günlük bir oynama süresi verir (readyAt + 3 gün + 7 gün). */
+async function autoAssignPlayoffDeadlines() {
+    try {
+        const graceExpired = new Date(Date.now() - 3 * 86400000);
+        const pending = await prisma.tournamentMatch.findMany({
+            where: { status: 'PENDING', phase: 'PLAYOFF', deadline: null, readyAt: { lt: graceExpired }, p1Id: { not: null }, p2Id: { not: null } },
+        });
+        if (pending.length === 0) return;
+
+        for (const match of pending) {
+            const deadline = new Date(match.readyAt.getTime() + 10 * 86400000); // 3 gün bekleme + 7 gün oynama süresi
+            await prisma.tournamentMatch.update({ where: { id: match.id }, data: { deadline } });
+        }
+        console.log(`[tournamentDeadlineReminder] Auto-assigned playoff deadline for ${pending.length} match(es)`);
+    } catch (err) {
+        console.error('[tournamentDeadlineReminder] autoAssignPlayoffDeadlines error:', err.message);
+    }
+}
+
+/** Play-off turu hazır olur olmaz (readyAt) turnuva sahibine tek seferlik bir bildirim
+ *  gönderir — "3 gün içinde bu tur için tarih atayabilirsin, atamazsan otomatik 7 gün verilir".
+ *  Dedupe, aynı (turnuva, tur) için son 4 gün içinde gönderilmiş bildirime bakılarak yapılır. */
+async function notifyCreatorPlayoffRoundReady() {
+    try {
+        const ready = await prisma.tournamentMatch.findMany({
+            where: { status: 'PENDING', phase: 'PLAYOFF', deadline: null, readyAt: { not: null }, p1Id: { not: null }, p2Id: { not: null } },
+        });
+        if (ready.length === 0) return;
+
+        const tournamentIds = [...new Set(ready.map(m => m.tournamentId))];
+        const tournaments = await prisma.tournament.findMany({ where: { id: { in: tournamentIds } } });
+        const tournamentMap = Object.fromEntries(tournaments.map(t => [t.id, t]));
+
+        const since = new Date(Date.now() - 4 * 86400000);
+        const sentNotifs = await prisma.notification.findMany({
+            where: { type: 'TOURNAMENT_PLAYOFF_ROUND_READY', createdAt: { gte: since } },
+            select: { data: true },
+        });
+        const sentKeys = new Set(sentNotifs.map(n => `${n.data?.tournamentId}|${n.data?.round}`));
+
+        const seen = new Set();
+        for (const match of ready) {
+            const key = `${match.tournamentId}|${match.round}`;
+            if (seen.has(key) || sentKeys.has(key)) continue;
+            seen.add(key);
+            const tournament = tournamentMap[match.tournamentId];
+            if (!tournament || tournament.status !== 'IN_PROGRESS') continue;
+
+            createNotification(
+                tournament.creatorId, 'TOURNAMENT_PLAYOFF_ROUND_READY',
+                '📅 Play-off Turu İçin Tarih Ata',
+                `${tournament.name}: yeni play-off turunun rakipleri belli oldu. 3 gün içinde bu tur için tarih atamazsan sistem otomatik olarak 7 günlük bir süre verecek.`,
+                { tournamentId: tournament.id, round: match.round, category: tournament.category, subCategory: tournament.subCategory }
+            ).catch(() => {});
+        }
+    } catch (err) {
+        console.error('[tournamentDeadlineReminder] notifyCreatorPlayoffRoundReady error:', err.message);
+    }
+}
+
 export function startTournamentDeadlineReminderJob() {
     checkAndNotifyUpcomingDeadlines();
     autoDrawExpiredMatches();
     advanceStuckDynamicRounds();
+    autoAssignPlayoffDeadlines();
+    notifyCreatorPlayoffRoundReady();
     setInterval(checkAndNotifyUpcomingDeadlines, 30 * 60 * 1000); // every 30 minutes
     setInterval(autoDrawExpiredMatches, 15 * 60 * 1000); // every 15 minutes
     setInterval(advanceStuckDynamicRounds, 15 * 60 * 1000); // every 15 minutes
+    setInterval(autoAssignPlayoffDeadlines, 30 * 60 * 1000); // every 30 minutes
+    setInterval(notifyCreatorPlayoffRoundReady, 30 * 60 * 1000); // every 30 minutes
     console.log('⏳ Tournament match deadline reminder job started (every 30 min)');
     console.log('🤝 Tournament match auto-draw job started (every 15 min)');
     console.log('🔓 Tournament stuck-round unblock job started (every 15 min)');
+    console.log('📅 Tournament playoff round auto-deadline job started (every 30 min)');
 }

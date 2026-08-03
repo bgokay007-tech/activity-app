@@ -937,6 +937,8 @@ model TournamentMatch {
   status             String    @default("PENDING") // PENDING | COMPLETED | BYE | FORFEIT
   winnerId           String?
   deadline           DateTime?
+  readyAt            DateTime? // PLAYOFF: iki taraf da belli olunca (kura/eleme anında) damgalanır — turnuva sahibine
+                                // yeni tur için tarih atamasi icin 3 gunluk sure buradan sayilir, atamazsa +7 gun otomatik verilir
   p1JokerRequested   Boolean   @default(false)
   p2JokerRequested   Boolean   @default(false)
   scoreEnteredBy     String?   // skoru giren kullanıcının id'si — kendi tarafı otomatik onaylanır

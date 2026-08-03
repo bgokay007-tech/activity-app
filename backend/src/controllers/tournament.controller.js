@@ -184,19 +184,18 @@ function singleElimMatches(players, tournamentId, startRound = 1, phase = 'PLAYO
     return all;
 }
 
-// Play-off maçları da grup turları gibi 7 gün süre alır — ama sonraki turların
-// (çeyrek final → yarı final → final) rakipleri kura anında belli olmadığı için
-// (TBD slot olarak oluşturulurlar), deadline ancak her iki taraf da atanıp maç
-// gerçekten OYNANABİLİR hale geldiğinde verilir (yoksa süre daha kimse belli
-// değilken işlemeye başlardı).
+// Play-off turunun rakipleri kura/eleme anında belli olur (sonraki turlar TBD slot
+// olarak oluşturulduğu için her iki taraf da atanıp maç gerçekten OYNANABİLİR hale
+// gelene kadar beklenir). Deadline HEMEN verilmez — turnuva sahibine bu tur için
+// kendi tarih aralığını atayabilmesi adına 3 günlük bir pencere tanınır (bkz.
+// assignPlayoffRoundDeadline / autoAssignPlayoffDeadlines'daki 3+7 günlük mantık);
+// bu yüzden burada sadece "hazır olma anı" damgalanır, deadline cron/creator atayana kadar boş kalır.
 async function markPlayoffMatchReadyDeadline(matchId) {
     const m = await prisma.tournamentMatch.findUnique({
-        where: { id: matchId }, select: { p1Id: true, p2Id: true, deadline: true, status: true },
+        where: { id: matchId }, select: { p1Id: true, p2Id: true, deadline: true, readyAt: true, status: true },
     });
-    if (m && m.status === 'PENDING' && m.p1Id && m.p2Id && !m.deadline) {
-        const deadline = new Date();
-        deadline.setDate(deadline.getDate() + 7);
-        await prisma.tournamentMatch.update({ where: { id: matchId }, data: { deadline } });
+    if (m && m.status === 'PENDING' && m.p1Id && m.p2Id && !m.deadline && !m.readyAt) {
+        await prisma.tournamentMatch.update({ where: { id: matchId }, data: { readyAt: new Date() } });
     }
 }
 
@@ -2141,11 +2140,13 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                     })()).sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
 
                 if (topPlayers.length >= 2) {
-                    // Round 1 (ilk play-off turu): rakipler kura anında belli, 7 gün süre hemen verilir.
-                    const round1Deadline = new Date();
-                    round1Deadline.setDate(round1Deadline.getDate() + 7);
+                    // Round 1 (ilk play-off turu, ör. çeyrek final): rakipler kura anında belli
+                    // olduğu için "hazır" sayılır — ama deadline hemen verilmez, turnuva sahibine
+                    // bu tur için kendi tarihini atayabilmesi adına 3 günlük pencere tanınır
+                    // (bkz. assignPlayoffRoundDeadline / autoAssignPlayoffDeadlines cron'u).
+                    const readyNow = new Date();
                     const playoffData = singleElimMatches(topPlayers, id, maxRound + 1, 'PLAYOFF')
-                        .map(m => m.round === maxRound + 1 ? { ...m, deadline: round1Deadline } : m);
+                        .map(m => m.round === maxRound + 1 ? { ...m, readyAt: readyNow } : m);
                     await prisma.tournamentMatch.createMany({ data: playoffData });
 
                     const playoffByes = await prisma.tournamentMatch.findMany({
@@ -2953,6 +2954,38 @@ export const assignCourtToMatch = async (req, res, next) => {
         });
 
         res.json(match);
+    } catch (e) { next(e); }
+};
+
+// Turnuva sahibi, play-off turunun (çeyrek final/yarı final/final) rakipleri belli olduktan
+// (readyAt damgalandıktan) sonra o tur için kendi tarihini/saatini atayabilir — bu, sistemin
+// otomatik verdiği 7 günlük süreyi (bkz. autoAssignPlayoffDeadlines cron'u, readyAt'ten 3 gün
+// sonra devreye girer) öne alır/değiştirir. Sadece rakipleri belli, henüz oynanmamış maçlara uygulanır.
+export const assignPlayoffRoundDeadline = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { round, deadlineDate, deadlineTime } = req.body;
+        if (!round || !deadlineDate) return res.status(400).json({ message: 'Tur ve tarih zorunludur' });
+
+        const tournament = await prisma.tournament.findUnique({ where: { id }, select: { creatorId: true } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Yalnızca turnuva sahibi bu tur için tarih atayabilir' });
+
+        const deadline = buildDateTime(deadlineDate, deadlineTime);
+        if (!deadline || deadline.getTime() <= Date.now()) return res.status(400).json({ message: 'Geçmiş veya geçersiz bir tarih seçilemez' });
+
+        const matches = await prisma.tournamentMatch.findMany({
+            where: { tournamentId: id, phase: 'PLAYOFF', round: parseInt(round, 10), status: 'PENDING', readyAt: { not: null } },
+            select: { id: true },
+        });
+        if (matches.length === 0) return res.status(400).json({ message: 'Bu tur için henüz atanacak maç yok (rakipler belli değil)' });
+
+        await prisma.tournamentMatch.updateMany({
+            where: { id: { in: matches.map(m => m.id) } },
+            data: { deadline },
+        });
+
+        res.json({ ok: true });
     } catch (e) { next(e); }
 };
 

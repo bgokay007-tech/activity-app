@@ -7554,6 +7554,34 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [scoreEntry, setScoreEntry] = useState(null);
     const [scoreSets, setScoreSets] = useState([]);
     const [submittingScore, setSubmittingScore] = useState(false);
+    // Play-off turu (çeyrek/yarı final/final) rakipleri belli olup henüz tarih atanmadığında
+    // turnuva sahibinin kendi tarihini atayabilmesi için — atamazsa 3 gün sonra sistem otomatik
+    // 7 günlük süre veriyor (bkz. backend autoAssignPlayoffDeadlines).
+    const [playoffDeadlineRound, setPlayoffDeadlineRound] = useState(null); // null | round (int)
+    const [playoffDeadlineDate, setPlayoffDeadlineDate] = useState(null);
+    const [playoffDeadlineTime, setPlayoffDeadlineTime] = useState('');
+    const [showPlayoffDatePicker, setShowPlayoffDatePicker] = useState(false);
+    const [showPlayoffTimePicker, setShowPlayoffTimePicker] = useState(false);
+    const [savingPlayoffDeadline, setSavingPlayoffDeadline] = useState(false);
+
+    const submitPlayoffRoundDeadline = async () => {
+        if (!playoffDeadlineDate) { Alert.alert('', 'Tarih seçin.'); return; }
+        setSavingPlayoffDeadline(true);
+        try {
+            const y = playoffDeadlineDate.getFullYear(), m = String(playoffDeadlineDate.getMonth()+1).padStart(2,'0'), d = String(playoffDeadlineDate.getDate()).padStart(2,'0');
+            await api.patch(`/tournaments/${item.id}/playoff-round-deadline`, {
+                round: playoffDeadlineRound,
+                deadlineDate: `${y}-${m}-${d}`,
+                deadlineTime: playoffDeadlineTime || undefined,
+            });
+            await fetchMatches();
+            setPlayoffDeadlineRound(null);
+            setPlayoffDeadlineDate(null);
+            setPlayoffDeadlineTime('');
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setSavingPlayoffDeadline(false); }
+    };
 
     // Turnuva grup sohbeti — sahip + AS/yedek onaylanmış katılımcılar
     const [showChatModal, setShowChatModal] = useState(false);
@@ -8770,6 +8798,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             })}
                                         </View>
                                     </ScrollView>
+                                    {isCreator && activePhase === 'PLAYOFF' && !roundRanges[activeKey] && rMatches.some(m => m.readyAt) && (
+                                        <TouchableOpacity onPress={() => setPlayoffDeadlineRound(activeRound)}
+                                            style={{ backgroundColor:'#7c3aed20', borderRadius:8, borderWidth:1, borderColor:'#7c3aed50', padding:8, marginBottom:8, flexDirection:'row', alignItems:'center', gap:6 }}>
+                                            <Text style={{ color:'#c4b5fd', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={2}>
+                                                📅 {getRoundLabel(activeRound, activePhase)} için tarih atanmadı — 3 gün içinde atamazsan sistem otomatik 7 gün verir
+                                            </Text>
+                                            <Text style={{ color:'#c4b5fd', fontSize:11, fontWeight:'900' }}>Tarih Ata ›</Text>
+                                        </TouchableOpacity>
+                                    )}
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                         {rMatches.map(match => {
                                             const isBye = match.status === 'BYE';
@@ -9048,6 +9085,55 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 </KeyboardAvoidingView>
             </View>
         </Modal>
+
+            {/* Play-off turu için tarih atama */}
+            <Modal visible={playoffDeadlineRound != null} animationType="slide" transparent onRequestClose={() => setPlayoffDeadlineRound(null)} android_keyboardInputMode="adjustNothing">
+                <View style={s.modalOverlay}>
+                    <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
+                        <View style={s.modalBox}>
+                            <View style={s.modalHeader}>
+                                <Text style={s.modalTitle}>📅 Play-off Turu İçin Tarih Ata</Text>
+                                <TouchableOpacity onPress={() => setPlayoffDeadlineRound(null)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+                            </View>
+                            <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:14, lineHeight:18 }}>
+                                Bu turdaki maçların oynanması için son tarih ve saati seçin. 3 gün içinde atamazsanız sistem otomatik olarak 7 günlük bir süre verir.
+                            </Text>
+                            <View style={{ flexDirection:'row', gap:6, marginBottom:16 }}>
+                                <TouchableOpacity onPress={() => setShowPlayoffDatePicker(true)}
+                                    style={[s.triBtn, playoffDeadlineDate && s.triBtnFilled, { flex:1 }]}>
+                                    <Text style={s.triLabel}>{t.dateLabel}</Text>
+                                    <Text style={[s.triValue, !playoffDeadlineDate && s.triPlaceholder]}>
+                                        {playoffDeadlineDate ? playoffDeadlineDate.toLocaleDateString('tr-TR') : '—'}
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => setShowPlayoffTimePicker(true)}
+                                    style={[s.triBtn, playoffDeadlineTime && s.triBtnFilled, { flex:1 }]}>
+                                    <Text style={s.triLabel}>{t.timeLabel}</Text>
+                                    <Text style={[s.triValue, !playoffDeadlineTime && s.triPlaceholder]}>{playoffDeadlineTime || '—'}</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <TouchableOpacity
+                                style={[s.submitBtn, savingPlayoffDeadline && { opacity:0.6 }]}
+                                onPress={submitPlayoffRoundDeadline} disabled={savingPlayoffDeadline}>
+                                <Text style={s.submitBtnText}>{savingPlayoffDeadline ? t.submittingBtn : '✓ Onayla'}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </KeyboardAvoidingView>
+                </View>
+                <CalendarPickerModal
+                    visible={showPlayoffDatePicker}
+                    value={playoffDeadlineDate}
+                    onSelect={(date) => { setPlayoffDeadlineDate(date); setShowPlayoffDatePicker(false); }}
+                    onClose={() => setShowPlayoffDatePicker(false)}
+                />
+                <TimePickerModal
+                    visible={showPlayoffTimePicker}
+                    title={t.timeLabel}
+                    value={playoffDeadlineTime}
+                    onSelect={(v) => { setPlayoffDeadlineTime(v); setShowPlayoffTimePicker(false); }}
+                    onClose={() => setShowPlayoffTimePicker(false)}
+                />
+            </Modal>
 
             {/* Full Edit Modal */}
             <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
