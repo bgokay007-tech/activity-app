@@ -158,7 +158,9 @@ export default function VolleyballRatingModal({ visible, subjectId, onClose }) {
                                         </View>
                                     )}
 
-                                    {data.myRole ? (
+                                    {data.myRole === 'SELF' ? (
+                                        <Text style={s.notEligibleText}>{t.volleyballRatingSelfHint}</Text>
+                                    ) : data.myRole ? (
                                         <>
                                             {CATEGORIES.map(cat => (
                                                 <View key={cat.key} style={s.categoryBox}>

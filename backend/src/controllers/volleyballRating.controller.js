@@ -43,6 +43,10 @@ export const submitVolleyballRating = async (req, res, next) => {
 
         const role = await resolveRaterRole(raterId, subjectId);
         if (!role) return res.status(403).json({ message: 'Bu oyuncuyu voleybolda değerlendiremezsiniz.' });
+        // Kendi anketi artık ilgi alanı değerlendirmesi (AssessmentModal) üzerinden doldurulur
+        // ve VolleyballRating SELF kaydını oradan besler — bkz. interest.controller.js saveAssessment.
+        if (role === 'SELF')
+            return res.status(400).json({ message: 'Kendi anketini ilgi alanların bölümünden voleybolü yeniden değerlendirerek doldurabilirsin.' });
 
         const scores = {};
         for (const field of QUESTION_FIELDS) {

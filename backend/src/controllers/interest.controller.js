@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
-import { getQuestions, calculateLevel, calculateVolleyballScore, getVolleyballHoneypotPublic, VOLLEYBALL_HONEYPOT } from '../config/assessments.js';
+import { getQuestions, calculateLevel } from '../config/assessments.js';
 import { getRelation, canAccess } from '../utils/privacy.js';
+import { QUESTION_FIELDS } from '../utils/volleyballRating.js';
 
 // Kategorilerin alt dalları
 export const SUBCATEGORIES = {
@@ -30,6 +31,7 @@ export const SUBCATEGORIES = {
         { id: 'fitness_gym', name: 'Fitness & Gym', emoji: '🏋️' },
         { id: 'skiing_snowboard', name: 'Skiing & Snowboard', emoji: '⛷️' },
         { id: 'ice_skating', name: 'Ice Skating', emoji: '⛸️' },
+        { id: 'ice_hockey', name: 'Ice Hockey', emoji: '🏒' },
         { id: 'hiking', name: 'Hiking', emoji: '🥾' },
         { id: 'camping', name: 'Camping', emoji: '🏕️' },
         { id: 'motorcycle', name: 'Motorcycle Riding', emoji: '🏍️' },
@@ -280,10 +282,7 @@ export const getAssessmentQuestions = async (req, res) => {
     const questions = getQuestions(key, lang || 'en');
     const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
 
-    // Voleybol: takip (honeypot) sorusu ayrı gönderilir, dogru cevap client'a gitmez
-    const honeypot = subCategory === 'volleyball' ? getVolleyballHoneypotPublic(lang || 'en') : undefined;
-
-    res.json({ subCategory, position: position || null, questions, maxScore, ...(honeypot ? { honeypot } : {}) });
+    res.json({ subCategory, position: position || null, questions, maxScore });
 };
 
 // Assessment sonucunu kaydet → level ve initialPoints güncelle
@@ -296,20 +295,30 @@ export const saveAssessment = async (req, res, next) => {
         if (!interest || interest.userId !== req.userId)
             return res.status(403).json({ message: 'Forbidden' });
 
-        // Voleybol: agirlikli kategori puanlamasi (calculateLevel'dan bagimsiz, bkz. assessments.js)
+        // Voleybol: 11 soru genel getQuestions()/calculateLevel() akışından geçiyor (aynı
+        // 35/35/30 kategori ağırlıkları QUESTIONS.volleyball'daki soru başı max'larla zaten
+        // gömülü, bkz. assessments.js). Ayrıca aynı cevaplardan VolleyballRating'in SELF
+        // kaydı (derece puanının %40'lık payı) da burada güncelleniyor.
         if (interest.subCategory === 'volleyball') {
-            const answersMap = {};
-            let honeypotOptionIndex = null;
-            for (const a of answers) {
-                if (a.questionId === VOLLEYBALL_HONEYPOT.id) honeypotOptionIndex = a.optionIndex;
-                else answersMap[a.questionId] = a.optionIndex;
-            }
-            const { level, skillRating, totalPoints } = calculateVolleyballScore(answersMap, honeypotOptionIndex);
+            const questions = getQuestions('volleyball');
+            const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
+            const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);
+            const { level, skillRating, totalPoints } = calculateLevel(totalScore, maxScore);
 
             const updated = await prisma.userInterest.update({
                 where: { id },
                 data: { level, skillRating, totalPoints, assessmentCompleted: true, matchesSinceAssessment: 0 },
             });
+
+            const scores = {};
+            for (const a of answers) scores[a.questionId] = (a.optionIndex ?? -1) + 1; // seçenekler 1-5, index 0-4
+            if (QUESTION_FIELDS.every(f => Number.isInteger(scores[f]) && scores[f] >= 1 && scores[f] <= 5)) {
+                await prisma.volleyballRating.upsert({
+                    where: { subjectId_raterId: { subjectId: req.userId, raterId: req.userId } },
+                    create: { subjectId: req.userId, raterId: req.userId, raterRole: 'SELF', ...scores },
+                    update: { raterRole: 'SELF', ...scores },
+                });
+            }
 
             return res.json({ interest: updated, level, skillRating, totalPoints });
         }
