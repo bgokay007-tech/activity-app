@@ -115,7 +115,7 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
 
     // ── Render ──
     return (
-        <Modal visible={!!visible} animationType="slide" transparent onRequestClose={mandatory ? undefined : onClose}>
+        <Modal visible={!!visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={s.overlay}>
                 <View style={s.box}>
                     {/* Header */}
@@ -129,9 +129,7 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
                                 <Text style={s.subtitle}>{t.questionCounter(current + 1, questions.length)}</Text>
                             )}
                         </View>
-                        {!mandatory && (
-                            <TouchableOpacity onPress={onClose}><Text style={s.close}>✕</Text></TouchableOpacity>
-                        )}
+                        <TouchableOpacity onPress={onClose}><Text style={s.close}>✕</Text></TouchableOpacity>
                     </View>
 
                     {/* Progress bar */}

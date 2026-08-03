@@ -780,6 +780,10 @@ const en = {
     hideInsteadTitle: 'Branch Cannot Be Deleted',
     hideInsteadMsg: 'You have played matches in this branch, so it cannot be fully deleted (to prevent losing your rating/history). You can hide it instead — your rating comes back exactly as it was if you add it again.',
     hideBtn: 'Hide',
+    assessCancelTitle: 'Cancel Assessment',
+    assessCancelMsg: "If you don't complete the assessment, this branch will be removed from your activities. Are you sure you want to cancel?",
+    assessKeepGoingBtn: 'Keep Going',
+    assessGiveUpBtn: 'Give Up',
 
     // Assessment modal
     assessmentTitle: name => `${name} Assessment`,
@@ -1939,6 +1943,10 @@ const tr = {
     hideInsteadTitle: 'Branş Silinemez',
     hideInsteadMsg: 'Bu branşta maç oynadınız, puan/geçmişiniz kaybolmasın diye tamamen silinemez. Bunun yerine gizleyebilirsiniz — tekrar eklediğinizde puanınız aynen geri gelir.',
     hideBtn: 'Gizle',
+    assessCancelTitle: 'Anketten Vazgeç',
+    assessCancelMsg: 'Anketi tamamlamazsan bu dal aktivitelerinden kaldırılacak. Vazgeçmek istediğine emin misin?',
+    assessKeepGoingBtn: 'Devam Et',
+    assessGiveUpBtn: 'Vazgeç',
 
     // Assessment modal
     assessmentTitle: name => `${name} Değerlendirmesi`,

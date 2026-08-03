@@ -76,7 +76,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
             } else if (!data.assessmentCompleted) {
                 // Daha once gizlenmis (ama 3+ mac gecmisi oldugu icin silinmemis) bir brans
                 // tekrar eklendiyse anketi tekrar acmiyoruz - puan/gecmis zaten korunuyor.
-                setAssessTarget({ interestId: data.id, subCategory, mandatory: RATING_REQUIRED_SUBS.has(subCategory) });
+                setAssessTarget({ interestId: data.id, subCategory, category, mandatory: RATING_REQUIRED_SUBS.has(subCategory) });
             }
         } catch (e) { console.error(e); }
         finally { setLoadingId(null); }
@@ -251,7 +251,24 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                 subCategory={assessTarget?.subCategory}
                 lang={lang}
                 mandatory={!!assessTarget?.mandatory}
-                onClose={() => { if (!assessTarget?.mandatory) setAssessTarget(null); }}
+                onClose={() => {
+                    if (!assessTarget?.mandatory) { setAssessTarget(null); return; }
+                    // Zorunlu ankette vazgeçilirse yarım kalan (puansız) aktivite de geri
+                    // alınır — aksi halde kullanıcı "Aktivitelerim"de sonsuza dek anketsiz,
+                    // ilan açamayacağı bir dal görüp kafası karışırdı.
+                    const target = assessTarget;
+                    Alert.alert(
+                        t.assessCancelTitle || 'Anketten Vazgeç',
+                        t.assessCancelMsg || 'Anketi tamamlamazsan bu dal aktivitelerinden kaldırılacak. Vazgeçmek istediğine emin misin?',
+                        [
+                            { text: t.assessKeepGoingBtn || 'Devam Et', style: 'cancel' },
+                            { text: t.assessGiveUpBtn || 'Vazgeç', style: 'destructive', onPress: () => {
+                                setAssessTarget(null);
+                                doRemove(target.interestId, target.category, target.subCategory);
+                            }},
+                        ]
+                    );
+                }}
                 onComplete={handleAssessComplete}
             />
 
