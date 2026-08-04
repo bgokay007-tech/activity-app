@@ -37,7 +37,7 @@ export const SUBCATEGORIES = {
         { id: 'camping', name: 'Camping', emoji: '🏕️' },
         { id: 'motorcycle', name: 'Motorcycle Riding', emoji: '🏍️' },
         { id: 'extreme_sports', name: 'Extreme Sports', emoji: '🪂' },
-        { id: 'paintball', name: 'Paintball', emoji: '🎯' },
+        { id: 'paintball', name: 'Paintball', emoji: '🔫' },
         { id: 'airsoft', name: 'Airsoft', emoji: '🪖' },
     ],
     ARTS: [

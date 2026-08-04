@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import {
     Modal, View, Text, TouchableOpacity, StyleSheet,
-    ScrollView, ActivityIndicator, Alert,
+    ScrollView, ActivityIndicator, Alert, Image,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import api from '../services/api';
@@ -10,6 +10,12 @@ import AssessmentModal from './AssessmentModal';
 import FriendFindingSurveyModal from './FriendFindingSurveyModal';
 import { getSubCategoryLabel } from '../utils/subCategoryLabels';
 import useT from '../hooks/useT';
+
+// Padel, table tennis ile aynı 🏓 emojisini paylaşıyor — Sports ekranındaki (CategoryScreen)
+// ayrım için kullanılan özel logo burada da aynı görünsün diye reuse ediliyor.
+const SUB_IMAGES = {
+    padel: require('../../assets/padel.png'),
+};
 
 const ENABLED_SUBS = new Set([
     'tennis', 'padel', 'volleyball', 'friend_finding', 'sanal_alem',
@@ -188,7 +194,11 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
 
                                     return (
                                         <View key={sub.id} style={[s.subRow, !enabled && { opacity: 0.5 }]}>
-                                            <Text style={s.subEmoji}>{sub.emoji || '🏅'}</Text>
+                                            {SUB_IMAGES[sub.id] ? (
+                                                <Image source={SUB_IMAGES[sub.id]} style={s.subEmojiImage} resizeMode="contain" />
+                                            ) : (
+                                                <Text style={s.subEmoji}>{sub.emoji || '🏅'}</Text>
+                                            )}
                                             <View style={{ flex: 1 }}>
                                                 <Text style={s.subName}>{getSubCategoryLabel(sub.id, lang)}</Text>
                                                 {existing?.assessmentCompleted && (
@@ -299,6 +309,7 @@ const s = StyleSheet.create({
 
     subRow:         { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface2, borderRadius: 14, padding: 11, gap: 3, borderWidth: 1, borderColor: colors.border },
     subEmoji:       { fontSize: 24 },
+    subEmojiImage:  { width: 26, height: 26 },
     subName:        { color: '#fff', fontSize: 14, fontWeight: '700' },
     subRating:      { fontSize: 12, fontWeight: '700', marginTop: 2 },
 
