@@ -6063,6 +6063,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         setInviteTarget('referee');
         setRefereeNameSuggestions([]);
         set('manualRefereeName', '');
+        if (!f.refereeRequested) set('refereeRequested', true);
     };
     // İki sekme: Arkadaşlarım (önceden yüklenen liste) | Tüm Oyuncular (bu sporda ilgi kaydı
     // olan herkes, yazdıkça sunucudan "başlayanlar" filtresiyle canlı daralır).
@@ -7672,28 +7673,29 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 {noEmoji(t.requestRefereeBtn)}
                                             </Text>
                                         </TouchableOpacity>
-                                        {f.refereeRequested && (
-                                            <View style={{ flex:1, position:'relative' }}>
-                                                <TextInput
-                                                    style={{ height: moderateScale(28), backgroundColor: colors.surface2, borderRadius: moderateScale(8), paddingHorizontal:8, paddingVertical:0, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:12, textAlignVertical:'center' }}
-                                                    value={f.manualRefereeName}
-                                                    onChangeText={v => set('manualRefereeName', v)}
-                                                    placeholder={t.refereeNamePh}
-                                                    placeholderTextColor={colors.textMuted}
-                                                />
-                                                {refereeNameSuggestions.length > 0 && (
-                                                    <View style={{ position:'absolute', top: moderateScale(30), left:0, right:0, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, zIndex:20, elevation:6 }}>
-                                                        {refereeNameSuggestions.map(u => (
-                                                            <TouchableOpacity key={u.id} onPress={() => pickRefereeSuggestion(u)}
-                                                                style={{ flexDirection:'row', alignItems:'center', gap:6, padding:7, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                                                                <Avatar name={u.username} avatar={u.avatar} size={22} color={cfg.color} />
-                                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }} numberOfLines={1}>{u.fullName || u.username}</Text>
-                                                            </TouchableOpacity>
-                                                        ))}
-                                                    </View>
-                                                )}
-                                            </View>
-                                        )}
+                                        {/* Metin kutusu artık "Hakem Talep Et"e basmayı beklemeden hep görünür —
+                                            kullanıcı isimi yazınca refereeRequested örtük olarak açılır, ayrıca
+                                            butona basmaya gerek kalmaz (kullanıcı defalarca bunu istedi). */}
+                                        <View style={{ flex:1, position:'relative' }}>
+                                            <TextInput
+                                                style={{ height: moderateScale(28), backgroundColor: colors.surface2, borderRadius: moderateScale(8), paddingHorizontal:8, paddingVertical:0, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:12, textAlignVertical:'center' }}
+                                                value={f.manualRefereeName}
+                                                onChangeText={v => { set('manualRefereeName', v); if (v.trim() && !f.refereeRequested) set('refereeRequested', true); }}
+                                                placeholder={t.refereeNamePh}
+                                                placeholderTextColor={colors.textMuted}
+                                            />
+                                            {refereeNameSuggestions.length > 0 && (
+                                                <View style={{ position:'absolute', top: moderateScale(30), left:0, right:0, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, zIndex:20, elevation:6 }}>
+                                                    {refereeNameSuggestions.map(u => (
+                                                        <TouchableOpacity key={u.id} onPress={() => pickRefereeSuggestion(u)}
+                                                            style={{ flexDirection:'row', alignItems:'center', gap:6, padding:7, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                                            <Avatar name={u.username} avatar={u.avatar} size={22} color={cfg.color} />
+                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }} numberOfLines={1}>{u.fullName || u.username}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            )}
+                                        </View>
                                     </View>
                                     {f.refereeRequested && (
                                         <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom: f.refereeInvites.length > 0 ? 6 : 10 }}>
