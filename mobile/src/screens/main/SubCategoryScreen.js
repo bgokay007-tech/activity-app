@@ -6693,7 +6693,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         <>
                                             <View style={{ flexDirection:'row', gap:4, marginBottom:6 }}>
                                                 <View style={{ flex:1 }}>
-                                                    <TextInput style={[s.fieldInput, { paddingVertical:6, paddingHorizontal:7, fontSize:12, marginBottom:0 }]}
+                                                    <TextInput style={[s.fieldInput, s.compactLocInput]}
                                                         value={f.manualCity}
                                                         onChangeText={searchManualProvince}
                                                         placeholder={t.provinceLabel} placeholderTextColor={colors.textMuted} />
@@ -6709,7 +6709,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     )}
                                                 </View>
                                                 <View style={{ flex:1 }}>
-                                                    <TextInput style={[s.fieldInput, { paddingVertical:6, paddingHorizontal:7, fontSize:12, marginBottom:0 }]}
+                                                    <TextInput style={[s.fieldInput, s.compactLocInput]}
                                                         value={f.manualDistrict}
                                                         onChangeText={searchManualDistrict}
                                                         placeholder={t.manualDistrictLabel} placeholderTextColor={colors.textMuted} />
@@ -6725,7 +6725,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     )}
                                                 </View>
                                                 <View style={{ flex:1.3 }}>
-                                                    <TextInput style={[s.fieldInput, { paddingVertical:6, paddingHorizontal:7, fontSize:12, marginBottom:0 }]}
+                                                    <TextInput style={[s.fieldInput, s.compactLocInput]}
                                                         value={f.courtSearchText}
                                                         onChangeText={(v) => { searchCourts(v); set('manualCourtName', v); }}
                                                         placeholder={t.locationNameLabel} placeholderTextColor={colors.textMuted} />
@@ -6740,7 +6740,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     )}
                                                 </View>
                                             </View>
-                                            <TextInput style={[s.fieldInput, { height:54, textAlignVertical:'top', marginBottom:4, fontSize:12, paddingVertical:6 }]}
+                                            <TextInput style={[s.fieldInput, { height:40, textAlignVertical:'top', marginBottom:4, fontSize:11, paddingVertical:6, paddingHorizontal:8, borderRadius:8 }]}
                                                 value={f.manualAddress}
                                                 onChangeText={v => set('manualAddress', v)}
                                                 placeholder={t.manualAddressLabel} placeholderTextColor={colors.textMuted} multiline />
@@ -7180,8 +7180,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <Text style={s.triLabel}>{t.durationFieldLabel}</Text>
                                             <Text style={[s.triValue, !f.duration && s.triPlaceholder]}>{f.duration ? `${f.duration}${t.minuteSuffix}` : '—'}</Text>
                                         </TouchableOpacity>
-                                        {/* Tahmini Kişi Başı Kort Ücreti — kort seçilince Süre'nin sağına sıkıştırılmış olarak çıkar */}
-                                        {!f.courtMutual && (f.selectedCourt || f.courtSearchText.length >= 2 || (f.showManualCourt && f.manualCourtName)) && (
+                                        {/* Tahmini Kişi Başı Kort Ücreti — kort seçilince Süre'nin sağına sıkıştırılmış olarak çıkar.
+                                            SIMPLIFIED_FEE_SUBS'da kort yok, Mekan Adı'na yazılan metin courtSearchText'i de
+                                            dolduruyor (arama için) — bu yüzden burada ayrıca hariç tutulmazsa Mekan Adı'na
+                                            2+ harf yazılır yazılmaz bu eski alan yanlışlıkla beliriyordu; asıl Ücret bölümü
+                                            formun altında ayrı gösteriliyor. */}
+                                        {!SIMPLIFIED_FEE_SUBS.has(sub) && !f.courtMutual && (f.selectedCourt || f.courtSearchText.length >= 2 || (f.showManualCourt && f.manualCourtName)) && (
                                             <View style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }]}>
                                                 <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.courtFeeShortLabel}</Text>
                                                 <TextInput
@@ -17646,6 +17650,7 @@ const s = StyleSheet.create({
     fieldLabelRed:    { color: '#ef4444', fontSize:12, fontWeight:'700', marginBottom:6 },
     fieldHint:        { color: colors.textMuted, fontSize:10, marginBottom:8 },
     fieldInput:       { backgroundColor: colors.surface2, color:'#fff', borderRadius:12, paddingHorizontal:11, paddingVertical:9, borderWidth:1, borderColor: colors.border, fontSize:14, marginBottom:14 },
+    compactLocInput:  { height:32, paddingVertical:0, paddingHorizontal:7, fontSize:11, marginBottom:0, borderRadius:8 },
     chipRow:          { flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:14 },
     chipBtn:          { paddingHorizontal:7, paddingVertical:3, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
     chipBtnActive:    { backgroundColor: colors.purple, borderColor: colors.purple },
