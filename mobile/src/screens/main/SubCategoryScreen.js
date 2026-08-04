@@ -63,21 +63,16 @@ const FOOTBALL_SURFACES = [
     { id: 'BEACH',     label: 'Plaj',      emoji: '🏖️' },
     { id: 'BALON',     label: 'Balon',     emoji: '🎈' },
 ];
+// Voleybolde bu alan "zemin" değil, dalın türünü (salon/plaj voleybolu) seçtiriyor.
 const VOLLEYBALL_SURFACES = [
-    { id: 'INDOOR', label: 'Salon',   emoji: '🏟️' },
-    { id: 'BEACH',  label: 'Plaj',    emoji: '🏖️' },
-    { id: 'GRASS',  label: 'Çim',     emoji: '🌿' },
-    { id: 'STREET', label: 'Mahalle', emoji: '🏘️' },
-    { id: 'CLAY',   label: 'Toprak',  emoji: '🟤' },
+    { id: 'INDOOR', label: 'Salon Voleybolu', emoji: '🏟️' },
+    { id: 'BEACH',  label: 'Plaj Voleybolu',  emoji: '🏖️' },
 ];
-// Zemin seçimine göre alan etiketi + arama placeholder'ı ("Voleybol Salonu ara..." /
+// Tür seçimine göre alan etiketi + arama placeholder'ı ("Voleybol Salonu ara..." /
 // "Plaj Sahası ara..." gibi) — VOLLEYBALL_SURFACES'teki id'lerle birebir eşleşir.
 const VOLLEYBALL_VENUE_NOUN = {
     INDOOR: { tr: 'Voleybol Salonu', en: 'Volleyball Hall' },
     BEACH:  { tr: 'Plaj Sahası',     en: 'Beach Court' },
-    GRASS:  { tr: 'Çim Saha',        en: 'Grass Court' },
-    STREET: { tr: 'Mahalle Sahası',  en: 'Street Court' },
-    CLAY:   { tr: 'Toprak Saha',     en: 'Clay Court' },
 };
 const FOOTBALL_SIZES = [2,3,4,5,6,7,8,9,10,11];
 const VOLLEYBALL_SIZES = [1,2,3,4,5,6];
@@ -6509,7 +6504,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         return (
                                             <View style={{ flexDirection:'row', gap:8 }}>
                                                 <View style={{ flex:1 }}>
-                                                    <Text style={s.fieldLabel}>{t.surfaceLabel}</Text>
+                                                    <Text style={s.fieldLabel}>{t.volleyballTypeLabel}</Text>
                                                     <TouchableOpacity
                                                         style={[s.fieldInput, { marginBottom:0, paddingVertical:8, justifyContent:'center' }]}
                                                         onPress={() => setShowSurfacePicker(true)}
