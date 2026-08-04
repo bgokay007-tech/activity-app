@@ -3480,8 +3480,10 @@ export const cancelRequest = async (req, res, next) => {
 // tamamını) listeden çıkarır — ilan tekrar OPEN'a döner, çıkarılan oyuncu(lar)a bildirim gider.
 // DOUBLE maçlarda Yaklaşan Maçlar kartındaki iki takıma (kurucu: ilan sahibi+partner,
 // rakip: opp1+opp2) isteğe bağlı özel bir isim verilebilir — set edilirse "İlan Sahibi"/
-// "Katılımcı N" yerine "{isim} 1" / "{isim} 2" gösterilir. Kurucu tarafı ilan sahibi veya
-// partner, rakip tarafı ilan sahibi veya opp1/opp2'den biri değiştirebilir.
+// "Katılımcı N" yerine "{isim} 1" / "{isim} 2" gösterilir. Voleybolde (değişken boyutlu
+// takım, 1v1-6v6) de aynı alan TeamRosterCard'ın arka yüzünde kullanılır. Kurucu tarafı
+// ilan sahibi veya partner/takım arkadaşı, rakip tarafı ilan sahibi veya katılımcılardan
+// biri değiştirebilir.
 export const setTeamName = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -3490,7 +3492,11 @@ export const setTeamName = async (req, res, next) => {
 
         const rival = await prisma.activityRequest.findUnique({ where: { id } });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
-        if (rival.matchType !== 'DOUBLE') return res.status(400).json({ message: 'Sadece çiftler maçında takım ismi ayarlanabilir' });
+        // Çiftler (DOUBLE) maçı dışında, voleybolde değişken boyutlu takım (1v1-6v6) için de
+        // takım ismi ayarlanabilir — bkz. TeamRosterCard (SubCategoryScreen.js).
+        const isVolleyballTeam = rival.subCategory === 'volleyball' && (rival.teamSize || 1) > 1;
+        if (rival.matchType !== 'DOUBLE' && !isVolleyballTeam)
+            return res.status(400).json({ message: 'Sadece çiftler veya takım maçında takım ismi ayarlanabilir' });
 
         const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
