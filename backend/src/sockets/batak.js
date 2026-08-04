@@ -14,6 +14,7 @@ const SUITS = ['S', 'H', 'D', 'C'];
 const TOTAL_ROUNDS = 8;
 const BOT_DELAY_MS = 2500;      // gerçek oyuncu koptuğunda devreye giren yedek bot gecikmesi
 const BOT_TURN_DELAY_MS = 1200; // "botlarla oyna" masasındaki botların doğal tempoda oynaması için
+const START_COUNTDOWN_MS = 5000; // masa 4 kişi dolduğunda ilk el dağıtılmadan önceki geri sayım
 const BOT_NAMES = { easy: 'Kolay', medium: 'Orta', hard: 'Zor' };
 
 const tables = new Map();       // tableId -> table state
@@ -184,16 +185,20 @@ function publicState(table) {
         listed: !!table.listed,
         spectatorOpen: !!table.spectatorOpen,
         isTeamGame: !!table.isTeamGame,
+        startsAt: table.startsAt || null,
         seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar || null, seat: s.seat, connected: s.connected, isBot: !!s.isBot, open: !!s.open, handCount: table.hands[s.seat]?.length ?? 0 })),
         dealerIndex: table.dealerIndex,
         turn: table.phase === 'bidding' ? table.biddingTurn : table.phase === 'playing' ? table.turn : null,
-        bids: table.passed.map((p, s) => (p ? 'PASS' : (s === table.highestBidder ? table.highestBid : null))),
-        highestBid: table.highestBid,
-        highestBidder: table.highestBidder,
-        trumpSuit: table.trumpSuit,
-        trick: table.trick,
-        leadSuit: table.leadSuit,
-        tricksWon: table.tricksWon,
+        // 'starting' fazındaki masalarda dealRound henüz hiç çalışmamış olabilir (5sn
+        // geri sayım bitmeden ilk el dağıtılmıyor) — bu alanlar o ana kadar tanımsız,
+        // bu yüzden burada güvenli varsayılanlarla korunuyor.
+        bids: (table.passed || [false, false, false, false]).map((p, s) => (p ? 'PASS' : (s === table.highestBidder ? table.highestBid : null))),
+        highestBid: table.highestBid ?? 0,
+        highestBidder: table.highestBidder ?? null,
+        trumpSuit: table.trumpSuit ?? null,
+        trick: table.trick || [],
+        leadSuit: table.leadSuit ?? null,
+        tricksWon: table.tricksWon || [0, 0, 0, 0],
         scores: table.scores,
         roundNumber: table.roundNumber,
         totalRounds: TOTAL_ROUNDS,
@@ -314,6 +319,32 @@ function chooseBotCard(table, seat, difficulty) {
 
 function clearBotTimer(table) {
     if (table.botTimer) { clearTimeout(table.botTimer); table.botTimer = null; }
+}
+
+function clearStartTimer(table) {
+    if (table.startTimer) { clearTimeout(table.startTimer); table.startTimer = null; }
+}
+
+// Masa 4. koltuğu dolar dolmaz ilk el hemen dağıtılmıyor — 5 saniyelik bir
+// "starting" fazına giriliyor ki oyuncular masadan ayrılmaya fırsat bulsun ve
+// istemci net bir geri sayım gösterebilsin. Süre dolunca dealRound çağrılıp
+// batak:gameStarting yayınlanıyor (istemci burada titreşim/bildirim tetikler).
+function beginStartCountdown(io, table) {
+    table.phase = 'starting';
+    table.startsAt = Date.now() + START_COUNTDOWN_MS;
+    broadcastState(io, table);
+    clearStartTimer(table);
+    table.startTimer = setTimeout(() => {
+        table.startTimer = null;
+        if (!tables.has(table.id)) return;
+        table.startsAt = null;
+        dealRound(table);
+        io.to(`batak:${table.id}`).emit('batak:gameStarting', { tableId: table.id });
+        broadcastState(io, table);
+        sendAllHands(io, table);
+        scheduleBotIfNeeded(io, table);
+        chargeStakes(table);
+    }, START_COUNTDOWN_MS);
 }
 
 function scheduleBotIfNeeded(io, table) {
@@ -480,6 +511,7 @@ function destroyTable(tableId) {
     const table = tables.get(tableId);
     if (!table) return;
     clearBotTimer(table);
+    clearStartTimer(table);
     table.seats.forEach(s => { if (s.userId) userTableMap.delete(s.userId); });
     if (table.code) codeToTableId.delete(table.code);
     tables.delete(tableId);
@@ -505,15 +537,11 @@ function createTable(io, players, betAmount, ratingAmount) {
         userTableMap.set(p.userId, id);
         p.socket.join(`batak:${id}`);
     });
-    dealRound(table);
     io.to(`batak:${id}`).emit('batak:matched', {
         tableId: id,
         seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar, seat: s.seat, isBot: false })),
     });
-    broadcastState(io, table);
-    sendAllHands(io, table);
-    scheduleBotIfNeeded(io, table);
-    chargeStakes(table);
+    beginStartCountdown(io, table);
     return table;
 }
 
@@ -630,11 +658,7 @@ function joinTableCore(io, joiner, table) {
     });
 
     if (!table.seats.some(s => s.open)) {
-        dealRound(table);
-        broadcastState(io, table);
-        sendAllHands(io, table);
-        scheduleBotIfNeeded(io, table);
-        chargeStakes(table);
+        beginStartCountdown(io, table);
     } else {
         broadcastState(io, table);
     }

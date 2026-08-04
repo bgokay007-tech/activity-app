@@ -364,7 +364,7 @@ const en = {
     okeyPayoutTeam: 'The winning team takes the whole pot, split 50/50 between partners.',
     okeyBack: 'Back', okeyTableCode: 'Table Code',
     okeyBrowseTitle: 'Open Tables', okeyWatchBtn: '👁️ Watch', okeySpectating: "You're spectating",
-    okeySpectatorOpen: 'Open to spectators',
+    okeyViewLobbyBtn: 'View Hall', okeySpectatorOpen: 'Open to spectators',
     okeySpectatorOpenHint: 'Non-players can watch the table but never see hidden tiles',
 
     tavlaTitle: '🎲 Backgammon', tavlaTabPlay: '🎲 Play Backgammon', tavlaTabEvents: '📋 Backgammon Listings',
@@ -1635,7 +1635,7 @@ const tr = {
     okeyPayoutTeam: 'Kazanan takım potun tamamını alır, aralarında %50-%50 paylaşır.',
     okeyBack: 'Geri', okeyTableCode: 'Masa Kodu',
     okeyBrowseTitle: 'Açık Masalar', okeyWatchBtn: '👁️ İzle', okeySpectating: 'İzliyorsun',
-    okeySpectatorOpen: 'Seyirciye açık',
+    okeyViewLobbyBtn: 'Salona Bak', okeySpectatorOpen: 'Seyirciye açık',
     okeySpectatorOpenHint: 'Oyuncular dışındakiler masayı izleyebilir ama kapalı taşları asla göremez',
 
     tavlaTitle: '🎲 Tavla', tavlaTabPlay: '🎲 Tavla Oyna', tavlaTabEvents: '📋 Tavla İlanı',

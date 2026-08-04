@@ -1,12 +1,16 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, ScrollView, Animated, ActivityIndicator, PanResponder } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, ScrollView, Animated, ActivityIndicator, PanResponder, Vibration } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
+import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import api from '../../services/api';
 import { getSocket, onSocket } from '../../services/socket';
 import Avatar from '../../components/Avatar';
+
+const MUTE_START_ALERT_KEY = 'batak_muteStartAlert';
 
 const SUIT_SYMBOL = { S: '♠', H: '♥', D: '♦', C: '♣' };
 const SUIT_COLOR = { S: '#111827', C: '#111827', H: '#dc2626', D: '#dc2626' };
@@ -101,9 +105,115 @@ function CardBack({ small }) {
     );
 }
 
+// Bekleme odasındaki "Masa Ayarları" — şimdilik tek ayar: masa 4 kişi dolup
+// oyun başlarken gelen ses+titreşim uyarısının sessize alınması.
+function BatakSettingsModal({ visible, onClose, muted, onToggleMute, t }) {
+    return (
+        <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+            <View style={s.modalOverlay}>
+                <View style={s.modalBox}>
+                    <Text style={s.modalTitle}>{t.batakTableSettings || 'Masa Ayarları'}</Text>
+                    <TouchableOpacity style={s.checkboxRow} onPress={onToggleMute} activeOpacity={0.8}>
+                        <View style={[s.checkbox, muted && s.checkboxChecked]}>{muted && <Text style={s.checkboxMark}>✓</Text>}</View>
+                        <Text style={s.checkboxLabel}>{t.batakMuteStartAlert || 'Oyun başlama uyarısını sessize al (ses & titreşim)'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.modalBtn} onPress={onClose}>
+                        <Text style={s.modalBtnText}>{t.batakBack || 'Geri'}</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
+// Bekleme odasındayken (masa henüz kurulan kişinin masası) aynı varyantın herkese
+// açık lobisine göz atma modalı — BatakHomeScreen'deki inline listeleme mantığının
+// aynısı, ama kendi masasından ayrılmadan/masayı bozmadan kullanılabilsin diye
+// burada, masa ekranının üstünde bir modal olarak sunuluyor.
+function BatakLobbyBrowseModal({ visible, variant, excludeTableId, onClose, onJoinOther, t }) {
+    const [tablesList, setTablesList] = useState([]);
+
+    useEffect(() => {
+        if (!visible || !variant) { setTablesList([]); return; }
+        const socket = getSocket();
+        socket?.emit('batak:listTables', { variant });
+        const off = onSocket('batak:tableList', (data) => { if (data.variant === variant) setTablesList(data.tables || []); });
+        return () => {
+            off();
+            getSocket()?.emit('batak:unsubscribeLobby', { variant });
+        };
+    }, [visible, variant]);
+
+    const others = tablesList.filter(x => x.tableId !== excludeTableId);
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={s.modalOverlay}>
+                <View style={s.modalBox}>
+                    <Text style={s.modalTitle}>{t.batakBrowseOtherTablesTitle || 'Diğer Açık Masalar'}</Text>
+                    <Text style={s.waitCodeHint}>{t.batakOwnTableHint || 'Sen bakarken masan açık kalır — bozulmaz.'}</Text>
+                    <ScrollView style={{ maxHeight: 380, marginTop: 10 }} showsVerticalScrollIndicator={false}>
+                        {others.length === 0 ? (
+                            <Text style={s.waitEmptyText}>{t.batakBrowseEmpty || 'Şu an açık masa yok'}</Text>
+                        ) : others.map(item => {
+                            const filled = item.seats.filter(x => !x.open).length;
+                            return (
+                                <View key={item.tableId} style={s.browseRow}>
+                                    <View style={{ flexDirection: 'row', marginBottom: 2 }}>
+                                        {item.seats.filter(x => !x.open).map(x => <Avatar key={x.seat} user={x} size={18} />)}
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.browseRowStake}>🪙 {item.betAmount}{item.ratingAmount > 0 ? `  ⭐ ${item.ratingAmount.toFixed(2)}` : ''}</Text>
+                                        <Text style={s.browseRowSeats}>{filled}/4</Text>
+                                    </View>
+                                    <TouchableOpacity style={s.tableCardJoinBtn} onPress={() => onJoinOther(item.tableId)} activeOpacity={0.85}>
+                                        <Text style={s.tableCardJoinBtnText}>{t.batakJoinBtn || 'Katıl'}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            );
+                        })}
+                    </ScrollView>
+                    <TouchableOpacity onPress={onClose} style={{ alignItems: 'center', marginTop: 14 }}>
+                        <Text style={{ color: colors.textMuted }}>{t.batakBack || 'Geri'}</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
+// Masa 4. koltuk dolduktan sonraki 5 saniyelik geri sayım ekranı — bekleme
+// odasından farklı olarak artık davet/kod kutusu yok, sadece net bir "oyun
+// başlıyor" bildirimi ve geri sayım.
+function BatakStartingScreen({ state, myId, secondsLeft, onOpenSettings, t }) {
+    return (
+        <View style={s.root}>
+            <StatusBar barStyle="light-content" />
+            <View style={s.startingTopRow}>
+                <TouchableOpacity style={s.settingsGearBtn} onPress={onOpenSettings}>
+                    <Text style={s.settingsGearText}>⚙️</Text>
+                </TouchableOpacity>
+            </View>
+            <View style={s.startingWrap}>
+                <Text style={s.startingTitle}>{t.batakStartingTitle || 'Masa doldu!'}</Text>
+                <Text style={s.startingCountdown}>{secondsLeft}</Text>
+                <Text style={s.startingSubtitle}>{(t.batakStartingSubtitle || 'Oyun {n} saniye içinde başlıyor...').replace('{n}', String(secondsLeft))}</Text>
+                <View style={s.waitSeatRow}>
+                    {state.seats.map(seat => (
+                        <View key={seat.seat} style={s.waitSeatCell}>
+                            <Avatar user={seat} size={26} />
+                            <Text style={s.waitSeatName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seat.userId === myId ? (t.batakYou || 'Sen') : seat.username}</Text>
+                        </View>
+                    ))}
+                </View>
+            </View>
+        </View>
+    );
+}
+
 // Özel masa bekleme odası — kurucu 3. koltuğu bir arkadaşıyla doldurana kadar burada
 // bekler: masa kodunu paylaşabilir veya doğrudan arkadaş listesinden davet gönderebilir.
-function BatakWaitingRoom({ state, myId, tableId, onExit, spectating = false }) {
+function BatakWaitingRoom({ state, myId, tableId, onExit, onBrowse, onOpenSettings, spectating = false, t }) {
     const [friends, setFriends] = useState([]);
     const [loadingFriends, setLoadingFriends] = useState(true);
     const [onlineIds, setOnlineIds] = useState(new Set());
@@ -130,6 +240,14 @@ function BatakWaitingRoom({ state, myId, tableId, onExit, spectating = false }) 
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
             <ScrollView contentContainerStyle={{ padding: 16 }}>
+                <View style={s.waitTopRow}>
+                    <TouchableOpacity style={s.browseBtn} onPress={onBrowse} activeOpacity={0.85}>
+                        <Text style={s.browseBtnText}>👀 {t.batakBrowseOtherTables || 'Diğer Masalara Bak'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.settingsGearBtn} onPress={onOpenSettings}>
+                        <Text style={s.settingsGearText}>⚙️</Text>
+                    </TouchableOpacity>
+                </View>
                 {spectating && (
                     <Text style={{ color: '#fbbf24', fontWeight: '800', textAlign: 'center', marginBottom: 12 }}>👁️ İzliyorsun — masa dolana kadar bekleniyor</Text>
                 )}
@@ -234,6 +352,33 @@ export default function BatakTableScreen({ route, navigation }) {
     }, []);
     const [roundEnd, setRoundEnd] = useState(null);
     const [gameEnd, setGameEnd] = useState(null);
+    const [browseOpen, setBrowseOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [startingBanner, setStartingBanner] = useState(false);
+    const [nowTick, setNowTick] = useState(Date.now());
+    // Masa 4 kişi dolup geri sayım başladığında ekranda saniye saniye akması için —
+    // sadece 'starting' fazındayken çalışır, gereksiz yere sürekli render'a sebep olmasın.
+    useEffect(() => {
+        if (state?.phase !== 'starting') return;
+        const iv = setInterval(() => setNowTick(Date.now()), 250);
+        return () => clearInterval(iv);
+    }, [state?.phase]);
+    const secondsLeft = state?.startsAt ? Math.max(0, Math.ceil((state.startsAt - nowTick) / 1000)) : 0;
+
+    // "Masa Ayarları"ndaki sessize alma tercihi — AsyncStorage'da tutuluyor ki
+    // bir masadan diğerine (hatta uygulama yeniden açılsa da) hatırlansın.
+    const [muted, setMuted] = useState(false);
+    const mutedRef = useRef(false);
+    useEffect(() => { mutedRef.current = muted; }, [muted]);
+    useEffect(() => { AsyncStorage.getItem(MUTE_START_ALERT_KEY).then(v => { if (v === '1') setMuted(true); }).catch(() => {}); }, []);
+    const toggleMuted = useCallback(() => {
+        setMuted(m => {
+            const next = !m;
+            AsyncStorage.setItem(MUTE_START_ALERT_KEY, next ? '1' : '0').catch(() => {});
+            return next;
+        });
+    }, []);
+
     const [hint, setHint] = useState('');
     const hintTimerRef = useRef(null);
     const showHint = useCallback((msg) => {
@@ -268,7 +413,22 @@ export default function BatakTableScreen({ route, navigation }) {
         const offRoundEnd = onSocket('batak:roundEnd', (data) => setRoundEnd(data));
         const offGameEnd = onSocket('batak:gameEnd', (data) => setGameEnd(data));
         const offErr = onSocket('batak:error', (data) => Alert.alert('', data?.message || (t.batakError || 'Bir hata oluştu.')));
-        return () => { offState(); offHand(); offRoundEnd(); offGameEnd(); offErr(); };
+        // Geri sayım bitip eller dağıtılır dağıtılmaz sunucudan gelir — tam bu anda
+        // 4 oyuncuya da titreşim + bildirim sesi + kısa bir "oyun başlıyor" banner'ı
+        // gösteriliyor (masa ayarlarından sessize alınmadıysa).
+        const offStarting = onSocket('batak:gameStarting', (data) => {
+            if (data.tableId !== tableId) return;
+            if (!mutedRef.current) {
+                Vibration.vibrate([0, 300, 150, 300]);
+                Notifications.scheduleNotificationAsync({
+                    content: { title: t.batakTitle || '🃏 Batak', body: t.batakGameStartingBanner || '🎮 Oyun başlıyor!', sound: 'default' },
+                    trigger: null,
+                }).catch(() => {});
+            }
+            setStartingBanner(true);
+            setTimeout(() => setStartingBanner(false), 2500);
+        });
+        return () => { offState(); offHand(); offRoundEnd(); offGameEnd(); offErr(); offStarting(); };
     }, [tableId, t]);
 
     const leaveTable = useCallback(() => {
@@ -276,6 +436,39 @@ export default function BatakTableScreen({ route, navigation }) {
     }, [tableId, spectating]);
 
     useEffect(() => () => leaveTable(), [leaveTable]);
+
+    // Bekleme odasındaki "Diğer Masalara Bak" modalından başka bir masaya katılmak
+    // istendiğinde: kurduğu masa otomatik silinmez, kullanıcı önce onaylamalı —
+    // onaylarsa mevcut masadan ayrılıp yeni masaya katılıyor ve ekran o masaya geçiyor.
+    const joinOtherTable = useCallback((newTableId) => {
+        Alert.alert(
+            t.batakLeaveConfirmTitle || 'Masandan ayrılınsın mı?',
+            t.batakLeaveConfirmMsg || 'Bu masaya katılmak için kurduğun masadan ayrılman gerekir — masan kapatılacak. Devam edilsin mi?',
+            [
+                { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+                {
+                    text: t.batakLeaveConfirmBtn || 'Ayrıl ve Katıl',
+                    style: 'destructive',
+                    onPress: () => {
+                        const socket = getSocket();
+                        if (!socket) return;
+                        const offMatched = onSocket('batak:matched', (data) => {
+                            if (data.tableId !== newTableId) return;
+                            offMatched(); offErrOnce();
+                            setBrowseOpen(false);
+                            navigation.replace('BatakTable', { tableId: newTableId });
+                        });
+                        const offErrOnce = onSocket('batak:error', (data) => {
+                            offMatched(); offErrOnce();
+                            Alert.alert('', data?.message || (t.batakError || 'Bir hata oluştu.'));
+                        });
+                        socket.emit('batak:leaveTable', { tableId });
+                        socket.emit('batak:joinTable', { tableId: newTableId });
+                    },
+                },
+            ],
+        );
+    }, [tableId, t, navigation]);
 
     // Bahisli bir el aktif oynanırken (bekleme odası/oyun bitmiş değilken) geri
     // gidilmeye/başka ekrana geçilmeye çalışılırsa uyarı gösterilir. Seyirci için
@@ -315,7 +508,27 @@ export default function BatakTableScreen({ route, navigation }) {
     }
 
     if (state.phase === 'waiting') {
-        return <BatakWaitingRoom state={state} myId={myId} tableId={tableId} spectating={spectating} onExit={() => { leaveTable(); navigation.goBack(); }} />;
+        return (
+            <>
+                <BatakWaitingRoom
+                    state={state} myId={myId} tableId={tableId} spectating={spectating} t={t}
+                    onExit={() => { leaveTable(); navigation.goBack(); }}
+                    onBrowse={() => setBrowseOpen(true)}
+                    onOpenSettings={() => setSettingsOpen(true)}
+                />
+                <BatakLobbyBrowseModal visible={browseOpen} variant={state.variant} excludeTableId={tableId} onClose={() => setBrowseOpen(false)} onJoinOther={joinOtherTable} t={t} />
+                <BatakSettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} muted={muted} onToggleMute={toggleMuted} t={t} />
+            </>
+        );
+    }
+
+    if (state.phase === 'starting') {
+        return (
+            <>
+                <BatakStartingScreen state={state} myId={myId} secondsLeft={secondsLeft} onOpenSettings={() => setSettingsOpen(true)} t={t} />
+                <BatakSettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} muted={muted} onToggleMute={toggleMuted} t={t} />
+            </>
+        );
     }
 
     const mySeatInfo = state.seats.find(seat => seat.userId === myId);
@@ -348,6 +561,11 @@ export default function BatakTableScreen({ route, navigation }) {
     return (
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
+            {startingBanner && (
+                <View style={s.startingBannerWrap} pointerEvents="none">
+                    <Text style={s.startingBannerText}>{t.batakGameStartingBanner || '🎮 Oyun başlıyor!'}</Text>
+                </View>
+            )}
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 20 }]}>
                 <TouchableOpacity onPress={goBack} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
@@ -531,6 +749,9 @@ const s = StyleSheet.create({
     trumpBadge: { backgroundColor: '#ffffffdd', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
     trumpBadgeText: { fontSize: 13, fontWeight: '900' },
 
+    startingBannerWrap: { position: 'absolute', top: Platform.OS === 'ios' ? 60 : 26, left: 16, right: 16, zIndex: 20, alignItems: 'center' },
+    startingBannerText: { backgroundColor: '#f59e0bee', color: '#111827', fontSize: 15, fontWeight: '900', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 14, overflow: 'hidden' },
+
     scoreRow: { flexDirection: 'row', paddingHorizontal: 8, gap: 6, marginBottom: 4 },
     scoreCell: { flex: 1, backgroundColor: '#ffffff18', borderRadius: 8, paddingVertical: 4, alignItems: 'center', borderWidth: 1.5, borderColor: 'transparent' },
     scoreCellActive: { backgroundColor: '#fbbf2433', borderColor: '#fbbf24' },
@@ -613,4 +834,28 @@ const s = StyleSheet.create({
 
     waitLeaveBtn: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
     waitLeaveBtnText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
+
+    waitTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+    browseBtn: { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
+    browseBtnText: { color: colors.textSecondary, fontWeight: '800', fontSize: 12 },
+    settingsGearBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+    settingsGearText: { fontSize: 17 },
+
+    browseRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 10, marginBottom: 8 },
+    browseRowStake: { color: '#fbbf24', fontSize: 12, fontWeight: '900' },
+    browseRowSeats: { color: colors.textMuted, fontSize: 10, fontWeight: '700', marginTop: 2 },
+    tableCardJoinBtn: { backgroundColor: colors.purple, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+    tableCardJoinBtnText: { color: '#fff', fontWeight: '800', fontSize: 12 },
+
+    checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 4 },
+    checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+    checkboxChecked: { backgroundColor: colors.purple, borderColor: colors.purple },
+    checkboxMark: { color: '#fff', fontSize: 12, fontWeight: '900' },
+    checkboxLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '700', flex: 1 },
+
+    startingTopRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 54 : 20 },
+    startingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, marginTop: -60 },
+    startingTitle: { color: '#fff', fontSize: 20, fontWeight: '900', marginBottom: 6 },
+    startingCountdown: { color: '#fbbf24', fontSize: 64, fontWeight: '900' },
+    startingSubtitle: { color: colors.textMuted, fontSize: 13, marginTop: 6, marginBottom: 24, textAlign: 'center' },
 });
