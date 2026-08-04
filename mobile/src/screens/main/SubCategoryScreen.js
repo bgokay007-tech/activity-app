@@ -4330,6 +4330,29 @@ const opt = StyleSheet.create({
     itemTextActive:{ color:'#fff', fontWeight:'800' },
 });
 
+// Tam ekran alttan açılan OptionPickerModal yerine, alanın hemen altına doğru açılan
+// küçük dropdown — Takım Büyüklüğü/Yedek Sayısı gibi dar sütunlarda tam ekran modal
+// gereksiz büyük duruyordu (kullanıcı isteği). Konumlandırma için Modal/measure
+// gerekmiyor: çağıran taraf zaten `position:'relative'` bir sütun içine koyuyor,
+// bu da o sütunun altına `position:'absolute'` ile yaslanıyor (roster/hakem öneri
+// kutularıyla aynı desen).
+function MiniDropdown({ visible, options, value, onSelect, onClose }) {
+    if (!visible) return null;
+    return (
+        <View style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, maxHeight:170, overflow:'hidden' }}>
+            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                {options.map(o => (
+                    <TouchableOpacity key={o.value} onPress={() => { onSelect(o.value); onClose(); }}
+                        style={{ paddingVertical:7, paddingHorizontal:10, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth:1, borderBottomColor: colors.border }}>
+                        <Text style={{ color: value === o.value ? '#fff' : colors.textSecondary, fontSize:12, fontWeight: value === o.value ? '800' : '600' }}>{o.label}</Text>
+                        {value === o.value && <Text style={{ color: colors.purple, fontSize:12 }}>✓</Text>}
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
+        </View>
+    );
+}
+
 // Saat seçimi artık paylaşılan components/TimePickerModal.js üzerinden yapılıyor
 // (uygulama genelinde aynı görünüm için) — bkz. yukarıdaki import. `tg` stilleri
 // aşağıdaki RatingPickerModal tarafından hâlâ kullanılıyor, o yüzden kalıyor.
@@ -5833,7 +5856,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
     const isTennis = sub === 'tennis';
     const INIT = {
-        matchType: isTennis ? null : (isPadel ? 'DOUBLE' : 'SINGLE'), teamSize: isFootball ? 5 : isVolleyball ? 6 : 1,
+        matchType: isTennis ? null : (isPadel ? 'DOUBLE' : 'SINGLE'), teamSize: isFootball ? 5 : isVolleyball ? null : 1,
         matchMode: isTennis ? null : 'PRACTICE', teamFlexibility: 'FLEXIBLE', flexibleSchedule: false,
         matchDate: null, matchTime: '', duration: isVolleyball ? '90' : '60',
         showDatePicker: false, showTimePicker: false, showDurationPicker: false,
@@ -5875,8 +5898,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         // (sen) hariç 2*teamSize-1 slot. Her biri null (boş), { type:'user', userId,
         // username, fullName, avatar, side } veya { type:'manual', name, side } olabilir.
         // side: 'my' | 'opp' | null (arka yüzde atanana kadar null). Uzunluk teamSize
-        // değiştikçe setTeamSize ile ayarlanıyor.
-        rosterSlots: isVolleyball ? Array(11).fill(null) : [],
+        // değiştikçe setTeamSize ile ayarlanıyor. Takım büyüklüğü artık varsayılan seçili
+        // gelmiyor (kullanıcı "Seç" yazısına dokunup kendi seçmeli) — bu yüzden başlangıçta
+        // boş: teamSize seçilince setTeamSize slot sayısını oluşturur.
+        rosterSlots: [],
         // Yedekler — takıma bağımsız, kullanıcı sayısını kendi seçiyor (Yedek Sayısı alanı).
         subCount: 0,
         subSlots: [],
@@ -6475,6 +6500,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     };
 
     const submit = async () => {
+        if (isVolleyball && !editItem && !f.teamSize) {
+            Alert.alert('', t.missingTeamSize); return;
+        }
         if (isVolleyball && !editItem && f.rosterSlots.some(sl => sl && !sl.side)) {
             Alert.alert('', t.mustAssignTeamMsg); return;
         }
@@ -6910,18 +6938,21 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             ) : (
                                 <>
                                     {(() => {
+                                        // Voleybolde Antrenman/Rekabetçi her zaman yan yana kalmalı (kullanıcı isteği) —
+                                        // dar sütuna sığması için flex:1'li chip'ler + wrap kapalı, metin adjustsFontSizeToFit
+                                        // ile küçülür ama asla alt satıra kaymaz.
                                         const modeChips = (
-                                            <View style={s.chipRow}>
+                                            <View style={[s.chipRow, isVolleyball && { flexWrap:'nowrap', marginBottom:0 }]}>
                                                 {(isVolleyball ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
                                                     const isActive = f.matchMode === mode;
                                                     const label = mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode;
                                                     return (
                                                         <TouchableOpacity key={mode} onPress={() => set('matchMode', mode)}
-                                                            style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isActive && {
+                                                            style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isVolleyball && { flex:1, alignItems:'center' }, isActive && {
                                                                 backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
                                                                 borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
                                                             }]}>
-                                                            <Text style={[s.chipBtnText, isActive && { color:'#fff' }]}>
+                                                            <Text style={[s.chipBtnText, isActive && { color:'#fff' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                                                                 {isVolleyball ? noEmoji(label) : label}
                                                             </Text>
                                                         </TouchableOpacity>
@@ -6932,10 +6963,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         // Voleybolde Zemin, Mod, Takım Büyüklüğü ve Yedek Sayısı formun en üstünde
                                         // tek satırda 4 dar kolon — kullanıcı isteğiyle hepsi aynı satıra sığdırıldı
                                         // (önceden Takım Büyüklüğü/Yedek Sayısı ayrı, tam genişlik satırlardaydı).
+                                        // Takım Büyüklüğü/Yedek Sayısı kutuları diğer ikisinden dar (flex:0.6) —
+                                        // sadece bir sayı gösterdikleri için Zemin/Mod kadar yere ihtiyaçları yok.
                                         // Diğer takım sporlarında (futbol) eski dikey Mod bloğu aynen kalır.
                                         if (!isVolleyball) return (<><Text style={s.fieldLabel}>{t.modLabel}</Text>{modeChips}</>);
                                         return (
-                                            <View style={{ flexDirection:'row', gap:5, marginBottom:10 }}>
+                                            <View style={{ flexDirection:'row', gap:5, marginBottom:10, zIndex: (showTeamSizePicker || showSubCountPicker) ? 50 : 1 }}>
                                                 <View style={{ flex:1 }}>
                                                     <Text style={s.fieldLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.volleyballTypeLabel}</Text>
                                                     <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowSurfacePicker(true)}>
@@ -6948,41 +6981,39 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     <Text style={s.fieldLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.modLabel}</Text>
                                                     {modeChips}
                                                 </View>
-                                                <View style={{ flex:1 }}>
+                                                <View style={{ flex:0.6, position:'relative', zIndex: showTeamSizePicker ? 51 : 1 }}>
                                                     <Text style={s.fieldLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamSizeLabel}</Text>
-                                                    <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowTeamSizePicker(true)}>
-                                                        <Text style={s.compactSelectText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{f.teamSize}v{f.teamSize}</Text>
+                                                    <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowTeamSizePicker(v => !v)}>
+                                                        <Text style={[s.compactSelectText, !f.teamSize && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                            {f.teamSize ? String(f.teamSize) : t.courtSurfaceSelectPlaceholder}
+                                                        </Text>
                                                     </TouchableOpacity>
+                                                    <MiniDropdown
+                                                        visible={showTeamSizePicker}
+                                                        options={VOLLEYBALL_SIZES.map(n => ({ value: n, label: String(n) }))}
+                                                        value={f.teamSize}
+                                                        onSelect={(v) => setTeamSize(v)}
+                                                        onClose={() => setShowTeamSizePicker(false)}
+                                                    />
                                                 </View>
-                                                <View style={{ flex:1 }}>
+                                                <View style={{ flex:0.6, position:'relative', zIndex: showSubCountPicker ? 51 : 1 }}>
                                                     <Text style={s.fieldLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.subCountLabel}</Text>
-                                                    <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowSubCountPicker(true)}>
-                                                        <Text style={s.compactSelectText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{f.subCount}</Text>
+                                                    <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowSubCountPicker(v => !v)}>
+                                                        <Text style={[s.compactSelectText, !f.subCount && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                            {f.subCount ? String(f.subCount) : t.subsLabel}
+                                                        </Text>
                                                     </TouchableOpacity>
+                                                    <MiniDropdown
+                                                        visible={showSubCountPicker}
+                                                        options={[0, 1, 2, 3, 4, 5].map(n => ({ value: n, label: String(n) }))}
+                                                        value={f.subCount}
+                                                        onSelect={(v) => setSubCount(v)}
+                                                        onClose={() => setShowSubCountPicker(false)}
+                                                    />
                                                 </View>
                                             </View>
                                         );
                                     })()}
-                                    {isVolleyball && (
-                                        <>
-                                            <OptionPickerModal
-                                                visible={showTeamSizePicker}
-                                                title={t.teamSizeLabel}
-                                                options={VOLLEYBALL_SIZES.map(n => ({ value: n, label: `${n}v${n}` }))}
-                                                value={f.teamSize}
-                                                onSelect={(v) => setTeamSize(v)}
-                                                onClose={() => setShowTeamSizePicker(false)}
-                                            />
-                                            <OptionPickerModal
-                                                visible={showSubCountPicker}
-                                                title={t.subCountLabel}
-                                                options={[0, 1, 2, 3, 4, 5].map(n => ({ value: n, label: String(n) }))}
-                                                value={f.subCount}
-                                                onSelect={(v) => setSubCount(v)}
-                                                onClose={() => setShowSubCountPicker(false)}
-                                            />
-                                        </>
-                                    )}
                                     {(f.matchMode === 'COMPETITIVE' || f.matchMode === 'BOTH') && (
                                         <View style={s.eloWarning}>
                                             <Text style={s.eloWarningText}>{t.eloWarning}</Text>
@@ -7059,6 +7090,17 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <Text style={s.triLabel}>{t.durationFieldLabel}</Text>
                                             <Text style={[s.triValue, !f.duration && s.triPlaceholder]}>{f.duration ? `${f.duration}${t.minuteSuffix}` : '—'}</Text>
                                         </TouchableOpacity>
+                                        {/* Derece — kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) Süre'nin hemen
+                                            sağında, formun sonundaki ayrı Derece bloğu yerine burada gösteriliyor. */}
+                                        {SIMPLIFIED_FEE_SUBS.has(sub) && (
+                                            <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }]}
+                                                onPress={() => setShowRatingRange(true)}>
+                                                <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
+                                                <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                    {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
                                         {/* Kişi Başı Ücret — Süre'nin sağına sıkıştırılmış olarak çıkar. Normal dallarda
                                             kort seçilince tetiklenir; kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS)
                                             aynı mantık Ücretli işaretlenince tetiklenir (Mekan Adı'na yazmak courtSearchText'i
@@ -7733,10 +7775,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </>
                             )}
 
-                            {/* Kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) sıralama kullanıcı
-                                isteğiyle netleştirildi: Bilet Link → Derece → Mesaj (en altta, Mesaj'ın
-                                normalde en sonda kalan konumunu koruyor). Diğer dallarda aşağıdaki genel
-                                Mesaj/Bilet Link blokları (bu bloğun hemen altında, değişmedi) geçerli. */}
+                            {/* Kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) sıralama kullanıcı isteğiyle
+                                netleştirildi: Bilet Link → Mesaj (Derece artık Tarih·Saat·Süre satırında,
+                                Süre'nin sağında gösteriliyor — bkz. yukarısı, burada tekrar etmiyor). */}
                             {!isMatchedEdit && SIMPLIFIED_FEE_SUBS.has(sub) && (
                                 <>
                                     <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.ticketUrlLabel}</Text>
@@ -7745,16 +7786,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         placeholder={t.ticketUrlPh}
                                         placeholderTextColor={colors.textMuted}
                                         autoCapitalize="none" keyboardType="url" />
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
-                                        <Text style={[s.fieldLabel, { marginBottom:0 }]}>{t.ratingLimitLabel}</Text>
-                                        <TouchableOpacity
-                                            style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.minRating || f.maxRating) ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:8 }}
-                                            onPress={() => setShowRatingRange(true)}>
-                                            <Text style={s.triValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </View>
                                     <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.messageFieldLabel}</Text>
                                     <TextInput style={[s.fieldInput, { height:80, textAlignVertical:'top' }]}
                                         value={f.message} onChangeText={v => set('message', v)}
