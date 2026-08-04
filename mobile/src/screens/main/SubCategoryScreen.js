@@ -5657,11 +5657,11 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
     return (
         // position:'relative' — öneri kutusu mutlak konumlanıp altına biner, 3'lü grid'deki
         // komşu hücreleri aşağı itmesin diye (bkz. çağıran: dar sütunlarda kullanılıyor).
-        <View style={{ marginBottom: 4, position:'relative' }}>
+        <View style={{ marginBottom: 2, position:'relative' }}>
             <View style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
-                {slot?.type === 'user' && <Avatar name={slot.username} avatar={slot.avatar} size={18} color={cfg.color} />}
+                {slot?.type === 'user' && <Avatar name={slot.username} avatar={slot.avatar} size={14} color={cfg.color} />}
                 <TextInput
-                    style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:5, paddingHorizontal:6, fontSize:11 }]}
+                    style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, fontSize:10, minHeight:0 }]}
                     value={text}
                     onChangeText={onChangeText}
                     onFocus={onFocus}
@@ -5671,7 +5671,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                 />
                 {!!slot && (
                     <TouchableOpacity onPress={onClear} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                        <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -7031,7 +7031,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             her slot tam genişlik tek satırdı, gereksiz büyüktü). */}
                                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4 }}>
                                                             {f.rosterSlots.map((slot, i) => (
-                                                                <View key={`pool-${i}`} style={{ width:'31%' }}>
+                                                                <View key={`pool-${i}`} style={{ width:'31%', zIndex: activeSlotKey === `pool-${i}` ? 50 : 1, elevation: activeSlotKey === `pool-${i}` ? 50 : 1 }}>
                                                                     <Text style={{ color: colors.textMuted, fontSize:9 }}>{i + 2}.</Text>
                                                                     <TeamSlotRow side="pool" index={i} slot={slot}
                                                                         placeholder={t.teamSlotPh(i + 2)}
@@ -7048,16 +7048,21 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         {f.subCount > 0 && (
                                                             <>
                                                                 <Text style={[s.fieldLabel, { fontSize:11, marginTop:8 }]}>{t.subsLabel}</Text>
-                                                                {f.subSlots.map((slot, i) => (
-                                                                    <TeamSlotRow key={`sub-${i}`} side="sub" index={i} slot={slot}
-                                                                        placeholder={t.subSlotPh(i + 1)}
-                                                                        activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
-                                                                        onFocus={() => setActiveSlotKey(`sub-${i}`)}
-                                                                        onChangeText={(txt) => onSlotChangeText('sub', i, txt)}
-                                                                        onPickUser={(u) => { setSlot('sub', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar }); setActiveSlotKey(null); setSlotSuggestions([]); }}
-                                                                        onClear={() => setSlot('sub', i, null)}
-                                                                        cfg={cfg} s={s} colors={colors} />
-                                                                ))}
+                                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4 }}>
+                                                                    {f.subSlots.map((slot, i) => (
+                                                                        <View key={`sub-${i}`} style={{ width:'31%', zIndex: activeSlotKey === `sub-${i}` ? 50 : 1, elevation: activeSlotKey === `sub-${i}` ? 50 : 1 }}>
+                                                                            <Text style={{ color: colors.textMuted, fontSize:9 }}>{i + 1}.</Text>
+                                                                            <TeamSlotRow side="sub" index={i} slot={slot}
+                                                                                placeholder={t.subSlotPh(i + 1)}
+                                                                                activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                                                onFocus={() => setActiveSlotKey(`sub-${i}`)}
+                                                                                onChangeText={(txt) => onSlotChangeText('sub', i, txt)}
+                                                                                onPickUser={(u) => { setSlot('sub', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                                                                                onClear={() => setSlot('sub', i, null)}
+                                                                                cfg={cfg} s={s} colors={colors} t={t} />
+                                                                        </View>
+                                                                    ))}
+                                                                </View>
                                                             </>
                                                         )}
                                                         <Text style={s.fieldHint}>{t.rosterFrontHint}</Text>
@@ -7428,8 +7433,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 style={[s.fieldInput, { flex: isVolleyball ? 1 : 2, marginBottom:0, paddingVertical:5 }]}
                                                 value={f.courtSearchText}
                                                 onChangeText={searchCourts}
-                                                placeholder={isVolleyball && f.surface
-                                                    ? t.volleyballCourtSearchPlaceholder(VOLLEYBALL_VENUE_NOUN[f.surface][lang])
+                                                placeholder={isVolleyball
+                                                    ? t.volleyballCourtSearchPlaceholder(f.surface ? VOLLEYBALL_VENUE_NOUN[f.surface][lang] : t.volleyballHallLabel)
                                                     : t.courtSearchPlaceholder}
                                                 placeholderTextColor={colors.textMuted}
                                                 textAlignVertical="center"
@@ -7550,10 +7555,40 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <Text style={s.manualCourtNote}>{t.courtSubmitNote}</Text>
                                             <TextInput style={s.fieldInput} value={f.manualCourtName}
                                                 onChangeText={v => set('manualCourtName', v)}
-                                                placeholder={t.manualCourtLabel} placeholderTextColor={colors.textMuted} />
-                                            <TextInput style={s.fieldInput} value={f.manualCity}
-                                                onChangeText={v => set('manualCity', v)}
-                                                placeholder={t.manualCityLabel} placeholderTextColor={colors.textMuted} />
+                                                placeholder={isVolleyball ? t.manualVenueNameLabel(f.surface ? VOLLEYBALL_VENUE_NOUN[f.surface][lang] : t.volleyballHallLabel) : t.manualCourtLabel}
+                                                placeholderTextColor={colors.textMuted} />
+                                            <View style={{ flexDirection:'row', gap:4 }}>
+                                                <View style={{ flex:1 }}>
+                                                    <TextInput style={[s.fieldInput, { marginBottom:0 }]} value={f.manualCity}
+                                                        onChangeText={searchManualProvince}
+                                                        placeholder={t.manualCityLabel} placeholderTextColor={colors.textMuted} />
+                                                    {manualCitySuggestions.length > 0 && (
+                                                        <View style={s.courtResultsBox}>
+                                                            {manualCitySuggestions.map(p => (
+                                                                <TouchableOpacity key={p} style={s.courtResultRow}
+                                                                    onPress={() => { set('manualCity', p); setManualCitySuggestions([]); }}>
+                                                                    <Text style={s.courtResultName}>📍 {p}</Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </View>
+                                                    )}
+                                                </View>
+                                                <View style={{ flex:1 }}>
+                                                    <TextInput style={[s.fieldInput, { marginBottom:0 }]} value={f.manualDistrict}
+                                                        onChangeText={searchManualDistrict}
+                                                        placeholder={t.manualDistrictLabel} placeholderTextColor={colors.textMuted} />
+                                                    {manualDistrictSuggestions.length > 0 && (
+                                                        <View style={s.courtResultsBox}>
+                                                            {manualDistrictSuggestions.map(d => (
+                                                                <TouchableOpacity key={d} style={s.courtResultRow}
+                                                                    onPress={() => { set('manualDistrict', d); setManualDistrictSuggestions([]); }}>
+                                                                    <Text style={s.courtResultName}>🏘️ {d}</Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            </View>
                                             <TextInput style={s.fieldInput} value={f.manualAddress}
                                                 onChangeText={v => set('manualAddress', v)}
                                                 placeholder={t.manualAddressLabel} placeholderTextColor={colors.textMuted} />
