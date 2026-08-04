@@ -493,3 +493,23 @@ export const updateAlias = async (req, res, next) => {
         res.json({ alias: updated.alias });
     } catch (error) { next(error); }
 };
+
+// Dala özel kişisel hedef notu — ortak "Hedefler" (dart oyunu) tüm dallarda aynı içeriği
+// gösterdiği için kaldırıldı, yerine her branş kendi serbest metin notunu tutuyor.
+export const updateGoals = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { goals } = req.body;
+
+        const interest = await prisma.userInterest.findUnique({ where: { id } });
+        if (!interest) return res.status(404).json({ message: 'Interest not found' });
+        if (interest.userId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
+
+        const trimmed = goals ? goals.trim().slice(0, 500) : null;
+        const updated = await prisma.userInterest.update({
+            where: { id },
+            data: { goals: trimmed || null },
+        });
+        res.json({ goals: updated.goals });
+    } catch (error) { next(error); }
+};

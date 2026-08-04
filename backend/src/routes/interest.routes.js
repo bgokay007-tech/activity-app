@@ -13,6 +13,7 @@ import {
     getVotes,
     submitVote,
     updateAlias,
+    updateGoals,
 } from '../controllers/interest.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
@@ -28,6 +29,7 @@ router.get('/users', authenticate, getUsersByCategory);
 router.get('/assessment/:subCategory', authenticate, getAssessmentQuestions);
 router.patch('/:id/assess', authenticate, saveAssessment);
 router.patch('/:id/alias', authenticate, updateAlias);
+router.patch('/:id/goals', authenticate, updateGoals);
 router.patch('/:id/voting', authenticate, toggleVoting);
 router.get('/:id/votes', authenticate, getVotes);
 router.post('/:id/vote', authenticate, submitVote);
