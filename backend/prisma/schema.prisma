@@ -750,6 +750,7 @@ model ActivityRequest {
   duration        Int?                              // match duration in minutes
   participants    Json         @default("[]")     // [{id, username, fullName}]
   senderTeam      Json         @default("[]")     // team sports (football/volleyball): creator's additional teammates — real users [{id,username,fullName,skillRating}] or guests [{manualName}]
+  substitutePlayers Json       @default("[]")     // voleybol: yedek oyuncular — senderTeam ile aynı şekil (gerçek kullanıcı veya {manualName}), taraf bağımsız
   oppTeamManualNames Json      @default("[]")     // team sports: opponent-side names typed in for players without an app account (display-only, ["Ahmet Yılmaz", ...])
   positions       Json         @default("[]")     // e.g. ['REFEREE'] | ['REFEREE_OFFER'] | ['GOALKEEPER']
   extraServices   Json         @default("[]")     // [{id,type,name,price,artistListingId?}] — DJ/Sanatçı/Mangal Partisi vb. ek hizmetler (tenis/padel/voleybol)
@@ -880,6 +881,7 @@ model RivalJoinRequest {
   joiningTeam Json     @default("[]")      // COMPETITIVE team: challenger's full team [{id,username,fullName,skillRating}]
   initiatedBy     String   @default("JOINER")  // JOINER (user asked to join) | OWNER (owner invited this user)
   isPartnerInvite Boolean  @default(false)      // OWNER davet: kurucu takımına partner daveti (true) vs rakip daveti (false)
+  isSubstituteInvite Boolean @default(false)    // OWNER davet: voleybolde yedek oyuncu daveti — kabul edilince substitutePlayers'a eklenir
   partnerId       String?                       // Çiftler (DOUBLE): tek başına başvurmuş kullanıcının istediği partnerin userId'si. Karşılıklı olunca (iki başvuru da birbirini gösterince) çift eşleşir.
   offerPrice      String?                       // Hakem başvurusu: teklif edilen ücret
   offerMessage    String?                       // Hakem başvurusu: ek bilgi/mesaj

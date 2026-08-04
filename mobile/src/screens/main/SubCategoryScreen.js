@@ -5783,12 +5783,15 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         manualRefereeName: '', // sisteme kayıtlı olmayan hakem için serbest metin isim
         participantsCanInvite: true,
         extraServices: [],
-        // Voleybol: kurucu/rakip takım slotları — her biri null (boş), { type:'user', userId, username, fullName, avatar }
-        // veya { type:'manual', name } olabilir. Kurucu zaten takımda olduğu için myTeamSlots
-        // teamSize-1 uzunluğunda (diğer takım arkadaşları); oppTeamSlots teamSize uzunluğunda.
-        // Uzunluk teamSize değiştikçe setTeamSize ile ayarlanıyor.
-        myTeamSlots: isVolleyball ? Array(5).fill(null) : [],
-        oppTeamSlots: isVolleyball ? Array(6).fill(null) : [],
+        // Voleybol: TEK havuz — takıma göre ayrılmamış, "katılan oyuncular" listesi. Kurucu
+        // (sen) hariç 2*teamSize-1 slot. Her biri null (boş), { type:'user', userId,
+        // username, fullName, avatar, side } veya { type:'manual', name, side } olabilir.
+        // side: 'my' | 'opp' | null (arka yüzde atanana kadar null). Uzunluk teamSize
+        // değiştikçe setTeamSize ile ayarlanıyor.
+        rosterSlots: isVolleyball ? Array(11).fill(null) : [],
+        // Yedekler — takıma bağımsız, kullanıcı sayısını kendi seçiyor (Yedek Sayısı alanı).
+        subCount: 0,
+        subSlots: [],
     };
 
     const buildInitialState = () => {
@@ -5904,29 +5907,46 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         setF(p => ({
             ...p,
             teamSize: n,
-            // Kurucu zaten takımın 1 kişisi — myTeamSlots geri kalan (n-1) arkadaşı temsil eder.
-            myTeamSlots: Array.from({ length: Math.max(0, n - 1) }, (_, i) => p.myTeamSlots[i] || null),
-            oppTeamSlots: Array.from({ length: n }, (_, i) => p.oppTeamSlots[i] || null),
+            // Kurucu (sen) hariç havuzda 2n-1 slot — mevcut doluları (side dahil) korur.
+            rosterSlots: Array.from({ length: Math.max(0, 2 * n - 1) }, (_, i) => p.rosterSlots[i] || null),
         }));
     };
-    const setSlot = (side, index, value) => {
-        const key = side === 'my' ? 'myTeamSlots' : 'oppTeamSlots';
+    const setSubCount = (n) => {
+        setF(p => ({
+            ...p,
+            subCount: n,
+            subSlots: Array.from({ length: n }, (_, i) => p.subSlots[i] || null),
+        }));
+    };
+    // group: 'pool' (havuz, side atanabilir) | 'sub' (yedek, side yok)
+    const setSlot = (group, index, value) => {
+        const key = group === 'pool' ? 'rosterSlots' : 'subSlots';
         setF(p => {
             const arr = p[key].slice();
             arr[index] = value;
             return { ...p, [key]: arr };
         });
     };
+    // Arka yüzde "Atanmamış"tan bir kişiyi Kurucu/Rakip'e atar — sadece side değişir,
+    // tip/isim/kullanıcı bilgisi aynen kalır.
+    const setSlotSide = (index, side) => {
+        setF(p => {
+            const arr = p.rosterSlots.slice();
+            if (!arr[index]) return p;
+            arr[index] = { ...arr[index], side };
+            return { ...p, rosterSlots: arr };
+        });
+    };
     const slotText = (slot) => !slot ? '' : slot.type === 'user' ? (slot.fullName || slot.username) : slot.name;
-    const onSlotChangeText = (side, index, text) => {
-        setActiveSlotKey(`${side}-${index}`);
-        setSlot(side, index, text ? { type: 'manual', name: text } : null);
+    const onSlotChangeText = (group, index, text) => {
+        setActiveSlotKey(`${group}-${index}`);
+        setSlot(group, index, text ? { type: 'manual', name: text, side: null } : null);
     };
     useEffect(() => {
         if (!activeSlotKey) return;
-        const [side, idxStr] = activeSlotKey.split('-');
+        const [group, idxStr] = activeSlotKey.split('-');
         const idx = Number(idxStr);
-        const slot = (side === 'my' ? f.myTeamSlots : f.oppTeamSlots)[idx];
+        const slot = (group === 'pool' ? f.rosterSlots : f.subSlots)[idx];
         const q = (slot?.type === 'manual' ? slot.name : '').trim();
         if (!q || q.length < 2) { setSlotSuggestions([]); return; }
         setSlotSearching(true);
@@ -5937,7 +5957,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 .finally(() => setSlotSearching(false));
         }, 350);
         return () => clearTimeout(task);
-    }, [activeSlotKey, f.myTeamSlots, f.oppTeamSlots]);
+    }, [activeSlotKey, f.rosterSlots, f.subSlots]);
     useEffect(() => {
         const q = f.manualRefereeName.trim();
         if (!q || q.length < 2) { setRefereeNameSuggestions([]); return; }
@@ -5982,6 +6002,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [showSurfacePicker, setShowSurfacePicker] = useState(false);
     const [showVenueTypePicker, setShowVenueTypePicker] = useState(false);
     const [showTeamSizePicker, setShowTeamSizePicker] = useState(false);
+    const [showSubCountPicker, setShowSubCountPicker] = useState(false);
+    // Arka yüzde "Atanmamış" havuzundan seçilen kişi — sonra Kurucu/Rakip başlığına
+    // dokununca o kişinin side'ı set edilir (mevcut swapSlot tak-seç-hedefe-dokun deseniyle aynı mantık).
+    const [selectedUnassignedIndex, setSelectedUnassignedIndex] = useState(null);
     const [showEloWarning, setShowEloWarning] = useState(false);
     const [eloWarningDismissed, setEloWarningDismissed] = useState(false);
     // Panel varsayılan kapalı — düzenlemede de format (Çiftli) chip'ine tıklanınca
@@ -6340,6 +6364,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     };
 
     const submit = async () => {
+        if (isVolleyball && !editItem && f.rosterSlots.some(sl => sl && !sl.side)) {
+            Alert.alert('', t.mustAssignTeamMsg); return;
+        }
         if (isTennis && !editItem) {
             if (!f.matchMode) { Alert.alert('', 'Lütfen mod seçin (Antrenman/Rekabetçi).'); return; }
             if (!f.matchType) { Alert.alert('', 'Lütfen format seçin (Tekli/Çiftler).'); return; }
@@ -6460,19 +6487,27 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     ? f.manualRefereeName.trim() : undefined,
                 participantsCanInvite: ['tennis', 'padel', 'volleyball'].includes(sub) ? !!f.participantsCanInvite : undefined,
                 extraServices: ['tennis', 'padel', 'volleyball'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
-                // Voleybol takım slotları — kurucu tarafı doğrudan (senderTeam, davetsiz)
-                // eklenir, rakip tarafı gerçek kullanıcılar davet olarak gönderilir,
-                // hesabı olmayanlar sadece bilgi amaçlı isim olarak kaydedilir.
-                senderTeam: isVolleyball && f.myTeamSlots.some(Boolean)
-                    ? f.myTeamSlots.filter(Boolean).map(slot => slot.type === 'user'
-                        ? { id: slot.userId, username: slot.username, fullName: slot.fullName, avatar: slot.avatar }
-                        : { manualName: slot.name })
+                // Voleybol havuzu — kartın arka yüzünde Kurucu/Rakip'e atanan slotlar (side)
+                // ilgili davet dizisine gider; gerçek kullanıcılar davet olur (kabul etmeden
+                // eklenmez), hesabı olmayanlar sadece bilgi amaçlı isim olarak kaydedilir.
+                // (side===null slotlar submit'ten önce zaten engelleniyor, bkz. validasyon.)
+                founderTeamInviteIds: isVolleyball
+                    ? f.rosterSlots.filter(s => s?.type === 'user' && s.side === 'my').map(s => s.userId)
+                    : undefined,
+                founderTeamManualNames: isVolleyball
+                    ? f.rosterSlots.filter(s => s?.type === 'manual' && s.side === 'my').map(s => s.name)
                     : undefined,
                 oppTeamInviteIds: isVolleyball
-                    ? f.oppTeamSlots.filter(s => s?.type === 'user').map(s => s.userId)
+                    ? f.rosterSlots.filter(s => s?.type === 'user' && s.side === 'opp').map(s => s.userId)
                     : undefined,
                 oppTeamManualNames: isVolleyball
-                    ? f.oppTeamSlots.filter(s => s?.type === 'manual').map(s => s.name)
+                    ? f.rosterSlots.filter(s => s?.type === 'manual' && s.side === 'opp').map(s => s.name)
+                    : undefined,
+                substituteInviteIds: isVolleyball
+                    ? f.subSlots.filter(s => s?.type === 'user').map(s => s.userId)
+                    : undefined,
+                substituteManualNames: isVolleyball
+                    ? f.subSlots.filter(s => s?.type === 'manual').map(s => s.name)
                     : undefined,
             });
             // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
@@ -6730,7 +6765,27 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 onClose={() => setShowTeamSizePicker(false)}
                                             />
                                         </View>
-                                    ) : teamSizes.length > 0 && (
+                                    ) : null}
+                                    {isVolleyball && (
+                                        <View style={{ marginBottom:14 }}>
+                                            <Text style={s.fieldLabel}>{t.subCountLabel}</Text>
+                                            <TouchableOpacity
+                                                style={[s.fieldInput, { marginBottom:0, paddingVertical:8, justifyContent:'center' }]}
+                                                onPress={() => setShowSubCountPicker(true)}
+                                            >
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{f.subCount}</Text>
+                                            </TouchableOpacity>
+                                            <OptionPickerModal
+                                                visible={showSubCountPicker}
+                                                title={t.subCountLabel}
+                                                options={[0, 1, 2, 3, 4, 5].map(n => ({ value: n, label: String(n) }))}
+                                                value={f.subCount}
+                                                onSelect={(v) => setSubCount(v)}
+                                                onClose={() => setShowSubCountPicker(false)}
+                                            />
+                                        </View>
+                                    )}
+                                    {!isVolleyball && teamSizes.length > 0 && (
                                         <>
                                             <Text style={s.fieldLabel}>{t.teamSizeLabel}</Text>
                                             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:14 }}>
@@ -6745,74 +6800,110 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </ScrollView>
                                         </>
                                     )}
-                                    {isVolleyball && (f.myTeamSlots.length > 0 || f.oppTeamSlots.length > 0) && (
+                                    {isVolleyball && f.rosterSlots.length > 0 && (
                                         <View style={{ marginBottom:14 }}>
                                             <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor: cfg.color+'40', padding:10, transform:[{ perspective:800 }, { rotateY: teamCardRotateY }] }}>
                                                 {!teamCardBack ? (
                                                     <>
                                                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
-                                                            <Text style={[s.fieldLabel, { marginBottom:0, flex:1 }]}>{t.myTeamLabel}</Text>
+                                                            <Text style={[s.fieldLabel, { marginBottom:0, flex:1 }]}>{t.rosterPoolLabel}</Text>
                                                             <TouchableOpacity onPress={flipTeamCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
                                                                 <Text style={{ fontSize:15 }}>🔄</Text>
                                                             </TouchableOpacity>
                                                         </View>
-                                                        {/* 1. oyuncu her zaman ilanı açan kişi — salt okunur, taşınamaz/silinemez */}
+                                                        {/* 1. oyuncu her zaman ilanı açan kişi — salt okunur, taşınamaz/silinemez.
+                                                            Takıma göre ayrılmamış TEK liste — atama arka yüzde yapılır. */}
                                                         <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
-                                                            <Text style={{ color: colors.textMuted, fontSize:11, width:14 }}>1.</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:11, width:16 }}>1.</Text>
                                                             <Avatar name={myUser?.username} avatar={myUser?.avatar} size={20} color={cfg.color} />
                                                             <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:6, justifyContent:'center', opacity:0.8 }]}>
                                                                 <Text style={{ color:'#fff', fontSize:12 }} numberOfLines={1}>{myUser?.fullName || myUser?.username}</Text>
                                                             </View>
                                                         </View>
-                                                        {f.myTeamSlots.map((slot, i) => (
-                                                            <View key={`my-${i}`} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                                                                <Text style={{ color: colors.textMuted, fontSize:11, width:14 }}>{i + 2}.</Text>
+                                                        {f.rosterSlots.map((slot, i) => (
+                                                            <View key={`pool-${i}`} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                                                                <Text style={{ color: colors.textMuted, fontSize:11, width:16 }}>{i + 2}.</Text>
                                                                 <View style={{ flex:1 }}>
-                                                                    <TeamSlotRow side="my" index={i} slot={slot}
+                                                                    <TeamSlotRow side="pool" index={i} slot={slot}
                                                                         placeholder={t.teamSlotPh(i + 2)}
                                                                         activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
-                                                                        onFocus={() => setActiveSlotKey(`my-${i}`)}
-                                                                        onChangeText={(txt) => onSlotChangeText('my', i, txt)}
-                                                                        onPickUser={(u) => { setSlot('my', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar }); setActiveSlotKey(null); setSlotSuggestions([]); }}
-                                                                        onClear={() => setSlot('my', i, null)}
+                                                                        onFocus={() => setActiveSlotKey(`pool-${i}`)}
+                                                                        onChangeText={(txt) => onSlotChangeText('pool', i, txt)}
+                                                                        onPickUser={(u) => { setSlot('pool', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, side:null }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                                                                        onClear={() => setSlot('pool', i, null)}
                                                                         cfg={cfg} s={s} colors={colors} />
                                                                 </View>
                                                             </View>
                                                         ))}
-                                                        <Text style={s.fieldHint}>{t.teamSlotHint}</Text>
+                                                        {f.subCount > 0 && (
+                                                            <>
+                                                                <Text style={[s.fieldLabel, { fontSize:11, marginTop:8 }]}>{t.subsLabel}</Text>
+                                                                {f.subSlots.map((slot, i) => (
+                                                                    <TeamSlotRow key={`sub-${i}`} side="sub" index={i} slot={slot}
+                                                                        placeholder={t.subSlotPh(i + 1)}
+                                                                        activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                                        onFocus={() => setActiveSlotKey(`sub-${i}`)}
+                                                                        onChangeText={(txt) => onSlotChangeText('sub', i, txt)}
+                                                                        onPickUser={(u) => { setSlot('sub', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                                                                        onClear={() => setSlot('sub', i, null)}
+                                                                        cfg={cfg} s={s} colors={colors} />
+                                                                ))}
+                                                            </>
+                                                        )}
+                                                        <Text style={s.fieldHint}>{t.rosterFrontHint}</Text>
                                                     </>
                                                 ) : (
                                                     <>
                                                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
-                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.myTeamLabel} vs {t.oppTeamLabel}</Text>
+                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.myTeamLabel} ↔ {t.oppTeamLabel}</Text>
                                                             <TouchableOpacity onPress={flipTeamCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
                                                                 <Text style={{ fontSize:15 }}>🔄</Text>
                                                             </TouchableOpacity>
                                                         </View>
                                                         <View style={{ flexDirection:'row', gap:6 }}>
                                                             <View style={{ flex:1 }}>
-                                                                <Text style={[s.fieldLabel, { fontSize:10 }]}>{t.myTeamLabel}</Text>
-                                                                <Text style={{ color:'#fff', fontSize:11 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
-                                                                {f.myTeamSlots.map((slot, i) => (
-                                                                    <Text key={`myr-${i}`} style={{ color: slot ? '#fff' : colors.textMuted, fontSize:11 }} numberOfLines={1}>
-                                                                        {i + 2}. {slot ? (slot.type === 'user' ? (slot.fullName || slot.username) : slot.name) : '—'}
+                                                                <TouchableOpacity disabled={selectedUnassignedIndex == null}
+                                                                    onPress={() => { setSlotSide(selectedUnassignedIndex, 'my'); setSelectedUnassignedIndex(null); }}>
+                                                                    <Text style={[s.fieldLabel, { fontSize:10, color: selectedUnassignedIndex != null ? cfg.color : undefined }]} numberOfLines={1}>
+                                                                        {t.myTeamLabel}{selectedUnassignedIndex != null ? ' ↩' : ''}
                                                                     </Text>
-                                                                ))}
+                                                                </TouchableOpacity>
+                                                                <Text style={{ color:'#fff', fontSize:11 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
+                                                                {f.rosterSlots.map((slot, i) => slot?.side === 'my' ? (
+                                                                    <TouchableOpacity key={`my-${i}`} onPress={() => setSlotSide(i, null)}>
+                                                                        <Text style={{ color:'#fff', fontSize:11 }} numberOfLines={1}>{slotText(slot)}</Text>
+                                                                    </TouchableOpacity>
+                                                                ) : null)}
                                                             </View>
                                                             <View style={{ flex:1 }}>
-                                                                <Text style={[s.fieldLabel, { fontSize:10 }]}>{t.oppTeamLabel}</Text>
-                                                                {f.oppTeamSlots.map((slot, i) => (
-                                                                    <TeamSlotRow key={`opp-${i}`} side="opp" index={i} slot={slot}
-                                                                        placeholder={t.teamSlotPh(i + 1)}
-                                                                        activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
-                                                                        onFocus={() => setActiveSlotKey(`opp-${i}`)}
-                                                                        onChangeText={(txt) => onSlotChangeText('opp', i, txt)}
-                                                                        onPickUser={(u) => { setSlot('opp', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar }); setActiveSlotKey(null); setSlotSuggestions([]); }}
-                                                                        onClear={() => setSlot('opp', i, null)}
-                                                                        cfg={cfg} s={s} colors={colors} />
-                                                                ))}
+                                                                <TouchableOpacity disabled={selectedUnassignedIndex == null}
+                                                                    onPress={() => { setSlotSide(selectedUnassignedIndex, 'opp'); setSelectedUnassignedIndex(null); }}>
+                                                                    <Text style={[s.fieldLabel, { fontSize:10, color: selectedUnassignedIndex != null ? cfg.color : undefined }]} numberOfLines={1}>
+                                                                        {t.oppTeamLabel}{selectedUnassignedIndex != null ? ' ↩' : ''}
+                                                                    </Text>
+                                                                </TouchableOpacity>
+                                                                {f.rosterSlots.map((slot, i) => slot?.side === 'opp' ? (
+                                                                    <TouchableOpacity key={`opp-${i}`} onPress={() => setSlotSide(i, null)}>
+                                                                        <Text style={{ color:'#fff', fontSize:11 }} numberOfLines={1}>{slotText(slot)}</Text>
+                                                                    </TouchableOpacity>
+                                                                ) : null)}
                                                             </View>
                                                         </View>
+                                                        {f.rosterSlots.some(sl => sl && !sl.side) && (
+                                                            <View style={{ marginTop:8 }}>
+                                                                <Text style={[s.fieldLabel, { fontSize:10 }]}>{t.unassignedLabel}</Text>
+                                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4 }}>
+                                                                    {f.rosterSlots.map((slot, i) => (slot && !slot.side) ? (
+                                                                        <TouchableOpacity key={`unassigned-${i}`}
+                                                                            onPress={() => setSelectedUnassignedIndex(p => p === i ? null : i)}
+                                                                            style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:8, backgroundColor: selectedUnassignedIndex === i ? cfg.color+'40' : '#ffffff10', borderWidth:1, borderColor: selectedUnassignedIndex === i ? cfg.color : colors.border }}>
+                                                                            <Text style={{ color:'#fff', fontSize:11 }} numberOfLines={1}>{slotText(slot)}</Text>
+                                                                        </TouchableOpacity>
+                                                                    ) : null)}
+                                                                </View>
+                                                                <Text style={[s.fieldHint, { marginTop:4 }]}>{t.assignHintLabel}</Text>
+                                                            </View>
+                                                        )}
                                                     </>
                                                 )}
                                             </Animated.View>
