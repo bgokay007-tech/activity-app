@@ -221,8 +221,20 @@ export default function VolleyballRatingModal({ visible, subjectId, subCategory 
                                                 <View key={i} style={s.commentCard}>
                                                     <Text style={s.commentName}>
                                                         {c.rater?.fullName || c.rater?.username || '?'} · {c.role === 'COACH' ? t[cfg.roleCoachKey] : t[cfg.roleTeammateKey]}
+                                                        {' · '}{c.overall}/5
                                                         {c.generalPerformanceNote != null ? ` · ${c.generalPerformanceNote}/10` : ''}
                                                     </Text>
+                                                    {/* Kim ne işaretlemiş — her soru için verdiği puan tek tek burada,
+                                                        antrenör/takım arkadaşı kimliğine bağlı olarak görünür. */}
+                                                    {c.scores && (
+                                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 2 }}>
+                                                            {cfg.questionFields.map(f => (
+                                                                <Text key={f} style={s.scoreChip}>
+                                                                    {t[cfg.questionMeta[f].title]}: {c.scores[f]}
+                                                                </Text>
+                                                            ))}
+                                                        </View>
+                                                    )}
                                                     {c.strongestPoint ? <Text style={s.commentText}>+ {c.strongestPoint}</Text> : null}
                                                     {c.weakestPoint ? <Text style={s.commentText}>- {c.weakestPoint}</Text> : null}
                                                 </View>
@@ -318,6 +330,7 @@ const s = StyleSheet.create({
     commentCard:         { backgroundColor: colors.surface2, borderRadius: 12, padding: 11, borderWidth: 1, borderColor: colors.border, gap: 3 },
     commentName:         { color: colors.purple, fontSize: 12, fontWeight: '700' },
     commentText:         { color: colors.textSecondary, fontSize: 12, lineHeight: 17 },
+    scoreChip:           { color: colors.textSecondary, fontSize: 11, backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: colors.border },
 
     categoryBox:         { gap: 9 },
     categoryTitle:       { color: '#fff', fontSize: 14, fontWeight: '900' },

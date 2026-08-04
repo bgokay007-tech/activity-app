@@ -1,5 +1,5 @@
 import prisma from '../config/prisma.js';
-import { computeOverallScore, resolveRaterRole, QUESTION_FIELDS, applyBlendedPadelRating } from '../utils/padelRating.js';
+import { computeOverallScore, computeRaterOverall, resolveRaterRole, QUESTION_FIELDS, applyBlendedPadelRating } from '../utils/padelRating.js';
 
 const RATER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -22,9 +22,10 @@ export const getPadelRating = async (req, res, next) => {
         const myRole = await resolveRaterRole(raterId, subjectId);
         const myRating = ratings.find(r => r.raterId === raterId) || null;
 
-        // Antrenör/takım arkadaşı yorumları — derece puanını etkilemez, salt okunur liste
-        const commentRows = ratings.filter(r =>
-            r.raterRole !== 'SELF' && (r.strongestPoint || r.weakestPoint || r.generalPerformanceNote != null));
+        // Antrenör/takım arkadaşı değerlendirmeleri — kimin ne işaretlediği görülebilsin diye
+        // (objektiflik/hesap verebilirlik için) artık yorum yazmasalar bile TÜM COACH/TEAMMATE
+        // satırları, tek tek soru puanlarıyla birlikte kimliğe bağlı olarak dönüyor.
+        const commentRows = ratings.filter(r => r.raterRole !== 'SELF');
         const raters = commentRows.length
             ? await prisma.user.findMany({ where: { id: { in: commentRows.map(r => r.raterId) } }, select: RATER_SELECT })
             : [];
@@ -32,6 +33,8 @@ export const getPadelRating = async (req, res, next) => {
         const comments = commentRows.map(r => ({
             rater: raterById[r.raterId] || null,
             role: r.raterRole,
+            scores: Object.fromEntries(QUESTION_FIELDS.map(field => [field, r[field]])),
+            overall: parseFloat(computeRaterOverall(r).toFixed(2)),
             strongestPoint: r.strongestPoint,
             weakestPoint: r.weakestPoint,
             generalPerformanceNote: r.generalPerformanceNote,
