@@ -5810,6 +5810,7 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamNam
 
 function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill = null, editItem = null }) {
     const t = useT();
+    const insets = useSafeAreaInsets();
     const lang = useSelector(s => s.lang?.lang || 'en');
     const myUser = useSelector(s => s.auth.user);
     const isTeamSport = TEAM_SPORTS.has(sub);
@@ -6671,7 +6672,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             <Text style={s.modalTitle}>{isMatchedEdit ? '✏️ Kort/Saat Değiştir' : editItem ? t.editRivalTitle : t.createTitle}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
-                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+                            contentContainerStyle={{ paddingBottom: Math.max(20, insets.bottom + 16) }}>
 
                             {/* Konum — kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) formun en
                                 başında: İl/İlçe kayıtlı il-ilçe veritabanına göre öneri verir (/cities,
@@ -10985,6 +10987,11 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         if (f.scope === 'YEREL' && !f.scopeCity.trim()) { Alert.alert('', t.tournMissingCity); return; }
         if (f.scope === 'ULUSAL' && !f.scopeCountry.trim()) { Alert.alert('', t.tournMissingCountry); return; }
         if (!f.regEndDate) { Alert.alert('', t.tournMissingRegEnd); return; }
+        if (f.eventStartDate && f.regEndDate) {
+            const startDt = new Date(f.eventStartDate); startDt.setHours(...( f.eventStartTime ? f.eventStartTime.split(':').map(Number) : [0, 0] ), 0, 0);
+            const regDt   = new Date(f.regEndDate);     regDt.setHours(...( f.regEndTime  ? f.regEndTime.split(':').map(Number)  : [23, 59] ), 0, 0);
+            if (startDt.getTime() <= regDt.getTime()) { Alert.alert('', t.tournStartBeforeReg); return; }
+        }
         if (f.pollEnabled && !f.pollEndDate) { Alert.alert('', t.tournPollMissingEnd); return; }
         if (f.pollEnabled && f.pollTypes.length < 2) { Alert.alert('', t.tournPollTypesMin); return; }
         if (f.pollEnabled && f.pollEndDate && f.regEndDate) {
@@ -17656,6 +17663,8 @@ const s = StyleSheet.create({
     chipBtnActive:    { backgroundColor: colors.purple, borderColor: colors.purple },
     chipBtnText:      { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
     chipBtnTextActive:{ color:'#fff' },
+    compactSelectBtn: { backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, paddingHorizontal:6, paddingVertical:4, alignItems:'center', justifyContent:'center' },
+    compactSelectText:{ color:'#fff', fontSize:11, fontWeight:'700' },
     submitBtn:        { backgroundColor: colors.purple, borderRadius:14, paddingVertical:11, alignItems:'center', marginTop:8 },
     submitBtnText:    { color:'#fff', fontWeight:'800', fontSize:15 },
 
