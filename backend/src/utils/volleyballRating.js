@@ -22,12 +22,9 @@ export function computeRaterOverall(r) {
     return technical * CATEGORY_WEIGHTS.technical + physical * CATEGORY_WEIGHTS.physical + tactical * CATEGORY_WEIGHTS.tactical;
 }
 
-// SELF/COACH/TEAMMATE kayıtlarından derece puanını hesaplar. Hiç antrenör/takım arkadaşı
-// değerlendirmesi yoksa kendi anketi puanı %100 aynen kullanılır — aksi halde bu artık
-// UserInterest.skillRating'i (gerçek dereceyi) de güncellediği için, henüz kimse tarafından
-// değerlendirilmemiş bir oyuncunun derecesi sırf %40 ağırlık yüzünden anlık düşerdi. En az bir
-// dış kaynak (coach/teammate) eklendiğinde harmanlama devreye girer, o noktadan sonra eksik
-// kaynak (ör. sadece coach var, teammate yok) yine 0 katkı verir — yeniden ağırlıklandırma yok.
+// SELF/COACH/TEAMMATE kayıtlarından derece puanını hesaplar. Eksik kaynak 0 kabul edilir,
+// yeniden ağırlıklandırma YAPILMAZ — örn. sadece kendi anketini dolduran biri en fazla
+// 5*0.40=2.00 alır (kullanıcı ile netleşen orijinal tasarım).
 export function computeOverallScore(ratings) {
     const selfRating = ratings.find(r => r.raterRole === 'SELF');
     const coachRatings = ratings.filter(r => r.raterRole === 'COACH');
@@ -39,10 +36,7 @@ export function computeOverallScore(ratings) {
     const coachScore = avg(coachRatings);
     const teammateScore = avg(teammateRatings);
 
-    const hasExternal = coachRatings.length > 0 || teammateRatings.length > 0;
-    const overallScore = hasExternal
-        ? selfScore * ROLE_WEIGHTS.SELF + coachScore * ROLE_WEIGHTS.COACH + teammateScore * ROLE_WEIGHTS.TEAMMATE
-        : selfScore;
+    const overallScore = selfScore * ROLE_WEIGHTS.SELF + coachScore * ROLE_WEIGHTS.COACH + teammateScore * ROLE_WEIGHTS.TEAMMATE;
 
     return {
         overallScore: parseFloat(overallScore.toFixed(2)),

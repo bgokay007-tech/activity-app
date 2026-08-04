@@ -26,9 +26,8 @@ export function computeRaterOverall(r) {
 // Padelin kendi kayıt anketi (Vuruş Teknikleri/Taktik/Deneyim) COACH/TEAMMATE'in 10 soruluk
 // beceri formatından tamamen farklı olduğu için — voleybolün aksine — burada PadelRating
 // tablosunda bir SELF satırı YOK. Kendi puanı parametre olarak (UserInterest.selfAssessmentRating)
-// verilir. Hiç antrenör/takım arkadaşı değerlendirmesi yoksa kendi puanı %100 aynen kullanılır —
-// aksi halde mevcut/yeni padel oyuncularının derecesi sırf %85 ağırlık yüzünden anlık düşerdi.
-// En az bir dış kaynak eklendiğinde harmanlama devreye girer (eksik kaynak yine 0 katkı verir).
+// verilir. Eksik kaynak 0 kabul edilir, yeniden ağırlıklandırma YAPILMAZ — örn. sadece kendi
+// anketini dolduran biri en fazla 5*0.85=4.25 alır (voleyboldakiyle aynı, netleşen tasarım).
 export function computeOverallScore(selfSkillRating, ratings) {
     const coachRatings = ratings.filter(r => r.raterRole === 'COACH');
     const teammateRatings = ratings.filter(r => r.raterRole === 'TEAMMATE');
@@ -39,10 +38,7 @@ export function computeOverallScore(selfSkillRating, ratings) {
     const coachScore = avg(coachRatings);
     const teammateScore = avg(teammateRatings);
 
-    const hasExternal = coachRatings.length > 0 || teammateRatings.length > 0;
-    const overallScore = hasExternal
-        ? selfScore * ROLE_WEIGHTS.SELF + coachScore * ROLE_WEIGHTS.COACH + teammateScore * ROLE_WEIGHTS.TEAMMATE
-        : selfScore;
+    const overallScore = selfScore * ROLE_WEIGHTS.SELF + coachScore * ROLE_WEIGHTS.COACH + teammateScore * ROLE_WEIGHTS.TEAMMATE;
 
     return {
         overallScore: parseFloat(overallScore.toFixed(2)),
