@@ -5616,6 +5616,44 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
     );
 }
 
+// Voleybol takım slotu — kayıtlı kullanıcı aramak (yazınca öneri düşer) veya
+// hesabı olmayan biri için sadece isim yazmak (öneri seçilmezse manuel kalır)
+// için tek satır. CreateRivalModal'ın kendi state'ini (activeSlotKey vb.) kullanır.
+function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSuggestions, onFocus, onChangeText, onPickUser, onClear, cfg, s, colors }) {
+    const key = `${side}-${index}`;
+    const text = !slot ? '' : slot.type === 'user' ? (slot.fullName || slot.username) : slot.name;
+    return (
+        <View style={{ marginBottom: 4 }}>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                {slot?.type === 'user' && <Avatar name={slot.username} avatar={slot.avatar} size={22} color={cfg.color} />}
+                <TextInput
+                    style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:6 }]}
+                    value={text}
+                    onChangeText={onChangeText}
+                    onFocus={onFocus}
+                    placeholder={placeholder}
+                    placeholderTextColor={colors.textMuted}
+                />
+                {!!slot && (
+                    <TouchableOpacity onPress={onClear} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                        <Text style={{ color: colors.textMuted, fontSize:14 }}>✕</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+            {activeSlotKey === key && slotSuggestions.length > 0 && (
+                <View style={s.courtResultsBox}>
+                    {slotSuggestions.map(u => (
+                        <TouchableOpacity key={u.id} style={[s.courtResultRow, { flexDirection:'row', alignItems:'center', gap:3 }]} onPress={() => onPickUser(u)}>
+                            <Avatar name={u.username} avatar={u.avatar} size={24} color={cfg.color} />
+                            <Text style={s.courtResultName}>{u.fullName || u.username}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+        </View>
+    );
+}
+
 // ─── Create Rival Modal ────────────────────────────────────────────────────────
 
 function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill = null, editItem = null }) {
@@ -5678,6 +5716,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         manualRefereeName: '', // sisteme kayıtlı olmayan hakem için serbest metin isim
         participantsCanInvite: true,
         extraServices: [],
+        // Voleybol: kurucu/rakip takım slotları — her biri null (boş), { type:'user', userId, username, fullName, avatar }
+        // veya { type:'manual', name } olabilir. Kurucu zaten takımda olduğu için myTeamSlots
+        // teamSize-1 uzunluğunda (diğer takım arkadaşları); oppTeamSlots teamSize uzunluğunda.
+        // Uzunluk teamSize değiştikçe setTeamSize ile ayarlanıyor.
+        myTeamSlots: isVolleyball ? Array(5).fill(null) : [],
+        oppTeamSlots: isVolleyball ? Array(6).fill(null) : [],
     };
 
     const buildInitialState = () => {
@@ -5782,6 +5826,50 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // makinesine karışmasın diye bağımsız, küçük kendi arama state'i.
     const [refereeNameSuggestions, setRefereeNameSuggestions] = useState([]);
     const [refereeNameSearching, setRefereeNameSearching] = useState(false);
+    // Voleybol takım slotları — hangi slot (ör. 'my-2', 'opp-0') o an odaklanmış, o slotun
+    // arama önerileri burada tutuluyor (12 slota kadar ayrı ayrı state tutmak yerine tek,
+    // paylaşılan bir "aktif slot" mantığı — manualRefereeName arama deseniyle aynı).
+    const [activeSlotKey, setActiveSlotKey] = useState(null);
+    const [slotSuggestions, setSlotSuggestions] = useState([]);
+    const [slotSearching, setSlotSearching] = useState(false);
+    const setTeamSize = (n) => {
+        setF(p => ({
+            ...p,
+            teamSize: n,
+            // Kurucu zaten takımın 1 kişisi — myTeamSlots geri kalan (n-1) arkadaşı temsil eder.
+            myTeamSlots: Array.from({ length: Math.max(0, n - 1) }, (_, i) => p.myTeamSlots[i] || null),
+            oppTeamSlots: Array.from({ length: n }, (_, i) => p.oppTeamSlots[i] || null),
+        }));
+    };
+    const setSlot = (side, index, value) => {
+        const key = side === 'my' ? 'myTeamSlots' : 'oppTeamSlots';
+        setF(p => {
+            const arr = p[key].slice();
+            arr[index] = value;
+            return { ...p, [key]: arr };
+        });
+    };
+    const slotText = (slot) => !slot ? '' : slot.type === 'user' ? (slot.fullName || slot.username) : slot.name;
+    const onSlotChangeText = (side, index, text) => {
+        setActiveSlotKey(`${side}-${index}`);
+        setSlot(side, index, text ? { type: 'manual', name: text } : null);
+    };
+    useEffect(() => {
+        if (!activeSlotKey) return;
+        const [side, idxStr] = activeSlotKey.split('-');
+        const idx = Number(idxStr);
+        const slot = (side === 'my' ? f.myTeamSlots : f.oppTeamSlots)[idx];
+        const q = (slot?.type === 'manual' ? slot.name : '').trim();
+        if (!q || q.length < 2) { setSlotSuggestions([]); return; }
+        setSlotSearching(true);
+        const task = setTimeout(() => {
+            api.get(`/users/by-sport?subCategory=${sub}&category=${category}&q=${encodeURIComponent(q)}`)
+                .then(res => setSlotSuggestions(Array.isArray(res.data) ? res.data.slice(0, 5) : []))
+                .catch(() => setSlotSuggestions([]))
+                .finally(() => setSlotSearching(false));
+        }, 350);
+        return () => clearTimeout(task);
+    }, [activeSlotKey, f.myTeamSlots, f.oppTeamSlots]);
     useEffect(() => {
         const q = f.manualRefereeName.trim();
         if (!q || q.length < 2) { setRefereeNameSuggestions([]); return; }
@@ -6288,6 +6376,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     ? f.manualRefereeName.trim() : undefined,
                 participantsCanInvite: ['tennis', 'padel', 'volleyball'].includes(sub) ? !!f.participantsCanInvite : undefined,
                 extraServices: ['tennis', 'padel', 'volleyball'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
+                // Voleybol takım slotları — kurucu tarafı doğrudan (senderTeam, davetsiz)
+                // eklenir, rakip tarafı gerçek kullanıcılar davet olarak gönderilir,
+                // hesabı olmayanlar sadece bilgi amaçlı isim olarak kaydedilir.
+                senderTeam: isVolleyball && f.myTeamSlots.some(Boolean)
+                    ? f.myTeamSlots.filter(Boolean).map(slot => slot.type === 'user'
+                        ? { id: slot.userId, username: slot.username, fullName: slot.fullName, avatar: slot.avatar }
+                        : { manualName: slot.name })
+                    : undefined,
+                oppTeamInviteIds: isVolleyball
+                    ? f.oppTeamSlots.filter(s => s?.type === 'user').map(s => s.userId)
+                    : undefined,
+                oppTeamManualNames: isVolleyball
+                    ? f.oppTeamSlots.filter(s => s?.type === 'manual').map(s => s.name)
+                    : undefined,
             });
             // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
             // endpoint'i ile gönderilir (DOUBLE'daki partner/opp1/opp2InviteId create-time akışından
@@ -6532,7 +6634,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:14 }}>
                                                 <View style={s.chipRow}>
                                                     {teamSizes.map(n => (
-                                                        <TouchableOpacity key={n} onPress={() => set('teamSize', n)}
+                                                        <TouchableOpacity key={n} onPress={() => setTeamSize(n)}
                                                             style={[s.chipBtn, f.teamSize===n && s.chipBtnActive]}>
                                                             <Text style={[s.chipBtnText, f.teamSize===n && s.chipBtnTextActive]}>{n}v{n}</Text>
                                                         </TouchableOpacity>
@@ -6540,6 +6642,33 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </View>
                                             </ScrollView>
                                         </>
+                                    )}
+                                    {isVolleyball && (f.myTeamSlots.length > 0 || f.oppTeamSlots.length > 0) && (
+                                        <View style={{ marginBottom:14 }}>
+                                            <Text style={s.fieldLabel}>{t.myTeamLabel}</Text>
+                                            {f.myTeamSlots.map((slot, i) => (
+                                                <TeamSlotRow key={`my-${i}`} side="my" index={i} slot={slot}
+                                                    placeholder={t.teamSlotPh(i + 2)}
+                                                    activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                    onFocus={() => setActiveSlotKey(`my-${i}`)}
+                                                    onChangeText={(txt) => onSlotChangeText('my', i, txt)}
+                                                    onPickUser={(u) => { setSlot('my', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                                                    onClear={() => setSlot('my', i, null)}
+                                                    cfg={cfg} s={s} colors={colors} />
+                                            ))}
+                                            <Text style={[s.fieldLabel, { marginTop:8 }]}>{t.oppTeamLabel}</Text>
+                                            {f.oppTeamSlots.map((slot, i) => (
+                                                <TeamSlotRow key={`opp-${i}`} side="opp" index={i} slot={slot}
+                                                    placeholder={t.teamSlotPh(i + 1)}
+                                                    activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                    onFocus={() => setActiveSlotKey(`opp-${i}`)}
+                                                    onChangeText={(txt) => onSlotChangeText('opp', i, txt)}
+                                                    onPickUser={(u) => { setSlot('opp', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                                                    onClear={() => setSlot('opp', i, null)}
+                                                    cfg={cfg} s={s} colors={colors} />
+                                            ))}
+                                            <Text style={s.fieldHint}>{t.teamSlotHint}</Text>
+                                        </View>
                                     )}
                                     {isVolleyball && (
                                         <View style={{ marginBottom:14 }}>

@@ -749,7 +749,8 @@ model ActivityRequest {
   teamSize        Int          @default(1)          // players per side (1–6 for volleyball)
   duration        Int?                              // match duration in minutes
   participants    Json         @default("[]")     // [{id, username, fullName}]
-  senderTeam      Json         @default("[]")     // COMPETITIVE team: creator's additional teammates [{id,username,fullName,skillRating}]
+  senderTeam      Json         @default("[]")     // team sports (football/volleyball): creator's additional teammates — real users [{id,username,fullName,skillRating}] or guests [{manualName}]
+  oppTeamManualNames Json      @default("[]")     // team sports: opponent-side names typed in for players without an app account (display-only, ["Ahmet Yılmaz", ...])
   positions       Json         @default("[]")     // e.g. ['REFEREE'] | ['REFEREE_OFFER'] | ['GOALKEEPER']
   extraServices   Json         @default("[]")     // [{id,type,name,price,artistListingId?}] — DJ/Sanatçı/Mangal Partisi vb. ek hizmetler (tenis/padel/voleybol)
   refereePayment  String?                         // fee offered or rate per match

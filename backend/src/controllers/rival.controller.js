@@ -75,8 +75,10 @@ async function applyCompetitivePoints(request, winnerUserId) {
 
     let winnerIds, loserIds;
     if (isTeamMatch) {
-        const creatorTeam = [{ id: request.senderId }, ...senderTeamArr];
-        const joiningTeam = participants; // opponent's team stored in participants after acceptance
+        // Misafir (hesapsız, id'siz — manuel isimle eklenmiş) oyuncuların puanı
+        // güncellenemez, ELO hesabından çıkarılıyorlar.
+        const creatorTeam = [{ id: request.senderId }, ...senderTeamArr].filter(m => m?.id);
+        const joiningTeam = participants.filter(m => m?.id); // opponent's team stored in participants after acceptance
         const senderWon = creatorTeam.some(m => m.id === winnerUserId);
         winnerIds = senderWon ? creatorTeam.map(m => m.id) : joiningTeam.map(m => m.id);
         loserIds  = senderWon ? joiningTeam.map(m => m.id) : creatorTeam.map(m => m.id);
@@ -1121,6 +1123,8 @@ export const createRivalRequest = async (req, res, next) => {
             opp2GenderReq = 'MIX',
             partnerInviteId, // DOUBLE: partner daveti gönderilecek kullanıcının id'si
             opp1InviteId, opp2InviteId, // DOUBLE: rakip 1 / rakip 2 slotuna doğrudan davet gönderilecek kullanıcı id'leri
+            oppTeamInviteIds, // takım sporları (voleybol): rakip takım slotlarına doğrudan davet gönderilecek kullanıcı id'leri
+            oppTeamManualNames, // takım sporları: rakip takımda uygulamayı kullanmayan oyuncular için serbest metin isimler (bilgi amaçlı, davet gitmez)
             participantsCanInvite, // true ise kabul edilmiş katılımcılar da oyuncu davet edebilir / ilanı paylaşabilir
         } = req.body;
         console.log(`[rival] createRivalRequest creatorId=${creatorId} sub=${subCategory}`);
@@ -1200,6 +1204,7 @@ export const createRivalRequest = async (req, res, next) => {
                 senderTeam: (partnerInviteId && matchType.toUpperCase() === 'DOUBLE')
                     ? []
                     : (Array.isArray(senderTeam) ? senderTeam : []),
+                oppTeamManualNames: Array.isArray(oppTeamManualNames) ? oppTeamManualNames.filter(n => typeof n === 'string' && n.trim()).map(n => n.trim()) : [],
                 positions: Array.isArray(positions) ? positions : [],
                 extraServices: cleanExtraServices,
                 ...(refereePayment && { refereePayment }),
@@ -1362,6 +1367,40 @@ export const createRivalRequest = async (req, res, next) => {
                 emitToUser(oppInviteId, 'notification', {
                     type: 'MATCH_INVITE', title: '🎾 Maç Daveti',
                     body: `@${me?.username || 'Biri'} sizi bir maça davet etti.`,
+                    data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
+                });
+            }).catch(() => {});
+        }
+
+        // Takım sporları (voleybol): rakip takım slotlarına doğrudan davet — yukarıdaki
+        // opp1/opp2InviteId ile aynı mantık (owner-initiated, inviteToRival'la aynı akış),
+        // sadece DOUBLE'a değil takımSize>1 olan herhangi bir maça uygulanıyor.
+        const oppTeamIds = Array.isArray(oppTeamInviteIds) ? [...new Set(oppTeamInviteIds.filter(Boolean))] : [];
+        for (const oppInviteId of oppTeamIds) {
+            prisma.rivalJoinRequest.create({
+                data: { rivalId: request.id, userId: oppInviteId, initiatedBy: 'OWNER' },
+            }).then(async () => {
+                const updatedRival = await prisma.activityRequest.findUnique({
+                    where: { id: request.id },
+                    include: {
+                        sender: { select: SENDER_SELECT },
+                        joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
+                    },
+                });
+                if (updatedRival) {
+                    emitToUser(creatorId, 'rivalUpdate', updatedRival);
+                    emitToUser(oppInviteId, 'rivalUpdate', updatedRival);
+                }
+                const me = request.sender;
+                createNotification(
+                    oppInviteId, 'MATCH_INVITE',
+                    '🏐 Maç Daveti',
+                    `@${me?.username || 'Biri'} sizi bir takım maçına davet etti.`,
+                    { category: request.category, subCategory: request.subCategory, rivalId: request.id }
+                ).catch(() => {});
+                emitToUser(oppInviteId, 'notification', {
+                    type: 'MATCH_INVITE', title: '🏐 Maç Daveti',
+                    body: `@${me?.username || 'Biri'} sizi bir takım maçına davet etti.`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });
             }).catch(() => {});
