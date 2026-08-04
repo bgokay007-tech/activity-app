@@ -1,5 +1,5 @@
-import { Component } from 'react';
-import { View, Text, LogBox } from 'react-native';
+import { Component, useEffect } from 'react';
+import { View, Text, LogBox, Alert } from 'react-native';
 
 LogBox.ignoreLogs(['expo-notifications']);
 import { StatusBar } from 'expo-status-bar';
@@ -7,6 +7,25 @@ import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { store } from './src/store';
 import Navigation from './src/navigation';
+import { addMatchUpdateListener } from './modules/wear-bridge';
+
+// Saatten (Wear OS) canlı maç güncellemesi geldiğini kanıtlayan basit bildirim —
+// belirli bir maça (matchId) otomatik doldurma ayrı, daha büyük bir görev
+// (saatin hangi maçı skorladığını bilmesi gerekiyor), bu sadece köprünün
+// çalıştığını doğruluyor.
+function useWearBridgeDebugAlert() {
+    useEffect(() => {
+        const sub = addMatchUpdateListener((update) => {
+            const setsLine = `${update.setsA} - ${update.setsB}`;
+            const pointsLine = `${update.pointLabelA} - ${update.pointLabelB}`;
+            Alert.alert(
+                '⌚ Saatten skor güncellemesi',
+                `Set: ${setsLine}\nSayı: ${pointsLine}${update.matchWinner ? `\nKazanan: ${update.matchWinner}` : ''}`
+            );
+        });
+        return () => sub.remove();
+    }, []);
+}
 
 class ErrorBoundary extends Component {
     state = { error: null };
@@ -26,6 +45,7 @@ class ErrorBoundary extends Component {
 }
 
 export default function App() {
+    useWearBridgeDebugAlert();
     return (
         <ErrorBoundary>
             <SafeAreaProvider>

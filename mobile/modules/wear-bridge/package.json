@@ -1,0 +1,7 @@
+{
+  "name": "wear-bridge",
+  "version": "0.1.0",
+  "description": "Saatten (Wear OS) telefona canlı maç skoru köprüsü",
+  "main": "index.ts",
+  "license": "UNLICENSED"
+}

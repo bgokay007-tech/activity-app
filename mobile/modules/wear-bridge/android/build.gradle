@@ -1,0 +1,24 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+group = 'expo.modules.wearbridge'
+version = '0.1.0'
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useExpoPublishing()
+
+android {
+    namespace "expo.modules.wearbridge"
+    defaultConfig {
+        minSdkVersion getExpoDefaultMinSdkVersion()
+        targetSdkVersion getExpoDefaultTargetSdkVersion()
+    }
+    compileSdkVersion getExpoDefaultCompileSdkVersion()
+}
+
+dependencies {
+    implementation "com.google.android.gms:play-services-wearable:18.1.0"
+}
