@@ -64,10 +64,21 @@ const FOOTBALL_SURFACES = [
     { id: 'BALON',     label: 'Balon',     emoji: '🎈' },
 ];
 const VOLLEYBALL_SURFACES = [
-    { id: 'INDOOR', label: 'Kapalı',  emoji: '🏟️' },
+    { id: 'INDOOR', label: 'Salon',   emoji: '🏟️' },
     { id: 'BEACH',  label: 'Plaj',    emoji: '🏖️' },
     { id: 'GRASS',  label: 'Çim',     emoji: '🌿' },
+    { id: 'STREET', label: 'Mahalle', emoji: '🏘️' },
+    { id: 'CLAY',   label: 'Toprak',  emoji: '🟤' },
 ];
+// Zemin seçimine göre alan etiketi + arama placeholder'ı ("Voleybol Salonu ara..." /
+// "Plaj Sahası ara..." gibi) — VOLLEYBALL_SURFACES'teki id'lerle birebir eşleşir.
+const VOLLEYBALL_VENUE_NOUN = {
+    INDOOR: { tr: 'Voleybol Salonu', en: 'Volleyball Hall' },
+    BEACH:  { tr: 'Plaj Sahası',     en: 'Beach Court' },
+    GRASS:  { tr: 'Çim Saha',        en: 'Grass Court' },
+    STREET: { tr: 'Mahalle Sahası',  en: 'Street Court' },
+    CLAY:   { tr: 'Toprak Saha',     en: 'Clay Court' },
+};
 const FOOTBALL_SIZES = [2,3,4,5,6,7,8,9,10,11];
 const VOLLEYBALL_SIZES = [1,2,3,4,5,6];
 
@@ -3282,9 +3293,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     <Text style={{ color:'#22c55e', fontSize:12, fontWeight:'600' }}>📋 Sipariş Ver</Text>
                 </TouchableOpacity>
             )}
-            {match.refereeRequested && (match.refereeUser || !matchEnded) && (
+            {match.refereeRequested && (match.refereeUser || match.manualRefereeName || !matchEnded) && (
                 <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'600', marginTop:4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                    {match.refereeUser ? `${t.refereeSlotLabel}: ${match.refereeUser.fullName || match.refereeUser.username} ✓` : t.refereeOnlyMissingLabel}
+                    {match.refereeUser ? `${t.refereeSlotLabel}: ${match.refereeUser.fullName || match.refereeUser.username} ✓`
+                        : match.manualRefereeName ? `${t.refereeSlotLabel}: ${match.manualRefereeName}`
+                        : t.refereeOnlyMissingLabel}
                 </Text>
             )}
             {/* Comment count */}
@@ -3391,9 +3404,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <Text style={{ color:'#22c55e', fontSize:13, fontWeight:'600' }}>📋 Sipariş Ver</Text>
                             </TouchableOpacity>
                         )}
-                        {match.refereeRequested && (match.refereeUser || !matchEnded) && (
+                        {match.refereeRequested && (match.refereeUser || match.manualRefereeName || !matchEnded) && (
                             <Text style={{ color:'#f59e0b', fontSize:13, fontWeight:'600', marginTop:6 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {match.refereeUser ? `${t.refereeSlotLabel}: ${match.refereeUser.fullName || match.refereeUser.username} ✓` : t.refereeOnlyMissingLabel}
+                                {match.refereeUser ? `${t.refereeSlotLabel}: ${match.refereeUser.fullName || match.refereeUser.username} ✓`
+                                    : match.manualRefereeName ? `${t.refereeSlotLabel}: ${match.manualRefereeName}`
+                                    : t.refereeOnlyMissingLabel}
                             </Text>
                         )}
                         {match.level && (
@@ -5665,6 +5680,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         venuePayMethod: 'CASH',
         refereeRequested: false,
         refereePayment: '',
+        manualRefereeName: '', // sisteme kayıtlı olmayan hakem için serbest metin isim
         participantsCanInvite: true,
         extraServices: [],
     };
@@ -5723,6 +5739,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 // sayısal alana geri konurken temizlenmezse kaydedince ikinci bir simge
                 // eklenip "1000₺₺" oluşuyordu.
                 refereePayment: (editItem.refereePayment || '').toString().replace(/[^0-9]/g, ''),
+                manualRefereeName: editItem.manualRefereeName || '',
                 participantsCanInvite: !!editItem.participantsCanInvite,
                 extraServices: Array.isArray(editItem.extraServices) ? editItem.extraServices : [],
             };
@@ -5765,6 +5782,29 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // Hakem daveti: kullanıcı seçilince liste yerine mesaj/teklif fiyatı formu gösterilir,
     // onaylayınca f.refereeInvites listesine eklenir — birden fazla hakem davet edilebilir.
     const [refereeInviteForm, setRefereeInviteForm] = useState(null); // { user, message, price } | null
+    // Hakem alanına serbest metin yazılırken sisteme kayıtlı eşleşen kullanıcıları öneri
+    // olarak göstermek için — büyük davet modalının (showPartnerSearch/inviteTab) state
+    // makinesine karışmasın diye bağımsız, küçük kendi arama state'i.
+    const [refereeNameSuggestions, setRefereeNameSuggestions] = useState([]);
+    const [refereeNameSearching, setRefereeNameSearching] = useState(false);
+    useEffect(() => {
+        const q = f.manualRefereeName.trim();
+        if (!q || q.length < 2) { setRefereeNameSuggestions([]); return; }
+        setRefereeNameSearching(true);
+        const task = setTimeout(() => {
+            api.get(`/users/by-sport?subCategory=${sub}&category=${category}&q=${encodeURIComponent(q)}`)
+                .then(res => setRefereeNameSuggestions(Array.isArray(res.data) ? res.data.slice(0, 5) : []))
+                .catch(() => setRefereeNameSuggestions([]))
+                .finally(() => setRefereeNameSearching(false));
+        }, 300);
+        return () => clearTimeout(task);
+    }, [f.manualRefereeName]);
+    const pickRefereeSuggestion = (user) => {
+        setRefereeInviteForm({ user, message: '', price: '' });
+        setInviteTarget('referee');
+        setRefereeNameSuggestions([]);
+        set('manualRefereeName', '');
+    };
     // İki sekme: Arkadaşlarım (önceden yüklenen liste) | Tüm Oyuncular (bu sporda ilgi kaydı
     // olan herkes, yazdıkça sunucudan "başlayanlar" filtresiyle canlı daralır).
     const [inviteTab, setInviteTab] = useState('friends');
@@ -5884,7 +5924,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         setSearching(true);
         const task = setTimeout(async () => {
             try {
-                const { data } = await api.get('/courts/search', { params: { q: text, sport: sub } });
+                const { data } = await api.get('/courts/search', { params: { q: text, sport: sub, surface: isVolleyball ? (f.surface || undefined) : undefined } });
                 const raw = Array.isArray(data) ? data : [];
                 const seenVenues = new Set();
                 const deduped = [];
@@ -5902,7 +5942,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             finally { setSearching(false); }
         }, 350);
         return () => clearTimeout(task);
-    }, [f.courtSearchText, f.selectedCourt]);
+    }, [f.courtSearchText, f.selectedCourt, f.surface]);
 
     const selectCourt = (court) => {
         if (court.isBusinessVenue) {
@@ -6115,6 +6155,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 ...(['tennis', 'padel', 'volleyball'].includes(sub) && {
                     refereeRequested: !!f.refereeRequested,
                     refereePayment: f.refereeRequested && f.refereePayment !== '' ? `${f.refereePayment}₺` : null,
+                    manualRefereeName: f.refereeRequested && f.manualRefereeName.trim() ? f.manualRefereeName.trim() : null,
                     participantsCanInvite: !!f.participantsCanInvite,
                     extraServices: f.extraServices,
                 }),
@@ -6248,6 +6289,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 refereeInvites: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && f.refereeInvites.length > 0
                     ? f.refereeInvites.map(inv => ({ userId: inv.user.id, message: inv.message || undefined, price: inv.price || undefined }))
                     : undefined,
+                manualRefereeName: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && f.manualRefereeName.trim()
+                    ? f.manualRefereeName.trim() : undefined,
                 participantsCanInvite: ['tennis', 'padel', 'volleyball'].includes(sub) ? !!f.participantsCanInvite : undefined,
                 extraServices: ['tennis', 'padel', 'volleyball'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
             });
@@ -6440,24 +6483,49 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </>
                             ) : (
                                 <>
-                                    <Text style={s.fieldLabel}>{t.modLabel}</Text>
-                                    <View style={s.chipRow}>
-                                        {(isVolleyball ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
-                                            const isActive = f.matchMode === mode;
-                                            const label = mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode;
-                                            return (
-                                                <TouchableOpacity key={mode} onPress={() => set('matchMode', mode)}
-                                                    style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isActive && {
-                                                        backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
-                                                        borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
-                                                    }]}>
-                                                    <Text style={[s.chipBtnText, isActive && { color:'#fff' }]}>
-                                                        {isVolleyball ? noEmoji(label) : label}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            );
-                                        })}
-                                    </View>
+                                    {(() => {
+                                        const modeChips = (
+                                            <View style={s.chipRow}>
+                                                {(isVolleyball ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
+                                                    const isActive = f.matchMode === mode;
+                                                    const label = mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode;
+                                                    return (
+                                                        <TouchableOpacity key={mode} onPress={() => set('matchMode', mode)}
+                                                            style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isActive && {
+                                                                backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
+                                                                borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
+                                                            }]}>
+                                                            <Text style={[s.chipBtnText, isActive && { color:'#fff' }]}>
+                                                                {isVolleyball ? noEmoji(label) : label}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </View>
+                                        );
+                                        // Voleybolde Zemin (Salon/Plaj/Çim/Mahalle/Toprak) formun en üstünde,
+                                        // Mod'un solunda — diğer takım sporlarında (futbol) eski dikey Mod bloğu aynen kalır.
+                                        if (!isVolleyball) return (<><Text style={s.fieldLabel}>{t.modLabel}</Text>{modeChips}</>);
+                                        return (
+                                            <View style={{ flexDirection:'row', gap:8 }}>
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={s.fieldLabel}>{t.surfaceLabel}</Text>
+                                                    <TouchableOpacity
+                                                        style={[s.fieldInput, { marginBottom:0, paddingVertical:8, justifyContent:'center' }]}
+                                                        onPress={() => setShowSurfacePicker(true)}
+                                                    >
+                                                        <Text style={{ color: f.surface ? '#fff' : colors.textMuted, fontSize:13, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                            {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : t.courtSurfaceSelectPlaceholder}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={s.fieldLabel}>{t.modLabel}</Text>
+                                                    {modeChips}
+                                                </View>
+                                            </View>
+                                        );
+                                    })()}
                                     {(f.matchMode === 'COMPETITIVE' || f.matchMode === 'BOTH') && (
                                         <View style={s.eloWarning}>
                                             <Text style={s.eloWarningText}>{t.eloWarning}</Text>
@@ -6722,7 +6790,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {/* Kort Adı + Ortaklaşa Kararlaştırılır + Kort Rezerve Edildi — tek satır */}
                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:6, marginBottom:4 }}>
                                         {!f.courtMutual ? (
-                                            <Text style={[s.fieldLabel, { marginBottom:0 }]}>{isVolleyball ? t.volleyballHallLabel : t.courtLabel}{!f.flexibleSchedule ? ' *' : ''}</Text>
+                                            <Text style={[s.fieldLabel, { marginBottom:0 }]}>
+                                                {isVolleyball ? (f.surface ? VOLLEYBALL_VENUE_NOUN[f.surface][lang] : t.volleyballHallLabel) : t.courtLabel}
+                                                {!f.flexibleSchedule ? ' *' : ''}
+                                            </Text>
                                         ) : <View />}
                                         <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
                                             {f.courtMutual && (
@@ -6781,10 +6852,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </TouchableOpacity>
                                         ) : (
                                             <TextInput
-                                                style={[s.fieldInput, { flex:2, marginBottom:0, paddingVertical:5 }]}
+                                                style={[s.fieldInput, { flex: isVolleyball ? 1 : 2, marginBottom:0, paddingVertical:5 }]}
                                                 value={f.courtSearchText}
                                                 onChangeText={searchCourts}
-                                                placeholder={t.courtSearchPlaceholder}
+                                                placeholder={isVolleyball && f.surface
+                                                    ? t.volleyballCourtSearchPlaceholder(VOLLEYBALL_VENUE_NOUN[f.surface][lang])
+                                                    : t.courtSearchPlaceholder}
                                                 placeholderTextColor={colors.textMuted}
                                                 textAlignVertical="center"
                                             />
@@ -6793,8 +6866,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             arama kutusu, bu iki kutunun (etiket+değer içerdikleri için daha uzun olan)
                                             yüksekliğine otomatik eşitleniyor — sabit piksel tahmini yerine güvenilir yöntem.
                                             triBtn'in taban flex:1 ağırlığı yarıya (0.5) indirildi, düşen 1.0 birim
-                                            arama kutusuna eklendi (flex:1 → flex:2). */}
-                                        {isPadel ? (
+                                            arama kutusuna eklendi (flex:1 → flex:2). Voleybolde Zemin artık formun en
+                                            üstünde (Mod'un solunda) seçiliyor, burada tekrar göstermiyoruz. */}
+                                        {isVolleyball ? null : isPadel ? (
                                             <View style={[s.triBtn, { flex:0.5, paddingVertical:1, paddingHorizontal:3 }]}>
                                                 <Text style={[s.triLabel, { fontSize:8, marginBottom:3 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.surfaceLabel}</Text>
                                                 <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Suni Çim</Text>
@@ -6807,12 +6881,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </Text>
                                             </TouchableOpacity>
                                         )}
-                                        <TouchableOpacity style={[s.triBtn, { flex:0.5, paddingVertical:1, paddingHorizontal:3 }, f.venueType && s.triBtnFilled]} onPress={() => setShowVenueTypePicker(true)}>
-                                            <Text style={[s.triLabel, { fontSize:8, marginBottom:3 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.venueLabel}</Text>
-                                            <Text style={[s.triValue, { fontSize:10 }, !f.venueType && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                {f.venueType ? noEmoji((isPadel ? { OUTDOOR:t.outdoor, INDOOR:t.indoor, INDOOR_AC:t.indoorAc } : { OUTDOOR:t.outdoor, INDOOR:t.indoor })[f.venueType] || '') : '—'}
-                                            </Text>
-                                        </TouchableOpacity>
+                                        {!isVolleyball && (
+                                            <TouchableOpacity style={[s.triBtn, { flex:0.5, paddingVertical:1, paddingHorizontal:3 }, f.venueType && s.triBtnFilled]} onPress={() => setShowVenueTypePicker(true)}>
+                                                <Text style={[s.triLabel, { fontSize:8, marginBottom:3 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.venueLabel}</Text>
+                                                <Text style={[s.triValue, { fontSize:10 }, !f.venueType && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                    {f.venueType ? noEmoji((isPadel ? { OUTDOOR:t.outdoor, INDOOR:t.indoor, INDOOR_AC:t.indoorAc } : { OUTDOOR:t.outdoor, INDOOR:t.indoor })[f.venueType] || '') : '—'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
                                         {searching && <ActivityIndicator color={cfg.color} style={{ alignSelf:'center' }} />}
                                     </View>}
                                     <OptionPickerModal
@@ -6996,13 +7072,37 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             onPress={() => set('refereeRequested', !f.refereeRequested)}
-                                            style={{ flex:1, height: moderateScale(28), flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeRequested ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeRequested ? '#f59e0b70' : colors.border }}
+                                            style={{ flex:0.5, height: moderateScale(28), flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeRequested ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeRequested ? '#f59e0b70' : colors.border }}
                                         >
                                             <Text style={{ color: f.refereeRequested ? '#f59e0b' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                 {noEmoji(t.requestRefereeBtn)}
                                             </Text>
                                         </TouchableOpacity>
                                         {f.refereeRequested && (
+                                            <View style={{ flex:1, position:'relative' }}>
+                                                <TextInput
+                                                    style={{ height: moderateScale(28), backgroundColor: colors.surface2, borderRadius: moderateScale(8), paddingHorizontal:8, paddingVertical:0, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:12, textAlignVertical:'center' }}
+                                                    value={f.manualRefereeName}
+                                                    onChangeText={v => set('manualRefereeName', v)}
+                                                    placeholder={t.refereeNamePh}
+                                                    placeholderTextColor={colors.textMuted}
+                                                />
+                                                {refereeNameSuggestions.length > 0 && (
+                                                    <View style={{ position:'absolute', top: moderateScale(30), left:0, right:0, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, zIndex:20, elevation:6 }}>
+                                                        {refereeNameSuggestions.map(u => (
+                                                            <TouchableOpacity key={u.id} onPress={() => pickRefereeSuggestion(u)}
+                                                                style={{ flexDirection:'row', alignItems:'center', gap:6, padding:7, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                                                <Avatar name={u.username} avatar={u.avatar} size={22} color={cfg.color} />
+                                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }} numberOfLines={1}>{u.fullName || u.username}</Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </View>
+                                                )}
+                                            </View>
+                                        )}
+                                    </View>
+                                    {f.refereeRequested && (
+                                        <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom: f.refereeInvites.length > 0 ? 6 : 10 }}>
                                             <TouchableOpacity
                                                 onPress={() => setInviteTarget('referee')}
                                                 style={{ flex:1, height: moderateScale(28), flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeInvites.length > 0 ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeInvites.length > 0 ? '#f59e0b70' : colors.border }}
@@ -7011,8 +7111,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     {f.refereeInvites.length > 0 ? `${noEmoji(t.inviteRefereeBtn)} (${f.refereeInvites.length})` : noEmoji(t.inviteRefereeBtn)}
                                                 </Text>
                                             </TouchableOpacity>
-                                        )}
-                                        {f.refereeRequested && (
                                             <TextInput
                                                 style={{ flex:0.7, height: moderateScale(28), backgroundColor: colors.surface2, borderRadius: moderateScale(8), paddingHorizontal:8, paddingVertical:0, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:12, textAlignVertical:'center' }}
                                                 value={f.refereePayment}
@@ -7021,8 +7119,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 placeholderTextColor={colors.textMuted}
                                                 keyboardType="numeric"
                                             />
-                                        )}
-                                    </View>
+                                        </View>
+                                    )}
                                     {f.refereeRequested && f.refereeInvites.length > 0 && (
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:10 }}>
                                             {f.refereeInvites.map(inv => (

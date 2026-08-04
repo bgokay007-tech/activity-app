@@ -647,7 +647,7 @@ export const updateRivalRequest = async (req, res, next) => {
         const { message, matchDate, matchTime, duration, location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
                 matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
-                venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment,
+                venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment, manualRefereeName,
                 teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes } = req.body;
 
         let cleanExtraServices;
@@ -701,6 +701,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(feeIncludes !== undefined && { feeIncludes: feeIncludes || null }),
                 ...(refereeRequested !== undefined && { refereeRequested: !!refereeRequested }),
                 ...(refereePayment !== undefined && { refereePayment: refereePayment || null }),
+                ...(manualRefereeName !== undefined && { manualRefereeName: manualRefereeName || null }),
                 ...(teamFlexibility !== undefined && ['FLEXIBLE', 'STRICT'].includes(teamFlexibility) && { teamFlexibility }),
                 ...(participantsCanInvite !== undefined && { participantsCanInvite: !!participantsCanInvite }),
                 ...(cleanExtraServices !== undefined && { extraServices: cleanExtraServices }),
@@ -1110,6 +1111,7 @@ export const createRivalRequest = async (req, res, next) => {
             refereePayment,
             refereeRequested, // bu maç ilanı için ayrıca hakem talep ediliyor mu (tenis/padel/voleybol)
             refereeInvites, // [{userId, price, message}] — hakem talebi belirli kullanıcılara doğrudan teklifli davet olarak gönderilecekse
+            manualRefereeName, // sisteme kayıtlı olmayan hakem için serbest metin isim (tenis/padel/voleybol)
             extraServices, // [{id,type,name,price,artistListingId?}] — DJ/Sanatçı/Mangal Partisi vb. (tenis/padel/voleybol)
             minRating, maxRating,
             ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
@@ -1202,6 +1204,7 @@ export const createRivalRequest = async (req, res, next) => {
                 extraServices: cleanExtraServices,
                 ...(refereePayment && { refereePayment }),
                 refereeRequested: !!refereeRequested,
+                ...(manualRefereeName && { manualRefereeName }),
                 participantsCanInvite: !!participantsCanInvite,
                 ...(minRating !== undefined && minRating !== null && minRating !== '' && { minRating: parseFloat(minRating) }),
                 ...(maxRating !== undefined && maxRating !== null && maxRating !== '' && { maxRating: parseFloat(maxRating) }),

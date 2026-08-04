@@ -745,7 +745,7 @@ model ActivityRequest {
   teamFlexibility String       @default("FLEXIBLE") // FLEXIBLE | STRICT — Çiftler maçlarda pozisyon değiştirmeye (swap-positions) izin var mı
   participantsCanInvite Boolean @default(false)     // kabul edilmiş katılımcılar da (ilan sahibi dışında) oyuncu davet edebilir / ilanı paylaşabilir mi
   matchMode       String       @default("PRACTICE") // PRACTICE | COMPETITIVE
-  surface         String?                           // for volleyball: BEACH | GRASS | INDOOR
+  surface         String?                           // for volleyball: INDOOR | BEACH | GRASS | STREET | CLAY
   teamSize        Int          @default(1)          // players per side (1–6 for volleyball)
   duration        Int?                              // match duration in minutes
   participants    Json         @default("[]")     // [{id, username, fullName}]
@@ -754,6 +754,7 @@ model ActivityRequest {
   extraServices   Json         @default("[]")     // [{id,type,name,price,artistListingId?}] — DJ/Sanatçı/Mangal Partisi vb. ek hizmetler (tenis/padel/voleybol)
   refereePayment  String?                         // fee offered or rate per match
   refereeRequested Boolean     @default(false)    // bu maç ilanı için hakem talep edildi mi (tenis/padel/voleybol)
+  manualRefereeName String?                       // sisteme kayıtlı olmayan hakem için serbest metin isim (tenis/padel/voleybol)
   linkedRivalId   String?                         // hakem-arama ilanıysa (matchType PLAYER_WANTED, positions:['REFEREE']) bağlı olduğu asıl maç ilanının id'si
   refereeFeePerPerson Int?                        // hakemle fiyatta anlaşıldığında, hakem ücretinin oyuncu sayısına eşit bölünmüş payı (asıl maç ilanında tutulur)
   refereeId       String?                         // asıl maç ilanında: onaylanmış hakemin userId'si (hakem slotu)
