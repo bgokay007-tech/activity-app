@@ -5640,29 +5640,54 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
 // Voleybol takım slotu — kayıtlı kullanıcı aramak (yazınca öneri düşer) veya
 // hesabı olmayan biri için sadece isim yazmak (öneri seçilmezse manuel kalır)
 // için tek satır. CreateRivalModal'ın kendi state'ini (activeSlotKey vb.) kullanır.
-function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSuggestions, onFocus, onChangeText, onPickUser, onClear, cfg, s, colors }) {
+function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSuggestions, onFocus, onChangeText, onPickUser, onClear, cfg, s, colors, onAssignSide, t }) {
     const key = `${side}-${index}`;
     const text = !slot ? '' : slot.type === 'user' ? (slot.fullName || slot.username) : slot.name;
     return (
-        <View style={{ marginBottom: 4 }}>
-            <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                {slot?.type === 'user' && <Avatar name={slot.username} avatar={slot.avatar} size={22} color={cfg.color} />}
+        // position:'relative' — öneri kutusu mutlak konumlanıp altına biner, 3'lü grid'deki
+        // komşu hücreleri aşağı itmesin diye (bkz. çağıran: dar sütunlarda kullanılıyor).
+        <View style={{ marginBottom: 4, position:'relative' }}>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
+                {slot?.type === 'user' && <Avatar name={slot.username} avatar={slot.avatar} size={18} color={cfg.color} />}
                 <TextInput
-                    style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:6 }]}
+                    style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:5, paddingHorizontal:6, fontSize:11 }]}
                     value={text}
                     onChangeText={onChangeText}
                     onFocus={onFocus}
                     placeholder={placeholder}
                     placeholderTextColor={colors.textMuted}
+                    numberOfLines={1}
                 />
                 {!!slot && (
                     <TouchableOpacity onPress={onClear} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                        <Text style={{ color: colors.textMuted, fontSize:14 }}>✕</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
                     </TouchableOpacity>
                 )}
             </View>
+            {/* Slot dolu ama henüz bir takıma atanmamışsa (onAssignSide verildiyse — sadece
+                havuz slotlarında, yedeklerde yok) hemen orada hızlı atama: kartı çevirmeden
+                Kurucu/Rakip seçilebilir. Dokunulmazsa "belli değil" olarak kalır (bkz. arka
+                yüzdeki Atanmamış listesi). */}
+            {!!slot && onAssignSide && (
+                slot.side ? (
+                    <TouchableOpacity onPress={() => onAssignSide(null)} style={{ marginTop:2 }}>
+                        <Text style={{ color: slot.side === 'my' ? '#a855f7' : '#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>
+                            ✓ {slot.side === 'my' ? t.assignMyBtn : t.assignOppBtn} ✕
+                        </Text>
+                    </TouchableOpacity>
+                ) : (
+                    <View style={{ flexDirection:'row', gap:2, marginTop:2 }}>
+                        <TouchableOpacity onPress={() => onAssignSide('my')} style={{ flex:1, paddingVertical:2, borderRadius:5, backgroundColor:'#a855f720', borderWidth:1, borderColor:'#a855f750', alignItems:'center' }}>
+                            <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.assignMyBtn}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => onAssignSide('opp')} style={{ flex:1, paddingVertical:2, borderRadius:5, backgroundColor:'#f8717120', borderWidth:1, borderColor:'#f8717150', alignItems:'center' }}>
+                            <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.assignOppBtn}</Text>
+                        </TouchableOpacity>
+                    </View>
+                )
+            )}
             {activeSlotKey === key && slotSuggestions.length > 0 && (
-                <View style={s.courtResultsBox}>
+                <View style={[s.courtResultsBox, { position:'absolute', top:'100%', left:0, right:0, zIndex:30, elevation:8 }]}>
                     {slotSuggestions.map(u => (
                         <TouchableOpacity key={u.id} style={[s.courtResultRow, { flexDirection:'row', alignItems:'center', gap:3 }]} onPress={() => onPickUser(u)}>
                             <Avatar name={u.username} avatar={u.avatar} size={24} color={cfg.color} />
@@ -6387,7 +6412,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             : undefined;
 
         // If manual court not in DB → submit for approval first
-        if (f.showManualCourt && f.manualCourtName && !f.selectedCourt) {
+        if ((f.showManualCourt || SIMPLIFIED_FEE_SUBS.has(sub)) && f.manualCourtName && !f.selectedCourt) {
             if (!f.manualCity) { Alert.alert('', t.missingCity); return; }
             try {
                 await api.post('/courts', {
@@ -6636,14 +6661,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     </View>
                                     )}
 
-                                    {/* Derece + Cinsiyet Kısıtlaması — tek satır, içeriğe göre boyutlanır */}
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8, flexWrap:'wrap' }}>
-                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                                            <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
+                                    {/* Derece + Cinsiyet Kısıtlaması — aynı satır, asla alt satıra kaymasın diye
+                                        flexWrap yok, iki blok da flexShrink ile mevcut genişliğe sığdırılıyor
+                                        (kullanıcı isteği: tekler seçiliyken derece solda, cinsiyet kısıtlaması sağda). */}
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1 }}>
+                                            <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.ratingLimitLabel}</Text>
                                             <TouchableOpacity
-                                                style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:3 }}
+                                                style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:3, flexShrink:1 }}
                                                 onPress={() => setShowRatingRange(true)}>
-                                                <Text style={[s.triValue, { fontSize:10 }] } numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
+                                                <Text style={[s.triValue, { fontSize:10 }] } numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
                                                     {f.ratingGenderSplit
                                                         ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
                                                         : ((!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`)}
@@ -6651,9 +6678,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </TouchableOpacity>
                                         </View>
                                         {(sub === 'tennis' || sub === 'padel') && f.matchType === 'SINGLE' && (
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.genderReqLabel || 'Rakip Cinsiyeti'}</Text>
-                                                <View style={{ flexDirection:'row', gap:3 }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1, flexGrow:1, justifyContent:'flex-end' }}>
+                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.genderReqLabel}</Text>
+                                                <View style={{ flexDirection:'row', gap:3, flexShrink:1 }}>
                                                     {[
                                                         { id:'MIX', label: noEmoji(t.genderMix || '🤝 Mix') },
                                                         { id:'MALE', label: noEmoji(t.genderMale || '👨 Erkek') },
@@ -6661,7 +6688,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     ].map(g => (
                                                         <TouchableOpacity key={g.id} onPress={() => set('genderReq', g.id)}
                                                             style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.genderReq===g.id && s.chipBtnActive]}>
-                                                            <Text style={[s.chipBtnText, { fontSize:11 }, f.genderReq===g.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{g.label}</Text>
+                                                            <Text style={[s.chipBtnText, { fontSize:11 }, f.genderReq===g.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{g.label}</Text>
                                                         </TouchableOpacity>
                                                     ))}
                                                 </View>
@@ -6820,10 +6847,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 <Text style={{ color:'#fff', fontSize:12 }} numberOfLines={1}>{myUser?.fullName || myUser?.username}</Text>
                                                             </View>
                                                         </View>
-                                                        {f.rosterSlots.map((slot, i) => (
-                                                            <View key={`pool-${i}`} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                                                                <Text style={{ color: colors.textMuted, fontSize:11, width:16 }}>{i + 2}.</Text>
-                                                                <View style={{ flex:1 }}>
+                                                        {/* 3'lü grid — her hücre ~31% genişlik, dolunca alt satıra sarar (önceden
+                                                            her slot tam genişlik tek satırdı, gereksiz büyüktü). */}
+                                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4 }}>
+                                                            {f.rosterSlots.map((slot, i) => (
+                                                                <View key={`pool-${i}`} style={{ width:'31%' }}>
+                                                                    <Text style={{ color: colors.textMuted, fontSize:9 }}>{i + 2}.</Text>
                                                                     <TeamSlotRow side="pool" index={i} slot={slot}
                                                                         placeholder={t.teamSlotPh(i + 2)}
                                                                         activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
@@ -6831,10 +6860,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                         onChangeText={(txt) => onSlotChangeText('pool', i, txt)}
                                                                         onPickUser={(u) => { setSlot('pool', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, side:null }); setActiveSlotKey(null); setSlotSuggestions([]); }}
                                                                         onClear={() => setSlot('pool', i, null)}
-                                                                        cfg={cfg} s={s} colors={colors} />
+                                                                        onAssignSide={(sd) => setSlotSide(i, sd)}
+                                                                        cfg={cfg} s={s} colors={colors} t={t} />
                                                                 </View>
-                                                            </View>
-                                                        ))}
+                                                            ))}
+                                                        </View>
                                                         {f.subCount > 0 && (
                                                             <>
                                                                 <Text style={[s.fieldLabel, { fontSize:11, marginTop:8 }]}>{t.subsLabel}</Text>
@@ -7366,44 +7396,31 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {f.selectedCourt ? (
                                         <TouchableOpacity
                                             style={[s.fieldInput, { marginBottom:6, paddingVertical:5, justifyContent:'center' }]}
-                                            onPress={() => setF(p => ({ ...p, selectedCourt: null, courtSearchText: '' }))}>
+                                            onPress={() => setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', manualCourtName: '' }))}>
                                             <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                 ✅ {f.selectedCourt.name}{f.selectedCourt.city ? ` — ${f.selectedCourt.city}` : ''}  ✕
                                             </Text>
                                         </TouchableOpacity>
                                     ) : (
-                                        <TextInput
-                                            style={[s.fieldInput, { marginBottom:6 }]}
-                                            value={f.courtSearchText}
-                                            onChangeText={searchCourts}
-                                            placeholder={t.locationSearchPh}
-                                            placeholderTextColor={colors.textMuted}
-                                        />
-                                    )}
-                                    {!f.selectedCourt && f.courtResults.length > 0 && (
-                                        <View style={{ marginBottom:6 }}>
-                                            {f.courtResults.map(c => (
-                                                <TouchableOpacity key={c.id} onPress={() => selectCourt(c)}
-                                                    style={{ paddingVertical:8, paddingHorizontal:10, backgroundColor:'#ffffff08', borderRadius:8, marginBottom:4 }}>
-                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{c.name}</Text>
-                                                    {c.city && <Text style={{ color: colors.textMuted, fontSize:11 }}>{c.city}{c.district ? ` / ${c.district}` : ''}</Text>}
-                                                </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                    )}
-                                    {!f.selectedCourt && f.courtSearchText.trim().length >= 2 && f.courtResults.length === 0 && !searching && (
-                                        <TouchableOpacity onPress={() => setF(p => ({ ...p, showManualCourt: !p.showManualCourt, manualCourtName: p.showManualCourt ? p.manualCourtName : p.courtSearchText }))}
-                                            style={{ marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>
-                                                {f.showManualCourt ? t.closeCourt : t.addLocationForApproval(f.courtSearchText)}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    )}
-                                    {f.showManualCourt && (
-                                        <View style={{ marginBottom:6 }}>
-                                            <TextInput style={[s.fieldInput, { marginBottom:6 }]} value={f.manualCourtName}
-                                                onChangeText={v => set('manualCourtName', v)}
-                                                placeholder={t.locationNameLabel} placeholderTextColor={colors.textMuted} />
+                                        <>
+                                            <TextInput
+                                                style={[s.fieldInput, { marginBottom:6 }]}
+                                                value={f.courtSearchText}
+                                                onChangeText={(v) => { searchCourts(v); set('manualCourtName', v); }}
+                                                placeholder={t.locationNameLabel}
+                                                placeholderTextColor={colors.textMuted}
+                                            />
+                                            {f.courtResults.length > 0 && (
+                                                <View style={{ marginBottom:6 }}>
+                                                    {f.courtResults.map(c => (
+                                                        <TouchableOpacity key={c.id} onPress={() => selectCourt(c)}
+                                                            style={{ paddingVertical:8, paddingHorizontal:10, backgroundColor:'#ffffff08', borderRadius:8, marginBottom:4 }}>
+                                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{c.name}</Text>
+                                                            {c.city && <Text style={{ color: colors.textMuted, fontSize:11 }}>{c.city}{c.district ? ` / ${c.district}` : ''}</Text>}
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            )}
                                             <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
                                                 <TextInput style={[s.fieldInput, { flex:1, marginBottom:0 }]} value={f.manualCity}
                                                     onChangeText={v => set('manualCity', v)}
@@ -7416,7 +7433,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 onChangeText={v => set('manualAddress', v)}
                                                 placeholder={t.manualAddressLabel} placeholderTextColor={colors.textMuted} multiline />
                                             <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.locationApprovalHint}</Text>
-                                        </View>
+                                        </>
                                     )}
                                     {sub === 'extreme_sports' && (
                                         <>
