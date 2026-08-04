@@ -63,16 +63,22 @@ const FOOTBALL_SURFACES = [
     { id: 'BEACH',     label: 'Plaj',      emoji: '🏖️' },
     { id: 'BALON',     label: 'Balon',     emoji: '🎈' },
 ];
-// Voleybolde bu alan "zemin" değil, dalın türünü (salon/plaj voleybolu) seçtiriyor.
+// Voleybolde bu alan "zemin" değil, dalın türünü seçtiriyor.
 const VOLLEYBALL_SURFACES = [
-    { id: 'INDOOR', label: 'Salon Voleybolu', emoji: '🏟️' },
-    { id: 'BEACH',  label: 'Plaj Voleybolu',  emoji: '🏖️' },
+    { id: 'INDOOR', label: 'Salon Voleybolu',    emoji: '🏟️' },
+    { id: 'BEACH',  label: 'Plaj Voleybolu',     emoji: '🏖️' },
+    { id: 'GRASS',  label: 'Çimde Voleybol',     emoji: '🌿' },
+    { id: 'STREET', label: 'Mahallede Voleybol', emoji: '🏘️' },
+    { id: 'CLAY',   label: 'Toprakta Voleybol',  emoji: '🟤' },
 ];
 // Tür seçimine göre alan etiketi + arama placeholder'ı ("Voleybol Salonu ara..." /
 // "Plaj Sahası ara..." gibi) — VOLLEYBALL_SURFACES'teki id'lerle birebir eşleşir.
 const VOLLEYBALL_VENUE_NOUN = {
     INDOOR: { tr: 'Voleybol Salonu', en: 'Volleyball Hall' },
     BEACH:  { tr: 'Plaj Sahası',     en: 'Beach Court' },
+    GRASS:  { tr: 'Çim Saha',        en: 'Grass Court' },
+    STREET: { tr: 'Mahalle Sahası',  en: 'Street Court' },
+    CLAY:   { tr: 'Toprak Saha',     en: 'Clay Court' },
 };
 const FOOTBALL_SIZES = [2,3,4,5,6,7,8,9,10,11];
 const VOLLEYBALL_SIZES = [1,2,3,4,5,6];
@@ -5684,7 +5690,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         showDatePicker: false, showTimePicker: false, showDurationPicker: false,
         courtSearchText: '', courtResults: [], selectedCourt: null,
         showManualCourt: false,
-        manualCourtName: '', manualCity: '', manualAddress: '',
+        manualCourtName: '', manualCity: '', manualDistrict: '', manualAddress: '',
         surface: '', venueType: '', courtReserved: false, courtMutual: false,
         courtFeePerPerson: '',
         courtFeePerPersonByMethod: null,
@@ -5746,6 +5752,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 courtSearchText: editItem.courtName || '',
                 selectedCourt: preCourtObj,
                 manualCity: editItem.location || '',
+                manualDistrict: editItem.district || '',
                 manualAddress: editItem.courtAddress || '',
                 courtFeePerPerson: editItem.courtFeePerPerson != null ? String(editItem.courtFeePerPerson) : '',
                 courtFeePerPersonByMethod: editItem.courtFeePerPersonByMethod || null,
@@ -6007,7 +6014,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         setSearching(true);
         const task = setTimeout(async () => {
             try {
-                const { data } = await api.get('/courts/search', { params: { q: text, sport: sub, surface: isVolleyball ? (f.surface || undefined) : undefined } });
+                const { data } = await api.get('/courts/search', { params: { q: text, sport: sub, surface: isVolleyball ? (f.surface || undefined) : undefined, verifiedOnly: SIMPLIFIED_FEE_SUBS.has(sub) ? 'true' : undefined } });
                 const raw = Array.isArray(data) ? data : [];
                 const seenVenues = new Set();
                 const deduped = [];
@@ -6212,6 +6219,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 matchTime: f.flexibleSchedule ? null : (f.matchTime || null),
                 duration: f.flexibleSchedule ? null : (f.duration || null),
                 location: f.selectedCourt?.city || f.manualCity || null,
+                district: f.manualDistrict || null,
                 courtName: f.selectedCourt ? ([f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ') || null) : (f.showManualCourt ? f.manualCourtName : null) || f.courtSearchText || null,
                 courtAddress: f.manualAddress || undefined,
                 minRating: f.minRating !== '' ? f.minRating : null,
@@ -6265,8 +6273,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         if (!f.flexibleSchedule) {
             if (!f.matchDate)  { Alert.alert('', t.missingDate); return; }
             if (!f.matchTime)  { Alert.alert('', t.missingTime); return; }
-            if (!SIMPLIFIED_FEE_SUBS.has(sub) && !f.courtMutual && !f.selectedCourt && !f.manualCourtName.trim() && !f.courtSearchText.trim()) {
-                Alert.alert('', t.missingCourt); return;
+            if (!f.courtMutual && !f.selectedCourt && !f.manualCourtName.trim() && !f.courtSearchText.trim()) {
+                Alert.alert('', SIMPLIFIED_FEE_SUBS.has(sub) ? t.missingLocation : t.missingCourt); return;
             }
         }
         if (SIMPLIFIED_FEE_SUBS.has(sub) && f.activityIsPaid && !f.courtFeePerPerson.trim()) {
@@ -6284,6 +6292,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 await api.post('/courts', {
                     name: f.manualCourtName,
                     city: f.manualCity,
+                    district: f.manualDistrict || undefined,
                     address: f.manualAddress || undefined,
                     sport: sub,
                     surface: f.surface || undefined,
@@ -6334,6 +6343,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 courtName: f.selectedCourt ? ([f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ') || undefined) : (f.showManualCourt ? f.manualCourtName : undefined) || f.courtSearchText || undefined,
                 courtId:   f.selectedCourt?.id || undefined,
                 location:  f.selectedCourt?.city || f.manualCity || undefined,
+                district:  f.manualDistrict || undefined,
                 courtAddress: f.selectedCourt?.address || f.manualAddress || undefined,
                 surface:   f.surface || (isPadel ? 'ARTIFICIAL' : undefined),
                 venueType: f.venueType || undefined,
@@ -7120,6 +7130,65 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 sporlarda ayrıca hangi ekstrem dal olduğu da (surface alanı yeniden kullanılarak) seçilir. */}
                             {!isMatchedEdit && SIMPLIFIED_FEE_SUBS.has(sub) && (
                                 <View style={{ marginBottom:10 }}>
+                                    {/* Konum — kort değil, serbest bir yer/mekan adı. Yazdıkça sadece admin
+                                        onaylı (verifiedOnly) yerler önerilir; bulunamazsa il/ilçe/açık adres
+                                        girilip admin onayına gönderilir, onaylanınca herkeste öneri olarak çıkar. */}
+                                    <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.locationLabel}</Text>
+                                    {f.selectedCourt ? (
+                                        <TouchableOpacity
+                                            style={[s.fieldInput, { marginBottom:6, paddingVertical:5, justifyContent:'center' }]}
+                                            onPress={() => setF(p => ({ ...p, selectedCourt: null, courtSearchText: '' }))}>
+                                            <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                ✅ {f.selectedCourt.name}{f.selectedCourt.city ? ` — ${f.selectedCourt.city}` : ''}  ✕
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ) : (
+                                        <TextInput
+                                            style={[s.fieldInput, { marginBottom:6 }]}
+                                            value={f.courtSearchText}
+                                            onChangeText={searchCourts}
+                                            placeholder={t.locationSearchPh}
+                                            placeholderTextColor={colors.textMuted}
+                                        />
+                                    )}
+                                    {!f.selectedCourt && f.courtResults.length > 0 && (
+                                        <View style={{ marginBottom:6 }}>
+                                            {f.courtResults.map(c => (
+                                                <TouchableOpacity key={c.id} onPress={() => selectCourt(c)}
+                                                    style={{ paddingVertical:8, paddingHorizontal:10, backgroundColor:'#ffffff08', borderRadius:8, marginBottom:4 }}>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{c.name}</Text>
+                                                    {c.city && <Text style={{ color: colors.textMuted, fontSize:11 }}>{c.city}{c.district ? ` / ${c.district}` : ''}</Text>}
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    )}
+                                    {!f.selectedCourt && f.courtSearchText.trim().length >= 2 && f.courtResults.length === 0 && !searching && (
+                                        <TouchableOpacity onPress={() => setF(p => ({ ...p, showManualCourt: !p.showManualCourt, manualCourtName: p.showManualCourt ? p.manualCourtName : p.courtSearchText }))}
+                                            style={{ marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>
+                                                {f.showManualCourt ? t.closeCourt : t.addLocationForApproval(f.courtSearchText)}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    {f.showManualCourt && (
+                                        <View style={{ marginBottom:6 }}>
+                                            <TextInput style={[s.fieldInput, { marginBottom:6 }]} value={f.manualCourtName}
+                                                onChangeText={v => set('manualCourtName', v)}
+                                                placeholder={t.locationNameLabel} placeholderTextColor={colors.textMuted} />
+                                            <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
+                                                <TextInput style={[s.fieldInput, { flex:1, marginBottom:0 }]} value={f.manualCity}
+                                                    onChangeText={v => set('manualCity', v)}
+                                                    placeholder={t.manualCityLabel} placeholderTextColor={colors.textMuted} />
+                                                <TextInput style={[s.fieldInput, { flex:1, marginBottom:0 }]} value={f.manualDistrict}
+                                                    onChangeText={v => set('manualDistrict', v)}
+                                                    placeholder={t.manualDistrictLabel} placeholderTextColor={colors.textMuted} />
+                                            </View>
+                                            <TextInput style={[s.fieldInput, { height:60, textAlignVertical:'top', marginBottom:4 }]} value={f.manualAddress}
+                                                onChangeText={v => set('manualAddress', v)}
+                                                placeholder={t.manualAddressLabel} placeholderTextColor={colors.textMuted} multiline />
+                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.locationApprovalHint}</Text>
+                                        </View>
+                                    )}
                                     {sub === 'extreme_sports' && (
                                         <>
                                             <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.extremeSportTypeLabel}</Text>
