@@ -9,6 +9,11 @@ export const getVolleyballRating = async (req, res, next) => {
         const { subjectId } = req.params;
         const raterId = req.userId;
 
+        // Kendi profilini görüntülerken UserInterest.skillRating de tazelenir — böylece formül
+        // değişikliği (ör. ağırlık hesaplaması) sonradan yapılsa bile saklı derece puanı bir
+        // sonraki değerlendirmeyi beklemeden ekranı her açtığında güncel kalır.
+        if (raterId === subjectId) await applyBlendedVolleyballRating(subjectId);
+
         const ratings = await prisma.volleyballRating.findMany({ where: { subjectId } });
         const aggregate = computeOverallScore(ratings);
 

@@ -9,6 +9,11 @@ export const getPadelRating = async (req, res, next) => {
         const { subjectId } = req.params;
         const raterId = req.userId;
 
+        // Kendi profilini görüntülerken UserInterest.skillRating de tazelenir — böylece formül
+        // değişikliği (ör. ağırlık hesaplaması) sonradan yapılsa bile saklı derece puanı bir
+        // sonraki değerlendirmeyi beklemeden ekranı her açtığında güncel kalır.
+        if (raterId === subjectId) await applyBlendedPadelRating(subjectId);
+
         const interest = await prisma.userInterest.findFirst({ where: { userId: subjectId, subCategory: 'padel' } });
         const selfBase = interest ? (interest.selfAssessmentRating ?? interest.skillRating) : 0;
         const ratings = await prisma.padelRating.findMany({ where: { subjectId } });
