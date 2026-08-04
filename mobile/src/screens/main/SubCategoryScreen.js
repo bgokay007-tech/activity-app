@@ -2782,6 +2782,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
     const participantsArr = (Array.isArray(match.participants) ? match.participants : []).filter(p => p?.id);
     const senderTeamArr   = (Array.isArray(match.senderTeam)   ? match.senderTeam   : []).filter(p => p?.id);
+    // Voleybol: açık ilana sonradan katılıp henüz Kurucu/Rakip'e atanmamış oyuncular.
+    const unassignedArr   = (Array.isArray(match.unassignedPlayers) ? match.unassignedPlayers : []).filter(p => p?.id);
     // Maça dahil olmayan kullanıcılar (örn. herkese açık "Yaklaşan Maçlar" listesinde başkasının
     // maçını görüntüleyen biri) sipariş verme gibi katılımcıya özel aksiyonları görmemeli.
     const isParticipant = isOwner || match.receiverId === myId
@@ -3547,19 +3549,28 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         );
                     })()}
 
-                    {/* Voleybol takım kartları — DOUBLE'dan farklı olarak değişken boyutlu (1v1-6v6)
-                        takım, sabit partner/opp1/opp2 slotları yerine flip kart (ön:oyuncular, arka:takım ismi). */}
-                    {isVolleyball && (senderTeamArr.length > 0 || participantsArr.length > 0) && (
-                        <View style={{ flexDirection:'row', gap:6, marginBottom:12 }}>
-                            <TeamRosterCard title={t.myTeamLabel} teamName={match.founderTeamName}
-                                players={[match.sender, ...senderTeamArr].filter(Boolean)} color="#a855f7"
-                                canEditName={isOwner || senderTeamArr.some(p => p.id === myId)}
-                                onEditName={() => setTeamNameModal({ side:'founder', value: match.founderTeamName || '' })} />
-                            <TeamRosterCard title={t.oppTeamLabel} teamName={match.opponentTeamName}
-                                players={participantsArr} color="#f87171"
-                                canEditName={isOwner || participantsArr.some(p => p.id === myId)}
-                                onEditName={() => setTeamNameModal({ side:'opponent', value: match.opponentTeamName || '' })} />
-                        </View>
+                    {/* Voleybol takım yönetimi — DOUBLE'dan farklı olarak değişken boyutlu (1v1-6v6)
+                        takım: ön yüz Kurucu/Rakip slotları (+ atanmamış varsa yerleştirme tepsisi),
+                        arka yüz düz katılımcı listesi. */}
+                    {isVolleyball && (senderTeamArr.length > 0 || participantsArr.length > 0 || unassignedArr.length > 0) && (
+                        <TeamAssignCard
+                            founderPlayers={[match.sender, ...senderTeamArr].filter(Boolean)}
+                            oppPlayers={participantsArr}
+                            unassigned={unassignedArr}
+                            founderTeamName={match.founderTeamName}
+                            opponentTeamName={match.opponentTeamName}
+                            canEditFounderName={isOwner || senderTeamArr.some(p => p.id === myId)}
+                            canEditOppName={isOwner || participantsArr.some(p => p.id === myId)}
+                            onEditFounderName={() => setTeamNameModal({ side:'founder', value: match.founderTeamName || '' })}
+                            onEditOppName={() => setTeamNameModal({ side:'opponent', value: match.opponentTeamName || '' })}
+                            isOwner={isOwner}
+                            t={t}
+                            onAssign={(userId, side) => {
+                                api.patch(`/rivals/${match.id}/assign-player`, { userId, side })
+                                    .then(() => onRefresh())
+                                    .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+                            }}
+                        />
                     )}
 
                     {/* Takım ismi düzenle */}
@@ -5700,13 +5711,15 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
     );
 }
 
-// Voleybol takım kadrosu — Digimon kartı gibi çevrilebilir (flip) kart: ön yüz oyuncular
-// (katılım/onay sırasına göre numaralı, dizi zaten bu sırada doluyor), arka yüz takım
-// ismi + amblem. Animasyon tekniği ProfileScreen.js'teki SportCardFlipModal ile aynı
-// (rotateY interpolate + Animated.timing çifti) — sadece küçük ölçekte reuse ediliyor.
-function TeamRosterCard({ title, teamName, players, color, canEditName, onEditName }) {
+// Voleybol takım yönetimi — Digimon kartı gibi çevrilebilir (flip) kart. Bu, MAÇ ZATEN
+// eşleştikten/açık ilana katılım oldukça büyüyen roster için — CreateRivalModal'daki havuz
+// kartının TERSİ: burada ÖN yüz Kurucu/Rakip'e göre ayrılmış organize slotlar (+ henüz
+// atanmamış varsa küçük bir tepsi, tak-seç-hedefe-dokun deseniyle atanır), ARKA yüz düz
+// "Katılımcı Listesi". Animasyon tekniği ProfileScreen.js'teki SportCardFlipModal ile aynı.
+function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, t }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
+    const [selectedId, setSelectedId] = useState(null);
     const flip = () => {
         Animated.timing(flipAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(() => {
             setIsBack(b => !b);
@@ -5714,33 +5727,82 @@ function TeamRosterCard({ title, teamName, players, color, canEditName, onEditNa
         });
     };
     const rotateY = flipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
+    const allPlayers = [
+        ...founderPlayers.map(p => ({ ...p, _role: 'my' })),
+        ...oppPlayers.map(p => ({ ...p, _role: 'opp' })),
+        ...unassigned.map(p => ({ ...p, _role: null })),
+    ];
+    const renderColumn = (players, label, color, canEditName, onEditName, targetSide) => (
+        <View style={{ flex:1 }}>
+            <TouchableOpacity disabled={!selectedId} onPress={() => { onAssign(selectedId, targetSide); setSelectedId(null); }}>
+                <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                    <Text style={{ color, fontSize:10, fontWeight:'800', flex:1 }} numberOfLines={1}>
+                        {label}{selectedId ? ' ↩' : ''}
+                    </Text>
+                    {canEditName && (
+                        <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                            <Text style={{ fontSize:10 }}>✎</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </TouchableOpacity>
+            {players.map((p, i) => (
+                <TouchableOpacity key={p.id} disabled={!isOwner} onPress={() => onAssign(p.id, null)}>
+                    <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{i + 1}. {senderAlias(p)}</Text>
+                </TouchableOpacity>
+            ))}
+        </View>
+    );
     return (
-        <TouchableOpacity activeOpacity={0.85} onPress={flip} style={{ flex:1 }}>
-            <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor: color+'40', padding:6, minHeight:110, transform:[{ perspective:800 }, { rotateY }] }}>
+        <View style={{ marginBottom:12 }}>
+            <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:'#ffffff20', padding:8, transform:[{ perspective:800 }, { rotateY }] }}>
                 {!isBack ? (
                     <>
-                        <Text style={{ color, fontSize:10, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{title}</Text>
-                        {players.map((p, i) => (
-                            <View key={p.id || i} style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:2 }}>
-                                <Text style={{ color: colors.textMuted, fontSize:9, width:12 }}>{i + 1}.</Text>
-                                <Avatar name={p.username} avatar={p.avatar} size={16} color={color} />
-                                <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{senderAlias(p)}</Text>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
+                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }}>🏐</Text>
+                            <TouchableOpacity onPress={flip} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                <Text style={{ fontSize:14 }}>🔄</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={{ flexDirection:'row', gap:6 }}>
+                            {renderColumn(founderPlayers, founderTeamName || t.founderTeamShortLabel, '#a855f7', canEditFounderName, onEditFounderName, 'my')}
+                            {renderColumn(oppPlayers, opponentTeamName || t.opponentTeamShortLabel, '#f87171', canEditOppName, onEditOppName, 'opp')}
+                        </View>
+                        {isOwner && unassigned.length > 0 && (
+                            <View style={{ marginTop:6 }}>
+                                <Text style={{ color: colors.textMuted, fontSize:9 }}>{t.unassignedLabel}</Text>
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginTop:2 }}>
+                                    {unassigned.map(p => (
+                                        <TouchableOpacity key={p.id} onPress={() => setSelectedId(sel => sel === p.id ? null : p.id)}
+                                            style={{ paddingHorizontal:6, paddingVertical:3, borderRadius:7, backgroundColor: selectedId === p.id ? '#9333ea40' : '#ffffff10', borderWidth:1, borderColor: selectedId === p.id ? '#a855f7' : '#ffffff20' }}>
+                                            <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{senderAlias(p)}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                                <Text style={{ color: colors.textMuted, fontSize:9, marginTop:2 }}>{t.assignHintLabel}</Text>
+                            </View>
+                        )}
+                    </>
+                ) : (
+                    <>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
+                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.participantListLabel}</Text>
+                            <TouchableOpacity onPress={flip} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                <Text style={{ fontSize:14 }}>🔄</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {allPlayers.map((p, i) => (
+                            <View key={p.id} style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:2 }}>
+                                <Avatar name={p.username} avatar={p.avatar} size={16} color={p._role === 'my' ? '#a855f7' : p._role === 'opp' ? '#f87171' : colors.textMuted} />
+                                <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>
+                                    {i + 1}. {senderAlias(p)}{p._role == null ? ` (${t.unassignedLabel})` : ''}
+                                </Text>
                             </View>
                         ))}
                     </>
-                ) : (
-                    <View style={{ flex:1, alignItems:'center', justifyContent:'center' }}>
-                        <Text style={{ fontSize:22 }}>🏐</Text>
-                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', marginTop:3 }} numberOfLines={1}>{teamName || title}</Text>
-                        {canEditName && (
-                            <TouchableOpacity onPress={onEditName} style={{ marginTop:4 }} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                                <Text style={{ fontSize:11 }}>✎</Text>
-                            </TouchableOpacity>
-                        )}
-                    </View>
                 )}
             </Animated.View>
-        </TouchableOpacity>
+        </View>
     );
 }
 
