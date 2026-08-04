@@ -151,7 +151,7 @@ const ROUTE_ENABLED_SUBS = new Set(['hiking', 'camping', 'running', 'motorcycle'
 // Bu dallarda gerçek bir "kort" kavramı yok (rezerve edilecek tesis/saat dilimi
 // söz konusu değil) — Etkinlik Oluştur formunda Mod/Format ve kort/il/ilçe/adres
 // arama bloğu tamamen kaldırılıp yerine basit Ücretli/Ücretsiz seçimi konur.
-const SIMPLIFIED_FEE_SUBS = new Set(['sup_kano', 'airsoft', 'equestrian', 'fitness_gym', 'camping', 'running', 'walking', 'extreme_sports']);
+const SIMPLIFIED_FEE_SUBS = new Set(['sup_kano', 'airsoft', 'equestrian', 'fitness_gym', 'camping', 'running', 'walking', 'extreme_sports', 'hiking', 'archery', 'climbing', 'paintball']);
 
 // extreme_sports için Format'ın yerini alan asıl dal seçimi — mevcut `surface`
 // alanı (voleybolda zemin türünü tutan aynı genel-amaçlı string) buradaki
@@ -6074,6 +6074,28 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [searching, setSearching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [showRatingRange, setShowRatingRange] = useState(false);
+    // Kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) İl/İlçe alanları kayıtlı
+    // il/ilçe veritabanına (aynı /cities uç noktası, turnuva formundaki gibi) karşı
+    // öneri veriyor — elle yazıp admin onayına düşen sadece Mekan Adı.
+    const [manualCitySuggestions, setManualCitySuggestions] = useState([]);
+    const [manualDistrictSuggestions, setManualDistrictSuggestions] = useState([]);
+    const searchManualProvince = async (text) => {
+        set('manualCity', text);
+        set('manualDistrict', '');
+        if (text.length < 1) { setManualCitySuggestions([]); return; }
+        try {
+            const { data } = await api.get('/cities', { params: { q: text } });
+            setManualCitySuggestions([...new Set(data.map(c => c.province))]);
+        } catch { setManualCitySuggestions([]); }
+    };
+    const searchManualDistrict = async (text) => {
+        set('manualDistrict', text);
+        if (!f.manualCity.trim() || text.length < 1) { setManualDistrictSuggestions([]); return; }
+        try {
+            const { data } = await api.get('/cities', { params: { province: f.manualCity.trim(), q: text } });
+            setManualDistrictSuggestions(data.filter(c => c.district).map(c => c.district));
+        } catch { setManualDistrictSuggestions([]); }
+    };
     // Kurucu/Rakip takım kartı — Digimon kart gibi çevrilebilir: ön yüz kurucu takım
     // (1. ilanı açan kişi, kilitli), arka yüz "vs" — solda kurucu özeti, sağda rakip
     // takım (ilan açarken zaten bilinen rakipler varsa orada doldurulabilir).
@@ -6651,6 +6673,98 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
+                            {/* Konum — kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) formun en
+                                başında: İl/İlçe kayıtlı il-ilçe veritabanına göre öneri verir (/cities,
+                                turnuva formundakiyle aynı uç nokta), Mekan Adı ise admin onaylı
+                                (verifiedOnly) yerlerden öneri gösterir; bulunamazsa açık adresle birlikte
+                                admin onayına gönderilir, onaylanınca herkeste öneri olarak çıkar. */}
+                            {!isMatchedEdit && SIMPLIFIED_FEE_SUBS.has(sub) && (
+                                <View style={{ marginBottom:10 }}>
+                                    <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.locationLabel}</Text>
+                                    {f.selectedCourt ? (
+                                        <TouchableOpacity
+                                            style={[s.fieldInput, { marginBottom:6, paddingVertical:5, justifyContent:'center' }]}
+                                            onPress={() => setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', manualCourtName: '' }))}>
+                                            <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                ✅ {f.selectedCourt.name}{f.selectedCourt.city ? ` — ${f.selectedCourt.city}` : ''}  ✕
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ) : (
+                                        <>
+                                            <View style={{ flexDirection:'row', gap:4, marginBottom:6 }}>
+                                                <View style={{ flex:1 }}>
+                                                    <TextInput style={[s.fieldInput, { paddingVertical:6, paddingHorizontal:7, fontSize:12, marginBottom:0 }]}
+                                                        value={f.manualCity}
+                                                        onChangeText={searchManualProvince}
+                                                        placeholder={t.provinceLabel} placeholderTextColor={colors.textMuted} />
+                                                    {manualCitySuggestions.length > 0 && (
+                                                        <View style={s.courtResultsBox}>
+                                                            {manualCitySuggestions.map(p => (
+                                                                <TouchableOpacity key={p} style={s.courtResultRow}
+                                                                    onPress={() => { set('manualCity', p); setManualCitySuggestions([]); }}>
+                                                                    <Text style={s.courtResultName}>📍 {p}</Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </View>
+                                                    )}
+                                                </View>
+                                                <View style={{ flex:1 }}>
+                                                    <TextInput style={[s.fieldInput, { paddingVertical:6, paddingHorizontal:7, fontSize:12, marginBottom:0 }]}
+                                                        value={f.manualDistrict}
+                                                        onChangeText={searchManualDistrict}
+                                                        placeholder={t.manualDistrictLabel} placeholderTextColor={colors.textMuted} />
+                                                    {manualDistrictSuggestions.length > 0 && (
+                                                        <View style={s.courtResultsBox}>
+                                                            {manualDistrictSuggestions.map(d => (
+                                                                <TouchableOpacity key={d} style={s.courtResultRow}
+                                                                    onPress={() => { set('manualDistrict', d); setManualDistrictSuggestions([]); }}>
+                                                                    <Text style={s.courtResultName}>🏘️ {d}</Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </View>
+                                                    )}
+                                                </View>
+                                                <View style={{ flex:1.3 }}>
+                                                    <TextInput style={[s.fieldInput, { paddingVertical:6, paddingHorizontal:7, fontSize:12, marginBottom:0 }]}
+                                                        value={f.courtSearchText}
+                                                        onChangeText={(v) => { searchCourts(v); set('manualCourtName', v); }}
+                                                        placeholder={t.locationNameLabel} placeholderTextColor={colors.textMuted} />
+                                                    {f.courtResults.length > 0 && (
+                                                        <View style={s.courtResultsBox}>
+                                                            {f.courtResults.map(c => (
+                                                                <TouchableOpacity key={c.id} style={s.courtResultRow} onPress={() => selectCourt(c)}>
+                                                                    <Text style={s.courtResultName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{c.name}</Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            </View>
+                                            <TextInput style={[s.fieldInput, { height:54, textAlignVertical:'top', marginBottom:4, fontSize:12, paddingVertical:6 }]}
+                                                value={f.manualAddress}
+                                                onChangeText={v => set('manualAddress', v)}
+                                                placeholder={t.manualAddressLabel} placeholderTextColor={colors.textMuted} multiline />
+                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.locationApprovalHint}</Text>
+                                        </>
+                                    )}
+                                    {sub === 'extreme_sports' && (
+                                        <>
+                                            <Text style={[s.fieldLabel, { marginBottom:4, marginTop:8 }]}>{t.extremeSportTypeLabel}</Text>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4 }}>
+                                                {EXTREME_SPORT_TYPES.map(type => (
+                                                    <TouchableOpacity key={type.id} onPress={() => set('surface', type.id)}
+                                                        style={[s.chipBtn, f.surface === type.id && s.chipBtnActive]}>
+                                                        <Text style={[s.chipBtnText, f.surface === type.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                            {type.label}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                        </>
+                                    )}
+                                </View>
+                            )}
+
                             {/* 1+2 - Mod + Format yan yana (non-team) / Mod + Takım (team) — Yaklaşan
                                 Maçlar'dan (MATCHED) düzenlemede bu bölüm tamamen gizlenir, sadece
                                 kort/gün/saat değiştirilebilir. */}
@@ -6725,7 +6839,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
                                     {/* Derece + Cinsiyet Kısıtlaması — aynı satır, asla alt satıra kaymasın diye
                                         flexWrap yok, iki blok da flexShrink ile mevcut genişliğe sığdırılıyor
-                                        (kullanıcı isteği: tekler seçiliyken derece solda, cinsiyet kısıtlaması sağda). */}
+                                        (kullanıcı isteği: tekler seçiliyken derece solda, cinsiyet kısıtlaması sağda).
+                                        Kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) Derece formun sonunda,
+                                        Bilet Link ile Mesaj arasında ayrıca gösteriliyor — burada tekrar etmesin. */}
+                                    {!SIMPLIFIED_FEE_SUBS.has(sub) && (
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
                                         <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1 }}>
                                             <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.ratingLimitLabel}</Text>
@@ -6757,6 +6874,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </View>
                                         )}
                                     </View>
+                                    )}
                                     {!isTeamSport && f.matchType === 'SINGLE' && f.singleOppInvite && (
                                         <TouchableOpacity onPress={() => set('singleOppInvite', null)}
                                             style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5, marginBottom:8 }}>
@@ -7451,67 +7569,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 sporlarda ayrıca hangi ekstrem dal olduğu da (surface alanı yeniden kullanılarak) seçilir. */}
                             {!isMatchedEdit && SIMPLIFIED_FEE_SUBS.has(sub) && (
                                 <View style={{ marginBottom:10 }}>
-                                    {/* Konum — kort değil, serbest bir yer/mekan adı. Yazdıkça sadece admin
-                                        onaylı (verifiedOnly) yerler önerilir; bulunamazsa il/ilçe/açık adres
-                                        girilip admin onayına gönderilir, onaylanınca herkeste öneri olarak çıkar. */}
-                                    <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.locationLabel}</Text>
-                                    {f.selectedCourt ? (
-                                        <TouchableOpacity
-                                            style={[s.fieldInput, { marginBottom:6, paddingVertical:5, justifyContent:'center' }]}
-                                            onPress={() => setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', manualCourtName: '' }))}>
-                                            <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                ✅ {f.selectedCourt.name}{f.selectedCourt.city ? ` — ${f.selectedCourt.city}` : ''}  ✕
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ) : (
-                                        <>
-                                            <TextInput
-                                                style={[s.fieldInput, { marginBottom:6 }]}
-                                                value={f.courtSearchText}
-                                                onChangeText={(v) => { searchCourts(v); set('manualCourtName', v); }}
-                                                placeholder={t.locationNameLabel}
-                                                placeholderTextColor={colors.textMuted}
-                                            />
-                                            {f.courtResults.length > 0 && (
-                                                <View style={{ marginBottom:6 }}>
-                                                    {f.courtResults.map(c => (
-                                                        <TouchableOpacity key={c.id} onPress={() => selectCourt(c)}
-                                                            style={{ paddingVertical:8, paddingHorizontal:10, backgroundColor:'#ffffff08', borderRadius:8, marginBottom:4 }}>
-                                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{c.name}</Text>
-                                                            {c.city && <Text style={{ color: colors.textMuted, fontSize:11 }}>{c.city}{c.district ? ` / ${c.district}` : ''}</Text>}
-                                                        </TouchableOpacity>
-                                                    ))}
-                                                </View>
-                                            )}
-                                            <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
-                                                <TextInput style={[s.fieldInput, { flex:1, marginBottom:0 }]} value={f.manualCity}
-                                                    onChangeText={v => set('manualCity', v)}
-                                                    placeholder={t.manualCityLabel} placeholderTextColor={colors.textMuted} />
-                                                <TextInput style={[s.fieldInput, { flex:1, marginBottom:0 }]} value={f.manualDistrict}
-                                                    onChangeText={v => set('manualDistrict', v)}
-                                                    placeholder={t.manualDistrictLabel} placeholderTextColor={colors.textMuted} />
-                                            </View>
-                                            <TextInput style={[s.fieldInput, { height:60, textAlignVertical:'top', marginBottom:4 }]} value={f.manualAddress}
-                                                onChangeText={v => set('manualAddress', v)}
-                                                placeholder={t.manualAddressLabel} placeholderTextColor={colors.textMuted} multiline />
-                                            <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.locationApprovalHint}</Text>
-                                        </>
-                                    )}
-                                    {sub === 'extreme_sports' && (
-                                        <>
-                                            <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.extremeSportTypeLabel}</Text>
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:10 }}>
-                                                {EXTREME_SPORT_TYPES.map(type => (
-                                                    <TouchableOpacity key={type.id} onPress={() => set('surface', type.id)}
-                                                        style={[s.chipBtn, f.surface === type.id && s.chipBtnActive]}>
-                                                        <Text style={[s.chipBtnText, f.surface === type.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                            {type.label}
-                                                        </Text>
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </View>
-                                        </>
-                                    )}
                                     <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.activityFeeLabel}</Text>
                                     <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
                                         <TouchableOpacity
@@ -7638,8 +7695,38 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </>
                             )}
 
+                            {/* Kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) sıralama kullanıcı
+                                isteğiyle netleştirildi: Bilet Link → Derece → Mesaj (en altta, Mesaj'ın
+                                normalde en sonda kalan konumunu koruyor). Diğer dallarda aşağıdaki genel
+                                Mesaj/Bilet Link blokları (bu bloğun hemen altında, değişmedi) geçerli. */}
+                            {!isMatchedEdit && SIMPLIFIED_FEE_SUBS.has(sub) && (
+                                <>
+                                    <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.ticketUrlLabel}</Text>
+                                    <TextInput style={s.fieldInput}
+                                        value={f.ticketUrl} onChangeText={v => set('ticketUrl', v)}
+                                        placeholder={t.ticketUrlPh}
+                                        placeholderTextColor={colors.textMuted}
+                                        autoCapitalize="none" keyboardType="url" />
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
+                                        <Text style={[s.fieldLabel, { marginBottom:0 }]}>{t.ratingLimitLabel}</Text>
+                                        <TouchableOpacity
+                                            style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.minRating || f.maxRating) ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:8 }}
+                                            onPress={() => setShowRatingRange(true)}>
+                                            <Text style={s.triValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.messageFieldLabel}</Text>
+                                    <TextInput style={[s.fieldInput, { height:80, textAlignVertical:'top' }]}
+                                        value={f.message} onChangeText={v => set('message', v)}
+                                        placeholder={t.messagePh}
+                                        placeholderTextColor={colors.textMuted} multiline />
+                                </>
+                            )}
+
                             {/* Açıklama */}
-                            {!isMatchedEdit && (
+                            {!isMatchedEdit && !SIMPLIFIED_FEE_SUBS.has(sub) && (
                                 <>
                                     <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.messageFieldLabel}</Text>
                                     <TextInput style={[s.fieldInput, { height:80, textAlignVertical:'top' }]}
@@ -7649,7 +7736,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </>
                             )}
 
-                            {!isMatchedEdit && (category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub)) && (
+                            {!isMatchedEdit && !SIMPLIFIED_FEE_SUBS.has(sub) && (category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub)) && (
                                 <>
                                     <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.ticketUrlLabel}</Text>
                                     <TextInput style={s.fieldInput}
