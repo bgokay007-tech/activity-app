@@ -1,4 +1,5 @@
 import prisma from '../config/prisma.js';
+import { calculateLevel } from '../config/assessments.js';
 import { computeMatchSides } from './peerReview.js';
 
 // 3 kategori (Teknik/Fiziksel/Taktiksel) ve 3 kaynak (Kendi/Antrenör/Takım Arkadaşı) ağırlıkları.
@@ -21,7 +22,12 @@ export function computeRaterOverall(r) {
     return technical * CATEGORY_WEIGHTS.technical + physical * CATEGORY_WEIGHTS.physical + tactical * CATEGORY_WEIGHTS.tactical;
 }
 
-// SELF/COACH/TEAMMATE kayıtlarından derece puanını hesaplar (eksik kaynak 0 katkı verir)
+// SELF/COACH/TEAMMATE kayıtlarından derece puanını hesaplar. Hiç antrenör/takım arkadaşı
+// değerlendirmesi yoksa kendi anketi puanı %100 aynen kullanılır — aksi halde bu artık
+// UserInterest.skillRating'i (gerçek dereceyi) de güncellediği için, henüz kimse tarafından
+// değerlendirilmemiş bir oyuncunun derecesi sırf %40 ağırlık yüzünden anlık düşerdi. En az bir
+// dış kaynak (coach/teammate) eklendiğinde harmanlama devreye girer, o noktadan sonra eksik
+// kaynak (ör. sadece coach var, teammate yok) yine 0 katkı verir — yeniden ağırlıklandırma yok.
 export function computeOverallScore(ratings) {
     const selfRating = ratings.find(r => r.raterRole === 'SELF');
     const coachRatings = ratings.filter(r => r.raterRole === 'COACH');
@@ -33,7 +39,10 @@ export function computeOverallScore(ratings) {
     const coachScore = avg(coachRatings);
     const teammateScore = avg(teammateRatings);
 
-    const overallScore = selfScore * ROLE_WEIGHTS.SELF + coachScore * ROLE_WEIGHTS.COACH + teammateScore * ROLE_WEIGHTS.TEAMMATE;
+    const hasExternal = coachRatings.length > 0 || teammateRatings.length > 0;
+    const overallScore = hasExternal
+        ? selfScore * ROLE_WEIGHTS.SELF + coachScore * ROLE_WEIGHTS.COACH + teammateScore * ROLE_WEIGHTS.TEAMMATE
+        : selfScore;
 
     return {
         overallScore: parseFloat(overallScore.toFixed(2)),
@@ -43,6 +52,21 @@ export function computeOverallScore(ratings) {
         teammateScore: teammateRatings.length ? parseFloat(teammateScore.toFixed(2)) : null,
         teammateCount: teammateRatings.length,
     };
+}
+
+// Harmanlanmış puanı (computeOverallScore) YENİDEN hesaplayıp UserInterest.skillRating/level/
+// totalPoints'e yazar — bu puan izole değil, oyuncunun GERÇEK derecesi (maç eşleştirme, turnuva
+// derece kısıtlaması vb. buradan okur). overallScore zaten 0-5 skalasında olduğu için
+// calculateLevel(overallScore, 5) aynı yüzde eşiklerini (PRO/ADVANCED/INTERMEDIATE/BEGINNER)
+// tekrar hesaplamadan reuse eder.
+export async function applyBlendedVolleyballRating(subjectId, extraData = {}) {
+    const ratings = await prisma.volleyballRating.findMany({ where: { subjectId } });
+    if (ratings.length === 0) return null;
+    const { overallScore } = computeOverallScore(ratings);
+    const { level, skillRating, totalPoints } = calculateLevel(overallScore, 5);
+    const interest = await prisma.userInterest.findFirst({ where: { userId: subjectId, subCategory: 'volleyball' } });
+    if (!interest) return null;
+    return prisma.userInterest.update({ where: { id: interest.id }, data: { level, skillRating, totalPoints, ...extraData } });
 }
 
 // İki oyuncu voleybolda aynı takımda (rakip değil) tamamlanmış bir maç oynamış mı — akran

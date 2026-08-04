@@ -1,7 +1,8 @@
 import prisma from '../config/prisma.js';
 import { getQuestions, calculateLevel } from '../config/assessments.js';
 import { getRelation, canAccess } from '../utils/privacy.js';
-import { QUESTION_FIELDS } from '../utils/volleyballRating.js';
+import { QUESTION_FIELDS, applyBlendedVolleyballRating } from '../utils/volleyballRating.js';
+import { applyBlendedPadelRating } from '../utils/padelRating.js';
 
 // Kategorilerin alt dalları
 export const SUBCATEGORIES = {
@@ -297,19 +298,10 @@ export const saveAssessment = async (req, res, next) => {
 
         // Voleybol: 11 soru genel getQuestions()/calculateLevel() akışından geçiyor (aynı
         // 35/35/30 kategori ağırlıkları QUESTIONS.volleyball'daki soru başı max'larla zaten
-        // gömülü, bkz. assessments.js). Ayrıca aynı cevaplardan VolleyballRating'in SELF
-        // kaydı (derece puanının %40'lık payı) da burada güncelleniyor.
+        // gömülü, bkz. assessments.js). Aynı cevaplar VolleyballRating'in SELF kaydını besler,
+        // ardından derece puanı (skillRating) coach/teammate değerlendirmeleriyle harmanlanarak
+        // (bkz. applyBlendedVolleyballRating) yeniden hesaplanır — artık izole değil, gerçek derece.
         if (interest.subCategory === 'volleyball') {
-            const questions = getQuestions('volleyball');
-            const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
-            const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);
-            const { level, skillRating, totalPoints } = calculateLevel(totalScore, maxScore);
-
-            const updated = await prisma.userInterest.update({
-                where: { id },
-                data: { level, skillRating, totalPoints, assessmentCompleted: true, matchesSinceAssessment: 0 },
-            });
-
             const scores = {};
             for (const a of answers) scores[a.questionId] = (a.optionIndex ?? -1) + 1; // seçenekler 1-5, index 0-4
             if (QUESTION_FIELDS.every(f => Number.isInteger(scores[f]) && scores[f] >= 1 && scores[f] <= 5)) {
@@ -320,7 +312,27 @@ export const saveAssessment = async (req, res, next) => {
                 });
             }
 
-            return res.json({ interest: updated, level, skillRating, totalPoints });
+            const updated = await applyBlendedVolleyballRating(req.userId, { assessmentCompleted: true, matchesSinceAssessment: 0 });
+            return res.json({ interest: updated, level: updated.level, skillRating: updated.skillRating, totalPoints: updated.totalPoints });
+        }
+
+        // Padel: kendi anketi (Vuruş Teknikleri/Taktik/Deneyim) mevcut soru setiyle aynı şekilde
+        // puanlanır, ama ham sonuç selfAssessmentRating'e ayrıca yazılır — derece puanı (skillRating)
+        // bundan sonra coach %10/takım arkadaşı %5 ile harmanlanarak (applyBlendedPadelRating)
+        // hesaplanır. Hiç coach/teammate değerlendirmesi yoksa kendi puanı %100 aynen kullanılır.
+        if (interest.subCategory === 'padel') {
+            const questions = getQuestions('padel');
+            const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
+            const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);
+            const { skillRating: selfSkillRating } = calculateLevel(totalScore, maxScore);
+
+            await prisma.userInterest.update({
+                where: { id },
+                data: { selfAssessmentRating: selfSkillRating, assessmentCompleted: true, matchesSinceAssessment: 0 },
+            });
+
+            const updated = await applyBlendedPadelRating(req.userId);
+            return res.json({ interest: updated, level: updated.level, skillRating: updated.skillRating, totalPoints: updated.totalPoints });
         }
 
         const questions = getQuestions(interest.subCategory);

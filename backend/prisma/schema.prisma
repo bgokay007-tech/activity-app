@@ -121,6 +121,8 @@ model User {
   surveyReceived   SportSurvey[] @relation("SurveySubject")
   volleyballRatingsGiven    VolleyballRating[] @relation("VolleyballRatingRater")
   volleyballRatingsReceived VolleyballRating[] @relation("VolleyballRatingSubject")
+  padelRatingsGiven    PadelRating[] @relation("PadelRatingRater")
+  padelRatingsReceived PadelRating[] @relation("PadelRatingSubject")
   profileChangeRequests ProfileChangeRequest[]
   supportMessages       SupportMessage[]
   subscriptions         BusinessSubscription[]
@@ -244,6 +246,42 @@ model VolleyballRating {
   @@index([subjectId])
 }
 
+// Padel oyuncu değerlendirme anketi — VolleyballRating ile birebir aynı mimari (kendi/onaylı
+// antrenör/takım arkadaşı olmak üzere üç ayrı kaynaktan doldurulur, %85/%10/%5 ile harmanlanıp
+// UserInterest.skillRating'e yazılır — bkz. backend/src/utils/padelRating.js). Voleyboldan
+// farklı olarak burada harmanlanmış puan GERÇEK skillRating'i günceller (izole değil).
+model PadelRating {
+  id                String   @id @default(uuid())
+  subjectId         String
+  raterId           String
+  raterRole         String   // SELF | COACH | TEAMMATE — sunucu belirler, client'tan gelmez
+  forehandDrive     Int      // Forehand Vuruşu
+  backhandDrive     Int      // Backhand Vuruşu
+  volley            Int      // Vole (File Önü) Vuruşları
+  smash             Int      // Bandeja / Smaç
+  agility           Int      // Çeviklik ve Hareket Kabiliyeti
+  endurance         Int      // Dayanıklılık
+  reflexes          Int      // Refleks
+  courtPositioning  Int      // Kort Pozisyon Alma
+  shotSelection     Int      // Doğru Vuruş Seçimi
+  teamCommunication Int      // Çift Oyun Uyumu ve İletişim
+
+  // Genel Değerlendirme — sadece raterRole COACH/TEAMMATE iken doldurulur (SELF'te null kalır).
+  // Derece puanına hiç katılmaz, salt yorum olarak saklanır.
+  strongestPoint         String?
+  weakestPoint           String?
+  generalPerformanceNote Int?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  subject User @relation("PadelRatingSubject", fields: [subjectId], references: [id], onDelete: Cascade)
+  rater   User @relation("PadelRatingRater",   fields: [raterId],   references: [id], onDelete: Cascade)
+
+  @@unique([subjectId, raterId])
+  @@index([subjectId])
+}
+
 model TournamentPermissionRequest {
   id        String   @id @default(cuid())
   userId    String   @unique
@@ -260,6 +298,9 @@ model UserInterest {
   subCategory  String       // futbol, basketbol, resim, müzik, fps, rpg vb.
   level        String       @default("BEGINNER")
   skillRating  Float        @default(0)   // 0.00 – 5.00, from assessment
+  selfAssessmentRating Float?  // padel: sadece kendi anketinden gelen ham puan — coach/teammate
+                                // değerlendirmesiyle harmanlanan skillRating'den AYRI tutulur, aksi
+                                // halde her yeni değerlendirmede üst üste binerdi (bkz. applyBlendedPadelRating)
   assessmentCompleted Boolean @default(false)  // anket tamamlanmadan maca katilamaz
   matchesSinceAssessment Int @default(0)  // tenis/padel: anketten sonra oynanan maç sayısı (0-3, ilk 3 maç doğrulama penceresi)
   totalPoints  Int          @default(0)

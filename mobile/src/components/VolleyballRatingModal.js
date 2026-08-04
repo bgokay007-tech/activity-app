@@ -8,30 +8,100 @@ import api from '../services/api';
 import colors from '../theme/colors';
 import useT from '../hooks/useT';
 
-const QUESTION_FIELDS = [
-    'serve', 'receptionPass', 'spike', 'block', 'serveReception',
-    'endurance', 'agility', 'jump',
-    'gameVision', 'teamCommunication', 'decisionMaking',
-];
-
-const CATEGORIES = [
-    { key: 'technical', labelKey: 'volleyballCatTechnical', fields: ['serve', 'receptionPass', 'spike', 'block', 'serveReception'] },
-    { key: 'physical',  labelKey: 'volleyballCatPhysical',  fields: ['endurance', 'agility', 'jump'] },
-    { key: 'tactical',  labelKey: 'volleyballCatTactical',  fields: ['gameVision', 'teamCommunication', 'decisionMaking'] },
-];
-
-const QUESTION_META = {
-    serve:             { title: 'volleyballQServe',             desc: 'volleyballQServeDesc' },
-    receptionPass:     { title: 'volleyballQReceptionPass',     desc: 'volleyballQReceptionPassDesc' },
-    spike:             { title: 'volleyballQSpike',             desc: 'volleyballQSpikeDesc' },
-    block:             { title: 'volleyballQBlock',             desc: 'volleyballQBlockDesc' },
-    serveReception:    { title: 'volleyballQServeReception',    desc: 'volleyballQServeReceptionDesc' },
-    endurance:         { title: 'volleyballQEndurance',         desc: 'volleyballQEnduranceDesc' },
-    agility:           { title: 'volleyballQAgility',           desc: 'volleyballQAgilityDesc' },
-    jump:              { title: 'volleyballQJump',              desc: 'volleyballQJumpDesc' },
-    gameVision:        { title: 'volleyballQGameVision',        desc: 'volleyballQGameVisionDesc' },
-    teamCommunication: { title: 'volleyballQTeamCommunication', desc: 'volleyballQTeamCommunicationDesc' },
-    decisionMaking:    { title: 'volleyballQDecisionMaking',    desc: 'volleyballQDecisionMakingDesc' },
+// Voleybol + padel oyuncu değerlendirme formu aynı bileşeni paylaşır — sadece soru seti,
+// kategori ağırlıkları ve endpoint farklı (bkz. CONFIG). Kendi/antrenör/takım arkadaşı
+// oranları ve derece puanına yazılma mantığı backend'de (bkz. utils/volleyballRating.js,
+// utils/padelRating.js) sport'a göre ayrı tutuluyor, burası sadece o config'i tüketiyor.
+const CONFIG = {
+    volleyball: {
+        endpoint: 'volleyball-rating',
+        titleKey: 'volleyballRatingTitle',
+        overallLabelKey: 'volleyballRatingOverallLabel',
+        selfLabelKey: 'volleyballRatingSelfLabel',
+        coachLabelKey: 'volleyballRatingCoachLabel',
+        teammateLabelKey: 'volleyballRatingTeammateLabel',
+        noDataLabelKey: 'volleyballRatingNoDataLabel',
+        notEligibleKey: 'volleyballRatingNotEligible',
+        selfHintKey: 'volleyballRatingSelfHint',
+        submitBtnKey: 'volleyballRatingSubmitBtn',
+        submittedMsgKey: 'volleyballRatingSubmittedMsg',
+        submitFailedKey: 'volleyballRatingSubmitFailed',
+        commentsTitleKey: 'volleyballRatingCommentsTitle',
+        roleCoachKey: 'volleyballRatingRoleCoach',
+        roleTeammateKey: 'volleyballRatingRoleTeammate',
+        section4TitleKey: 'volleyballRatingSection4Title',
+        section4HintKey: 'volleyballRatingSection4Hint',
+        strongestQKey: 'volleyballRatingStrongestQ',
+        weakestQKey: 'volleyballRatingWeakestQ',
+        generalNoteQKey: 'volleyballRatingGeneralNoteQ',
+        questionFields: [
+            'serve', 'receptionPass', 'spike', 'block', 'serveReception',
+            'endurance', 'agility', 'jump',
+            'gameVision', 'teamCommunication', 'decisionMaking',
+        ],
+        categories: [
+            { key: 'technical', labelKey: 'volleyballCatTechnical', fields: ['serve', 'receptionPass', 'spike', 'block', 'serveReception'] },
+            { key: 'physical',  labelKey: 'volleyballCatPhysical',  fields: ['endurance', 'agility', 'jump'] },
+            { key: 'tactical',  labelKey: 'volleyballCatTactical',  fields: ['gameVision', 'teamCommunication', 'decisionMaking'] },
+        ],
+        questionMeta: {
+            serve:             { title: 'volleyballQServe',             desc: 'volleyballQServeDesc' },
+            receptionPass:     { title: 'volleyballQReceptionPass',     desc: 'volleyballQReceptionPassDesc' },
+            spike:             { title: 'volleyballQSpike',             desc: 'volleyballQSpikeDesc' },
+            block:             { title: 'volleyballQBlock',             desc: 'volleyballQBlockDesc' },
+            serveReception:    { title: 'volleyballQServeReception',    desc: 'volleyballQServeReceptionDesc' },
+            endurance:         { title: 'volleyballQEndurance',         desc: 'volleyballQEnduranceDesc' },
+            agility:           { title: 'volleyballQAgility',           desc: 'volleyballQAgilityDesc' },
+            jump:              { title: 'volleyballQJump',              desc: 'volleyballQJumpDesc' },
+            gameVision:        { title: 'volleyballQGameVision',        desc: 'volleyballQGameVisionDesc' },
+            teamCommunication: { title: 'volleyballQTeamCommunication', desc: 'volleyballQTeamCommunicationDesc' },
+            decisionMaking:    { title: 'volleyballQDecisionMaking',    desc: 'volleyballQDecisionMakingDesc' },
+        },
+    },
+    padel: {
+        endpoint: 'padel-rating',
+        titleKey: 'padelRatingTitle',
+        overallLabelKey: 'padelRatingOverallLabel',
+        selfLabelKey: 'padelRatingSelfLabel',
+        coachLabelKey: 'padelRatingCoachLabel',
+        teammateLabelKey: 'padelRatingTeammateLabel',
+        noDataLabelKey: 'padelRatingNoDataLabel',
+        notEligibleKey: 'padelRatingNotEligible',
+        selfHintKey: 'padelRatingSelfHint',
+        submitBtnKey: 'padelRatingSubmitBtn',
+        submittedMsgKey: 'padelRatingSubmittedMsg',
+        submitFailedKey: 'padelRatingSubmitFailed',
+        commentsTitleKey: 'padelRatingCommentsTitle',
+        roleCoachKey: 'padelRatingRoleCoach',
+        roleTeammateKey: 'padelRatingRoleTeammate',
+        section4TitleKey: 'padelRatingSection4Title',
+        section4HintKey: 'padelRatingSection4Hint',
+        strongestQKey: 'padelRatingStrongestQ',
+        weakestQKey: 'padelRatingWeakestQ',
+        generalNoteQKey: 'padelRatingGeneralNoteQ',
+        questionFields: [
+            'forehandDrive', 'backhandDrive', 'volley', 'smash',
+            'agility', 'endurance', 'reflexes',
+            'courtPositioning', 'shotSelection', 'teamCommunication',
+        ],
+        categories: [
+            { key: 'technical', labelKey: 'padelCatTechnical', fields: ['forehandDrive', 'backhandDrive', 'volley', 'smash'] },
+            { key: 'physical',  labelKey: 'padelCatPhysical',  fields: ['agility', 'endurance', 'reflexes'] },
+            { key: 'tactical',  labelKey: 'padelCatTactical',  fields: ['courtPositioning', 'shotSelection', 'teamCommunication'] },
+        ],
+        questionMeta: {
+            forehandDrive:     { title: 'padelQForehandDrive',     desc: 'padelQForehandDriveDesc' },
+            backhandDrive:     { title: 'padelQBackhandDrive',     desc: 'padelQBackhandDriveDesc' },
+            volley:            { title: 'padelQVolley',            desc: 'padelQVolleyDesc' },
+            smash:             { title: 'padelQSmash',             desc: 'padelQSmashDesc' },
+            agility:           { title: 'padelQAgility',           desc: 'padelQAgilityDesc' },
+            endurance:         { title: 'padelQEndurance',         desc: 'padelQEnduranceDesc' },
+            reflexes:          { title: 'padelQReflexes',          desc: 'padelQReflexesDesc' },
+            courtPositioning:  { title: 'padelQCourtPositioning',  desc: 'padelQCourtPositioningDesc' },
+            shotSelection:     { title: 'padelQShotSelection',     desc: 'padelQShotSelectionDesc' },
+            teamCommunication: { title: 'padelQTeamCommunication', desc: 'padelQTeamCommunicationDesc' },
+        },
+    },
 };
 
 function ScoreRow({ max, value, onChange }) {
@@ -49,9 +119,11 @@ function ScoreRow({ max, value, onChange }) {
     );
 }
 
-export default function VolleyballRatingModal({ visible, subjectId, onClose }) {
+export default function VolleyballRatingModal({ visible, subjectId, subCategory = 'volleyball', onClose }) {
     const t = useT();
     const insets = useSafeAreaInsets();
+    const cfg = CONFIG[subCategory] || CONFIG.volleyball;
+    const QUESTION_FIELDS = cfg.questionFields;
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -68,7 +140,7 @@ export default function VolleyballRatingModal({ visible, subjectId, onClose }) {
             return;
         }
         setLoading(true);
-        api.get(`/volleyball-rating/${subjectId}`)
+        api.get(`/${cfg.endpoint}/${subjectId}`)
             .then(({ data }) => {
                 setData(data);
                 if (data.myRating) {
@@ -82,7 +154,7 @@ export default function VolleyballRatingModal({ visible, subjectId, onClose }) {
             })
             .catch(() => {})
             .finally(() => setLoading(false));
-    }, [visible, subjectId]);
+    }, [visible, subjectId, subCategory]);
 
     const setAnswer = (field, val) => { setSaved(false); setAnswers(prev => ({ ...prev, [field]: val })); };
 
@@ -94,14 +166,14 @@ export default function VolleyballRatingModal({ visible, subjectId, onClose }) {
         if (!canSubmit || saving) return;
         setSaving(true);
         try {
-            const { data: agg } = await api.post(`/volleyball-rating/${subjectId}`, {
+            const { data: agg } = await api.post(`/${cfg.endpoint}/${subjectId}`, {
                 ...answers,
                 ...(needsSection4 ? { strongestPoint, weakestPoint, generalPerformanceNote: generalNote } : {}),
             });
             setData(prev => ({ ...prev, ...agg }));
             setSaved(true);
         } catch (e) {
-            Alert.alert(t.error, e?.response?.data?.message || t.volleyballRatingSubmitFailed);
+            Alert.alert(t.error, e?.response?.data?.message || t[cfg.submitFailedKey]);
         } finally {
             setSaving(false);
         }
@@ -113,7 +185,7 @@ export default function VolleyballRatingModal({ visible, subjectId, onClose }) {
                 <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
                     <View style={s.box}>
                         <View style={s.header}>
-                            <Text style={s.title}>{t.volleyballRatingTitle}</Text>
+                            <Text style={s.title}>{t[cfg.titleKey]}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.close}>✕</Text></TouchableOpacity>
                         </View>
 
@@ -128,27 +200,27 @@ export default function VolleyballRatingModal({ visible, subjectId, onClose }) {
                                 <>
                                     <View style={s.summaryBox}>
                                         <Text style={s.overallScore}>{data.overallScore.toFixed(2)}</Text>
-                                        <Text style={s.overallLabel}>{t.volleyballRatingOverallLabel}</Text>
+                                        <Text style={s.overallLabel}>{t[cfg.overallLabelKey]}</Text>
                                         <View style={s.summaryRow}>
                                             <Text style={s.summaryItem}>
-                                                {t.volleyballRatingSelfLabel}: {data.selfScore != null ? data.selfScore.toFixed(2) : t.volleyballRatingNoDataLabel}
+                                                {t[cfg.selfLabelKey]}: {data.selfScore != null ? data.selfScore.toFixed(2) : t[cfg.noDataLabelKey]}
                                             </Text>
                                             <Text style={s.summaryItem}>
-                                                {t.volleyballRatingCoachLabel(data.coachCount)}: {data.coachScore != null ? data.coachScore.toFixed(2) : t.volleyballRatingNoDataLabel}
+                                                {t[cfg.coachLabelKey](data.coachCount)}: {data.coachScore != null ? data.coachScore.toFixed(2) : t[cfg.noDataLabelKey]}
                                             </Text>
                                             <Text style={s.summaryItem}>
-                                                {t.volleyballRatingTeammateLabel(data.teammateCount)}: {data.teammateScore != null ? data.teammateScore.toFixed(2) : t.volleyballRatingNoDataLabel}
+                                                {t[cfg.teammateLabelKey](data.teammateCount)}: {data.teammateScore != null ? data.teammateScore.toFixed(2) : t[cfg.noDataLabelKey]}
                                             </Text>
                                         </View>
                                     </View>
 
                                     {data.comments?.length > 0 && (
                                         <View style={{ gap: 8 }}>
-                                            <Text style={s.sectionTitle}>{t.volleyballRatingCommentsTitle}</Text>
+                                            <Text style={s.sectionTitle}>{t[cfg.commentsTitleKey]}</Text>
                                             {data.comments.map((c, i) => (
                                                 <View key={i} style={s.commentCard}>
                                                     <Text style={s.commentName}>
-                                                        {c.rater?.fullName || c.rater?.username || '?'} · {c.role === 'COACH' ? t.volleyballRatingRoleCoach : t.volleyballRatingRoleTeammate}
+                                                        {c.rater?.fullName || c.rater?.username || '?'} · {c.role === 'COACH' ? t[cfg.roleCoachKey] : t[cfg.roleTeammateKey]}
                                                         {c.generalPerformanceNote != null ? ` · ${c.generalPerformanceNote}/10` : ''}
                                                     </Text>
                                                     {c.strongestPoint ? <Text style={s.commentText}>+ {c.strongestPoint}</Text> : null}
@@ -159,16 +231,16 @@ export default function VolleyballRatingModal({ visible, subjectId, onClose }) {
                                     )}
 
                                     {data.myRole === 'SELF' ? (
-                                        <Text style={s.notEligibleText}>{t.volleyballRatingSelfHint}</Text>
+                                        <Text style={s.notEligibleText}>{t[cfg.selfHintKey]}</Text>
                                     ) : data.myRole ? (
                                         <>
-                                            {CATEGORIES.map(cat => (
+                                            {cfg.categories.map(cat => (
                                                 <View key={cat.key} style={s.categoryBox}>
                                                     <Text style={s.categoryTitle}>{t[cat.labelKey]}</Text>
                                                     {cat.fields.map(f => (
                                                         <View key={f} style={s.questionCard}>
-                                                            <Text style={s.questionTitle}>{t[QUESTION_META[f].title]}</Text>
-                                                            <Text style={s.questionDesc}>{t[QUESTION_META[f].desc]}</Text>
+                                                            <Text style={s.questionTitle}>{t[cfg.questionMeta[f].title]}</Text>
+                                                            <Text style={s.questionDesc}>{t[cfg.questionMeta[f].desc]}</Text>
                                                             <ScoreRow max={5} value={answers[f] || 0} onChange={v => setAnswer(f, v)} />
                                                         </View>
                                                     ))}
@@ -177,10 +249,10 @@ export default function VolleyballRatingModal({ visible, subjectId, onClose }) {
 
                                             {needsSection4 && (
                                                 <View style={s.categoryBox}>
-                                                    <Text style={s.categoryTitle}>{t.volleyballRatingSection4Title}</Text>
-                                                    <Text style={s.hintText}>{t.volleyballRatingSection4Hint}</Text>
+                                                    <Text style={s.categoryTitle}>{t[cfg.section4TitleKey]}</Text>
+                                                    <Text style={s.hintText}>{t[cfg.section4HintKey]}</Text>
                                                     <View style={s.questionCard}>
-                                                        <Text style={s.questionTitle}>{t.volleyballRatingStrongestQ}</Text>
+                                                        <Text style={s.questionTitle}>{t[cfg.strongestQKey]}</Text>
                                                         <TextInput
                                                             value={strongestPoint}
                                                             onChangeText={v => { setSaved(false); setStrongestPoint(v); }}
@@ -190,7 +262,7 @@ export default function VolleyballRatingModal({ visible, subjectId, onClose }) {
                                                         />
                                                     </View>
                                                     <View style={s.questionCard}>
-                                                        <Text style={s.questionTitle}>{t.volleyballRatingWeakestQ}</Text>
+                                                        <Text style={s.questionTitle}>{t[cfg.weakestQKey]}</Text>
                                                         <TextInput
                                                             value={weakestPoint}
                                                             onChangeText={v => { setSaved(false); setWeakestPoint(v); }}
@@ -200,7 +272,7 @@ export default function VolleyballRatingModal({ visible, subjectId, onClose }) {
                                                         />
                                                     </View>
                                                     <View style={s.questionCard}>
-                                                        <Text style={s.questionTitle}>{t.volleyballRatingGeneralNoteQ}</Text>
+                                                        <Text style={s.questionTitle}>{t[cfg.generalNoteQKey]}</Text>
                                                         <ScoreRow max={10} value={generalNote} onChange={v => { setSaved(false); setGeneralNote(v); }} />
                                                     </View>
                                                 </View>
@@ -211,12 +283,12 @@ export default function VolleyballRatingModal({ visible, subjectId, onClose }) {
                                                 disabled={!canSubmit || saving}
                                                 onPress={submit}
                                             >
-                                                {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.submitBtnText}>{t.volleyballRatingSubmitBtn}</Text>}
+                                                {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.submitBtnText}>{t[cfg.submitBtnKey]}</Text>}
                                             </TouchableOpacity>
-                                            {saved && <Text style={s.savedText}>{t.volleyballRatingSubmittedMsg}</Text>}
+                                            {saved && <Text style={s.savedText}>{t[cfg.submittedMsgKey]}</Text>}
                                         </>
                                     ) : (
-                                        <Text style={s.notEligibleText}>{t.volleyballRatingNotEligible}</Text>
+                                        <Text style={s.notEligibleText}>{t[cfg.notEligibleKey]}</Text>
                                     )}
                                 </>
                             )}

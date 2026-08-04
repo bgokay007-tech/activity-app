@@ -412,6 +412,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     const [showAchievements, setShowAchievements] = useState(false);
     const [showDart, setShowDart] = useState(false);
     const [showVolleyballRating, setShowVolleyballRating] = useState(false);
+    const [showPadelRating, setShowPadelRating] = useState(false);
 
     useEffect(() => {
         if (!visible) {
@@ -420,6 +421,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
             setAnketScores({ stres: 0, fairplay: 0, beden: 0 });
             setCanRate(false); setAnketAverages(null); setSurveyLoaded(false);
             setShowAchievements(false); setShowDart(false); setShowVolleyballRating(false);
+            setShowPadelRating(false);
         }
     }, [visible]);
 
@@ -622,6 +624,13 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 </TouchableOpacity>
                             )}
 
+                            {/* ── Padel Değerlendirmesi ── */}
+                            {item.subCategory === 'padel' && (
+                                <TouchableOpacity style={fc.actionBtn} onPress={() => setShowPadelRating(true)}>
+                                    <Text style={[fc.actionTxt, { color: '#06b6d4', textAlign: 'center' }]}>{t.padelRatingBtn}</Text>
+                                </TouchableOpacity>
+                            )}
+
                         </ScrollView>
                         <BottomBtns />
 
@@ -729,6 +738,12 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 visible={showVolleyballRating}
                 subjectId={profileUserId}
                 onClose={() => setShowVolleyballRating(false)}
+            />
+            <VolleyballRatingModal
+                visible={showPadelRating}
+                subjectId={profileUserId}
+                subCategory="padel"
+                onClose={() => setShowPadelRating(false)}
             />
         </Modal>
     );
