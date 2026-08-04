@@ -5664,6 +5664,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
 
 function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill = null, editItem = null }) {
     const t = useT();
+    const lang = useSelector(s => s.lang?.lang || 'en');
     const isTeamSport = TEAM_SPORTS.has(sub);
     const isFootball  = sub === 'football';
     const isVolleyball = sub === 'volleyball';
