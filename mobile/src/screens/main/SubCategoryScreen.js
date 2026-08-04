@@ -136,6 +136,28 @@ const SIMPLE_TAB_SUBS = new Set([
 // hemen sağında ayrı bir "Rotalar" sekmesi.
 const ROUTE_ENABLED_SUBS = new Set(['hiking', 'camping', 'running', 'motorcycle', 'sup_kano', 'climbing', 'walking']);
 
+// Bu dallarda gerçek bir "kort" kavramı yok (rezerve edilecek tesis/saat dilimi
+// söz konusu değil) — Etkinlik Oluştur formunda Mod/Format ve kort/il/ilçe/adres
+// arama bloğu tamamen kaldırılıp yerine basit Ücretli/Ücretsiz seçimi konur.
+const SIMPLIFIED_FEE_SUBS = new Set(['sup_kano', 'airsoft', 'equestrian', 'fitness_gym', 'camping', 'running', 'walking', 'extreme_sports']);
+
+// extreme_sports için Format'ın yerini alan asıl dal seçimi — mevcut `surface`
+// alanı (voleybolda zemin türünü tutan aynı genel-amaçlı string) buradaki
+// değeri taşımak için tekrar kullanılıyor, yeni migration gerekmiyor.
+const EXTREME_SPORT_TYPES = [
+    { id: 'PARAGLIDING', label: 'Yamaç Paraşütü' },
+    { id: 'BUNGEE_JUMPING', label: 'Bungee Jumping' },
+    { id: 'SKYDIVING', label: 'Skydiving' },
+    { id: 'BASE_JUMPING', label: 'BASE Jumping' },
+    { id: 'RAFTING', label: 'Rafting' },
+    { id: 'SURF_KITESURF', label: 'Sörf ve Uçurtma Sörfü' },
+    { id: 'SCUBA_DIVING', label: 'Scuba Diving / Mağara Dalışı' },
+    { id: 'MOUNTAINEERING_ICE_CLIMBING', label: 'Dağcılık ve Buz Tırmanışı' },
+    { id: 'SNOWBOARD_SKI', label: 'Snowboard ve Kayak' },
+    { id: 'MOUNTAIN_BIKING', label: 'Dağ Bisikleti' },
+    { id: 'MOTOCROSS', label: 'Motokros' },
+];
+
 function getTabs(sub, category) {
     // Not: 'music' bu ekrana hiç gelmez — CategoryScreen'deki SPECIAL_SCREENS
     // haritası onu ayrı bir ekrana (MusicHomeScreen) yönlendiriyor. "Sanatçılar"
@@ -3351,6 +3373,19 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 {feeByMethodHint(match.courtFeePerPersonByMethod)}
                             </Text>
                         )}
+                        {SIMPLIFIED_FEE_SUBS.has(match.subCategory) && !match.courtFeePerPerson && (
+                            <Text style={{ color:'#4ade80', fontSize:13, marginTop:4, fontWeight:'700' }}>{t.tournFreeOption}</Text>
+                        )}
+                        {match.subCategory === 'extreme_sports' && match.surface && (
+                            <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4 }}>
+                                🏔️ {EXTREME_SPORT_TYPES.find(t2 => t2.id === match.surface)?.label || match.surface}
+                            </Text>
+                        )}
+                        {match.feeIncludes && (
+                            <Text style={{ color: colors.textMuted, fontSize:12, marginTop:4 }}>
+                                {t.feeIncludesLabel}: {match.feeIncludes}
+                            </Text>
+                        )}
                         {match.venueId && isParticipant && (
                             <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:6 }}>
                                 <Text style={{ color:'#22c55e', fontSize:13, fontWeight:'600' }}>📋 Sipariş Ver</Text>
@@ -5605,6 +5640,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         surface: '', venueType: '', courtReserved: false, courtMutual: false,
         courtFeePerPerson: '',
         courtFeePerPersonByMethod: null,
+        activityIsPaid: false,
+        feeIncludes: '',
         message: '',
         ticketUrl: '',
         minRating: '', maxRating: '',
@@ -5657,6 +5694,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 manualAddress: editItem.courtAddress || '',
                 courtFeePerPerson: editItem.courtFeePerPerson != null ? String(editItem.courtFeePerPerson) : '',
                 courtFeePerPersonByMethod: editItem.courtFeePerPersonByMethod || null,
+                activityIsPaid: editItem.courtFeePerPerson != null,
+                feeIncludes: editItem.feeIncludes || '',
                 message: editItem.message || '',
                 ticketUrl: editItem.ticketUrl || '',
                 minRating: editItem.minRating != null ? String(editItem.minRating) : '',
@@ -6067,6 +6106,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 surface: f.surface || null,
                 courtFeePerPerson: f.courtFeePerPerson !== '' ? f.courtFeePerPerson : null,
                 courtFeePerPersonByMethod: f.courtFeePerPersonByMethod || null,
+                ...(SIMPLIFIED_FEE_SUBS.has(sub) && { feeIncludes: f.activityIsPaid ? (f.feeIncludes || null) : null }),
                 ...((sub === 'tennis' || sub === 'padel') && { genderReq: f.genderReq, matchType: f.matchType }),
                 ...((sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' && {
                     partnerGenderReq: f.partnerGenderReq, opp1GenderReq: f.opp1GenderReq, opp2GenderReq: f.opp2GenderReq,
@@ -6101,9 +6141,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         if (!f.flexibleSchedule) {
             if (!f.matchDate)  { Alert.alert('', t.missingDate); return; }
             if (!f.matchTime)  { Alert.alert('', t.missingTime); return; }
-            if (!f.courtMutual && !f.selectedCourt && !f.manualCourtName.trim() && !f.courtSearchText.trim()) {
+            if (!SIMPLIFIED_FEE_SUBS.has(sub) && !f.courtMutual && !f.selectedCourt && !f.manualCourtName.trim() && !f.courtSearchText.trim()) {
                 Alert.alert('', t.missingCourt); return;
             }
+        }
+        if (SIMPLIFIED_FEE_SUBS.has(sub) && f.activityIsPaid && !f.courtFeePerPerson.trim()) {
+            Alert.alert('', t.missingFeeAmount); return;
         }
 
         const matchDateStr = f.matchDate
@@ -6173,6 +6216,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 isCourtReserved: f.courtReserved,
                 courtFeePerPerson: f.courtFeePerPerson !== '' ? parseInt(f.courtFeePerPerson, 10) : undefined,
                 courtFeePerPersonByMethod: f.courtFeePerPersonByMethod || undefined,
+                feeIncludes: SIMPLIFIED_FEE_SUBS.has(sub) && f.activityIsPaid ? (f.feeIncludes || undefined) : undefined,
                 message:   f.message || undefined,
                 ticketUrl: (category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub)) ? (f.ticketUrl || undefined) : undefined,
                 minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
@@ -6266,7 +6310,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 kort/gün/saat değiştirilebilir. */}
                             {!isMatchedEdit && (!isTeamSport ? (
                                 <>
-                                    {/* Mod + Format — tek satır, içeriğe göre boyutlanır (flex:1 yok — sağa boşluk kalırsa kalsın, aralarında boşluk olmasın) */}
+                                    {/* Mod + Format — tek satır, içeriğe göre boyutlanır (flex:1 yok — sağa boşluk kalırsa kalsın, aralarında boşluk olmasın) —
+                                        kort/tesis kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) anlamsız, tamamen gizlenir. */}
+                                    {!SIMPLIFIED_FEE_SUBS.has(sub) && (
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
                                         <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                                             <Text style={[s.fieldLabel, { marginBottom:0, fontSize:13 }]}>{t.modLabel}</Text>
@@ -6329,6 +6375,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </View>
                                         </View>
                                     </View>
+                                    )}
 
                                     {/* Derece + Cinsiyet Kısıtlaması — tek satır, içeriğe göre boyutlanır */}
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8, flexWrap:'wrap' }}>
@@ -6542,6 +6589,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 }
                             />
 
+                            {/* Kort/tesis arama bloğu (esnek+esnek olmayan) — kort kavramı olmayan
+                                dallarda (SIMPLIFIED_FEE_SUBS) tamamen kaldırılıp yerine aşağıdaki
+                                Ücretli/Ücretsiz bloğu konur. */}
+                            {!SIMPLIFIED_FEE_SUBS.has(sub) && (<>
                             {/* Esnek programda kesin tarih/saat yok ama tesis/kort yine de seçilip
                                 kişi başı ücret otomatik doldurulabilsin — sadece isim aranır,
                                 belirli bir saat dilimi rezerve edilmez. */}
@@ -6861,6 +6912,60 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     )}
 
                                 </>
+                            )}
+                            </>)}
+
+                            {/* Ücretli/Ücretsiz — kort kavramı olmayan dallar (SIMPLIFIED_FEE_SUBS): sup&kano,
+                                airsoft, binicilik, fitness, kamp, koşu, yürüyüş, ekstrem sporlar. Ekstrem
+                                sporlarda ayrıca hangi ekstrem dal olduğu da (surface alanı yeniden kullanılarak) seçilir. */}
+                            {!isMatchedEdit && SIMPLIFIED_FEE_SUBS.has(sub) && (
+                                <View style={{ marginBottom:10 }}>
+                                    {sub === 'extreme_sports' && (
+                                        <>
+                                            <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.extremeSportTypeLabel}</Text>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:10 }}>
+                                                {EXTREME_SPORT_TYPES.map(type => (
+                                                    <TouchableOpacity key={type.id} onPress={() => set('surface', type.id)}
+                                                        style={[s.chipBtn, f.surface === type.id && s.chipBtnActive]}>
+                                                        <Text style={[s.chipBtnText, f.surface === type.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                            {type.label}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                        </>
+                                    )}
+                                    <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.activityFeeLabel}</Text>
+                                    <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                                        <TouchableOpacity
+                                            onPress={() => setF(p => ({ ...p, activityIsPaid: false, courtFeePerPerson: '', feeIncludes: '' }))}
+                                            style={[s.chip, { flex:1 }, !f.activityIsPaid && { backgroundColor:'#16a34a30', borderColor:'#16a34a' }]}>
+                                            <Text style={[s.chipText, !f.activityIsPaid && { color:'#4ade80', fontWeight:'800' }]}>{t.tournFreeOption}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => set('activityIsPaid', true)}
+                                            style={[s.chip, { flex:1 }, f.activityIsPaid && { backgroundColor:'#d9770630', borderColor:'#d97706' }]}>
+                                            <Text style={[s.chipText, f.activityIsPaid && { color:'#fbbf24', fontWeight:'800' }]}>{t.tournPaidOption}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    {f.activityIsPaid && (
+                                        <>
+                                            <TextInput style={[s.fieldInput, { marginBottom:8 }]}
+                                                value={f.courtFeePerPerson}
+                                                onChangeText={v => set('courtFeePerPerson', v.replace(/[^0-9]/g, ''))}
+                                                placeholder={t.activityFeeAmountPh}
+                                                placeholderTextColor={colors.textMuted}
+                                                keyboardType="numeric" />
+                                            <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.feeIncludesLabel}</Text>
+                                            <TextInput style={[s.fieldInput, { height:70, textAlignVertical:'top' }]}
+                                                value={f.feeIncludes}
+                                                onChangeText={v => set('feeIncludes', v)}
+                                                placeholder={t.feeIncludesPh}
+                                                placeholderTextColor={colors.textMuted}
+                                                multiline />
+                                        </>
+                                    )}
+                                </View>
                             )}
 
                             {/* Hakem Talep Et / Davet Et / Ücret — sadece tenis/padel/voleybol, tek satır, aynı yükseklikte */}

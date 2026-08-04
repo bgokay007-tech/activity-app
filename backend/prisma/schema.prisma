@@ -736,6 +736,7 @@ model ActivityRequest {
   isCourtReserved    Boolean      @default(false)
   courtFeePerPerson  Int?
   courtFeePerPersonByMethod Json?   // {CASH,EFT,ONLINE,CREDIT_CARD} -> kişi başı ücret — sadece bilgi amaçlı, katılımcı hangi yöntemle öderse o tutarı görsün diye
+  feeIncludes        String?  // kort/mekan yerine sadece ücretli/ücretsiz seçimi olan dallarda (örn. SUP&Kano) ücrete nelerin dahil olduğunun açıklaması — courtFeePerPerson zaten tutarı tutuyor
   flexibleSchedule   Boolean      @default(false)
   matchDate          DateTime?
   matchTime       String?

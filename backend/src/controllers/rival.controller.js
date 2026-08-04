@@ -648,7 +648,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
                 matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment,
-                teamFlexibility, matchType, participantsCanInvite, extraServices } = req.body;
+                teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes } = req.body;
 
         let cleanExtraServices;
         if (extraServices !== undefined) {
@@ -698,6 +698,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(surface !== undefined && { surface: surface ? surface.toUpperCase() : null }),
                 ...(courtFeePerPerson !== undefined && { courtFeePerPerson: courtFeePerPerson !== null && courtFeePerPerson !== '' ? parseInt(courtFeePerPerson, 10) : null }),
                 ...(courtFeePerPersonByMethod !== undefined && { courtFeePerPersonByMethod: courtFeePerPersonByMethod && typeof courtFeePerPersonByMethod === 'object' ? courtFeePerPersonByMethod : null }),
+                ...(feeIncludes !== undefined && { feeIncludes: feeIncludes || null }),
                 ...(refereeRequested !== undefined && { refereeRequested: !!refereeRequested }),
                 ...(refereePayment !== undefined && { refereePayment: refereePayment || null }),
                 ...(teamFlexibility !== undefined && ['FLEXIBLE', 'STRICT'].includes(teamFlexibility) && { teamFlexibility }),
@@ -1103,7 +1104,7 @@ export const createRivalRequest = async (req, res, next) => {
             venueId, venueCourtId, venueReservationId,
             isCourtReserved, flexibleSchedule, matchDate, matchTime,
             matchType = 'SINGLE', matchMode = 'PRACTICE', teamFlexibility = 'FLEXIBLE',
-            surface, teamSize = 1, courtFeePerPerson, courtFeePerPersonByMethod,
+            surface, teamSize = 1, courtFeePerPerson, courtFeePerPersonByMethod, feeIncludes,
             senderTeam, // COMPETITIVE football: [{id,username,fullName,skillRating}]
             positions,  // e.g. ['REFEREE'] | ['REFEREE_OFFER']
             refereePayment,
@@ -1211,6 +1212,7 @@ export const createRivalRequest = async (req, res, next) => {
                 ...(maxRatingFemale !== undefined && maxRatingFemale !== null && maxRatingFemale !== '' && { maxRatingFemale: parseFloat(maxRatingFemale) }),
                 ...(courtFeePerPerson !== undefined && courtFeePerPerson !== null && { courtFeePerPerson: parseInt(courtFeePerPerson, 10) }),
                 ...(courtFeePerPersonByMethod && typeof courtFeePerPersonByMethod === 'object' && { courtFeePerPersonByMethod }),
+                ...(feeIncludes !== undefined && { feeIncludes: feeIncludes || null }),
                 genderReq: genderReq || 'MIX',
                 partnerGenderReq: partnerGenderReq || 'MIX',
                 opp1GenderReq: opp1GenderReq || 'MIX',
