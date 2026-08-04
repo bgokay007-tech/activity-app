@@ -1,3 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="expo.modules.wearbridge">
+    <!-- Huawei Wear Engine Kit ile HarmonyOS saatiyle P2P eşleştirme için -->
+    <uses-permission android:name="com.huawei.wearengine.permission.DEVICE_MANAGER" />
 </manifest>

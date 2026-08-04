@@ -10,6 +10,11 @@
     "deliveryWithInstall": true,
     "installationFree": false,
     "pages": "$profile:main_pages",
+    "requestPermissions": [
+      {
+        "name": "wearEngine.permission.DEVICE_MANAGER"
+      }
+    ],
     "abilities": [
       {
         "name": "EntryAbility",

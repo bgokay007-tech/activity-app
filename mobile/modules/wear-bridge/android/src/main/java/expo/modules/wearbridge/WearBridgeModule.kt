@@ -14,6 +14,7 @@ private const val MATCH_UPDATE_PATH = "/activity/match-update"
 
 class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
     private var lastUpdate: JSONObject? = null
+    private var huaweiListener: HuaweiWearEngineListener? = null
 
     override fun definition() = ModuleDefinition {
         Name("WearBridge")
@@ -21,8 +22,14 @@ class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
         Events("onMatchUpdate")
 
         OnCreate {
-            appContext.reactContext?.let {
-                Wearable.getMessageClient(it).addListener(this@WearBridgeModule)
+            appContext.reactContext?.let { context ->
+                Wearable.getMessageClient(context).addListener(this@WearBridgeModule)
+
+                // Huawei/HarmonyOS saatler Google Play Services'a bağlı değil, bu
+                // yüzden ayrı bir köprüyle (Wear Engine Kit) dinleniyor — ikisi de
+                // aynı emitUpdate() üzerinden tek bir "onMatchUpdate" olayına çıkıyor.
+                huaweiListener = HuaweiWearEngineListener(context) { json -> emitUpdate(json) }
+                huaweiListener?.start()
             }
         }
 
@@ -30,6 +37,8 @@ class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
             appContext.reactContext?.let {
                 Wearable.getMessageClient(it).removeListener(this@WearBridgeModule)
             }
+            huaweiListener?.stop()
+            huaweiListener = null
         }
 
         AsyncFunction("isWatchConnected") {
@@ -40,23 +49,26 @@ class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
     override fun onMessageReceived(event: MessageEvent) {
         if (event.path != MATCH_UPDATE_PATH) return
         try {
-            val json = JSONObject(String(event.data, Charsets.UTF_8))
-            lastUpdate = json
-            sendEvent(
-                "onMatchUpdate",
-                mapOf(
-                    "sport" to json.optString("sport"),
-                    "pointLabelA" to json.optString("pointLabelA"),
-                    "pointLabelB" to json.optString("pointLabelB"),
-                    "gamesA" to json.optInt("gamesA"),
-                    "gamesB" to json.optInt("gamesB"),
-                    "setsA" to json.optInt("setsA"),
-                    "setsB" to json.optInt("setsB"),
-                    "matchWinner" to if (json.isNull("matchWinner")) null else json.optString("matchWinner")
-                )
-            )
+            emitUpdate(JSONObject(String(event.data, Charsets.UTF_8)))
         } catch (e: Exception) {
             // Bozuk/eksik payload — sessizce yok say.
         }
+    }
+
+    private fun emitUpdate(json: JSONObject) {
+        lastUpdate = json
+        sendEvent(
+            "onMatchUpdate",
+            mapOf(
+                "sport" to json.optString("sport"),
+                "pointLabelA" to json.optString("pointLabelA"),
+                "pointLabelB" to json.optString("pointLabelB"),
+                "gamesA" to json.optInt("gamesA"),
+                "gamesB" to json.optInt("gamesB"),
+                "setsA" to json.optInt("setsA"),
+                "setsB" to json.optInt("setsB"),
+                "matchWinner" to if (json.isNull("matchWinner")) null else json.optString("matchWinner")
+            )
+        )
     }
 }

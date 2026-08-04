@@ -76,7 +76,8 @@
         {
           "microphonePermission": "Sesli mesaj gönderebilmek için mikrofonunu kullanmak istiyoruz."
         }
-      ]
+      ],
+      "./plugins/withHuaweiWearEngineRepo.js"
     ],
     "extra": {
       "eas": {

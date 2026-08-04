@@ -29,6 +29,16 @@ android {
     }
 }
 
+repositories {
+    // Huawei Wear Engine Kit (com.huawei.wearengine) sadece Huawei'nin kendi
+    // Maven deposunda yayınlanıyor — Google/Maven Central'da yok.
+    maven { url 'https://developer.huawei.com/repo/' }
+}
+
 dependencies {
     implementation "com.google.android.gms:play-services-wearable:18.1.0"
+    // HarmonyOS saatlerle (Wear OS'un aksine Google Play Services'a bağlı
+    // olmayan cihazlar) P2P iletişim için — bkz. HuaweiWearEngineListener.kt.
+    // TODO: derlerken Huawei'nin Maven deposundaki en güncel sürümle karşılaştır.
+    implementation "com.huawei.wearengine:wearengine:1.0.0"
 }
