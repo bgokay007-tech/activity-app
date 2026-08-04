@@ -646,7 +646,7 @@ export const updateRivalRequest = async (req, res, next) => {
         if (rival.status === 'MATCHED') return updateMatchedRivalCourt(req, res, rival);
         if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Sadece açık veya eşleşmiş ilanlar düzenlenebilir' });
 
-        const { message, matchDate, matchTime, duration, location, ticketUrl, courtName, courtAddress, courtLat, courtLng,
+        const { message, matchDate, matchTime, duration, location, district, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
                 matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment, manualRefereeName,
@@ -676,6 +676,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(matchTime !== undefined && { matchTime }),
                 ...(duration !== undefined && { duration: duration !== null && duration !== '' ? parseInt(duration, 10) : null }),
                 ...(location !== undefined && { location }),
+                ...(district !== undefined && { district: district || null }),
                 ...(ticketUrl !== undefined && { ticketUrl: ticketUrl || null }),
                 ...(courtName !== undefined && { courtName }),
                 ...(courtAddress !== undefined && { courtAddress }),

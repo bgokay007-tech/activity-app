@@ -3369,7 +3369,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             {!match.flexibleSchedule && match.matchTime ? ` · ${match.matchTime}` : ''}
                             {match.duration ? ` · ${match.duration} ${t.timeMinSuffix}` : ''}
                         </Text>
-                        {match.location && <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4 }}>📍 {match.location}</Text>}
+                        {match.location && <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4 }}>📍 {match.location}{match.district ? ` / ${match.district}` : ''}</Text>}
                         {match.courtName && (
                             <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
                                 <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4, textDecorationLine:'underline' }}>🏟️ {match.courtName}</Text>

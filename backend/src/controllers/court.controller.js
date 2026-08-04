@@ -2,13 +2,14 @@ import prisma from '../config/prisma.js';
 
 export const addCourt = async (req, res, next) => {
     try {
-        const { name, address, city, country, lat, lng, sport, surface, indoor, fee, feeAmount, lights, description } = req.body;
+        const { name, address, city, district, country, lat, lng, sport, surface, indoor, fee, feeAmount, lights, description } = req.body;
 
         const court = await prisma.court.create({
             data: {
                 name,
                 address,
                 city,
+                district,
                 country,
                 lat: lat ? Number(lat) : null,
                 lng: lng ? Number(lng) : null,
