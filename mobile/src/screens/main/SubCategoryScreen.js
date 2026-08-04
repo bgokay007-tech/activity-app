@@ -5967,6 +5967,18 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [searching, setSearching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [showRatingRange, setShowRatingRange] = useState(false);
+    // Kurucu/Rakip takım kartı — Digimon kart gibi çevrilebilir: ön yüz kurucu takım
+    // (1. ilanı açan kişi, kilitli), arka yüz "vs" — solda kurucu özeti, sağda rakip
+    // takım (ilan açarken zaten bilinen rakipler varsa orada doldurulabilir).
+    const teamCardFlipAnim = useRef(new Animated.Value(0)).current;
+    const [teamCardBack, setTeamCardBack] = useState(false);
+    const flipTeamCard = () => {
+        Animated.timing(teamCardFlipAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(() => {
+            setTeamCardBack(b => !b);
+            Animated.timing(teamCardFlipAnim, { toValue: teamCardBack ? 0 : 1, duration: 150, useNativeDriver: true }).start();
+        });
+    };
+    const teamCardRotateY = teamCardFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
     const [showSurfacePicker, setShowSurfacePicker] = useState(false);
     const [showVenueTypePicker, setShowVenueTypePicker] = useState(false);
     const [showTeamSizePicker, setShowTeamSizePicker] = useState(false);
@@ -6735,36 +6747,75 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     )}
                                     {isVolleyball && (f.myTeamSlots.length > 0 || f.oppTeamSlots.length > 0) && (
                                         <View style={{ marginBottom:14 }}>
-                                            <Text style={s.fieldLabel}>{t.myTeamLabel}</Text>
-                                            {/* 1. oyuncu her zaman ilanı açan kişi — salt okunur, taşınamaz/silinemez */}
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
-                                                <Avatar name={myUser?.username} avatar={myUser?.avatar} size={22} color={cfg.color} />
-                                                <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:6, justifyContent:'center', opacity:0.8 }]}>
-                                                    <Text style={{ color:'#fff', fontSize:13 }} numberOfLines={1}>{myUser?.fullName || myUser?.username}</Text>
-                                                </View>
-                                            </View>
-                                            {f.myTeamSlots.map((slot, i) => (
-                                                <TeamSlotRow key={`my-${i}`} side="my" index={i} slot={slot}
-                                                    placeholder={t.teamSlotPh(i + 2)}
-                                                    activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
-                                                    onFocus={() => setActiveSlotKey(`my-${i}`)}
-                                                    onChangeText={(txt) => onSlotChangeText('my', i, txt)}
-                                                    onPickUser={(u) => { setSlot('my', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar }); setActiveSlotKey(null); setSlotSuggestions([]); }}
-                                                    onClear={() => setSlot('my', i, null)}
-                                                    cfg={cfg} s={s} colors={colors} />
-                                            ))}
-                                            <Text style={[s.fieldLabel, { marginTop:8 }]}>{t.oppTeamLabel}</Text>
-                                            {f.oppTeamSlots.map((slot, i) => (
-                                                <TeamSlotRow key={`opp-${i}`} side="opp" index={i} slot={slot}
-                                                    placeholder={t.teamSlotPh(i + 1)}
-                                                    activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
-                                                    onFocus={() => setActiveSlotKey(`opp-${i}`)}
-                                                    onChangeText={(txt) => onSlotChangeText('opp', i, txt)}
-                                                    onPickUser={(u) => { setSlot('opp', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar }); setActiveSlotKey(null); setSlotSuggestions([]); }}
-                                                    onClear={() => setSlot('opp', i, null)}
-                                                    cfg={cfg} s={s} colors={colors} />
-                                            ))}
-                                            <Text style={s.fieldHint}>{t.teamSlotHint}</Text>
+                                            <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor: cfg.color+'40', padding:10, transform:[{ perspective:800 }, { rotateY: teamCardRotateY }] }}>
+                                                {!teamCardBack ? (
+                                                    <>
+                                                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                                                            <Text style={[s.fieldLabel, { marginBottom:0, flex:1 }]}>{t.myTeamLabel}</Text>
+                                                            <TouchableOpacity onPress={flipTeamCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                                <Text style={{ fontSize:15 }}>🔄</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                        {/* 1. oyuncu her zaman ilanı açan kişi — salt okunur, taşınamaz/silinemez */}
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
+                                                            <Text style={{ color: colors.textMuted, fontSize:11, width:14 }}>1.</Text>
+                                                            <Avatar name={myUser?.username} avatar={myUser?.avatar} size={20} color={cfg.color} />
+                                                            <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:6, justifyContent:'center', opacity:0.8 }]}>
+                                                                <Text style={{ color:'#fff', fontSize:12 }} numberOfLines={1}>{myUser?.fullName || myUser?.username}</Text>
+                                                            </View>
+                                                        </View>
+                                                        {f.myTeamSlots.map((slot, i) => (
+                                                            <View key={`my-${i}`} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                                                                <Text style={{ color: colors.textMuted, fontSize:11, width:14 }}>{i + 2}.</Text>
+                                                                <View style={{ flex:1 }}>
+                                                                    <TeamSlotRow side="my" index={i} slot={slot}
+                                                                        placeholder={t.teamSlotPh(i + 2)}
+                                                                        activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                                        onFocus={() => setActiveSlotKey(`my-${i}`)}
+                                                                        onChangeText={(txt) => onSlotChangeText('my', i, txt)}
+                                                                        onPickUser={(u) => { setSlot('my', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                                                                        onClear={() => setSlot('my', i, null)}
+                                                                        cfg={cfg} s={s} colors={colors} />
+                                                                </View>
+                                                            </View>
+                                                        ))}
+                                                        <Text style={s.fieldHint}>{t.teamSlotHint}</Text>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.myTeamLabel} vs {t.oppTeamLabel}</Text>
+                                                            <TouchableOpacity onPress={flipTeamCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                                <Text style={{ fontSize:15 }}>🔄</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                        <View style={{ flexDirection:'row', gap:6 }}>
+                                                            <View style={{ flex:1 }}>
+                                                                <Text style={[s.fieldLabel, { fontSize:10 }]}>{t.myTeamLabel}</Text>
+                                                                <Text style={{ color:'#fff', fontSize:11 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
+                                                                {f.myTeamSlots.map((slot, i) => (
+                                                                    <Text key={`myr-${i}`} style={{ color: slot ? '#fff' : colors.textMuted, fontSize:11 }} numberOfLines={1}>
+                                                                        {i + 2}. {slot ? (slot.type === 'user' ? (slot.fullName || slot.username) : slot.name) : '—'}
+                                                                    </Text>
+                                                                ))}
+                                                            </View>
+                                                            <View style={{ flex:1 }}>
+                                                                <Text style={[s.fieldLabel, { fontSize:10 }]}>{t.oppTeamLabel}</Text>
+                                                                {f.oppTeamSlots.map((slot, i) => (
+                                                                    <TeamSlotRow key={`opp-${i}`} side="opp" index={i} slot={slot}
+                                                                        placeholder={t.teamSlotPh(i + 1)}
+                                                                        activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                                        onFocus={() => setActiveSlotKey(`opp-${i}`)}
+                                                                        onChangeText={(txt) => onSlotChangeText('opp', i, txt)}
+                                                                        onPickUser={(u) => { setSlot('opp', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                                                                        onClear={() => setSlot('opp', i, null)}
+                                                                        cfg={cfg} s={s} colors={colors} />
+                                                                ))}
+                                                            </View>
+                                                        </View>
+                                                    </>
+                                                )}
+                                            </Animated.View>
                                         </View>
                                     )}
                                     {isVolleyball && (

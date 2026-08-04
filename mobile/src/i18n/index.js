@@ -147,7 +147,7 @@ const en = {
     refereeCounterPendingMsg: 'Counter offer sent, waiting for the referee\'s response.',
     refereeCounterReceivedMsg: p => `You received a counter offer: ${p}`,
     refereePaymentLabel: 'Referee Fee',
-    refereeNamePh: 'Referee full name',
+    refereeNamePh: 'Referee',
     refereeModeLabel: 'What do you need?',
     pricePerMatchLabel: 'Fee per Match',
 
@@ -1433,7 +1433,7 @@ const tr = {
     refereeCounterPendingMsg: 'Karşı teklif gönderildi, hakemin yanıtı bekleniyor.',
     refereeCounterReceivedMsg: p => `Karşı teklif aldınız: ${p}`,
     refereePaymentLabel: 'Hakem Ücreti',
-    refereeNamePh: 'Hakem adı soyadı',
+    refereeNamePh: 'Hakem',
     refereeModeLabel: 'Ne istiyorsun?',
     pricePerMatchLabel: 'Maç Başı Ücret',
 
