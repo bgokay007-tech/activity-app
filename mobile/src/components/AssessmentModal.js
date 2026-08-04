@@ -109,9 +109,14 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
         finally { setSaving(false); }
     };
 
+    // Sadece onComplete çağırmak yeterli — ManageActivitiesModal onComplete içinde
+    // assessTarget'ı null'a çekip modalı zaten kapatıyor (visible={!!assessTarget}).
+    // Eskiden burada ayrıca onClose() de çağrılıyordu; assessTarget henüz (setState
+    // batching yüzünden) eski değerini taşıdığı için parent'ın onClose'u bunu "kullanıcı
+    // ANKETİ YARIM BIRAKIP çıkıyor" sanıp anketi tamamlamış olsa bile "Vazgeç/Devam Et"
+    // uyarısını gösteriyordu.
     const handleDone = () => {
         onComplete?.(result);
-        onClose();
     };
 
     // ── Render ──
