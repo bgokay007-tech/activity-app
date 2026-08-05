@@ -5883,6 +5883,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         partnerGenderReq: 'MIX',
         opp1GenderReq: 'MIX',
         opp2GenderReq: 'MIX',
+        // Voleybol takım ilanı: havuzun (2*teamSize kişi) kaçının erkek olması gerektiği —
+        // null = kısıtlama yok. Kadın sayısı ekranda 2*teamSize - requiredMaleCount olarak
+        // hesaplanır, takım büyüklüğüne göre seçenekler değişir (bkz. MiniDropdown kullanımı).
+        requiredMaleCount: null,
         venueId: null,
         venueCourtId: null,
         reservationId: null,
@@ -5948,6 +5952,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 partnerGenderReq: editItem.partnerGenderReq || 'MIX',
                 opp1GenderReq: editItem.opp1GenderReq || 'MIX',
                 opp2GenderReq: editItem.opp2GenderReq || 'MIX',
+                requiredMaleCount: editItem.requiredMaleCount != null ? editItem.requiredMaleCount : null,
                 venueId: editItem.venueId || null,
                 venueCourtId: editItem.venueCourtId || null,
                 reservationId: editItem.venueReservationId || null,
@@ -6022,6 +6027,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             teamSize: n,
             // Kurucu (sen) hariç havuzda 2n-1 slot — mevcut doluları (side dahil) korur.
             rosterSlots: Array.from({ length: Math.max(0, 2 * n - 1) }, (_, i) => p.rosterSlots[i] || null),
+            // Cinsiyet dağılımı (Erkek sayısı) takım büyüklüğüne göre seçiliyor — büyüklük
+            // küçülüp eski seçim artık havuza (2n kişi) sığmıyorsa sıfırlanır.
+            requiredMaleCount: (p.requiredMaleCount != null && p.requiredMaleCount <= 2 * n) ? p.requiredMaleCount : null,
         }));
     };
     const setSubCount = (n) => {
@@ -6139,6 +6147,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [showVenueTypePicker, setShowVenueTypePicker] = useState(false);
     const [showTeamSizePicker, setShowTeamSizePicker] = useState(false);
     const [showSubCountPicker, setShowSubCountPicker] = useState(false);
+    const [showGenderCountPicker, setShowGenderCountPicker] = useState(false);
     // Arka yüzde "Atanmamış" havuzundan seçilen kişi — sonra Kurucu/Rakip başlığına
     // dokununca o kişinin side'ı set edilir (mevcut swapSlot tak-seç-hedefe-dokun deseniyle aynı mantık).
     const [selectedUnassignedIndex, setSelectedUnassignedIndex] = useState(null);
@@ -6477,6 +6486,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     partnerGenderReq: f.partnerGenderReq, opp1GenderReq: f.opp1GenderReq, opp2GenderReq: f.opp2GenderReq,
                     teamFlexibility: f.teamFlexibility,
                 }),
+                ...(isVolleyball && { requiredMaleCount: f.requiredMaleCount }),
                 ...(['tennis', 'padel', 'volleyball'].includes(sub) && {
                     refereeRequested: !!f.refereeRequested,
                     refereePayment: f.refereeRequested && f.refereePayment !== '' ? `${f.refereePayment}₺` : null,
@@ -6604,6 +6614,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 partnerGenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.partnerGenderReq : undefined,
                 opp1GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp1GenderReq : undefined,
                 opp2GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp2GenderReq : undefined,
+                requiredMaleCount: isVolleyball && f.requiredMaleCount != null ? f.requiredMaleCount : undefined,
                 partnerInviteId: !isTeamSport && f.matchType === 'DOUBLE' && f.partner
                     ? f.partner.id
                     : undefined,
@@ -7037,16 +7048,40 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {isVolleyball && (
                                         <View style={{ marginBottom:14 }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                                                <Text style={[s.fieldLabel, { marginBottom:0 }]}>{t.ratingLimitLabel}</Text>
-                                                <TouchableOpacity
-                                                    style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:5 }}
-                                                    onPress={() => setShowRatingRange(true)}>
-                                                    <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
-                                                        {f.ratingGenderSplit
-                                                            ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
-                                                            : ((!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`)}
-                                                    </Text>
-                                                </TouchableOpacity>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1 }}>
+                                                    <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.ratingLimitLabel}</Text>
+                                                    <TouchableOpacity
+                                                        style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:5, flexShrink:1 }}
+                                                        onPress={() => setShowRatingRange(true)}>
+                                                        <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
+                                                            {f.ratingGenderSplit
+                                                                ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
+                                                                : ((!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`)}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                                {/* Cinsiyet dağılımı — sadece takım büyüklüğü seçilince anlamlı (havuz
+                                                    boyutu = 2*teamSize), kullanıcı isteğiyle Derece'nin sağında. */}
+                                                {!!f.teamSize && (
+                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1, flexGrow:1, justifyContent:'flex-end', position:'relative', zIndex: showGenderCountPicker ? 51 : 1 }}>
+                                                        <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.genderCountLabel}</Text>
+                                                        <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowGenderCountPicker(v => !v)}>
+                                                            <Text style={[s.compactSelectText, f.requiredMaleCount == null && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                                {f.requiredMaleCount != null ? `👨${f.requiredMaleCount} 👩${2 * f.teamSize - f.requiredMaleCount}` : t.courtSurfaceSelectPlaceholder}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                        <MiniDropdown
+                                                            visible={showGenderCountPicker}
+                                                            options={[
+                                                                { value: null, label: t.genderCountFreeLabel },
+                                                                ...Array.from({ length: 2 * f.teamSize + 1 }, (_, i) => ({ value: i, label: `👨${i} 👩${2 * f.teamSize - i}` })),
+                                                            ]}
+                                                            value={f.requiredMaleCount}
+                                                            onSelect={(v) => set('requiredMaleCount', v)}
+                                                            onClose={() => setShowGenderCountPicker(false)}
+                                                        />
+                                                    </View>
+                                                )}
                                             </View>
                                             <RatingRangeModal
                                                 visible={showRatingRange}

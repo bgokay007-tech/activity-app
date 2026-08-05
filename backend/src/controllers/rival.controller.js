@@ -648,7 +648,7 @@ export const updateRivalRequest = async (req, res, next) => {
 
         const { message, matchDate, matchTime, duration, location, district, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
-                matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq,
+                matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq, requiredMaleCount,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment, manualRefereeName,
                 teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes } = req.body;
 
@@ -694,6 +694,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(partnerGenderReq !== undefined && { partnerGenderReq }),
                 ...(opp1GenderReq !== undefined && { opp1GenderReq }),
                 ...(opp2GenderReq !== undefined && { opp2GenderReq }),
+                ...(requiredMaleCount !== undefined && { requiredMaleCount: requiredMaleCount !== null && requiredMaleCount !== '' ? parseInt(requiredMaleCount, 10) : null }),
                 ...(venueId !== undefined && { venueId: venueId || null }),
                 ...(venueCourtId !== undefined && { venueCourtId: venueCourtId || null }),
                 ...(venueReservationId !== undefined && { venueReservationId: venueReservationId || null }),
@@ -1122,6 +1123,7 @@ export const createRivalRequest = async (req, res, next) => {
             partnerGenderReq = 'MIX',
             opp1GenderReq = 'MIX',
             opp2GenderReq = 'MIX',
+            requiredMaleCount, // voleybol takım ilanı: havuzun (2*teamSize) kaç kişisinin erkek olması gerektiği — undefined/null = kısıtlama yok
             partnerInviteId, // DOUBLE: partner daveti gönderilecek kullanıcının id'si
             opp1InviteId, opp2InviteId, // DOUBLE: rakip 1 / rakip 2 slotuna doğrudan davet gönderilecek kullanıcı id'leri
             oppTeamInviteIds, // takım sporları (voleybol): rakip takım slotlarına doğrudan davet gönderilecek kullanıcı id'leri
@@ -1141,6 +1143,14 @@ export const createRivalRequest = async (req, res, next) => {
         }
 
         await requireActiveInterest(creatorId, category, subCategory);
+
+        if (requiredMaleCount !== undefined && requiredMaleCount !== null && requiredMaleCount !== '') {
+            const totalSlots = 2 * (Number(teamSize) || 1);
+            const rmc = parseInt(requiredMaleCount, 10);
+            if (Number.isNaN(rmc) || rmc < 0 || rmc > totalSlots) {
+                return res.status(400).json({ message: 'Geçersiz erkek oyuncu sayısı' });
+            }
+        }
 
         if (!flexibleSchedule && matchDate && matchTime) {
             const [h, m] = matchTime.split(':').map(Number);
@@ -1240,6 +1250,8 @@ export const createRivalRequest = async (req, res, next) => {
                 partnerGenderReq: partnerGenderReq || 'MIX',
                 opp1GenderReq: opp1GenderReq || 'MIX',
                 opp2GenderReq: opp2GenderReq || 'MIX',
+                ...(requiredMaleCount !== undefined && requiredMaleCount !== null && requiredMaleCount !== ''
+                    && { requiredMaleCount: parseInt(requiredMaleCount, 10) }),
                 status: 'OPEN',
             },
             include: { sender: { select: SENDER_SELECT } },
