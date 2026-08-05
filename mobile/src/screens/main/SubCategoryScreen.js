@@ -4353,6 +4353,68 @@ function MiniDropdown({ visible, options, value, onSelect, onClose }) {
     );
 }
 
+// Voleybol takım ilanı: cinsiyet dağılımı için gerçek bir modal (MiniDropdown'daki hazır
+// 👨N👩M liste yerine kullanıcı isteğiyle) — erkek/kadın sayısı birbirine bağlı iki sayaç,
+// biri değişince diğeri havuz toplamını (2*teamSize) koruyacak şekilde otomatik ayarlanır,
+// böylece kullanıcı ikisini de "kendi belirliyormuş" gibi serbestçe ayarlayabiliyor.
+function GenderCountModal({ visible, total, value, onSelect, onClose, t }) {
+    const [male, setMale] = useState(value != null ? value : Math.ceil(total / 2));
+    useEffect(() => {
+        if (visible) setMale(value != null ? value : Math.ceil(total / 2));
+    }, [visible, value, total]);
+    const female = total - male;
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={opt.overlay}>
+                <View style={opt.box}>
+                    <View style={opt.header}>
+                        <Text style={opt.title}>{t.genderCountLabel}</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
+                    </View>
+                    <View style={{ flexDirection:'row', gap:12, marginBottom:20 }}>
+                        <View style={{ flex:1, alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, paddingVertical:14 }}>
+                            <Text style={{ color: colors.textSecondary, fontSize:13, fontWeight:'700', marginBottom:10 }}>👨 {t.maleCountLabel}</Text>
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:14 }}>
+                                <TouchableOpacity onPress={() => setMale(m => Math.max(0, m - 1))}
+                                    style={{ width:34, height:34, borderRadius:17, backgroundColor: colors.surface, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: colors.border }}>
+                                    <Text style={{ color:'#fff', fontSize:18, fontWeight:'800' }}>−</Text>
+                                </TouchableOpacity>
+                                <Text style={{ color:'#fff', fontSize:20, fontWeight:'900', minWidth:28, textAlign:'center' }}>{male}</Text>
+                                <TouchableOpacity onPress={() => setMale(m => Math.min(total, m + 1))}
+                                    style={{ width:34, height:34, borderRadius:17, backgroundColor: colors.surface, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: colors.border }}>
+                                    <Text style={{ color:'#fff', fontSize:18, fontWeight:'800' }}>+</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                        <View style={{ flex:1, alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, paddingVertical:14 }}>
+                            <Text style={{ color: colors.textSecondary, fontSize:13, fontWeight:'700', marginBottom:10 }}>👩 {t.femaleCountLabel}</Text>
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:14 }}>
+                                {/* Kadın sayısını azaltmak = erkek sayısını artırmak (toplam = 2*teamSize sabit) */}
+                                <TouchableOpacity onPress={() => setMale(m => Math.min(total, m + 1))}
+                                    style={{ width:34, height:34, borderRadius:17, backgroundColor: colors.surface, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: colors.border }}>
+                                    <Text style={{ color:'#fff', fontSize:18, fontWeight:'800' }}>−</Text>
+                                </TouchableOpacity>
+                                <Text style={{ color:'#fff', fontSize:20, fontWeight:'900', minWidth:28, textAlign:'center' }}>{female}</Text>
+                                <TouchableOpacity onPress={() => setMale(m => Math.max(0, m - 1))}
+                                    style={{ width:34, height:34, borderRadius:17, backgroundColor: colors.surface, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: colors.border }}>
+                                    <Text style={{ color:'#fff', fontSize:18, fontWeight:'800' }}>+</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                    <TouchableOpacity onPress={() => { onSelect(male); onClose(); }}
+                        style={{ backgroundColor: colors.purple, borderRadius:14, paddingVertical:12, alignItems:'center', marginBottom:8 }}>
+                        <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>{t.dateRangeApply}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => { onSelect(null); onClose(); }} style={{ alignItems:'center', paddingVertical:6 }}>
+                        <Text style={{ color: colors.textMuted, fontSize:13, fontWeight:'700' }}>{t.genderCountFreeLabel}</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 // Saat seçimi artık paylaşılan components/TimePickerModal.js üzerinden yapılıyor
 // (uygulama genelinde aynı görünüm için) — bkz. yukarıdaki import. `tg` stilleri
 // aşağıdaki RatingPickerModal tarafından hâlâ kullanılıyor, o yüzden kalıyor.
@@ -6059,9 +6121,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         });
     };
     const slotText = (slot) => !slot ? '' : slot.type === 'user' ? (slot.fullName || slot.username) : slot.name;
-    const onSlotChangeText = (group, index, text) => {
+    const onSlotChangeText = (group, index, text, side = null) => {
         setActiveSlotKey(`${group}-${index}`);
-        setSlot(group, index, text ? { type: 'manual', name: text, side: null } : null);
+        setSlot(group, index, text ? { type: 'manual', name: text, side } : null);
     };
     useEffect(() => {
         if (!activeSlotKey) return;
@@ -6959,7 +7021,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     const label = mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode;
                                                     return (
                                                         <TouchableOpacity key={mode} onPress={() => set('matchMode', mode)}
-                                                            style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isVolleyball && { flex:1, alignItems:'center' }, isActive && {
+                                                            style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isVolleyball && { flex:1, alignItems:'center', justifyContent:'center', paddingVertical:4, paddingHorizontal:6 }, isActive && {
                                                                 backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
                                                                 borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
                                                             }]}>
@@ -6996,12 +7058,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     <Text style={s.fieldLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamSizeLabel}</Text>
                                                     <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowTeamSizePicker(v => !v)}>
                                                         <Text style={[s.compactSelectText, !f.teamSize && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                            {f.teamSize ? String(f.teamSize) : t.courtSurfaceSelectPlaceholder}
+                                                            {f.teamSize ? `${f.teamSize}v${f.teamSize}` : t.courtSurfaceSelectPlaceholder}
                                                         </Text>
                                                     </TouchableOpacity>
                                                     <MiniDropdown
                                                         visible={showTeamSizePicker}
-                                                        options={VOLLEYBALL_SIZES.map(n => ({ value: n, label: String(n) }))}
+                                                        options={VOLLEYBALL_SIZES.map(n => ({ value: n, label: `${n}v${n}` }))}
                                                         value={f.teamSize}
                                                         onSelect={(v) => setTeamSize(v)}
                                                         onClose={() => setShowTeamSizePicker(false)}
@@ -7047,8 +7109,28 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     )}
                                     {isVolleyball && (
                                         <View style={{ marginBottom:14 }}>
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1 }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                                {/* Cinsiyet dağılımı — sadece takım büyüklüğü seçilince anlamlı (havuz
+                                                    boyutu = 2*teamSize), kullanıcı isteğiyle Derece'nin SOLUNDA. */}
+                                                {!!f.teamSize && (
+                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1 }}>
+                                                        <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.genderCountLabel}</Text>
+                                                        <TouchableOpacity style={[s.compactSelectBtn, { flexShrink:1 }]} onPress={() => setShowGenderCountPicker(true)}>
+                                                            <Text style={[s.compactSelectText, f.requiredMaleCount == null && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                                {f.requiredMaleCount != null ? `👨${f.requiredMaleCount} 👩${2 * f.teamSize - f.requiredMaleCount}` : t.genderCountFreeLabel}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                        <GenderCountModal
+                                                            visible={showGenderCountPicker}
+                                                            total={2 * f.teamSize}
+                                                            value={f.requiredMaleCount}
+                                                            onSelect={(v) => set('requiredMaleCount', v)}
+                                                            onClose={() => setShowGenderCountPicker(false)}
+                                                            t={t}
+                                                        />
+                                                    </View>
+                                                )}
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1, flexGrow:1, justifyContent:'flex-end' }}>
                                                     <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.ratingLimitLabel}</Text>
                                                     <TouchableOpacity
                                                         style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:5, flexShrink:1 }}
@@ -7060,28 +7142,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         </Text>
                                                     </TouchableOpacity>
                                                 </View>
-                                                {/* Cinsiyet dağılımı — sadece takım büyüklüğü seçilince anlamlı (havuz
-                                                    boyutu = 2*teamSize), kullanıcı isteğiyle Derece'nin sağında. */}
-                                                {!!f.teamSize && (
-                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1, flexGrow:1, justifyContent:'flex-end', position:'relative', zIndex: showGenderCountPicker ? 51 : 1 }}>
-                                                        <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.genderCountLabel}</Text>
-                                                        <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowGenderCountPicker(v => !v)}>
-                                                            <Text style={[s.compactSelectText, f.requiredMaleCount == null && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                                {f.requiredMaleCount != null ? `👨${f.requiredMaleCount} 👩${2 * f.teamSize - f.requiredMaleCount}` : t.courtSurfaceSelectPlaceholder}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                        <MiniDropdown
-                                                            visible={showGenderCountPicker}
-                                                            options={[
-                                                                { value: null, label: t.genderCountFreeLabel },
-                                                                ...Array.from({ length: 2 * f.teamSize + 1 }, (_, i) => ({ value: i, label: `👨${i} 👩${2 * f.teamSize - i}` })),
-                                                            ]}
-                                                            value={f.requiredMaleCount}
-                                                            onSelect={(v) => set('requiredMaleCount', v)}
-                                                            onClose={() => setShowGenderCountPicker(false)}
-                                                        />
-                                                    </View>
-                                                )}
                                             </View>
                                             <RatingRangeModal
                                                 visible={showRatingRange}
@@ -7623,7 +7683,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 )}
                                                 <Text style={s.fieldHint}>{t.rosterFrontHint}</Text>
                                             </>
-                                        ) : (
+                                        ) : (() => {
+                                            // Bazen kurucu/rakip ayrımı ilan açılırken zaten bellidir — arka yüzde
+                                            // atanmamışları taşımayı beklemeden, doğrudan Kurucu/Rakip'in altındaki
+                                            // boş forma isim yazılabilsin. Bu form hep ilk BOŞ havuz slotunu hedefler;
+                                            // doldurulunca ön yüzdeki karşılığı (aynı index) otomatik dolar ve bu form
+                                            // bir sonraki boş slota kayar (React her render'da firstEmptyIndex'i tazeler).
+                                            const firstEmptyIndex = f.rosterSlots.findIndex(sl => !sl);
+                                            return (
                                             <>
                                                 <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
                                                     <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.myTeamLabel} ↔ {t.oppTeamLabel}</Text>
@@ -7632,7 +7699,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </TouchableOpacity>
                                                 </View>
                                                 <View style={{ flexDirection:'row', gap:6 }}>
-                                                    <View style={{ flex:1 }}>
+                                                    <View style={{ flex:1, position:'relative', zIndex: activeSlotKey === `pool-${firstEmptyIndex}` ? 51 : 1 }}>
                                                         <TouchableOpacity disabled={selectedUnassignedIndex == null}
                                                             onPress={() => { setSlotSide(selectedUnassignedIndex, 'my'); setSelectedUnassignedIndex(null); }}>
                                                             <Text style={[s.fieldLabel, { fontSize:10, color: selectedUnassignedIndex != null ? cfg.color : undefined }]} numberOfLines={1}>
@@ -7645,8 +7712,18 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 <Text style={{ color:'#fff', fontSize:11 }} numberOfLines={1}>{slotText(slot)}</Text>
                                                             </TouchableOpacity>
                                                         ) : null)}
+                                                        {firstEmptyIndex !== -1 && (
+                                                            <TeamSlotRow side="pool" index={firstEmptyIndex} slot={null}
+                                                                placeholder={t.teamSlotPh(firstEmptyIndex + 2)}
+                                                                activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                                onFocus={() => setActiveSlotKey(`pool-${firstEmptyIndex}`)}
+                                                                onChangeText={(txt) => onSlotChangeText('pool', firstEmptyIndex, txt, 'my')}
+                                                                onPickUser={(u) => { setSlot('pool', firstEmptyIndex, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, side:'my' }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                                                                onClear={() => setSlot('pool', firstEmptyIndex, null)}
+                                                                cfg={cfg} s={s} colors={colors} t={t} />
+                                                        )}
                                                     </View>
-                                                    <View style={{ flex:1 }}>
+                                                    <View style={{ flex:1, position:'relative', zIndex: activeSlotKey === `pool-${firstEmptyIndex}` ? 51 : 1 }}>
                                                         <TouchableOpacity disabled={selectedUnassignedIndex == null}
                                                             onPress={() => { setSlotSide(selectedUnassignedIndex, 'opp'); setSelectedUnassignedIndex(null); }}>
                                                             <Text style={[s.fieldLabel, { fontSize:10, color: selectedUnassignedIndex != null ? cfg.color : undefined }]} numberOfLines={1}>
@@ -7658,6 +7735,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 <Text style={{ color:'#fff', fontSize:11 }} numberOfLines={1}>{slotText(slot)}</Text>
                                                             </TouchableOpacity>
                                                         ) : null)}
+                                                        {firstEmptyIndex !== -1 && (
+                                                            <TeamSlotRow side="pool" index={firstEmptyIndex} slot={null}
+                                                                placeholder={t.teamSlotPh(firstEmptyIndex + 2)}
+                                                                activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                                onFocus={() => setActiveSlotKey(`pool-${firstEmptyIndex}`)}
+                                                                onChangeText={(txt) => onSlotChangeText('pool', firstEmptyIndex, txt, 'opp')}
+                                                                onPickUser={(u) => { setSlot('pool', firstEmptyIndex, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, side:'opp' }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                                                                onClear={() => setSlot('pool', firstEmptyIndex, null)}
+                                                                cfg={cfg} s={s} colors={colors} t={t} />
+                                                        )}
                                                     </View>
                                                 </View>
                                                 {f.rosterSlots.some(sl => sl && !sl.side) && (
@@ -7676,7 +7763,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </View>
                                                 )}
                                             </>
-                                        )}
+                                            );
+                                        })()}
                                     </Animated.View>
                                 </View>
                             )}
