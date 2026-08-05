@@ -480,7 +480,7 @@ export const getUsersBySport = async (req, res, next) => {
                 }),
             },
             select: {
-                id: true, username: true, fullName: true, avatar: true, isPublic: true,
+                id: true, username: true, fullName: true, avatar: true, isPublic: true, gender: true,
                 interests: {
                     where: { subCategory, ...(category && { category }) },
                     select: { subCategory: true, skillRating: true, totalPoints: true, level: true, alias: true, assessmentCompleted: true },

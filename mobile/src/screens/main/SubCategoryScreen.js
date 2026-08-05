@@ -4338,9 +4338,16 @@ const opt = StyleSheet.create({
 // kutularıyla aynı desen).
 function MiniDropdown({ visible, options, value, onSelect, onClose }) {
     if (!visible) return null;
+    // Sabit maxHeight:170, 6 seçenekli listelerde (Takım Büyüklüğü, Yedek Sayısı) son
+    // 1-2 satırı kırpıyordu ve iç içe ScrollView bazı cihazlarda kaydırmayı almıyordu —
+    // liste kısaysa (≤7 satır) hiç kaydırma gerekmeyecek şekilde tam yükseklik veriliyor,
+    // uzun listelerde (öneri vb.) yine 220'de sınırlanıp kaydırılıyor.
+    const rowH = 32;
+    const fullH = options.length * rowH + 2;
+    const maxH = Math.min(fullH, 220);
     return (
-        <View style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, maxHeight:170, overflow:'hidden' }}>
-            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
+        <View style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, maxHeight:maxH, overflow:'hidden' }}>
+            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} scrollEnabled={fullH > maxH}>
                 {options.map(o => (
                     <TouchableOpacity key={o.value} onPress={() => { onSelect(o.value); onClose(); }}
                         style={{ paddingVertical:7, paddingHorizontal:10, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth:1, borderBottomColor: colors.border }}>
@@ -6578,6 +6585,34 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         if (isVolleyball && !editItem && f.rosterSlots.some(sl => sl && !sl.side)) {
             Alert.alert('', t.mustAssignTeamMsg); return;
         }
+        // Kayıtlı kullanıcı olarak eklenen havuz üyeleri, ilanın kendi cinsiyet dağılımı
+        // (requiredMaleCount) ve derece (minRating/maxRating, gendersplit ise ayrı ayrı)
+        // kısıtlamalarına uymalı — manuel (kayıtsız) isimlerin cinsiyet/derecesi bilinmediği
+        // için sadece bilinen (type==='user') üyeler kontrol edilir.
+        if (isVolleyball && !editItem && f.teamSize) {
+            const assignedUsers = f.rosterSlots.filter(sl => sl?.type === 'user');
+            if (f.requiredMaleCount != null) {
+                const maleCount = assignedUsers.filter(u => u.gender === 'MALE').length;
+                const femaleCount = assignedUsers.filter(u => u.gender === 'FEMALE').length;
+                const femaleTarget = 2 * f.teamSize - f.requiredMaleCount;
+                if (maleCount > f.requiredMaleCount || femaleCount > femaleTarget) {
+                    Alert.alert('', t.genderCountExceededMsg); return;
+                }
+            }
+            const ratingViolator = assignedUsers.find(u => {
+                if (u.skillRating == null) return false;
+                if (f.ratingGenderSplit) {
+                    const min = u.gender === 'FEMALE' ? f.minRatingFemale : f.minRatingMale;
+                    const max = u.gender === 'FEMALE' ? f.maxRatingFemale : f.maxRatingMale;
+                    return (min !== '' && u.skillRating < parseFloat(min)) || (max !== '' && u.skillRating > parseFloat(max));
+                }
+                return (f.minRating !== '' && u.skillRating < parseFloat(f.minRating)) || (f.maxRating !== '' && u.skillRating > parseFloat(f.maxRating));
+            });
+            if (ratingViolator) {
+                Alert.alert('', t.ratingRangeViolationMsg(ratingViolator.fullName || ratingViolator.username));
+                return;
+            }
+        }
         if (isTennis && !editItem) {
             if (!f.matchMode) { Alert.alert('', 'Lütfen mod seçin (Antrenman/Rekabetçi).'); return; }
             if (!f.matchType) { Alert.alert('', 'Lütfen format seçin (Tekli/Çiftler).'); return; }
@@ -7654,7 +7689,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
                                                                 onFocus={() => setActiveSlotKey(`pool-${i}`)}
                                                                 onChangeText={(txt) => onSlotChangeText('pool', i, txt)}
-                                                                onPickUser={(u) => { setSlot('pool', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, side:null }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                                                                onPickUser={(u) => { setSlot('pool', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null, side:null }); setActiveSlotKey(null); setSlotSuggestions([]); }}
                                                                 onClear={() => setSlot('pool', i, null)}
                                                                 onAssignSide={(sd) => setSlotSide(i, sd)}
                                                                 cfg={cfg} s={s} colors={colors} t={t} />
@@ -7673,7 +7708,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                         activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
                                                                         onFocus={() => setActiveSlotKey(`sub-${i}`)}
                                                                         onChangeText={(txt) => onSlotChangeText('sub', i, txt)}
-                                                                        onPickUser={(u) => { setSlot('sub', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                                                                        onPickUser={(u) => { setSlot('sub', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null }); setActiveSlotKey(null); setSlotSuggestions([]); }}
                                                                         onClear={() => setSlot('sub', i, null)}
                                                                         cfg={cfg} s={s} colors={colors} t={t} />
                                                                 </View>
@@ -7684,12 +7719,21 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 <Text style={s.fieldHint}>{t.rosterFrontHint}</Text>
                                             </>
                                         ) : (() => {
-                                            // Bazen kurucu/rakip ayrımı ilan açılırken zaten bellidir — arka yüzde
-                                            // atanmamışları taşımayı beklemeden, doğrudan Kurucu/Rakip'in altındaki
-                                            // boş forma isim yazılabilsin. Bu form hep ilk BOŞ havuz slotunu hedefler;
-                                            // doldurulunca ön yüzdeki karşılığı (aynı index) otomatik dolar ve bu form
-                                            // bir sonraki boş slota kayar (React her render'da firstEmptyIndex'i tazeler).
-                                            const firstEmptyIndex = f.rosterSlots.findIndex(sl => !sl);
+                                            // Bazen kurucu/rakip ayrımı ilan açılırken zaten bellidir — arka yüzde her
+                                            // takım artık kendi teamSize'ı kadar SABİT sayıda yazılabilir form gösterir
+                                            // (Kurucu: kilitli "1. Sen" + teamSize-1 form, Rakip: teamSize form), tek
+                                            // ortak "sıradaki boş slot" yerine — kullanıcı isteğiyle her iki tarafta da
+                                            // aynı anda ayrı ayrı yazılabiliyor. Zaten dolu (side='my'/'opp') slotlar
+                                            // önce sırayla gösterilir, kalan boş kontenjan TRUE boş (null) havuz
+                                            // indekslerinden pay edilir — ön yüzdeki aynı indeksle birebir eşleşir.
+                                            const teamSizeN = f.teamSize || 1;
+                                            const myAssignedIdx = f.rosterSlots.reduce((acc, sl, i) => { if (sl?.side === 'my') acc.push(i); return acc; }, []);
+                                            const oppAssignedIdx = f.rosterSlots.reduce((acc, sl, i) => { if (sl?.side === 'opp') acc.push(i); return acc; }, []);
+                                            const emptyIdx = f.rosterSlots.reduce((acc, sl, i) => { if (!sl) acc.push(i); return acc; }, []);
+                                            const myNeeded = Math.max(0, teamSizeN - 1 - myAssignedIdx.length);
+                                            const oppNeeded = Math.max(0, teamSizeN - oppAssignedIdx.length);
+                                            const mySlotOrder = [...myAssignedIdx, ...emptyIdx.slice(0, myNeeded)];
+                                            const oppSlotOrder = [...oppAssignedIdx, ...emptyIdx.slice(myNeeded, myNeeded + oppNeeded)];
                                             return (
                                             <>
                                                 <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
@@ -7699,52 +7743,46 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </TouchableOpacity>
                                                 </View>
                                                 <View style={{ flexDirection:'row', gap:6 }}>
-                                                    <View style={{ flex:1, position:'relative', zIndex: activeSlotKey === `pool-${firstEmptyIndex}` ? 51 : 1 }}>
+                                                    <View style={{ flex:1 }}>
                                                         <TouchableOpacity disabled={selectedUnassignedIndex == null}
                                                             onPress={() => { setSlotSide(selectedUnassignedIndex, 'my'); setSelectedUnassignedIndex(null); }}>
                                                             <Text style={[s.fieldLabel, { fontSize:10, color: selectedUnassignedIndex != null ? cfg.color : undefined }]} numberOfLines={1}>
                                                                 {t.myTeamLabel}{selectedUnassignedIndex != null ? ' ↩' : ''}
                                                             </Text>
                                                         </TouchableOpacity>
-                                                        <Text style={{ color:'#fff', fontSize:11 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
-                                                        {f.rosterSlots.map((slot, i) => slot?.side === 'my' ? (
-                                                            <TouchableOpacity key={`my-${i}`} onPress={() => setSlotSide(i, null)}>
-                                                                <Text style={{ color:'#fff', fontSize:11 }} numberOfLines={1}>{slotText(slot)}</Text>
-                                                            </TouchableOpacity>
-                                                        ) : null)}
-                                                        {firstEmptyIndex !== -1 && (
-                                                            <TeamSlotRow side="pool" index={firstEmptyIndex} slot={null}
-                                                                placeholder={t.teamSlotPh(firstEmptyIndex + 2)}
-                                                                activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
-                                                                onFocus={() => setActiveSlotKey(`pool-${firstEmptyIndex}`)}
-                                                                onChangeText={(txt) => onSlotChangeText('pool', firstEmptyIndex, txt, 'my')}
-                                                                onPickUser={(u) => { setSlot('pool', firstEmptyIndex, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, side:'my' }); setActiveSlotKey(null); setSlotSuggestions([]); }}
-                                                                onClear={() => setSlot('pool', firstEmptyIndex, null)}
-                                                                cfg={cfg} s={s} colors={colors} t={t} />
-                                                        )}
+                                                        <Text style={{ color:'#fff', fontSize:11, marginBottom:3 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
+                                                        {mySlotOrder.map((idx, orderI) => (
+                                                            <View key={`my-slot-${idx}`} style={{ position:'relative', zIndex: activeSlotKey === `pool-${idx}` ? 51 : 1, marginBottom:2 }}>
+                                                                <TeamSlotRow side="pool" index={idx} slot={f.rosterSlots[idx]}
+                                                                    placeholder={t.teamSlotPh(orderI + 2)}
+                                                                    activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                                    onFocus={() => setActiveSlotKey(`pool-${idx}`)}
+                                                                    onChangeText={(txt) => onSlotChangeText('pool', idx, txt, 'my')}
+                                                                    onPickUser={(u) => { setSlot('pool', idx, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null, side:'my' }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                                                                    onClear={() => setSlot('pool', idx, null)}
+                                                                    cfg={cfg} s={s} colors={colors} t={t} />
+                                                            </View>
+                                                        ))}
                                                     </View>
-                                                    <View style={{ flex:1, position:'relative', zIndex: activeSlotKey === `pool-${firstEmptyIndex}` ? 51 : 1 }}>
+                                                    <View style={{ flex:1 }}>
                                                         <TouchableOpacity disabled={selectedUnassignedIndex == null}
                                                             onPress={() => { setSlotSide(selectedUnassignedIndex, 'opp'); setSelectedUnassignedIndex(null); }}>
                                                             <Text style={[s.fieldLabel, { fontSize:10, color: selectedUnassignedIndex != null ? cfg.color : undefined }]} numberOfLines={1}>
                                                                 {t.oppTeamLabel}{selectedUnassignedIndex != null ? ' ↩' : ''}
                                                             </Text>
                                                         </TouchableOpacity>
-                                                        {f.rosterSlots.map((slot, i) => slot?.side === 'opp' ? (
-                                                            <TouchableOpacity key={`opp-${i}`} onPress={() => setSlotSide(i, null)}>
-                                                                <Text style={{ color:'#fff', fontSize:11 }} numberOfLines={1}>{slotText(slot)}</Text>
-                                                            </TouchableOpacity>
-                                                        ) : null)}
-                                                        {firstEmptyIndex !== -1 && (
-                                                            <TeamSlotRow side="pool" index={firstEmptyIndex} slot={null}
-                                                                placeholder={t.teamSlotPh(firstEmptyIndex + 2)}
-                                                                activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
-                                                                onFocus={() => setActiveSlotKey(`pool-${firstEmptyIndex}`)}
-                                                                onChangeText={(txt) => onSlotChangeText('pool', firstEmptyIndex, txt, 'opp')}
-                                                                onPickUser={(u) => { setSlot('pool', firstEmptyIndex, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, side:'opp' }); setActiveSlotKey(null); setSlotSuggestions([]); }}
-                                                                onClear={() => setSlot('pool', firstEmptyIndex, null)}
-                                                                cfg={cfg} s={s} colors={colors} t={t} />
-                                                        )}
+                                                        {oppSlotOrder.map((idx, orderI) => (
+                                                            <View key={`opp-slot-${idx}`} style={{ position:'relative', zIndex: activeSlotKey === `pool-${idx}` ? 51 : 1, marginBottom:2 }}>
+                                                                <TeamSlotRow side="pool" index={idx} slot={f.rosterSlots[idx]}
+                                                                    placeholder={t.teamSlotPh(orderI + 1)}
+                                                                    activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                                    onFocus={() => setActiveSlotKey(`pool-${idx}`)}
+                                                                    onChangeText={(txt) => onSlotChangeText('pool', idx, txt, 'opp')}
+                                                                    onPickUser={(u) => { setSlot('pool', idx, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null, side:'opp' }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                                                                    onClear={() => setSlot('pool', idx, null)}
+                                                                    cfg={cfg} s={s} colors={colors} t={t} />
+                                                            </View>
+                                                        ))}
                                                     </View>
                                                 </View>
                                                 {f.rosterSlots.some(sl => sl && !sl.side) && (
