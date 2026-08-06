@@ -186,6 +186,10 @@ function getTabs(sub, category) {
     // sağına Turnuvalar eklendi.
     if (sub === 'airsoft')
         return ['rivals', 'tournaments', 'equipment', 'media', 'posts', 'news', 'archive'];
+    // Atıcılık & Avcılık: airsoft ile aynı mantık — Destek/Bilet Al kaldırıldı,
+    // Etkinlikler'in sağına Turnuvalar eklendi.
+    if (sub === 'shooting_hunting')
+        return ['rivals', 'tournaments', 'equipment', 'media', 'posts', 'news', 'archive'];
     // Ayak Tenisi: Destek/Ekipman/Bilet Al'a ihtiyaç yok; Haberler de gerçek "ayak tenisi"
     // haberi neredeyse hiç çıkmadığı için (RSS zayıf eşleşince alakasız tenis haberi
     // gösteriyordu) kaldırıldı.
