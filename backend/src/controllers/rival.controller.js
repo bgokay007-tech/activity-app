@@ -649,7 +649,7 @@ export const updateRivalRequest = async (req, res, next) => {
         const { message, matchDate, matchTime, duration, location, district, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
                 matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq, requiredMaleCount,
-                venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment, manualRefereeName,
+                venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment, refereeFeeIncluded, manualRefereeName,
                 teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes } = req.body;
 
         let cleanExtraServices;
@@ -705,6 +705,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(feeIncludes !== undefined && { feeIncludes: feeIncludes || null }),
                 ...(refereeRequested !== undefined && { refereeRequested: !!refereeRequested }),
                 ...(refereePayment !== undefined && { refereePayment: refereePayment || null }),
+                ...(refereeFeeIncluded !== undefined && { refereeFeeIncluded: !!refereeFeeIncluded }),
                 ...(manualRefereeName !== undefined && { manualRefereeName: manualRefereeName || null }),
                 ...(teamFlexibility !== undefined && ['FLEXIBLE', 'STRICT'].includes(teamFlexibility) && { teamFlexibility }),
                 ...(participantsCanInvite !== undefined && { participantsCanInvite: !!participantsCanInvite }),
@@ -1113,6 +1114,7 @@ export const createRivalRequest = async (req, res, next) => {
             senderTeam, // COMPETITIVE football: [{id,username,fullName,skillRating}]
             positions,  // e.g. ['REFEREE'] | ['REFEREE_OFFER']
             refereePayment,
+            refereeFeeIncluded, // true = hakem ücreti hizmetler/kort fiyatına dahil, ayrı ücret yok
             refereeRequested, // bu maç ilanı için ayrıca hakem talep ediliyor mu (tenis/padel/voleybol)
             refereeInvites, // [{userId, price, message}] — hakem talebi belirli kullanıcılara doğrudan teklifli davet olarak gönderilecekse
             manualRefereeName, // sisteme kayıtlı olmayan hakem için serbest metin isim (tenis/padel/voleybol)
@@ -1233,6 +1235,7 @@ export const createRivalRequest = async (req, res, next) => {
                 positions: Array.isArray(positions) ? positions : [],
                 extraServices: cleanExtraServices,
                 ...(refereePayment && { refereePayment }),
+                refereeFeeIncluded: !!refereeFeeIncluded,
                 refereeRequested: !!refereeRequested,
                 ...(manualRefereeName && { manualRefereeName }),
                 participantsCanInvite: !!participantsCanInvite,
@@ -1286,6 +1289,7 @@ export const createRivalRequest = async (req, res, next) => {
                     ...(venueReservationId && { venueReservationId }),
                     positions: ['REFEREE'],
                     ...(refereePayment && { refereePayment }),
+                    refereeFeeIncluded: !!refereeFeeIncluded,
                     linkedRivalId: request.id,
                     status: 'OPEN',
                 },

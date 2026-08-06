@@ -6579,7 +6579,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 ...(isVolleyball && { requiredMaleCount: f.requiredMaleCount }),
                 ...(['tennis', 'padel', 'volleyball'].includes(sub) && {
                     refereeRequested: !!f.refereeRequested,
-                    refereePayment: f.refereeRequested && f.refereePayment !== '' ? `${f.refereePayment}₺` : null,
+                    refereePayment: f.refereeRequested && !f.refereeFeeIncluded && f.refereePayment !== '' ? `${f.refereePayment}₺` : null,
+                    refereeFeeIncluded: !!f.refereeFeeIncluded,
                     manualRefereeName: f.refereeRequested && f.manualRefereeName.trim() ? f.manualRefereeName.trim() : null,
                     participantsCanInvite: !!f.participantsCanInvite,
                     extraServices: f.extraServices,
@@ -6746,8 +6747,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 venueCourtId:       f.venueCourtId   || undefined,
                 venueReservationId,
                 refereeRequested: ['tennis', 'padel', 'volleyball'].includes(sub) ? !!f.refereeRequested : undefined,
-                refereePayment: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && f.refereePayment !== ''
+                refereePayment: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && !f.refereeFeeIncluded && f.refereePayment !== ''
                     ? `${f.refereePayment}₺` : undefined,
+                refereeFeeIncluded: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested ? !!f.refereeFeeIncluded : undefined,
                 refereeInvites: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && f.refereeInvites.length > 0
                     ? f.refereeInvites.map(inv => ({ userId: inv.user.id, message: inv.message || undefined, price: inv.price || undefined }))
                     : undefined,
@@ -7928,7 +7930,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         </View>
                                     </View>
                                     {f.refereeRequested && (
-                                        <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom: f.refereeInvites.length > 0 ? 6 : 10 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom:6 }}>
                                             <TouchableOpacity
                                                 onPress={() => setInviteTarget('referee')}
                                                 style={{ flex:1, height: moderateScale(28), flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeInvites.length > 0 ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeInvites.length > 0 ? '#f59e0b70' : colors.border }}
@@ -7937,15 +7939,36 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     {f.refereeInvites.length > 0 ? `${noEmoji(t.inviteRefereeBtn)} (${f.refereeInvites.length})` : noEmoji(t.inviteRefereeBtn)}
                                                 </Text>
                                             </TouchableOpacity>
-                                            <TextInput
-                                                style={{ flex:0.7, height: moderateScale(28), backgroundColor: colors.surface2, borderRadius: moderateScale(8), paddingHorizontal:8, paddingVertical:0, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:12, textAlignVertical:'center' }}
-                                                value={f.refereePayment}
-                                                onChangeText={v => set('refereePayment', v.replace(/[^0-9]/g, ''))}
-                                                placeholder={t.refereePaymentLabel}
-                                                placeholderTextColor={colors.textMuted}
-                                                keyboardType="numeric"
-                                            />
+                                            {/* Hakem ücreti hizmetlere/kort fiyatına dahilse ayrı ücret istenmez —
+                                                değilse (varsayılan) ekstra ücret alanı çıkar. Kullanıcı isteğiyle
+                                                tenis/padel/voleybolde ortak (bu blok zaten üçünde de kullanılıyor). */}
+                                            <TouchableOpacity
+                                                onPress={() => { set('refereeFeeIncluded', true); set('refereePayment', ''); }}
+                                                style={{ flex:0.6, height: moderateScale(28), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor: f.refereeFeeIncluded ? '#22c55e20' : colors.surface2, borderWidth:1, borderColor: f.refereeFeeIncluded ? '#22c55e70' : colors.border }}
+                                            >
+                                                <Text style={{ color: f.refereeFeeIncluded ? '#4ade80' : colors.textMuted, fontSize:10, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                                    {t.refereeFeeIncludedBtn}
+                                                </Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => set('refereeFeeIncluded', false)}
+                                                style={{ flex:0.6, height: moderateScale(28), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor: !f.refereeFeeIncluded ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: !f.refereeFeeIncluded ? '#f59e0b70' : colors.border }}
+                                            >
+                                                <Text style={{ color: !f.refereeFeeIncluded ? '#f59e0b' : colors.textMuted, fontSize:10, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                                    {t.refereeFeeExtraBtn}
+                                                </Text>
+                                            </TouchableOpacity>
                                         </View>
+                                    )}
+                                    {f.refereeRequested && !f.refereeFeeIncluded && (
+                                        <TextInput
+                                            style={{ height: moderateScale(28), backgroundColor: colors.surface2, borderRadius: moderateScale(8), paddingHorizontal:8, paddingVertical:0, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:12, textAlignVertical:'center', marginBottom: f.refereeInvites.length > 0 ? 6 : 10 }}
+                                            value={f.refereePayment}
+                                            onChangeText={v => set('refereePayment', v.replace(/[^0-9]/g, ''))}
+                                            placeholder={t.refereePaymentLabel}
+                                            placeholderTextColor={colors.textMuted}
+                                            keyboardType="numeric"
+                                        />
                                     )}
                                     {f.refereeRequested && f.refereeInvites.length > 0 && (
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:10 }}>

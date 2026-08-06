@@ -757,6 +757,7 @@ model ActivityRequest {
   positions       Json         @default("[]")     // e.g. ['REFEREE'] | ['REFEREE_OFFER'] | ['GOALKEEPER']
   extraServices   Json         @default("[]")     // [{id,type,name,price,artistListingId?}] — DJ/Sanatçı/Mangal Partisi vb. ek hizmetler (tenis/padel/voleybol)
   refereePayment  String?                         // fee offered or rate per match
+  refereeFeeIncluded Boolean  @default(false)     // true = hakem ücreti hizmetler/kort fiyatına dahil, ayrı ücret yok (refereePayment o zaman boş kalır)
   refereeRequested Boolean     @default(false)    // bu maç ilanı için hakem talep edildi mi (tenis/padel/voleybol)
   manualRefereeName String?                       // sisteme kayıtlı olmayan hakem için serbest metin isim (tenis/padel/voleybol)
   linkedRivalId   String?                         // hakem-arama ilanıysa (matchType PLAYER_WANTED, positions:['REFEREE']) bağlı olduğu asıl maç ilanının id'si
