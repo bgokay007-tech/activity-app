@@ -1,6 +1,8 @@
-// Maç ilanı / turnuva "ekstra hizmetler" (DJ, sanatçı, mangal partisi vb.) — hem
-// rival.controller.js hem tournament.controller.js create/update'inde kullanılır.
-const VALID_TYPES = ['DJ', 'ARTIST', 'BBQ', 'OTHER'];
+// Maç ilanı / turnuva "ekstra hizmetler" (DJ, sanatçı, içecek/yiyecek, ekipman vb.) — hem
+// rival.controller.js hem tournament.controller.js create/update'inde kullanılır. Mobil
+// taraftaki EXTRA_TYPES ile birebir aynı tutulmalı — biri güncellenip diğeri unutulursa
+// o tür sessizce reddedilir (bkz. FOOD_DRINK'in BBQ'dan bu listeye eklenmeden önce yaşadığı drift).
+const VALID_TYPES = ['DJ', 'ARTIST', 'FOOD_DRINK', 'EQUIPMENT', 'OTHER'];
 
 export function sanitizeExtraServices(raw) {
     if (!Array.isArray(raw)) return null; // geçersiz — çağıran 400 döner

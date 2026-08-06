@@ -4,6 +4,13 @@ import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags } from '../utils/tennisElo.js';
+
+// Voleybol rekabetçi maçlarında da (kullanıcı isteğiyle) tenis/padel'in takım-ortalaması
+// bazlı ELO tablosu kullanılıyor — turnuva tarafında (tournament.controller.js) hâlâ sadece
+// tenis/padel'e özel kurallar (MIN_MATCHES_FOR_TOURNAMENT vb.) geçerli olduğu için bu genişletme
+// paylaşılan TENNIS_PADEL_SUBCATEGORIES sabitine değil, sadece bu dosyadaki skor onayı/ELO
+// hesabına özel yerel bir kontrole eklendi.
+const usesTennisEloTable = (subCategory) => TENNIS_PADEL_SUBCATEGORIES.includes(subCategory) || subCategory === 'volleyball';
 import { PEER_REVIEW_SUBCATEGORIES } from '../utils/peerReview.js';
 import { computeReservationStatus, overlaps, toMins, isPastDateTime, PRO_PACKAGES } from './venue.controller.js';
 import { RATING_REQUIRED_SUBCATEGORIES } from '../config/assessments.js';
@@ -113,9 +120,11 @@ async function applyCompetitivePoints(request, winnerUserId) {
     const updates = [];
     let pointChanges;
 
-    if (TENNIS_PADEL_SUBCATEGORIES.includes(request.subCategory)) {
-        // Tenis/Padel: kullanıcının verdiği sabit ELO puan tablosu — takım ortalama
-        // skillRating'ine göre (çift maçlarda iki taraf için de takım ortalaması varsayılır).
+    if (usesTennisEloTable(request.subCategory)) {
+        // Tenis/Padel (ve voleybol rekabetçi maçları): kullanıcının verdiği sabit ELO puan
+        // tablosu — takım ortalama skillRating'ine göre (çift/takım maçlarında iki taraf
+        // için de takım ortalaması kullanılır, tek kişilik "takımlarda" o kişinin kendi
+        // derecesi ortalamaya eşit olur).
         const avgWinnerRating = winnerInterests.reduce((s, i) => s + i.skillRating, 0) / winnerInterests.length;
         const avgLoserRating  = loserInterests.reduce((s, i) => s + i.skillRating, 0)  / loserInterests.length;
         const ratingDiff = Math.abs(avgWinnerRating - avgLoserRating);
@@ -3235,7 +3244,7 @@ export async function runScoreConfirmation(request) {
     // Build rating snapshot and store it in score JSON
     // For tennis/padel: change is in skillRating units (e.g. 0.04).
     // For other sports: change is in totalPoints units (e.g. 3).
-    const isTennisPadelMatch = TENNIS_PADEL_SUBCATEGORIES.includes(request.subCategory);
+    const isTennisPadelMatch = usesTennisEloTable(request.subCategory);
     const ratingSnapshot = {};
     for (const i of interestsBefore) {
         const change = pointChanges.find(c => c.userId === i.userId);

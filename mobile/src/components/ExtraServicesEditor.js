@@ -7,11 +7,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../theme/colors';
 import api from '../services/api';
 
+// Mangal Partisi ayrı bir tür olmaktan çıkarıldı — kullanıcı isteğiyle artık
+// İçecek/Yiyecek türünden serbest isimle eklenebiliyor (ör. "Mangal Partisi").
 const EXTRA_TYPES = [
-    { key: 'DJ',     label: 'DJ' },
-    { key: 'ARTIST', label: 'Sanatçı' },
-    { key: 'BBQ',    label: 'Mangal Partisi' },
-    { key: 'OTHER',  label: 'Diğer' },
+    { key: 'FOOD_DRINK', label: 'İçecek/Yiyecek' },
+    { key: 'DJ',         label: 'DJ' },
+    { key: 'ARTIST',     label: 'Sanatçı' },
+    { key: 'EQUIPMENT',  label: 'Ekipman' },
+    { key: 'OTHER',      label: 'Diğer' },
 ];
 
 function ArtistPickerModal({ visible, onClose, onSelect }) {
@@ -174,7 +177,7 @@ function AddServiceForm({ onAdd, onCancel }) {
 
 // Maç/turnuva ilanına eklenen ekstra hizmetler (DJ, sanatçı, mangal partisi vb.)
 // services: [{id, type, name, price, included, artistListingId?}]
-export default function ExtraServicesEditor({ services = [], onChange }) {
+export default function ExtraServicesEditor({ services = [], onChange, extraSection = null }) {
     const insets = useSafeAreaInsets();
     const [showModal, setShowModal] = useState(false);
     const [adding, setAdding] = useState(false);
@@ -204,6 +207,10 @@ export default function ExtraServicesEditor({ services = [], onChange }) {
                                 contentContainerStyle={{ padding: 13, paddingBottom: Math.max(20, insets.bottom + 16) }}
                                 keyboardShouldPersistTaps="handled"
                             >
+                                {/* Hakem — kendi davet/onay/bildirim akışı olduğu için genel {type,name,
+                                    price,included} listesine katılmıyor, çağıran taraf (CreateRivalModal)
+                                    kendi hakem UI'ını buraya, listenin EN BAŞINA enjekte ediyor. */}
+                                {extraSection}
                                 {services.map(sv => (
                                     <View key={sv.id} style={st.row}>
                                         <Text style={st.rowText}>
