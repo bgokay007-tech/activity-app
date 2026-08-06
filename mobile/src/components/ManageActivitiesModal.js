@@ -175,7 +175,15 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                             ) : (activeCat.subCategories || []).length === 0 ? (
                                 <Text style={s.emptyText}>{t.noBranches}</Text>
                             ) : (
-                                (activeCat.subCategories || []).map(sub => {
+                                [...(activeCat.subCategories || [])]
+                                .sort((a, b) => {
+                                    const aAdded = !!addedMap[`${activeTab}__${a.id}`];
+                                    const bAdded = !!addedMap[`${activeTab}__${b.id}`];
+                                    if (aAdded && !bAdded) return -1;
+                                    if (!aAdded && bAdded) return 1;
+                                    return getSubCategoryLabel(a.id, lang).localeCompare(getSubCategoryLabel(b.id, lang));
+                                })
+                                .map(sub => {
                                     const key = `${activeTab}__${sub.id}`;
                                     const existing = addedMap[key];
                                     const isLoading = loadingId === key;
