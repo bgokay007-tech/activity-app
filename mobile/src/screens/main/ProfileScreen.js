@@ -3710,7 +3710,7 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={{ fontSize:22, marginRight:10 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
                                     <View style={{ flex:1 }}>
                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{i.subCategory}</Text>
-                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.levelTr?.[i.level] || i.level}{i.skillRating ? `  ${Number(i.skillRating).toFixed(2)}★` : ''}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.levelTr?.[i.level] || i.level}{i.skillRating != null ? `  ${Number(i.skillRating).toFixed(2)}★` : ''}</Text>
                                     </View>
                                 </View>
                             ))}
