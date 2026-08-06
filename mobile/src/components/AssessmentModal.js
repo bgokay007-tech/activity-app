@@ -121,7 +121,7 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
 
     // ── Render ──
     return (
-        <Modal visible={!!visible} animationType="slide" transparent onRequestClose={onClose}>
+        <Modal visible={!!visible} animationType="slide" transparent onRequestClose={() => { if (result) { onComplete?.(result); return; } onClose(answers.length > 0); }}>
             <View style={s.overlay}>
                 <View style={s.box}>
                     {/* Header */}
@@ -135,7 +135,13 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
                                 <Text style={s.subtitle}>{t.questionCounter(current + 1, questions.length)}</Text>
                             )}
                         </View>
-                        <TouchableOpacity onPress={onClose}><Text style={s.close}>✕</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={() => {
+                            // Sonuç ekranındayken (anket zaten backend'e kaydedildi) ✕'e basmak
+                            // "Tamam"a basmakla aynı sonucu vermeli — aksi halde kullanıcı puanı
+                            // gördüğü halde local state (Aktivitelerim listesi) güncellenmeden kapatıyordu.
+                            if (result) { onComplete?.(result); return; }
+                            onClose(answers.length > 0);
+                        }}><Text style={s.close}>✕</Text></TouchableOpacity>
                     </View>
 
                     {/* Progress bar */}

@@ -836,6 +836,7 @@ const en = {
     hideBtn: 'Hide',
     assessCancelTitle: 'Cancel Assessment',
     assessCancelMsg: "If you don't complete the assessment, this branch will be removed from your activities. Are you sure you want to cancel?",
+    assessCancelMsgOptional: 'If you don\'t complete the assessment, your rating won\'t be saved — you can try again anytime from "Assess". Are you sure you want to cancel?',
     assessKeepGoingBtn: 'Keep Going',
     assessGiveUpBtn: 'Give Up',
 
@@ -2147,6 +2148,7 @@ const tr = {
     hideBtn: 'Gizle',
     assessCancelTitle: 'Anketten Vazgeç',
     assessCancelMsg: 'Anketi tamamlamazsan bu dal aktivitelerinden kaldırılacak. Vazgeçmek istediğine emin misin?',
+    assessCancelMsgOptional: 'Anketi tamamlamazsan puan kaydedilmeyecek — istediğin zaman "Değerlendir" ile tekrar deneyebilirsin. Vazgeçmek istediğine emin misin?',
     assessKeepGoingBtn: 'Devam Et',
     assessGiveUpBtn: 'Vazgeç',
 

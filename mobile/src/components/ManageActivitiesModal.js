@@ -253,20 +253,25 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                 subCategory={assessTarget?.subCategory}
                 lang={lang}
                 mandatory={!!assessTarget?.mandatory}
-                onClose={() => {
-                    if (!assessTarget?.mandatory) { setAssessTarget(null); return; }
-                    // Zorunlu ankette vazgeçilirse yarım kalan (puansız) aktivite de geri
-                    // alınır — aksi halde kullanıcı "Aktivitelerim"de sonsuza dek anketsiz,
-                    // ilan açamayacağı bir dal görüp kafası karışırdı.
+                onClose={(hasProgress) => {
+                    // En az bir soru cevaplanmadıysa kaybedilecek bir şey yok, direkt kapat.
+                    if (!hasProgress) { setAssessTarget(null); return; }
+                    // Soru cevaplanmışken çıkılırsa uyar — zorunlu dallarda (RATING_REQUIRED_SUBS)
+                    // yarım kalan (puansız) aktivite geri alınır, isteğe bağlı dallarda (ör. airsoft,
+                    // ayak tenisi) aktivite kalır ama puansız kalır — daha önce burada uyarı hiç
+                    // çıkmıyordu, kullanıcı anketi bitirdiğini sanıp çıkıyor, puan hiç kaydedilmiyordu.
                     const target = assessTarget;
+                    const mandatory = !!target?.mandatory;
                     Alert.alert(
                         t.assessCancelTitle || 'Anketten Vazgeç',
-                        t.assessCancelMsg || 'Anketi tamamlamazsan bu dal aktivitelerinden kaldırılacak. Vazgeçmek istediğine emin misin?',
+                        mandatory
+                            ? (t.assessCancelMsg || 'Anketi tamamlamazsan bu dal aktivitelerinden kaldırılacak. Vazgeçmek istediğine emin misin?')
+                            : (t.assessCancelMsgOptional || 'Anketi tamamlamazsan puan kaydedilmeyecek — istediğin zaman "Değerlendir" ile tekrar deneyebilirsin. Vazgeçmek istediğine emin misin?'),
                         [
                             { text: t.assessKeepGoingBtn || 'Devam Et', style: 'cancel' },
                             { text: t.assessGiveUpBtn || 'Vazgeç', style: 'destructive', onPress: () => {
                                 setAssessTarget(null);
-                                doRemove(target.interestId, target.category, target.subCategory);
+                                if (mandatory) doRemove(target.interestId, target.category, target.subCategory);
                             }},
                         ]
                     );
