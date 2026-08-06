@@ -182,6 +182,10 @@ function getTabs(sub, category) {
         return ['media'];
     if (ROUTE_ENABLED_SUBS.has(sub))
         return ['rivals', 'routes', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
+    // Airsoft: Destek (koç) ve Bilet Al sekmelerine ihtiyaç yok, Etkinlikler'in
+    // sağına Turnuvalar eklendi.
+    if (sub === 'airsoft')
+        return ['rivals', 'tournaments', 'equipment', 'media', 'posts', 'news', 'archive'];
     if (SIMPLE_TAB_SUBS.has(sub))
         return ['rivals', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
     if (sub === 'football')
@@ -5743,9 +5747,14 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
 // Voleybol takım slotu — kayıtlı kullanıcı aramak (yazınca öneri düşer) veya
 // hesabı olmayan biri için sadece isim yazmak (öneri seçilmezse manuel kalır)
 // için tek satır. CreateRivalModal'ın kendi state'ini (activeSlotKey vb.) kullanır.
-function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSuggestions, onFocus, onChangeText, onPickUser, onClear, cfg, s, colors, onAssignSide, t }) {
+function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSuggestions, slotSearching, onFocus, onChangeText, onPickUser, onClear, cfg, s, colors, onAssignSide, t }) {
     const key = `${side}-${index}`;
     const text = !slot ? '' : slot.type === 'user' ? (slot.fullName || slot.username) : slot.name;
+    const isActive = activeSlotKey === key;
+    // Öneri gelmiyor sanılmasın diye arama durumu görünür: yazarken "Aranıyor...",
+    // arama bitip hiç kayıtlı kullanıcı bulunamadıysa "Kayıtlı kullanıcı bulunamadı" —
+    // önceden sessizce hiçbir şey göstermiyordu, kullanıcı bunu "bug" sanıyordu.
+    const showStatus = isActive && slot?.type === 'manual' && text.trim().length >= 2;
     return (
         // position:'relative' — öneri kutusu mutlak konumlanıp altına biner, 3'lü grid'deki
         // komşu hücreleri aşağı itmesin diye (bkz. çağıran: dar sütunlarda kullanılıyor).
@@ -5798,6 +5807,11 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                         </TouchableOpacity>
                     ))}
                 </View>
+            )}
+            {showStatus && slotSuggestions.length === 0 && (
+                <Text style={{ color: colors.textMuted, fontSize:9, marginTop:2 }} numberOfLines={1}>
+                    {slotSearching ? t.searchingLabel : t.noRegisteredUserFound}
+                </Text>
             )}
         </View>
     );
@@ -7055,12 +7069,15 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     const isActive = f.matchMode === mode;
                                                     const label = mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode;
                                                     return (
-                                                        <TouchableOpacity key={mode} onPress={() => set('matchMode', mode)}
-                                                            style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isVolleyball && { flex:1, alignItems:'center', justifyContent:'center', paddingVertical:4, paddingHorizontal:6 }, isActive && {
+                                                        <TouchableOpacity key={mode} onPress={() => {
+                                                            if (mode === 'COMPETITIVE' && !eloWarningDismissed) setShowEloWarning(true);
+                                                            set('matchMode', mode);
+                                                        }}
+                                                            style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isVolleyball && { flex:1, height:30, alignItems:'center', justifyContent:'center', paddingHorizontal:6 }, isActive && {
                                                                 backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
                                                                 borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
                                                             }]}>
-                                                            <Text style={[s.chipBtnText, isActive && { color:'#fff' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                            <Text style={[s.chipBtnText, isVolleyball && { fontSize:11 }, isActive && { color:'#fff' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                                                                 {isVolleyball ? noEmoji(label) : label}
                                                             </Text>
                                                         </TouchableOpacity>
@@ -7122,10 +7139,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </View>
                                         );
                                     })()}
-                                    {(f.matchMode === 'COMPETITIVE' || f.matchMode === 'BOTH') && (
+                                    {isFootball && (f.matchMode === 'COMPETITIVE' || f.matchMode === 'BOTH') && (
                                         <View style={s.eloWarning}>
                                             <Text style={s.eloWarningText}>{t.eloWarning}</Text>
                                         </View>
+                                    )}
+                                    {isVolleyball && (
+                                        <EloWarningModal visible={showEloWarning} onClose={() => setShowEloWarning(false)} onDismissForever={() => setEloWarningDismissed(true)} />
                                     )}
                                     {!isVolleyball && teamSizes.length > 0 && (
                                         <>
@@ -7686,7 +7706,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             <Text style={{ color: colors.textMuted, fontSize:9 }}>{i + 2}.</Text>
                                                             <TeamSlotRow side="pool" index={i} slot={slot}
                                                                 placeholder={t.teamSlotPh(i + 2)}
-                                                                activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                                activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions} slotSearching={slotSearching}
                                                                 onFocus={() => setActiveSlotKey(`pool-${i}`)}
                                                                 onChangeText={(txt) => onSlotChangeText('pool', i, txt)}
                                                                 onPickUser={(u) => { setSlot('pool', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null, side:null }); setActiveSlotKey(null); setSlotSuggestions([]); }}
@@ -7705,7 +7725,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                     <Text style={{ color: colors.textMuted, fontSize:9 }}>{i + 1}.</Text>
                                                                     <TeamSlotRow side="sub" index={i} slot={slot}
                                                                         placeholder={t.subSlotPh(i + 1)}
-                                                                        activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                                        activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions} slotSearching={slotSearching}
                                                                         onFocus={() => setActiveSlotKey(`sub-${i}`)}
                                                                         onChangeText={(txt) => onSlotChangeText('sub', i, txt)}
                                                                         onPickUser={(u) => { setSlot('sub', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null }); setActiveSlotKey(null); setSlotSuggestions([]); }}
@@ -7755,7 +7775,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             <View key={`my-slot-${idx}`} style={{ position:'relative', zIndex: activeSlotKey === `pool-${idx}` ? 51 : 1, marginBottom:2 }}>
                                                                 <TeamSlotRow side="pool" index={idx} slot={f.rosterSlots[idx]}
                                                                     placeholder={t.teamSlotPh(orderI + 2)}
-                                                                    activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                                    activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions} slotSearching={slotSearching}
                                                                     onFocus={() => setActiveSlotKey(`pool-${idx}`)}
                                                                     onChangeText={(txt) => onSlotChangeText('pool', idx, txt, 'my')}
                                                                     onPickUser={(u) => { setSlot('pool', idx, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null, side:'my' }); setActiveSlotKey(null); setSlotSuggestions([]); }}
@@ -7775,7 +7795,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             <View key={`opp-slot-${idx}`} style={{ position:'relative', zIndex: activeSlotKey === `pool-${idx}` ? 51 : 1, marginBottom:2 }}>
                                                                 <TeamSlotRow side="pool" index={idx} slot={f.rosterSlots[idx]}
                                                                     placeholder={t.teamSlotPh(orderI + 1)}
-                                                                    activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions}
+                                                                    activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions} slotSearching={slotSearching}
                                                                     onFocus={() => setActiveSlotKey(`pool-${idx}`)}
                                                                     onChangeText={(txt) => onSlotChangeText('pool', idx, txt, 'opp')}
                                                                     onPickUser={(u) => { setSlot('pool', idx, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null, side:'opp' }); setActiveSlotKey(null); setSlotSuggestions([]); }}
@@ -12601,6 +12621,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [filterDateTo, setFilterDateTo] = useState(null);
     const [showCityFilter, setShowCityFilter] = useState(false);
     const [showDateFilter, setShowDateFilter] = useState(false);
+    const [showFilterModal, setShowFilterModal] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
     const [cityAlertCity, setCityAlertCity] = useState(null);
     // Tüm sekmeler için abone olunan il listesi
@@ -14191,41 +14212,43 @@ export default function SubCategoryScreen({ route, navigation }) {
         );
     };
 
+    // Konum ve zaman aralığı filtreleri artık ayrı iki buton değil, tek bir "Filtrele"
+    // butonuna toplanıp tıklanınca açılan tek bir modalda (FilterModal, aşağıda render
+    // ediliyor) bir arada gösteriliyor — spor dallarının hepsinde (rakip bul/ilan
+    // ara/turnuva sekmeleri) CityAlertRow ortak kullanıldığı için değişiklik hepsine yansıyor.
     const CityAlertRow = ({ tab, children, dateFilter = false }) => (
         <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8, flexWrap:'wrap' }}>
             {children}
             <CityAlertBtn tab={tab} />
-            <TouchableOpacity
-                onPress={() => setShowCityFilter(true)}
-                style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
-            >
-                <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                    {filterCity ? filterCity : '📍 İl'}
-                </Text>
-                {filterCity
-                    ? <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); setFilterCity(''); }} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                        <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
-                      </TouchableOpacity>
-                    : <Text style={{ color:colors.textMuted, fontSize:10 }}>▾</Text>
-                }
-            </TouchableOpacity>
-            {dateFilter && (
+            {dateFilter ? (
                 <TouchableOpacity
-                    onPress={() => setShowDateFilter(true)}
-                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: filterDate!=='all' ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterDate!=='all' ? cfg.color : colors.border }}
+                    onPress={() => setShowFilterModal(true)}
+                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: (filterCity || filterDate!=='all') ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: (filterCity || filterDate!=='all') ? cfg.color : colors.border }}
                 >
-                    <Text style={{ color: filterDate!=='all' ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>
-                        📅 {dateFilterLabel()}
+                    <Text style={{ color: (filterCity || filterDate!=='all') ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                        🔍 {filterSummaryLabel()}
                     </Text>
                     <Text style={{ color: colors.textMuted, fontSize:10 }}>▾</Text>
+                </TouchableOpacity>
+            ) : (
+                <TouchableOpacity
+                    onPress={() => setShowCityFilter(true)}
+                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
+                >
+                    <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                        {filterCity ? filterCity : '📍 İl'}
+                    </Text>
+                    {filterCity
+                        ? <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); setFilterCity(''); }} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                            <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
+                          </TouchableOpacity>
+                        : <Text style={{ color:colors.textMuted, fontSize:10 }}>▾</Text>
+                    }
                 </TouchableOpacity>
             )}
         </View>
     );
 
-    // İl filtresi ve "Yakınımdaki" artık zilin yanındaki (CityAlertRow) tek butona taşındı
-    // (Yakınımdaki, il seçici modalının en başında bir seçenek olarak duruyor) — burada
-    // sadece zaman filtresi kalıyor, tek bir buton olarak, açılan küçük bir modaldan seçiliyor.
     const DATE_FILTER_OPTS = [['all',t.allFilter],['today',t.todayFilter],['week',t.weekFilter],['month',t.monthFilter]];
     const dateFilterLabel = () => {
         if (filterDate === 'custom') {
@@ -14235,6 +14258,12 @@ export default function SubCategoryScreen({ route, navigation }) {
             return t.dateRangeTitle || t.allFilter;
         }
         return (DATE_FILTER_OPTS.find(([v]) => v === filterDate) || DATE_FILTER_OPTS[0])[1];
+    };
+    const filterSummaryLabel = () => {
+        const parts = [];
+        if (filterCity) parts.push(filterCity);
+        if (filterDate !== 'all') parts.push(dateFilterLabel());
+        return parts.length ? parts.join(' · ') : (lang==='tr' ? 'Filtrele' : 'Filter');
     };
     const CompactFilter = ({ showDateChips = true }) => (
         !showDateChips ? null : (
@@ -14432,6 +14461,61 @@ export default function SubCategoryScreen({ route, navigation }) {
                 onClose={() => setShowDateFilter(false)}
             />
 
+            {/* Konum + zaman aralığı — tek "Filtrele" butonuyla açılan birleşik modal.
+                İçindeki "Konum"/"Özel Tarih Aralığı" satırları mevcut CityPickerModal ve
+                DateRangePickerModal'ı bu modalın üstünde ayrı bir katman olarak açıyor,
+                seçim yapılınca o katman kapanıp bu modal açık kalıyor. */}
+            <Modal visible={showFilterModal} transparent animationType="slide" onRequestClose={() => setShowFilterModal(false)}>
+                <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
+                    <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:16, paddingTop:17, paddingBottom:30 }}>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🔍 {lang==='tr' ? 'Filtrele' : 'Filter'}</Text>
+                            <TouchableOpacity onPress={() => setShowFilterModal(false)}><Text style={{ color:colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
+                        </View>
+
+                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>📍 {lang==='tr' ? 'Konum' : 'Location'}</Text>
+                        <TouchableOpacity
+                            onPress={() => setShowCityFilter(true)}
+                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, marginBottom:18 }}
+                        >
+                            <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:14, fontWeight:'700' }}>
+                                {filterCity || (lang==='tr' ? 'Tümü' : 'All')}
+                            </Text>
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                                {filterCity ? (
+                                    <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); setFilterCity(''); }} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                        <Text style={{ color:colors.textMuted, fontSize:12 }}>✕</Text>
+                                    </TouchableOpacity>
+                                ) : null}
+                                <Text style={{ color:colors.textMuted, fontSize:12 }}>▾</Text>
+                            </View>
+                        </TouchableOpacity>
+
+                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>📅 {lang==='tr' ? 'Zaman Aralığı' : 'Time Range'}</Text>
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10 }}>
+                            {DATE_FILTER_OPTS.map(([val,label]) => (
+                                <TouchableOpacity
+                                    key={val}
+                                    onPress={() => { setFilterDate(val); setFilterDateFrom(null); setFilterDateTo(null); }}
+                                    style={{ backgroundColor: filterDate===val ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:7, paddingHorizontal:12, borderWidth:1, borderColor: filterDate===val ? cfg.color : colors.border }}
+                                >
+                                    <Text style={{ color: filterDate===val ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                        <TouchableOpacity
+                            onPress={() => setShowDateFilter(true)}
+                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterDate==='custom' ? cfg.color : colors.border, paddingVertical:11, paddingHorizontal:13 }}
+                        >
+                            <Text style={{ color: filterDate==='custom' ? cfg.color : colors.textMuted, fontSize:13, fontWeight:'700' }}>
+                                {filterDate === 'custom' ? dateFilterLabel() : (lang==='tr' ? 'Özel Tarih Aralığı Seç' : 'Pick Custom Range')}
+                            </Text>
+                            <Text style={{ color:colors.textMuted, fontSize:12 }}>▾</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
             {/* Bildirim il seçici — tüm sekmeler için ortak */}
             <Modal visible={cityPickerTab !== null} animationType="slide" transparent onRequestClose={() => setCityPickerTab(null)}>
                 <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
@@ -14526,7 +14610,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <CityAlertRow tab="rivals" dateFilter>
                                 {!SIMPLE_TAB_SUBS.has(sub) && (
                                     <TouchableOpacity style={s.courtResBtn} onPress={requireActivityThenVenueSearch} activeOpacity={0.8}>
-                                        <Text style={s.courtResBtnText}>Kort Rez.</Text>
+                                        <Text style={s.courtResBtnText}>
+                                            {sub === 'volleyball' ? (lang === 'tr' ? 'Salon Ara' : 'Search Hall') : (lang === 'tr' ? 'Kort Rez.' : 'Court Res.')}
+                                        </Text>
                                     </TouchableOpacity>
                                 )}
                                 <TouchableOpacity style={[s.createBtn, { marginBottom:0 }]} onPress={requireActivityThenCreate}>
@@ -17852,7 +17938,7 @@ const s = StyleSheet.create({
     chipBtnActive:    { backgroundColor: colors.purple, borderColor: colors.purple },
     chipBtnText:      { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
     chipBtnTextActive:{ color:'#fff' },
-    compactSelectBtn: { backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, paddingHorizontal:6, paddingVertical:4, alignItems:'center', justifyContent:'center' },
+    compactSelectBtn: { height:30, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, paddingHorizontal:6, alignItems:'center', justifyContent:'center' },
     compactSelectText:{ color:'#fff', fontSize:11, fontWeight:'700' },
     submitBtn:        { backgroundColor: colors.purple, borderRadius:14, paddingVertical:11, alignItems:'center', marginTop:8 },
     submitBtnText:    { color:'#fff', fontWeight:'800', fontSize:15 },
