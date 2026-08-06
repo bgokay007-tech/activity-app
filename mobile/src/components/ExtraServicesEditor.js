@@ -97,10 +97,13 @@ function RefereeTypeContent({ referee }) {
             <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom:8 }}>
                 <TouchableOpacity
                     onPress={referee.onToggleRequested}
-                    style={{ flex:0.6, height:34, alignItems:'center', justifyContent:'center', borderRadius:8, backgroundColor: referee.requested ? '#f59e0b20' : colors.surface, borderWidth:1, borderColor: referee.requested ? '#f59e0b70' : colors.border }}
+                    style={{ flex:0.8, height:34, alignItems:'center', justifyContent:'center', paddingHorizontal:4, borderRadius:8, backgroundColor: referee.requested ? '#f59e0b20' : colors.surface, borderWidth:1, borderColor: referee.requested ? '#f59e0b70' : colors.border }}
                 >
-                    <Text style={{ color: referee.requested ? '#f59e0b' : colors.textMuted, fontSize:12, fontWeight:'800' }} numberOfLines={1}>
-                        {referee.requested ? '✓ Hakem İsteniyor' : 'Hakem Talep Et'}
+                    {/* Kullanıcı isteğiyle burada sabit "İsteniyor" yazısı yerine gerçekten
+                        yazılan isim gösteriliyor (ör. "Hakem: İsimsiz") — hem uygulamada kayıtlı
+                        olmayan biri hem de placeholder amaçlı bir isim için aynı şekilde çalışır. */}
+                    <Text style={{ color: referee.requested ? '#f59e0b' : colors.textMuted, fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                        {referee.requested ? `Hakem: ${referee.name.trim() || '...'}` : 'Hakem Talep Et'}
                     </Text>
                 </TouchableOpacity>
                 <View style={{ flex:1, position:'relative' }}>
