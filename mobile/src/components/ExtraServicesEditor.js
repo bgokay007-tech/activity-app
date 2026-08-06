@@ -100,7 +100,7 @@ function RefereeTypeContent({ referee }) {
                     style={{ flex:0.6, height:34, alignItems:'center', justifyContent:'center', borderRadius:8, backgroundColor: referee.requested ? '#f59e0b20' : colors.surface, borderWidth:1, borderColor: referee.requested ? '#f59e0b70' : colors.border }}
                 >
                     <Text style={{ color: referee.requested ? '#f59e0b' : colors.textMuted, fontSize:12, fontWeight:'800' }} numberOfLines={1}>
-                        {referee.requested ? '✓ Talep Edildi' : 'Hakem Talep Et'}
+                        {referee.requested ? '✓ Hakem İsteniyor' : 'Hakem Talep Et'}
                     </Text>
                 </TouchableOpacity>
                 <View style={{ flex:1, position:'relative' }}>
@@ -168,7 +168,7 @@ function RefereeTypeContent({ referee }) {
     );
 }
 
-function AddServiceForm({ onAdd, onCancel, referee }) {
+function AddServiceForm({ onAdd, referee }) {
     const [type, setType] = useState(referee ? 'REFEREE' : 'DJ');
     const [name, setName] = useState('');
     const [priceMode, setPriceMode] = useState('EXTRA'); // 'EXTRA' | 'INCLUDED'
@@ -248,16 +248,11 @@ function AddServiceForm({ onAdd, onCancel, referee }) {
                 </>
             )}
 
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                {type !== 'REFEREE' && (
-                    <TouchableOpacity onPress={confirm} style={[st.confirmBtn, { flex: 1 }]}>
-                        <Text style={st.confirmBtnText}>Ekle</Text>
-                    </TouchableOpacity>
-                )}
-                <TouchableOpacity onPress={onCancel} style={[st.cancelBtn, { flex: 1 }]}>
-                    <Text style={st.cancelBtnText}>{type === 'REFEREE' ? 'Kapat' : 'Vazgeç'}</Text>
+            {type !== 'REFEREE' && (
+                <TouchableOpacity onPress={confirm} style={[st.confirmBtn, { marginTop: 4 }]}>
+                    <Text style={st.confirmBtnText}>Ekle</Text>
                 </TouchableOpacity>
-            </View>
+            )}
 
             <ArtistPickerModal
                 visible={showArtistPicker}
@@ -273,10 +268,9 @@ function AddServiceForm({ onAdd, onCancel, referee }) {
 export default function ExtraServicesEditor({ services = [], onChange, referee = null }) {
     const insets = useSafeAreaInsets();
     const [showModal, setShowModal] = useState(false);
-    const [adding, setAdding] = useState(false);
 
     const remove = (id) => onChange(services.filter(s => s.id !== id));
-    const addService = (entry) => { onChange([...services, entry]); setAdding(false); };
+    const addService = (entry) => onChange([...services, entry]);
 
     return (
         <View style={st.triBtn}>
@@ -293,7 +287,7 @@ export default function ExtraServicesEditor({ services = [], onChange, referee =
                         <View style={s.sheet}>
                             <View style={s.header}>
                                 <Text style={s.title}>Ekstra Hizmetler</Text>
-                                <TouchableOpacity onPress={() => { setShowModal(false); setAdding(false); }}><Text style={s.closeBtn}>✕</Text></TouchableOpacity>
+                                <TouchableOpacity onPress={() => setShowModal(false)}><Text style={s.closeBtn}>✕</Text></TouchableOpacity>
                             </View>
                             <ScrollView
                                 style={{ maxHeight: 460 }}
@@ -313,17 +307,7 @@ export default function ExtraServicesEditor({ services = [], onChange, referee =
                                         </TouchableOpacity>
                                     </View>
                                 ))}
-                                {services.length === 0 && !adding && (
-                                    <Text style={s.emptyText}>Henüz hizmet eklenmedi</Text>
-                                )}
-
-                                {!adding ? (
-                                    <TouchableOpacity onPress={() => setAdding(true)} style={st.addBtn}>
-                                        <Text style={st.addBtnText}>+ Hizmet Ekle</Text>
-                                    </TouchableOpacity>
-                                ) : (
-                                    <AddServiceForm onAdd={addService} onCancel={() => setAdding(false)} referee={referee} />
-                                )}
+                                <AddServiceForm onAdd={addService} referee={referee} />
                             </ScrollView>
                         </View>
                     </KeyboardAvoidingView>

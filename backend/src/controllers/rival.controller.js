@@ -657,7 +657,7 @@ export const updateRivalRequest = async (req, res, next) => {
 
         const { message, matchDate, matchTime, duration, location, district, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
-                matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq, requiredMaleCount,
+                matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq, requiredMaleCount, winsNeeded,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment, refereeFeeIncluded, manualRefereeName,
                 teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes } = req.body;
 
@@ -704,6 +704,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(opp1GenderReq !== undefined && { opp1GenderReq }),
                 ...(opp2GenderReq !== undefined && { opp2GenderReq }),
                 ...(requiredMaleCount !== undefined && { requiredMaleCount: requiredMaleCount !== null && requiredMaleCount !== '' ? parseInt(requiredMaleCount, 10) : null }),
+                ...(winsNeeded !== undefined && { winsNeeded: winsNeeded !== null && winsNeeded !== '' ? parseInt(winsNeeded, 10) : null }),
                 ...(venueId !== undefined && { venueId: venueId || null }),
                 ...(venueCourtId !== undefined && { venueCourtId: venueCourtId || null }),
                 ...(venueReservationId !== undefined && { venueReservationId: venueReservationId || null }),
@@ -1135,6 +1136,7 @@ export const createRivalRequest = async (req, res, next) => {
             opp1GenderReq = 'MIX',
             opp2GenderReq = 'MIX',
             requiredMaleCount, // voleybol takım ilanı: havuzun (2*teamSize) kaç kişisinin erkek olması gerektiği — undefined/null = kısıtlama yok
+            winsNeeded, // örn. airsoft: kaç raunt/oyun kazanınca maç biter
             partnerInviteId, // DOUBLE: partner daveti gönderilecek kullanıcının id'si
             opp1InviteId, opp2InviteId, // DOUBLE: rakip 1 / rakip 2 slotuna doğrudan davet gönderilecek kullanıcı id'leri
             oppTeamInviteIds, // takım sporları (voleybol): rakip takım slotlarına doğrudan davet gönderilecek kullanıcı id'leri
@@ -1143,6 +1145,8 @@ export const createRivalRequest = async (req, res, next) => {
             founderTeamManualNames, // voleybol: kurucu takımda uygulamayı kullanmayan oyuncular için serbest metin isimler
             substituteInviteIds, // voleybol: yedek oyuncu davet edilecek kullanıcı id'leri
             substituteManualNames, // voleybol: uygulamayı kullanmayan yedek oyuncular için serbest metin isimler
+            unassignedInviteIds, // voleybol: hangi takımda oynayacağı henüz belli olmayan oyuncu davetleri
+            unassignedManualNames, // voleybol: hangi takımda oynayacağı henüz belli olmayan, uygulamayı kullanmayan oyuncular için serbest metin isimler
             participantsCanInvite, // true ise kabul edilmiş katılımcılar da oyuncu davet edebilir / ilanı paylaşabilir
         } = req.body;
         console.log(`[rival] createRivalRequest creatorId=${creatorId} sub=${subCategory}`);
@@ -1241,6 +1245,13 @@ export const createRivalRequest = async (req, res, next) => {
                 substitutePlayers: Array.isArray(substituteManualNames)
                     ? substituteManualNames.filter(n => typeof n === 'string' && n.trim()).map(n => ({ manualName: n.trim() }))
                     : [],
+                // İlan oluştururken herkesi bir takıma atamak zorunlu değil (kullanıcı isteği) —
+                // hangi tarafta oynayacağı henüz belli olmayan serbest metin isimler doğrudan
+                // buraya, kayıtlı kullanıcı davetleri ise kabul edildikten sonra buraya eklenir
+                // (bkz. unassignedInviteIds döngüsü ve respondToJoin'deki isUnassignedInvite dalı).
+                unassignedPlayers: Array.isArray(unassignedManualNames)
+                    ? unassignedManualNames.filter(n => typeof n === 'string' && n.trim()).map(n => ({ manualName: n.trim() }))
+                    : [],
                 positions: Array.isArray(positions) ? positions : [],
                 extraServices: cleanExtraServices,
                 ...(refereePayment && { refereePayment }),
@@ -1264,6 +1275,8 @@ export const createRivalRequest = async (req, res, next) => {
                 opp2GenderReq: opp2GenderReq || 'MIX',
                 ...(requiredMaleCount !== undefined && requiredMaleCount !== null && requiredMaleCount !== ''
                     && { requiredMaleCount: parseInt(requiredMaleCount, 10) }),
+                ...(winsNeeded !== undefined && winsNeeded !== null && winsNeeded !== ''
+                    && { winsNeeded: parseInt(winsNeeded, 10) }),
                 status: 'OPEN',
             },
             include: { sender: { select: SENDER_SELECT } },
@@ -1508,6 +1521,41 @@ export const createRivalRequest = async (req, res, next) => {
                 emitToUser(subInviteId, 'notification', {
                     type: 'MATCH_INVITE', title: '🏐 Yedek Daveti',
                     body: `@${me?.username || 'Biri'} sizi bir maçta yedek oyuncu olmaya davet etti.`,
+                    data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
+                });
+            }).catch(() => {});
+        }
+
+        // Voleybol: hangi takımda oynayacağı ilan oluşturulurken belli olmayan oyuncu daveti —
+        // aynı akış, isUnassignedInvite:true (kabul edilince unassignedPlayers'a eklenir, ilan
+        // sahibi sonradan Kurucu/Rakip'e atar). İlan oluştururken herkesi atamak zorunlu
+        // olmadığı için (kullanıcı isteği) eklendi.
+        const unassignedIds = Array.isArray(unassignedInviteIds) ? [...new Set(unassignedInviteIds.filter(Boolean))] : [];
+        for (const unassignedInviteId of unassignedIds) {
+            prisma.rivalJoinRequest.create({
+                data: { rivalId: request.id, userId: unassignedInviteId, initiatedBy: 'OWNER', isUnassignedInvite: true },
+            }).then(async () => {
+                const updatedRival = await prisma.activityRequest.findUnique({
+                    where: { id: request.id },
+                    include: {
+                        sender: { select: SENDER_SELECT },
+                        joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
+                    },
+                });
+                if (updatedRival) {
+                    emitToUser(creatorId, 'rivalUpdate', updatedRival);
+                    emitToUser(unassignedInviteId, 'rivalUpdate', updatedRival);
+                }
+                const me = request.sender;
+                createNotification(
+                    unassignedInviteId, 'MATCH_INVITE',
+                    '🏐 Maç Daveti',
+                    `@${me?.username || 'Biri'} sizi bir maça davet etti — takımınız yakında belli olacak.`,
+                    { category: request.category, subCategory: request.subCategory, rivalId: request.id }
+                ).catch(() => {});
+                emitToUser(unassignedInviteId, 'notification', {
+                    type: 'MATCH_INVITE', title: '🏐 Maç Daveti',
+                    body: `@${me?.username || 'Biri'} sizi bir maça davet etti — takımınız yakında belli olacak.`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });
             }).catch(() => {});
@@ -2292,6 +2340,31 @@ export const respondToJoin = async (req, res, next) => {
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
             return res.json({ message: 'Yedek daveti kabul edildi.', request: updatedRival });
+        }
+
+        // Hangi takımda oynayacağı belli olmayan davet kabul: unassignedPlayers'a ekle —
+        // ilan sahibi ilerde Yaklaşan Maçlar kartından Kurucu/Rakip'e elle atar.
+        if (joinReq.isUnassignedInvite) {
+            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar };
+            const existingUnassigned = Array.isArray(joinReq.rival.unassignedPlayers) ? joinReq.rival.unassignedPlayers : [];
+            const updatedRival = await prisma.activityRequest.update({
+                where: { id: joinReq.rivalId },
+                data: { unassignedPlayers: [...existingUnassigned, joinerData] },
+                include: {
+                    sender: { select: SENDER_SELECT },
+                    joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
+                },
+            });
+            emitToUser(joinReq.rival.senderId, 'rivalUpdate', updatedRival);
+            emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: false });
+            createNotification(
+                joinReq.rival.senderId, 'MATCH_CONFIRMED',
+                '🤝 Davet Kabul Edildi',
+                `${joinReq.user.username} maça katılmayı kabul etti — takımını sen atayacaksın.`,
+                { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
+            ).catch(() => {});
+            return res.json({ message: 'Davet kabul edildi.', request: updatedRival });
         }
 
         // Build participants: when the joiner submitted a full team (football competitive team

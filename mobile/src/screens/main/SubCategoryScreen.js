@@ -82,6 +82,8 @@ const VOLLEYBALL_VENUE_NOUN = {
 };
 const FOOTBALL_SIZES = [2,3,4,5,6,7,8,9,10,11];
 const VOLLEYBALL_SIZES = [1,2,3,4,5,6];
+const AIRSOFT_SIZES = Array.from({ length: 29 }, (_, i) => i + 2); // 2v2..30v30
+const WINS_NEEDED_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1); // 1..10
 
 const DURATIONS = ['60','90','120','150'];
 
@@ -3415,6 +3417,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 {t.feeIncludesLabel}: {match.feeIncludes}
                             </Text>
                         )}
+                        {match.subCategory === 'airsoft' && match.teamSize > 1 && (
+                            <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4 }}>
+                                👥 {match.teamSize}v{match.teamSize}{match.requiredMaleCount != null ? ` · 👨${match.requiredMaleCount} 👩${2 * match.teamSize - match.requiredMaleCount}` : ''}
+                            </Text>
+                        )}
+                        {match.subCategory === 'airsoft' && match.winsNeeded != null && (
+                            <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4 }}>
+                                🏆 {t.winsNeededLabel}: {match.winsNeeded}
+                            </Text>
+                        )}
                         {match.venueId && isParticipant && (
                             <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:6 }}>
                                 <Text style={{ color:'#22c55e', fontSize:13, fontWeight:'600' }}>📋 Sipariş Ver</Text>
@@ -6004,6 +6016,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         // null = kısıtlama yok. Kadın sayısı ekranda 2*teamSize - requiredMaleCount olarak
         // hesaplanır, takım büyüklüğüne göre seçenekler değişir (bkz. MiniDropdown kullanımı).
         requiredMaleCount: null,
+        winsNeeded: null,
         venueId: null,
         venueCourtId: null,
         reservationId: null,
@@ -6071,6 +6084,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 opp1GenderReq: editItem.opp1GenderReq || 'MIX',
                 opp2GenderReq: editItem.opp2GenderReq || 'MIX',
                 requiredMaleCount: editItem.requiredMaleCount != null ? editItem.requiredMaleCount : null,
+                winsNeeded: editItem.winsNeeded != null ? editItem.winsNeeded : null,
                 venueId: editItem.venueId || null,
                 venueCourtId: editItem.venueCourtId || null,
                 reservationId: editItem.venueReservationId || null,
@@ -6159,11 +6173,18 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         }));
     };
     // group: 'pool' (havuz, side atanabilir) | 'sub' (yedek, side yok)
+    // Havuz slotları hem ön yüzden (sırayla index 0,1,2...) hem arka yüzden (Kurucu/Rakip'in
+    // kendi boş kontenjanına, index sırasıyla ilgisiz şekilde) doldurulabiliyor — front-face
+    // listesi ham index sırasıyla göründüğü için arka yüzden eklenen biri, gerçekte önce
+    // eklenmiş olsa bile yanlış sırada görünebiliyordu. `seq` ilk doldurulduğu ana damgalanır
+    // (sonraki düzenlemelerde korunur) ve ön yüz bu değere göre sıralanır (bkz. render).
+    const rosterSeqRef = useRef(0);
     const setSlot = (group, index, value) => {
         const key = group === 'pool' ? 'rosterSlots' : 'subSlots';
         setF(p => {
             const arr = p[key].slice();
-            arr[index] = value;
+            const prevSeq = arr[index]?.seq;
+            arr[index] = value ? { ...value, seq: prevSeq ?? ++rosterSeqRef.current } : null;
             return { ...p, [key]: arr };
         });
     };
@@ -6284,6 +6305,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [showTeamSizePicker, setShowTeamSizePicker] = useState(false);
     const [showSubCountPicker, setShowSubCountPicker] = useState(false);
     const [showGenderCountPicker, setShowGenderCountPicker] = useState(false);
+    const [showWinsNeededPicker, setShowWinsNeededPicker] = useState(false);
     // Arka yüzde "Atanmamış" havuzundan seçilen kişi — sonra Kurucu/Rakip başlığına
     // dokununca o kişinin side'ı set edilir (mevcut swapSlot tak-seç-hedefe-dokun deseniyle aynı mantık).
     const [selectedUnassignedIndex, setSelectedUnassignedIndex] = useState(null);
@@ -6622,8 +6644,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     partnerGenderReq: f.partnerGenderReq, opp1GenderReq: f.opp1GenderReq, opp2GenderReq: f.opp2GenderReq,
                     teamFlexibility: f.teamFlexibility,
                 }),
-                ...(isVolleyball && { requiredMaleCount: f.requiredMaleCount }),
-                ...(['tennis', 'padel', 'volleyball'].includes(sub) && {
+                ...((isVolleyball || sub === 'airsoft') && { requiredMaleCount: f.requiredMaleCount }),
+                ...(sub === 'airsoft' && { winsNeeded: f.winsNeeded }),
+                ...(['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && {
                     refereeRequested: !!f.refereeRequested,
                     refereePayment: f.refereeRequested && !f.refereeFeeIncluded && f.refereePayment !== '' ? `${f.refereePayment}₺` : null,
                     refereeFeeIncluded: !!f.refereeFeeIncluded,
@@ -6650,9 +6673,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         if (isVolleyball && !editItem && !f.teamSize) {
             Alert.alert('', t.missingTeamSize); return;
         }
-        if (isVolleyball && !editItem && f.rosterSlots.some(sl => sl && !sl.side)) {
-            Alert.alert('', t.mustAssignTeamMsg); return;
-        }
+        // Kullanıcı isteğiyle artık ilan oluştururken herkesi bir takıma atamak ZORUNLU
+        // değil — genelde sadece 3-5 kişi bellidir, kalanı açık ilandan sonradan bulunur.
+        // Atanmamış (side:null) dolu slotlar engellenmek yerine unassignedPlayers'a
+        // gönderiliyor (bkz. submit payload) — mevcut "atanmamış havuz" mekanizmasıyla
+        // aynı, ilan yönetimi ekranından sonradan Kurucu/Rakip'e atanabiliyorlar.
         // Kayıtlı kullanıcı olarak eklenen havuz üyeleri, ilanın kendi cinsiyet dağılımı
         // (requiredMaleCount) ve derece (minRating/maxRating, gendersplit ise ayrı ayrı)
         // kısıtlamalarına uymalı — manuel (kayıtsız) isimlerin cinsiyet/derecesi bilinmediği
@@ -6779,7 +6804,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 partnerGenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.partnerGenderReq : undefined,
                 opp1GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp1GenderReq : undefined,
                 opp2GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp2GenderReq : undefined,
-                requiredMaleCount: isVolleyball && f.requiredMaleCount != null ? f.requiredMaleCount : undefined,
+                requiredMaleCount: (isVolleyball || sub === 'airsoft') && f.requiredMaleCount != null ? f.requiredMaleCount : undefined,
+                winsNeeded: sub === 'airsoft' && f.winsNeeded != null ? f.winsNeeded : undefined,
                 partnerInviteId: !isTeamSport && f.matchType === 'DOUBLE' && f.partner
                     ? f.partner.id
                     : undefined,
@@ -6792,16 +6818,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 venueId:            f.venueId       || undefined,
                 venueCourtId:       f.venueCourtId   || undefined,
                 venueReservationId,
-                refereeRequested: ['tennis', 'padel', 'volleyball'].includes(sub) ? !!f.refereeRequested : undefined,
-                refereePayment: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && !f.refereeFeeIncluded && f.refereePayment !== ''
+                refereeRequested: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) ? !!f.refereeRequested : undefined,
+                refereePayment: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && f.refereeRequested && !f.refereeFeeIncluded && f.refereePayment !== ''
                     ? `${f.refereePayment}₺` : undefined,
-                refereeFeeIncluded: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested ? !!f.refereeFeeIncluded : undefined,
-                refereeInvites: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && f.refereeInvites.length > 0
+                refereeFeeIncluded: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && f.refereeRequested ? !!f.refereeFeeIncluded : undefined,
+                refereeInvites: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && f.refereeRequested && f.refereeInvites.length > 0
                     ? f.refereeInvites.map(inv => ({ userId: inv.user.id, message: inv.message || undefined, price: inv.price || undefined }))
                     : undefined,
-                manualRefereeName: ['tennis', 'padel', 'volleyball'].includes(sub) && f.refereeRequested && f.manualRefereeName.trim()
+                manualRefereeName: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && f.refereeRequested && f.manualRefereeName.trim()
                     ? f.manualRefereeName.trim() : undefined,
-                participantsCanInvite: ['tennis', 'padel', 'volleyball'].includes(sub) ? !!f.participantsCanInvite : undefined,
+                participantsCanInvite: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) ? !!f.participantsCanInvite : undefined,
                 extraServices: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
                 // Voleybol havuzu — kartın arka yüzünde Kurucu/Rakip'e atanan slotlar (side)
                 // ilgili davet dizisine gider; gerçek kullanıcılar davet olur (kabul etmeden
@@ -6824,6 +6850,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     : undefined,
                 substituteManualNames: isVolleyball
                     ? f.subSlots.filter(s => s?.type === 'manual').map(s => s.name)
+                    : undefined,
+                // Hangi takımda oynayacağı henüz belli olmayan (side:null) dolu slotlar —
+                // ilan oluştururken herkesi atamak artık zorunlu değil (kullanıcı isteği).
+                unassignedInviteIds: isVolleyball
+                    ? f.rosterSlots.filter(s => s?.type === 'user' && !s.side).map(s => s.userId)
+                    : undefined,
+                unassignedManualNames: isVolleyball
+                    ? f.rosterSlots.filter(s => s?.type === 'manual' && !s.side).map(s => s.name)
                     : undefined,
             });
             // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
@@ -7243,7 +7277,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1 }}>
                                                     <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.ratingLimitLabel}</Text>
                                                     <TouchableOpacity
-                                                        style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:5, flexShrink:1 }}
+                                                        style={{ height:30, backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? colors.purple+'80' : colors.border, paddingHorizontal:5, flexShrink:1 }}
                                                         onPress={() => setShowRatingRange(true)}>
                                                         <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
                                                             {f.ratingGenderSplit
@@ -7313,8 +7347,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <Text style={[s.triValue, !f.matchTime && s.triPlaceholder]}>{f.matchTime || '—'}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.duration && s.triBtnFilled]} onPress={() => set('showDurationPicker', true)}>
-                                            <Text style={s.triLabel}>{t.durationFieldLabel}</Text>
-                                            <Text style={[s.triValue, !f.duration && s.triPlaceholder]}>{f.duration ? `${f.duration}${t.minuteSuffix}` : '—'}</Text>
+                                            <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{sub === 'airsoft' ? t.estimatedDurationFieldLabel : t.durationFieldLabel}</Text>
+                                            <Text style={[s.triValue, !f.duration && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                                {f.duration ? (String(f.duration) === '-1' ? t.untilTiredLabel : `${f.duration}${t.minuteSuffix}`) : '—'}
+                                            </Text>
                                         </TouchableOpacity>
                                         {/* Derece — kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) Süre'nin hemen
                                             sağında, formun sonundaki ayrı Derece bloğu yerine burada gösteriliyor. */}
@@ -7349,7 +7385,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         )}
                                         {['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && (
                                             <ExtraServicesEditor services={f.extraServices} onChange={v => set('extraServices', v)}
-                                                referee={!isMatchedEdit && ['tennis', 'padel', 'volleyball'].includes(sub) ? {
+                                                referee={!isMatchedEdit && ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) ? {
                                                     requested: f.refereeRequested,
                                                     onToggleRequested: () => set('refereeRequested', !f.refereeRequested),
                                                     name: f.manualRefereeName,
@@ -7379,7 +7415,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             <OptionPickerModal
                                 visible={f.showDurationPicker}
                                 title={t.selectDuration}
-                                options={DURATIONS_FULL_VALUES.map(v => ({ value: v, label: `${v} ${t.minuteSuffix}` }))}
+                                options={[
+                                    // Voleybolde maçlar genelde set üzerinden oynanır, net bir dakika sınırı
+                                    // olmayabilir — kullanıcı isteğiyle "Yorulana Kadar" seçeneği eklendi
+                                    // (duration alanına -1 olarak kaydedilir, gerçek bir süre değil sentinel).
+                                    ...(isVolleyball ? [{ value: '-1', label: t.untilTiredLabel }] : []),
+                                    ...DURATIONS_FULL_VALUES.map(v => ({ value: v, label: `${v} ${t.minuteSuffix}` })),
+                                ]}
                                 value={f.duration}
                                 onSelect={(v) => set('duration', v)}
                                 onClose={() => set('showDurationPicker', false)}
@@ -7773,7 +7815,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             {isVolleyball && f.rosterSlots.length > 0 && (
                                 <View style={{ marginBottom:14 }}>
                                     <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor: cfg.color+'40', padding:10, transform:[{ perspective:800 }, { rotateY: teamCardRotateY }] }}>
-                                        {!teamCardBack ? (
+                                        {!teamCardBack ? (() => {
+                                            // Havuz arka yüzden (Kurucu/Rakip'in kendi boş kontenjanına) de
+                                            // doldurulabildiği için ham index sırası artık gerçek ekleme
+                                            // sırasıyla örtüşmüyor — ön yüz `seq`e göre sıralanır (doldurulanlar
+                                            // önce, en eski eklenen en üstte; boşlar kendi aralarında orijinal
+                                            // sırasını korur, bkz. setSlot'taki seq damgalama).
+                                            const sortedPool = f.rosterSlots
+                                                .map((slot, i) => ({ slot, i }))
+                                                .sort((a, b) => (a.slot?.seq ?? Infinity) - (b.slot?.seq ?? Infinity));
+                                            return (
                                             <>
                                                 <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
                                                     <Text style={[s.fieldLabel, { marginBottom:0, flex:1 }]}>{t.rosterPoolLabel}</Text>
@@ -7795,10 +7846,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             </View>
                                                         </View>
                                                     </View>
-                                                    {f.rosterSlots.map((slot, i) => (
+                                                    {sortedPool.map(({ slot, i }, displayPos) => (
                                                         <View key={`pool-${i}`} style={{ width:'31%', zIndex: activeSlotKey === `pool-${i}` ? 50 : 1, elevation: activeSlotKey === `pool-${i}` ? 50 : 1 }}>
                                                             <TeamSlotRow side="pool" index={i} slot={slot}
-                                                                placeholder={t.teamSlotPh(i + 2)}
+                                                                placeholder={t.teamSlotPh(displayPos + 2)}
                                                                 activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions} slotSearching={slotSearching}
                                                                 onFocus={() => setActiveSlotKey(`pool-${i}`)}
                                                                 onChangeText={(txt) => onSlotChangeText('pool', i, txt)}
@@ -7832,7 +7883,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 )}
                                                 <Text style={s.fieldHint}>{t.rosterFrontHint}</Text>
                                             </>
-                                        ) : (() => {
+                                            );
+                                        })() : (() => {
                                             // Bazen kurucu/rakip ayrımı ilan açılırken zaten bellidir — arka yüzde her
                                             // takım artık kendi teamSize'ı kadar SABİT sayıda yazılabilir form gösterir
                                             // (Kurucu: kilitli "1. Sen" + teamSize-1 form, Rakip: teamSize form), tek
@@ -7959,6 +8011,65 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </View>
                             )}
 
+                            {/* Airsoft: Takım Büyüklüğü (2v2..30v30) + Cinsiyet Dağılımı (voleyboldaki
+                                GenderCountModal'ın aynısı) + Kaç Kazanınca Biter — Bilet Link'ten önce,
+                                kullanıcı isteğiyle. */}
+                            {!isMatchedEdit && sub === 'airsoft' && (
+                                <View style={{ marginBottom:10 }}>
+                                    <View style={{ flexDirection:'row', gap:6, zIndex: (showTeamSizePicker || showGenderCountPicker || showWinsNeededPicker) ? 50 : 1 }}>
+                                        <View style={{ flex:1, position:'relative', zIndex: showTeamSizePicker ? 51 : 1 }}>
+                                            <Text style={[s.fieldLabel, { marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamSizeLabel}</Text>
+                                            <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowTeamSizePicker(v => !v)}>
+                                                <Text style={[s.compactSelectText, !f.teamSize && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                    {f.teamSize ? `${f.teamSize}v${f.teamSize}` : t.courtSurfaceSelectPlaceholder}
+                                                </Text>
+                                            </TouchableOpacity>
+                                            <MiniDropdown
+                                                visible={showTeamSizePicker}
+                                                options={AIRSOFT_SIZES.map(n => ({ value: n, label: `${n}v${n}` }))}
+                                                value={f.teamSize}
+                                                onSelect={(v) => setTeamSize(v)}
+                                                onClose={() => setShowTeamSizePicker(false)}
+                                            />
+                                        </View>
+                                        <View style={{ flex:1, position:'relative', zIndex: showGenderCountPicker ? 51 : 1 }}>
+                                            <Text style={[s.fieldLabel, { marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.genderCountLabel}</Text>
+                                            <TouchableOpacity style={[s.compactSelectBtn, !f.teamSize && { opacity:0.5 }]} disabled={!f.teamSize} onPress={() => setShowGenderCountPicker(true)}>
+                                                <Text style={[s.compactSelectText, f.requiredMaleCount == null && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                                    {f.requiredMaleCount != null ? `👨${f.requiredMaleCount} 👩${2 * f.teamSize - f.requiredMaleCount}` : t.genderCountFreeLabel}
+                                                </Text>
+                                            </TouchableOpacity>
+                                            {!!f.teamSize && (
+                                                <GenderCountModal
+                                                    visible={showGenderCountPicker}
+                                                    total={2 * f.teamSize}
+                                                    value={f.requiredMaleCount}
+                                                    onSelect={(v) => set('requiredMaleCount', v)}
+                                                    onClose={() => setShowGenderCountPicker(false)}
+                                                    t={t}
+                                                />
+                                            )}
+                                        </View>
+                                        <View style={{ flex:1, position:'relative', zIndex: showWinsNeededPicker ? 51 : 1 }}>
+                                            <Text style={[s.fieldLabel, { marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.winsNeededLabel}</Text>
+                                            <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowWinsNeededPicker(v => !v)}>
+                                                <Text style={[s.compactSelectText, !f.winsNeeded && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                    {f.winsNeeded ? String(f.winsNeeded) : t.courtSurfaceSelectPlaceholder}
+                                                </Text>
+                                            </TouchableOpacity>
+                                            <MiniDropdown
+                                                visible={showWinsNeededPicker}
+                                                options={WINS_NEEDED_OPTIONS.map(n => ({ value: n, label: String(n) }))}
+                                                value={f.winsNeeded}
+                                                onSelect={(v) => set('winsNeeded', v)}
+                                                onClose={() => setShowWinsNeededPicker(false)}
+                                            />
+                                        </View>
+                                    </View>
+                                    <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>{t.winsNeededHint}</Text>
+                                </View>
+                            )}
+
                             {/* Kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) sıralama kullanıcı isteğiyle
                                 netleştirildi: Bilet Link → Mesaj (Derece artık Tarih·Saat·Süre satırında,
                                 Süre'nin sağında gösteriliyor — bkz. yukarısı, burada tekrar etmiyor). */}
@@ -7976,6 +8087,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         placeholder={t.messagePh}
                                         placeholderTextColor={colors.textMuted} multiline />
                                 </>
+                            )}
+
+                            {/* Hizmetler ekledikçe Mesaj'ın hemen üstünde özet görünsün — kullanıcı
+                                isteğiyle, HİZMETLER butonuna tekrar dokunmadan neyin eklendiği görülebiliyor.
+                                Açık ilana düştükten sonra aynı özet match kartında da gösteriliyor (bkz. 3440). */}
+                            {!isMatchedEdit && ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && f.extraServices.length > 0 && (
+                                <View style={{ marginBottom:10 }}>
+                                    <Text style={[s.fieldLabel, { marginBottom:2 }]}>{t.extraServicesSummaryLabel}</Text>
+                                    {f.extraServices.map(sv => (
+                                        <Text key={sv.id} style={{ color:'#e5e7eb', fontSize:12, marginTop:1 }}>
+                                            🎉 {sv.name} — {sv.included ? <Text style={{ color:'#4ade80' }}>{t.refereeFeeIncludedBtn}</Text> : `+${sv.price}₺`}
+                                        </Text>
+                                    ))}
+                                </View>
                             )}
 
                             {/* Açıklama */}
@@ -11310,7 +11435,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 endDate: fmtISO(f.regEndDate),
                 endTime: f.regEndTime || undefined,
                 rules: f.rules,
-                extraServices: ['tennis', 'padel', 'volleyball'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
+                extraServices: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
                 description: f.description.trim() || undefined,
             });
             reset();

@@ -792,6 +792,7 @@ model ActivityRequest {
   opp1GenderReq    String  @default("MIX")  // doubles: opponent 1 gender requirement
   opp2GenderReq    String  @default("MIX")  // doubles: opponent 2 gender requirement
   requiredMaleCount Int?                   // voleybol takım ilanı: havuzun (2*teamSize kişi) kaç kişisi erkek olmalı — null = kısıtlama yok. Kadın sayısı 2*teamSize - requiredMaleCount olarak hesaplanır, takım büyüklüğü değişirse buna göre yeniden değerlendirilir.
+  winsNeeded       Int?                    // örn. airsoft: kaç raunt/oyun kazanınca maç biter — null = belirtilmemiş
   founderTeamName  String?                 // DOUBLE veya voleybol takımı: kurucu takımın (ilan sahibi + partner/takım arkadaşları) isteğe bağlı özel takım adı
   opponentTeamName String?                 // DOUBLE veya voleybol takımı: rakip takımın (opp1+opp2 veya katılımcılar) isteğe bağlı özel takım adı
   scheduleProposal    Json?                   // {userId, date, time, location, courtName, proposedAt}
@@ -886,6 +887,7 @@ model RivalJoinRequest {
   initiatedBy     String   @default("JOINER")  // JOINER (user asked to join) | OWNER (owner invited this user)
   isPartnerInvite Boolean  @default(false)      // OWNER davet: kurucu takımına partner daveti (true) vs rakip daveti (false)
   isSubstituteInvite Boolean @default(false)    // OWNER davet: voleybolde yedek oyuncu daveti — kabul edilince substitutePlayers'a eklenir
+  isUnassignedInvite Boolean @default(false)    // OWNER davet: ilan oluşturulurken hangi takımda oynayacağı henüz belirlenmemiş oyuncu daveti — kabul edilince unassignedPlayers'a eklenir (ilan sahibi sonradan Kurucu/Rakip'e atar)
   partnerId       String?                       // Çiftler (DOUBLE): tek başına başvurmuş kullanıcının istediği partnerin userId'si. Karşılıklı olunca (iki başvuru da birbirini gösterince) çift eşleşir.
   offerPrice      String?                       // Hakem başvurusu: teklif edilen ücret
   offerMessage    String?                       // Hakem başvurusu: ek bilgi/mesaj
