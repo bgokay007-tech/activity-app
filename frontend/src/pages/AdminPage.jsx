@@ -148,6 +148,24 @@ function CourtsPanel() {
         } catch (e) { alert(e?.response?.data?.message || 'Error'); }
     };
 
+    // Onayla/Reddet — /admin/courts sadece listeleme+silme yapıyordu, gerçek onay akışı
+    // ayrı bir router'da (/courts/admin/:id/verify|reject) duruyordu ve panelden hiç
+    // çağrılmıyordu — kullanıcı bir mekanı onayladığında sadece o dalın aramasında
+    // çıkması için bu iki eylem burada eksikti.
+    const approve = async (id) => {
+        try {
+            const { data } = await api.patch(`/courts/admin/${id}/verify`);
+            setCourts(prev => prev.map(c => c.id === id ? data : c));
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+    };
+    const reject = async (id) => {
+        const reason = window.prompt('Reject reason (optional):') || undefined;
+        try {
+            const { data } = await api.patch(`/courts/admin/${id}/reject`, { reason });
+            setCourts(prev => prev.map(c => c.id === id ? data : c));
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+    };
+
     const filtered = courts.filter(c =>
         (c.name || '').toLowerCase().includes(search.toLowerCase()) ||
         (c.city || '').toLowerCase().includes(search.toLowerCase())
@@ -175,10 +193,24 @@ function CourtsPanel() {
                             {c.feeAmount && <p className="text-gray-500 text-[10px]">Fee: {c.feeAmount}₺ · {c.hasLights ? '💡 Lights' : 'No lights'} · {c.isIndoor ? '🏠 Indoor' : '☀️ Outdoor'}</p>}
                             <p className="text-gray-600 text-[10px]">Submitted by @{c.user?.username} · {new Date(c.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                         </div>
-                        <button onClick={() => del(c.id)}
-                            className="flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 transition">
-                            Delete
-                        </button>
+                        <div className="flex-shrink-0 flex items-center gap-1.5">
+                            {c.pending && (
+                                <>
+                                    <button onClick={() => approve(c.id)}
+                                        className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20 transition">
+                                        Approve
+                                    </button>
+                                    <button onClick={() => reject(c.id)}
+                                        className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 transition">
+                                        Reject
+                                    </button>
+                                </>
+                            )}
+                            <button onClick={() => del(c.id)}
+                                className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 transition">
+                                Delete
+                            </button>
+                        </div>
                     </div>
                 ))}
             </div>
