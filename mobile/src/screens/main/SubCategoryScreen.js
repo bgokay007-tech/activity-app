@@ -2284,15 +2284,27 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </View>
                 )}
                 {(() => {
-                    const hasRatingRange = item.minRating != null || item.maxRating != null;
+                    // ratingGenderSplit seçiliyse minRating/maxRating boş kalır, gösterge minRatingMale/
+                    // Female'e bakmalı — aksi halde "derece kısıtlaması koydum ama görünmüyor" oluyordu.
+                    const hasRatingRange = item.ratingGenderSplit
+                        ? (item.minRatingMale != null || item.maxRatingMale != null || item.minRatingFemale != null || item.maxRatingFemale != null)
+                        : (item.minRating != null || item.maxRating != null);
                     const hasSingleGenderReq = item.genderReq && item.genderReq !== 'MIX';
                     const hasDoubleGenderReq = item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX');
-                    if (!hasRatingRange && !hasSingleGenderReq && !hasDoubleGenderReq) return null;
+                    const hasGenderCount = item.subCategory === 'volleyball' && item.requiredMaleCount != null && item.teamSize > 1;
+                    if (!hasRatingRange && !hasSingleGenderReq && !hasDoubleGenderReq && !hasGenderCount) return null;
                     return (
                         <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:3, flexWrap:'wrap' }}>
                             {hasRatingRange && (
                                 <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700' }}>
-                                    ⭐ {item.minRating ?? '0'}–{item.maxRating ?? '5'}★
+                                    {item.ratingGenderSplit
+                                        ? `⭐ 👨${item.minRatingMale ?? 0}-${item.maxRatingMale ?? 5}  👩${item.minRatingFemale ?? 0}-${item.maxRatingFemale ?? 5}★`
+                                        : `⭐ ${item.minRating ?? '0'}–${item.maxRating ?? '5'}★`}
+                                </Text>
+                            )}
+                            {hasGenderCount && (
+                                <Text style={{ color:'#a855f7', fontSize:moderateScale(10), fontWeight:'700' }}>
+                                    👨{item.requiredMaleCount} 👩{2 * item.teamSize - item.requiredMaleCount}
                                 </Text>
                             )}
                             {hasSingleGenderReq && (
@@ -3444,9 +3456,23 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 {LEVEL_EMOJI[match.level]} {t.levelTr?.[match.level] || match.level}
                             </Text>
                         )}
-                        {(match.minRating != null || match.maxRating != null) && (
+                        {/* ratingGenderSplit seçiliyse minRating/maxRating boş kalıyor (yerine
+                            minRatingMale/Female kullanılıyor) — sadece düz aralığa bakan eski kontrol
+                            bu durumda hiçbir şey göstermiyordu ("derece kısıtlaması bilgisi yok" raporu). */}
+                        {(match.ratingGenderSplit
+                            ? (match.minRatingMale != null || match.maxRatingMale != null || match.minRatingFemale != null || match.maxRatingFemale != null)
+                            : (match.minRating != null || match.maxRating != null)) && (
                             <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4 }}>
-                                ★ {match.minRating != null ? `${match.minRating}` : '0'} – {match.maxRating != null ? `${match.maxRating}` : '∞'}
+                                {match.ratingGenderSplit
+                                    ? `★ 👨${match.minRatingMale ?? 0}-${match.maxRatingMale ?? '∞'}  👩${match.minRatingFemale ?? 0}-${match.maxRatingFemale ?? '∞'}`
+                                    : `★ ${match.minRating != null ? `${match.minRating}` : '0'} – ${match.maxRating != null ? `${match.maxRating}` : '∞'}`}
+                            </Text>
+                        )}
+                        {/* Voleybol takım ilanı: cinsiyet dağılımı (kaç erkek/kadın) — requiredMaleCount
+                            eklendiğinde hiçbir yerde gösterilmiyordu, kullanıcı "seçmiştim ama görünmüyor" dedi. */}
+                        {match.subCategory === 'volleyball' && match.requiredMaleCount != null && match.teamSize > 1 && (
+                            <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4 }}>
+                                👨{match.requiredMaleCount} 👩{2 * match.teamSize - match.requiredMaleCount}
                             </Text>
                         )}
                         {Array.isArray(match.extraServices) && match.extraServices.length > 0 && (
@@ -7898,8 +7924,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             const emptyIdx = f.rosterSlots.reduce((acc, sl, i) => { if (!sl) acc.push(i); return acc; }, []);
                                             const myNeeded = Math.max(0, teamSizeN - 1 - myAssignedIdx.length);
                                             const oppNeeded = Math.max(0, teamSizeN - oppAssignedIdx.length);
-                                            const mySlotOrder = [...myAssignedIdx, ...emptyIdx.slice(0, myNeeded)];
-                                            const oppSlotOrder = [...oppAssignedIdx, ...emptyIdx.slice(myNeeded, myNeeded + oppNeeded)];
+                                            // Ham index'e göre artan sırala — sıralama olmasaydı, bir slota yazı
+                                            // yazılıp "dolu" (assigned) hâle gelir gelmez o slot listenin BAŞINA
+                                            // atlıyordu (assigned'lar önce dizilip empty'ler sonra ekleniyordu),
+                                            // yani ör. Rakip'in 5. kutusuna yazarken kutu birden 1. sıraya kayıyordu.
+                                            // Toplam küme boyutu sabit kaldığı için (assigned.length + needed =
+                                            // teamSize her zaman) artan sıralama pozisyonu render'lar arası sabit tutuyor.
+                                            const mySlotOrder = [...myAssignedIdx, ...emptyIdx.slice(0, myNeeded)].sort((a, b) => a - b);
+                                            const oppSlotOrder = [...oppAssignedIdx, ...emptyIdx.slice(myNeeded, myNeeded + oppNeeded)].sort((a, b) => a - b);
                                             return (
                                             <>
                                                 <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>

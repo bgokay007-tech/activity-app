@@ -42,9 +42,9 @@ function ArtistPickerModal({ visible, onClose, onSelect }) {
         : artists;
 
     return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onShow={load}>
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onShow={load} android_keyboardInputMode="adjustNothing">
             <View style={s.overlay}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.sheet}>
                         <View style={s.header}>
                             <Text style={s.title}>Sanatçı Seç</Text>
@@ -281,9 +281,9 @@ export default function ExtraServicesEditor({ services = [], onChange, referee =
                 </Text>
             </TouchableOpacity>
 
-            <Modal visible={showModal} transparent animationType="slide" onRequestClose={() => setShowModal(false)}>
+            <Modal visible={showModal} transparent animationType="slide" onRequestClose={() => setShowModal(false)} android_keyboardInputMode="adjustNothing">
                 <View style={s.overlay}>
-                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                    <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                         <View style={s.sheet}>
                             <View style={s.header}>
                                 <Text style={s.title}>Ekstra Hizmetler</Text>
