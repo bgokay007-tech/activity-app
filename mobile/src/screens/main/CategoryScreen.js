@@ -7,13 +7,6 @@ import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 
-const ENABLED_SUBS = new Set([
-    'tennis', 'padel', 'volleyball', 'music', 'cinema', 'theater', 'fps', 'moba', 'strategy', 'sports_games', 'boardgames', 'batak', 'okey', 'chess', 'tavla', 'friend_finding',
-    // Basitleştirilmiş sekme setiyle (Etkinlik/Destek/Ekipman/Medya/Yazılar/Bilet Al/Haberler/Arşiv) açılan yeni dallar
-    'airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'paintball', 'sup_kano', 'running', 'walking', 'hiking',
-    'sanal_alem',
-]);
-
 // Bu dallar "ilan" (rakip bul) mantığına değil kendi özel ekranlarına gider —
 // SubCategory yerine bu ekran adına yönlendirilir, ilan sayacı da gösterilmez.
 const SPECIAL_SCREENS = { music: 'MusicHome', cinema: 'CinemaHome', theater: 'TheaterHome', batak: 'BatakHome', okey: 'OkeyHome', chess: 'ChessHome', tavla: 'TavlaHome', friend_finding: 'FriendFindingHome' };
@@ -151,14 +144,13 @@ export default function CategoryScreen({ route, navigation }) {
                 <ScrollView contentContainerStyle={s.list}>
                     <View style={s.grid}>
                         {subs.map(sub => {
-                            const enabled = ENABLED_SUBS.has(sub.id);
                             const count = counts[sub.id] || 0;
                             return (
                                 <TouchableOpacity
                                     key={sub.id}
-                                    style={[s.card, { borderColor: enabled ? accentColor + '40' : colors.border, opacity: enabled ? 1 : 0.5 }]}
-                                    onPress={() => enabled && navigation.navigate(SPECIAL_SCREENS[sub.id] || 'SubCategory', SPECIAL_SCREENS[sub.id] ? undefined : { category, sub: sub.id })}
-                                    activeOpacity={enabled ? 0.75 : 1}
+                                    style={[s.card, { borderColor: accentColor + '40' }]}
+                                    onPress={() => navigation.navigate(SPECIAL_SCREENS[sub.id] || 'SubCategory', SPECIAL_SCREENS[sub.id] ? undefined : { category, sub: sub.id })}
+                                    activeOpacity={0.75}
                                 >
                                     {sub.image ? (
                                         <Image source={sub.image} style={s.emojiImage} resizeMode="contain" />
@@ -170,15 +162,11 @@ export default function CategoryScreen({ route, navigation }) {
                                         <View style={[s.countBadge, { backgroundColor: accentColor + '20', borderColor: accentColor + '60' }]}>
                                             <Text style={[s.countText, { color: accentColor }]}>{SPECIAL_BADGE_EMOJI[sub.id]}</Text>
                                         </View>
-                                    ) : enabled ? (
+                                    ) : (
                                         <View style={[s.countBadge, { backgroundColor: accentColor + '20', borderColor: accentColor + '60' }]}>
                                             <Text style={[s.countText, { color: count > 0 ? accentColor : colors.textMuted }]}>
                                                 {count > 0 ? t.listings(count) : t.noListings}
                                             </Text>
-                                        </View>
-                                    ) : (
-                                        <View style={[s.countBadge, { backgroundColor: '#37415120', borderColor: '#37415160' }]}>
-                                            <Text style={[s.countText, { color: colors.textMuted }]}>{t.maintenance}</Text>
                                         </View>
                                     )}
                                 </TouchableOpacity>

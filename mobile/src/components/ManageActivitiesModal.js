@@ -17,17 +17,6 @@ const SUB_IMAGES = {
     padel: require('../../assets/padel.png'),
 };
 
-const ENABLED_SUBS = new Set([
-    'tennis', 'padel', 'volleyball', 'friend_finding', 'sanal_alem',
-    // Sanat — tüm dallar
-    'music', 'painting', 'dance', 'photography', 'theater', 'writing', 'sculpture', 'cinema', 'poetry', 'illustration',
-    // Oyunlar — tüm dallar
-    'fps', 'rpg', 'strategy', 'sports_games', 'moba', 'battle_royale', 'simulation', 'puzzle', 'racing', 'card_games', 'okey', 'batak',
-    // Basitleştirilmiş sekme setiyle açılan yeni dallar
-    'airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'paintball', 'sup_kano', 'running', 'walking', 'hiking',
-    'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting',
-]);
-
 // Puanlı (bahisli) oyunlar — geçmiş maç sayısına bakılmaksızın tamamen
 // silinemez (puan/geçmiş sıfırlayıp yeniden anket doldurma istismarını
 // engellemek için), sadece gizlenebilir.
@@ -190,10 +179,9 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                     const key = `${activeTab}__${sub.id}`;
                                     const existing = addedMap[key];
                                     const isLoading = loadingId === key;
-                                    const enabled = ENABLED_SUBS.has(sub.id);
 
                                     return (
-                                        <View key={sub.id} style={[s.subRow, !enabled && { opacity: 0.5 }]}>
+                                        <View key={sub.id} style={s.subRow}>
                                             {SUB_IMAGES[sub.id] ? (
                                                 <Image source={SUB_IMAGES[sub.id]} style={s.subEmojiImage} resizeMode="contain" />
                                             ) : (
@@ -207,11 +195,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                                     </Text>
                                                 )}
                                             </View>
-                                            {!enabled ? (
-                                                <View style={s.maintBadge}>
-                                                    <Text style={s.maintText}>{t.maintenance}</Text>
-                                                </View>
-                                            ) : isLoading ? (
+                                            {isLoading ? (
                                                 <ActivityIndicator size="small" color={activeColor} />
                                             ) : existing ? (
                                                 <View style={s.addedBtns}>
@@ -321,8 +305,6 @@ const s = StyleSheet.create({
     assessBtnText:  { fontSize: 11, fontWeight: '700' },
     removeBtn:      { width: 30, height: 30, borderRadius: 8, backgroundColor: '#dc262625', borderWidth: 1, borderColor: '#dc262650', justifyContent: 'center', alignItems: 'center' },
     removeBtnText:  { color: '#f87171', fontSize: 18, fontWeight: '700', lineHeight: 22 },
-    maintBadge:     { backgroundColor: '#37415150', borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: '#4b556350' },
-    maintText:      { color: '#9ca3af', fontSize: 10, fontWeight: '700' },
 
     footer:         { paddingHorizontal: 13, paddingVertical: 11, borderTopWidth: 1, borderTopColor: colors.border },
     doneBtn:        { backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
