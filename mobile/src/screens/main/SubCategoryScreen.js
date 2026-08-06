@@ -6202,7 +6202,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         if (!q || q.length < 2) { setSlotSuggestions([]); return; }
         setSlotSearching(true);
         const task = setTimeout(() => {
-            api.get(`/users/by-sport?subCategory=${sub}&category=${category}&q=${encodeURIComponent(q)}`)
+            // /users/by-sport sadece o dalda zaten "ilgi alanı" kaydı olanları getiriyor —
+            // kadroya davet edilecek kişi çoğu zaman henüz o dalı eklememiş gerçek bir
+            // arkadaş olabiliyor ("Ezel kayıtlı ama bulunamıyor" raporu buradan çıkıyordu).
+            // /users/search TÜM kayıtlı kullanıcılarda isim/kullanıcı adına göre arıyor.
+            api.get(`/users/search?q=${encodeURIComponent(q)}&subCategory=${sub}&category=${category}`)
                 .then(res => setSlotSuggestions(Array.isArray(res.data) ? res.data.slice(0, 5) : []))
                 .catch(() => setSlotSuggestions([]))
                 .finally(() => setSlotSearching(false));
@@ -6214,7 +6218,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         if (!q || q.length < 2) { setRefereeNameSuggestions([]); return; }
         setRefereeNameSearching(true);
         const task = setTimeout(() => {
-            api.get(`/users/by-sport?subCategory=${sub}&category=${category}&q=${encodeURIComponent(q)}`)
+            // Aynı sebeple hakem aramasında da /users/search — hakem her zaman o dalda
+            // "ilgi alanı" kaydı olan biri olmak zorunda değil.
+            api.get(`/users/search?q=${encodeURIComponent(q)}&subCategory=${sub}&category=${category}`)
                 .then(res => setRefereeNameSuggestions(Array.isArray(res.data) ? res.data.slice(0, 5) : []))
                 .catch(() => setRefereeNameSuggestions([]))
                 .finally(() => setRefereeNameSearching(false));
@@ -7234,7 +7240,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         />
                                                     </View>
                                                 )}
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1, flexGrow:1, justifyContent:'flex-end' }}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1 }}>
                                                     <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.ratingLimitLabel}</Text>
                                                     <TouchableOpacity
                                                         style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:5, flexShrink:1 }}
@@ -7246,6 +7252,27 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         </Text>
                                                     </TouchableOpacity>
                                                 </View>
+                                                {/* Davete İzin Ver (kilit) — kullanıcı isteğiyle buraya, Derece'nin
+                                                    sağına taşındı (önceden Hakem bloğunun içindeydi). */}
+                                                <TouchableOpacity
+                                                    onPress={() => {
+                                                        if (!f.participantsCanInvite) {
+                                                            set('participantsCanInvite', true);
+                                                            return;
+                                                        }
+                                                        Alert.alert(
+                                                            '🔒 Davet/Paylaşımı Kapat',
+                                                            'Bunu kapatırsan, ilanına kabul edilen katılımcılar başka oyuncu davet edemez, hakem davet edemez ve ilanı paylaşamaz — bunlara izin vermemiş olursun. Sadece sen yapabilirsin.',
+                                                            [
+                                                                { text: 'Vazgeç', style: 'cancel' },
+                                                                { text: 'Kapat', style: 'destructive', onPress: () => set('participantsCanInvite', false) },
+                                                            ]
+                                                        );
+                                                    }}
+                                                    style={{ width:28, height:28, alignItems:'center', justifyContent:'center', borderRadius:8, backgroundColor: f.participantsCanInvite ? '#22c55e20' : colors.surface2, borderWidth:1, borderColor: f.participantsCanInvite ? '#22c55e70' : colors.border, marginLeft:'auto' }}
+                                                >
+                                                    <Text style={{ fontSize:13 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
+                                                </TouchableOpacity>
                                             </View>
                                             <RatingRangeModal
                                                 visible={showRatingRange}
@@ -7322,118 +7349,21 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         )}
                                         {['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && (
                                             <ExtraServicesEditor services={f.extraServices} onChange={v => set('extraServices', v)}
-                                                extraSection={!isMatchedEdit && ['tennis', 'padel', 'volleyball'].includes(sub) && (
-                                                <>
-                                                    <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom: f.refereeRequested && f.refereeInvites.length > 0 ? 6 : 10 }}>
-                                                        {/* Davete İzin Ver — varsayılan açık: kabul edilmiş katılımcılar da davet/
-                                                            paylaşım yapabilir. Kapatmadan önce ne anlama geldiğini açıklayan bir onay
-                                                            penceresi gösterilir — onaylanmazsa açık kalır. Açmak onay istemez. */}
-                                                        <TouchableOpacity
-                                                            onPress={() => {
-                                                                if (!f.participantsCanInvite) {
-                                                                    set('participantsCanInvite', true);
-                                                                    return;
-                                                                }
-                                                                Alert.alert(
-                                                                    '🔒 Davet/Paylaşımı Kapat',
-                                                                    'Bunu kapatırsan, ilanına kabul edilen katılımcılar başka oyuncu davet edemez, hakem davet edemez ve ilanı paylaşamaz — bunlara izin vermemiş olursun. Sadece sen yapabilirsin.',
-                                                                    [
-                                                                        { text: 'Vazgeç', style: 'cancel' },
-                                                                        { text: 'Kapat', style: 'destructive', onPress: () => set('participantsCanInvite', false) },
-                                                                    ]
-                                                                );
-                                                            }}
-                                                            style={{ width: moderateScale(34), height: moderateScale(28), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor: f.participantsCanInvite ? '#22c55e20' : colors.surface2, borderWidth:1, borderColor: f.participantsCanInvite ? '#22c55e70' : colors.border }}
-                                                        >
-                                                            <Text style={{ fontSize:13 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
-                                                        </TouchableOpacity>
-                                                        <TouchableOpacity
-                                                            onPress={() => set('refereeRequested', !f.refereeRequested)}
-                                                            style={{ flex:0.5, height: moderateScale(28), flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeRequested ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeRequested ? '#f59e0b70' : colors.border }}
-                                                        >
-                                                            <Text style={{ color: f.refereeRequested ? '#f59e0b' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                                {noEmoji(t.requestRefereeBtn)}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                        {/* Metin kutusu artık "Hakem Talep Et"e basmayı beklemeden hep görünür —
-                                                            kullanıcı isimi yazınca refereeRequested örtük olarak açılır, ayrıca
-                                                            butona basmaya gerek kalmaz (kullanıcı defalarca bunu istedi). */}
-                                                        <View style={{ flex:1, position:'relative' }}>
-                                                            <TextInput
-                                                                style={{ height: moderateScale(28), backgroundColor: colors.surface2, borderRadius: moderateScale(8), paddingHorizontal:8, paddingVertical:0, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:12, textAlignVertical:'center' }}
-                                                                value={f.manualRefereeName}
-                                                                onChangeText={v => { set('manualRefereeName', v); if (v.trim() && !f.refereeRequested) set('refereeRequested', true); }}
-                                                                placeholder={t.refereeNamePh}
-                                                                placeholderTextColor={colors.textMuted}
-                                                            />
-                                                            {refereeNameSuggestions.length > 0 && (
-                                                                <View style={{ position:'absolute', top: moderateScale(30), left:0, right:0, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, zIndex:20, elevation:6 }}>
-                                                                    {refereeNameSuggestions.map(u => (
-                                                                        <TouchableOpacity key={u.id} onPress={() => pickRefereeSuggestion(u)}
-                                                                            style={{ flexDirection:'row', alignItems:'center', gap:6, padding:7, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                                                                            <Avatar name={u.username} avatar={u.avatar} size={22} color={cfg.color} />
-                                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }} numberOfLines={1}>{u.fullName || u.username}</Text>
-                                                                        </TouchableOpacity>
-                                                                    ))}
-                                                                </View>
-                                                            )}
-                                                        </View>
-                                                    </View>
-                                                    {f.refereeRequested && (
-                                                        <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom:6 }}>
-                                                            <TouchableOpacity
-                                                                onPress={() => setInviteTarget('referee')}
-                                                                style={{ flex:1, height: moderateScale(28), flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingHorizontal:6, borderRadius: moderateScale(8), backgroundColor: f.refereeInvites.length > 0 ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: f.refereeInvites.length > 0 ? '#f59e0b70' : colors.border }}
-                                                            >
-                                                                <Text style={{ color: f.refereeInvites.length > 0 ? '#f59e0b' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                                    {f.refereeInvites.length > 0 ? `${noEmoji(t.inviteRefereeBtn)} (${f.refereeInvites.length})` : noEmoji(t.inviteRefereeBtn)}
-                                                                </Text>
-                                                            </TouchableOpacity>
-                                                            {/* Hakem ücreti hizmetlere/kort fiyatına dahilse ayrı ücret istenmez —
-                                                                değilse (varsayılan) ekstra ücret alanı çıkar. */}
-                                                            <TouchableOpacity
-                                                                onPress={() => { set('refereeFeeIncluded', true); set('refereePayment', ''); }}
-                                                                style={{ flex:0.6, height: moderateScale(28), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor: f.refereeFeeIncluded ? '#22c55e20' : colors.surface2, borderWidth:1, borderColor: f.refereeFeeIncluded ? '#22c55e70' : colors.border }}
-                                                            >
-                                                                <Text style={{ color: f.refereeFeeIncluded ? '#4ade80' : colors.textMuted, fontSize:10, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                                                                    {t.refereeFeeIncludedBtn}
-                                                                </Text>
-                                                            </TouchableOpacity>
-                                                            <TouchableOpacity
-                                                                onPress={() => set('refereeFeeIncluded', false)}
-                                                                style={{ flex:0.6, height: moderateScale(28), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor: !f.refereeFeeIncluded ? '#f59e0b20' : colors.surface2, borderWidth:1, borderColor: !f.refereeFeeIncluded ? '#f59e0b70' : colors.border }}
-                                                            >
-                                                                <Text style={{ color: !f.refereeFeeIncluded ? '#f59e0b' : colors.textMuted, fontSize:10, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                                                                    {t.refereeFeeExtraBtn}
-                                                                </Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    )}
-                                                    {f.refereeRequested && !f.refereeFeeIncluded && (
-                                                        <TextInput
-                                                            style={{ height: moderateScale(28), backgroundColor: colors.surface2, borderRadius: moderateScale(8), paddingHorizontal:8, paddingVertical:0, color:'#fff', borderWidth:1, borderColor: colors.border, fontSize:12, textAlignVertical:'center', marginBottom: f.refereeInvites.length > 0 ? 6 : 10 }}
-                                                            value={f.refereePayment}
-                                                            onChangeText={v => set('refereePayment', v.replace(/[^0-9]/g, ''))}
-                                                            placeholder={t.refereePaymentLabel}
-                                                            placeholderTextColor={colors.textMuted}
-                                                            keyboardType="numeric"
-                                                        />
-                                                    )}
-                                                    {f.refereeRequested && f.refereeInvites.length > 0 && (
-                                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:10 }}>
-                                                            {f.refereeInvites.map(inv => (
-                                                                <TouchableOpacity key={inv.user.id} onPress={() => removeRefereeInvite(inv.user.id)}
-                                                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#f59e0b15', borderRadius:10, borderWidth:1, borderColor:'#f59e0b40', paddingHorizontal:7, paddingVertical:4 }}>
-                                                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                                        {inv.user.fullName || inv.user.username}{inv.price ? ` · ${inv.price}₺` : ''}
-                                                                    </Text>
-                                                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
-                                                                </TouchableOpacity>
-                                                            ))}
-                                                        </View>
-                                                    )}
-                                                </>
-                                                )}
+                                                referee={!isMatchedEdit && ['tennis', 'padel', 'volleyball'].includes(sub) ? {
+                                                    requested: f.refereeRequested,
+                                                    onToggleRequested: () => set('refereeRequested', !f.refereeRequested),
+                                                    name: f.manualRefereeName,
+                                                    onChangeName: (v) => { set('manualRefereeName', v); if (v.trim() && !f.refereeRequested) set('refereeRequested', true); },
+                                                    suggestions: refereeNameSuggestions,
+                                                    onPickSuggestion: pickRefereeSuggestion,
+                                                    feeIncluded: f.refereeFeeIncluded,
+                                                    onSetFeeIncluded: (v) => { set('refereeFeeIncluded', v); if (v) set('refereePayment', ''); },
+                                                    payment: f.refereePayment,
+                                                    onChangePayment: (v) => set('refereePayment', v.replace(/[^0-9]/g, '')),
+                                                    invites: f.refereeInvites,
+                                                    onInvitePress: () => setInviteTarget('referee'),
+                                                    onRemoveInvite: removeRefereeInvite,
+                                                } : null}
                                             />
                                         )}
                                     </>
@@ -11201,6 +11131,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
     const [f, setF] = useState(INIT);
     const [showTeamGenderModal, setShowTeamGenderModal] = useState(false);
+    const [showTeamSizePicker, setShowTeamSizePicker] = useState(false);
     const [searching, setSearching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [citySuggestions, setCitySuggestions] = useState([]);
@@ -11255,7 +11186,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         if (text.length < 2) { set('courtResults', []); return; }
         setSearching(true);
         try {
-            const { data } = await api.get('/courts/search', { params: { q: text, sport: sub } });
+            // Airsoft'ta sadece admin onaylı mekanlar çıkar — "onaya gitti, admin onayladı,
+            // ondan sonra aramada çıkacak" akışı (bkz. court.controller.js verifyCourt).
+            const { data } = await api.get('/courts/search', { params: { q: text, sport: sub, verifiedOnly: isAirsoft ? 'true' : undefined } });
             set('courtResults', Array.isArray(data) ? data : []);
         } catch { set('courtResults', []); }
         finally { setSearching(false); }
@@ -11275,7 +11208,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     const submit = async () => {
         if (!f.name.trim()) { Alert.alert('', t.tournMissingName); return; }
         if (!f.scope) { Alert.alert('', 'Kapsamı seçin.'); return; }
-        if (!f.genderType) { Alert.alert('', 'Katılımcı cinsiyetini seçin.'); return; }
+        if (!isAirsoft && !f.genderType) { Alert.alert('', 'Katılımcı cinsiyetini seçin.'); return; }
         if (f.scope === 'YEREL' && !f.scopeCity.trim()) { Alert.alert('', t.tournMissingCity); return; }
         if (f.scope === 'ULUSAL' && !f.scopeCountry.trim()) { Alert.alert('', t.tournMissingCountry); return; }
         if (!f.regEndDate) { Alert.alert('', t.tournMissingRegEnd); return; }
@@ -11329,7 +11262,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 name: f.name.trim(), type: f.pollEnabled ? undefined : f.type, category, subCategory: sub,
                 pollEnabled: f.pollEnabled,
                 ...(f.pollEnabled && { pollEndDate: fmtISO(f.pollEndDate), pollEndTime: f.pollEndTime || undefined, pollTypes: f.pollTypes }),
-                scope: f.scope, genderType: f.genderType, city: cityVal,
+                scope: f.scope, genderType: isAirsoft ? 'MIX' : f.genderType, city: cityVal,
                 minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
                 maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
                 ratingGenderSplit: f.ratingGenderSplit || undefined,
@@ -11512,7 +11445,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 <>
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
                                         <TextInput style={[s.fieldInput, ti, { flex:1, marginBottom:0 }]} value={f.courtSearchText}
-                                            onChangeText={searchCourts} placeholder={t.courtSearchPlaceholder}
+                                            onChangeText={searchCourts}
+                                            placeholder={isAirsoft ? (lang==='tr' ? 'Mekan Adı Ara' : 'Search Venue Name') : t.courtSearchPlaceholder}
                                             placeholderTextColor={colors.textMuted} />
                                         {searching && <ActivityIndicator size="small" color={cfg.color} />}
                                     </View>
@@ -11640,20 +11574,45 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 onClose={() => setTimeField(null)}
                             />
 
-                            {/* Katılımcı Cinsiyeti | Derece | Sayı Sistemi | Set — tek satır, hepsi aynı yükseklikte (34) */}
+                            {/* Takım Büyüklüğü (sadece airsoft) | Katılımcı Cinsiyeti | Derece | Sayı Sistemi | Set —
+                                tek satır, hepsi aynı yükseklikte (30). Airsoft'ta Katılımcı Cinsiyeti alanı, ayrı bir
+                                genderType seçimi yerine takımın kaç kadın/erkekten oluşacağını (ya da serbest/mix)
+                                soran GenderCountModal'ı açıyor — iki ayrı cinsiyet kontrolü olması karışıklık
+                                yaratacağı için tek kontrolde birleştirildi. Derece de airsoft'ta daha dar. */}
                             <View style={{ flexDirection:'row', gap:2, alignItems:'flex-end', marginBottom:8 }}>
-                                <TouchableOpacity onPress={() => setShowGenderPicker(true)} style={{ alignSelf:'flex-start' }}>
+                                {isAirsoft && (
+                                    <TouchableOpacity onPress={() => setShowTeamSizePicker(true)} style={{ alignSelf:'flex-start' }}>
+                                        <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                            {lang==='tr' ? 'Takım Büyüklüğü' : 'Team Size'}
+                                        </Text>
+                                        <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.teamSize ? cfg.color : colors.border }}>
+                                            <Text style={{ color: f.teamSize ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                {f.teamSize ? `${f.teamSize}v${f.teamSize}` : t.tournSelectPlaceholder}
+                                            </Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity
+                                    onPress={() => isAirsoft ? (f.teamSize && setShowTeamGenderModal(true)) : setShowGenderPicker(true)}
+                                    disabled={isAirsoft && !f.teamSize}
+                                    style={{ alignSelf:'flex-start', opacity: (isAirsoft && !f.teamSize) ? 0.5 : 1 }}>
                                     <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournGenderLabel}</Text>
-                                    <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.genderType ? cfg.color : colors.border }}>
-                                        <Text style={{ color: f.genderType ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
-                                            {f.genderType ? t['tournGender' + f.genderType.charAt(0) + f.genderType.slice(1).toLowerCase()] : t.tournSelectPlaceholder}
+                                    <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: (isAirsoft ? f.teamRequiredMaleCount != null : f.genderType) ? cfg.color : colors.border }}>
+                                        <Text style={{ color: (isAirsoft ? f.teamRequiredMaleCount != null : f.genderType) ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                            {isAirsoft
+                                                ? (!f.teamSize
+                                                    ? (lang==='tr' ? 'Önce büyüklük' : 'Size first')
+                                                    : f.teamRequiredMaleCount != null
+                                                        ? `👨${f.teamRequiredMaleCount} 👩${parseInt(f.teamSize,10) - f.teamRequiredMaleCount}`
+                                                        : t.genderCountFreeLabel)
+                                                : (f.genderType ? t['tournGender' + f.genderType.charAt(0) + f.genderType.slice(1).toLowerCase()] : t.tournSelectPlaceholder)}
                                         </Text>
                                     </View>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={() => setShowRatingRange(true)} style={{ flex:1 }}>
+                                <TouchableOpacity onPress={() => setShowRatingRange(true)} style={isAirsoft ? { width:70 } : { flex:1 }}>
                                     <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>⭐ {t.ratingLimitLabel}</Text>
                                     <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.border }}>
-                                        <Text style={{ color: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                        <Text style={{ color: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                                             {f.ratingGenderSplit
                                                 ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
                                                 : ((!f.minRating && !f.maxRating) ? 'Serbest' : `${f.minRating || '0'}-${f.maxRating || '10'}`)}
@@ -11681,6 +11640,14 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                 </TouchableOpacity>
                             </View>
+                            <OptionPickerModal
+                                visible={showTeamSizePicker}
+                                title={lang==='tr' ? 'Takım Büyüklüğü' : 'Team Size'}
+                                options={Array.from({ length: 29 }, (_, i) => i + 2).map(n => ({ value: String(n), label: `${n}v${n}` }))}
+                                value={f.teamSize}
+                                onSelect={(v) => { set('teamSize', v); set('teamRequiredMaleCount', null); }}
+                                onClose={() => setShowTeamSizePicker(false)}
+                            />
                             <OptionPickerModal
                                 visible={showGenderPicker}
                                 title={t.tournGenderLabel}
@@ -11752,36 +11719,6 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 )}
                             </View>
 
-                            {/* Airsoft: Min/Max Oyuncu yerine — her takım kaç kişi olacak ve o kişilerin
-                                kız/erkek dağılımı ne olacak (GenderCountModal, voleybol ilanındaki
-                                requiredMaleCount'la aynı mantık, burada Tournament.teamRequiredMaleCount'a yazılır). */}
-                            {isAirsoft && (
-                                <View style={{ flexDirection:'row', gap:2, marginBottom:8 }}>
-                                    <View style={{ width:70 }}>
-                                        <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                            {lang==='tr' ? 'Takım Büyüklüğü' : 'Team Size'}
-                                        </Text>
-                                        <TextInput style={[s.fieldInput, ti, { height:30, paddingVertical:0, paddingHorizontal:4, textAlign:'center', fontSize:12 }]}
-                                            value={f.teamSize}
-                                            onChangeText={v => { set('teamSize', v.replace(/[^0-9]/g,'')); set('teamRequiredMaleCount', null); }}
-                                            placeholder="6" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
-                                    </View>
-                                    <TouchableOpacity onPress={() => f.teamSize && setShowTeamGenderModal(true)} disabled={!f.teamSize} style={{ flex:1 }}>
-                                        <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                            {lang==='tr' ? 'Cinsiyet Dağılımı' : 'Gender Split'}
-                                        </Text>
-                                        <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.teamRequiredMaleCount != null ? cfg.color : colors.border, opacity: f.teamSize ? 1 : 0.5 }}>
-                                            <Text style={{ color: f.teamRequiredMaleCount != null ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                {!f.teamSize
-                                                    ? (lang==='tr' ? 'Önce büyüklük gir' : 'Enter size first')
-                                                    : f.teamRequiredMaleCount != null
-                                                        ? `👨${f.teamRequiredMaleCount} 👩${parseInt(f.teamSize,10) - f.teamRequiredMaleCount}`
-                                                        : t.genderCountFreeLabel}
-                                            </Text>
-                                        </View>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
                             <GenderCountModal
                                 visible={showTeamGenderModal}
                                 total={parseInt(f.teamSize, 10) || 0}

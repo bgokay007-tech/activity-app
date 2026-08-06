@@ -9,7 +9,10 @@ import api from '../services/api';
 
 // Mangal Partisi ayrı bir tür olmaktan çıkarıldı — kullanıcı isteğiyle artık
 // İçecek/Yiyecek türünden serbest isimle eklenebiliyor (ör. "Mangal Partisi").
+// REFEREE, sadece `referee` prop'u verilen çağıranlarda (CreateRivalModal) gösterilir —
+// diğer kullanımlarda (ör. turnuva, ArtistsTab) bu sekme hiç görünmez.
 const EXTRA_TYPES = [
+    { key: 'REFEREE',    label: 'Hakem' },
     { key: 'FOOD_DRINK', label: 'İçecek/Yiyecek' },
     { key: 'DJ',         label: 'DJ' },
     { key: 'ARTIST',     label: 'Sanatçı' },
@@ -85,13 +88,95 @@ function ArtistPickerModal({ visible, onClose, onSelect }) {
     );
 }
 
-function AddServiceForm({ onAdd, onCancel }) {
-    const [type, setType] = useState('DJ');
+// Hakem — kendi davet/onay/bildirim akışı olduğu için genel {type,name,price,included}
+// listesine katılmıyor; `referee` prop'unun tuttuğu state/handler'lar doğrudan
+// CreateRivalModal'daki gerçek hakem sistemine bağlı (bkz. ExtraServicesEditor).
+function RefereeTypeContent({ referee }) {
+    return (
+        <View>
+            <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom:8 }}>
+                <TouchableOpacity
+                    onPress={referee.onToggleRequested}
+                    style={{ flex:0.6, height:34, alignItems:'center', justifyContent:'center', borderRadius:8, backgroundColor: referee.requested ? '#f59e0b20' : colors.surface, borderWidth:1, borderColor: referee.requested ? '#f59e0b70' : colors.border }}
+                >
+                    <Text style={{ color: referee.requested ? '#f59e0b' : colors.textMuted, fontSize:12, fontWeight:'800' }} numberOfLines={1}>
+                        {referee.requested ? '✓ Talep Edildi' : 'Hakem Talep Et'}
+                    </Text>
+                </TouchableOpacity>
+                <View style={{ flex:1, position:'relative' }}>
+                    <TextInput
+                        style={[st.input, { marginBottom:0, height:34 }]}
+                        value={referee.name}
+                        onChangeText={referee.onChangeName}
+                        placeholder="Hakem"
+                        placeholderTextColor={colors.textMuted}
+                    />
+                    {referee.suggestions.length > 0 && (
+                        <View style={{ position:'absolute', top:36, left:0, right:0, backgroundColor: colors.surface, borderRadius:8, borderWidth:1, borderColor: colors.border, zIndex:20, elevation:6 }}>
+                            {referee.suggestions.map(u => (
+                                <TouchableOpacity key={u.id} onPress={() => referee.onPickSuggestion(u)}
+                                    style={{ flexDirection:'row', alignItems:'center', gap:6, padding:7, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                    <Text style={{ color: colors.text, fontSize:12, fontWeight:'600' }} numberOfLines={1}>{u.fullName || u.username}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
+                </View>
+            </View>
+            {referee.requested && (
+                <>
+                    <TouchableOpacity onPress={referee.onInvitePress} style={[st.artistPickBtn, referee.invites.length > 0 && { borderColor: '#f59e0b70' }]}>
+                        <Text style={[st.artistPickText, referee.invites.length > 0 && { color: '#f59e0b' }]}>
+                            {referee.invites.length > 0 ? `Hakem Davet Et (${referee.invites.length})` : 'Hakem Davet Et'}
+                        </Text>
+                    </TouchableOpacity>
+                    {referee.invites.length > 0 && (
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:8 }}>
+                            {referee.invites.map(inv => (
+                                <TouchableOpacity key={inv.user.id} onPress={() => referee.onRemoveInvite(inv.user.id)}
+                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#f59e0b15', borderRadius:10, borderWidth:1, borderColor:'#f59e0b40', paddingHorizontal:7, paddingVertical:4 }}>
+                                    <Text style={{ color: colors.text, fontSize:11, fontWeight:'700' }} numberOfLines={1}>
+                                        {inv.user.fullName || inv.user.username}{inv.price ? ` · ${inv.price}₺` : ''}
+                                    </Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
+                    <Text style={st.label}>ÜCRET</Text>
+                    <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                        <TouchableOpacity onPress={() => referee.onSetFeeIncluded(true)} style={[st.priceChip, referee.feeIncluded && st.priceChipActive]}>
+                            <Text style={[st.priceChipText, referee.feeIncluded && st.priceChipTextActive]}>Fiyata Dahil</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => referee.onSetFeeIncluded(false)} style={[st.priceChip, !referee.feeIncluded && st.priceChipActive]}>
+                            <Text style={[st.priceChipText, !referee.feeIncluded && st.priceChipTextActive]}>Ekstra Ücret</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {!referee.feeIncluded && (
+                        <TextInput
+                            style={st.input}
+                            value={referee.payment}
+                            onChangeText={referee.onChangePayment}
+                            placeholder="+ Ücret (₺)"
+                            placeholderTextColor={colors.textMuted}
+                            keyboardType="numeric"
+                        />
+                    )}
+                </>
+            )}
+        </View>
+    );
+}
+
+function AddServiceForm({ onAdd, onCancel, referee }) {
+    const [type, setType] = useState(referee ? 'REFEREE' : 'DJ');
     const [name, setName] = useState('');
     const [priceMode, setPriceMode] = useState('EXTRA'); // 'EXTRA' | 'INCLUDED'
     const [price, setPrice] = useState('');
     const [artist, setArtist] = useState(null);
     const [showArtistPicker, setShowArtistPicker] = useState(false);
+
+    const visibleTypes = referee ? EXTRA_TYPES : EXTRA_TYPES.filter(t => t.key !== 'REFEREE');
 
     const confirm = () => {
         const finalName = type === 'ARTIST' ? (artist?.stageName || artist?.user?.username) : (name.trim() || EXTRA_TYPES.find(t => t.key === type)?.label);
@@ -112,7 +197,7 @@ function AddServiceForm({ onAdd, onCancel }) {
     return (
         <View style={st.form}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                {EXTRA_TYPES.map(t => (
+                {visibleTypes.map(t => (
                     <TouchableOpacity key={t.key}
                         onPress={() => { setType(t.key); setName(''); setArtist(null); }}
                         style={[st.chip, type === t.key && st.chipActive]}>
@@ -121,48 +206,56 @@ function AddServiceForm({ onAdd, onCancel }) {
                 ))}
             </View>
 
-            {type === 'ARTIST' ? (
-                <TouchableOpacity onPress={() => setShowArtistPicker(true)} style={st.artistPickBtn}>
-                    <Text style={st.artistPickText}>
-                        {artist ? `🎤 ${artist.stageName || artist.user?.username}` : 'Sanatçı Seç'}
-                    </Text>
-                </TouchableOpacity>
+            {type === 'REFEREE' ? (
+                <RefereeTypeContent referee={referee} />
             ) : (
-                <TextInput
-                    style={st.input}
-                    value={name}
-                    onChangeText={setName}
-                    placeholder={type === 'OTHER' ? 'Hizmet adı' : EXTRA_TYPES.find(t => t.key === type)?.label}
-                    placeholderTextColor={colors.textMuted}
-                />
-            )}
+                <>
+                    {type === 'ARTIST' ? (
+                        <TouchableOpacity onPress={() => setShowArtistPicker(true)} style={st.artistPickBtn}>
+                            <Text style={st.artistPickText}>
+                                {artist ? `🎤 ${artist.stageName || artist.user?.username}` : 'Sanatçı Seç'}
+                            </Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <TextInput
+                            style={st.input}
+                            value={name}
+                            onChangeText={setName}
+                            placeholder={type === 'OTHER' ? 'Hizmet adı' : EXTRA_TYPES.find(t => t.key === type)?.label}
+                            placeholderTextColor={colors.textMuted}
+                        />
+                    )}
 
-            <Text style={st.label}>FİYAT</Text>
-            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-                <TouchableOpacity onPress={() => setPriceMode('INCLUDED')} style={[st.priceChip, priceMode === 'INCLUDED' && st.priceChipActive]}>
-                    <Text style={[st.priceChipText, priceMode === 'INCLUDED' && st.priceChipTextActive]}>Fiyata Dahil</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setPriceMode('EXTRA')} style={[st.priceChip, priceMode === 'EXTRA' && st.priceChipActive]}>
-                    <Text style={[st.priceChipText, priceMode === 'EXTRA' && st.priceChipTextActive]}>Ekstra Ücret</Text>
-                </TouchableOpacity>
-            </View>
-            {priceMode === 'EXTRA' && (
-                <TextInput
-                    style={st.input}
-                    value={price}
-                    onChangeText={v => setPrice(v.replace(/[^0-9]/g, ''))}
-                    placeholder="+ Fiyat (₺)"
-                    placeholderTextColor={colors.textMuted}
-                    keyboardType="numeric"
-                />
+                    <Text style={st.label}>FİYAT</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                        <TouchableOpacity onPress={() => setPriceMode('INCLUDED')} style={[st.priceChip, priceMode === 'INCLUDED' && st.priceChipActive]}>
+                            <Text style={[st.priceChipText, priceMode === 'INCLUDED' && st.priceChipTextActive]}>Fiyata Dahil</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setPriceMode('EXTRA')} style={[st.priceChip, priceMode === 'EXTRA' && st.priceChipActive]}>
+                            <Text style={[st.priceChipText, priceMode === 'EXTRA' && st.priceChipTextActive]}>Ekstra Ücret</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {priceMode === 'EXTRA' && (
+                        <TextInput
+                            style={st.input}
+                            value={price}
+                            onChangeText={v => setPrice(v.replace(/[^0-9]/g, ''))}
+                            placeholder="+ Fiyat (₺)"
+                            placeholderTextColor={colors.textMuted}
+                            keyboardType="numeric"
+                        />
+                    )}
+                </>
             )}
 
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                <TouchableOpacity onPress={confirm} style={[st.confirmBtn, { flex: 1 }]}>
-                    <Text style={st.confirmBtnText}>Ekle</Text>
-                </TouchableOpacity>
+                {type !== 'REFEREE' && (
+                    <TouchableOpacity onPress={confirm} style={[st.confirmBtn, { flex: 1 }]}>
+                        <Text style={st.confirmBtnText}>Ekle</Text>
+                    </TouchableOpacity>
+                )}
                 <TouchableOpacity onPress={onCancel} style={[st.cancelBtn, { flex: 1 }]}>
-                    <Text style={st.cancelBtnText}>Vazgeç</Text>
+                    <Text style={st.cancelBtnText}>{type === 'REFEREE' ? 'Kapat' : 'Vazgeç'}</Text>
                 </TouchableOpacity>
             </View>
 
@@ -177,7 +270,7 @@ function AddServiceForm({ onAdd, onCancel }) {
 
 // Maç/turnuva ilanına eklenen ekstra hizmetler (DJ, sanatçı, mangal partisi vb.)
 // services: [{id, type, name, price, included, artistListingId?}]
-export default function ExtraServicesEditor({ services = [], onChange, extraSection = null }) {
+export default function ExtraServicesEditor({ services = [], onChange, referee = null }) {
     const insets = useSafeAreaInsets();
     const [showModal, setShowModal] = useState(false);
     const [adding, setAdding] = useState(false);
@@ -207,10 +300,6 @@ export default function ExtraServicesEditor({ services = [], onChange, extraSect
                                 contentContainerStyle={{ padding: 13, paddingBottom: Math.max(20, insets.bottom + 16) }}
                                 keyboardShouldPersistTaps="handled"
                             >
-                                {/* Hakem — kendi davet/onay/bildirim akışı olduğu için genel {type,name,
-                                    price,included} listesine katılmıyor, çağıran taraf (CreateRivalModal)
-                                    kendi hakem UI'ını buraya, listenin EN BAŞINA enjekte ediyor. */}
-                                {extraSection}
                                 {services.map(sv => (
                                     <View key={sv.id} style={st.row}>
                                         <Text style={st.rowText}>
@@ -233,7 +322,7 @@ export default function ExtraServicesEditor({ services = [], onChange, extraSect
                                         <Text style={st.addBtnText}>+ Hizmet Ekle</Text>
                                     </TouchableOpacity>
                                 ) : (
-                                    <AddServiceForm onAdd={addService} onCancel={() => setAdding(false)} />
+                                    <AddServiceForm onAdd={addService} onCancel={() => setAdding(false)} referee={referee} />
                                 )}
                             </ScrollView>
                         </View>
