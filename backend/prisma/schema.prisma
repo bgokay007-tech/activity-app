@@ -951,6 +951,8 @@ model Tournament {
   advantageScoring     Boolean?     @default(true)   // true=avantajlı, false=karar puanı, null=serbest
   matchesBeforePlayoff Int?         // play-off öncesi kaç maç
   playoffQualifiers    Int?         // play-off'a kaç kişi kalır
+  teamSize             Int?         // airsoft vb. takım tabanlı dallarda her takımın kişi sayısı (min/max oyuncu yerine)
+  teamRequiredMaleCount Int?        // teamSize'ın kaçı erkek olmalı — null = kısıtlama yok (bkz. ActivityRequest.requiredMaleCount ile aynı mantık)
   location       String?
   city           String?      // il (YEREL) | ülke (ULUSAL) | Dünya (ULUSLARARASI)
   surface        String?      // clay | hard | grass | carpet | sand | artificial

@@ -652,6 +652,7 @@ export const createTournament = async (req, res, next) => {
             ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
             matchmakingType, matchFrequency, matchTimeStart, matchTimeEnd, dayTrip,
             setsPerMatch, advantageScoring, matchesBeforePlayoff, playoffQualifiers,
+            teamSize, teamRequiredMaleCount,
             rules, extraServices,
             location, city,
             surface, isIndoor,
@@ -718,6 +719,12 @@ export const createTournament = async (req, res, next) => {
                 ...(advantageScoring !== undefined && { advantageScoring }),
                 matchesBeforePlayoff: matchesBeforePlayoff ? parseInt(matchesBeforePlayoff) : null,
                 playoffQualifiers: playoffQualifiers ? parseInt(playoffQualifiers) : null,
+                // Airsoft vb. takım tabanlı dallarda Min/Max Oyuncu yerine kullanılıyor — teamSize
+                // varsa ve requiredMaleCount 0..teamSize aralığındaysa kaydedilir, aksi halde yok sayılır.
+                teamSize: teamSize ? parseInt(teamSize) : null,
+                ...(teamSize && teamRequiredMaleCount !== undefined && teamRequiredMaleCount !== null
+                    && Number.isInteger(teamRequiredMaleCount) && teamRequiredMaleCount >= 0 && teamRequiredMaleCount <= parseInt(teamSize)
+                    ? { teamRequiredMaleCount: parseInt(teamRequiredMaleCount) } : {}),
                 maxPlayers: maxPlayers ? parseInt(maxPlayers) : 32,
                 location: location || null,
                 city: city || null,
