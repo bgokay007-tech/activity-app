@@ -186,6 +186,11 @@ function getTabs(sub, category) {
     // sağına Turnuvalar eklendi.
     if (sub === 'airsoft')
         return ['rivals', 'tournaments', 'equipment', 'media', 'posts', 'news', 'archive'];
+    // Ayak Tenisi: Destek/Ekipman/Bilet Al'a ihtiyaç yok; Haberler de gerçek "ayak tenisi"
+    // haberi neredeyse hiç çıkmadığı için (RSS zayıf eşleşince alakasız tenis haberi
+    // gösteriyordu) kaldırıldı.
+    if (sub === 'foot_tennis')
+        return ['rivals', 'media', 'posts', 'archive'];
     if (SIMPLE_TAB_SUBS.has(sub))
         return ['rivals', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
     if (sub === 'football')
@@ -5978,6 +5983,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         venuePayMethod: 'CASH',
         refereeRequested: false,
         refereePayment: '',
+        refereeFeeIncluded: false, // true = hakem ücreti hizmetlere/kort fiyatına dahil, ayrı ücret istenmiyor
         manualRefereeName: '', // sisteme kayıtlı olmayan hakem için serbest metin isim
         participantsCanInvite: true,
         extraServices: [],
@@ -6050,6 +6056,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 // sayısal alana geri konurken temizlenmezse kaydedince ikinci bir simge
                 // eklenip "1000₺₺" oluşuyordu.
                 refereePayment: (editItem.refereePayment || '').toString().replace(/[^0-9]/g, ''),
+                refereeFeeIncluded: !!editItem.refereeFeeIncluded,
                 manualRefereeName: editItem.manualRefereeName || '',
                 participantsCanInvite: !!editItem.participantsCanInvite,
                 extraServices: Array.isArray(editItem.extraServices) ? editItem.extraServices : [],
