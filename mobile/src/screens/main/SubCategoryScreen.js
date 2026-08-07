@@ -7357,6 +7357,26 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </View>
                                             </View>
                                         )}
+                                        {/* Geç İptal Cezası — kullanıcı isteğiyle Derece'nin hemen sağına taşındı
+                                            (tenis/padel teklide oradaki cinsiyet kısıtlamasıyla aynı konum), ve
+                                            değer boşken düğmenin buraya dokununca bir form açtığı net olsun diye
+                                            "Kapalı" yerine "Form"/"Set" yazıyor. */}
+                                        {isVolleyball && !isMatchedEdit && (
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1, flexGrow:1, justifyContent:'flex-end' }}>
+                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.cancelPenaltyHoursLabel}</Text>
+                                                <TouchableOpacity
+                                                    style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: f.cancelPenaltyHours !== '' ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:6 }}
+                                                    onPress={() => {
+                                                        const presets = [1,2,3,4,5,6,7,8,9,10,12,24,30,36,48].map(String);
+                                                        setCancelPenaltyManualText(f.cancelPenaltyHours && !presets.includes(f.cancelPenaltyHours) ? f.cancelPenaltyHours : '');
+                                                        setShowCancelPenaltyModal(true);
+                                                    }}>
+                                                    <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                                        {f.cancelPenaltyHours !== '' ? t.cancelPenaltyHoursOption(f.cancelPenaltyHours) : t.cancelPenaltyHoursFormLabel}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        )}
                                     </View>
                                     )}
                                     {!isTeamSport && f.matchType === 'SINGLE' && f.singleOppInvite && (
@@ -7658,19 +7678,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     onRemoveInvite: removeRefereeInvite,
                                                 } : null}
                                             />
-                                        )}
-                                        {isVolleyball && !isMatchedEdit && (
-                                            <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.cancelPenaltyHours !== '' && s.triBtnFilled]}
-                                                onPress={() => {
-                                                    const presets = [1,2,3,4,5,6,7,8,9,10,12,24,30,36,48].map(String);
-                                                    setCancelPenaltyManualText(f.cancelPenaltyHours && !presets.includes(f.cancelPenaltyHours) ? f.cancelPenaltyHours : '');
-                                                    setShowCancelPenaltyModal(true);
-                                                }}>
-                                                <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.cancelPenaltyHoursLabel}</Text>
-                                                <Text style={[s.triValue, f.cancelPenaltyHours === '' && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                                                    {f.cancelPenaltyHours !== '' ? t.cancelPenaltyHoursOption(f.cancelPenaltyHours) : t.cancelPenaltyHoursOff}
-                                                </Text>
-                                            </TouchableOpacity>
                                         )}
                                     </>
                                 )}
