@@ -1084,7 +1084,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             )}
                             {item.courtFeePerPerson > 0 && (
                                 <Text style={{ color:'#4ade80', fontSize:moderateScale(10) }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                    💰 {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson ? ` +${t.refereeFeeHint}` : ''}/{t.perPerson}
+                                    💰 {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''}/{t.perPerson}
                                 </Text>
                             )}
                             {!!feeByMethodHint(item.courtFeePerPersonByMethod) && (
@@ -2475,7 +2475,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 </Text>
                 {item.courtFeePerPerson > 0 && (
                     <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#4ade80' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                        💰 {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
+                        💰 {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
                     </Text>
                 )}
                 {!!feeByMethodHint(item.courtFeePerPersonByMethod) && (
@@ -3551,7 +3551,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             <Text style={{ color:'#4ade80', fontSize:13, marginTop:4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 💰 {match.refereeFeePerPerson > 0
                                     ? t.refereeFeeTotalLabel(match.courtFeePerPerson, match.refereeFeePerPerson, match.courtFeePerPerson + match.refereeFeePerPerson)
-                                    : `${match.courtFeePerPerson}₺${match.refereeRequested ? ` +${t.refereeFeeHint}` : ''}`} / {t.perPerson}
+                                    : `${match.courtFeePerPerson}₺${match.refereeRequested && !match.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''}`} / {t.perPerson}
                             </Text>
                         )}
                         {!!feeByMethodHint(match.courtFeePerPersonByMethod) && (
@@ -7531,9 +7531,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </TouchableOpacity>
                                                 </View>
                                                 {/* Geç İptal Cezası — ayrı bir etiket yok, tek kompakt düğme; boşken
-                                                    üstünde direkt "İptal" yazıyor, dokununca modal açılıyor (modalın
-                                                    kendi başlığı tam "Geç İptal Cezası"). Cinsiyet Dağılımı/Derece/kilit
-                                                    ile aynı satırda yer kaplamasın diye tek Text'e indirildi. */}
+                                                    okunaklı tam metin ("Geç İptal Cezası") yazıyor, düğme buna göre
+                                                    genişleyebilir — bir saat seçilince ise sadece o saat (kısa) yazıp
+                                                    küçülüyor. Cinsiyet Dağılımı/Derece/kilit ile aynı satırda. */}
                                                 {!isMatchedEdit && (
                                                     <TouchableOpacity
                                                         style={{ height:30, backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: f.cancelPenaltyHours !== '' ? colors.purple+'80' : colors.border, paddingHorizontal:7, flexShrink:1 }}
@@ -7542,8 +7542,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             setCancelPenaltyManualText(f.cancelPenaltyHours && !presets.includes(f.cancelPenaltyHours) ? f.cancelPenaltyHours : '');
                                                             setShowCancelPenaltyModal(true);
                                                         }}>
-                                                        <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
-                                                            {f.cancelPenaltyHours !== '' ? t.cancelPenaltyHoursOption(f.cancelPenaltyHours) : t.cancelPenaltyShortLabel}
+                                                        <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+                                                            {f.cancelPenaltyHours !== '' ? t.cancelPenaltyHoursOption(f.cancelPenaltyHours) : t.cancelPenaltyHoursLabel}
                                                         </Text>
                                                     </TouchableOpacity>
                                                 )}

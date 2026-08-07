@@ -303,12 +303,17 @@ export default function ExtraServicesEditor({ services = [], onChange, referee =
     const remove = (id) => onChange(services.filter(s => s.id !== id));
     const addService = (entry) => onChange([...services, entry]);
 
+    const refereeRowName = referee && referee.requested
+        ? (referee.invites[0] ? (referee.invites[0].user.fullName || referee.invites[0].user.username) : referee.name.trim())
+        : '';
+    const totalCount = services.length + (refereeRowName ? 1 : 0);
+
     return (
         <View style={st.triBtn}>
             <TouchableOpacity onPress={() => setShowModal(true)} style={{ alignItems: 'center' }}>
                 <Text style={st.triLabel}>HİZMETLER</Text>
-                <Text style={[st.triValue, services.length === 0 && st.triPlaceholder]}>
-                    {services.length > 0 ? `🎉 ${services.length}` : '—'}
+                <Text style={[st.triValue, totalCount === 0 && st.triPlaceholder]}>
+                    {totalCount > 0 ? `🎉 ${totalCount}` : '—'}
                 </Text>
             </TouchableOpacity>
 
@@ -325,6 +330,20 @@ export default function ExtraServicesEditor({ services = [], onChange, referee =
                                 contentContainerStyle={{ padding: 13, paddingBottom: Math.max(20, insets.bottom + 16) }}
                                 keyboardShouldPersistTaps="handled"
                             >
+                                {/* Hakem, genel {type,name,price,included} listesine katılmıyor (kendi
+                                    davet/onay akışı var, bkz. dosya başındaki not) ama kullanıcı isteğiyle
+                                    diğer hizmetler gibi eklenir eklenmez burada, listenin başında görünür. */}
+                                {refereeRowName && (
+                                    <View style={st.row}>
+                                        <Text style={st.rowText}>Hakem — {refereeRowName}</Text>
+                                        <Text style={referee.feeIncluded ? st.rowIncluded : st.rowPrice}>
+                                            {referee.feeIncluded ? 'Dahil' : (referee.payment ? `+${referee.payment}₺` : '')}
+                                        </Text>
+                                        <TouchableOpacity onPress={referee.onToggleRequested} style={{ padding: 4 }}>
+                                            <Text style={{ color: '#f87171', fontSize: 14 }}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
                                 {services.map(sv => (
                                     <View key={sv.id} style={st.row}>
                                         <Text style={st.rowText}>
