@@ -226,6 +226,7 @@ function CourtsTab() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [refreshing, setRefreshing] = useState(false);
+    const [sportFilter, setSportFilter] = useState('all');
 
     const load = useCallback(async (isRefresh = false) => {
         if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -250,9 +251,19 @@ function CourtsTab() {
         ]);
     };
 
+    // Binlerce kort birikince tenis/padel/voleybol vb. birbirine karışmasın diye
+    // dal filtresi — sabit bir dal listesi tutmak yerine veride gerçekten var olan
+    // dalları (ve sayılarını) gösterir, yeni bir dal eklendiğinde otomatik çıkar.
+    const sportCounts = courts.reduce((acc, c) => { const s = c.sport || '—'; acc[s] = (acc[s] || 0) + 1; return acc; }, {});
+    const sportOptions = [
+        { key: 'all', label: `Tümü (${courts.length})` },
+        ...Object.keys(sportCounts).sort((a, b) => sportCounts[b] - sportCounts[a]).map(s => ({ key: s, label: `${s} (${sportCounts[s]})` })),
+    ];
+
     const filtered = courts.filter(c =>
-        (c.name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (c.city || '').toLowerCase().includes(search.toLowerCase())
+        (sportFilter === 'all' || c.sport === sportFilter) &&
+        ((c.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (c.city || '').toLowerCase().includes(search.toLowerCase()))
     );
 
     if (loading) return <LoadingView />;
@@ -260,6 +271,7 @@ function CourtsTab() {
     return (
         <View style={{ flex: 1 }}>
             <SearchBar value={search} onChangeText={setSearch} placeholder="Kort adı veya şehir..." />
+            {sportOptions.length > 2 && <FilterRow options={sportOptions} active={sportFilter} onChange={setSportFilter} />}
             <FlatList
                 data={filtered}
                 keyExtractor={c => c.id}
@@ -436,6 +448,7 @@ function VenuesTab() {
     const [refreshing, setRefreshing] = useState(false);
     const [rejectId, setRejectId] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
+    const [sportFilter, setSportFilter] = useState('all');
 
     const load = useCallback(async (isRefresh = false) => {
         if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -466,10 +479,18 @@ function VenuesTab() {
 
     if (loading) return <LoadingView />;
 
+    const branchCounts = venues.reduce((acc, v) => { const b = v.branch || '—'; acc[b] = (acc[b] || 0) + 1; return acc; }, {});
+    const branchOptions = [
+        { key: 'all', label: `Tümü (${venues.length})` },
+        ...Object.keys(branchCounts).sort((a, b) => branchCounts[b] - branchCounts[a]).map(b => ({ key: b, label: `${b} (${branchCounts[b]})` })),
+    ];
+    const filteredVenues = sportFilter === 'all' ? venues : venues.filter(v => v.branch === sportFilter);
+
     return (
         <>
+            {branchOptions.length > 2 && <FilterRow options={branchOptions} active={sportFilter} onChange={setSportFilter} />}
             <FlatList
-                data={venues}
+                data={filteredVenues}
                 keyExtractor={v => v.id}
                 contentContainerStyle={{ padding: 12 }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.purple} />}

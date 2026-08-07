@@ -24,6 +24,30 @@ const TAB_LABEL = {
     'venue-reviews':    '⭐ Tesis Yorumu',
 };
 
+// Spor dalına göre filtre çipleri — kort/salon listeleri büyüdükçe (binlerce kayıt)
+// tenis/padel/voleybol vb. birbirine karışmasın diye Courts/Pending Venues/İşletme
+// Tesisleri panellerinin üçünde de kullanılıyor. Sabit bir dal listesi tutmak yerine
+// mevcut veride gerçekten var olan dalları (ve sayılarını) gösterir, yeni bir dal
+// eklendiğinde otomatik çıkar, bakım gerektirmez.
+function SportFilterChips({ items, getSport, value, onChange }) {
+    const counts = {};
+    for (const it of items) {
+        const s = getSport(it) || '—';
+        counts[s] = (counts[s] || 0) + 1;
+    }
+    const sports = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    if (sports.length <= 1) return null;
+    const chipClass = (active) => `shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border transition ${active ? 'bg-purple-500/20 border-purple-500 text-purple-300' : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-600'}`;
+    return (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+            <button onClick={() => onChange('all')} className={chipClass(value === 'all')}>Tümü ({items.length})</button>
+            {sports.map(s => (
+                <button key={s} onClick={() => onChange(s)} className={chipClass(value === s)}>{s} ({counts[s]})</button>
+            ))}
+        </div>
+    );
+}
+
 function StatCard({ label, value, color = 'text-white' }) {
     return (
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 text-center">
@@ -131,6 +155,7 @@ function CourtsPanel() {
     const [courts, setCourts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [sportFilter, setSportFilter] = useState('all');
     const [error, setError] = useState(null);
 
     useEffect(() => {
@@ -167,8 +192,9 @@ function CourtsPanel() {
     };
 
     const filtered = courts.filter(c =>
-        (c.name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (c.city || '').toLowerCase().includes(search.toLowerCase())
+        (sportFilter === 'all' || c.sport === sportFilter) &&
+        ((c.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (c.city || '').toLowerCase().includes(search.toLowerCase()))
     );
 
     if (loading) return <p className="text-gray-500 text-center py-16">Loading...</p>;
@@ -176,6 +202,7 @@ function CourtsPanel() {
 
     return (
         <div className="space-y-4">
+            <SportFilterChips items={courts} getSport={c => c.sport} value={sportFilter} onChange={setSportFilter} />
             <input value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Search by name or city..."
                 className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500" />
@@ -354,6 +381,7 @@ function VenuesPanel() {
     const [rejectReason, setRejectReason] = useState({});
     const [showReject, setShowReject] = useState({});
     const [error, setError] = useState(null);
+    const [sportFilter, setSportFilter] = useState('all');
 
     useEffect(() => {
         api.get('/courts/admin/pending')
@@ -395,9 +423,12 @@ function VenuesPanel() {
         </div>
     );
 
+    const filtered = sportFilter === 'all' ? courts : courts.filter(c => c.sport === sportFilter);
+
     return (
         <div className="space-y-4">
-            {courts.map(court => (
+            <SportFilterChips items={courts} getSport={c => c.sport} value={sportFilter} onChange={setSportFilter} />
+            {filtered.map(court => (
                 <div key={court.id} className="bg-gray-900 border border-gray-700 rounded-2xl p-5 space-y-3">
                     <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs font-bold">
@@ -407,6 +438,7 @@ function VenuesPanel() {
                             <p className="text-white text-sm font-bold">{court.user?.fullName || court.user?.username}</p>
                             <p className="text-gray-500 text-xs">Submitted {new Date(court.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                         </div>
+                        {court.sport && <span className="text-xs font-bold text-purple-300 bg-purple-500/10 border border-purple-500/30 px-2 py-0.5 rounded-full">{court.sport}</span>}
                         <span className="text-xs font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-2 py-0.5 rounded-full">⏳ Pending</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -1081,6 +1113,7 @@ function BusinessVenuesPanel() {
     const [venues, setVenues] = useState([]);
     const [loading, setLoading] = useState(true);
     const [actionId, setActionId] = useState(null);
+    const [sportFilter, setSportFilter] = useState('all');
 
     const load = useCallback(() => {
         setLoading(true);
@@ -1116,10 +1149,13 @@ function BusinessVenuesPanel() {
         </div>
     );
 
+    const filtered = sportFilter === 'all' ? venues : venues.filter(v => v.branch === sportFilter);
+
     return (
         <div className="space-y-5">
-            <p className="text-gray-400 text-sm">{venues.length} bekleyen tesis başvurusu</p>
-            {venues.map(v => (
+            <SportFilterChips items={venues} getSport={v => v.branch} value={sportFilter} onChange={setSportFilter} />
+            <p className="text-gray-400 text-sm">{filtered.length} bekleyen tesis başvurusu</p>
+            {filtered.map(v => (
                 <div key={v.id} className="bg-gray-900 border border-gray-700 rounded-2xl p-5 space-y-4">
                     <div className="flex justify-between items-start">
                         <div>
