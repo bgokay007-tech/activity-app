@@ -508,6 +508,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
     const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2' — seçili slot
+    // Voleybol kadro kartındaki Yedek Sayısı seçici — ilan oluşturma formundaki subCount
+    // ile aynı mantık, açık ilanda da kurucu ayarlayabiliyor (bkz. updateSubCount).
+    const [showSubCountPicker, setShowSubCountPicker] = useState(false);
     // Çiftlerde kabul edilen oyuncular varsayılan olarak Partner/Rakip 1/Rakip 2 kartlarına
     // otomatik yerleşmiş gösterilmez — önce sırayla "Katılımcı 1/2/3" olarak listelenir,
     // kurucu isterse "Takımları Düzenle" ile mevcut kart/takas ekranını açar.
@@ -853,6 +856,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
 
+    // Yedek Sayısı — ilan oluşturma formundaki subCount ile aynı alan, sadece açık
+    // (henüz eşleşmemiş) ilanda kurucu değiştirebilir.
+    const updateSubCount = (n) => {
+        setShowSubCountPicker(false);
+        api.patch(`/rivals/${item.id}`, { subCount: n })
+            .then(onRefresh)
+            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+    };
+
     const SLOT_LABELS = { partner: 'Kurucu Takımı (Partner)', opp1: 'Rakip 1', opp2: 'Rakip 2' };
 
     // Asıl taşıma isteğini backend'e gönderir ve İKİ dizinin de (participants +
@@ -1124,7 +1136,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 state'i (DOUBLE'da kullanılanla aynı) burada da ön/arka geçişi için kullanılıyor. */}
                             {item.matchType !== 'DOUBLE' && !isRefereeAd && (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) && (
                                 <TouchableOpacity onPress={() => toggleTeamCards(!showTeamCards)} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🔄 {showTeamCards ? t.rosterPoolLabel : `${t.myTeamLabel} ↔ ${t.oppTeamLabel}`}</Text>
+                                    <Text style={{ color: cfg.color, fontSize:13, fontWeight:'700' }}>🔄</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -1481,12 +1493,33 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     <View key={`empty-${i}`} style={{ width:'31%' }}><EmptyCell /></View>
                                                 ))}
                                             </View>
-                                            {subSlots.length > 0 && (
+                                            {(item.substituteCount > 0 || subSlots.length > 0 || isOwner) && (
                                                 <>
-                                                    <Text style={[s.fieldLabel, { fontSize:11, marginTop:8 }]}>{t.subsLabel}</Text>
-                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4 }}>
-                                                        {subSlots.map((p, i) => <View key={p.id || `sub-${i}`} style={{ width:'31%' }}><Cell p={p} /></View>)}
+                                                    <View style={{ flexDirection:'row', alignItems:'center', marginTop:8, marginBottom:4, position:'relative', zIndex: showSubCountPicker ? 51 : 1 }}>
+                                                        <Text style={[s.fieldLabel, { fontSize:11, marginBottom:0, flex:1 }]}>{t.subsLabel}</Text>
+                                                        {isOwner && (
+                                                            <>
+                                                                <TouchableOpacity onPress={() => setShowSubCountPicker(v => !v)} style={{ backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:8, paddingVertical:3 }}>
+                                                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>{t.subCountLabel}: {item.substituteCount || 0}</Text>
+                                                                </TouchableOpacity>
+                                                                <MiniDropdown
+                                                                    visible={showSubCountPicker}
+                                                                    options={[0, 1, 2, 3, 4, 5].map(n => ({ value: n, label: String(n) }))}
+                                                                    value={item.substituteCount || 0}
+                                                                    onSelect={(v) => updateSubCount(v)}
+                                                                    onClose={() => setShowSubCountPicker(false)}
+                                                                />
+                                                            </>
+                                                        )}
                                                     </View>
+                                                    {(item.substituteCount > 0 || subSlots.length > 0) && (
+                                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4 }}>
+                                                            {subSlots.map((p, i) => <View key={p.id || `sub-${i}`} style={{ width:'31%' }}><Cell p={p} /></View>)}
+                                                            {Array.from({ length: Math.max(0, (item.substituteCount || 0) - subSlots.length) }).map((_, i) => (
+                                                                <View key={`sub-empty-${i}`} style={{ width:'31%' }}><EmptyCell /></View>
+                                                            ))}
+                                                        </View>
+                                                    )}
                                                 </>
                                             )}
                                         </>
@@ -6356,6 +6389,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 minRatingFemale: editItem.minRatingFemale != null ? String(editItem.minRatingFemale) : '',
                 maxRatingFemale: editItem.maxRatingFemale != null ? String(editItem.maxRatingFemale) : '',
                 cancelPenaltyHours: editItem.cancelPenaltyHours != null ? String(editItem.cancelPenaltyHours) : '',
+                subCount: editItem.substituteCount || 0,
                 genderReq: editItem.genderReq || 'MIX',
                 partnerGenderReq: editItem.partnerGenderReq || 'MIX',
                 opp1GenderReq: editItem.opp1GenderReq || 'MIX',
@@ -7088,6 +7122,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 minRatingFemale: f.minRatingFemale !== '' ? parseFloat(f.minRatingFemale) : undefined,
                 maxRatingFemale: f.maxRatingFemale !== '' ? parseFloat(f.maxRatingFemale) : undefined,
                 cancelPenaltyHours: isVolleyball && f.cancelPenaltyHours !== '' ? parseInt(f.cancelPenaltyHours, 10) : undefined,
+                subCount: isVolleyball ? (f.subCount || 0) : undefined,
                 genderReq: (sub === 'tennis' || sub === 'padel') ? f.genderReq : undefined,
                 partnerGenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.partnerGenderReq : undefined,
                 opp1GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp1GenderReq : undefined,

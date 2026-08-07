@@ -752,6 +752,7 @@ model ActivityRequest {
   participants    Json         @default("[]")     // [{id, username, fullName}]
   senderTeam      Json         @default("[]")     // team sports (football/volleyball): creator's additional teammates — real users [{id,username,fullName,skillRating}] or guests [{manualName}]
   substitutePlayers Json       @default("[]")     // voleybol: yedek oyuncular — senderTeam ile aynı şekil (gerçek kullanıcı veya {manualName}), taraf bağımsız
+  substituteCount Int          @default(0)        // voleybol: ilan sahibinin istediği yedek KONTENJANI (create formundaki subCount ile aynı) — substitutePlayers doluluğundan bağımsız, açık ilanda da değiştirilebilir
   unassignedPlayers Json       @default("[]")     // voleybol: açık ilana katılıp henüz Kurucu/Rakip'e atanmamış oyuncular — ilan sahibi Yaklaşan Maçlar kartından elle atar (bkz. assignPlayerToSide)
   oppTeamManualNames Json      @default("[]")     // team sports: opponent-side names typed in for players without an app account (display-only, ["Ahmet Yılmaz", ...])
   positions       Json         @default("[]")     // e.g. ['REFEREE'] | ['REFEREE_OFFER'] | ['GOALKEEPER']

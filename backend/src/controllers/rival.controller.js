@@ -660,7 +660,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
                 matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq, requiredMaleCount, winsNeeded,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment, refereeFeeIncluded, manualRefereeName,
-                teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes, cancelPenaltyHours } = req.body;
+                teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes, cancelPenaltyHours, subCount } = req.body;
 
         let cleanExtraServices;
         if (extraServices !== undefined) {
@@ -736,6 +736,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(requiredMaleCount !== undefined && { requiredMaleCount: requiredMaleCount !== null && requiredMaleCount !== '' ? parseInt(requiredMaleCount, 10) : null }),
                 ...(winsNeeded !== undefined && { winsNeeded: winsNeeded !== null && winsNeeded !== '' ? parseInt(winsNeeded, 10) : null }),
                 ...(cancelPenaltyHours !== undefined && { cancelPenaltyHours: cancelPenaltyHours !== null && cancelPenaltyHours !== '' ? parseInt(cancelPenaltyHours, 10) : null }),
+                ...(subCount !== undefined && { substituteCount: Math.max(0, parseInt(subCount, 10) || 0) }),
                 ...(venueId !== undefined && { venueId: venueId || null }),
                 ...(venueCourtId !== undefined && { venueCourtId: venueCourtId || null }),
                 ...(venueReservationId !== undefined && { venueReservationId: venueReservationId || null }),
@@ -1180,6 +1181,7 @@ export const createRivalRequest = async (req, res, next) => {
             unassignedManualNames, // voleybol: hangi takımda oynayacağı henüz belli olmayan, uygulamayı kullanmayan oyuncular için serbest metin isimler
             participantsCanInvite, // true ise kabul edilmiş katılımcılar da oyuncu davet edebilir / ilanı paylaşabilir
             cancelPenaltyHours, // voleybol: maça kaç saat kala tek taraflı iptalin cezalı (-0.10★) sayılacağı — null/undefined = genel 5 saat/-0.20 kuralı geçerli
+            subCount, // voleybol: istenen yedek oyuncu kontenjanı (substitutePlayers doluluğundan bağımsız)
         } = req.body;
         console.log(`[rival] createRivalRequest creatorId=${creatorId} sub=${subCategory}`);
 
@@ -1286,6 +1288,7 @@ export const createRivalRequest = async (req, res, next) => {
                 teamSize: Number(teamSize) || 1,
                 ...(subCategory === 'volleyball' && cancelPenaltyHours !== undefined && cancelPenaltyHours !== null && cancelPenaltyHours !== ''
                     && { cancelPenaltyHours: parseInt(cancelPenaltyHours, 10) }),
+                ...(subCategory === 'volleyball' && { substituteCount: Math.max(0, parseInt(subCount, 10) || 0) }),
                 ...(req.body.duration && { duration: Number(req.body.duration) }),
                 participants: [],
                 // DOUBLE + partnerInviteId: partner henüz kabul etmedi, senderTeam boş.
