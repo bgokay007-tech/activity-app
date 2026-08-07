@@ -449,31 +449,36 @@ function VenuesTab() {
     const [rejectId, setRejectId] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
     const [sportFilter, setSportFilter] = useState('all');
+    // Eskiden sadece PENDING (onay bekleyen) tesisler dönüyordu — onaylanmış (PRO paket
+    // dahil, aktif) tesislerin kortları/sahaları admin panelinde hiçbir yerde görünmüyordu.
+    const [statusFilter, setStatusFilter] = useState('ALL');
 
     const load = useCallback(async (isRefresh = false) => {
         if (isRefresh) setRefreshing(true); else setLoading(true);
         try {
-            const { data } = await api.get('/venues/admin/pending');
+            const { data } = await api.get('/venues/admin/pending', { params: { status: statusFilter } });
             setVenues(Array.isArray(data) ? data : []);
         } catch {}
         if (isRefresh) setRefreshing(false); else setLoading(false);
-    }, []);
+    }, [statusFilter]);
 
     useEffect(() => { load(); }, [load]);
 
     const approve = async (v) => {
         try {
             await api.patch(`/venues/${v.id}/approve`);
-            setVenues(prev => prev.filter(x => x.id !== v.id));
+            // Filtre "ALL"/"APPROVED" ise onaylanan tesis listede kalmalı, "PENDING" ise
+            // düşmeli — yerel filtreleme yerine sunucudan yeniden çekmek ikisini de doğru yapar.
+            load();
         } catch { Alert.alert('Hata', 'Onaylanamadı.'); }
     };
 
     const reject = async () => {
         try {
             await api.patch(`/venues/${rejectId}/reject`, { adminNote: rejectReason });
-            setVenues(prev => prev.filter(v => v.id !== rejectId));
             setRejectId(null);
             setRejectReason('');
+            load();
         } catch { Alert.alert('Hata', 'Reddedilemedi.'); }
     };
 
@@ -488,6 +493,16 @@ function VenuesTab() {
 
     return (
         <>
+            <FilterRow
+                options={[
+                    { key: 'ALL',      label: 'Tümü' },
+                    { key: 'PENDING',  label: '⏳ Bekleyen' },
+                    { key: 'APPROVED', label: '✅ Onaylı' },
+                    { key: 'REJECTED', label: '❌ Reddedilen' },
+                ]}
+                active={statusFilter}
+                onChange={setStatusFilter}
+            />
             {branchOptions.length > 2 && <FilterRow options={branchOptions} active={sportFilter} onChange={setSportFilter} />}
             <FlatList
                 data={filteredVenues}
@@ -496,16 +511,25 @@ function VenuesTab() {
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.purple} />}
                 renderItem={({ item: v }) => (
                     <View style={[s.card, { flexDirection: 'column', gap: 8 }]}>
-                        <Text style={s.cardTitle}>{v.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={[s.cardTitle, { flex: 1 }]}>{v.name}</Text>
+                            <Text style={{
+                                fontSize: 10, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999,
+                                color: v.status === 'APPROVED' ? '#34d399' : v.status === 'REJECTED' ? '#f87171' : '#fbbf24',
+                                backgroundColor: v.status === 'APPROVED' ? '#10b98120' : v.status === 'REJECTED' ? '#ef444420' : '#f59e0b20',
+                            }}>{v.status}</Text>
+                        </View>
                         <Text style={s.cardMeta}>{v.city} — {v.branch} · {v.courts?.length ?? 0} kort</Text>
                         <Text style={s.cardMeta}>Gönderen: {v.user?.businessName || (v.user?.username ? '@' + v.user.username : '?')}</Text>
-                        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                            <Btn label="✅ Onayla" onPress={() => approve(v)} color="#10b981" small />
-                            <Btn label="✕ Reddet" onPress={() => setRejectId(v.id)} color="#ef4444" small />
-                        </View>
+                        {v.status === 'PENDING' && (
+                            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                                <Btn label="✅ Onayla" onPress={() => approve(v)} color="#10b981" small />
+                                <Btn label="✕ Reddet" onPress={() => setRejectId(v.id)} color="#ef4444" small />
+                            </View>
+                        )}
                     </View>
                 )}
-                ListEmptyComponent={<EmptyView text="Bekleyen tesis yok. ✅" />}
+                ListEmptyComponent={<EmptyView text="Bu filtrede tesis yok." />}
             />
             <Modal visible={!!rejectId} transparent animationType="fade" onRequestClose={() => setRejectId(null)}>
                 <View style={s.overlay}>

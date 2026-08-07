@@ -1702,10 +1702,16 @@ export const getVenueById = async (req, res, next) => {
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
+// status query param eklendi — eskiden sadece PENDING (onay bekleyen) tesisler
+// dönüyordu, admin panelinde onaylanmış (PRO paket dahil, aktif) tesislerin
+// kortlarını/sahalarını görebileceği hiçbir yer yoktu. status=ALL tümünü,
+// status=APPROVED/REJECTED ilgili durumu, parametre yoksa eskisi gibi PENDING döner.
 export const getPendingVenues = async (req, res, next) => {
     try {
+        const { status } = req.query;
+        const where = !status || status === 'PENDING' ? { status: 'PENDING' } : status === 'ALL' ? {} : { status };
         const venues = await prisma.businessVenue.findMany({
-            where: { status: 'PENDING' },
+            where,
             include: {
                 courts: true,
                 user: { select: { id: true, username: true, businessName: true, email: true } },

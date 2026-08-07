@@ -13015,6 +13015,13 @@ export default function SubCategoryScreen({ route, navigation }) {
             if (tab === 'equipment') return lang === 'tr' ? `${sportDisplayName} Ekipmanları` : `${sportDisplayName} Equipment`;
         }
         if (tab === 'routes') return t.routesTab || (lang === 'tr' ? 'Rotalar' : 'Trails');
+        // Voleybolde kullanıcı isteğiyle bu iki sekmenin etiketi diğer dallara göre TERS —
+        // "rivals" sekmesi (kadro/takım kurma ilanları) burada "Oyuncu Ara" olarak, "player_wanted"
+        // sekmesi ise "Rakip Bul" olarak gösteriliyor. Diğer dallarda (ör. futbol) değişmedi.
+        if (sub === 'volleyball') {
+            if (tab === 'rivals') return t.player_wantedTab;
+            if (tab === 'player_wanted') return t.rivalsTab;
+        }
         return t[tab + 'Tab'];
     };
 

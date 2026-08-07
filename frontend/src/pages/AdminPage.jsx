@@ -1114,11 +1114,15 @@ function BusinessVenuesPanel() {
     const [loading, setLoading] = useState(true);
     const [actionId, setActionId] = useState(null);
     const [sportFilter, setSportFilter] = useState('all');
+    // Eskiden bu panel sadece PENDING (onay bekleyen) tesisleri gösteriyordu — onaylanmış
+    // (PRO paket dahil, aktif) tesislerin kortları/sahaları admin panelinde HİÇBİR YERDE
+    // görünmüyordu. Varsayılan artık "Tümü", isteyen sadece bekleyenleri de filtreleyebilir.
+    const [statusFilter, setStatusFilter] = useState('ALL');
 
     const load = useCallback(() => {
         setLoading(true);
-        api.get('/venues/admin/pending').then(r => setVenues(r.data)).catch(() => {}).finally(() => setLoading(false));
-    }, []);
+        api.get('/venues/admin/pending', { params: { status: statusFilter } }).then(r => setVenues(r.data)).catch(() => {}).finally(() => setLoading(false));
+    }, [statusFilter]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -1141,20 +1145,36 @@ function BusinessVenuesPanel() {
     const SLOT_LABELS = { FULL_HOUR: 'Tam Saatler', HALF_HOUR: 'Buçuklu Saatler', FLEXIBLE: 'Serbest Süre' };
     const DAY_NAMES = ['', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 
+    const STATUS_LABEL = { PENDING: '⏳ Bekleyen', APPROVED: '✅ Onaylı', REJECTED: '❌ Reddedilen', ALL: 'Tümü' };
+    const statusBadge = (status) => ({
+        PENDING:  'bg-yellow-900/40 border border-yellow-700/50 text-yellow-400',
+        APPROVED: 'bg-green-900/40 border border-green-700/50 text-green-400',
+        REJECTED: 'bg-red-900/40 border border-red-700/50 text-red-400',
+    }[status] || 'bg-gray-800 border border-gray-700 text-gray-400');
+
     if (loading) return <p className="text-gray-500 text-center py-16">Yükleniyor...</p>;
-    if (!venues.length) return (
-        <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
-            <p className="text-4xl mb-3">✅</p>
-            <p className="text-white font-bold">Bekleyen tesis başvurusu yok</p>
-        </div>
-    );
 
     const filtered = sportFilter === 'all' ? venues : venues.filter(v => v.branch === sportFilter);
 
     return (
         <div className="space-y-5">
+            <div className="flex gap-2">
+                {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map(st => (
+                    <button key={st} onClick={() => setStatusFilter(st)}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-full border transition ${statusFilter === st ? 'bg-purple-500/20 border-purple-500 text-purple-300' : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-600'}`}>
+                        {STATUS_LABEL[st]}
+                    </button>
+                ))}
+            </div>
             <SportFilterChips items={venues} getSport={v => v.branch} value={sportFilter} onChange={setSportFilter} />
-            <p className="text-gray-400 text-sm">{filtered.length} bekleyen tesis başvurusu</p>
+            {!venues.length ? (
+                <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
+                    <p className="text-4xl mb-3">✅</p>
+                    <p className="text-white font-bold">Bu filtrede tesis yok</p>
+                </div>
+            ) : (
+            <>
+            <p className="text-gray-400 text-sm">{filtered.length} tesis</p>
             {filtered.map(v => (
                 <div key={v.id} className="bg-gray-900 border border-gray-700 rounded-2xl p-5 space-y-4">
                     <div className="flex justify-between items-start">
@@ -1166,7 +1186,7 @@ function BusinessVenuesPanel() {
                                 {' · '}{v.user?.email}
                             </p>
                         </div>
-                        <span className="bg-yellow-900/40 border border-yellow-700/50 text-yellow-400 text-xs font-black px-3 py-1 rounded-full">BEKLIYOR</span>
+                        <span className={`text-xs font-black px-3 py-1 rounded-full ${statusBadge(v.status)}`}>{v.status}</span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 text-sm">
@@ -1202,22 +1222,26 @@ function BusinessVenuesPanel() {
 
                     <p className="text-gray-500 text-xs">Başvuru: {new Date(v.createdAt).toLocaleString('tr-TR')}</p>
 
-                    <div className="flex gap-3">
-                        <button
-                            onClick={() => approve(v.id)}
-                            disabled={actionId === v.id}
-                            className="flex-1 py-2.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-sm transition disabled:opacity-50">
-                            ✅ Onayla
-                        </button>
-                        <button
-                            onClick={() => reject(v.id)}
-                            disabled={actionId === v.id}
-                            className="flex-1 py-2.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-sm transition disabled:opacity-50">
-                            ❌ Reddet
-                        </button>
-                    </div>
+                    {v.status === 'PENDING' && (
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => approve(v.id)}
+                                disabled={actionId === v.id}
+                                className="flex-1 py-2.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-sm transition disabled:opacity-50">
+                                ✅ Onayla
+                            </button>
+                            <button
+                                onClick={() => reject(v.id)}
+                                disabled={actionId === v.id}
+                                className="flex-1 py-2.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-sm transition disabled:opacity-50">
+                                ❌ Reddet
+                            </button>
+                        </div>
+                    )}
                 </div>
             ))}
+            </>
+            )}
         </div>
     );
 }
