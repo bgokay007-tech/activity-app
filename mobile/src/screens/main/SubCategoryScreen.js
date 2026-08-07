@@ -2371,7 +2371,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     const hasSingleGenderReq = item.genderReq && item.genderReq !== 'MIX';
                     const hasDoubleGenderReq = item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX');
                     const hasGenderCount = item.subCategory === 'volleyball' && item.requiredMaleCount != null && item.teamSize > 1;
-                    if (!hasRatingRange && !hasSingleGenderReq && !hasDoubleGenderReq && !hasGenderCount) return null;
+                    const hasCancelPenalty = item.subCategory === 'volleyball' && item.cancelPenaltyHours != null;
+                    if (!hasRatingRange && !hasSingleGenderReq && !hasDoubleGenderReq && !hasGenderCount && !hasCancelPenalty) return null;
                     return (
                         <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:3, flexWrap:'wrap' }}>
                             {hasRatingRange && (
@@ -2379,6 +2380,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                     {item.ratingGenderSplit
                                         ? `⭐ 👨${item.minRatingMale ?? 0}-${item.maxRatingMale ?? 5}  👩${item.minRatingFemale ?? 0}-${item.maxRatingFemale ?? 5}★`
                                         : `⭐ ${item.minRating ?? '0'}–${item.maxRating ?? '5'}★`}
+                                </Text>
+                            )}
+                            {hasCancelPenalty && (
+                                <Text style={{ color:'#f87171', fontSize:moderateScale(9), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    {t.cancelPenaltyBadge(item.cancelPenaltyHours)}
                                 </Text>
                             )}
                             {hasGenderCount && (
@@ -2935,7 +2941,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     };
     const matchStart = getMatchStart(match);
     const hoursUntilMatch = matchStart ? (matchStart - new Date()) / (1000 * 60 * 60) : null;
-    const withinPenaltyWindow = hoursUntilMatch !== null && hoursUntilMatch > 0 && hoursUntilMatch <= 5;
+    // Voleybolde kurucu kendi cancelPenaltyHours eşiğini belirlediyse (backend cancelMatch'teki
+    // aynı kural) genel 5 saat/-0.20 yerine bu ilana özel saat/-0.10 puan kullanılır.
+    const useVolleyballCustomRule = match.subCategory === 'volleyball' && match.cancelPenaltyHours != null;
+    const cancelPenaltyWindowHours = useVolleyballCustomRule ? match.cancelPenaltyHours : 5;
+    const cancelPenaltyAmount = useVolleyballCustomRule ? 0.10 : 0.20;
+    const withinPenaltyWindow = hoursUntilMatch !== null && hoursUntilMatch > 0 && hoursUntilMatch <= cancelPenaltyWindowHours;
 
     // Mutual cancel state
     const mutualReqs = Array.isArray(match.mutualCancelRequests) ? match.mutualCancelRequests : [];
@@ -3142,7 +3153,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
     const handleCancelPress = () => {
         const msg = withinPenaltyWindow
-            ? t.cancelMatchPenaltyWarning
+            ? t.cancelMatchPenaltyWarning(cancelPenaltyWindowHours, cancelPenaltyAmount)
             : t.cancelMatchConfirmMsg;
         Alert.alert(
             t.cancelMatchTitle,
@@ -3150,7 +3161,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             [
                 { text: 'Vazgeç', style: 'cancel' },
                 {
-                    text: withinPenaltyWindow ? `${t.cancelMatchBtn} (-0.20)` : t.cancelMatchBtn,
+                    text: withinPenaltyWindow ? `${t.cancelMatchBtn} (-${cancelPenaltyAmount.toFixed(2)})` : t.cancelMatchBtn,
                     onPress: doCancel,
                     style: 'destructive',
                 },
@@ -6108,6 +6119,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         ratingGenderSplit: false,
         minRatingMale: '', maxRatingMale: '',
         minRatingFemale: '', maxRatingFemale: '',
+        cancelPenaltyHours: '', // voleybol: maça kaç saat kala tek taraflı iptal cezalı (-0.10★) sayılsın — boş = genel 5s/-0.20 kuralı
         partner: null,
         opp1Invite: null,
         opp2Invite: null,
@@ -6184,6 +6196,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 maxRatingMale: editItem.maxRatingMale != null ? String(editItem.maxRatingMale) : '',
                 minRatingFemale: editItem.minRatingFemale != null ? String(editItem.minRatingFemale) : '',
                 maxRatingFemale: editItem.maxRatingFemale != null ? String(editItem.maxRatingFemale) : '',
+                cancelPenaltyHours: editItem.cancelPenaltyHours != null ? String(editItem.cancelPenaltyHours) : '',
                 genderReq: editItem.genderReq || 'MIX',
                 partnerGenderReq: editItem.partnerGenderReq || 'MIX',
                 opp1GenderReq: editItem.opp1GenderReq || 'MIX',
@@ -6735,6 +6748,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 maxRatingMale: f.maxRatingMale !== '' ? f.maxRatingMale : null,
                 minRatingFemale: f.minRatingFemale !== '' ? f.minRatingFemale : null,
                 maxRatingFemale: f.maxRatingFemale !== '' ? f.maxRatingFemale : null,
+                ...(isVolleyball && { cancelPenaltyHours: f.cancelPenaltyHours !== '' ? f.cancelPenaltyHours : null }),
                 matchMode: f.matchMode || 'PRACTICE',
                 venueId: f.venueId || null,
                 venueCourtId: f.venueCourtId || null,
@@ -6905,6 +6919,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 maxRatingMale: f.maxRatingMale !== '' ? parseFloat(f.maxRatingMale) : undefined,
                 minRatingFemale: f.minRatingFemale !== '' ? parseFloat(f.minRatingFemale) : undefined,
                 maxRatingFemale: f.maxRatingFemale !== '' ? parseFloat(f.maxRatingFemale) : undefined,
+                cancelPenaltyHours: isVolleyball && f.cancelPenaltyHours !== '' ? parseInt(f.cancelPenaltyHours, 10) : undefined,
                 genderReq: (sub === 'tennis' || sub === 'padel') ? f.genderReq : undefined,
                 partnerGenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.partnerGenderReq : undefined,
                 opp1GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp1GenderReq : undefined,
@@ -8083,6 +8098,29 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             );
                                         })()}
                                     </Animated.View>
+                                </View>
+                            )}
+
+                            {/* Geç iptal cezası — voleybole özel, kurucunun belirlediği saat eşiği.
+                                Kapalıysa genel kural (5 saat / -0.20★, cancelMatch'te sabit) geçerli olur. */}
+                            {isVolleyball && (
+                                <View style={{ marginBottom:14 }}>
+                                    <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.cancelPenaltyHoursLabel}</Text>
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
+                                        <TouchableOpacity
+                                            onPress={() => set('cancelPenaltyHours', '')}
+                                            style={[s.chip, f.cancelPenaltyHours === '' && { backgroundColor: cfg.color+'30', borderColor: cfg.color }]}>
+                                            <Text style={[s.chipText, f.cancelPenaltyHours === '' && { color: cfg.color, fontWeight:'800' }]}>{t.cancelPenaltyHoursOff}</Text>
+                                        </TouchableOpacity>
+                                        {[3, 6, 12, 24, 48].map(h => (
+                                            <TouchableOpacity key={h}
+                                                onPress={() => set('cancelPenaltyHours', String(h))}
+                                                style={[s.chip, f.cancelPenaltyHours === String(h) && { backgroundColor: cfg.color+'30', borderColor: cfg.color }]}>
+                                                <Text style={[s.chipText, f.cancelPenaltyHours === String(h) && { color: cfg.color, fontWeight:'800' }]}>{t.cancelPenaltyHoursOption(h)}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                    <Text style={s.fieldHint}>{t.cancelPenaltyHoursHint}</Text>
                                 </View>
                             )}
 

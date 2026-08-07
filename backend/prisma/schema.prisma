@@ -787,6 +787,7 @@ model ActivityRequest {
   archived        Boolean      @default(false)
   expiresAt            DateTime?
   mutualCancelRequests Json     @default("[]") // [userId, ...] — tracks who requested mutual cancel
+  cancelPenaltyHours Int?                      // voleybol: kurucunun belirlediği "maça X saat kala tek taraflı iptal cezalı" eşiği — doluysa genel 5 saat/-0.20 kuralı yerine bu ilana özel X saat/-0.10 puan kuralı uygulanır (bkz. cancelMatch)
   genderReq        String  @default("MIX")  // MIX | MALE | FEMALE — who can join (singles: opponent; display hint for doubles)
   partnerGenderReq String  @default("MIX")  // doubles: partner/teammate gender requirement
   opp1GenderReq    String  @default("MIX")  // doubles: opponent 1 gender requirement

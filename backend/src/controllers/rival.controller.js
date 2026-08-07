@@ -659,12 +659,41 @@ export const updateRivalRequest = async (req, res, next) => {
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
                 matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq, requiredMaleCount, winsNeeded,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment, refereeFeeIncluded, manualRefereeName,
-                teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes } = req.body;
+                teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes, cancelPenaltyHours } = req.body;
 
         let cleanExtraServices;
         if (extraServices !== undefined) {
             cleanExtraServices = sanitizeExtraServices(extraServices);
             if (cleanExtraServices === null) return res.status(400).json({ message: 'Geçersiz ekstra hizmet' });
+        }
+
+        // İlan sahibi kendi derece puanının dışında kalan bir aralık kısıtlaması koyamaz —
+        // düzenlemede sadece gönderilen alanlar değişir, o yüzden nihai değer mevcut
+        // ilandaki değerle (rival.xxx) birleştirilerek hesaplanır (createRivalRequest'teki
+        // aynı kontrolün düzenleme karşılığı).
+        {
+            const finalGenderSplit = ratingGenderSplit !== undefined ? !!ratingGenderSplit : rival.ratingGenderSplit;
+            const pick = (v, existing) => v !== undefined ? (v !== '' && v !== null ? parseFloat(v) : null) : existing;
+            let effMin = finalGenderSplit ? null : pick(minRating, rival.minRating);
+            let effMax = finalGenderSplit ? null : pick(maxRating, rival.maxRating);
+            if (finalGenderSplit) {
+                const creatorUser = await prisma.user.findUnique({ where: { id: req.userId }, select: { gender: true } });
+                if (creatorUser?.gender === 'MALE') {
+                    effMin = pick(minRatingMale, rival.minRatingMale);
+                    effMax = pick(maxRatingMale, rival.maxRatingMale);
+                } else if (creatorUser?.gender === 'FEMALE') {
+                    effMin = pick(minRatingFemale, rival.minRatingFemale);
+                    effMax = pick(maxRatingFemale, rival.maxRatingFemale);
+                }
+            }
+            if (effMin !== null || effMax !== null) {
+                const creatorInterest = await prisma.userInterest.findFirst({ where: { userId: req.userId, category: rival.category, subCategory: rival.subCategory } });
+                const creatorRating = creatorInterest?.skillRating ?? 0;
+                if (effMin !== null && creatorRating < effMin)
+                    return res.status(400).json({ message: `Bu kısıtlamayı koyamazsınız: en az ${effMin}★ istiyorsunuz ama kendi puanınız ${creatorRating.toFixed(2)}★.` });
+                if (effMax !== null && creatorRating > effMax)
+                    return res.status(400).json({ message: `Bu kısıtlamayı koyamazsınız: en fazla ${effMax}★ kabul ediyorsunuz ama kendi puanınız ${creatorRating.toFixed(2)}★.` });
+            }
         }
 
         // matchType (tekli/çiftli) sadece hiç katılımcı/partner kabul edilmemişse
@@ -705,6 +734,7 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(opp2GenderReq !== undefined && { opp2GenderReq }),
                 ...(requiredMaleCount !== undefined && { requiredMaleCount: requiredMaleCount !== null && requiredMaleCount !== '' ? parseInt(requiredMaleCount, 10) : null }),
                 ...(winsNeeded !== undefined && { winsNeeded: winsNeeded !== null && winsNeeded !== '' ? parseInt(winsNeeded, 10) : null }),
+                ...(cancelPenaltyHours !== undefined && { cancelPenaltyHours: cancelPenaltyHours !== null && cancelPenaltyHours !== '' ? parseInt(cancelPenaltyHours, 10) : null }),
                 ...(venueId !== undefined && { venueId: venueId || null }),
                 ...(venueCourtId !== undefined && { venueCourtId: venueCourtId || null }),
                 ...(venueReservationId !== undefined && { venueReservationId: venueReservationId || null }),
@@ -1148,6 +1178,7 @@ export const createRivalRequest = async (req, res, next) => {
             unassignedInviteIds, // voleybol: hangi takımda oynayacağı henüz belli olmayan oyuncu davetleri
             unassignedManualNames, // voleybol: hangi takımda oynayacağı henüz belli olmayan, uygulamayı kullanmayan oyuncular için serbest metin isimler
             participantsCanInvite, // true ise kabul edilmiş katılımcılar da oyuncu davet edebilir / ilanı paylaşabilir
+            cancelPenaltyHours, // voleybol: maça kaç saat kala tek taraflı iptalin cezalı (-0.10★) sayılacağı — null/undefined = genel 5 saat/-0.20 kuralı geçerli
         } = req.body;
         console.log(`[rival] createRivalRequest creatorId=${creatorId} sub=${subCategory}`);
 
@@ -1157,7 +1188,31 @@ export const createRivalRequest = async (req, res, next) => {
             if (cleanExtraServices === null) return res.status(400).json({ message: 'Geçersiz ekstra hizmet' });
         }
 
-        await requireActiveInterest(creatorId, category, subCategory);
+        const creatorInterest = await requireActiveInterest(creatorId, category, subCategory);
+
+        // İlan sahibi kendi derece puanının dışında kalan bir aralık kısıtlaması koyamaz —
+        // ör. kendi puanı 1.20 iken erkekler için 3-3.5 aralığı açması anlamsız, çünkü
+        // kendisi zaten kurucu olarak maçın içinde ve bu kontrolden muaf tutuluyordu.
+        const genderSplitOn = !!ratingGenderSplit;
+        let creatorEffMin = genderSplitOn ? null : (minRating !== undefined && minRating !== null && minRating !== '' ? parseFloat(minRating) : null);
+        let creatorEffMax = genderSplitOn ? null : (maxRating !== undefined && maxRating !== null && maxRating !== '' ? parseFloat(maxRating) : null);
+        if (genderSplitOn) {
+            const creatorUser = await prisma.user.findUnique({ where: { id: creatorId }, select: { gender: true } });
+            if (creatorUser?.gender === 'MALE') {
+                creatorEffMin = minRatingMale !== undefined && minRatingMale !== null && minRatingMale !== '' ? parseFloat(minRatingMale) : null;
+                creatorEffMax = maxRatingMale !== undefined && maxRatingMale !== null && maxRatingMale !== '' ? parseFloat(maxRatingMale) : null;
+            } else if (creatorUser?.gender === 'FEMALE') {
+                creatorEffMin = minRatingFemale !== undefined && minRatingFemale !== null && minRatingFemale !== '' ? parseFloat(minRatingFemale) : null;
+                creatorEffMax = maxRatingFemale !== undefined && maxRatingFemale !== null && maxRatingFemale !== '' ? parseFloat(maxRatingFemale) : null;
+            }
+        }
+        if (creatorEffMin !== null || creatorEffMax !== null) {
+            const creatorRating = creatorInterest.skillRating ?? 0;
+            if (creatorEffMin !== null && creatorRating < creatorEffMin)
+                return res.status(400).json({ message: `Bu kısıtlamayı koyamazsınız: en az ${creatorEffMin}★ istiyorsunuz ama kendi puanınız ${creatorRating.toFixed(2)}★.` });
+            if (creatorEffMax !== null && creatorRating > creatorEffMax)
+                return res.status(400).json({ message: `Bu kısıtlamayı koyamazsınız: en fazla ${creatorEffMax}★ kabul ediyorsunuz ama kendi puanınız ${creatorRating.toFixed(2)}★.` });
+        }
 
         if (requiredMaleCount !== undefined && requiredMaleCount !== null && requiredMaleCount !== '') {
             const totalSlots = 2 * (Number(teamSize) || 1);
@@ -1228,6 +1283,8 @@ export const createRivalRequest = async (req, res, next) => {
                 matchMode: matchMode.toUpperCase(),
                 ...(surface && { surface: surface.toUpperCase() }),
                 teamSize: Number(teamSize) || 1,
+                ...(subCategory === 'volleyball' && cancelPenaltyHours !== undefined && cancelPenaltyHours !== null && cancelPenaltyHours !== ''
+                    && { cancelPenaltyHours: parseInt(cancelPenaltyHours, 10) }),
                 ...(req.body.duration && { duration: Number(req.body.duration) }),
                 participants: [],
                 // DOUBLE + partnerInviteId: partner henüz kabul etmedi, senderTeam boş.
@@ -3872,21 +3929,32 @@ export const cancelMatch = async (req, res, next) => {
         if (!request) return res.status(404).json({ message: 'Not found' });
         if (request.status !== 'MATCHED') return res.status(400).json({ message: 'Not a matched listing' });
 
+        // senderTeam takım sporlarında (voleybol) kurucunun kendi eklediği takım
+        // arkadaşlarını tutar — eskiden allPlayerIds/otherPlayerIds bunları hiç
+        // saymıyordu, bu yüzden takım arkadaşları ne "involved" sayılıyor ne de
+        // karşılıklı iptal/bildirim akışına dahil oluyordu.
         const participants = Array.isArray(request.participants) ? request.participants : [];
-        const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId);
+        const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
+        const senderTeamIds = senderTeamArr.filter(p => p?.id).map(p => p.id);
+        const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId) || senderTeamIds.includes(req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
-        const allPlayerIds = [request.senderId, ...participants.map(p => p.id)];
+        const allPlayerIds = [request.senderId, ...senderTeamIds, ...participants.map(p => p.id)];
         const otherPlayerIds = allPlayerIds.filter(uid => uid !== req.userId);
 
-        // Penalty window: 5 hours before match start
+        // Ceza penceresi: genelde maça 5 saat kala / -0.20 puan, ama voleybolde ilan
+        // sahibi kendi eşiğini (cancelPenaltyHours) belirlediyse bu ilana özel o eşik
+        // ve sabit -0.10 puan cezası kullanılır (genel kural değişmez).
+        const useVolleyballCustomRule = request.subCategory === 'volleyball' && request.cancelPenaltyHours != null;
+        const penaltyWindowHours = useVolleyballCustomRule ? request.cancelPenaltyHours : 5;
+        const penaltyAmount = useVolleyballCustomRule ? 0.10 : 0.20;
         let withinPenaltyWindow = false;
         if (request.matchDate && request.matchTime) {
             const [h, m] = request.matchTime.split(':').map(Number);
             const matchStart = new Date(request.matchDate);
             matchStart.setUTCHours(h, m, 0, 0);
             const hoursUntil = (matchStart - new Date()) / (1000 * 60 * 60);
-            withinPenaltyWindow = hoursUntil > 0 && hoursUntil <= 5;
+            withinPenaltyWindow = hoursUntil > 0 && hoursUntil <= penaltyWindowHours;
         }
 
         if (mutual) {
@@ -3923,8 +3991,7 @@ export const cancelMatch = async (req, res, next) => {
         }
 
         // Regular (unilateral) cancel
-        const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
-        const isCreatorSide = request.senderId === req.userId || senderTeamArr.some(m => m.id === req.userId);
+        const isCreatorSide = request.senderId === req.userId || senderTeamIds.includes(req.userId);
 
         if (isCreatorSide) {
             // The listing's own side is cancelling — the post itself is no longer valid.
@@ -3992,22 +4059,22 @@ export const cancelMatch = async (req, res, next) => {
                 await prisma.userInterest.update({
                     where: { id: interest.id },
                     data: {
-                        skillRating: Math.max(0, parseFloat((interest.skillRating - 0.20).toFixed(2))),
-                        totalPoints: Math.max(0, interest.totalPoints - 4),
+                        skillRating: Math.max(0, parseFloat((interest.skillRating - penaltyAmount).toFixed(2))),
+                        totalPoints: Math.max(0, interest.totalPoints - Math.round(penaltyAmount * 20)),
                         lateCancelCount: newCount,
                     },
                 });
                 if (newCount === 5) {
                     createNotification(req.userId, 'LATE_CANCEL_WARNING',
                         '⚠️ Son Dakika İptal Uyarısı',
-                        `${request.subCategory} dalında 5 kez maçı son 5 saat içinde iptal ettiniz. Bu durum profilinizde görünür ve güvenilirliğinizi olumsuz etkiler.`,
+                        `${request.subCategory} dalında 5 kez maçı son ${penaltyWindowHours} saat içinde iptal ettiniz. Bu durum profilinizde görünür ve güvenilirliğinizi olumsuz etkiler.`,
                         { subCategory: request.subCategory }
                     ).catch(() => {});
                 }
             }
         }
 
-        res.json({ cancelled: true, reopened: !isCreatorSide, penaltyApplied: withinPenaltyWindow });
+        res.json({ cancelled: true, reopened: !isCreatorSide, penaltyApplied: withinPenaltyWindow, penaltyAmount: withinPenaltyWindow ? penaltyAmount : undefined });
 
         const senderName = request.sender?.username || 'Rakip';
         for (const uid of otherPlayerIds) {
@@ -4015,7 +4082,7 @@ export const cancelMatch = async (req, res, next) => {
                 isCreatorSide ? '❌ Maç İptal Edildi' : '↩️ Maç Yeniden Açıldı',
                 isCreatorSide
                     ? (withinPenaltyWindow
-                        ? `${senderName} maçı son 5 saat içinde iptal etti (ceza uygulandı).`
+                        ? `${senderName} maçı son ${penaltyWindowHours} saat içinde iptal etti (ceza uygulandı).`
                         : `${senderName} maçı iptal etti.`)
                     : `Rakip taraf maçtan çekildi, ilan tekrar açık hâle geldi.`,
                 { rivalId: id, subCategory: request.subCategory }
