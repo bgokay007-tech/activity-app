@@ -60,7 +60,7 @@ export const getAllCourts = async (req, res, next) => {
 
 export const searchCourts = async (req, res, next) => {
     try {
-        const { city, sport, surface, indoor, verifiedOnly } = req.query;
+        const { city, sport, surface, indoor } = req.query;
         const name = req.query.name || req.query.q;
 
         const courtWhere = {
@@ -69,7 +69,11 @@ export const searchCourts = async (req, res, next) => {
             sport: sport || undefined,
             surface: surface || undefined,
             indoor: indoor === 'true' ? true : indoor === 'false' ? false : undefined,
-            ...(verifiedOnly === 'true' ? { verified: true } : {}),
+            // Admin onayı almamış (verified:false) community kort kayıtları hiçbir dalda/
+            // ekranda öneri olarak çıkmamalı — eskiden bu sadece mobil tarafın gönderdiği
+            // verifiedOnly='true' parametresine bağlıydı, birçok çağrı noktası bu parametreyi
+            // hiç göndermediği için onaysız kayıtlar öneri listesine sızıyordu.
+            verified: true,
         };
 
         const [courts, venues] = await Promise.all([

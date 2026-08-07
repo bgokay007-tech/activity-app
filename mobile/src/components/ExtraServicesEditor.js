@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet,
-    Modal, FlatList, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform,
+    Modal, FlatList, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../theme/colors';
@@ -92,27 +92,40 @@ function ArtistPickerModal({ visible, onClose, onSelect }) {
 // listesine katılmıyor; `referee` prop'unun tuttuğu state/handler'lar doğrudan
 // CreateRivalModal'daki gerçek hakem sistemine bağlı (bkz. ExtraServicesEditor).
 function RefereeTypeContent({ referee }) {
+    // Eskiden isim yazma + "hakem isteniyor" tek bir düğmede birleşikti — kullanıcı
+    // sadece isim yazıp paneli kapattığında ya da başka bir hizmet sekmesine geçtiğinde
+    // gerçekten kaydedildiğine dair hiçbir net onay görmüyordu. Artık ayrı bir "Ekle"
+    // düğmesi ve altında sabit "Hakem: İsim Soyisim" onay satırı var.
+    const trimmedName = referee.name.trim();
+    const confirmReferee = () => {
+        if (!trimmedName) return;
+        if (!referee.requested) referee.onToggleRequested();
+        Keyboard.dismiss();
+    };
     return (
         <View>
-            <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom:8 }}>
-                <TouchableOpacity
-                    onPress={referee.onToggleRequested}
-                    style={{ flex:0.8, height:34, alignItems:'center', justifyContent:'center', paddingHorizontal:4, borderRadius:8, backgroundColor: referee.requested ? '#f59e0b20' : colors.surface, borderWidth:1, borderColor: referee.requested ? '#f59e0b70' : colors.border }}
-                >
-                    {/* Kullanıcı isteğiyle burada sabit "İsteniyor" yazısı yerine gerçekten
-                        yazılan isim gösteriliyor (ör. "Hakem: İsimsiz") — hem uygulamada kayıtlı
-                        olmayan biri hem de placeholder amaçlı bir isim için aynı şekilde çalışır. */}
-                    <Text style={{ color: referee.requested ? '#f59e0b' : colors.textMuted, fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                        {referee.requested ? `Hakem: ${referee.name.trim() || '...'}` : 'Hakem Talep Et'}
-                    </Text>
-                </TouchableOpacity>
+            {/* İsim yazmadan da "hakem lazım, uygulamadan davet edeceğim" diyebilmek için
+                ayrı, bağımsız bir açma/kapama — isim + Ekle akışından farklı bir amaca hizmet
+                ediyor, o yüzden tek bir düğmeye birleştirilmedi. */}
+            <TouchableOpacity
+                onPress={referee.onToggleRequested}
+                style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8 }}
+            >
+                <View style={{ width:18, height:18, borderRadius:4, borderWidth:1.5, borderColor: referee.requested ? '#f59e0b' : colors.border, backgroundColor: referee.requested ? '#f59e0b' : 'transparent', alignItems:'center', justifyContent:'center' }}>
+                    {referee.requested && <Text style={{ color:'#fff', fontSize:11, fontWeight:'900' }}>✓</Text>}
+                </View>
+                <Text style={{ color: referee.requested ? '#f59e0b' : colors.textMuted, fontSize:12, fontWeight:'700' }}>Hakem İsteniyor</Text>
+            </TouchableOpacity>
+            <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom:6 }}>
                 <View style={{ flex:1, position:'relative' }}>
                     <TextInput
                         style={[st.input, { marginBottom:0, height:34 }]}
                         value={referee.name}
                         onChangeText={referee.onChangeName}
-                        placeholder="Hakem"
+                        placeholder="Hakem adı soyadı"
                         placeholderTextColor={colors.textMuted}
+                        returnKeyType="done"
+                        onSubmitEditing={confirmReferee}
                     />
                     {referee.suggestions.length > 0 && (
                         <View style={{ position:'absolute', top:36, left:0, right:0, backgroundColor: colors.surface, borderRadius:8, borderWidth:1, borderColor: colors.border, zIndex:20, elevation:6 }}>
@@ -125,7 +138,24 @@ function RefereeTypeContent({ referee }) {
                         </View>
                     )}
                 </View>
+                <TouchableOpacity
+                    onPress={confirmReferee}
+                    disabled={!trimmedName}
+                    style={{ flex:0.5, height:34, alignItems:'center', justifyContent:'center', borderRadius:8, backgroundColor: trimmedName ? colors.purple : colors.surface, borderWidth:1, borderColor: trimmedName ? colors.purple : colors.border, opacity: trimmedName ? 1 : 0.5 }}
+                >
+                    <Text style={{ color: trimmedName ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'800' }}>Ekle</Text>
+                </TouchableOpacity>
             </View>
+            {referee.requested && trimmedName && (
+                <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:8 }}>
+                    <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                        ✓ Hakem: {trimmedName}
+                    </Text>
+                    <TouchableOpacity onPress={referee.onToggleRequested} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
+                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>Kaldır</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
             {referee.requested && (
                 <>
                     <TouchableOpacity onPress={referee.onInvitePress} style={[st.artistPickBtn, referee.invites.length > 0 && { borderColor: '#f59e0b70' }]}>
