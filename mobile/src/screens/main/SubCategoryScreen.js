@@ -1597,7 +1597,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <View style={{ flex:1 }}>
                                             <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
                                             <Text style={det.playerSub}>
-                                                {jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}
+                                                {jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}
                                             </Text>
                                             <Text style={{ color: cfg.color, fontSize:moderateScale(10), fontWeight:'700', marginTop:1 }} numberOfLines={1}>
                                                 → {slotLabel(jr.requestedSlot)}
@@ -1649,7 +1649,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                                 <View style={{ flex:1 }}>
                                                     <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
-                                                    <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}</Text>
+                                                    <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
                                                 </View>
                                                 {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
                                                     <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
@@ -1683,7 +1683,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                     <View style={{ flex:1 }}>
                                         <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
-                                        <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}</Text>
+                                        <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
                                         {jr.requestedSlot && (
                                             <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'700', marginTop:1 }}>
                                                 🎯 {jr.requestedSlot === 'partner' ? t.founderTeamLabel : jr.requestedSlot === 'opp1' ? t.opp1Label : jr.requestedSlot === 'opp2' ? t.opp2Label : t.joinAsOpponentBtn}
@@ -1718,7 +1718,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <View key={jr.id} style={det.playerRow}>
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                     <View style={{ flex:1 }}>
-                                        <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
+                                        <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
                                         <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>
                                             ⏳ Onay Bekleniyor{item.matchType !== 'DOUBLE' ? (
                                                 jr.isPartnerInvite ? ` · ${t.founderTeamLabel}`
