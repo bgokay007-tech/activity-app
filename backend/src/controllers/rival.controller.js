@@ -269,7 +269,7 @@ const REQUIRED_PARTICIPANTS = { SINGLE: 1, DOUBLE: 2 };
 
 function getRequired(request) {
     if (request.matchType === 'PLAYER_WANTED') return Number(request.levelDetail) || 999;
-    if (request.teamSize > 1) return 1; // volleyball: 1 opponent rep
+    if (request.teamSize > 1) return 1; // team-sport participants dizisi için (bkz. teamFilledCount — asıl MATCHED eşiği artık bu değil)
     if (request.matchType === 'DOUBLE') {
         const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
         return senderTeamArr.length > 0 ? 2 : 3;
@@ -284,6 +284,24 @@ function totalPlayerCount(request) {
     if (request.matchType === 'DOUBLE') return 4;
     if (request.teamSize > 1) return request.teamSize * 2; // voleybol: her tarafta teamSize kişi
     return 2; // SINGLE
+}
+
+// Takım sporlarında (teamSize>1, örn. voleybol 6v6) MATCHED'e geçmek için gereken TOPLAM kadro
+// dolulugu — kurucu + senderTeam + participants + unassignedPlayers + manuel isimli rakipler
+// (oppTeamManualNames) hep birlikte sayılır. Eskiden sadece participants'a bakılıyordu ve
+// getRequired() teamSize>1 için "1" döndürdüğünden 6v6 gibi bir maç SADECE 1 rakip katılınca
+// (kalan 11 kişi hâlâ eksikken) yanlışlıkla "Yaklaşan Maçlar"a düşüyordu.
+function teamFilledCount(request, overrides = {}) {
+    const hasSlot = (p) => p && (p.id || p.manualName);
+    const senderTeamArr = overrides.senderTeam ?? (Array.isArray(request.senderTeam) ? request.senderTeam : []);
+    const participantsArr = overrides.participants ?? (Array.isArray(request.participants) ? request.participants : []);
+    const unassignedArr = overrides.unassignedPlayers ?? (Array.isArray(request.unassignedPlayers) ? request.unassignedPlayers : []);
+    const manualOppNames = Array.isArray(request.oppTeamManualNames) ? request.oppTeamManualNames : [];
+    return 1 // kurucu (sender)
+        + senderTeamArr.filter(hasSlot).length
+        + participantsArr.filter(hasSlot).length
+        + unassignedArr.filter(hasSlot).length
+        + manualOppNames.length;
 }
 
 // DOUBLE maçta bireysel/takım kabul için cinsiyet uyumlu slot ataması — hem respondToJoin
@@ -2549,7 +2567,9 @@ export const respondToJoin = async (req, res, next) => {
         // güncellenmediği için getRequired hâlâ eski/boş senderTeam'e göre 3 döner).
         const isFull = assignedToPartner
             ? countFilled(participants) >= 2
-            : countFilled(updatedParticipants) >= getRequired(rival);
+            : (rival.teamSize || 1) > 1
+                ? teamFilledCount(rival, { participants: updatedParticipants, unassignedPlayers: updatedUnassigned ?? rival.unassignedPlayers }) >= totalPlayerCount(rival)
+                : countFilled(updatedParticipants) >= getRequired(rival);
 
         // Tüm doğrulama geçtikten SONRA join request'i ACCEPTED yap
         await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
@@ -2817,7 +2837,9 @@ export const confirmLateJoin = async (req, res, next) => {
         // Böyle bir durumda geç onayı sessizce üstüne eklemek yerine hakkının gittiğini
         // açıkça bildiririz.
         const participantsSoFar = Array.isArray(rival.participants) ? rival.participants.filter(p => p && p.id) : [];
-        const alreadyFull = rival.status === 'MATCHED' || rival.status === 'CANCELLED' || participantsSoFar.length >= getRequired(rival);
+        const alreadyFull = rival.status === 'MATCHED' || rival.status === 'CANCELLED' || ((rival.teamSize || 1) > 1
+            ? teamFilledCount(rival) >= totalPlayerCount(rival)
+            : participantsSoFar.length >= getRequired(rival));
         if (alreadyFull) {
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
             emitToUser(joinReq.userId, 'joinRejected', { rivalId: joinReq.rivalId });
@@ -2894,7 +2916,9 @@ export const confirmLateJoin = async (req, res, next) => {
         }
         const isFull = assignedToPartner
             ? countFilled(participants) >= 2
-            : countFilled(updatedParticipants) >= getRequired(rival);
+            : (rival.teamSize || 1) > 1
+                ? teamFilledCount(rival, { participants: updatedParticipants, unassignedPlayers: updatedUnassigned ?? rival.unassignedPlayers }) >= totalPlayerCount(rival)
+                : countFilled(updatedParticipants) >= getRequired(rival);
 
         await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
         if (partnerJoinReqToAccept) {

@@ -6146,6 +6146,11 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                     <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
                 </TouchableOpacity>
             </View>
+            {!!slot && slot.type === 'user' && slot.skillRating != null && (
+                <Text style={{ color: colors.textMuted, fontSize:8 }} numberOfLines={1}>
+                    {Number(slot.skillRating).toFixed(2)} ★
+                </Text>
+            )}
             {!!slot && !!slot.position && (
                 <Text style={{ color: colors.textMuted, fontSize:8 }} numberOfLines={1}>
                     🏐 {slot.position === 'SPIKER' ? t.positionSpiker : slot.position === 'LIBERO' ? t.positionLibero : t.positionSetter}
@@ -6178,7 +6183,9 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                     {slotSuggestions.map(u => (
                         <TouchableOpacity key={u.id} style={[s.courtResultRow, { flexDirection:'row', alignItems:'center', gap:3 }]} onPress={() => onPickUser(u)}>
                             <Avatar name={u.username} avatar={u.avatar} size={24} color={cfg.color} />
-                            <Text style={s.courtResultName}>{u.fullName || u.username}</Text>
+                            <Text style={s.courtResultName} numberOfLines={1}>
+                                {u.fullName || u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                            </Text>
                         </TouchableOpacity>
                     ))}
                 </View>
