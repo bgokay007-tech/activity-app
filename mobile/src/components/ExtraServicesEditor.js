@@ -92,11 +92,12 @@ function ArtistPickerModal({ visible, onClose, onSelect }) {
 // listesine katılmıyor; `referee` prop'unun tuttuğu state/handler'lar doğrudan
 // CreateRivalModal'daki gerçek hakem sistemine bağlı (bkz. ExtraServicesEditor).
 function RefereeTypeContent({ referee }) {
-    // Eskiden isim yazma + "hakem isteniyor" tek bir düğmede birleşikti — kullanıcı
-    // sadece isim yazıp paneli kapattığında ya da başka bir hizmet sekmesine geçtiğinde
-    // gerçekten kaydedildiğine dair hiçbir net onay görmüyordu. Artık ayrı bir "Ekle"
-    // düğmesi ve altında sabit "Hakem: İsim Soyisim" onay satırı var.
+    // Kayıtlı bir isim önerisinden seçildiğinde artık ayrı bir "Hakem Davet Et" penceresi
+    // (fiyat/mesaj formu) açılmıyor — davet doğrudan gönderiliyor (bkz. pickRefereeSuggestion),
+    // o kişi burada tek bir "davet edildi" kartı olarak görünür. Kayıtlı değilse yazılan isim
+    // + Ekle ile serbest metin olarak eklenir. İkisi aynı anda olamaz.
     const trimmedName = referee.name.trim();
+    const invitedUser = referee.invites[0]?.user || null;
     const confirmReferee = () => {
         if (!trimmedName) return;
         if (!referee.requested) referee.onToggleRequested();
@@ -116,66 +117,63 @@ function RefereeTypeContent({ referee }) {
                 </View>
                 <Text style={{ color: referee.requested ? '#f59e0b' : colors.textMuted, fontSize:12, fontWeight:'700' }}>Hakem İsteniyor</Text>
             </TouchableOpacity>
-            <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom:6 }}>
-                <View style={{ flex:1, position:'relative' }}>
-                    <TextInput
-                        style={[st.input, { marginBottom:0, height:34 }]}
-                        value={referee.name}
-                        onChangeText={referee.onChangeName}
-                        placeholder="Hakem adı soyadı"
-                        placeholderTextColor={colors.textMuted}
-                        returnKeyType="done"
-                        onSubmitEditing={confirmReferee}
-                    />
-                    {referee.suggestions.length > 0 && (
-                        <View style={{ position:'absolute', top:36, left:0, right:0, backgroundColor: colors.surface, borderRadius:8, borderWidth:1, borderColor: colors.border, zIndex:20, elevation:6 }}>
-                            {referee.suggestions.map(u => (
-                                <TouchableOpacity key={u.id} onPress={() => referee.onPickSuggestion(u)}
-                                    style={{ flexDirection:'row', alignItems:'center', gap:6, padding:7, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                                    <Text style={{ color: colors.text, fontSize:12, fontWeight:'600' }} numberOfLines={1}>{u.fullName || u.username}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    )}
-                </View>
-                <TouchableOpacity
-                    onPress={confirmReferee}
-                    disabled={!trimmedName}
-                    style={{ flex:0.5, height:34, alignItems:'center', justifyContent:'center', borderRadius:8, backgroundColor: trimmedName ? colors.purple : colors.surface, borderWidth:1, borderColor: trimmedName ? colors.purple : colors.border, opacity: trimmedName ? 1 : 0.5 }}
-                >
-                    <Text style={{ color: trimmedName ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'800' }}>Ekle</Text>
-                </TouchableOpacity>
-            </View>
-            {referee.requested && trimmedName && (
-                <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:8 }}>
-                    <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                        ✓ Hakem: {trimmedName}
+            {invitedUser ? (
+                <View style={{ flexDirection:'row', alignItems:'center', gap:6, backgroundColor:'#f59e0b15', borderRadius:8, borderWidth:1, borderColor:'#f59e0b40', paddingHorizontal:8, paddingVertical:7, marginBottom:8 }}>
+                    <Text style={{ color: colors.text, fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>
+                        {invitedUser.fullName || invitedUser.username}
                     </Text>
-                    <TouchableOpacity onPress={referee.onToggleRequested} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
-                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>Kaldır</Text>
+                    <TouchableOpacity onPress={() => referee.onRemoveInvite(invitedUser.id)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
+                        <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
                     </TouchableOpacity>
+                </View>
+            ) : (
+                <View style={{ flexDirection:'row', alignItems:'stretch', gap:4, marginBottom:6 }}>
+                    <View style={{ flex:1, position:'relative' }}>
+                        <TextInput
+                            style={[st.input, { marginBottom:0, height:34 }]}
+                            value={referee.name}
+                            onChangeText={referee.onChangeName}
+                            placeholder="Hakem adı soyadı"
+                            placeholderTextColor={colors.textMuted}
+                            returnKeyType="done"
+                            onSubmitEditing={confirmReferee}
+                        />
+                        {referee.suggestions.length > 0 && (
+                            <View style={{ position:'absolute', top:36, left:0, right:0, backgroundColor: colors.surface, borderRadius:8, borderWidth:1, borderColor: colors.border, zIndex:20, elevation:6 }}>
+                                {referee.suggestions.map(u => (
+                                    <TouchableOpacity key={u.id} onPress={() => referee.onPickSuggestion(u)}
+                                        style={{ flexDirection:'row', alignItems:'center', gap:6, padding:7, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                        <Text style={{ color: colors.text, fontSize:12, fontWeight:'600' }} numberOfLines={1}>{u.fullName || u.username}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+                    </View>
+                    <TouchableOpacity
+                        onPress={confirmReferee}
+                        disabled={!trimmedName}
+                        style={{ flex:0.5, height:34, alignItems:'center', justifyContent:'center', borderRadius:8, backgroundColor: trimmedName ? colors.purple : colors.surface, borderWidth:1, borderColor: trimmedName ? colors.purple : colors.border, opacity: trimmedName ? 1 : 0.5 }}
+                    >
+                        <Text style={{ color: trimmedName ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'800' }}>Ekle</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+            {referee.requested && (trimmedName || invitedUser) && (
+                <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:8 }}>
+                    <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'800', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                        {invitedUser
+                            ? `✓ Hakem: ${invitedUser.fullName || invitedUser.username} (davet gönderildi, onayı bekleniyor)`
+                            : `✓ Hakem: ${trimmedName}`}
+                    </Text>
+                    {!invitedUser && (
+                        <TouchableOpacity onPress={referee.onToggleRequested} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
+                            <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>Kaldır</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             )}
             {referee.requested && (
                 <>
-                    <TouchableOpacity onPress={referee.onInvitePress} style={[st.artistPickBtn, referee.invites.length > 0 && { borderColor: '#f59e0b70' }]}>
-                        <Text style={[st.artistPickText, referee.invites.length > 0 && { color: '#f59e0b' }]}>
-                            {referee.invites.length > 0 ? `Hakem Davet Et (${referee.invites.length})` : 'Hakem Davet Et'}
-                        </Text>
-                    </TouchableOpacity>
-                    {referee.invites.length > 0 && (
-                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:8 }}>
-                            {referee.invites.map(inv => (
-                                <TouchableOpacity key={inv.user.id} onPress={() => referee.onRemoveInvite(inv.user.id)}
-                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#f59e0b15', borderRadius:10, borderWidth:1, borderColor:'#f59e0b40', paddingHorizontal:7, paddingVertical:4 }}>
-                                    <Text style={{ color: colors.text, fontSize:11, fontWeight:'700' }} numberOfLines={1}>
-                                        {inv.user.fullName || inv.user.username}{inv.price ? ` · ${inv.price}₺` : ''}
-                                    </Text>
-                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    )}
                     <Text style={st.label}>ÜCRET</Text>
                     <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
                         <TouchableOpacity onPress={() => referee.onSetFeeIncluded(true)} style={[st.priceChip, referee.feeIncluded && st.priceChipActive]}>

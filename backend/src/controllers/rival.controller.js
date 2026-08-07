@@ -15,6 +15,7 @@ import { PEER_REVIEW_SUBCATEGORIES } from '../utils/peerReview.js';
 import { computeReservationStatus, overlaps, toMins, isPastDateTime, PRO_PACKAGES } from './venue.controller.js';
 import { RATING_REQUIRED_SUBCATEGORIES } from '../config/assessments.js';
 import { sanitizeExtraServices } from '../utils/extraServices.js';
+import { subCategoryTR } from '../utils/subCategoryLabels.js';
 
 // İlan açma/katılma öncesi ortak aktivite kontrolü: kullanıcı bu dalı "Aktivitelerim"e
 // eklememişse veya gizlemişse (hidden=true, gizliyken hiçbir şey yapamaz) reddedilir.
@@ -189,7 +190,7 @@ async function applyCompetitivePoints(request, winnerUserId) {
                 createNotification(
                     flag.userId, 'ASSESSMENT_RECHECK',
                     '📋 Derecelendirme Anketini Tekrar Doldurun',
-                    `${request.subCategory} dalında anketten sonraki ilk maçlarınızda dereceniz beklenenden farklı çıktı. Daha doğru bir eşleşme için lütfen derecelendirme anketini tekrar doldurun.`,
+                    `${subCategoryTR(request.subCategory)} dalında anketten sonraki ilk maçlarınızda dereceniz beklenenden farklı çıktı. Daha doğru bir eşleşme için lütfen derecelendirme anketini tekrar doldurun.`,
                     { category: request.category, subCategory: request.subCategory }
                 ).catch(() => {});
             }
@@ -1716,7 +1717,7 @@ export const getRivalRequests = async (req, res, next) => {
                     e.senderId,
                     'MATCH_EXPIRED',
                     '⏰ İlanınız Kaldırıldı',
-                    `${e.subCategory} ilanınız için yeterli oyuncu bulunamadı ve maç saati geldiği için otomatik kaldırıldı.`,
+                    `${subCategoryTR(e.subCategory)} ilanınız için yeterli oyuncu bulunamadı ve maç saati geldiği için otomatik kaldırıldı.`,
                     {},
                 ).catch(() => {});
             }
@@ -1904,7 +1905,7 @@ export const sendJoinRequest = async (req, res, next) => {
         // varsa — aynı anda iki yerde olamaz, başvuru/katılım isteği engellenir.
         const conflict = await findSchedulingConflict(req.userId, request.matchDate, request.matchTime, request.duration, id);
         if (conflict) {
-            return res.status(400).json({ message: `${conflict.matchTime} saatinde "${conflict.subCategory}" için zaten bir aktiviteniz var — aynı anda başka bir maça/hakemliğe başvuramazsınız.` });
+            return res.status(400).json({ message: `${conflict.matchTime} saatinde "${subCategoryTR(conflict.subCategory)}" için zaten bir aktiviteniz var — aynı anda başka bir maça/hakemliğe başvuramazsınız.` });
         }
 
         const existing = await prisma.rivalJoinRequest.findUnique({
@@ -2061,8 +2062,8 @@ export const sendJoinRequest = async (req, res, next) => {
             'RIVAL_JOIN_REQUEST',
             isRefereeAd ? '🟨 Yeni Hakemlik Başvurusu' : '📥 Yeni Katılım İsteği',
             isRefereeAd
-                ? `${me?.fullName || me?.username || 'Biri'}, "${request.subCategory}" maçınız için hakemlik başvurusu gönderdi.`
-                : `${me?.fullName || me?.username || 'Biri'}, "${request.subCategory}" ilanınıza katılmak istiyor.`,
+                ? `${me?.fullName || me?.username || 'Biri'}, "${subCategoryTR(request.subCategory)}" maçınız için hakemlik başvurusu gönderdi.`
+                : `${me?.fullName || me?.username || 'Biri'}, "${subCategoryTR(request.subCategory)}" ilanınıza katılmak istiyor.`,
             // Hakem başvurusunda bildirim, bağlı bir maç varsa asıl maça yönlendirir — başvurular
             // orada "Hakem Başvuruları" bölümünde görünür. Bağımsız hakem ilanıysa (eski akış)
             // ilanın kendisine, Hakemler sekmesi üzerinden.
@@ -2088,7 +2089,7 @@ export const sendJoinRequest = async (req, res, next) => {
                 mutual ? '🤝 Çift Eşleşmesi Tamamlandı' : '🤝 Çift Daveti',
                 mutual
                     ? `${me?.username || 'Biri'} ile çift olarak eşleştiniz, ilan sahibinin onayı bekleniyor.`
-                    : `${me?.username || 'Biri'} sizi bir ${request.subCategory} ilanında çift partneri olarak seçti. Aynı ilana onu partner göstererek başvurursanız çift olarak eşleşirsiniz.`,
+                    : `${me?.username || 'Biri'} sizi bir ${subCategoryTR(request.subCategory)} ilanında çift partneri olarak seçti. Aynı ilana onu partner göstererek başvurursanız çift olarak eşleşirsiniz.`,
                 { rivalId: id, subCategory: request.subCategory }
             ).catch(() => {});
         }
@@ -2128,7 +2129,7 @@ export const withdrawJoinRequest = async (req, res, next) => {
             joinReq.rival.senderId,
             'RIVAL_JOIN_REQUEST',
             '↩️ Katılım İsteği Geri Çekildi',
-            `${joinReq.user?.fullName || joinReq.user?.username || 'Oyuncu'}, "${joinReq.rival.subCategory}" ilanınıza gönderdiği katılım isteğini geri çekti.`,
+            `${joinReq.user?.fullName || joinReq.user?.username || 'Oyuncu'}, "${subCategoryTR(joinReq.rival.subCategory)}" ilanınıza gönderdiği katılım isteğini geri çekti.`,
             { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
         ).catch(() => {});
     } catch (error) { next(error); }
@@ -2194,7 +2195,7 @@ export const setRivalJoinPartner = async (req, res, next) => {
                 mutual ? '🤝 Çift Eşleşmesi Tamamlandı' : '🤝 Çift Daveti',
                 mutual
                     ? `${updated.user?.username || 'Biri'} ile çift olarak eşleştiniz, ilan sahibinin onayı bekleniyor.`
-                    : `${updated.user?.username || 'Biri'} sizi bir ${request.subCategory} ilanında çift partneri olarak seçti.`,
+                    : `${updated.user?.username || 'Biri'} sizi bir ${subCategoryTR(request.subCategory)} ilanında çift partneri olarak seçti.`,
                 { rivalId: id, subCategory: request.subCategory }
             ).catch(() => {});
         }
@@ -2673,8 +2674,8 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                 notifyPending, 'MATCH_INVITE_DECLINED',
                 isOwnerInitiated ? '❌ Hakemlik Daveti Reddedildi' : '❌ Hakemlik Başvurunuz Reddedildi',
                 isOwnerInitiated
-                    ? `"${joinReq.rival.subCategory}" maçı için gönderdiğiniz hakemlik daveti reddedildi.`
-                    : `"${joinReq.rival.subCategory}" maçı için hakemlik başvurunuz reddedildi.`,
+                    ? `"${subCategoryTR(joinReq.rival.subCategory)}" maçı için gönderdiğiniz hakemlik daveti reddedildi.`
+                    : `"${subCategoryTR(joinReq.rival.subCategory)}" maçı için hakemlik başvurunuz reddedildi.`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory, refereeAd: true }
             ).catch(() => {});
             postRefereeComment(joinReq.rival.linkedRivalId, req.userId, '❌ Hakemlik teklifi reddedildi.');
@@ -2691,7 +2692,7 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
             createNotification(
                 notifyPending, 'MATCH_INVITE',
                 '↔️ Karşı Teklif Aldınız',
-                `"${joinReq.rival.subCategory}" maçı için hakemlik teklifine karşılık ${counterPrice} karşı teklif geldi.${counterMessage ? ` "${counterMessage}"` : ''}`,
+                `"${subCategoryTR(joinReq.rival.subCategory)}" maçı için hakemlik teklifine karşılık ${counterPrice} karşı teklif geldi.${counterMessage ? ` "${counterMessage}"` : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory, refereeAd: true }
             ).catch(() => {});
             postRefereeComment(joinReq.rival.linkedRivalId, req.userId, `↔️ Karşı teklif: ${counterPrice}${counterMessage ? ` — ${counterMessage}` : ''}`);
@@ -2704,7 +2705,7 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
             createNotification(
                 notifyCountered, 'MATCH_INVITE_DECLINED',
                 '❌ Karşı Teklifiniz Reddedildi',
-                `"${joinReq.rival.subCategory}" maçı için verdiğiniz karşı teklif reddedildi.`,
+                `"${subCategoryTR(joinReq.rival.subCategory)}" maçı için verdiğiniz karşı teklif reddedildi.`,
                 { rivalId: joinReq.rival.linkedRivalId || joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
             postRefereeComment(joinReq.rival.linkedRivalId, req.userId, '❌ Karşı teklif reddedildi.');
@@ -2720,7 +2721,7 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
             createNotification(
                 notifyCountered, 'MATCH_INVITE',
                 '✅ Karşı Teklifiniz Kabul Edildi',
-                `"${joinReq.rival.subCategory}" maçı için verdiğiniz ${joinReq.counterPrice} karşı teklif kabul edildi — onay bekleniyor.`,
+                `"${subCategoryTR(joinReq.rival.subCategory)}" maçı için verdiğiniz ${joinReq.counterPrice} karşı teklif kabul edildi — onay bekleniyor.`,
                 { rivalId: joinReq.rival.linkedRivalId || joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory, refereeAd: true }
             ).catch(() => {});
             postRefereeComment(joinReq.rival.linkedRivalId, req.userId, `✅ Karşı teklif kabul edildi: ${joinReq.counterPrice}`);
@@ -2761,8 +2762,8 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                 notifyPending, 'MATCH_CONFIRMED',
                 isOwnerInitiated ? '✅ Hakemlik Daveti Kabul Edildi' : '✅ Hakemlik Başvurunuz Onaylandı',
                 isOwnerInitiated
-                    ? `${refUser.fullName || refUser.username}, "${joinReq.rival.subCategory}" maçında hakemlik davetinizi kabul etti.`
-                    : `"${joinReq.rival.subCategory}" maçı için hakemlik başvurunuz onaylandı.`,
+                    ? `${refUser.fullName || refUser.username}, "${subCategoryTR(joinReq.rival.subCategory)}" maçında hakemlik davetinizi kabul etti.`
+                    : `"${subCategoryTR(joinReq.rival.subCategory)}" maçı için hakemlik başvurunuz onaylandı.`,
                 { rivalId: joinReq.rival.linkedRivalId || joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
             postRefereeComment(joinReq.rival.linkedRivalId, req.userId, `✅ ${refUser.fullName || refUser.username} hakem olarak onaylandı${refereeShare ? ` — kişi başı ${refereeShare}₺` : ''}.`);
@@ -2994,7 +2995,7 @@ export const getUpcomingMatches = async (req, res, next) => {
             for (const uid of allIds) {
                 createNotification(uid, 'MATCH_EXPIRED',
                     '⏰ Maç Silindi',
-                    `${m.subCategory} esnek maçında 24 saat içinde tarih/saat/yer belirlenemediği için ilan otomatik silindi.`,
+                    `${subCategoryTR(m.subCategory)} esnek maçında 24 saat içinde tarih/saat/yer belirlenemediği için ilan otomatik silindi.`,
                     { subCategory: m.subCategory }
                 ).catch(() => {});
             }
@@ -3907,7 +3908,7 @@ export const removeRivalParticipant = async (req, res, next) => {
         for (const uid of removeIds) {
             createNotification(uid, 'MATCH_CANCELLED',
                 '⚠️ Katılımınız Kaldırıldı',
-                `${senderName} sizi "${rival.subCategory}" ilanından çıkardı. İlan tekrar açık hâle geldi.`,
+                `${senderName} sizi "${subCategoryTR(rival.subCategory)}" ilanından çıkardı. İlan tekrar açık hâle geldi.`,
                 { rivalId: id, subCategory: rival.subCategory }
             ).catch(() => {});
         }
@@ -3942,14 +3943,15 @@ export const cancelMatch = async (req, res, next) => {
         const allPlayerIds = [request.senderId, ...senderTeamIds, ...participants.map(p => p.id)];
         const otherPlayerIds = allPlayerIds.filter(uid => uid !== req.userId);
 
-        // Ceza penceresi: genelde maça 5 saat kala / -0.20 puan, ama voleybolde ilan
-        // sahibi kendi eşiğini (cancelPenaltyHours) belirlediyse bu ilana özel o eşik
-        // ve sabit -0.10 puan cezası kullanılır (genel kural değişmez).
-        const useVolleyballCustomRule = request.subCategory === 'volleyball' && request.cancelPenaltyHours != null;
-        const penaltyWindowHours = useVolleyballCustomRule ? request.cancelPenaltyHours : 5;
-        const penaltyAmount = useVolleyballCustomRule ? 0.10 : 0.20;
+        // Ceza penceresi: diğer dallarda sabit 5 saat/-0.20 puan. Voleybolde ise genel
+        // kural hiç geçerli değil — ilan sahibi kendi eşiğini (cancelPenaltyHours) belirlediyse
+        // o ilana özel eşik + sabit -0.10 puan uygulanır, belirlemediyse voleybol maçlarında
+        // hiçbir geç iptal cezası yoktur (5 saatlik genel kurala düşmez).
+        const isVolleyball = request.subCategory === 'volleyball';
+        const penaltyWindowHours = isVolleyball ? request.cancelPenaltyHours : 5;
+        const penaltyAmount = isVolleyball ? 0.10 : 0.20;
         let withinPenaltyWindow = false;
-        if (request.matchDate && request.matchTime) {
+        if (penaltyWindowHours != null && request.matchDate && request.matchTime) {
             const [h, m] = request.matchTime.split(':').map(Number);
             const matchStart = new Date(request.matchDate);
             matchStart.setUTCHours(h, m, 0, 0);
@@ -4024,7 +4026,7 @@ export const cancelMatch = async (req, res, next) => {
             // Re-notify city-alert subscribers that a spot opened back up
             prisma.user.findUnique({ where: { id: request.senderId }, select: { city: true } })
                 .then(u => {
-                    const alertTitle = `📍 Yer Açıldı — ${request.subCategory}`;
+                    const alertTitle = `📍 Yer Açıldı — ${subCategoryTR(request.subCategory)}`;
                     const alertBody = `${request.sender?.username ? '@' + request.sender.username + ' ilanında' : 'Bir ilanda'} yer açıldı, hemen katıl!`;
                     notifyCitySubscribers({
                         subCategory: request.subCategory, category: request.category,
@@ -4067,7 +4069,7 @@ export const cancelMatch = async (req, res, next) => {
                 if (newCount === 5) {
                     createNotification(req.userId, 'LATE_CANCEL_WARNING',
                         '⚠️ Son Dakika İptal Uyarısı',
-                        `${request.subCategory} dalında 5 kez maçı son ${penaltyWindowHours} saat içinde iptal ettiniz. Bu durum profilinizde görünür ve güvenilirliğinizi olumsuz etkiler.`,
+                        `${subCategoryTR(request.subCategory)} dalında 5 kez maçı son ${penaltyWindowHours} saat içinde iptal ettiniz. Bu durum profilinizde görünür ve güvenilirliğinizi olumsuz etkiler.`,
                         { subCategory: request.subCategory }
                     ).catch(() => {});
                 }
@@ -4114,7 +4116,7 @@ export const getMyUpcomingMatches = async (req, res, next) => {
                     createNotification(
                         uid, 'MATCH_EXPIRED',
                         '⏰ Esnek Maç Silindi',
-                        `${m.subCategory} esnek maçında 24 saat içinde tarih/saat/yer belirlenemediği için ilan otomatik silindi.`,
+                        `${subCategoryTR(m.subCategory)} esnek maçında 24 saat içinde tarih/saat/yer belirlenemediği için ilan otomatik silindi.`,
                         { subCategory: m.subCategory }
                     ).catch(() => {});
                 }

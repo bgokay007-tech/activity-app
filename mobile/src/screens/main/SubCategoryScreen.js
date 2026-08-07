@@ -2941,12 +2941,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     };
     const matchStart = getMatchStart(match);
     const hoursUntilMatch = matchStart ? (matchStart - new Date()) / (1000 * 60 * 60) : null;
-    // Voleybolde kurucu kendi cancelPenaltyHours eşiğini belirlediyse (backend cancelMatch'teki
-    // aynı kural) genel 5 saat/-0.20 yerine bu ilana özel saat/-0.10 puan kullanılır.
-    const useVolleyballCustomRule = match.subCategory === 'volleyball' && match.cancelPenaltyHours != null;
-    const cancelPenaltyWindowHours = useVolleyballCustomRule ? match.cancelPenaltyHours : 5;
-    const cancelPenaltyAmount = useVolleyballCustomRule ? 0.10 : 0.20;
-    const withinPenaltyWindow = hoursUntilMatch !== null && hoursUntilMatch > 0 && hoursUntilMatch <= cancelPenaltyWindowHours;
+    // Diğer dallarda sabit 5 saat/-0.20. Voleybolde genel kural hiç geçerli değil — kurucu
+    // kendi eşiğini (cancelPenaltyHours) belirlediyse o kullanılır, belirlemediyse voleybol
+    // maçlarında hiç geç iptal cezası yoktur (backend cancelMatch'teki aynı kural).
+    const isVolleyballMatch = match.subCategory === 'volleyball';
+    const cancelPenaltyWindowHours = isVolleyballMatch ? match.cancelPenaltyHours : 5;
+    const cancelPenaltyAmount = isVolleyballMatch ? 0.10 : 0.20;
+    const withinPenaltyWindow = cancelPenaltyWindowHours != null && hoursUntilMatch !== null && hoursUntilMatch > 0 && hoursUntilMatch <= cancelPenaltyWindowHours;
 
     // Mutual cancel state
     const mutualReqs = Array.isArray(match.mutualCancelRequests) ? match.mutualCancelRequests : [];
@@ -4563,6 +4564,45 @@ function GenderCountModal({ visible, total, value, onSelect, onClose, t }) {
     );
 }
 
+// Airsoft: Kişi Başı Ücret artık Ücretli/Ücretsiz sekmesi yerine tek, sabit bir alan —
+// dokununca bu modal açılır, ya Ücretsiz seçilir ya manuel tutar girilip Uygula'ya basılır.
+function FeeModal({ visible, value, onSelectFree, onConfirmPrice, onClose, t }) {
+    const [priceInput, setPriceInput] = useState(value || '');
+    useEffect(() => {
+        if (visible) setPriceInput(value || '');
+    }, [visible, value]);
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={opt.overlay}>
+                <View style={opt.box}>
+                    <View style={opt.header}>
+                        <Text style={opt.title}>{t.courtFeeShortLabel}</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
+                    </View>
+                    <TouchableOpacity onPress={() => { onSelectFree(); onClose(); }}
+                        style={{ backgroundColor:'#16a34a30', borderWidth:1, borderColor:'#16a34a', borderRadius:14, paddingVertical:12, alignItems:'center', marginBottom:16 }}>
+                        <Text style={{ color:'#4ade80', fontWeight:'800', fontSize:14 }}>{t.tournFreeOption}</Text>
+                    </TouchableOpacity>
+                    <Text style={{ color: colors.textSecondary, fontSize:13, fontWeight:'700', marginBottom:8 }}>{t.courtFeeShortLabel}</Text>
+                    <TextInput
+                        style={{ backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:15, paddingHorizontal:14, paddingVertical:12, marginBottom:16 }}
+                        value={priceInput}
+                        onChangeText={v => setPriceInput(v.replace(/[^0-9]/g, ''))}
+                        placeholder={t.courtFeePh}
+                        placeholderTextColor={colors.textMuted}
+                        keyboardType="numeric"
+                    />
+                    <TouchableOpacity onPress={() => { if (priceInput.trim()) { onConfirmPrice(priceInput); onClose(); } }}
+                        disabled={!priceInput.trim()}
+                        style={{ backgroundColor: colors.purple, borderRadius:14, paddingVertical:12, alignItems:'center', opacity: priceInput.trim() ? 1 : 0.5 }}>
+                        <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>{t.dateRangeApply}</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 // Saat seçimi artık paylaşılan components/TimePickerModal.js üzerinden yapılıyor
 // (uygulama genelinde aynı görünüm için) — bkz. yukarıdaki import. `tg` stilleri
 // aşağıdaki RatingPickerModal tarafından hâlâ kullanılıyor, o yüzden kalıyor.
@@ -4638,6 +4678,7 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
     genderSplit, onToggleGenderSplit,
     maleMin, maleMax, onSelectMaleMin, onSelectMaleMax,
     femaleMin, femaleMax, onSelectFemaleMin, onSelectFemaleMax,
+    ownRating = null, ownGender = null, // ilan sahibinin kendi derece puanı/cinsiyeti — kendi puanına uymayan bir aralık seçemesin diye (backend'de submit'te de aynı kontrol var, bkz. createRivalRequest)
 }) {
     const t = useT();
     const ratings = ['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0','5.5','6.0','6.5','7.0','7.5','8.0','8.5','9.0','9.5','10.0'];
@@ -4647,18 +4688,28 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
     // dalında (bireysel/takım) veya cinsiyete göre ayrılmış alanda olursa olsun geçerli.
     // '' (Serbest) sınırsız kabul edilir, karşı taraf zaten boşsa kısıtlama yok.
     const numOf = (v) => (v === '' || v == null) ? null : parseFloat(v);
-    const guardMin = (onSelect, otherMax) => (v) => {
+    // checkOwn=false, cinsiyete göre ayrılmış aralıkta ilan sahibinin cinsiyetiyle
+    // eşleşmeyen (dolayısıyla kendisini hiç ilgilendirmeyen) tarafta kontrolü atlar.
+    const guardMin = (onSelect, otherMax, checkOwn = true) => (v) => {
         const nv = numOf(v), om = numOf(otherMax);
         if (nv != null && om != null && nv > om) {
             Alert.alert('', 'Alt limit üst limitten büyük olamaz.');
             return;
         }
+        if (checkOwn && ownRating != null && nv != null && ownRating < nv) {
+            Alert.alert('', `Bu kısıtlamayı koyamazsınız: kendi puanınız ${ownRating.toFixed(2)}★, en az ${nv}★ isteyemezsiniz.`);
+            return;
+        }
         onSelect(v);
     };
-    const guardMax = (onSelect, otherMin) => (v) => {
+    const guardMax = (onSelect, otherMin, checkOwn = true) => (v) => {
         const nv = numOf(v), om = numOf(otherMin);
         if (nv != null && om != null && nv < om) {
             Alert.alert('', 'Üst limit alt limitten küçük olamaz.');
+            return;
+        }
+        if (checkOwn && ownRating != null && nv != null && ownRating > nv) {
+            Alert.alert('', `Bu kısıtlamayı koyamazsınız: kendi puanınız ${ownRating.toFixed(2)}★, en fazla ${nv}★ diyemezsiniz.`);
             return;
         }
         onSelect(v);
@@ -4690,11 +4741,11 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
                         ) : (
                             <>
                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8 }}>{noEmojiStr(t.genderMale || '👨 Erkek')}</Text>
-                                <RatingGrid label={t.ratingMinHeader} value={maleMin} onSelect={guardMin(onSelectMaleMin, maleMax)} ratings={ratings} t={t} />
-                                <RatingGrid label={t.ratingMaxHeader} value={maleMax} onSelect={guardMax(onSelectMaleMax, maleMin)} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMinHeader} value={maleMin} onSelect={guardMin(onSelectMaleMin, maleMax, ownGender === 'MALE')} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMaxHeader} value={maleMax} onSelect={guardMax(onSelectMaleMax, maleMin, ownGender === 'MALE')} ratings={ratings} t={t} />
                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8, marginTop:6 }}>{noEmojiStr(t.genderFemale || '👩 Kadın')}</Text>
-                                <RatingGrid label={t.ratingMinHeader} value={femaleMin} onSelect={guardMin(onSelectFemaleMin, femaleMax)} ratings={ratings} t={t} />
-                                <RatingGrid label={t.ratingMaxHeader} value={femaleMax} onSelect={guardMax(onSelectFemaleMax, femaleMin)} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMinHeader} value={femaleMin} onSelect={guardMin(onSelectFemaleMin, femaleMax, ownGender === 'FEMALE')} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMaxHeader} value={femaleMax} onSelect={guardMax(onSelectFemaleMax, femaleMin, ownGender === 'FEMALE')} ratings={ratings} t={t} />
                             </>
                         )}
                     </ScrollView>
@@ -5915,7 +5966,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                     <TouchableOpacity onLongPress={handleLongPress} delayLongPress={350} disabled={!onSetPosition} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
                         {slot.type === 'user'
                             ? <Avatar name={slot.username} avatar={slot.avatar} size={14} color={cfg.color} />
-                            : <Text style={{ fontSize:12 }}>👤</Text>}
+                            : <View style={{ width:14, height:14 }} />}
                     </TouchableOpacity>
                 )}
                 <TextInput
@@ -6081,6 +6132,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const insets = useSafeAreaInsets();
     const lang = useSelector(s => s.lang?.lang || 'en');
     const myUser = useSelector(s => s.auth.user);
+    // Derece kısıtlaması kendi puanına uymuyorsa seçim anında uyarılsın diye (backend'de
+    // submit'te de aynı kontrol var, bkz. createRivalRequest) — kendi puanı burada bilinmeli.
+    const myOwnRating = (myUser?.interests || []).find(i => i.subCategory === sub)?.skillRating ?? null;
     const isTeamSport = TEAM_SPORTS.has(sub);
     const isFootball  = sub === 'football';
     const isVolleyball = sub === 'volleyball';
@@ -6366,12 +6420,15 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         }, 300);
         return () => clearTimeout(task);
     }, [f.manualRefereeName]);
+    // Öneriden bir isim seçmek eskiden "Hakem Davet Et" penceresini (fiyat/mesaj formu)
+    // açıyordu — kullanıcı isteğiyle artık tek adımda: kayıtlıysa direkt davet gönderilir
+    // (o kişiye onay/red bildirimi gider), ekstra bir pencereye gerek yok. Ücret zaten
+    // aşağıdaki ÜCRET alanından ayrıca ayarlanıyor.
     const pickRefereeSuggestion = (user) => {
-        setRefereeInviteForm({ user, message: '', price: '' });
-        setInviteTarget('referee');
         setRefereeNameSuggestions([]);
         set('manualRefereeName', '');
         if (!f.refereeRequested) set('refereeRequested', true);
+        setF(p => ({ ...p, refereeInvites: [{ user, message: '', price: '' }] }));
     };
     // İki sekme: Arkadaşlarım (önceden yüklenen liste) | Tüm Oyuncular (bu sporda ilgi kaydı
     // olan herkes, yazdıkça sunucudan "başlayanlar" filtresiyle canlı daralır).
@@ -6424,6 +6481,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [showSubCountPicker, setShowSubCountPicker] = useState(false);
     const [showGenderCountPicker, setShowGenderCountPicker] = useState(false);
     const [showWinsNeededPicker, setShowWinsNeededPicker] = useState(false);
+    const [showCancelPenaltyModal, setShowCancelPenaltyModal] = useState(false);
+    const [cancelPenaltyManualText, setCancelPenaltyManualText] = useState('');
+    const [showFeePicker, setShowFeePicker] = useState(false); // Airsoft: sabit Kişi Başı Ücret alanı
     // Arka yüzde "Atanmamış" havuzundan seçilen kişi — sonra Kurucu/Rakip başlığına
     // dokununca o kişinin side'ı set edilir (mevcut swapSlot tak-seç-hedefe-dokun deseniyle aynı mantık).
     const [selectedUnassignedIndex, setSelectedUnassignedIndex] = useState(null);
@@ -7029,7 +7089,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
                         <View style={[s.modalHeader, { marginBottom:3 }]}>
-                            <Text style={s.modalTitle}>{isMatchedEdit ? '✏️ Kort/Saat Değiştir' : editItem ? t.editRivalTitle : t.createTitle}</Text>
+                            <Text style={s.modalTitle}>{isMatchedEdit ? '✏️ Kort/Saat Değiştir' : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : t.createTitle)}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
@@ -7260,6 +7320,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         femaleMin={f.minRatingFemale} femaleMax={f.maxRatingFemale}
                                         onSelectFemaleMin={(v) => set('minRatingFemale', v)}
                                         onSelectFemaleMax={(v) => set('maxRatingFemale', v)}
+                                        ownRating={myOwnRating}
+                                        ownGender={myUser?.gender}
                                     />
                                     {(sub === 'tennis' || sub === 'padel') && f.flexibleSchedule && (
                                         <Text style={s.modeHint}>{t.multiSelectHint}</Text>
@@ -7443,6 +7505,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 femaleMin={f.minRatingFemale} femaleMax={f.maxRatingFemale}
                                                 onSelectFemaleMin={(v) => set('minRatingFemale', v)}
                                                 onSelectFemaleMax={(v) => set('maxRatingFemale', v)}
+                                                ownRating={myOwnRating}
+                                                ownGender={myUser?.gender}
                                             />
                                         </View>
                                     )}
@@ -7460,6 +7524,18 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         {f.flexibleSchedule ? noEmoji(t.flexLabel) : (f.matchDate ? `${String(f.matchDate.getDate()).padStart(2,'0')}/${String(f.matchDate.getMonth()+1).padStart(2,'0')}/${f.matchDate.getFullYear()}` : '—')}
                                     </Text>
                                 </TouchableOpacity>
+                                {/* Airsoft: Kişi Başı Ücret artık Ücretli/Ücretsiz sekmesine bağlı değil, sabit
+                                    bir alan — esnek program açık/kapalı fark etmeksizin her zaman görünür.
+                                    Dokununca açılan FeeModal'da ya Ücretsiz seçilir ya manuel tutar girilir. */}
+                                {sub === 'airsoft' && (
+                                    <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.activityIsPaid && f.courtFeePerPerson && s.triBtnFilled]}
+                                        onPress={() => setShowFeePicker(true)}>
+                                        <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.courtFeeShortLabel}</Text>
+                                        <Text style={[s.triValue, { padding:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                            {f.activityIsPaid && f.courtFeePerPerson ? `${f.courtFeePerPerson}₺` : t.tournFreeOption}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
                                 {!f.flexibleSchedule && (
                                     <>
                                         <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.matchTime && s.triBtnFilled]} onPress={() => set('showTimePicker', true)}>
@@ -7487,7 +7563,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             kort seçilince tetiklenir; kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS)
                                             aynı mantık Ücretli işaretlenince tetiklenir (Mekan Adı'na yazmak courtSearchText'i
                                             de doldurduğu için o eski koşulla karışmasın diye ayrıca ele alınıyor). */}
-                                        {(SIMPLIFIED_FEE_SUBS.has(sub)
+                                        {sub !== 'airsoft' && (SIMPLIFIED_FEE_SUBS.has(sub)
                                             ? f.activityIsPaid
                                             : (!f.courtMutual && (f.selectedCourt || f.courtSearchText.length >= 2 || (f.showManualCourt && f.manualCourtName)))
                                         ) && (
@@ -7522,9 +7598,77 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 } : null}
                                             />
                                         )}
+                                        {isVolleyball && !isMatchedEdit && (
+                                            <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.cancelPenaltyHours !== '' && s.triBtnFilled]}
+                                                onPress={() => {
+                                                    const presets = [1,2,3,4,5,6,7,8,9,10,12,24,30,36,48].map(String);
+                                                    setCancelPenaltyManualText(f.cancelPenaltyHours && !presets.includes(f.cancelPenaltyHours) ? f.cancelPenaltyHours : '');
+                                                    setShowCancelPenaltyModal(true);
+                                                }}>
+                                                <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.cancelPenaltyHoursLabel}</Text>
+                                                <Text style={[s.triValue, f.cancelPenaltyHours === '' && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                                    {f.cancelPenaltyHours !== '' ? t.cancelPenaltyHoursOption(f.cancelPenaltyHours) : t.cancelPenaltyHoursOff}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
                                     </>
                                 )}
                             </View>
+                            {sub === 'airsoft' && (
+                                <FeeModal
+                                    visible={showFeePicker}
+                                    value={f.courtFeePerPerson}
+                                    onSelectFree={() => setF(p => ({ ...p, activityIsPaid: false, courtFeePerPerson: '' }))}
+                                    onConfirmPrice={(v) => setF(p => ({ ...p, activityIsPaid: true, courtFeePerPerson: v }))}
+                                    onClose={() => setShowFeePicker(false)}
+                                    t={t}
+                                />
+                            )}
+                            <Modal visible={showCancelPenaltyModal} animationType="slide" transparent onRequestClose={() => setShowCancelPenaltyModal(false)}>
+                                <View style={tg.overlay}>
+                                    <View style={[tg.box, { height:'70%' }]}>
+                                        <View style={tg.header}>
+                                            <Text style={tg.title}>{t.cancelPenaltyHoursLabel}</Text>
+                                            <TouchableOpacity onPress={() => setShowCancelPenaltyModal(false)}><Text style={tg.close}>✕</Text></TouchableOpacity>
+                                        </View>
+                                        <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:12 }}>{t.cancelPenaltyHoursHint}</Text>
+                                        <ScrollView showsVerticalScrollIndicator={false}>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:14 }}>
+                                                <TouchableOpacity
+                                                    onPress={() => { set('cancelPenaltyHours', ''); setCancelPenaltyManualText(''); }}
+                                                    style={[s.chip, f.cancelPenaltyHours === '' && { backgroundColor: cfg.color+'30', borderColor: cfg.color }]}>
+                                                    <Text style={[s.chipText, f.cancelPenaltyHours === '' && { color: cfg.color, fontWeight:'800' }]}>{t.cancelPenaltyHoursOff}</Text>
+                                                </TouchableOpacity>
+                                                {[1,2,3,4,5,6,7,8,9,10,12,24,30,36,48].map(h => (
+                                                    <TouchableOpacity key={h}
+                                                        onPress={() => { set('cancelPenaltyHours', String(h)); setCancelPenaltyManualText(''); }}
+                                                        style={[s.chip, f.cancelPenaltyHours === String(h) && { backgroundColor: cfg.color+'30', borderColor: cfg.color }]}>
+                                                        <Text style={[s.chipText, f.cancelPenaltyHours === String(h) && { color: cfg.color, fontWeight:'800' }]}>{t.cancelPenaltyHoursOption(h)}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                            <Text style={s.fieldLabel}>{t.cancelPenaltyHoursManualLabel}</Text>
+                                            <TextInput
+                                                style={s.fieldInput}
+                                                value={cancelPenaltyManualText}
+                                                onChangeText={(v) => {
+                                                    const digits = v.replace(/[^0-9]/g, '');
+                                                    setCancelPenaltyManualText(digits);
+                                                    set('cancelPenaltyHours', digits);
+                                                }}
+                                                placeholder={t.cancelPenaltyHoursManualPh}
+                                                placeholderTextColor={colors.textMuted}
+                                                keyboardType="numeric"
+                                            />
+                                        </ScrollView>
+                                        <TouchableOpacity
+                                            onPress={() => setShowCancelPenaltyModal(false)}
+                                            style={{ backgroundColor: colors.purple, borderRadius:12, paddingVertical:12, alignItems:'center', marginTop:10 }}>
+                                            <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || 'Onayla'}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </Modal>
                             <TimePickerModal
                                 visible={f.showTimePicker}
                                 title={t.selectTime}
@@ -7561,7 +7705,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 <View style={{ width:18, height:18, borderRadius:9, backgroundColor:'#fff' }} />
                                             </View>
                                         </TouchableOpacity>
-                                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:6 }}>{t.flexHint}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:11, marginTop:6 }}>{sub === 'airsoft' ? t.flexHintAirsoft : t.flexHint}</Text>
                                     </View>
                                 }
                             />
@@ -8101,33 +8245,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </View>
                             )}
 
-                            {/* Geç iptal cezası — voleybole özel, kurucunun belirlediği saat eşiği.
-                                Kapalıysa genel kural (5 saat / -0.20★, cancelMatch'te sabit) geçerli olur. */}
-                            {isVolleyball && (
-                                <View style={{ marginBottom:14 }}>
-                                    <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.cancelPenaltyHoursLabel}</Text>
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
-                                        <TouchableOpacity
-                                            onPress={() => set('cancelPenaltyHours', '')}
-                                            style={[s.chip, f.cancelPenaltyHours === '' && { backgroundColor: cfg.color+'30', borderColor: cfg.color }]}>
-                                            <Text style={[s.chipText, f.cancelPenaltyHours === '' && { color: cfg.color, fontWeight:'800' }]}>{t.cancelPenaltyHoursOff}</Text>
-                                        </TouchableOpacity>
-                                        {[3, 6, 12, 24, 48].map(h => (
-                                            <TouchableOpacity key={h}
-                                                onPress={() => set('cancelPenaltyHours', String(h))}
-                                                style={[s.chip, f.cancelPenaltyHours === String(h) && { backgroundColor: cfg.color+'30', borderColor: cfg.color }]}>
-                                                <Text style={[s.chipText, f.cancelPenaltyHours === String(h) && { color: cfg.color, fontWeight:'800' }]}>{t.cancelPenaltyHoursOption(h)}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                    <Text style={s.fieldHint}>{t.cancelPenaltyHoursHint}</Text>
-                                </View>
-                            )}
-
                             {/* Ücretli/Ücretsiz — kort kavramı olmayan dallar (SIMPLIFIED_FEE_SUBS): sup&kano,
                                 airsoft, binicilik, fitness, kamp, koşu, yürüyüş, ekstrem sporlar. Ekstrem
                                 sporlarda ayrıca hangi ekstrem dal olduğu da (surface alanı yeniden kullanılarak) seçilir. */}
-                            {!isMatchedEdit && SIMPLIFIED_FEE_SUBS.has(sub) && (
+                            {!isMatchedEdit && SIMPLIFIED_FEE_SUBS.has(sub) && sub !== 'airsoft' && (
                                 <View style={{ marginBottom:10 }}>
                                     <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.activityFeeLabel}</Text>
                                     <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
