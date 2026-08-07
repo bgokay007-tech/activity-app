@@ -1027,6 +1027,12 @@ const en = {
     createEventBtn: '📅 Create Event', createCourseBtn: '🎓 Create Course',
     createPlayerWantedBtn: '+ Player Wanted Listing',
     createPlayerWantedTitle: '👤 Player Wanted',
+    // Voleybolde "Rakip Bul" / "Oyuncu Ara" sekme isimleri kullanıcı isteğiyle yer değiştirdi
+    // (bkz. getTabs/tabLabel) — bu sekmenin içindeki "player_wanted" ilan oluşturma
+    // butonu/başlığı da buna uysun diye ayrı, voleybole özel bir metin.
+    createOpponentWantedBtn: '+ Opponent Wanted Listing',
+    createOpponentWantedTitle: '🆚 Opponent Wanted',
+    emptyOpponentWanted: 'No opponent wanted listings yet',
     upcomingMatchesTitle: 'Upcoming Matches',
     pendingScoreTitle: 'Awaiting Score',
     allListingsTitle: '📋 All Listings',
@@ -2353,6 +2359,9 @@ const tr = {
     createEventBtn: '📅 Etkinlik Oluştur', createCourseBtn: '🎓 Kurs Oluştur',
     createPlayerWantedBtn: '+ Oyuncu Aranıyor İlanı',
     createPlayerWantedTitle: '👤 Oyuncu Aranıyor',
+    createOpponentWantedBtn: '+ Rakip Aranıyor İlanı',
+    createOpponentWantedTitle: '🆚 Rakip Aranıyor',
+    emptyOpponentWanted: 'Henüz rakip ilanı yok',
     upcomingMatchesTitle: 'Yaklaşan Maçlar',
     pendingScoreTitle: 'Skor Bekleyen Maçlar',
     allListingsTitle: '📋 Tüm İlanlar',

@@ -508,11 +508,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
     const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2' — seçili slot
-    // Takım sporlarında (voleybol) kadro kartı — UpcomingCard'daki (Yaklaşan Maçlar) ile
-    // birebir aynı TeamAssignCard bileşeni kullanılıyor, o yüzden aynı takım-ismi-düzenleme
-    // state'i burada da gerekiyor.
-    const [teamNameModal, setTeamNameModal] = useState(null); // { side: 'founder'|'opponent', value } | null
-    const [savingTeamName, setSavingTeamName] = useState(false);
     // Çiftlerde kabul edilen oyuncular varsayılan olarak Partner/Rakip 1/Rakip 2 kartlarına
     // otomatik yerleşmiş gösterilmez — önce sırayla "Katılımcı 1/2/3" olarak listelenir,
     // kurucu isterse "Takımları Düzenle" ile mevcut kart/takas ekranını açar.
@@ -720,6 +715,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // ayrı oppTeamManualNames alanına yazılıyor — sayaca dahil edilmezse "kadroda görünüyor
     // ama sayı hâlâ eksik gösteriyor" hissi oluyordu.
     const oppManualNames = Array.isArray(item.oppTeamManualNames) ? item.oppTeamManualNames.filter(n => typeof n === 'string' && n.trim()) : [];
+    // Atanmamış havuz — kadro kartının ön yüzünde de sayılmalı, aksi halde başlıktaki
+    // (X/Y) kartta gösterilenle uyuşmuyordu.
+    const unassignedSlots = (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []).filter(p => p?.id || p?.manualName);
     // Çiftlerde (DOUBLE) toplam kapasite sabit 4 (2 taraf x 2) ve "required" zaten
     // rakip tarafta kalan boş kontenjanı ifade eder. Takım sporlarında (voleybol 6v6 vb.)
     // "required" tek bir tarafın TAM boyutu (teamSize) — iki tarafı da saymadan
@@ -846,28 +844,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         );
     };
 
-    // "Atanmamış" havuzundaki gerçek bir kullanıcıyı Kurucu/Rakip'e atar — TeamAssignCard'ın
-    // (Yaklaşan Maçlar) kullandığı aynı uç nokta, ilan henüz MATCHED olmasa da çalışır.
+    // "Atanmamış" havuzundaki (veya zaten bir tarafa atanmış) gerçek bir kullanıcıyı
+    // Kurucu/Rakip'e atar/geri alır — Yaklaşan Maçlar'daki (assignPlayerToSide) ile aynı
+    // uç nokta, ilan henüz MATCHED olmasa da çalışır.
     const assignUnassignedToSide = (userId, side) => {
         api.patch(`/rivals/${item.id}/assign-player`, { userId, side })
             .then(onRefresh)
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
-    };
-
-    // UpcomingCard'daki saveTeamName ile birebir aynı — TeamAssignCard'ın "✎" düğmesi
-    // buraya bağlanıyor (açık ilanda da takım ismi ayarlanabilsin diye).
-    const saveTeamName = async () => {
-        if (!teamNameModal) return;
-        setSavingTeamName(true);
-        try {
-            await api.patch(`/rivals/${item.id}/team-name`, { side: teamNameModal.side, name: teamNameModal.value });
-            setTeamNameModal(null);
-            onRefresh();
-        } catch (e) {
-            Alert.alert('', e?.response?.data?.message || 'Hata');
-        } finally {
-            setSavingTeamName(false);
-        }
     };
 
     const SLOT_LABELS = { partner: 'Kurucu Takımı (Partner)', opp1: 'Rakip 1', opp2: 'Rakip 2' };
@@ -1122,7 +1105,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             <Text style={det.sectionTitle}>
                                 👥 {t.players || 'Oyuncular'} {isRefereeAd && item.linkedRival
                                     ? `(${linkedSenderSideCount + linkedFilled} / ${linkedTotalCapacity})`
-                                    : `(${senderSideCount + filled + (item.matchType === 'DOUBLE' ? 0 : oppManualNames.length)} / ${totalCapacity})`}
+                                    : `(${senderSideCount + filled + (item.matchType === 'DOUBLE' ? 0 : (oppManualNames.length + unassignedSlots.length))} / ${totalCapacity})`}
                             </Text>
                             {item.matchType === 'DOUBLE' && (isOwner || isParticipant) && showTeamCards && (
                                 <TouchableOpacity onPress={() => toggleTeamCards(false)} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
@@ -1133,6 +1116,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 (senderTeamArr[0]?.id || participants[0]?.id || participants[1]?.id) && (
                                 <TouchableOpacity onPress={() => toggleTeamCards(true)} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🗂️ {isOwner ? 'Takımları Düzenle' : 'Takımları Gör'}</Text>
+                                </TouchableOpacity>
+                            )}
+                            {/* Takım sporlarında (voleybol) kadro kartı — ilan oluşturma ekranındaki
+                                aynı çevirmeli kart: ön yüz 3'lü grid havuz + yedekler, arka yüz Kurucu/
+                                Rakip Takımı (teamSize'lık sabit sütunlar). Aynı showTeamCards/cardRotateY
+                                state'i (DOUBLE'da kullanılanla aynı) burada da ön/arka geçişi için kullanılıyor. */}
+                            {item.matchType !== 'DOUBLE' && !isRefereeAd && (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) && (
+                                <TouchableOpacity onPress={() => toggleTeamCards(!showTeamCards)} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🔄 {showTeamCards ? t.rosterPoolLabel : `${t.myTeamLabel} ↔ ${t.oppTeamLabel}`}</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -1395,26 +1387,118 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </View>
                                 </View>
                             );
-                        })() : (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) ? (
-                            // Takım sporları (voleybol, futbol vb.) — ilan oluştururken kullanılan
-                            // AYNI kart: TeamAssignCard (önceden sadece Yaklaşan Maçlar'da/MATCHED
-                            // durumda kullanılıyordu, artık açık ilanda da aynı bileşen). Eskiden burada
-                            // ayrı, basitleştirilmiş bir kart vardı — kullanıcı isteğiyle kaldırıldı.
-                            <TeamAssignCard
-                                founderPlayers={[item.sender, ...senderTeamArr.filter(p => p?.id || p?.manualName)].filter(Boolean)}
-                                oppPlayers={[...participants.filter(p => p?.id), ...oppManualNames.map(n => ({ manualName: n }))]}
-                                unassigned={(Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []).filter(p => p?.id || p?.manualName)}
-                                founderTeamName={item.founderTeamName}
-                                opponentTeamName={item.opponentTeamName}
-                                canEditFounderName={isOwner || senderTeamArr.some(p => p.id === myId)}
-                                canEditOppName={isOwner || participants.some(p => p.id === myId)}
-                                onEditFounderName={() => setTeamNameModal({ side:'founder', value: item.founderTeamName || '' })}
-                                onEditOppName={() => setTeamNameModal({ side:'opponent', value: item.opponentTeamName || '' })}
-                                isOwner={isOwner}
-                                t={t}
-                                onAssign={assignUnassignedToSide}
-                            />
-                        ) : (
+                        })() : (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) ? (() => {
+                            // Takım sporları (voleybol, futbol vb.) — ilan oluşturma ekranındaki kadro
+                            // kartıyla BİREBİR AYNI yapı: ön yüzde 3'lü grid havuz (+ yedekler), arka
+                            // yüzde Kurucu Takımı ↔ Rakip Takımı (teamSize'lık sabit iki sütun).
+                            // showTeamCards/cardRotateY (DOUBLE'daki ile aynı state) ön/arka geçişi
+                            // sağlıyor — kullanıcı isteğiyle oluşturma ekranındaki tasarım kopyalandı.
+                            const teamSizeN = item.teamSize || 1;
+                            const mySlots = senderTeamArr.filter(p => p?.id || p?.manualName);
+                            const oppSlots = [...participants.filter(p => p?.id), ...oppManualNames.map(n => ({ manualName: n }))];
+                            const subSlots = (Array.isArray(item.substitutePlayers) ? item.substitutePlayers : []).filter(p => p?.id || p?.manualName);
+
+                            const Cell = ({ p, side, showAssign, allowRemove }) => {
+                                const isFounder = p.id && p.id === item.senderId;
+                                return (
+                                    <View>
+                                        <TouchableOpacity disabled={!p.id} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
+                                            {p.id
+                                                ? <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
+                                                : <View style={{ width:14, height:14 }} />}
+                                            <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', opacity:0.8, minHeight:0 }]}>
+                                                <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{p.id ? playerDisplayName(p) : p.manualName}</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                        {isOwner && p.id && !isFounder && showAssign && (
+                                            side ? (
+                                                <TouchableOpacity onPress={() => assignUnassignedToSide(p.id, null)} style={{ marginTop:2 }}>
+                                                    <Text style={{ color: side === 'my' ? cfg.color : '#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>
+                                                        ✓ {side === 'my' ? t.myTeamLabel : t.oppTeamLabel} ✕
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ) : (
+                                                <View style={{ flexDirection:'row', gap:2, marginTop:2 }}>
+                                                    <TouchableOpacity onPress={() => assignUnassignedToSide(p.id, 'my')} style={{ flex:1, paddingVertical:2, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50', alignItems:'center' }}>
+                                                        <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.myTeamLabel}</Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity onPress={() => assignUnassignedToSide(p.id, 'opp')} style={{ flex:1, paddingVertical:2, borderRadius:5, backgroundColor:'#f8717120', borderWidth:1, borderColor:'#f8717150', alignItems:'center' }}>
+                                                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.oppTeamLabel}</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            )
+                                        )}
+                                        {isOwner && p.id && !isFounder && allowRemove && (
+                                            <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ marginTop:2 }}>
+                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>Çıkar</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                );
+                            };
+                            const EmptyCell = () => (
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:2, opacity:0.55 }}>
+                                    <View style={{ width:14, height:14, borderRadius:7, borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:8 }}>?</Text>
+                                    </View>
+                                    <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', minHeight:0 }]}>
+                                        <Text style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>Bekleniyor</Text>
+                                    </View>
+                                </View>
+                            );
+                            const TeamColBack = ({ label, color, people, total, allowRemove }) => (
+                                <View style={{ flex:1 }}>
+                                    <Text style={{ color, fontSize:10, fontWeight:'800', marginBottom:3 }} numberOfLines={1}>{label}</Text>
+                                    {people.map((p, i) => (
+                                        <View key={p.id || `m-${i}`} style={{ marginBottom:3 }}><Cell p={p} allowRemove={allowRemove} /></View>
+                                    ))}
+                                    {Array.from({ length: Math.max(0, total - people.length) }).map((_, i) => (
+                                        <View key={`e-${i}`} style={{ marginBottom:3 }}><EmptyCell /></View>
+                                    ))}
+                                </View>
+                            );
+
+                            const poolEmptyCount = Math.max(0, (2 * teamSizeN - 1) - mySlots.length - oppSlots.length - unassignedSlots.length);
+
+                            return (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor: cfg.color+'40', padding:10 }}>
+                                    {!showTeamCards ? (
+                                        <>
+                                            <Text style={[s.fieldLabel, { marginBottom:6 }]}>{t.rosterPoolLabel}</Text>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4 }}>
+                                                <View style={{ width:'31%' }}>
+                                                    <TouchableOpacity onPress={() => navigation.push('Profile', { userId: item.senderId })} style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
+                                                        <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={14} color={cfg.color} />
+                                                        <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', opacity:0.8, minHeight:0 }]}>
+                                                            <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{playerDisplayName(item.sender)}</Text>
+                                                        </View>
+                                                    </TouchableOpacity>
+                                                </View>
+                                                {mySlots.map((p, i) => <View key={p.id || `my-${i}`} style={{ width:'31%' }}><Cell p={p} side="my" showAssign /></View>)}
+                                                {oppSlots.map((p, i) => <View key={p.id || `opp-${i}`} style={{ width:'31%' }}><Cell p={p} side="opp" showAssign /></View>)}
+                                                {unassignedSlots.map((p, i) => <View key={p.id || `u-${i}`} style={{ width:'31%' }}><Cell p={p} side={null} showAssign /></View>)}
+                                                {Array.from({ length: poolEmptyCount }).map((_, i) => (
+                                                    <View key={`empty-${i}`} style={{ width:'31%' }}><EmptyCell /></View>
+                                                ))}
+                                            </View>
+                                            {subSlots.length > 0 && (
+                                                <>
+                                                    <Text style={[s.fieldLabel, { fontSize:11, marginTop:8 }]}>{t.subsLabel}</Text>
+                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4 }}>
+                                                        {subSlots.map((p, i) => <View key={p.id || `sub-${i}`} style={{ width:'31%' }}><Cell p={p} /></View>)}
+                                                    </View>
+                                                </>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <View style={{ flexDirection:'row', gap:6 }}>
+                                            <TeamColBack label={`👑 ${item.founderTeamName || t.myTeamLabel}`} color={cfg.color} people={[item.sender, ...mySlots].filter(Boolean)} total={teamSizeN} allowRemove={false} />
+                                            <TeamColBack label={`⚔️ ${item.opponentTeamName || t.oppTeamLabel}`} color="#f87171" people={oppSlots} total={teamSizeN} allowRemove={isOwner} />
+                                        </View>
+                                    )}
+                                </View>
+                            );
+                        })() : (
                             <>
                                 <View style={det.playerRow}>
                                     <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
@@ -2092,33 +2176,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     <TouchableOpacity onPress={() => setShowJoinInvitePicker(false)} style={{ marginTop:14, backgroundColor:'#334155', borderRadius:10, paddingVertical:8, alignItems:'center' }}>
                         <Text style={{ color:'#94a3b8', fontSize:13, fontWeight:'700' }}>Vazgeç</Text>
                     </TouchableOpacity>
-                </View>
-            </View>
-        </Modal>
-        {/* Takım ismi düzenle — TeamAssignCard'ın (Kurucu/Rakip Takımı) "✎" düğmesi,
-            UpcomingCard'daki aynı modal deseni. */}
-        <Modal visible={!!teamNameModal} animationType="fade" transparent onRequestClose={() => setTeamNameModal(null)}>
-            <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', paddingHorizontal:30 }}>
-                <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:16 }}>
-                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', marginBottom:10 }}>
-                        {teamNameModal?.side === 'founder' ? 'Kurucu Takım İsmi' : 'Rakip Takım İsmi'}
-                    </Text>
-                    <TextInput
-                        value={teamNameModal?.value || ''}
-                        onChangeText={(v) => setTeamNameModal(p => ({ ...p, value: v }))}
-                        placeholder="Ör: Şimşekler"
-                        placeholderTextColor={colors.textMuted}
-                        maxLength={24}
-                        style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:colors.border, color:'#fff', fontSize:14, paddingHorizontal:12, paddingVertical:9, marginBottom:12 }}
-                    />
-                    <View style={{ flexDirection:'row', gap:8 }}>
-                        <TouchableOpacity onPress={() => setTeamNameModal(null)} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor:'#ffffff10' }}>
-                            <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={saveTeamName} disabled={savingTeamName} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor: colors.purple, opacity: savingTeamName ? 0.6 : 1 }}>
-                            <Text style={{ color:'#fff', fontWeight:'800' }}>{savingTeamName ? '...' : 'Kaydet'}</Text>
-                        </TouchableOpacity>
-                    </View>
                 </View>
             </View>
         </Modal>
@@ -8805,7 +8862,7 @@ function CreatePlayerWantedModal({ visible, onClose, category, sub, onCreated })
                 <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'} style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
                         <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>{t.createPlayerWantedTitle}</Text>
+                            <Text style={s.modalTitle}>{sub === 'volleyball' ? t.createOpponentWantedTitle : t.createPlayerWantedTitle}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false}>
@@ -15308,11 +15365,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <>
                             <CityAlertRow tab="player_wanted" dateFilter>
                                 <TouchableOpacity style={[s.createBtn, { borderColor: cfg.color+'60', marginBottom:0 }]} onPress={() => setShowCreatePW(true)}>
-                                    <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createPlayerWantedBtn}</Text>
+                                    <Text style={[s.createBtnText, { color: cfg.color }]}>{sub === 'volleyball' ? t.createOpponentWantedBtn : t.createPlayerWantedBtn}</Text>
                                 </TouchableOpacity>
                             </CityAlertRow>
                             {playerWanted.length === 0
-                                ? <EmptyState emoji="👤" text={t.emptyPlayerWanted} />
+                                ? <EmptyState emoji="👤" text={sub === 'volleyball' ? t.emptyOpponentWanted : t.emptyPlayerWanted} />
                                 : (
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                         {playerWanted.map(item => (
