@@ -7530,12 +7530,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         </Text>
                                                     </TouchableOpacity>
                                                 </View>
-                                                {/* Geç İptal Cezası — Derece'nin hemen sağında. Değer boşken düğmenin
-                                                    buraya dokununca bir form açtığı net olsun diye "Kapalı" yerine
-                                                    "Form"/"Set" yazıyor. */}
+                                                {/* Geç İptal Cezası — Cinsiyet Dağılımı/Derece ile aynı satırda, kilit
+                                                    ikonu da bu satırda kalsın diye kısa "İptal" etiketiyle (uzun başlık
+                                                    yalnızca dokununca açılan modalda). Değer boşken düğmenin buraya
+                                                    dokununca bir form açtığı net olsun diye "Kapalı" yerine "Form" yazıyor. */}
                                                 {!isMatchedEdit && (
                                                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1 }}>
-                                                        <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.cancelPenaltyHoursLabel}</Text>
+                                                        <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.cancelPenaltyShortLabel}</Text>
                                                         <TouchableOpacity
                                                             style={{ height:30, backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: f.cancelPenaltyHours !== '' ? colors.purple+'80' : colors.border, paddingHorizontal:5, flexShrink:1 }}
                                                             onPress={() => {
