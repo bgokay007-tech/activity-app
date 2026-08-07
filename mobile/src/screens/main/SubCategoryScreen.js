@@ -7530,25 +7530,22 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         </Text>
                                                     </TouchableOpacity>
                                                 </View>
-                                                {/* Geç İptal Cezası — Cinsiyet Dağılımı/Derece ile aynı satırda, kilit
-                                                    ikonu da bu satırda kalsın diye kısa "İptal" etiketiyle (uzun başlık
-                                                    yalnızca dokununca açılan modalda). Değer boşken düğmenin buraya
-                                                    dokununca bir form açtığı net olsun diye "Kapalı" yerine "Form" yazıyor. */}
+                                                {/* Geç İptal Cezası — ayrı bir etiket yok, tek kompakt düğme; boşken
+                                                    üstünde direkt "İptal" yazıyor, dokununca modal açılıyor (modalın
+                                                    kendi başlığı tam "Geç İptal Cezası"). Cinsiyet Dağılımı/Derece/kilit
+                                                    ile aynı satırda yer kaplamasın diye tek Text'e indirildi. */}
                                                 {!isMatchedEdit && (
-                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1 }}>
-                                                        <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.cancelPenaltyShortLabel}</Text>
-                                                        <TouchableOpacity
-                                                            style={{ height:30, backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: f.cancelPenaltyHours !== '' ? colors.purple+'80' : colors.border, paddingHorizontal:5, flexShrink:1 }}
-                                                            onPress={() => {
-                                                                const presets = [1,2,3,4,5,6,7,8,9,10,12,24,30,36,48].map(String);
-                                                                setCancelPenaltyManualText(f.cancelPenaltyHours && !presets.includes(f.cancelPenaltyHours) ? f.cancelPenaltyHours : '');
-                                                                setShowCancelPenaltyModal(true);
-                                                            }}>
-                                                            <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
-                                                                {f.cancelPenaltyHours !== '' ? t.cancelPenaltyHoursOption(f.cancelPenaltyHours) : t.cancelPenaltyHoursFormLabel}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    </View>
+                                                    <TouchableOpacity
+                                                        style={{ height:30, backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: f.cancelPenaltyHours !== '' ? colors.purple+'80' : colors.border, paddingHorizontal:7, flexShrink:1 }}
+                                                        onPress={() => {
+                                                            const presets = [1,2,3,4,5,6,7,8,9,10,12,24,30,36,48].map(String);
+                                                            setCancelPenaltyManualText(f.cancelPenaltyHours && !presets.includes(f.cancelPenaltyHours) ? f.cancelPenaltyHours : '');
+                                                            setShowCancelPenaltyModal(true);
+                                                        }}>
+                                                        <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                                            {f.cancelPenaltyHours !== '' ? t.cancelPenaltyHoursOption(f.cancelPenaltyHours) : t.cancelPenaltyShortLabel}
+                                                        </Text>
+                                                    </TouchableOpacity>
                                                 )}
                                                 {/* Davete İzin Ver (kilit) — kullanıcı isteğiyle buraya, Derece'nin
                                                     sağına taşındı (önceden Hakem bloğunun içindeydi). */}
