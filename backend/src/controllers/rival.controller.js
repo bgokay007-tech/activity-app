@@ -4123,16 +4123,22 @@ export const getMyUpcomingMatches = async (req, res, next) => {
             }
         }
         const schedExpiredIds = new Set(schedExpired.map(m => m.id));
+        // Takım sporlarında (voleybol) kurucunun eklediği takım arkadaşları (senderTeam)
+        // buraya hiç dahil edilmiyordu — kabul ettikleri bir maç kendi "Yaklaşan Maçlar"
+        // listelerinde hiç görünmüyordu, dolayısıyla maçtan ayrılma/skor girme gibi hiçbir
+        // aksiyonu da göremiyorlardı.
         const mine = all.filter(r => {
             if (schedExpiredIds.has(r.id)) return false;
             if (r.senderId === myId) return true;
-            return (Array.isArray(r.participants) ? r.participants : []).some(p => p.id === myId);
+            if ((Array.isArray(r.participants) ? r.participants : []).some(p => p?.id === myId)) return true;
+            return (Array.isArray(r.senderTeam) ? r.senderTeam : []).some(p => p?.id === myId);
         });
 
         try {
             const allUserIds = [...new Set([
                 ...mine.map(m => m.senderId),
                 ...mine.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).map(p => p.id)),
+                ...mine.flatMap(m => (Array.isArray(m.senderTeam) ? m.senderTeam : []).map(p => p?.id)),
             ].filter(Boolean))];
             const interests = allUserIds.length > 0
                 ? await prisma.userInterest.findMany({
