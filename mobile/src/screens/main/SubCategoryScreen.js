@@ -508,10 +508,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
     const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2' — seçili slot
-    // Takım sporlarında (voleybol) "Atanmamış" havuzundan biri seçilip Kurucu/Rakip
-    // başlığına dokununca atanır — CreateRivalModal'daki selectedUnassignedIndex ile
-    // aynı tak-seç-hedefe-dokun deseni, açık ilan detayında da kurucu için geçerli.
-    const [selectedUnassignedForAssign, setSelectedUnassignedForAssign] = useState(null);
+    // Takım sporlarında (voleybol) kadro kartı — UpcomingCard'daki (Yaklaşan Maçlar) ile
+    // birebir aynı TeamAssignCard bileşeni kullanılıyor, o yüzden aynı takım-ismi-düzenleme
+    // state'i burada da gerekiyor.
+    const [teamNameModal, setTeamNameModal] = useState(null); // { side: 'founder'|'opponent', value } | null
+    const [savingTeamName, setSavingTeamName] = useState(false);
     // Çiftlerde kabul edilen oyuncular varsayılan olarak Partner/Rakip 1/Rakip 2 kartlarına
     // otomatik yerleşmiş gösterilmez — önce sırayla "Katılımcı 1/2/3" olarak listelenir,
     // kurucu isterse "Takımları Düzenle" ile mevcut kart/takas ekranını açar.
@@ -851,6 +852,22 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         api.patch(`/rivals/${item.id}/assign-player`, { userId, side })
             .then(onRefresh)
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+    };
+
+    // UpcomingCard'daki saveTeamName ile birebir aynı — TeamAssignCard'ın "✎" düğmesi
+    // buraya bağlanıyor (açık ilanda da takım ismi ayarlanabilsin diye).
+    const saveTeamName = async () => {
+        if (!teamNameModal) return;
+        setSavingTeamName(true);
+        try {
+            await api.patch(`/rivals/${item.id}/team-name`, { side: teamNameModal.side, name: teamNameModal.value });
+            setTeamNameModal(null);
+            onRefresh();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || 'Hata');
+        } finally {
+            setSavingTeamName(false);
+        }
     };
 
     const SLOT_LABELS = { partner: 'Kurucu Takımı (Partner)', opp1: 'Rakip 1', opp2: 'Rakip 2' };
@@ -1378,83 +1395,26 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </View>
                                 </View>
                             );
-                        })() : (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) ? (() => {
-                            // Takım sporları (voleybol, futbol vb.) — ilan oluştururken doldurulan
-                            // "Kurucu Takımı ↔ Rakip Takımı" kartıyla aynı iki sütunlu görünüm.
-                            // Eskiden bu liste senderTeam'i (kurucunun oluştururken eklediği takım
-                            // arkadaşlarını) hiç göstermiyordu — sadece kurucunun kendisi + participants
-                            // (rakip taraf) görünüyordu, kadronun yarısı sessizce kayboluyordu.
-                            const teamSizeN = item.teamSize || 1;
-                            // senderTeam'e uygulamayı kullanmayan oyuncular {manualName} olarak
-                            // ekleniyor (id/username yok) — sadece p?.id ile filtrelemek bunları
-                            // listeden düşürüyordu, "yazdığım isim hiçbir yerde görünmüyor" sorunu.
-                            const mySlots = [item.sender, ...senderTeamArr.filter(p => p?.id || p?.manualName)];
-                            const oppSlots = [...participants.filter(p => p?.id), ...oppManualNames.map(n => ({ manualName: n }))];
-                            // unassignedPlayers: açık ilana katılıp henüz Kurucu/Rakip'e atanmamış
-                            // oyuncular (gerçek kullanıcı ya da {manualName}) — eskiden hiçbir yerde
-                            // gösterilmiyordu, ilan oluştururken eklenen ikinci/üçüncü oyuncu "kayboluyordu".
-                            const unassignedSlots = Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers.filter(p => p?.id || p?.manualName) : [];
-                            const TeamCol = ({ label, color, people, total, allowRemove, targetSide }) => (
-                                <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth: selectedUnassignedForAssign ? 1.5 : 1, borderColor: selectedUnassignedForAssign ? color : colors.border+'40', paddingVertical:6, paddingHorizontal:6, marginBottom:6 }}>
-                                    <TouchableOpacity disabled={!selectedUnassignedForAssign} onPress={() => { assignUnassignedToSide(selectedUnassignedForAssign, targetSide); setSelectedUnassignedForAssign(null); }}>
-                                        <Text style={{ color, fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{label}{selectedUnassignedForAssign ? ' ↩' : ''}</Text>
-                                    </TouchableOpacity>
-                                    {people.map((p, i) => p.id ? (
-                                        <View key={p.id} style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:4 }}>
-                                            <Avatar name={p.username} avatar={p.avatar} size={moderateScale(22)} color={cfg.color} onPress={() => navigation.push('Profile', { userId: p.id })} />
-                                            <Text style={{ color:'#fff', fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(p)}</Text>
-                                            {allowRemove && (
-                                                <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
-                                                    <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
-                                                </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    ) : (
-                                        <View key={`manual-${i}`} style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:4 }}>
-                                            <View style={{ width:moderateScale(22), height:moderateScale(22), borderRadius:moderateScale(11), backgroundColor: color+'20', alignItems:'center', justifyContent:'center' }}>
-                                                <Text style={{ fontSize:10 }}>👤</Text>
-                                            </View>
-                                            <Text style={{ color:'#fff', fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{p.manualName}</Text>
-                                        </View>
-                                    ))}
-                                    {Array.from({ length: Math.max(0, total - people.length) }).map((_, i) => (
-                                        <View key={`empty-${i}`} style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:4, opacity:0.55 }}>
-                                            <View style={{ width:moderateScale(22), height:moderateScale(22), borderRadius:moderateScale(11), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
-                                                <Text style={{ color: colors.textMuted, fontSize:10 }}>?</Text>
-                                            </View>
-                                            <Text style={{ color: colors.textMuted, fontSize:9 }}>Bekleniyor</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            );
-                            return (
-                                <View>
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
-                                        <TeamCol label={`👑 ${t.founderTeamLabel || 'Kurucu Takımı'}`} color={cfg.color} people={mySlots} total={teamSizeN} allowRemove={false} targetSide="my" />
-                                        <TeamCol label={`⚔️ ${t.oppTeamLabel || 'Rakip Takımı'}`} color="#f87171" people={oppSlots} total={teamSizeN} allowRemove={isOwner} targetSide="opp" />
-                                    </View>
-                                    {unassignedSlots.length > 0 && (
-                                        <View style={{ backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:6, paddingHorizontal:6 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>🗂️ {t.unassignedLabel}</Text>
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
-                                                {unassignedSlots.map((p, i) => (
-                                                    <TouchableOpacity key={p.id || `u-${i}`}
-                                                        disabled={!isOwner || !p.id}
-                                                        onPress={() => setSelectedUnassignedForAssign(sel => sel === p.id ? null : p.id)}
-                                                        style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor: selectedUnassignedForAssign === p.id ? cfg.color+'30' : '#ffffff10', borderRadius:8, borderWidth:1, borderColor: selectedUnassignedForAssign === p.id ? cfg.color : 'transparent', paddingHorizontal:7, paddingVertical:4 }}>
-                                                        {p.id
-                                                            ? <Avatar name={p.username} avatar={p.avatar} size={moderateScale(18)} color={cfg.color} />
-                                                            : <Text style={{ fontSize:10 }}>👤</Text>}
-                                                        <Text style={{ color:'#fff', fontSize:10, fontWeight:'700' }} numberOfLines={1}>{p.id ? playerDisplayName(p) : p.manualName}</Text>
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </View>
-                                            {isOwner && <Text style={{ color: colors.textMuted, fontSize:9, marginTop:4 }}>{t.assignHintLabel}</Text>}
-                                        </View>
-                                    )}
-                                </View>
-                            );
-                        })() : (
+                        })() : (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) ? (
+                            // Takım sporları (voleybol, futbol vb.) — ilan oluştururken kullanılan
+                            // AYNI kart: TeamAssignCard (önceden sadece Yaklaşan Maçlar'da/MATCHED
+                            // durumda kullanılıyordu, artık açık ilanda da aynı bileşen). Eskiden burada
+                            // ayrı, basitleştirilmiş bir kart vardı — kullanıcı isteğiyle kaldırıldı.
+                            <TeamAssignCard
+                                founderPlayers={[item.sender, ...senderTeamArr.filter(p => p?.id || p?.manualName)].filter(Boolean)}
+                                oppPlayers={[...participants.filter(p => p?.id), ...oppManualNames.map(n => ({ manualName: n }))]}
+                                unassigned={(Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []).filter(p => p?.id || p?.manualName)}
+                                founderTeamName={item.founderTeamName}
+                                opponentTeamName={item.opponentTeamName}
+                                canEditFounderName={isOwner || senderTeamArr.some(p => p.id === myId)}
+                                canEditOppName={isOwner || participants.some(p => p.id === myId)}
+                                onEditFounderName={() => setTeamNameModal({ side:'founder', value: item.founderTeamName || '' })}
+                                onEditOppName={() => setTeamNameModal({ side:'opponent', value: item.opponentTeamName || '' })}
+                                isOwner={isOwner}
+                                t={t}
+                                onAssign={assignUnassignedToSide}
+                            />
+                        ) : (
                             <>
                                 <View style={det.playerRow}>
                                     <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
@@ -2135,6 +2095,33 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 </View>
             </View>
         </Modal>
+        {/* Takım ismi düzenle — TeamAssignCard'ın (Kurucu/Rakip Takımı) "✎" düğmesi,
+            UpcomingCard'daki aynı modal deseni. */}
+        <Modal visible={!!teamNameModal} animationType="fade" transparent onRequestClose={() => setTeamNameModal(null)}>
+            <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', paddingHorizontal:30 }}>
+                <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:16 }}>
+                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', marginBottom:10 }}>
+                        {teamNameModal?.side === 'founder' ? 'Kurucu Takım İsmi' : 'Rakip Takım İsmi'}
+                    </Text>
+                    <TextInput
+                        value={teamNameModal?.value || ''}
+                        onChangeText={(v) => setTeamNameModal(p => ({ ...p, value: v }))}
+                        placeholder="Ör: Şimşekler"
+                        placeholderTextColor={colors.textMuted}
+                        maxLength={24}
+                        style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:colors.border, color:'#fff', fontSize:14, paddingHorizontal:12, paddingVertical:9, marginBottom:12 }}
+                    />
+                    <View style={{ flexDirection:'row', gap:8 }}>
+                        <TouchableOpacity onPress={() => setTeamNameModal(null)} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor:'#ffffff10' }}>
+                            <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={saveTeamName} disabled={savingTeamName} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor: colors.purple, opacity: savingTeamName ? 0.6 : 1 }}>
+                            <Text style={{ color:'#fff', fontWeight:'800' }}>{savingTeamName ? '...' : 'Kaydet'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
         </>
     );
 }
@@ -2432,14 +2419,14 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                         : `⭐ ${item.minRating ?? '0'}–${item.maxRating ?? '5'}★`}
                                 </Text>
                             )}
-                            {hasCancelPenalty && (
-                                <Text style={{ color:'#f87171', fontSize:moderateScale(9), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                    {t.cancelPenaltyBadge(item.cancelPenaltyHours)}
-                                </Text>
-                            )}
                             {hasGenderCount && (
                                 <Text style={{ color:'#a855f7', fontSize:moderateScale(10), fontWeight:'700' }}>
                                     👨{item.requiredMaleCount} 👩{2 * item.teamSize - item.requiredMaleCount}
+                                </Text>
+                            )}
+                            {hasCancelPenalty && (
+                                <Text style={{ color:'#f87171', fontSize:moderateScale(9), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    {t.cancelPenaltyBadge(item.cancelPenaltyHours)}
                                 </Text>
                             )}
                             {hasSingleGenderReq && (
@@ -6125,8 +6112,8 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamNam
                 </View>
             </TouchableOpacity>
             {players.map((p, i) => (
-                <TouchableOpacity key={p.id} disabled={!isOwner} onPress={() => onAssign(p.id, null)}>
-                    <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{i + 1}. {senderAlias(p)}</Text>
+                <TouchableOpacity key={p.id || `m-${i}`} disabled={!isOwner || !p.id} onPress={() => p.id && onAssign(p.id, null)}>
+                    <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{i + 1}. {p.id ? senderAlias(p) : p.manualName}</Text>
                 </TouchableOpacity>
             ))}
         </View>
@@ -6150,10 +6137,10 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamNam
                             <View style={{ marginTop:6 }}>
                                 <Text style={{ color: colors.textMuted, fontSize:9 }}>{t.unassignedLabel}</Text>
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginTop:2 }}>
-                                    {unassigned.map(p => (
-                                        <TouchableOpacity key={p.id} onPress={() => setSelectedId(sel => sel === p.id ? null : p.id)}
-                                            style={{ paddingHorizontal:6, paddingVertical:3, borderRadius:7, backgroundColor: selectedId === p.id ? '#9333ea40' : '#ffffff10', borderWidth:1, borderColor: selectedId === p.id ? '#a855f7' : '#ffffff20' }}>
-                                            <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{senderAlias(p)}</Text>
+                                    {unassigned.map((p, i) => (
+                                        <TouchableOpacity key={p.id || `m-${i}`} disabled={!p.id} onPress={() => p.id && setSelectedId(sel => sel === p.id ? null : p.id)}
+                                            style={{ paddingHorizontal:6, paddingVertical:3, borderRadius:7, backgroundColor: selectedId === p.id ? '#9333ea40' : '#ffffff10', borderWidth:1, borderColor: selectedId === p.id ? '#a855f7' : '#ffffff20', opacity: p.id ? 1 : 0.7 }}>
+                                            <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{p.id ? senderAlias(p) : p.manualName}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </View>
@@ -6170,10 +6157,12 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamNam
                             </TouchableOpacity>
                         </View>
                         {allPlayers.map((p, i) => (
-                            <View key={p.id} style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:2 }}>
-                                <Avatar name={p.username} avatar={p.avatar} size={16} color={p._role === 'my' ? '#a855f7' : p._role === 'opp' ? '#f87171' : colors.textMuted} />
+                            <View key={p.id || `m-${i}`} style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:2 }}>
+                                {p.id
+                                    ? <Avatar name={p.username} avatar={p.avatar} size={16} color={p._role === 'my' ? '#a855f7' : p._role === 'opp' ? '#f87171' : colors.textMuted} />
+                                    : <Text style={{ fontSize:12 }}>👤</Text>}
                                 <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>
-                                    {i + 1}. {senderAlias(p)}{p._role == null ? ` (${t.unassignedLabel})` : ''}
+                                    {i + 1}. {p.id ? senderAlias(p) : p.manualName}{p._role == null ? ` (${t.unassignedLabel})` : ''}
                                 </Text>
                             </View>
                         ))}
@@ -7497,7 +7486,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     )}
                                     {isVolleyball && (
                                         <View style={{ marginBottom:14 }}>
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap', rowGap:6 }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
                                                 {/* Cinsiyet dağılımı — sadece takım büyüklüğü seçilince anlamlı (havuz
                                                     boyutu = 2*teamSize), kullanıcı isteğiyle Derece'nin SOLUNDA. */}
                                                 {!!f.teamSize && (
@@ -7738,7 +7727,21 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 visible={f.showTimePicker}
                                 title={t.selectTime}
                                 value={f.matchTime}
-                                onSelect={(v) => set('matchTime', v)}
+                                onSelect={(v) => {
+                                    // Bugünün tarihi seçiliyken geçmiş bir saat (ör. şu an 14:00 iken 12:00)
+                                    // seçilebiliyordu — backend submit'te reddediyordu ama kullanıcı bunu
+                                    // seçim anında hiç görmüyordu, sanki izin veriliyormuş gibi hissediyordu.
+                                    if (!f.flexibleSchedule && f.matchDate) {
+                                        const [h, m] = v.split(':').map(Number);
+                                        const picked = new Date(f.matchDate);
+                                        picked.setHours(h, m, 0, 0);
+                                        if (picked.getTime() <= Date.now()) {
+                                            Alert.alert('', 'Geçmiş bir saat seçemezsiniz.');
+                                            return;
+                                        }
+                                    }
+                                    set('matchTime', v);
+                                }}
                                 onClose={() => set('showTimePicker', false)}
                             />
                             <OptionPickerModal
@@ -7758,7 +7761,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             <CalendarPickerModal
                                 visible={f.showDatePicker}
                                 value={f.matchDate}
-                                onSelect={(date) => setF(p => ({ ...p, matchDate: date, showDatePicker: false }))}
+                                onSelect={(date) => {
+                                    // Zaten seçilmiş bir saat varsa ve yeni tarih bugünse, o saat artık
+                                    // geçmişte kalmış olabilir (ör. 14:00 seçiliyken bugünü seçmek gibi) —
+                                    // sessizce geçersiz bir kombinasyon bırakmak yerine saat sıfırlanır.
+                                    let clearsPastTime = false;
+                                    if (!f.flexibleSchedule && f.matchTime) {
+                                        const [h, m] = f.matchTime.split(':').map(Number);
+                                        const picked = new Date(date);
+                                        picked.setHours(h, m, 0, 0);
+                                        clearsPastTime = picked.getTime() <= Date.now();
+                                    }
+                                    if (clearsPastTime) Alert.alert('', 'Seçtiğiniz saat artık geçmişte kaldığı için saat sıfırlandı, lütfen yeni bir saat seçin.');
+                                    setF(p => ({ ...p, matchDate: date, matchTime: clearsPastTime ? '' : p.matchTime, showDatePicker: false }));
+                                }}
                                 onClose={() => set('showDatePicker', false)}
                                 footerExtra={
                                     <View style={{ backgroundColor:'#ffffff08', borderRadius:12, borderWidth:1, borderColor: f.flexibleSchedule ? '#eab308' : '#ffffff15', padding:10, marginBottom:10 }}>
@@ -8363,7 +8379,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 <View style={{ marginBottom:10 }}>
                                     <View style={{ flexDirection:'row', gap:6, zIndex: (showTeamSizePicker || showGenderCountPicker || showWinsNeededPicker) ? 50 : 1 }}>
                                         <View style={{ flex:1, position:'relative', zIndex: showTeamSizePicker ? 51 : 1 }}>
-                                            <Text style={[s.fieldLabel, { marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamSizeLabel}</Text>
+                                            <Text style={[s.fieldLabel, { height:16, lineHeight:16, marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamSizeLabel}</Text>
                                             <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowTeamSizePicker(v => !v)}>
                                                 <Text style={[s.compactSelectText, !f.teamSize && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                                                     {f.teamSize ? `${f.teamSize}v${f.teamSize}` : t.teamSizeSelectPlaceholder}
@@ -8378,7 +8394,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             />
                                         </View>
                                         <View style={{ flex:1, position:'relative', zIndex: showGenderCountPicker ? 51 : 1 }}>
-                                            <Text style={[s.fieldLabel, { marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.genderCountLabel}</Text>
+                                            <Text style={[s.fieldLabel, { height:16, lineHeight:16, marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.genderCountLabel}</Text>
                                             <TouchableOpacity style={[s.compactSelectBtn, !f.teamSize && { opacity:0.5 }]} disabled={!f.teamSize} onPress={() => setShowGenderCountPicker(true)}>
                                                 <Text style={[s.compactSelectText, f.requiredMaleCount == null && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
                                                     {f.requiredMaleCount != null ? `👨${f.requiredMaleCount} 👩${2 * f.teamSize - f.requiredMaleCount}` : t.genderCountFreeLabel}
@@ -8396,7 +8412,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             )}
                                         </View>
                                         <View style={{ flex:1 }}>
-                                            <Text style={[s.fieldLabel, { marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
+                                            <Text style={[s.fieldLabel, { height:16, lineHeight:16, marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
                                             <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowRatingRange(true)}>
                                                 <Text style={[s.compactSelectText, (!f.minRating && !f.maxRating) && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
                                                     {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`}
@@ -8404,7 +8420,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </TouchableOpacity>
                                         </View>
                                         <View style={{ flex:1, position:'relative', zIndex: showWinsNeededPicker ? 51 : 1 }}>
-                                            <Text style={[s.fieldLabel, { marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.winsNeededLabel}</Text>
+                                            <Text style={[s.fieldLabel, { height:16, lineHeight:16, marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.winsNeededLabel}</Text>
                                             <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowWinsNeededPicker(v => !v)}>
                                                 <Text style={[s.compactSelectText, !f.winsNeeded && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                                                     {f.winsNeeded ? String(f.winsNeeded) : t.courtSurfaceSelectPlaceholder}
@@ -8419,7 +8435,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             />
                                         </View>
                                     </View>
-                                    <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>{t.winsNeededHint}</Text>
                                 </View>
                             )}
 
