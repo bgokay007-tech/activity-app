@@ -14,7 +14,15 @@ private const val MATCH_UPDATE_PATH = "/activity/match-update"
 
 class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
     private var lastUpdate: JSONObject? = null
-    private var huaweiListener: HuaweiWearEngineListener? = null
+    // Huawei/HarmonyOS köprüsü (HuaweiWearEngineListener) geçici olarak devre dışı —
+    // com.huawei.wearengine:wearengine:1.0.0 paketi Huawei'nin Maven deposunda artık
+    // yok (bkz. com.huawei.hms:wearengine:5.0.0.300'e taşınmış), bu yüzden her Android
+    // build'i (APK dahil) Gradle aşamasında başarısız oluyordu. Google Wear OS köprüsü
+    // (aşağıdaki MessageClient) bundan etkilenmiyor, çalışmaya devam ediyor. Yeniden
+    // açmak için: build.gradle'daki bağımlılığı com.huawei.hms:wearengine:5.0.0.300
+    // yap, HuaweiWearEngineListener.kt.disabled dosyasını .kt'ye geri çevir (paket
+    // isimleri yeni SDK'da değişmiş olabilir, doğrulanması gerekir), sonra buradaki
+    // huaweiListener alanını/OnCreate-OnDestroy çağrılarını geri ekle.
 
     override fun definition() = ModuleDefinition {
         Name("WearBridge")
@@ -24,12 +32,6 @@ class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
         OnCreate {
             appContext.reactContext?.let { context ->
                 Wearable.getMessageClient(context).addListener(this@WearBridgeModule)
-
-                // Huawei/HarmonyOS saatler Google Play Services'a bağlı değil, bu
-                // yüzden ayrı bir köprüyle (Wear Engine Kit) dinleniyor — ikisi de
-                // aynı emitUpdate() üzerinden tek bir "onMatchUpdate" olayına çıkıyor.
-                huaweiListener = HuaweiWearEngineListener(context) { json -> emitUpdate(json) }
-                huaweiListener?.start()
             }
         }
 
@@ -37,8 +39,6 @@ class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
             appContext.reactContext?.let {
                 Wearable.getMessageClient(it).removeListener(this@WearBridgeModule)
             }
-            huaweiListener?.stop()
-            huaweiListener = null
         }
 
         AsyncFunction("isWatchConnected") {

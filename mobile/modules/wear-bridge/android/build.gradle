@@ -29,16 +29,11 @@ android {
     }
 }
 
-repositories {
-    // Huawei Wear Engine Kit (com.huawei.wearengine) sadece Huawei'nin kendi
-    // Maven deposunda yayınlanıyor — Google/Maven Central'da yok.
-    maven { url 'https://developer.huawei.com/repo/' }
-}
-
 dependencies {
     implementation "com.google.android.gms:play-services-wearable:18.1.0"
-    // HarmonyOS saatlerle (Wear OS'un aksine Google Play Services'a bağlı
-    // olmayan cihazlar) P2P iletişim için — bkz. HuaweiWearEngineListener.kt.
-    // TODO: derlerken Huawei'nin Maven deposundaki en güncel sürümle karşılaştır.
-    implementation "com.huawei.wearengine:wearengine:1.0.0"
+    // Huawei Wear Engine Kit köprüsü geçici olarak devre dışı — com.huawei.wearengine:
+    // wearengine:1.0.0 Huawei'nin Maven deposunda artık yok (com.huawei.hms:wearengine:
+    // 5.0.0.300'e taşınmış), bu bağımlılık her Android build'ini Gradle aşamasında
+    // FAILURE'a düşürüyordu. Bkz. HuaweiWearEngineListener.kt.disabled ve
+    // WearBridgeModule.kt'teki not — yeniden açmak için ikisi birlikte güncellenmeli.
 }
