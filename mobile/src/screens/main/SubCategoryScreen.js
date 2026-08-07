@@ -548,6 +548,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [joinInviteCandidates, setJoinInviteCandidates] = useState([]);
     const [seedingDemoRival, setSeedingDemoRival] = useState(false);
     const seedingDemoRivalRef = useRef(false);
+    // Voleybol: "Demo Başvuru Gönder" burada tek seferlik değil, durdurulana kadar 2 saniyede
+    // bir yeni demo oyuncu başvurusu gönderen bir spam/test butonu — bkz. POST /demo/volleyball-join.
+    const [demoSpamActive, setDemoSpamActive] = useState(false);
+    const demoSpamIntervalRef = useRef(null);
+    useEffect(() => () => { if (demoSpamIntervalRef.current) clearInterval(demoSpamIntervalRef.current); }, []);
 
     // Hakem ilanı: fiyat teklifi/mesaj/CV ile başvuru; asıl maç ilanı: ilan sahibi + katılımcıların
     // ortak gördüğü hakem başvuruları listesi.
@@ -1904,6 +1909,27 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 }}
                             >
                                 <Text style={[s.joinBtnText, { color:'#a78bfa', fontSize: moderateScale(12) }]}>{seedingDemoRival ? '...' : '🤖 Demo Başvuru Gönder'}</Text>
+                            </TouchableOpacity>
+                        )}
+                        {isOwner && !isRefereeAd && !isFull && sub === 'volleyball' && (
+                            <TouchableOpacity
+                                style={[s.joinBtn, { backgroundColor: demoSpamActive ? '#ef444420' : '#7c3aed20', borderWidth:1, borderColor: demoSpamActive ? '#ef444450' : '#7c3aed50', marginBottom:6, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]}
+                                onPress={() => {
+                                    if (demoSpamIntervalRef.current) {
+                                        clearInterval(demoSpamIntervalRef.current);
+                                        demoSpamIntervalRef.current = null;
+                                        setDemoSpamActive(false);
+                                        return;
+                                    }
+                                    setDemoSpamActive(true);
+                                    const sendOne = () => {
+                                        api.post('/demo/volleyball-join', { rivalId: item.id }).catch(() => {});
+                                    };
+                                    sendOne();
+                                    demoSpamIntervalRef.current = setInterval(sendOne, 2000);
+                                }}
+                            >
+                                <Text style={[s.joinBtnText, { color: demoSpamActive ? '#f87171' : '#a78bfa', fontSize: moderateScale(12) }]}>{demoSpamActive ? '⏹ Demo Botları Durdur' : '🤖 Demo Botları Başlat (2sn/istek)'}</Text>
                             </TouchableOpacity>
                         )}
                         {item.ticketUrl && (

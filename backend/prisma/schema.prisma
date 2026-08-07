@@ -74,6 +74,8 @@ model User {
   likesCommentsExclude Json   @default("[]")
   isAdmin                Boolean  @default(false)
   isBusiness             Boolean  @default(false)
+  isDemoUser             Boolean  @default(false)  // test/demo botu — gerçek kullanıcı değil (bkz. demo.controller.js, jobs/demoBotResponder.js)
+  demoAutoReject         Boolean  @default(false)  // bu demo bot davet/başvuruları hep reddeder (test için "hep hayır diyen" sabit oyuncular)
   businessName           String?
   taxNumber              String?
   businessAddress        String?

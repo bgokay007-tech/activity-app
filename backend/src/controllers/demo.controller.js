@@ -1,6 +1,8 @@
 import prisma from '../config/prisma.js';
 import bcrypt from 'bcryptjs';
 import { emitToUser } from '../config/socket.js';
+import { sendJoinRequest } from './rival.controller.js';
+import { invokeControllerAs } from '../utils/internalInvoke.js';
 
 const DEMO_TENNIS_PLAYERS = [
     { username: 'demo_t_rafael',  fullName: 'Rafael Moreno',    gender: 'MALE',   level: 'ADVANCED',     skillRating: 3.63, wins: 31, losses: 2  },
@@ -338,6 +340,109 @@ export const seedRivalDemoJoin = async (req, res, next) => {
         emitToUser(req.userId, 'rivalUpdate', updatedRival);
 
         res.status(201).json({ joined: toSend.map(p => p.fullName), remaining: fullPool.length - toSend.length });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Voleybol demo botları: 50 kadın + 50 erkek, derece 0.00-2.00 arası. Her cinsiyetten ilk 2
+// kişi (demoAutoReject) test için "hep hayır diyen" sabit botlar — kullanıcı isimlerini
+// oyunda deneyerek keşfediyor, burada sabitlenmiyor. İsimler deterministik üretiliyor ki
+// script/endpoint tekrar tekrar çağrılınca aynı 100 kullanıcı tekrar kullanılsın (yeni
+// kayıt açılmasın) — bkz. ensureDemoVolleyballPlayer (upsert).
+const VB_FEMALE_FIRST_NAMES = ['Ayşe','Elif','Zeynep','Fatma','Emine','Meryem','Büşra','Esra','Merve','Selin','Aslı','Ceren','Deniz','Ece','Gizem','Hande','İrem','Kübra','Nazlı','Öykü','Pelin','Rana','Sena','Tuğçe','Yağmur'];
+const VB_MALE_FIRST_NAMES   = ['Mehmet','Ahmet','Mustafa','Ali','Hüseyin','Hasan','İbrahim','Emre','Burak','Cem','Doruk','Eren','Furkan','Gökhan','Halil','İlker','Kaan','Levent','Murat','Onur','Ozan','Sinan','Tolga','Uğur','Yusuf'];
+const VB_LAST_NAMES = ['Yılmaz','Kaya','Demir','Şahin','Çelik','Yıldız','Yıldırım','Öztürk','Aydın','Özdemir','Arslan','Doğan','Kılıç','Aslan','Çetin','Kara','Koç','Kurt','Özkan','Şimşek','Aksoy','Erdoğan','Güneş','Polat','Korkmaz','Bulut','Avcı','Türk','Tekin','Yalçın'];
+
+function buildVolleyballDemoPool() {
+    const pool = [];
+    const buildGender = (firstNames, genderCode, genderLabel) => {
+        for (let i = 0; i < 50; i++) {
+            const first = firstNames[i % firstNames.length];
+            const last = VB_LAST_NAMES[(i * 11 + 7) % VB_LAST_NAMES.length];
+            pool.push({
+                username: `demo_v_${genderCode}${String(i + 1).padStart(2, '0')}`,
+                fullName: `${first} ${last}`,
+                gender: genderLabel,
+                skillRating: Math.round(((i * 0.9137) % 2) * 100) / 100, // 0.00-2.00 arası dağıtılmış
+                demoAutoReject: i < 2, // her cinsiyetten ilk 2 kişi hep reddeder
+            });
+        }
+    };
+    buildGender(VB_FEMALE_FIRST_NAMES, 'k', 'FEMALE');
+    buildGender(VB_MALE_FIRST_NAMES, 'e', 'MALE');
+    return pool;
+}
+export const DEMO_VOLLEYBALL_PLAYERS = buildVolleyballDemoPool();
+
+export async function ensureDemoVolleyballPlayer(demo) {
+    let user = await prisma.user.findUnique({ where: { username: demo.username } });
+    if (!user) {
+        const hashedPassword = await bcrypt.hash('Demo1234!', 10);
+        user = await prisma.user.create({
+            data: {
+                username: demo.username,
+                email: `${demo.username}@demo.activity`,
+                password: hashedPassword,
+                fullName: demo.fullName,
+                gender: demo.gender,
+                isDemoUser: true,
+                demoAutoReject: demo.demoAutoReject,
+            },
+        });
+    }
+    await prisma.userInterest.upsert({
+        where: { userId_category_subCategory: { userId: user.id, category: 'SPORTS', subCategory: 'volleyball' } },
+        update: {},
+        create: {
+            userId: user.id, category: 'SPORTS', subCategory: 'volleyball',
+            skillRating: demo.skillRating, level: levelForRating(demo.skillRating), assessmentCompleted: true,
+        },
+    });
+    return user;
+}
+
+// Voleybol açık ilanına TEK bir demo oyuncu başvurusu gönderir — mobil taraf bu endpoint'i
+// "durdurana kadar 2 saniyede bir" çağırarak sürekli yeni başvuru akışı simüle eder. Gerçek
+// sendJoinRequest'i demo kullanıcı adına çağırıyoruz (bkz. invokeControllerAs) — böylece
+// derece/cinsiyet kısıtlaması, takım dolulukları vb. TÜM gerçek doğrulama mantığı aynen
+// çalışıyor, burada ayrıca yeniden yazılmıyor. Uygun olmayan adaylar otomatik atlanıp
+// bir sonraki rastgele aday denenir.
+export const seedVolleyballDemoJoin = async (req, res, next) => {
+    try {
+        const { rivalId } = req.body;
+        const rival = await prisma.activityRequest.findUnique({ where: { id: rivalId } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi demo başvuru gönderebilir' });
+        if (rival.subCategory !== 'volleyball') return res.status(400).json({ message: 'Bu endpoint sadece voleybol için' });
+        if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Bu ilan artık açık değil' });
+
+        const existingReqs = await prisma.rivalJoinRequest.findMany({
+            where: { rivalId, user: { isDemoUser: true } },
+            select: { userId: true },
+        });
+        const alreadyApplied = new Set(existingReqs.map(r => r.userId));
+        const demoUsers = await prisma.user.findMany({
+            where: { username: { in: DEMO_VOLLEYBALL_PLAYERS.map(d => d.username) } },
+            select: { id: true, username: true },
+        });
+        const usernameToId = Object.fromEntries(demoUsers.map(u => [u.username, u.id]));
+        let pool = DEMO_VOLLEYBALL_PLAYERS.filter(d => !alreadyApplied.has(usernameToId[d.username]));
+        // Rastgele sırayla dene — biri kısıtlamaya (derece/cinsiyet) takılırsa diğerini dene
+        pool = pool.sort(() => Math.random() - 0.5);
+
+        for (const demo of pool.slice(0, 15)) {
+            const user = await ensureDemoVolleyballPlayer(demo);
+            const { status, body } = await invokeControllerAs(sendJoinRequest, {
+                userId: user.id,
+                params: { id: rivalId },
+                body: {},
+            });
+            if (status < 400) {
+                return res.status(201).json({ joined: demo.fullName });
+            }
+        }
+        return res.status(400).json({ message: 'Uygun demo oyuncu kalmadı (hepsi başvurdu ya da şartları sağlamıyor)' });
     } catch (error) {
         next(error);
     }
