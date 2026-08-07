@@ -7357,26 +7357,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </View>
                                             </View>
                                         )}
-                                        {/* Geç İptal Cezası — kullanıcı isteğiyle Derece'nin hemen sağına taşındı
-                                            (tenis/padel teklide oradaki cinsiyet kısıtlamasıyla aynı konum), ve
-                                            değer boşken düğmenin buraya dokununca bir form açtığı net olsun diye
-                                            "Kapalı" yerine "Form"/"Set" yazıyor. */}
-                                        {isVolleyball && !isMatchedEdit && (
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1, flexGrow:1, justifyContent:'flex-end' }}>
-                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.cancelPenaltyHoursLabel}</Text>
-                                                <TouchableOpacity
-                                                    style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: f.cancelPenaltyHours !== '' ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:6 }}
-                                                    onPress={() => {
-                                                        const presets = [1,2,3,4,5,6,7,8,9,10,12,24,30,36,48].map(String);
-                                                        setCancelPenaltyManualText(f.cancelPenaltyHours && !presets.includes(f.cancelPenaltyHours) ? f.cancelPenaltyHours : '');
-                                                        setShowCancelPenaltyModal(true);
-                                                    }}>
-                                                    <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
-                                                        {f.cancelPenaltyHours !== '' ? t.cancelPenaltyHoursOption(f.cancelPenaltyHours) : t.cancelPenaltyHoursFormLabel}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        )}
                                     </View>
                                     )}
                                     {!isTeamSport && f.matchType === 'SINGLE' && f.singleOppInvite && (
@@ -7517,7 +7497,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     )}
                                     {isVolleyball && (
                                         <View style={{ marginBottom:14 }}>
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexWrap:'wrap', rowGap:6 }}>
                                                 {/* Cinsiyet dağılımı — sadece takım büyüklüğü seçilince anlamlı (havuz
                                                     boyutu = 2*teamSize), kullanıcı isteğiyle Derece'nin SOLUNDA. */}
                                                 {!!f.teamSize && (
@@ -7550,6 +7530,25 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         </Text>
                                                     </TouchableOpacity>
                                                 </View>
+                                                {/* Geç İptal Cezası — Derece'nin hemen sağında. Değer boşken düğmenin
+                                                    buraya dokununca bir form açtığı net olsun diye "Kapalı" yerine
+                                                    "Form"/"Set" yazıyor. */}
+                                                {!isMatchedEdit && (
+                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1 }}>
+                                                        <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.cancelPenaltyHoursLabel}</Text>
+                                                        <TouchableOpacity
+                                                            style={{ height:30, backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: f.cancelPenaltyHours !== '' ? colors.purple+'80' : colors.border, paddingHorizontal:5, flexShrink:1 }}
+                                                            onPress={() => {
+                                                                const presets = [1,2,3,4,5,6,7,8,9,10,12,24,30,36,48].map(String);
+                                                                setCancelPenaltyManualText(f.cancelPenaltyHours && !presets.includes(f.cancelPenaltyHours) ? f.cancelPenaltyHours : '');
+                                                                setShowCancelPenaltyModal(true);
+                                                            }}>
+                                                            <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                                                {f.cancelPenaltyHours !== '' ? t.cancelPenaltyHoursOption(f.cancelPenaltyHours) : t.cancelPenaltyHoursFormLabel}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                )}
                                                 {/* Davete İzin Ver (kilit) — kullanıcı isteğiyle buraya, Derece'nin
                                                     sağına taşındı (önceden Hakem bloğunun içindeydi). */}
                                                 <TouchableOpacity
