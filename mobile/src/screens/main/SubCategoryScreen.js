@@ -711,6 +711,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         : (item.teamSize || 1);
     const senderSideCount = 1 + (Array.isArray(item.senderTeam) ? item.senderTeam.length : 0);
     const filled = participants.filter(p => p && p.id).length;
+    // Rakip tarafta uygulamayı kullanmayan (serbest metin) oyuncular participants'a değil,
+    // ayrı oppTeamManualNames alanına yazılıyor — sayaca dahil edilmezse "kadroda görünüyor
+    // ama sayı hâlâ eksik gösteriyor" hissi oluyordu.
+    const oppManualNames = Array.isArray(item.oppTeamManualNames) ? item.oppTeamManualNames.filter(n => typeof n === 'string' && n.trim()) : [];
+    // Çiftlerde (DOUBLE) toplam kapasite sabit 4 (2 taraf x 2) ve "required" zaten
+    // rakip tarafta kalan boş kontenjanı ifade eder. Takım sporlarında (voleybol 6v6 vb.)
+    // "required" tek bir tarafın TAM boyutu (teamSize) — iki tarafı da saymadan
+    // senderSideCount'a eklemek "1/7" gibi anlamsız bir toplam üretiyordu; gerçek
+    // toplam kapasite her iki tarafın da dolu olduğu hâl, yani 2 x teamSize'dır.
+    const totalCapacity = item.matchType === 'DOUBLE' ? (senderSideCount + required) : (2 * (item.teamSize || 1));
     // Hakem Arıyorum ilanının Oyuncular bölümü kendi (hep boş) alanları yerine
     // asıl maçın (linkedRival) oyuncularını gösterir.
     const linkedParticipants = (isRefereeAd && item.linkedRival && Array.isArray(item.linkedRival.participants)) ? item.linkedRival.participants : [];
@@ -720,6 +730,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         : (item.linkedRival.teamSize || 1)) : 0;
     const linkedSenderSideCount = (isRefereeAd && item.linkedRival) ? 1 + linkedSenderTeam.length : 0;
     const linkedFilled = linkedParticipants.filter(p => p?.id).length;
+    const linkedTotalCapacity = (isRefereeAd && item.linkedRival)
+        ? (item.linkedRival.matchType === 'DOUBLE' ? (linkedSenderSideCount + linkedRequired) : (2 * (item.linkedRival.teamSize || 1)))
+        : 0;
     const mySentReq = item._myJoinStatus;
     const isFull = filled >= required;
     const isParticipant = participants.some(p => p?.id === myId);
@@ -1079,8 +1092,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                             <Text style={det.sectionTitle}>
                                 👥 {t.players || 'Oyuncular'} {isRefereeAd && item.linkedRival
-                                    ? `(${linkedSenderSideCount + linkedFilled} / ${linkedSenderSideCount + linkedRequired})`
-                                    : `(${senderSideCount + filled} / ${senderSideCount + required})`}
+                                    ? `(${linkedSenderSideCount + linkedFilled} / ${linkedTotalCapacity})`
+                                    : `(${senderSideCount + filled + (item.matchType === 'DOUBLE' ? 0 : oppManualNames.length)} / ${totalCapacity})`}
                             </Text>
                             {item.matchType === 'DOUBLE' && (isOwner || isParticipant) && showTeamCards && (
                                 <TouchableOpacity onPress={() => toggleTeamCards(false)} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
@@ -1129,6 +1142,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <Avatar name={item.refereeUser.username} avatar={item.refereeUser.avatar} size={moderateScale(32)} color={'#f59e0b'} onPress={() => navigation.push('Profile', { userId: item.refereeUser.id })} />
                                             <View style={{ flex:1 }}>
                                                 <Text style={det.playerName}>{playerDisplayName(item.refereeUser)}</Text>
+                                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>🧑‍⚖️ Hakem</Text>
+                                            </View>
+                                        </>
+                                    ) : item.manualRefereeName ? (
+                                        <>
+                                            <View style={{ width:moderateScale(32), height:moderateScale(32), borderRadius:moderateScale(16), backgroundColor:'#f59e0b20', alignItems:'center', justifyContent:'center' }}>
+                                                <Text style={{ fontSize:14 }}>🧑‍⚖️</Text>
+                                            </View>
+                                            <View style={{ flex:1 }}>
+                                                <Text style={det.playerName}>{item.manualRefereeName}</Text>
                                                 <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>🧑‍⚖️ Hakem</Text>
                                             </View>
                                         </>
@@ -1343,6 +1366,55 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </View>
                                 </View>
                             );
+                        })() : (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) ? (() => {
+                            // Takım sporları (voleybol, futbol vb.) — ilan oluştururken doldurulan
+                            // "Kurucu Takımı ↔ Rakip Takımı" kartıyla aynı iki sütunlu görünüm.
+                            // Eskiden bu liste senderTeam'i (kurucunun oluştururken eklediği takım
+                            // arkadaşlarını) hiç göstermiyordu — sadece kurucunun kendisi + participants
+                            // (rakip taraf) görünüyordu, kadronun yarısı sessizce kayboluyordu.
+                            const teamSizeN = item.teamSize || 1;
+                            // senderTeam'e uygulamayı kullanmayan oyuncular {manualName} olarak
+                            // ekleniyor (id/username yok) — sadece p?.id ile filtrelemek bunları
+                            // listeden düşürüyordu, "yazdığım isim hiçbir yerde görünmüyor" sorunu.
+                            const mySlots = [item.sender, ...senderTeamArr.filter(p => p?.id || p?.manualName)];
+                            const oppSlots = [...participants.filter(p => p?.id), ...oppManualNames.map(n => ({ manualName: n }))];
+                            const TeamCol = ({ label, color, people, total, allowRemove }) => (
+                                <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:6, paddingHorizontal:6, marginBottom:6 }}>
+                                    <Text style={{ color, fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{label}</Text>
+                                    {people.map((p, i) => p.id ? (
+                                        <View key={p.id} style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:4 }}>
+                                            <Avatar name={p.username} avatar={p.avatar} size={moderateScale(22)} color={cfg.color} onPress={() => navigation.push('Profile', { userId: p.id })} />
+                                            <Text style={{ color:'#fff', fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(p)}</Text>
+                                            {allowRemove && (
+                                                <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
+                                                    <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    ) : (
+                                        <View key={`manual-${i}`} style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:4 }}>
+                                            <View style={{ width:moderateScale(22), height:moderateScale(22), borderRadius:moderateScale(11), backgroundColor: color+'20', alignItems:'center', justifyContent:'center' }}>
+                                                <Text style={{ fontSize:10 }}>👤</Text>
+                                            </View>
+                                            <Text style={{ color:'#fff', fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{p.manualName}</Text>
+                                        </View>
+                                    ))}
+                                    {Array.from({ length: Math.max(0, total - people.length) }).map((_, i) => (
+                                        <View key={`empty-${i}`} style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:4, opacity:0.55 }}>
+                                            <View style={{ width:moderateScale(22), height:moderateScale(22), borderRadius:moderateScale(11), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
+                                                <Text style={{ color: colors.textMuted, fontSize:10 }}>?</Text>
+                                            </View>
+                                            <Text style={{ color: colors.textMuted, fontSize:9 }}>Bekleniyor</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            );
+                            return (
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
+                                    <TeamCol label={`👑 ${t.founderTeamLabel || 'Kurucu Takımı'}`} color={cfg.color} people={mySlots} total={teamSizeN} allowRemove={false} />
+                                    <TeamCol label={`⚔️ ${t.oppTeamLabel || 'Rakip Takımı'}`} color="#f87171" people={oppSlots} total={teamSizeN} allowRemove={isOwner} />
+                                </View>
+                            );
                         })() : (
                             <>
                                 <View style={det.playerRow}>
@@ -1547,6 +1619,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <>
                                         <Avatar name={item.refereeUser.username} avatar={item.refereeUser.avatar} size={moderateScale(24)} color="#f59e0b" />
                                         <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeSlotLabel}: {item.refereeUser.fullName || item.refereeUser.username} ✓</Text>
+                                    </>
+                                ) : item.manualRefereeName ? (
+                                    <>
+                                        <View style={{ width:moderateScale(24), height:moderateScale(24), borderRadius:moderateScale(12), backgroundColor:'#f59e0b20', alignItems:'center', justifyContent:'center' }}>
+                                            <Text style={{ fontSize:12 }}>🧑‍⚖️</Text>
+                                        </View>
+                                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeSlotLabel}: {item.manualRefereeName}{item.refereePayment ? `  ·  ${item.refereePayment}` : ''}</Text>
                                     </>
                                 ) : (
                                     <>
@@ -2261,7 +2340,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap' }}>
                         <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50', flexShrink:1 }}>
                             <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {t.refereeSlotLabel}: {item.refereeUser ? (item.refereeUser.fullName || item.refereeUser.username) : t.refereeSlotSearching}
+                                {t.refereeSlotLabel}: {item.refereeUser ? (item.refereeUser.fullName || item.refereeUser.username) : item.manualRefereeName ? item.manualRefereeName : t.refereeSlotSearching}
                             </Text>
                         </View>
                         {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.refereePayment}</Text>}
