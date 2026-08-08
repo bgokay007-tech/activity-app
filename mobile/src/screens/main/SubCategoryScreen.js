@@ -7517,29 +7517,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </View>
                                             )}
                                         </View>
-                                        {/* Davete İzin Ver (kilit) — voleybolde zaten vardı, submit payload'ı tenis/
-                                            padel/airsoft için de bu alanı gönderiyordu (bkz. participantsCanInvite)
-                                            ama o sporlarda değiştirecek bir buton hiç yoktu, varsayılan (true) hep
-                                            sabit kalıyordu. Aynı buton buraya da eklendi. */}
-                                        <TouchableOpacity
-                                            onPress={() => {
-                                                if (!f.participantsCanInvite) {
-                                                    set('participantsCanInvite', true);
-                                                    return;
-                                                }
-                                                Alert.alert(
-                                                    '🔒 Davet/Paylaşımı Kapat',
-                                                    'Bunu kapatırsan, ilanına kabul edilen katılımcılar başka oyuncu davet edemez, hakem davet edemez ve ilanı paylaşamaz — bunlara izin vermemiş olursun. Sadece sen yapabilirsin.',
-                                                    [
-                                                        { text: 'Vazgeç', style: 'cancel' },
-                                                        { text: 'Kapat', style: 'destructive', onPress: () => set('participantsCanInvite', false) },
-                                                    ]
-                                                );
-                                            }}
-                                            style={[s.triBtn, { flex:0, width:40, height:30, justifyContent:'center' }, f.participantsCanInvite && { borderColor:'#22c55e70', backgroundColor:'#22c55e20' }]}
-                                        >
-                                            <Text style={{ fontSize:14 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
-                                        </TouchableOpacity>
                                         {/* Derece + Cinsiyet Kısıtlaması — kullanıcı isteğiyle Mod/Format/Kilit ile
                                             AYNI satırda (ayrı bir alt satır değil), hepsi tek flexWrap içinde. */}
                                         <TouchableOpacity
@@ -7575,6 +7552,29 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 )}
                                             </View>
                                         )}
+                                        {/* Davete İzin Ver (kilit) — kullanıcı isteğiyle satırın en sağında. Voleybolde
+                                            zaten vardı, submit payload'ı tenis/padel/airsoft için de bu alanı
+                                            gönderiyordu (bkz. participantsCanInvite) ama o sporlarda değiştirecek bir
+                                            buton hiç yoktu, varsayılan (true) hep sabit kalıyordu. */}
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                if (!f.participantsCanInvite) {
+                                                    set('participantsCanInvite', true);
+                                                    return;
+                                                }
+                                                Alert.alert(
+                                                    '🔒 Davet/Paylaşımı Kapat',
+                                                    'Bunu kapatırsan, ilanına kabul edilen katılımcılar başka oyuncu davet edemez, hakem davet edemez ve ilanı paylaşamaz — bunlara izin vermemiş olursun. Sadece sen yapabilirsin.',
+                                                    [
+                                                        { text: 'Vazgeç', style: 'cancel' },
+                                                        { text: 'Kapat', style: 'destructive', onPress: () => set('participantsCanInvite', false) },
+                                                    ]
+                                                );
+                                            }}
+                                            style={[s.triBtn, { flex:0, width:40, height:30, justifyContent:'center', marginLeft:'auto' }, f.participantsCanInvite && { borderColor:'#22c55e70', backgroundColor:'#22c55e20' }]}
+                                        >
+                                            <Text style={{ fontSize:14 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
+                                        </TouchableOpacity>
                                     </View>
                                     )}
                                     {!isTeamSport && f.matchType === 'SINGLE' && f.singleOppInvite && (
