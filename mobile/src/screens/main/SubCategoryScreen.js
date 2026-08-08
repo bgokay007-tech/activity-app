@@ -4640,7 +4640,7 @@ const opt = StyleSheet.create({
 // gerekmiyor: çağıran taraf zaten `position:'relative'` bir sütun içine koyuyor,
 // bu da o sütunun altına `position:'absolute'` ile yaslanıyor (roster/hakem öneri
 // kutularıyla aynı desen).
-function MiniDropdown({ visible, options, value, onSelect, onClose }) {
+function MiniDropdown({ visible, options, value, onSelect, onClose, minWidth }) {
     if (!visible) return null;
     // Sabit maxHeight:170, 6 seçenekli listelerde (Takım Büyüklüğü, Yedek Sayısı) son
     // 1-2 satırı kırpıyordu ve iç içe ScrollView bazı cihazlarda kaydırmayı almıyordu —
@@ -4649,14 +4649,17 @@ function MiniDropdown({ visible, options, value, onSelect, onClose }) {
     const rowH = 32;
     const fullH = options.length * rowH + 2;
     const maxH = Math.min(fullH, 220);
+    // minWidth verilirse right:0 KULLANILMAZ — tetikleyici kutu dar (ör. "Mod Seç" placeholder'ı
+    // kısa) olsa bile liste kendi metnine (ör. "Rekabetçi") göre genişleyebilsin diye; aksi halde
+    // dar tetikleyicinin genişliğine sıkışıp metin alt satıra kayıyordu.
     return (
-        <View style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, maxHeight:maxH, overflow:'hidden' }}>
+        <View style={{ position:'absolute', top:'100%', left:0, ...(minWidth ? { minWidth } : { right:0 }), marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, maxHeight:maxH, overflow:'hidden' }}>
             <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} scrollEnabled={fullH > maxH}>
                 {options.map(o => (
                     <TouchableOpacity key={o.value} onPress={() => { onSelect(o.value); onClose(); }}
                         style={{ paddingVertical:7, paddingHorizontal:10, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth:1, borderBottomColor: colors.border }}>
-                        <Text style={{ color: value === o.value ? '#fff' : colors.textSecondary, fontSize:12, fontWeight: value === o.value ? '800' : '600' }}>{o.label}</Text>
-                        {value === o.value && <Text style={{ color: colors.purple, fontSize:12 }}>✓</Text>}
+                        <Text style={{ color: value === o.value ? '#fff' : colors.textSecondary, fontSize:12, fontWeight: value === o.value ? '800' : '600' }} numberOfLines={1}>{o.label}</Text>
+                        {value === o.value && <Text style={{ color: colors.purple, fontSize:12, marginLeft:6 }}>✓</Text>}
                     </TouchableOpacity>
                 ))}
             </ScrollView>
@@ -7608,6 +7611,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </TouchableOpacity>
                                                     <MiniDropdown
                                                         visible={showModPicker}
+                                                        minWidth={110}
                                                         options={[
                                                             { value: 'PRACTICE', label: noEmoji(t.practiceMode) },
                                                             { value: 'COMPETITIVE', label: noEmoji(t.competitiveMode) },
