@@ -6705,6 +6705,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [showSurfacePicker, setShowSurfacePicker] = useState(false);
     const [showVenueTypePicker, setShowVenueTypePicker] = useState(false);
     const [showModPicker, setShowModPicker] = useState(false);
+    const [showModePopup, setShowModePopup] = useState(false);
+    const [showFormatPopup, setShowFormatPopup] = useState(false);
+    const [showGenderReqPopup, setShowGenderReqPopup] = useState(false);
     const [showTeamSizePicker, setShowTeamSizePicker] = useState(false);
     const [showSubCountPicker, setShowSubCountPicker] = useState(false);
     const [showGenderCountPicker, setShowGenderCountPicker] = useState(false);
@@ -7428,66 +7431,82 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {/* Mod + Format — tek satır, içeriğe göre boyutlanır (flex:1 yok — sağa boşluk kalırsa kalsın, aralarında boşluk olmasın) —
                                         kort/tesis kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) anlamsız, tamamen gizlenir. */}
                                     {!SIMPLIFIED_FEE_SUBS.has(sub) && (
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
-                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                                            <Text style={[s.fieldLabel, { marginBottom:0, fontSize:13 }]}>{t.modLabel}</Text>
-                                            <View style={{ flexDirection:'row', gap:3 }}>
-                                                {((sub === 'tennis' || sub === 'padel') ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
-                                                    const isActive = (sub === 'tennis' || sub === 'padel')
-                                                        ? (f.matchMode === mode || f.matchMode === 'BOTH')
-                                                        : f.matchMode === mode;
-                                                    const handleModePress = () => {
-                                                        if (mode === 'COMPETITIVE' && !eloWarningDismissed) setShowEloWarning(true);
-                                                        if ((sub !== 'tennis' && sub !== 'padel') || !f.flexibleSchedule || !f.matchMode) { set('matchMode', mode); return; }
-                                                        if (mode === 'PRACTICE') {
-                                                            if (f.matchMode === 'PRACTICE') return;
-                                                            set('matchMode', f.matchMode === 'BOTH' ? 'COMPETITIVE' : 'BOTH');
-                                                        } else {
-                                                            if (f.matchMode === 'COMPETITIVE') return;
-                                                            set('matchMode', f.matchMode === 'BOTH' ? 'PRACTICE' : 'BOTH');
-                                                        }
-                                                    };
-                                                    return (
-                                                        <TouchableOpacity key={mode} onPress={handleModePress}
-                                                            style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, isActive && {
-                                                                backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
-                                                                borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
-                                                            }]}>
-                                                            <Text style={[s.chipBtnText, { fontSize:11 }, isActive && { color:'#fff' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                                {noEmoji(mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode)}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    );
-                                                })}
-                                            </View>
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1, marginBottom:8 }}>
+                                        <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: showModePopup ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
+                                            <TouchableOpacity onPress={() => setShowModePopup(v => !v)}>
+                                                <Text style={[s.triValue, { fontSize:11 }, !f.matchMode && s.triPlaceholder]} numberOfLines={1}>
+                                                    {f.matchMode ? noEmoji(f.matchMode === 'BOTH' ? t.bothMode : f.matchMode === 'COMPETITIVE' ? t.competitiveMode : t.practiceMode) : `${t.modLabel} ${t.courtSurfaceSelectPlaceholder}`}
+                                                </Text>
+                                            </TouchableOpacity>
+                                            {/* Aynı eski chip mantığı (tıklayınca PRACTICE/COMPETITIVE/BOTH arası geçiş,
+                                                tenis/padelde ikinciye dokununca BOTH'a birleşme) hiç değişmeden, sadece
+                                                dokununca açılan küçük bir kutunun içine taşındı — stil değişti, mantık aynı. */}
+                                            {showModePopup && (
+                                                <View style={{ position:'absolute', top:'100%', left:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, padding:4, flexDirection:'row', gap:3 }}>
+                                                    {((sub === 'tennis' || sub === 'padel') ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
+                                                        const isActive = (sub === 'tennis' || sub === 'padel')
+                                                            ? (f.matchMode === mode || f.matchMode === 'BOTH')
+                                                            : f.matchMode === mode;
+                                                        const handleModePress = () => {
+                                                            if (mode === 'COMPETITIVE' && !eloWarningDismissed) setShowEloWarning(true);
+                                                            if ((sub !== 'tennis' && sub !== 'padel') || !f.flexibleSchedule || !f.matchMode) { set('matchMode', mode); return; }
+                                                            if (mode === 'PRACTICE') {
+                                                                if (f.matchMode === 'PRACTICE') return;
+                                                                set('matchMode', f.matchMode === 'BOTH' ? 'COMPETITIVE' : 'BOTH');
+                                                            } else {
+                                                                if (f.matchMode === 'COMPETITIVE') return;
+                                                                set('matchMode', f.matchMode === 'BOTH' ? 'PRACTICE' : 'BOTH');
+                                                            }
+                                                        };
+                                                        return (
+                                                            <TouchableOpacity key={mode} onPress={handleModePress}
+                                                                style={[s.chipBtn, { paddingHorizontal:6, paddingVertical:5 }, isActive && {
+                                                                    backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
+                                                                    borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
+                                                                }]}>
+                                                                <Text style={[s.chipBtnText, { fontSize:11 }, isActive && { color:'#fff' }]} numberOfLines={1}>
+                                                                    {noEmoji(mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode)}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </View>
+                                            )}
                                         </View>
-                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                                            <Text style={[s.fieldLabel, { marginBottom:0, fontSize:13 }]}>{t.formatLabel}</Text>
-                                            <View style={{ flexDirection:'row', gap:3 }}>
-                                                {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
-                                                    <TouchableOpacity key={fmt.id} onPress={() => {
-                                                        if (fmt.id === f.matchType) { if (fmt.id === 'DOUBLE') setShowDoubleOptions(v => !v); return; }
-                                                        if (editHasParticipants) {
-                                                            Alert.alert('Format Değiştirilemez', 'Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemez — önce katılımcıları çıkarabilirsin.');
-                                                            return;
-                                                        }
-                                                        if (fmt.id === 'DOUBLE') setShowDoubleOptions(true);
-                                                        if (fmt.id === 'SINGLE') setInviteTarget('singleOpp');
-                                                        setF(p => ({
-                                                            ...p,
-                                                            matchType: fmt.id,
-                                                            partner: fmt.id === 'DOUBLE' ? p.partner : null,
-                                                            courtFeePerPerson: p.selectedCourt?.totalPrice > 0
-                                                                ? String(Math.round(p.selectedCourt.totalPrice / (fmt.id === 'DOUBLE' ? 4 : 2)))
-                                                                : p.courtFeePerPerson,
-                                                            courtFeePerPersonByMethod: divideFeeByMethod(p.selectedCourt?.totalPriceByMethod, fmt.id === 'DOUBLE' ? 4 : 2),
-                                                        }));
-                                                    }}
-                                                        style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.matchType===fmt.id && s.chipBtnActive, editHasParticipants && { opacity:0.5 }]}>
-                                                        <Text style={[s.chipBtnText, { fontSize:11, textAlign:'center' }, f.matchType===fmt.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{fmt.label}</Text>
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </View>
+                                        <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: showFormatPopup ? 51 : 1 }, f.matchType && s.triBtnFilled]}>
+                                            <TouchableOpacity onPress={() => setShowFormatPopup(v => !v)}>
+                                                <Text style={[s.triValue, { fontSize:11 }, !f.matchType && s.triPlaceholder]} numberOfLines={1}>
+                                                    {f.matchType ? (f.matchType === 'DOUBLE' ? t.doubleFormat : t.singleFormat) : `${t.formatLabel} ${t.courtSurfaceSelectPlaceholder}`}
+                                                </Text>
+                                            </TouchableOpacity>
+                                            {showFormatPopup && (
+                                                <View style={{ position:'absolute', top:'100%', left:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, padding:4, flexDirection:'row', gap:3 }}>
+                                                    {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
+                                                        <TouchableOpacity key={fmt.id} onPress={() => {
+                                                            setShowFormatPopup(false);
+                                                            if (fmt.id === f.matchType) { if (fmt.id === 'DOUBLE') setShowDoubleOptions(v => !v); return; }
+                                                            if (editHasParticipants) {
+                                                                Alert.alert('Format Değiştirilemez', 'Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemez — önce katılımcıları çıkarabilirsin.');
+                                                                return;
+                                                            }
+                                                            if (fmt.id === 'DOUBLE') setShowDoubleOptions(true);
+                                                            if (fmt.id === 'SINGLE') setInviteTarget('singleOpp');
+                                                            setF(p => ({
+                                                                ...p,
+                                                                matchType: fmt.id,
+                                                                partner: fmt.id === 'DOUBLE' ? p.partner : null,
+                                                                courtFeePerPerson: p.selectedCourt?.totalPrice > 0
+                                                                    ? String(Math.round(p.selectedCourt.totalPrice / (fmt.id === 'DOUBLE' ? 4 : 2)))
+                                                                    : p.courtFeePerPerson,
+                                                                courtFeePerPersonByMethod: divideFeeByMethod(p.selectedCourt?.totalPriceByMethod, fmt.id === 'DOUBLE' ? 4 : 2),
+                                                            }));
+                                                        }}
+                                                            style={[s.chipBtn, { paddingHorizontal:6, paddingVertical:5 }, f.matchType===fmt.id && s.chipBtnActive, editHasParticipants && { opacity:0.5 }]}>
+                                                            <Text style={[s.chipBtnText, { fontSize:11, textAlign:'center' }, f.matchType===fmt.id && s.chipBtnTextActive]} numberOfLines={1}>{fmt.label}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            )}
                                         </View>
                                     </View>
                                     )}
@@ -7498,34 +7517,37 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         Kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) Derece formun sonunda,
                                         Bilet Link ile Mesaj arasında ayrıca gösteriliyor — burada tekrar etmesin. */}
                                     {!SIMPLIFIED_FEE_SUBS.has(sub) && (
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
-                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1 }}>
-                                            <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.ratingLimitLabel}</Text>
-                                            <TouchableOpacity
-                                                style={{ backgroundColor:colors.surface2, borderRadius:10, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? colors.purple+'80' : colors.border, paddingVertical:3, paddingHorizontal:3, flexShrink:1 }}
-                                                onPress={() => setShowRatingRange(true)}>
-                                                <Text style={[s.triValue, { fontSize:10 }] } numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
-                                                    {f.ratingGenderSplit
-                                                        ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
-                                                        : ((!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`)}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        </View>
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1, marginBottom:8 }}>
+                                        <TouchableOpacity
+                                            style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6 }, ((f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]}
+                                            onPress={() => setShowRatingRange(true)}>
+                                            <Text style={[s.triValue, { fontSize:11 }, ((f.ratingGenderSplit ? !(f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : !(f.minRating || f.maxRating)) && s.triPlaceholder)]} numberOfLines={1}>
+                                                {f.ratingGenderSplit
+                                                    ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
+                                                    : ((!f.minRating && !f.maxRating) ? `${t.ratingLimitLabel} ${t.courtSurfaceSelectPlaceholder}` : `${f.minRating || '0'}–${f.maxRating || '10'}`)}
+                                            </Text>
+                                        </TouchableOpacity>
                                         {(sub === 'tennis' || sub === 'padel') && f.matchType === 'SINGLE' && (
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexShrink:1, flexGrow:1, justifyContent:'flex-end' }}>
-                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.genderReqLabel}</Text>
-                                                <View style={{ flexDirection:'row', gap:3, flexShrink:1 }}>
-                                                    {[
-                                                        { id:'MIX', label: noEmoji(t.genderMix || '🤝 Mix') },
-                                                        { id:'MALE', label: noEmoji(t.genderMale || '👨 Erkek') },
-                                                        { id:'FEMALE', label: noEmoji(t.genderFemale || '👩 Kadın') },
-                                                    ].map(g => (
-                                                        <TouchableOpacity key={g.id} onPress={() => set('genderReq', g.id)}
-                                                            style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.genderReq===g.id && s.chipBtnActive]}>
-                                                            <Text style={[s.chipBtnText, { fontSize:11 }, f.genderReq===g.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{g.label}</Text>
-                                                        </TouchableOpacity>
-                                                    ))}
-                                                </View>
+                                            <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6, position:'relative', zIndex: showGenderReqPopup ? 51 : 1 }, f.genderReq && f.genderReq !== 'MIX' && s.triBtnFilled]}>
+                                                <TouchableOpacity onPress={() => setShowGenderReqPopup(v => !v)}>
+                                                    <Text style={[s.triValue, { fontSize:11 }]} numberOfLines={1}>
+                                                        {noEmoji(f.genderReq === 'MALE' ? t.genderMale : f.genderReq === 'FEMALE' ? t.genderFemale : (t.genderMix || 'Mix'))}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                                {showGenderReqPopup && (
+                                                    <View style={{ position:'absolute', top:'100%', right:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, padding:4, flexDirection:'row', gap:3 }}>
+                                                        {[
+                                                            { id:'MIX', label: noEmoji(t.genderMix || '🤝 Mix') },
+                                                            { id:'MALE', label: noEmoji(t.genderMale || '👨 Erkek') },
+                                                            { id:'FEMALE', label: noEmoji(t.genderFemale || '👩 Kadın') },
+                                                        ].map(g => (
+                                                            <TouchableOpacity key={g.id} onPress={() => { set('genderReq', g.id); setShowGenderReqPopup(false); }}
+                                                                style={[s.chipBtn, { paddingHorizontal:6, paddingVertical:5 }, f.genderReq===g.id && s.chipBtnActive]}>
+                                                                <Text style={[s.chipBtnText, { fontSize:11 }, f.genderReq===g.id && s.chipBtnTextActive]} numberOfLines={1}>{g.label}</Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </View>
+                                                )}
                                             </View>
                                         )}
                                     </View>
@@ -8187,23 +8209,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             arama kutusuna eklendi (flex:1 → flex:2). Voleybolde Zemin artık formun en
                                             üstünde (Mod'un solunda) seçiliyor, burada tekrar göstermiyoruz. */}
                                         {isVolleyball ? null : isPadel ? (
-                                            <View style={[s.triBtn, { flex:0.5, paddingVertical:1, paddingHorizontal:3 }]}>
-                                                <Text style={[s.triLabel, { fontSize:8, marginBottom:3 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.surfaceLabel}</Text>
-                                                <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Suni Çim</Text>
+                                            <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6 }]}>
+                                                <Text style={[s.triValue, { fontSize:11 }]} numberOfLines={1}>Suni Çim</Text>
                                             </View>
                                         ) : (
-                                            <TouchableOpacity style={[s.triBtn, { flex:0.5, paddingVertical:1, paddingHorizontal:3 }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
-                                                <Text style={[s.triLabel, { fontSize:8, marginBottom:3 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.surfaceLabel}</Text>
-                                                <Text style={[s.triValue, { fontSize:10 }, !f.surface && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                    {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : '—'}
+                                            <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6 }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
+                                                <Text style={[s.triValue, { fontSize:11 }, !f.surface && s.triPlaceholder]} numberOfLines={1}>
+                                                    {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : `${t.surfaceLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                 </Text>
                                             </TouchableOpacity>
                                         )}
                                         {!isVolleyball && (
-                                            <TouchableOpacity style={[s.triBtn, { flex:0.5, paddingVertical:1, paddingHorizontal:3 }, f.venueType && s.triBtnFilled]} onPress={() => setShowVenueTypePicker(true)}>
-                                                <Text style={[s.triLabel, { fontSize:8, marginBottom:3 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.venueLabel}</Text>
-                                                <Text style={[s.triValue, { fontSize:10 }, !f.venueType && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                    {f.venueType ? noEmoji((isPadel ? { OUTDOOR:t.outdoor, INDOOR:t.indoor, INDOOR_AC:t.indoorAc } : { OUTDOOR:t.outdoor, INDOOR:t.indoor })[f.venueType] || '') : '—'}
+                                            <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6 }, f.venueType && s.triBtnFilled]} onPress={() => setShowVenueTypePicker(true)}>
+                                                <Text style={[s.triValue, { fontSize:11 }, !f.venueType && s.triPlaceholder]} numberOfLines={1}>
+                                                    {f.venueType ? noEmoji((isPadel ? { OUTDOOR:t.outdoor, INDOOR:t.indoor, INDOOR_AC:t.indoorAc } : { OUTDOOR:t.outdoor, INDOOR:t.indoor })[f.venueType] || '') : `${t.venueLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                 </Text>
                                             </TouchableOpacity>
                                         )}
@@ -8562,68 +8581,66 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </View>
                             )}
 
-                            {/* Airsoft: Takım Büyüklüğü (serbest sayı girişi, ör. 25v25) + Cinsiyet Dağılımı
-                                (voleyboldaki GenderCountModal'ın aynısı) + Derece (üstteki Tarih·Saat·Süre
-                                satırından buraya taşındı) + Kaç Oyun — Bilet Link'ten önce, kullanıcı isteğiyle. */}
+                            {/* Airsoft: Takım Büyüklüğü + Cinsiyet Dağılımı + Derece + Kaç Oyun — voleybol
+                                satırındaki (Tarih·Saat·Süre) triBtn mantığına döndürüldü: başlık ayrı bir
+                                üst satır değil, değerle birlikte butonun İÇİNDE (triLabel+triValue), buton
+                                da içeriğe göre daralıp genişliyor (flex:0 — sabit eşit sütun yok). Takım
+                                Büyüklüğü'nde başlık yok, kullanıcı isteğiyle sadece "...v..." / "NvN" değeri
+                                gösteriliyor; formu yine TeamSizeModal (serbest sayı girişi). */}
                             {!isMatchedEdit && sub === 'airsoft' && (
-                                <View style={{ marginBottom:10 }}>
-                                    <View style={{ flexDirection:'row', gap:6, zIndex: (showGenderCountPicker || showWinsNeededPicker) ? 50 : 1 }}>
-                                        <View style={{ flex:1 }}>
-                                            <Text style={[s.fieldLabel, { height:16, lineHeight:16, marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamSizeLabel}</Text>
-                                            <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowTeamSizeModal(true)}>
-                                                <Text style={[s.compactSelectText, !f.teamSize && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                    {f.teamSize ? `${f.teamSize}v${f.teamSize}` : t.teamSizeManualPlaceholder}
-                                                </Text>
-                                            </TouchableOpacity>
-                                            <TeamSizeModal
-                                                visible={showTeamSizeModal}
-                                                value={f.teamSize}
-                                                onConfirm={(n) => setTeamSize(n)}
-                                                onClose={() => setShowTeamSizeModal(false)}
-                                                t={t}
-                                            />
-                                        </View>
-                                        <View style={{ flex:1, position:'relative', zIndex: showGenderCountPicker ? 51 : 1 }}>
-                                            <Text style={[s.fieldLabel, { height:16, lineHeight:16, marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.genderCountLabel}</Text>
-                                            <TouchableOpacity style={[s.compactSelectBtn, !f.teamSize && { opacity:0.5 }]} disabled={!f.teamSize} onPress={() => setShowGenderCountPicker(true)}>
-                                                <Text style={[s.compactSelectText, f.requiredMaleCount == null && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
-                                                    {f.requiredMaleCount != null ? `👨${f.requiredMaleCount} 👩${2 * f.teamSize - f.requiredMaleCount}` : t.genderCountFreeLabel}
-                                                </Text>
-                                            </TouchableOpacity>
-                                            {!!f.teamSize && (
-                                                <GenderCountModal
-                                                    visible={showGenderCountPicker}
-                                                    total={2 * f.teamSize}
-                                                    value={f.requiredMaleCount}
-                                                    onSelect={(v) => set('requiredMaleCount', v)}
-                                                    onClose={() => setShowGenderCountPicker(false)}
-                                                    t={t}
-                                                />
-                                            )}
-                                        </View>
-                                        <View style={{ flex:1 }}>
-                                            <Text style={[s.fieldLabel, { height:16, lineHeight:16, marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
-                                            <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowRatingRange(true)}>
-                                                <Text style={[s.compactSelectText, (!f.minRating && !f.maxRating) && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
-                                                    {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                        <View style={{ flex:1, position:'relative', zIndex: showWinsNeededPicker ? 51 : 1 }}>
-                                            <Text style={[s.fieldLabel, { height:16, lineHeight:16, marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.winsNeededLabel}</Text>
-                                            <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowWinsNeededPicker(v => !v)}>
-                                                <Text style={[s.compactSelectText, !f.winsNeeded && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                    {f.winsNeeded ? String(f.winsNeeded) : t.courtSurfaceSelectPlaceholder}
-                                                </Text>
-                                            </TouchableOpacity>
-                                            <MiniDropdown
-                                                visible={showWinsNeededPicker}
-                                                options={WINS_NEEDED_OPTIONS.map(n => ({ value: n, label: String(n) }))}
-                                                value={f.winsNeeded}
-                                                onSelect={(v) => set('winsNeeded', v)}
-                                                onClose={() => setShowWinsNeededPicker(false)}
-                                            />
-                                        </View>
+                                <View style={[s.triRow, { flexWrap:'wrap', marginBottom:10, zIndex: showWinsNeededPicker ? 50 : 1 }]}>
+                                    <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.teamSize && s.triBtnFilled]}
+                                        onPress={() => setShowTeamSizeModal(true)}>
+                                        <Text style={[s.triValue, !f.teamSize && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                            {f.teamSize ? `${f.teamSize}v${f.teamSize}` : t.teamSizeManualPlaceholder}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TeamSizeModal
+                                        visible={showTeamSizeModal}
+                                        value={f.teamSize}
+                                        onConfirm={(n) => setTeamSize(n)}
+                                        onClose={() => setShowTeamSizeModal(false)}
+                                        t={t}
+                                    />
+                                    <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, !f.teamSize && { opacity:0.5 }]}
+                                        disabled={!f.teamSize} onPress={() => setShowGenderCountPicker(true)}>
+                                        <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.genderCountLabel}</Text>
+                                        <Text style={[s.triValue, { fontSize:10 }, f.requiredMaleCount == null && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                            {f.requiredMaleCount != null ? `👨${f.requiredMaleCount} 👩${2 * f.teamSize - f.requiredMaleCount}` : t.genderCountFreeLabel}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    {!!f.teamSize && (
+                                        <GenderCountModal
+                                            visible={showGenderCountPicker}
+                                            total={2 * f.teamSize}
+                                            value={f.requiredMaleCount}
+                                            onSelect={(v) => set('requiredMaleCount', v)}
+                                            onClose={() => setShowGenderCountPicker(false)}
+                                            t={t}
+                                        />
+                                    )}
+                                    <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }]}
+                                        onPress={() => setShowRatingRange(true)}>
+                                        <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
+                                        <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                            {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <View style={{ position:'relative', zIndex: showWinsNeededPicker ? 51 : 1 }}>
+                                        <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.winsNeeded && s.triBtnFilled]}
+                                            onPress={() => setShowWinsNeededPicker(v => !v)}>
+                                            <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.winsNeededLabel}</Text>
+                                            <Text style={[s.triValue, !f.winsNeeded && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                {f.winsNeeded ? String(f.winsNeeded) : t.courtSurfaceSelectPlaceholder}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <MiniDropdown
+                                            visible={showWinsNeededPicker}
+                                            options={WINS_NEEDED_OPTIONS.map(n => ({ value: n, label: String(n) }))}
+                                            value={f.winsNeeded}
+                                            onSelect={(v) => set('winsNeeded', v)}
+                                            onClose={() => setShowWinsNeededPicker(false)}
+                                        />
                                     </View>
                                 </View>
                             )}
