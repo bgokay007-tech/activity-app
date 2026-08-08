@@ -6704,12 +6704,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const teamCardRotateY = teamCardFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
     const [showSurfacePicker, setShowSurfacePicker] = useState(false);
     const [showVenueTypePicker, setShowVenueTypePicker] = useState(false);
-    const [showModPicker, setShowModPicker] = useState(false);
-    const [showModePopup, setShowModePopup] = useState(false);
-    const [showFormatPopup, setShowFormatPopup] = useState(false);
-    const [showGenderReqPopup, setShowGenderReqPopup] = useState(false);
-    const [showTeamSizePicker, setShowTeamSizePicker] = useState(false);
-    const [showSubCountPicker, setShowSubCountPicker] = useState(false);
+    // Kompakt form kutularının (Mod/Format/Cinsiyet Kısıtlaması/Takım Büyüklüğü/Yedek Sayısı)
+    // aç-kapa popup'ları TEK bir state'te tutuluyor — kullanıcı başka bir forma geçtiğinde
+    // (yeni bir popup açıldığında) öncekinin arkada açık kalmaması için, hepsi aynı anda
+    // sadece biri "aktif" olabiliyor.
+    const [activePopup, setActivePopup] = useState(null);
+    const toggleActivePopup = (key) => setActivePopup(p => p === key ? null : key);
     const [showGenderCountPicker, setShowGenderCountPicker] = useState(false);
     const [showWinsNeededPicker, setShowWinsNeededPicker] = useState(false);
     const [showCancelPenaltyModal, setShowCancelPenaltyModal] = useState(false);
@@ -7432,8 +7432,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         kort/tesis kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) anlamsız, tamamen gizlenir. */}
                                     {!SIMPLIFIED_FEE_SUBS.has(sub) && (
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1, marginBottom:8 }}>
-                                        <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: showModePopup ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
-                                            <TouchableOpacity onPress={() => setShowModePopup(v => !v)}>
+                                        <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'mode' ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
+                                            <TouchableOpacity onPress={() => toggleActivePopup('mode')}>
                                                 <Text style={[s.triValue, { fontSize:11 }, !f.matchMode && s.triPlaceholder]} numberOfLines={1}>
                                                     {f.matchMode ? noEmoji(f.matchMode === 'BOTH' ? t.bothMode : f.matchMode === 'COMPETITIVE' ? t.competitiveMode : t.practiceMode) : `${t.modLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                 </Text>
@@ -7441,7 +7441,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             {/* Aynı eski chip mantığı (tıklayınca PRACTICE/COMPETITIVE/BOTH arası geçiş,
                                                 tenis/padelde ikinciye dokununca BOTH'a birleşme) hiç değişmeden, sadece
                                                 dokununca açılan küçük bir kutunun içine taşındı — stil değişti, mantık aynı. */}
-                                            {showModePopup && (
+                                            {activePopup === 'mode' && (
                                                 <View style={{ position:'absolute', top:'100%', left:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, padding:4, flexDirection:'row', gap:3 }}>
                                                     {((sub === 'tennis' || sub === 'padel') ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
                                                         const isActive = (sub === 'tennis' || sub === 'padel')
@@ -7452,7 +7452,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             // gösterir ("takılı kalmasın") — BOTH/Karma'ya ulaşmak isteyen tekrar
                                                             // kutuya dokunup ikinci seçeneği seçer, mantık (PRACTICE/COMPETITIVE/
                                                             // BOTH birleşme kuralı) hiç değişmedi.
-                                                            setShowModePopup(false);
+                                                            setActivePopup(null);
                                                             if (mode === 'COMPETITIVE' && !eloWarningDismissed) setShowEloWarning(true);
                                                             if ((sub !== 'tennis' && sub !== 'padel') || !f.flexibleSchedule || !f.matchMode) { set('matchMode', mode); return; }
                                                             if (mode === 'PRACTICE') {
@@ -7478,17 +7478,17 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </View>
                                             )}
                                         </View>
-                                        <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: showFormatPopup ? 51 : 1 }, f.matchType && s.triBtnFilled]}>
-                                            <TouchableOpacity onPress={() => setShowFormatPopup(v => !v)}>
+                                        <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'format' ? 51 : 1 }, f.matchType && s.triBtnFilled]}>
+                                            <TouchableOpacity onPress={() => toggleActivePopup('format')}>
                                                 <Text style={[s.triValue, { fontSize:11 }, !f.matchType && s.triPlaceholder]} numberOfLines={1}>
                                                     {f.matchType ? (f.matchType === 'DOUBLE' ? t.doubleFormat : t.singleFormat) : `${t.formatLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                 </Text>
                                             </TouchableOpacity>
-                                            {showFormatPopup && (
+                                            {activePopup === 'format' && (
                                                 <View style={{ position:'absolute', top:'100%', left:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, padding:4, flexDirection:'row', gap:3 }}>
                                                     {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
                                                         <TouchableOpacity key={fmt.id} onPress={() => {
-                                                            setShowFormatPopup(false);
+                                                            setActivePopup(null);
                                                             if (fmt.id === f.matchType) { if (fmt.id === 'DOUBLE') setShowDoubleOptions(v => !v); return; }
                                                             if (editHasParticipants) {
                                                                 Alert.alert('Format Değiştirilemez', 'Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemez — önce katılımcıları çıkarabilirsin.');
@@ -7533,20 +7533,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </Text>
                                         </TouchableOpacity>
                                         {(sub === 'tennis' || sub === 'padel') && f.matchType === 'SINGLE' && (
-                                            <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6, position:'relative', zIndex: showGenderReqPopup ? 51 : 1 }, f.genderReq && f.genderReq !== 'MIX' && s.triBtnFilled]}>
-                                                <TouchableOpacity onPress={() => setShowGenderReqPopup(v => !v)}>
+                                            <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6, position:'relative', zIndex: activePopup === 'genderReq' ? 51 : 1 }, f.genderReq && f.genderReq !== 'MIX' && s.triBtnFilled]}>
+                                                <TouchableOpacity onPress={() => toggleActivePopup('genderReq')}>
                                                     <Text style={[s.triValue, { fontSize:11 }, !f.genderReq && s.triPlaceholder]} numberOfLines={1}>
                                                         {f.genderReq ? noEmoji(f.genderReq === 'MALE' ? t.genderMale : f.genderReq === 'FEMALE' ? t.genderFemale : (t.genderMix || 'Mix')) : `${t.genderReqLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                     </Text>
                                                 </TouchableOpacity>
-                                                {showGenderReqPopup && (
+                                                {activePopup === 'genderReq' && (
                                                     <View style={{ position:'absolute', top:'100%', right:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, padding:4, flexDirection:'row', gap:3 }}>
                                                         {[
                                                             { id:'MIX', label: noEmoji(t.genderMix || '🤝 Mix') },
                                                             { id:'MALE', label: noEmoji(t.genderMale || '👨 Erkek') },
                                                             { id:'FEMALE', label: noEmoji(t.genderFemale || '👩 Kadın') },
                                                         ].map(g => (
-                                                            <TouchableOpacity key={g.id} onPress={() => { set('genderReq', g.id); setShowGenderReqPopup(false); }}
+                                                            <TouchableOpacity key={g.id} onPress={() => { set('genderReq', g.id); setActivePopup(null); }}
                                                                 style={[s.chipBtn, { paddingHorizontal:6, paddingVertical:5 }, f.genderReq===g.id && s.chipBtnActive]}>
                                                                 <Text style={[s.chipBtnText, { fontSize:11 }, f.genderReq===g.id && s.chipBtnTextActive]} numberOfLines={1}>{g.label}</Text>
                                                             </TouchableOpacity>
@@ -7603,7 +7603,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         <TouchableOpacity key={mode} onPress={() => {
                                                             if (mode === 'COMPETITIVE' && !eloWarningDismissed) setShowEloWarning(true);
                                                             set('matchMode', mode);
-                                                            setShowModPicker(false);
+                                                            setActivePopup(null);
                                                         }}
                                                             style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isVolleyball && { flex:1, height:30, alignItems:'center', justifyContent:'center', paddingHorizontal:6 }, isActive && {
                                                                 backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
@@ -7637,14 +7637,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : `${t.volleyballTypeLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                     </Text>
                                                 </TouchableOpacity>
-                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: showModPicker ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
-                                                    <TouchableOpacity onPress={() => setShowModPicker(v => !v)}>
+                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'volleyballMod' ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
+                                                    <TouchableOpacity onPress={() => toggleActivePopup('volleyballMod')}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.matchMode && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.matchMode ? noEmoji(f.matchMode === 'COMPETITIVE' ? t.competitiveMode : t.practiceMode) : `${t.modLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                         </Text>
                                                     </TouchableOpacity>
                                                     <MiniDropdown
-                                                        visible={showModPicker}
+                                                        visible={activePopup === 'volleyballMod'}
                                                         minWidth={110}
                                                         options={[
                                                             { value: 'PRACTICE', label: noEmoji(t.practiceMode) },
@@ -7655,35 +7655,35 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             if (v === 'COMPETITIVE' && !eloWarningDismissed) setShowEloWarning(true);
                                                             set('matchMode', v);
                                                         }}
-                                                        onClose={() => setShowModPicker(false)}
+                                                        onClose={() => setActivePopup(null)}
                                                     />
                                                 </View>
-                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: showTeamSizePicker ? 51 : 1 }]}>
-                                                    <TouchableOpacity onPress={() => setShowTeamSizePicker(v => !v)}>
+                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'teamSize' ? 51 : 1 }]}>
+                                                    <TouchableOpacity onPress={() => toggleActivePopup('teamSize')}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.teamSize && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.teamSize ? `${f.teamSize}v${f.teamSize}` : `${t.teamSizeLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                         </Text>
                                                     </TouchableOpacity>
                                                     <MiniDropdown
-                                                        visible={showTeamSizePicker}
+                                                        visible={activePopup === 'teamSize'}
                                                         options={VOLLEYBALL_SIZES.map(n => ({ value: n, label: `${n}v${n}` }))}
                                                         value={f.teamSize}
                                                         onSelect={(v) => setTeamSize(v)}
-                                                        onClose={() => setShowTeamSizePicker(false)}
+                                                        onClose={() => setActivePopup(null)}
                                                     />
                                                 </View>
-                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: showSubCountPicker ? 51 : 1 }]}>
-                                                    <TouchableOpacity onPress={() => setShowSubCountPicker(v => !v)}>
+                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'subCount' ? 51 : 1 }]}>
+                                                    <TouchableOpacity onPress={() => toggleActivePopup('subCount')}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.subCount && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.subCount ? String(f.subCount) : `${t.subCountLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                         </Text>
                                                     </TouchableOpacity>
                                                     <MiniDropdown
-                                                        visible={showSubCountPicker}
+                                                        visible={activePopup === 'subCount'}
                                                         options={[0, 1, 2, 3, 4, 5].map(n => ({ value: n, label: String(n) }))}
                                                         value={f.subCount}
                                                         onSelect={(v) => setSubCount(v)}
-                                                        onClose={() => setShowSubCountPicker(false)}
+                                                        onClose={() => setActivePopup(null)}
                                                     />
                                                 </View>
                                                 {!!f.teamSize && (
