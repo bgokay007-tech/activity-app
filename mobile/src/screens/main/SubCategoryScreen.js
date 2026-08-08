@@ -6381,8 +6381,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
     const isTennis = sub === 'tennis';
     const INIT = {
-        matchType: isTennis ? null : (isPadel ? 'DOUBLE' : 'SINGLE'), teamSize: isFootball ? 5 : (isVolleyball || sub === 'airsoft') ? null : 1,
-        matchMode: (isTennis || isVolleyball) ? null : 'PRACTICE', teamFlexibility: 'FLEXIBLE', flexibleSchedule: false,
+        matchType: (isTennis || isPadel) ? null : 'SINGLE', teamSize: isFootball ? 5 : (isVolleyball || sub === 'airsoft') ? null : 1,
+        matchMode: (isTennis || isPadel || isVolleyball) ? null : 'PRACTICE', teamFlexibility: 'FLEXIBLE', flexibleSchedule: false,
         matchDate: null, matchTime: '', duration: isVolleyball ? '90' : '60',
         showDatePicker: false, showTimePicker: false, showDurationPicker: false,
         courtSearchText: '', courtResults: [], selectedCourt: null,
@@ -7120,7 +7120,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 return;
             }
         }
-        if (isTennis && !editItem) {
+        if ((isTennis || isPadel) && !editItem) {
             if (!f.matchMode) { Alert.alert('', 'Lütfen mod seçin (Antrenman/Rekabetçi).'); return; }
             if (!f.matchType) { Alert.alert('', 'Lütfen format seçin (Tekli/Çiftler).'); return; }
         }
