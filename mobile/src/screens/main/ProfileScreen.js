@@ -485,7 +485,9 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
 
                             {/* ── Tek satır: emoji + isim + G/M/B butonları ── */}
                             <View style={fc.topRow}>
-                                <Text style={fc.smallEmoji}>{item.emoji || '🏅'}</Text>
+                                {item.subCategory === 'padel'
+                                    ? <Image source={require('../../../assets/padel.png')} style={{ width: 16, height: 16 }} resizeMode="contain" />
+                                    : <Text style={fc.smallEmoji}>{item.emoji || '🏅'}</Text>}
                                 <View style={{ flexShrink: 1 }}>
                                     <Text style={fc.smallSportName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{getSubCategoryLabel(item.subCategory, lang)?.toUpperCase()}</Text>
                                     {item.alias ? <Text style={{ color: '#a855f7', fontSize: 8, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.alias}</Text> : null}
@@ -2723,7 +2725,9 @@ export default function ProfileScreen({ route, navigation }) {
                                             })}
                                             style={{ backgroundColor: colors.surface2, borderRadius: 16, paddingTop: 3, paddingBottom: 11, paddingHorizontal: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, height: 128, gap: 3, opacity: i.hidden ? 0.4 : 1 }}
                                         >
-                                            <Text style={{ fontSize: 34 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
+                                            {i.subCategory === 'padel'
+                                                ? <Image source={require('../../../assets/padel.png')} style={{ width: 34, height: 34 }} resizeMode="contain" />
+                                                : <Text style={{ fontSize: 34 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>}
                                             <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', textAlign: 'center' }} numberOfLines={1}>{getSubCategoryLabel(i.subCategory, lang)}</Text>
                                             {/* Alias varsa gösterilir, yoksa hiç render edilmez — boş bir satır
                                                 bırakıp isim ile derece arasında gereksiz boşluk oluşturmasın. */}
