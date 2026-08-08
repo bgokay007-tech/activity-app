@@ -6694,6 +6694,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const teamCardRotateY = teamCardFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
     const [showSurfacePicker, setShowSurfacePicker] = useState(false);
     const [showVenueTypePicker, setShowVenueTypePicker] = useState(false);
+    const [showModPicker, setShowModPicker] = useState(false);
     const [showTeamSizePicker, setShowTeamSizePicker] = useState(false);
     const [showSubCountPicker, setShowSubCountPicker] = useState(false);
     const [showGenderCountPicker, setShowGenderCountPicker] = useState(false);
@@ -7590,22 +7591,40 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         // altta değer veya "—" placeholder) geçti — kullanıcı isteğiyle tek, esnek
                                         // (flexWrap) bir satırda toplandı; sığmayan öğeler otomatik alt satıra kayar,
                                         // önceki sabit flex oranlı iki satırın (doldukça sıkışan) yerini aldı.
+                                        const modeOptions = [
+                                            { value: 'PRACTICE', label: noEmoji(t.practiceMode) },
+                                            { value: 'COMPETITIVE', label: noEmoji(t.competitiveMode) },
+                                        ];
                                         return (
-                                            <View style={[s.triRow, { flexWrap:'wrap', gap:1, marginBottom:10 }]}>
+                                            <View style={[s.triRow, { flexWrap:'wrap', gap:1, marginBottom:10, alignItems:'flex-start' }]}>
                                                 <TouchableOpacity style={[s.triBtn, { flex:0 }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
-                                                    <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.volleyballTypeLabel}</Text>
-                                                    <Text style={[s.triValue, { fontSize:11 }, !f.surface && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                    <Text style={s.triLabel} numberOfLines={1}>{t.volleyballTypeLabel}</Text>
+                                                    <Text style={[s.triValue, { fontSize:11 }, !f.surface && s.triPlaceholder]} numberOfLines={1}>
                                                         {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : t.courtSurfaceSelectPlaceholder}
                                                     </Text>
                                                 </TouchableOpacity>
-                                                <View style={[s.triBtn, { flex:0, paddingHorizontal:4 }]}>
-                                                    <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.modLabel}</Text>
-                                                    {modeChips}
+                                                <View style={[s.triBtn, { flex:0, position:'relative', zIndex: showModPicker ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
+                                                    <Text style={s.triLabel} numberOfLines={1}>{t.modLabel}</Text>
+                                                    <TouchableOpacity onPress={() => setShowModPicker(v => !v)}>
+                                                        <Text style={[s.triValue, { fontSize:11 }, !f.matchMode && s.triPlaceholder]} numberOfLines={1}>
+                                                            {f.matchMode ? (modeOptions.find(o => o.value === f.matchMode)?.label) : t.courtSurfaceSelectPlaceholder}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                    <MiniDropdown
+                                                        visible={showModPicker}
+                                                        options={modeOptions}
+                                                        value={f.matchMode}
+                                                        onSelect={(v) => {
+                                                            if (v === 'COMPETITIVE' && !eloWarningDismissed) setShowEloWarning(true);
+                                                            set('matchMode', v);
+                                                        }}
+                                                        onClose={() => setShowModPicker(false)}
+                                                    />
                                                 </View>
                                                 <View style={[s.triBtn, { flex:0, position:'relative', zIndex: showTeamSizePicker ? 51 : 1 }]}>
-                                                    <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamSizeLabel}</Text>
+                                                    <Text style={s.triLabel} numberOfLines={1}>{t.teamSizeLabel}</Text>
                                                     <TouchableOpacity onPress={() => setShowTeamSizePicker(v => !v)}>
-                                                        <Text style={[s.triValue, { fontSize:11 }, !f.teamSize && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                        <Text style={[s.triValue, { fontSize:11 }, !f.teamSize && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.teamSize ? `${f.teamSize}v${f.teamSize}` : t.courtSurfaceSelectPlaceholder}
                                                         </Text>
                                                     </TouchableOpacity>
@@ -7618,9 +7637,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     />
                                                 </View>
                                                 <View style={[s.triBtn, { flex:0, position:'relative', zIndex: showSubCountPicker ? 51 : 1 }]}>
-                                                    <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.subCountLabel}</Text>
+                                                    <Text style={s.triLabel} numberOfLines={1}>{t.subCountLabel}</Text>
                                                     <TouchableOpacity onPress={() => setShowSubCountPicker(v => !v)}>
-                                                        <Text style={[s.triValue, { fontSize:11 }, !f.subCount && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                        <Text style={[s.triValue, { fontSize:11 }, !f.subCount && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.subCount ? String(f.subCount) : t.courtSurfaceSelectPlaceholder}
                                                         </Text>
                                                     </TouchableOpacity>
@@ -7634,9 +7653,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </View>
                                                 {!!f.teamSize && (
                                                     <View style={[s.triBtn, { flex:0, position:'relative', zIndex: showGenderCountPicker ? 51 : 1 }]}>
-                                                        <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.genderCountLabel}</Text>
+                                                        <Text style={s.triLabel} numberOfLines={1}>{t.genderCountLabel}</Text>
                                                         <TouchableOpacity onPress={() => setShowGenderCountPicker(true)}>
-                                                            <Text style={[s.triValue, { fontSize:11 }, f.requiredMaleCount == null && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                                            <Text style={[s.triValue, { fontSize:11 }, f.requiredMaleCount == null && s.triPlaceholder]} numberOfLines={1}>
                                                                 {f.requiredMaleCount != null ? `👨${f.requiredMaleCount} 👩${2 * f.teamSize - f.requiredMaleCount}` : t.genderCountFreeLabel}
                                                             </Text>
                                                         </TouchableOpacity>
@@ -7651,8 +7670,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </View>
                                                 )}
                                                 <TouchableOpacity style={[s.triBtn, { flex:0 }, ((f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]} onPress={() => setShowRatingRange(true)}>
-                                                    <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
-                                                    <Text style={[s.triValue, { fontSize:11 }, ((f.ratingGenderSplit ? !(f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : !(f.minRating || f.maxRating)) && s.triPlaceholder)]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                                    <Text style={s.triLabel} numberOfLines={1}>{t.ratingLimitLabel}</Text>
+                                                    <Text style={[s.triValue, { fontSize:11 }, ((f.ratingGenderSplit ? !(f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : !(f.minRating || f.maxRating)) && s.triPlaceholder)]} numberOfLines={1}>
                                                         {f.ratingGenderSplit
                                                             ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
                                                             : ((!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`)}
@@ -7665,8 +7684,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             setCancelPenaltyManualText(f.cancelPenaltyHours && !presets.includes(f.cancelPenaltyHours) ? f.cancelPenaltyHours : '');
                                                             setShowCancelPenaltyModal(true);
                                                         }}>
-                                                        <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.cancelPenaltyHoursLabel}</Text>
-                                                        <Text style={[s.triValue, { fontSize:11 }, f.cancelPenaltyHours === '' && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+                                                        <Text style={s.triLabel} numberOfLines={1}>{t.cancelPenaltyHoursLabel}</Text>
+                                                        <Text style={[s.triValue, { fontSize:11 }, f.cancelPenaltyHours === '' && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.cancelPenaltyHours !== '' ? t.cancelPenaltyHoursOption(f.cancelPenaltyHours) : t.cancelPenaltyHoursOff}
                                                         </Text>
                                                     </TouchableOpacity>
