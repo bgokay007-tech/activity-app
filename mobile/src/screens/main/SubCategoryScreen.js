@@ -6405,7 +6405,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         opp2Invite: null,
         singleOppInvite: null,
         refereeInvites: [], // [{ user, message, price }]
-        genderReq: 'MIX',
+        genderReq: null,
         partnerGenderReq: 'MIX',
         opp1GenderReq: 'MIX',
         opp2GenderReq: 'MIX',
@@ -7053,7 +7053,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 courtFeePerPerson: f.courtFeePerPerson !== '' ? f.courtFeePerPerson : null,
                 courtFeePerPersonByMethod: f.courtFeePerPersonByMethod || null,
                 ...(SIMPLIFIED_FEE_SUBS.has(sub) && { feeIncludes: f.activityIsPaid ? (f.feeIncludes || null) : null }),
-                ...((sub === 'tennis' || sub === 'padel') && { genderReq: f.genderReq, matchType: f.matchType }),
+                ...((sub === 'tennis' || sub === 'padel') && { genderReq: f.genderReq || 'MIX', matchType: f.matchType }),
                 ...((sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' && {
                     partnerGenderReq: f.partnerGenderReq, opp1GenderReq: f.opp1GenderReq, opp2GenderReq: f.opp2GenderReq,
                     teamFlexibility: f.teamFlexibility,
@@ -7216,7 +7216,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 maxRatingFemale: f.maxRatingFemale !== '' ? parseFloat(f.maxRatingFemale) : undefined,
                 cancelPenaltyHours: isVolleyball && f.cancelPenaltyHours !== '' ? parseInt(f.cancelPenaltyHours, 10) : undefined,
                 subCount: isVolleyball ? (f.subCount || 0) : undefined,
-                genderReq: (sub === 'tennis' || sub === 'padel') ? f.genderReq : undefined,
+                genderReq: (sub === 'tennis' || sub === 'padel') ? (f.genderReq || 'MIX') : undefined,
                 partnerGenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.partnerGenderReq : undefined,
                 opp1GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp1GenderReq : undefined,
                 opp2GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp2GenderReq : undefined,
@@ -7448,6 +7448,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             ? (f.matchMode === mode || f.matchMode === 'BOTH')
                                                             : f.matchMode === mode;
                                                         const handleModePress = () => {
+                                                            // Kullanıcı isteğiyle her dokunuşta kutu kapanır ve o an seçilen değeri
+                                                            // gösterir ("takılı kalmasın") — BOTH/Karma'ya ulaşmak isteyen tekrar
+                                                            // kutuya dokunup ikinci seçeneği seçer, mantık (PRACTICE/COMPETITIVE/
+                                                            // BOTH birleşme kuralı) hiç değişmedi.
+                                                            setShowModePopup(false);
                                                             if (mode === 'COMPETITIVE' && !eloWarningDismissed) setShowEloWarning(true);
                                                             if ((sub !== 'tennis' && sub !== 'padel') || !f.flexibleSchedule || !f.matchMode) { set('matchMode', mode); return; }
                                                             if (mode === 'PRACTICE') {
@@ -7530,8 +7535,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         {(sub === 'tennis' || sub === 'padel') && f.matchType === 'SINGLE' && (
                                             <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6, position:'relative', zIndex: showGenderReqPopup ? 51 : 1 }, f.genderReq && f.genderReq !== 'MIX' && s.triBtnFilled]}>
                                                 <TouchableOpacity onPress={() => setShowGenderReqPopup(v => !v)}>
-                                                    <Text style={[s.triValue, { fontSize:11 }]} numberOfLines={1}>
-                                                        {noEmoji(f.genderReq === 'MALE' ? t.genderMale : f.genderReq === 'FEMALE' ? t.genderFemale : (t.genderMix || 'Mix'))}
+                                                    <Text style={[s.triValue, { fontSize:11 }, !f.genderReq && s.triPlaceholder]} numberOfLines={1}>
+                                                        {f.genderReq ? noEmoji(f.genderReq === 'MALE' ? t.genderMale : f.genderReq === 'FEMALE' ? t.genderFemale : (t.genderMix || 'Mix')) : `${t.genderReqLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                     </Text>
                                                 </TouchableOpacity>
                                                 {showGenderReqPopup && (
@@ -8162,7 +8167,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {!f.courtMutual && <View style={{ flexDirection:'row', gap:3, marginBottom:6, alignItems:'stretch' }}>
                                         {f.selectedCourt ? (
                                             <TouchableOpacity
-                                                style={[s.fieldInput, { flex:2, marginBottom:0, paddingVertical:5, justifyContent:'center' }]}
+                                                style={[s.fieldInput, { flex:2, height:30, marginBottom:0, paddingVertical:0, justifyContent:'center' }]}
                                                 onPress={() => {
                                                     if (isMatchedEdit) {
                                                         // Burada gerçek rezervasyona hiç dokunulmaz (cancelCourt gibi anlık
@@ -8192,7 +8197,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <TextInput
                                                 style={isVolleyball
                                                     ? [s.triBtn, s.triValue, { flex:1, height:30, marginBottom:0, paddingVertical:0, fontSize:11, textAlign:'left' }]
-                                                    : [s.fieldInput, { flex:2, marginBottom:0, paddingVertical:5 }]}
+                                                    : [s.fieldInput, { flex:2, height:30, marginBottom:0, paddingVertical:0 }]}
                                                 value={f.courtSearchText}
                                                 onChangeText={searchCourts}
                                                 placeholder={isVolleyball
