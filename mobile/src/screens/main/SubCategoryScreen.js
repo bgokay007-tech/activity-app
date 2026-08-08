@@ -6716,6 +6716,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [cancelPenaltyManualText, setCancelPenaltyManualText] = useState('');
     const [showFeePicker, setShowFeePicker] = useState(false); // Airsoft: sabit Kişi Başı Ücret alanı
     const [showTeamSizeModal, setShowTeamSizeModal] = useState(false); // Airsoft: serbest sayı girişli Takım Büyüklüğü
+    const [durationManualText, setDurationManualText] = useState(''); // Airsoft: hazır süre seçeneklerinin yanında serbest dakika girişi
     // Düzenlemede ilan zaten bir ücret kararına sahip (ücretli ya da bilerek ücretsiz)
     // sayılır — "Seç" placeholder'ı sadece hiç dokunulmamış yeni ilanlarda görünür.
     const [feeTouched, setFeeTouched] = useState(!!editItem);
@@ -7441,9 +7442,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             {/* Aynı eski chip mantığı (tıklayınca PRACTICE/COMPETITIVE/BOTH arası geçiş,
                                                 tenis/padelde ikinciye dokununca BOTH'a birleşme) hiç değişmeden, sadece
                                                 dokununca açılan küçük bir kutunun içine taşındı — stil değişti, mantık aynı. */}
+                                            {/* Voleybolün MiniDropdown'ıyla aynı görünüm — dikey liste, her seçenek kendi
+                                                satırında. Eski chip mantığı (tenis/padelde ikinciye dokununca BOTH'a
+                                                birleşme) hiç değişmeden, sadece her satır artık alt alta. */}
                                             {activePopup === 'mode' && (
-                                                <View style={{ position:'absolute', top:'100%', left:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, padding:4, flexDirection:'row', gap:3 }}>
-                                                    {((sub === 'tennis' || sub === 'padel') ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map(mode => {
+                                                <View style={{ position:'absolute', top:'100%', left:0, minWidth:120, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, overflow:'hidden' }}>
+                                                    {((sub === 'tennis' || sub === 'padel') ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map((mode, mi, arr) => {
                                                         const isActive = (sub === 'tennis' || sub === 'padel')
                                                             ? (f.matchMode === mode || f.matchMode === 'BOTH')
                                                             : f.matchMode === mode;
@@ -7465,13 +7469,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         };
                                                         return (
                                                             <TouchableOpacity key={mode} onPress={handleModePress}
-                                                                style={[s.chipBtn, { paddingHorizontal:6, paddingVertical:5 }, isActive && {
-                                                                    backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
-                                                                    borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
-                                                                }]}>
-                                                                <Text style={[s.chipBtnText, { fontSize:11 }, isActive && { color:'#fff' }]} numberOfLines={1}>
+                                                                style={{ paddingVertical:7, paddingHorizontal:10, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth: mi < arr.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+                                                                <Text style={{ color: isActive ? '#fff' : colors.textSecondary, fontSize:12, fontWeight: isActive ? '800' : '600' }} numberOfLines={1}>
                                                                     {noEmoji(mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode)}
                                                                 </Text>
+                                                                {isActive && <Text style={{ color: colors.purple, fontSize:12, marginLeft:6 }}>✓</Text>}
                                                             </TouchableOpacity>
                                                         );
                                                     })}
@@ -7485,8 +7487,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </Text>
                                             </TouchableOpacity>
                                             {activePopup === 'format' && (
-                                                <View style={{ position:'absolute', top:'100%', left:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, padding:4, flexDirection:'row', gap:3 }}>
-                                                    {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map(fmt => (
+                                                <View style={{ position:'absolute', top:'100%', left:0, minWidth:120, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, overflow:'hidden' }}>
+                                                    {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map((fmt, fi, arr) => (
                                                         <TouchableOpacity key={fmt.id} onPress={() => {
                                                             setActivePopup(null);
                                                             if (fmt.id === f.matchType) { if (fmt.id === 'DOUBLE') setShowDoubleOptions(v => !v); return; }
@@ -7506,13 +7508,38 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 courtFeePerPersonByMethod: divideFeeByMethod(p.selectedCourt?.totalPriceByMethod, fmt.id === 'DOUBLE' ? 4 : 2),
                                                             }));
                                                         }}
-                                                            style={[s.chipBtn, { paddingHorizontal:6, paddingVertical:5 }, f.matchType===fmt.id && s.chipBtnActive, editHasParticipants && { opacity:0.5 }]}>
-                                                            <Text style={[s.chipBtnText, { fontSize:11, textAlign:'center' }, f.matchType===fmt.id && s.chipBtnTextActive]} numberOfLines={1}>{fmt.label}</Text>
+                                                            disabled={editHasParticipants}
+                                                            style={{ paddingVertical:7, paddingHorizontal:10, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth: fi < arr.length - 1 ? 1 : 0, borderBottomColor: colors.border, opacity: editHasParticipants ? 0.5 : 1 }}>
+                                                            <Text style={{ color: f.matchType===fmt.id ? '#fff' : colors.textSecondary, fontSize:12, fontWeight: f.matchType===fmt.id ? '800' : '600' }} numberOfLines={1}>{fmt.label}</Text>
+                                                            {f.matchType===fmt.id && <Text style={{ color: colors.purple, fontSize:12, marginLeft:6 }}>✓</Text>}
                                                         </TouchableOpacity>
                                                     ))}
                                                 </View>
                                             )}
                                         </View>
+                                        {/* Davete İzin Ver (kilit) — voleybolde zaten vardı, submit payload'ı tenis/
+                                            padel/airsoft için de bu alanı gönderiyordu (bkz. participantsCanInvite)
+                                            ama o sporlarda değiştirecek bir buton hiç yoktu, varsayılan (true) hep
+                                            sabit kalıyordu. Aynı buton buraya da eklendi. */}
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                if (!f.participantsCanInvite) {
+                                                    set('participantsCanInvite', true);
+                                                    return;
+                                                }
+                                                Alert.alert(
+                                                    '🔒 Davet/Paylaşımı Kapat',
+                                                    'Bunu kapatırsan, ilanına kabul edilen katılımcılar başka oyuncu davet edemez, hakem davet edemez ve ilanı paylaşamaz — bunlara izin vermemiş olursun. Sadece sen yapabilirsin.',
+                                                    [
+                                                        { text: 'Vazgeç', style: 'cancel' },
+                                                        { text: 'Kapat', style: 'destructive', onPress: () => set('participantsCanInvite', false) },
+                                                    ]
+                                                );
+                                            }}
+                                            style={[s.triBtn, { flex:0, width:40, height:30, justifyContent:'center' }, f.participantsCanInvite && { borderColor:'#22c55e70', backgroundColor:'#22c55e20' }]}
+                                        >
+                                            <Text style={{ fontSize:14 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
+                                        </TouchableOpacity>
                                     </View>
                                     )}
 
@@ -7540,15 +7567,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </Text>
                                                 </TouchableOpacity>
                                                 {activePopup === 'genderReq' && (
-                                                    <View style={{ position:'absolute', top:'100%', right:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, padding:4, flexDirection:'row', gap:3 }}>
+                                                    <View style={{ position:'absolute', top:'100%', right:0, minWidth:120, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, overflow:'hidden' }}>
                                                         {[
                                                             { id:'MIX', label: noEmoji(t.genderMix || '🤝 Mix') },
                                                             { id:'MALE', label: noEmoji(t.genderMale || '👨 Erkek') },
                                                             { id:'FEMALE', label: noEmoji(t.genderFemale || '👩 Kadın') },
-                                                        ].map(g => (
+                                                        ].map((g, gi, arr) => (
                                                             <TouchableOpacity key={g.id} onPress={() => { set('genderReq', g.id); setActivePopup(null); }}
-                                                                style={[s.chipBtn, { paddingHorizontal:6, paddingVertical:5 }, f.genderReq===g.id && s.chipBtnActive]}>
-                                                                <Text style={[s.chipBtnText, { fontSize:11 }, f.genderReq===g.id && s.chipBtnTextActive]} numberOfLines={1}>{g.label}</Text>
+                                                                style={{ paddingVertical:7, paddingHorizontal:10, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth: gi < arr.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+                                                                <Text style={{ color: f.genderReq===g.id ? '#fff' : colors.textSecondary, fontSize:12, fontWeight: f.genderReq===g.id ? '800' : '600' }} numberOfLines={1}>{g.label}</Text>
+                                                                {f.genderReq===g.id && <Text style={{ color: colors.purple, fontSize:12, marginLeft:6 }}>✓</Text>}
                                                             </TouchableOpacity>
                                                         ))}
                                                     </View>
@@ -8132,7 +8160,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
                                     {/* Kort Adı + Ortaklaşa Kararlaştırılır + Kort Rezerve Edildi — tek satır */}
                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:6, marginBottom:4 }}>
-                                        {(!isVolleyball && !f.courtMutual) ? (
+                                        {(!isVolleyball && !isTennis && !isPadel && !f.courtMutual) ? (
                                             <Text style={[s.fieldLabel, { marginBottom:0 }]}>
                                                 {t.courtLabel}
                                                 {!f.flexibleSchedule ? ' *' : ''}
