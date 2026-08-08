@@ -860,6 +860,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
 
+    // Çiftler (DOUBLE): kabul edilen bireysel oyuncu atanmamış havuzuna düşer — ilan sahibi
+    // herkesi, oyuncunun kendisi de (sadece kendini, atanmamışken) Takım Arkadaşı/Rakip1/
+    // Rakip2'ye atayabilir.
+    const assignDoubleSlot = (userId, slot) => {
+        api.patch(`/rivals/${item.id}/assign-double-slot`, { userId, slot })
+            .then(onRefresh)
+            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+    };
+
     // Yedek Sayısı — ilan oluşturma formundaki subCount ile aynı alan, sadece açık
     // (henüz eşleşmemiş) ilanda kurucu değiştirebilir.
     const updateSubCount = (n) => {
@@ -1293,6 +1302,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             ];
                             const teamSlots = allTeamSlots.filter(sl => sl.p?.id);
                             const acceptedOthers = teamSlots.map(sl => sl.p);
+                            const unassignedDoubleSlots = (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []).filter(p => p?.id);
 
                             if (!showTeamCards) {
                                 // Kullanıcı isteğiyle ön yüzde her satıra 2 oyuncu sığıyor (önceden tek
@@ -1359,7 +1369,39 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </View>
                                             </View>
                                         )}
-                                        {acceptedOthers.length === 0 && !pendingPartnerInvite && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
+                                        {/* Atanmamış — kabul edilmiş ama henüz Takım Arkadaşı/Rakip1/Rakip2'ye
+                                            yerleşmemiş oyuncular. İlan sahibi HERKESİ, oyuncunun kendisi de
+                                            SADECE kendini atayabilir. */}
+                                        {unassignedDoubleSlots.map(p => {
+                                            const isMe = p.id === myId;
+                                            const openSlotOptions = [
+                                                !PartnerContent && !pendingPartnerInvite && { key:'partner', label: t.founderTeamLabel || 'Takım Arkadaşı' },
+                                                !participants[0]?.id && { key:'opp1', label: t.opp1Label || 'Rakip 1' },
+                                                !participants[1]?.id && { key:'opp2', label: t.opp2Label || 'Rakip 2' },
+                                            ].filter(Boolean);
+                                            return (
+                                                <View key={p.id} style={[cardBox, { width:'100%' }]}>
+                                                    <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => navigation.push('Profile', { userId: p.id })}>
+                                                        <Avatar name={p.username} avatar={p.avatar} size={moderateScale(28)} color={cfg.color} />
+                                                        <View style={{ flex:1 }}>
+                                                            <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                                            <Text style={[det.playerSub, { color:'#fbbf24' }]} numberOfLines={1}>Atanmamış — takım seçilmedi</Text>
+                                                        </View>
+                                                    </TouchableOpacity>
+                                                    {(isOwner || isMe) && openSlotOptions.length > 0 && (
+                                                        <View style={{ flexDirection:'row', gap:4, marginTop:4, flexWrap:'wrap' }}>
+                                                            {openSlotOptions.map(opt => (
+                                                                <TouchableOpacity key={opt.key} onPress={() => assignDoubleSlot(p.id, opt.key)}
+                                                                    style={{ flex:1, paddingVertical:3, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50', alignItems:'center' }}>
+                                                                    <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{opt.label}</Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            );
+                                        })}
+                                        {acceptedOthers.length === 0 && !pendingPartnerInvite && unassignedDoubleSlots.length === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
                                     </View>
                                 );
                             }
@@ -1410,6 +1452,34 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             />
                                         </View>
                                     </View>
+                                    {unassignedDoubleSlots.length > 0 && (
+                                        <View style={{ marginTop:8 }}>
+                                            <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800', marginBottom:4 }}>Atanmamış</Text>
+                                            {unassignedDoubleSlots.map(p => {
+                                                const isMe = p.id === myId;
+                                                const openSlotOptions = [
+                                                    !PartnerContent && !pendingPartnerInvite && { key:'partner', label: t.founderTeamLabel || 'Takım Arkadaşı' },
+                                                    !participants[0]?.id && { key:'opp1', label: t.opp1Label || 'Rakip 1' },
+                                                    !participants[1]?.id && { key:'opp2', label: t.opp2Label || 'Rakip 2' },
+                                                ].filter(Boolean);
+                                                return (
+                                                    <View key={p.id} style={{ backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:4 }}>
+                                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                                        {(isOwner || isMe) && openSlotOptions.length > 0 && (
+                                                            <View style={{ flexDirection:'row', gap:4, marginTop:3 }}>
+                                                                {openSlotOptions.map(opt => (
+                                                                    <TouchableOpacity key={opt.key} onPress={() => assignDoubleSlot(p.id, opt.key)}
+                                                                        style={{ flex:1, paddingVertical:3, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50', alignItems:'center' }}>
+                                                                        <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{opt.label}</Text>
+                                                                    </TouchableOpacity>
+                                                                ))}
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                );
+                                            })}
+                                        </View>
+                                    )}
                                 </View>
                             );
                         })() : (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) ? (() => {

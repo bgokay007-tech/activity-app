@@ -349,12 +349,13 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
         };
     }
 
-    // Bireysel kabul: sırayla ilk boş adlandırılmış slota (Takım Arkadaşı → Rakip1 → Rakip2)
-    // cinsiyet uyumuna göre atanır. Bu sıra, ekranda "Katılımcı 1/2/3" olarak gösterilen
-    // numaralandırmayla (partner=1, opp1=2, opp2=3) birebir eşleşir — böylece kabul edilen
-    // ilk kişi Katılımcı 1, ikinci kişi Katılımcı 2 olarak görünür (katılım sırasını yansıtır).
-    // Uyan slot yoksa kabul reddedilir (400) — geç kabul akışına bile hiç girmeden, çünkü
-    // katılımcı zaten kabul edilemeyecek durumda.
+    // Bireysel kabul: hangi boş adlandırılmış slota (Takım Arkadaşı/Rakip1/Rakip2) uyduğu
+    // sadece DOĞRULANIR (en az biri uymuyorsa kabul reddedilir, 400) — hangisine gideceği
+    // artık burada otomatik seçilmiyor. Kullanıcı isteğiyle kabul edilen oyuncu "atanmamış"
+    // havuzuna düşüyor, ilan sahibi YA DA oyuncunun kendisi (assignDoubleSlot) hangi slota
+    // geçeceğine sonradan karar veriyor — voleyboldeki "atanmamış havuzu" ile aynı mantık.
+    // Takım Değiştirilemez (STRICT) başvurular istisna: başvuru anında seçilen slotla zaten
+    // sınırlı olduğu için doğrudan o slota yerleşir, atanmamışa düşmez.
     const gUser = await prisma.user.findUnique({ where: { id: joinReq.userId }, select: { gender: true } });
     const pg = gUser?.gender;
     // Cinsiyeti belirtilmemiş kullanıcı MIX olmayan (cinsiyete özel) slotlara uymaz —
@@ -374,6 +375,8 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
 
     // Takım Değiştirilemez (STRICT): başvuru sırasında seçilen slotla (veya taraf) sınırlı
     // kalır — owner, başvuranı seçtiğinin dışına atayamaz (takas özelliği zaten kapalı).
+    // STRICT'te oyuncu zaten belirli bir slotu seçerek başvurduğu için atanmamış havuzuna
+    // düşmüyor, doğrudan o slota yerleşiyor (eski davranış aynen korunuyor).
     if (rival.teamFlexibility === 'STRICT' && joinReq.requestedSlot) {
         openSlots = joinReq.requestedSlot === 'opponent'
             ? openSlots.filter(s => s.key === 'opp1' || s.key === 'opp2')
@@ -381,21 +384,27 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
         if (openSlots.length === 0) {
             return { error: joinReq.requestedSlot === 'partner' ? 'Kurucu takımı slotu artık dolu.' : 'Seçilen slot artık dolu.' };
         }
+        const target = openSlots.find(s => fits(s.req));
+        if (!target) {
+            const details = openSlots.map(s => s.req !== 'MIX' ? `${s.label}: ${s.req === 'MALE' ? 'erkek' : 'kadın'}` : null).filter(Boolean).join(', ');
+            return { error: `Bu oyuncu ilanın cinsiyet gereksinimlerini karşılamıyor.${details ? ` (${details})` : ''}` };
+        }
+        if (target.key === 'partner') {
+            return { updatedParticipants: participants, assignedToPartner: true, updatedSenderTeam: [joinerEntry] };
+        }
+        const newP = [participants[0] || null, participants[1] || null];
+        newP[target.key === 'opp1' ? 0 : 1] = joinerEntry;
+        return { updatedParticipants: newP };
     }
 
     if (openSlots.length === 0) return { error: 'Tüm slotlar dolu.' };
-    const target = openSlots.find(s => fits(s.req));
-    if (!target) {
+    const fitsAny = openSlots.some(s => fits(s.req));
+    if (!fitsAny) {
         const details = openSlots.map(s => s.req !== 'MIX' ? `${s.label}: ${s.req === 'MALE' ? 'erkek' : 'kadın'}` : null).filter(Boolean).join(', ');
         return { error: `Bu oyuncu ilanın cinsiyet gereksinimlerini karşılamıyor.${details ? ` (${details})` : ''}` };
     }
-
-    if (target.key === 'partner') {
-        return { updatedParticipants: participants, assignedToPartner: true, updatedSenderTeam: [joinerEntry] };
-    }
-    const newP = [participants[0] || null, participants[1] || null];
-    newP[target.key === 'opp1' ? 0 : 1] = joinerEntry;
-    return { updatedParticipants: newP };
+    // Katılımcı/senderTeam'e hiç dokunulmaz — sadece unassignedPlayers'a eklenir.
+    return { updatedParticipants: participants, updatedUnassignedPlayers: [...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []), joinerEntry] };
 }
 
 // Hakem pazarlığı adımlarını (başvuru/karşı teklif/kabul/red) asıl maçın mevcut yorum
@@ -1504,9 +1513,10 @@ export const createRivalRequest = async (req, res, next) => {
             }).catch(() => {});
         }
 
-        // Takım sporları (voleybol): rakip takım slotlarına doğrudan davet — yukarıdaki
+        // Takım sporları (voleybol, airsoft): rakip takım slotlarına doğrudan davet — yukarıdaki
         // opp1/opp2InviteId ile aynı mantık (owner-initiated, inviteToRival'la aynı akış),
         // sadece DOUBLE'a değil takımSize>1 olan herhangi bir maça uygulanıyor.
+        const teamInviteEmoji = subCategory === 'airsoft' ? '🪖' : '🏐';
         const oppTeamIds = Array.isArray(oppTeamInviteIds) ? [...new Set(oppTeamInviteIds.filter(Boolean))] : [];
         for (const oppInviteId of oppTeamIds) {
             prisma.rivalJoinRequest.create({
@@ -1526,12 +1536,12 @@ export const createRivalRequest = async (req, res, next) => {
                 const me = request.sender;
                 createNotification(
                     oppInviteId, 'MATCH_INVITE',
-                    '🏐 Maç Daveti',
+                    `${teamInviteEmoji} Maç Daveti`,
                     `@${me?.username || 'Biri'} sizi bir takım maçına davet etti.`,
                     { category: request.category, subCategory: request.subCategory, rivalId: request.id }
                 ).catch(() => {});
                 emitToUser(oppInviteId, 'notification', {
-                    type: 'MATCH_INVITE', title: '🏐 Maç Daveti',
+                    type: 'MATCH_INVITE', title: `${teamInviteEmoji} Maç Daveti`,
                     body: `@${me?.username || 'Biri'} sizi bir takım maçına davet etti.`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });
@@ -1560,12 +1570,12 @@ export const createRivalRequest = async (req, res, next) => {
                 const me = request.sender;
                 createNotification(
                     founderInviteId, 'MATCH_INVITE',
-                    '🏐 Takım Daveti',
+                    `${teamInviteEmoji} Takım Daveti`,
                     `@${me?.username || 'Biri'} sizi kendi takımında bir maça davet etti.`,
                     { category: request.category, subCategory: request.subCategory, rivalId: request.id }
                 ).catch(() => {});
                 emitToUser(founderInviteId, 'notification', {
-                    type: 'MATCH_INVITE', title: '🏐 Takım Daveti',
+                    type: 'MATCH_INVITE', title: `${teamInviteEmoji} Takım Daveti`,
                     body: `@${me?.username || 'Biri'} sizi kendi takımında bir maça davet etti.`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });
@@ -1628,12 +1638,12 @@ export const createRivalRequest = async (req, res, next) => {
                 const me = request.sender;
                 createNotification(
                     unassignedInviteId, 'MATCH_INVITE',
-                    '🏐 Maç Daveti',
+                    `${teamInviteEmoji} Maç Daveti`,
                     `@${me?.username || 'Biri'} sizi bir maça davet etti — takımınız yakında belli olacak.`,
                     { category: request.category, subCategory: request.subCategory, rivalId: request.id }
                 ).catch(() => {});
                 emitToUser(unassignedInviteId, 'notification', {
-                    type: 'MATCH_INVITE', title: '🏐 Maç Daveti',
+                    type: 'MATCH_INVITE', title: `${teamInviteEmoji} Maç Daveti`,
                     body: `@${me?.username || 'Biri'} sizi bir maça davet etti — takımınız yakında belli olacak.`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });
@@ -2501,17 +2511,18 @@ export const respondToJoin = async (req, res, next) => {
             updatedParticipants = resolved.updatedParticipants;
             assignedToPartner = !!resolved.assignedToPartner;
             updatedSenderTeam = resolved.updatedSenderTeam || null;
+            updatedUnassigned = resolved.updatedUnassignedPlayers || null;
         } else {
             if (isTeamJoin && countFilled(participants) > 0) {
                 return res.status(400).json({ message: 'Bu ilanda zaten kabul edilmiş bireysel katılımcı(lar) var. Takım eşleşmesini kabul etmeden önce onları çıkarın.' });
             }
-            // Voleybol (teamSize>1): getRequired() sadece "1 rakip temsilcisi" istiyor — ilk
-            // katılan MATCHED'ı tetiklemesi için normal şekilde participants'a girer. Maç zaten
-            // eşleştikten SONRA gelen ek katılımcılar artık otomatik Rakip Takım'a düşmez,
+            // Voleybol/airsoft (teamSize>1): getRequired() sadece "1 rakip temsilcisi" istiyor —
+            // ilk katılan MATCHED'ı tetiklemesi için normal şekilde participants'a girer. Maç
+            // zaten eşleştikten SONRA gelen ek katılımcılar artık otomatik Rakip Takım'a düşmez,
             // "atanmamış" havuzuna eklenir — ilan sahibi Yaklaşan Maçlar kartından Kurucu/Rakip'e
             // elle yerleştirir (kullanıcı onayıyla netleşen davranış değişikliği).
-            const isExtraVolleyballJoin = rival.subCategory === 'volleyball' && (rival.teamSize || 1) > 1 && !isTeamJoin && countFilled(participants) > 0;
-            if (isExtraVolleyballJoin) {
+            const isExtraTeamJoin = ['volleyball', 'airsoft'].includes(rival.subCategory) && (rival.teamSize || 1) > 1 && !isTeamJoin && countFilled(participants) > 0;
+            if (isExtraTeamJoin) {
                 updatedParticipants = participants;
                 updatedUnassigned = [...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []), joinerEntry];
             } else {
@@ -2565,11 +2576,18 @@ export const respondToJoin = async (req, res, next) => {
 
         // Partner az önce atandıysa artık required=2'ye düşer (senderTeam DB'de henüz
         // güncellenmediği için getRequired hâlâ eski/boş senderTeam'e göre 3 döner).
+        // DOUBLE'da bireysel kabuller artık atanmamış havuzuna düştüğü için (bkz.
+        // resolveDoubleAcceptance) participants/senderTeam tek başına dolmuyor — 4 kişi
+        // (kurucu+partner+rakip1+rakip2) toplam olarak tamamlanınca MATCHED sayılır, kim
+        // hangi isimli slotta olduğu (partner/opp1/opp2) sonradan (assignDoubleSlot ile)
+        // netleşir — voleyboldeki "atanmamış havuzu" ile aynı mantık.
         const isFull = assignedToPartner
             ? countFilled(participants) >= 2
             : (rival.teamSize || 1) > 1
                 ? teamFilledCount(rival, { participants: updatedParticipants, unassignedPlayers: updatedUnassigned ?? rival.unassignedPlayers }) >= totalPlayerCount(rival)
-                : countFilled(updatedParticipants) >= getRequired(rival);
+                : rival.matchType === 'DOUBLE'
+                    ? 1 + countFilled(Array.isArray(rival.senderTeam) ? rival.senderTeam : []) + countFilled(updatedParticipants) + countFilled(updatedUnassigned ?? rival.unassignedPlayers) >= 4
+                    : countFilled(updatedParticipants) >= getRequired(rival);
 
         // Tüm doğrulama geçtikten SONRA join request'i ACCEPTED yap
         await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
@@ -2901,13 +2919,14 @@ export const confirmLateJoin = async (req, res, next) => {
             updatedParticipants = resolved.updatedParticipants;
             assignedToPartner = !!resolved.assignedToPartner;
             updatedSenderTeam = resolved.updatedSenderTeam || null;
+            updatedUnassigned = resolved.updatedUnassignedPlayers || null;
         } else {
             if (isTeamJoin && participants.length > 0) {
                 return res.status(400).json({ message: 'Bu ilanda zaten kabul edilmiş bireysel katılımcı(lar) var.' });
             }
             // Bkz. respondToJoin'deki aynı isim ve gerekçeli kontrol.
-            const isExtraVolleyballJoin = rival.subCategory === 'volleyball' && (rival.teamSize || 1) > 1 && !isTeamJoin && countFilled(participants) > 0;
-            if (isExtraVolleyballJoin) {
+            const isExtraTeamJoin = ['volleyball', 'airsoft'].includes(rival.subCategory) && (rival.teamSize || 1) > 1 && !isTeamJoin && countFilled(participants) > 0;
+            if (isExtraTeamJoin) {
                 updatedParticipants = participants;
                 updatedUnassigned = [...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []), joinerEntry];
             } else {
@@ -2918,7 +2937,9 @@ export const confirmLateJoin = async (req, res, next) => {
             ? countFilled(participants) >= 2
             : (rival.teamSize || 1) > 1
                 ? teamFilledCount(rival, { participants: updatedParticipants, unassignedPlayers: updatedUnassigned ?? rival.unassignedPlayers }) >= totalPlayerCount(rival)
-                : countFilled(updatedParticipants) >= getRequired(rival);
+                : rival.matchType === 'DOUBLE'
+                    ? 1 + countFilled(Array.isArray(rival.senderTeam) ? rival.senderTeam : []) + countFilled(updatedParticipants) + countFilled(updatedUnassigned ?? rival.unassignedPlayers) >= 4
+                    : countFilled(updatedParticipants) >= getRequired(rival);
 
         await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
         if (partnerJoinReqToAccept) {
@@ -3807,10 +3828,10 @@ export const setTeamName = async (req, res, next) => {
 
         const rival = await prisma.activityRequest.findUnique({ where: { id } });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
-        // Çiftler (DOUBLE) maçı dışında, voleybolde değişken boyutlu takım (1v1-6v6) için de
-        // takım ismi ayarlanabilir — bkz. TeamRosterCard (SubCategoryScreen.js).
-        const isVolleyballTeam = rival.subCategory === 'volleyball' && (rival.teamSize || 1) > 1;
-        if (rival.matchType !== 'DOUBLE' && !isVolleyballTeam)
+        // Çiftler (DOUBLE) maçı dışında, voleybol/airsoft'ta değişken boyutlu takım için de
+        // takım ismi ayarlanabilir — bkz. TeamAssignCard (SubCategoryScreen.js).
+        const isVariableTeam = ['volleyball', 'airsoft'].includes(rival.subCategory) && (rival.teamSize || 1) > 1;
+        if (rival.matchType !== 'DOUBLE' && !isVariableTeam)
             return res.status(400).json({ message: 'Sadece çiftler veya takım maçında takım ismi ayarlanabilir' });
 
         const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
@@ -3835,8 +3856,8 @@ export const setTeamName = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
-// Voleybol: açık ilana katılıp "atanmamış" havuzuna düşen (bkz. respondToJoin'deki
-// isExtraVolleyballJoin) bir oyuncuyu ilan sahibi Kurucu/Rakip takımına atar, ya da
+// Voleybol/airsoft: açık ilana katılıp "atanmamış" havuzuna düşen (bkz. respondToJoin'deki
+// isExtraTeamJoin) bir oyuncuyu ilan sahibi Kurucu/Rakip takımına atar, ya da
 // zaten bir tarafta olan birini geri "atanmamış"a alır/diğer tarafa taşır (yer değiştirme).
 // İlan sahibi hariç kimse taşınamaz — o zaten sabit kurucu.
 export const assignPlayerToSide = async (req, res, next) => {
@@ -3848,8 +3869,8 @@ export const assignPlayerToSide = async (req, res, next) => {
         const rival = await prisma.activityRequest.findUnique({ where: { id } });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
         if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi oyuncu atayabilir' });
-        if (rival.subCategory !== 'volleyball' || (rival.teamSize || 1) <= 1) {
-            return res.status(400).json({ message: 'Bu işlem sadece voleybol takım maçlarında yapılabilir' });
+        if (!['volleyball', 'airsoft'].includes(rival.subCategory) || (rival.teamSize || 1) <= 1) {
+            return res.status(400).json({ message: 'Bu işlem sadece takım maçlarında yapılabilir' });
         }
         if (userId === rival.senderId) return res.status(400).json({ message: 'İlan sahibi taşınamaz' });
 
@@ -3864,6 +3885,71 @@ export const assignPlayerToSide = async (req, res, next) => {
         const nextUnassigned = unassigned.filter(p => p?.id !== userId);
         if (side === 'my') nextSenderTeam.push(player);
         else if (side === 'opp') nextParticipants.push(player);
+        else nextUnassigned.push(player);
+
+        const updated = await prisma.activityRequest.update({
+            where: { id },
+            data: { senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned },
+            include: { sender: { select: SENDER_SELECT } },
+        });
+
+        broadcast('rivalUpdate', updated);
+        emitToUser(userId, 'rivalUpdate', updated);
+        res.json(updated);
+    } catch (error) { next(error); }
+};
+
+// Çiftler (tenis/padel) DOUBLE: kabul edilen bireysel katılımcılar artık doğrudan Takım
+// Arkadaşı/Rakip 1/Rakip 2'ye yerleşmiyor, "atanmamış" havuzuna düşüyor (bkz.
+// resolveDoubleAcceptance) — bu, o kişiyi adlandırılmış bir slota yerleştirir. Hem ilan
+// sahibi (herkesi atayabilir) HEM DE atanan kişinin kendisi (sadece kendini, atanmamışken)
+// çağırabilir — kullanıcı isteği: "ilanı açan atama yapar ya da kendileri geçmek istediği
+// slota geçer".
+export const assignDoubleSlot = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { userId, slot } = req.body; // slot: 'partner' | 'opp1' | 'opp2' | null (null = atanmamışa geri al)
+        if (![null, 'partner', 'opp1', 'opp2'].includes(slot)) return res.status(400).json({ message: 'Geçersiz slot' });
+
+        const rival = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (rival.matchType !== 'DOUBLE') return res.status(400).json({ message: 'Bu işlem sadece çiftler ilanlarında yapılabilir' });
+        const isOwner = rival.senderId === req.userId;
+        if (!isOwner && req.userId !== userId) return res.status(403).json({ message: 'Sadece ilan sahibi ya da kendiniz atama yapabilir' });
+        if (userId === rival.senderId) return res.status(400).json({ message: 'İlan sahibi taşınamaz' });
+
+        const senderTeam = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+        const participants = Array.isArray(rival.participants) ? rival.participants : [];
+        const unassigned = Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : [];
+        const player = senderTeam.find(p => p?.id === userId) || participants.find(p => p?.id === userId) || unassigned.find(p => p?.id === userId);
+        if (!player) return res.status(404).json({ message: 'Oyuncu bu ilanda bulunamadı' });
+
+        // Kendini atayan kişi (owner değilse) sadece atanmamışken hareket edebilir —
+        // zaten yerleşmiş birini owner dışında kimse oynatamaz.
+        const alreadyPlaced = senderTeam.some(p => p?.id === userId) || participants.some(p => p?.id === userId);
+        if (!isOwner && alreadyPlaced) return res.status(403).json({ message: 'Zaten bir slottasınız, yerinizi sadece ilan sahibi değiştirebilir' });
+
+        if (slot) {
+            const gReq = slot === 'partner' ? rival.partnerGenderReq : slot === 'opp1' ? rival.opp1GenderReq : rival.opp2GenderReq;
+            const occupant = slot === 'partner' ? senderTeam[0] : slot === 'opp1' ? participants[0] : participants[1];
+            if (occupant?.id && occupant.id !== userId) {
+                return res.status(400).json({ message: `${slot === 'partner' ? 'Takım Arkadaşı' : slot === 'opp1' ? 'Rakip 1' : 'Rakip 2'} slotu zaten dolu` });
+            }
+            if (gReq && gReq !== 'MIX') {
+                const gUser = await prisma.user.findUnique({ where: { id: userId }, select: { gender: true } });
+                if (gUser?.gender !== 'OTHER') {
+                    if (!gUser?.gender) return res.status(400).json({ message: 'Bu oyuncunun profilinde cinsiyet bilgisi girilmemiş, bu yüzden cinsiyete özel bir slota atanamıyor.' });
+                    if (gUser.gender !== gReq) return res.status(400).json({ message: `Bu slot için ilan yalnızca ${gReq === 'MALE' ? 'erkek' : 'kadın'} oyuncular kabul ediyor.` });
+                }
+            }
+        }
+
+        const nextSenderTeam = senderTeam.filter(p => p?.id !== userId);
+        const nextParticipants = [participants[0]?.id === userId ? null : participants[0] || null, participants[1]?.id === userId ? null : participants[1] || null];
+        const nextUnassigned = unassigned.filter(p => p?.id !== userId);
+        if (slot === 'partner') nextSenderTeam.push(player);
+        else if (slot === 'opp1') nextParticipants[0] = player;
+        else if (slot === 'opp2') nextParticipants[1] = player;
         else nextUnassigned.push(player);
 
         const updated = await prisma.activityRequest.update({
