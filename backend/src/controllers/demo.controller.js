@@ -262,8 +262,15 @@ async function ensureDemoRivalPlayer(demo, subCategory) {
     return user;
 }
 
-// DOUBLE için basışta 2 demo oyuncu (opp1+opp2 slotuna birer tane), SINGLE için 1 gönderir.
-// Henüz herhangi bir statüde başvurusu olmayan, cinsiyet + rating şartını sağlayan oyuncular seçilir.
+// Her basışta TEK bir demo oyuncu gönderir — DOUBLE'da eskiden aynı anda opp1+opp2 slotuna
+// birer tane (ikisini BİRDEN, sahibinin ayrı ayrı onaylama şansı olmadan) gönderiyordu; bu
+// hem gerçek bir oyuncunun başvuru akışına hiç benzemiyordu hem de opp2'nin cinsiyet
+// kısıtlaması "MIX" (serbest) olduğunda oraya HER cinsiyetten biri (dolayısıyla ilan sahibinin
+// beklemediği bir oyuncu) sessizce girebiliyordu. Artık gerçek sendJoinRequest'i demo kullanıcı
+// adına çağırıyoruz (bkz. invokeControllerAs) — cinsiyet/derece/slot doğrulamasının TAMAMI
+// gerçek bir oyuncu başvurusuyla birebir aynı; demo oyuncu hangi takımda oynayacağını kendi
+// seçmiyor, ilan sahibi normal "İstekler" akışından kabul ettikçe (voleybol/team sporlarda
+// olduğu gibi) kendi aralarında yerleşiyor.
 export const seedRivalDemoJoin = async (req, res, next) => {
     try {
         const { rivalId } = req.body;
@@ -272,14 +279,13 @@ export const seedRivalDemoJoin = async (req, res, next) => {
         if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi demo başvuru gönderebilir' });
         if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Bu ilan artık açık değil' });
 
-        // Demo kullanıcıların DB'deki kayıtlarını çek
         const existingDemoUsers = await prisma.user.findMany({
             where: { username: { in: DEMO_RIVAL_PLAYERS.map(d => d.username) } },
             select: { id: true, username: true },
         });
-        const demoUserIdToUsername = Object.fromEntries(existingDemoUsers.map(u => [u.id, u.username]));
+        const usernameToId = Object.fromEntries(existingDemoUsers.map(u => [u.username, u.id]));
 
-        // Bu ilana herhangi bir statüde başvurusu olan demo oyuncuları bul (REJECTED dahil — unique constraint)
+        // Bu ilana herhangi bir statüde başvurusu olan demo oyuncuları hariç tut (REJECTED dahil — unique constraint)
         const alreadyApplied = new Set();
         if (existingDemoUsers.length > 0) {
             const existingReqs = await prisma.rivalJoinRequest.findMany({
@@ -287,59 +293,39 @@ export const seedRivalDemoJoin = async (req, res, next) => {
                 select: { userId: true },
             });
             for (const r of existingReqs) {
-                const uname = demoUserIdToUsername[r.userId];
+                const uname = existingDemoUsers.find(u => u.id === r.userId)?.username;
                 if (uname) alreadyApplied.add(uname);
             }
         }
 
-        // Tüm uygun havuz (henüz başvurmamış + rating şartı)
         let fullPool = DEMO_RIVAL_PLAYERS.filter(d => !alreadyApplied.has(d.username));
         if (rival.minRating != null) fullPool = fullPool.filter(d => d.skillRating >= rival.minRating);
         if (rival.maxRating != null) fullPool = fullPool.filter(d => d.skillRating <= rival.maxRating);
-
         if (fullPool.length === 0) {
             return res.status(400).json({ message: 'Uygun demo oyuncu kalmadı (hepsi başvurdu ya da şartları sağlamıyor)' });
         }
+        fullPool = fullPool.sort(() => Math.random() - 0.5);
 
-        const fits = (player, gReq) => !gReq || gReq === 'MIX' || player.gender === gReq;
-
-        let toSend = [];
-        if (rival.matchType === 'DOUBLE') {
-            // Opp1 slotu için uygun ilk oyuncu
-            const opp1Req = rival.opp1GenderReq || 'MIX';
-            const opp2Req = rival.opp2GenderReq || 'MIX';
-            const pick1 = fullPool.find(d => fits(d, opp1Req));
-            if (pick1) {
-                toSend.push(pick1);
-                // Opp2 slotu için pick1'den farklı, opp2Req'e uyan ilk oyuncu
-                const pick2 = fullPool.find(d => d.username !== pick1.username && fits(d, opp2Req));
-                if (pick2) toSend.push(pick2);
+        for (const demo of fullPool.slice(0, 10)) {
+            const userId = usernameToId[demo.username] || (await ensureDemoRivalPlayer(demo, rival.subCategory)).id;
+            const { status } = await invokeControllerAs(sendJoinRequest, {
+                userId,
+                params: { id: rivalId },
+                body: {},
+            });
+            if (status < 400) {
+                const updatedRival = await prisma.activityRequest.findUnique({
+                    where: { id: rivalId },
+                    include: {
+                        sender: { select: { id: true, username: true, fullName: true, avatar: true, city: true } },
+                        joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, include: { user: { select: { id: true, username: true, fullName: true, avatar: true, city: true, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true } } } } } },
+                    },
+                });
+                emitToUser(req.userId, 'rivalUpdate', updatedRival);
+                return res.status(201).json({ joined: [demo.fullName], remaining: fullPool.length - 1 });
             }
-        } else {
-            const gReq = rival.genderReq || 'MIX';
-            const pick = fullPool.find(d => fits(d, gReq));
-            if (pick) toSend = [pick];
         }
-
-        if (toSend.length === 0) {
-            return res.status(400).json({ message: 'Uygun demo oyuncu kalmadı' });
-        }
-
-        for (const pick of toSend) {
-            const user = await ensureDemoRivalPlayer(pick, rival.subCategory);
-            await prisma.rivalJoinRequest.create({ data: { rivalId, userId: user.id } });
-        }
-
-        const updatedRival = await prisma.activityRequest.findUnique({
-            where: { id: rivalId },
-            include: {
-                sender: { select: { id: true, username: true, fullName: true, avatar: true, city: true } },
-                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, include: { user: { select: { id: true, username: true, fullName: true, avatar: true, city: true, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true } } } } } },
-            },
-        });
-        emitToUser(req.userId, 'rivalUpdate', updatedRival);
-
-        res.status(201).json({ joined: toSend.map(p => p.fullName), remaining: fullPool.length - toSend.length });
+        return res.status(400).json({ message: 'Uygun demo oyuncu kalmadı (denenenlerin hiçbiri cinsiyet/slot şartını sağlamadı)' });
     } catch (error) {
         next(error);
     }
