@@ -1295,31 +1295,38 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             const acceptedOthers = teamSlots.map(sl => sl.p);
 
                             if (!showTeamCards) {
+                                // Kullanıcı isteğiyle ön yüzde her satıra 2 oyuncu sığıyor (önceden tek
+                                // sütun, alt alta tam genişlikti) — kart stiline geçildi (48% genişlik,
+                                // sınırlı çerçeve), tek-sütun playerRow yerine.
+                                const cardBox = { width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:6 };
                                 return (
-                                    <View>
-                                        <View style={det.playerRow}>
-                                            <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
-                                            <View style={{ flex:1 }}>
-                                                <Text style={det.playerName}>{playerDisplayName(item.sender)}</Text>
-                                                <Text style={det.playerSub}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
-                                            </View>
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
+                                        <View key="founder" style={cardBox}>
+                                            <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })}>
+                                                <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(28)} color={cfg.color} />
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(item.sender)}</Text>
+                                                    <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
+                                                </View>
+                                            </TouchableOpacity>
                                         </View>
                                         {allTeamSlots.map((sl, i) => {
                                             if (sl.p?.id) {
                                                 return (
-                                                    <View key={sl.key} style={det.playerRow}>
-                                                        <Avatar name={sl.p.username} avatar={sl.p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => sl.p.id && navigation.push('Profile', { userId: sl.p.id })} />
-                                                        <View style={{ flex:1 }}>
-                                                            <Text style={det.playerName}>{playerDisplayName(sl.p)}</Text>
-                                                            <Text style={det.playerSub}>
-                                                                {t.cardParticipantLabel(i + 1)}
-                                                                {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
-                                                                {' · '}{sl.p.username}
-                                                            </Text>
-                                                        </View>
+                                                    <View key={sl.key} style={cardBox}>
+                                                        <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => sl.p.id && navigation.push('Profile', { userId: sl.p.id })}>
+                                                            <Avatar name={sl.p.username} avatar={sl.p.avatar} size={moderateScale(28)} color={cfg.color} />
+                                                            <View style={{ flex:1 }}>
+                                                                <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(sl.p)}</Text>
+                                                                <Text style={det.playerSub} numberOfLines={1}>
+                                                                    {t.cardParticipantLabel(i + 1)}
+                                                                    {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
+                                                                </Text>
+                                                            </View>
+                                                        </TouchableOpacity>
                                                         {isOwner && (
-                                                            <TouchableOpacity onPress={() => removeRivalParticipant(sl.p.id, sl.p.username)} style={{ padding:3 }}>
-                                                                <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>Çıkar</Text>
+                                                            <TouchableOpacity onPress={() => removeRivalParticipant(sl.p.id, sl.p.username)} style={{ marginTop:3, alignSelf:'flex-end' }}>
+                                                                <Text style={{ color:'#f87171', fontSize:moderateScale(10), fontWeight:'700' }}>Çıkar</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                     </View>
@@ -1327,26 +1334,28 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             }
                                             if (sl.key === 'partner' && pendingPartnerInvite) return null; // ayrıca aşağıda gösteriliyor
                                             return (
-                                                <View key={sl.key} style={[det.playerRow, { opacity:0.55 }]}>
-                                                    <View style={{ width:moderateScale(32), height:moderateScale(32), borderRadius:moderateScale(16), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
-                                                        <Text style={{ color: colors.textMuted, fontSize:14 }}>?</Text>
+                                                <View key={sl.key} style={[cardBox, { opacity:0.55, flexDirection:'row', alignItems:'center', gap:6 }]}>
+                                                    <View style={{ width:moderateScale(28), height:moderateScale(28), borderRadius:moderateScale(14), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:13 }}>?</Text>
                                                     </View>
                                                     <View style={{ flex:1 }}>
-                                                        <Text style={[det.playerSub, { color: colors.textMuted }]}>
+                                                        <Text style={[det.playerSub, { color: colors.textMuted }]} numberOfLines={1}>
                                                             {t.cardParticipantLabel(i + 1)}
                                                             {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
-                                                            {' — Bekleniyor'}
                                                         </Text>
+                                                        <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>Bekleniyor</Text>
                                                     </View>
                                                 </View>
                                             );
                                         })}
                                         {pendingPartnerInvite && (
-                                            <View style={det.playerRow}>
-                                                <Avatar name={pendingPartnerInvite.user?.username} avatar={pendingPartnerInvite.user?.avatar} size={moderateScale(32)} color={cfg.color} />
-                                                <View style={{ flex:1 }}>
-                                                    <Text style={det.playerName}>{pendingPartnerInvite.user?.fullName || pendingPartnerInvite.user?.username}</Text>
-                                                    <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
+                                            <View key="pendingPartner" style={cardBox}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                                    <Avatar name={pendingPartnerInvite.user?.username} avatar={pendingPartnerInvite.user?.avatar} size={moderateScale(28)} color={cfg.color} />
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={det.playerName} numberOfLines={1}>{pendingPartnerInvite.user?.fullName || pendingPartnerInvite.user?.username}</Text>
+                                                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1}>⏳ Onay Bekleniyor</Text>
+                                                    </View>
                                                 </View>
                                             </View>
                                         )}
