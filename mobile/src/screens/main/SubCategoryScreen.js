@@ -6170,7 +6170,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
     return (
         // position:'relative' — öneri kutusu mutlak konumlanıp altına biner, 3'lü grid'deki
         // komşu hücreleri aşağı itmesin diye (bkz. çağıran: dar sütunlarda kullanılıyor).
-        <View style={{ marginBottom: 2, position:'relative' }}>
+        <View style={{ marginBottom: 1, position:'relative' }}>
             {/* İkon ve ✕ alanları slot dolu/boş fark etmeksizin HER ZAMAN aynı genişlikte
                 render edilir (boşken görünmez/pasif) — eskiden sadece slot doluyken
                 render edilip TextInput'un genişliğini birden değiştiriyordu, ilk harf
@@ -8098,9 +8098,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
                                     {/* Kort Adı + Ortaklaşa Kararlaştırılır + Kort Rezerve Edildi — tek satır */}
                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:6, marginBottom:4 }}>
-                                        {!f.courtMutual ? (
+                                        {(!isVolleyball && !f.courtMutual) ? (
                                             <Text style={[s.fieldLabel, { marginBottom:0 }]}>
-                                                {isVolleyball ? (f.surface ? VOLLEYBALL_VENUE_NOUN[f.surface][lang] : t.volleyballHallLabel) : t.courtLabel}
+                                                {t.courtLabel}
                                                 {!f.flexibleSchedule ? ' *' : ''}
                                             </Text>
                                         ) : <View />}
@@ -8379,7 +8379,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 onChangeText={(txt) => onSlotChangeText('pool', i, txt)}
                                                                 onPickUser={(u) => { setSlot('pool', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null, side:null }); setActiveSlotKey(null); setSlotSuggestions([]); }}
                                                                 onClear={() => setSlot('pool', i, null)}
-                                                                onAssignSide={(sd) => setSlotSide(i, sd)}
                                                                 onSetPosition={(p) => setSlotPosition('pool', i, p)}
                                                                 cfg={cfg} s={s} colors={colors} t={t} />
                                                         </View>
