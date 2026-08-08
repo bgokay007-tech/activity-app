@@ -82,7 +82,6 @@ const VOLLEYBALL_VENUE_NOUN = {
 };
 const FOOTBALL_SIZES = [2,3,4,5,6,7,8,9,10,11];
 const VOLLEYBALL_SIZES = [1,2,3,4,5,6];
-const AIRSOFT_SIZES = Array.from({ length: 9 }, (_, i) => i + 1); // 1v1..9v9
 const WINS_NEEDED_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1); // 1..10
 
 const DURATIONS = ['60','90','120','150'];
@@ -3853,11 +3852,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         );
                     })()}
 
-                    {/* Voleybol takım yönetimi — DOUBLE'dan farklı olarak değişken boyutlu (1v1-6v6)
-                        takım: ön yüz Kurucu/Rakip slotları (+ atanmamış varsa yerleştirme tepsisi),
-                        arka yüz düz katılımcı listesi. */}
-                    {isVolleyball && (senderTeamArr.length > 0 || participantsArr.length > 0 || unassignedArr.length > 0) && (
+                    {/* Takım yönetimi — DOUBLE'dan farklı olarak değişken boyutlu takım (voleybol
+                        1v1-6v6, airsoft serbest sayı): ön yüz Kurucu/Rakip slotları (+ atanmamış
+                        varsa yerleştirme tepsisi), arka yüz düz katılımcı listesi. */}
+                    {(isVolleyball || match.subCategory === 'airsoft') && (senderTeamArr.length > 0 || participantsArr.length > 0 || unassignedArr.length > 0) && (
                         <TeamAssignCard
+                            emoji={match.subCategory === 'airsoft' ? '🪖' : '🏐'}
                             founderPlayers={[match.sender, ...senderTeamArr].filter(Boolean)}
                             oppPlayers={participantsArr}
                             unassigned={unassignedArr}
@@ -4757,6 +4757,47 @@ function FeeModal({ visible, value, onSelectFree, onConfirmPrice, onClose, t }) 
                     <TouchableOpacity onPress={() => { if (priceInput.trim()) { onConfirmPrice(priceInput); onClose(); } }}
                         disabled={!priceInput.trim()}
                         style={{ backgroundColor: colors.purple, borderRadius:14, paddingVertical:12, alignItems:'center', opacity: priceInput.trim() ? 1 : 0.5 }}>
+                        <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>{t.dateRangeApply}</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
+// Airsoft: Takım Büyüklüğü sabit bir liste (1-9 gibi) değil, serbest sayı girişi —
+// kullanıcı isteğiyle 25v25 gibi büyük savaşlar da kurulabilsin diye. 99 üstü sınırlanıyor,
+// aksi halde 2n-1 kişilik kadro kartı (TeamSlotRow listesi) render performansını bozar.
+function TeamSizeModal({ visible, value, onConfirm, onClose, t }) {
+    const [input, setInput] = useState(value ? String(value) : '');
+    useEffect(() => {
+        if (visible) setInput(value ? String(value) : '');
+    }, [visible, value]);
+    const n = parseInt(input, 10);
+    const valid = n > 0;
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={opt.overlay}>
+                <View style={opt.box}>
+                    <View style={opt.header}>
+                        <Text style={opt.title}>{t.teamSizeLabel}</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
+                    </View>
+                    <TextInput
+                        style={{ backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:15, paddingHorizontal:14, paddingVertical:12, marginBottom:8, textAlign:'center' }}
+                        value={input}
+                        onChangeText={v => setInput(v.replace(/[^0-9]/g, '').slice(0, 2))}
+                        placeholder={t.teamSizeManualPh}
+                        placeholderTextColor={colors.textMuted}
+                        keyboardType="numeric"
+                        autoFocus
+                    />
+                    {valid && (
+                        <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:8, textAlign:'center' }}>{`${n}v${n} — ${2 * n} ${t.rosterPoolLabel}`}</Text>
+                    )}
+                    <TouchableOpacity onPress={() => { if (valid) { onConfirm(n); onClose(); } }}
+                        disabled={!valid}
+                        style={{ backgroundColor: colors.purple, borderRadius:14, paddingVertical:12, alignItems:'center', opacity: valid ? 1 : 0.5 }}>
                         <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>{t.dateRangeApply}</Text>
                     </TouchableOpacity>
                 </View>
@@ -6204,7 +6245,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
 // kartının TERSİ: burada ÖN yüz Kurucu/Rakip'e göre ayrılmış organize slotlar (+ henüz
 // atanmamış varsa küçük bir tepsi, tak-seç-hedefe-dokun deseniyle atanır), ARKA yüz düz
 // "Katılımcı Listesi". Animasyon tekniği ProfileScreen.js'teki SportCardFlipModal ile aynı.
-function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, t }) {
+function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, t, emoji = '🏐' }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const [selectedId, setSelectedId] = useState(null);
@@ -6247,7 +6288,7 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamNam
                 {!isBack ? (
                     <>
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
-                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }}>🏐</Text>
+                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }}>{emoji}</Text>
                             <TouchableOpacity onPress={flip} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
                                 <Text style={{ fontSize:14 }}>🔄</Text>
                             </TouchableOpacity>
@@ -6326,7 +6367,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
     const isTennis = sub === 'tennis';
     const INIT = {
-        matchType: isTennis ? null : (isPadel ? 'DOUBLE' : 'SINGLE'), teamSize: isFootball ? 5 : isVolleyball ? null : 1,
+        matchType: isTennis ? null : (isPadel ? 'DOUBLE' : 'SINGLE'), teamSize: isFootball ? 5 : (isVolleyball || sub === 'airsoft') ? null : 1,
         matchMode: isTennis ? null : 'PRACTICE', teamFlexibility: 'FLEXIBLE', flexibleSchedule: false,
         matchDate: null, matchTime: '', duration: isVolleyball ? '90' : '60',
         showDatePicker: false, showTimePicker: false, showDurationPicker: false,
@@ -6656,6 +6697,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [showCancelPenaltyModal, setShowCancelPenaltyModal] = useState(false);
     const [cancelPenaltyManualText, setCancelPenaltyManualText] = useState('');
     const [showFeePicker, setShowFeePicker] = useState(false); // Airsoft: sabit Kişi Başı Ücret alanı
+    const [showTeamSizeModal, setShowTeamSizeModal] = useState(false); // Airsoft: serbest sayı girişli Takım Büyüklüğü
     // Düzenlemede ilan zaten bir ücret kararına sahip (ücretli ya da bilerek ücretsiz)
     // sayılır — "Seç" placeholder'ı sadece hiç dokunulmamış yeni ilanlarda görünür.
     const [feeTouched, setFeeTouched] = useState(!!editItem);
@@ -7024,7 +7066,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     };
 
     const submit = async () => {
-        if (isVolleyball && !editItem && !f.teamSize) {
+        if ((isVolleyball || sub === 'airsoft') && !editItem && !f.teamSize) {
             Alert.alert('', t.missingTeamSize); return;
         }
         // Kullanıcı isteğiyle artık ilan oluştururken herkesi bir takıma atamak ZORUNLU
@@ -7036,7 +7078,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         // (requiredMaleCount) ve derece (minRating/maxRating, gendersplit ise ayrı ayrı)
         // kısıtlamalarına uymalı — manuel (kayıtsız) isimlerin cinsiyet/derecesi bilinmediği
         // için sadece bilinen (type==='user') üyeler kontrol edilir.
-        if (isVolleyball && !editItem && f.teamSize) {
+        if ((isVolleyball || sub === 'airsoft') && !editItem && f.teamSize) {
             const assignedUsers = f.rosterSlots.filter(sl => sl?.type === 'user');
             if (f.requiredMaleCount != null) {
                 const maleCount = assignedUsers.filter(u => u.gender === 'MALE').length;
@@ -7185,20 +7227,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     ? f.manualRefereeName.trim() : undefined,
                 participantsCanInvite: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) ? !!f.participantsCanInvite : undefined,
                 extraServices: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
-                // Voleybol havuzu — kartın arka yüzünde Kurucu/Rakip'e atanan slotlar (side)
-                // ilgili davet dizisine gider; gerçek kullanıcılar davet olur (kabul etmeden
-                // eklenmez), hesabı olmayanlar sadece bilgi amaçlı isim olarak kaydedilir.
-                // (side===null slotlar submit'ten önce zaten engelleniyor, bkz. validasyon.)
-                founderTeamInviteIds: isVolleyball
+                // Takım havuzu (voleybol + airsoft) — kartın arka yüzünde Kurucu/Rakip'e atanan
+                // slotlar (side) ilgili davet dizisine gider; gerçek kullanıcılar davet olur
+                // (kabul etmeden eklenmez), hesabı olmayanlar sadece bilgi amaçlı isim olarak
+                // kaydedilir. (side===null slotlar submit'ten önce zaten engelleniyor, bkz. validasyon.)
+                founderTeamInviteIds: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'user' && s.side === 'my').map(s => s.userId)
                     : undefined,
-                founderTeamManualNames: isVolleyball
+                founderTeamManualNames: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'manual' && s.side === 'my').map(s => s.name)
                     : undefined,
-                oppTeamInviteIds: isVolleyball
+                oppTeamInviteIds: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'user' && s.side === 'opp').map(s => s.userId)
                     : undefined,
-                oppTeamManualNames: isVolleyball
+                oppTeamManualNames: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'manual' && s.side === 'opp').map(s => s.name)
                     : undefined,
                 substituteInviteIds: isVolleyball
@@ -7209,10 +7251,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     : undefined,
                 // Hangi takımda oynayacağı henüz belli olmayan (side:null) dolu slotlar —
                 // ilan oluştururken herkesi atamak artık zorunlu değil (kullanıcı isteği).
-                unassignedInviteIds: isVolleyball
+                unassignedInviteIds: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'user' && !s.side).map(s => s.userId)
                     : undefined,
-                unassignedManualNames: isVolleyball
+                unassignedManualNames: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'manual' && !s.side).map(s => s.name)
                     : undefined,
             });
@@ -7549,11 +7591,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         </Text>
                                                     </TouchableOpacity>
                                                 </View>
-                                                <View style={{ flex:1 }}>
+                                                <View style={{ flex:0.85 }}>
                                                     <Text style={[s.fieldLabel, { height:16, lineHeight:16 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.modLabel}</Text>
                                                     {modeChips}
                                                 </View>
-                                                <View style={{ flex:0.6, position:'relative', zIndex: showTeamSizePicker ? 51 : 1 }}>
+                                                <View style={{ flex:0.5, position:'relative', zIndex: showTeamSizePicker ? 51 : 1 }}>
                                                     <Text style={[s.fieldLabel, { height:16, lineHeight:16 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamSizeLabel}</Text>
                                                     <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowTeamSizePicker(v => !v)}>
                                                         <Text style={[s.compactSelectText, !f.teamSize && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
@@ -7568,7 +7610,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         onClose={() => setShowTeamSizePicker(false)}
                                                     />
                                                 </View>
-                                                <View style={{ flex:0.6, position:'relative', zIndex: showSubCountPicker ? 51 : 1 }}>
+                                                <View style={{ flex:0.5, position:'relative', zIndex: showSubCountPicker ? 51 : 1 }}>
                                                     <Text style={[s.fieldLabel, { height:16, lineHeight:16 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.subCountLabel}</Text>
                                                     <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowSubCountPicker(v => !v)}>
                                                         <Text style={[s.compactSelectText, !f.subCount && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
@@ -7582,6 +7624,30 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         onSelect={(v) => setSubCount(v)}
                                                         onClose={() => setShowSubCountPicker(false)}
                                                     />
+                                                </View>
+                                                {/* Davete İzin Ver (kilit) — kullanıcı isteğiyle bu satıra taşındı,
+                                                    alttaki Cinsiyet/Derece/Ceza satırında sıkışıklığa yol açıyordu. */}
+                                                <View style={{ justifyContent:'flex-end' }}>
+                                                    <Text style={[s.fieldLabel, { height:16, lineHeight:16 }]}> </Text>
+                                                    <TouchableOpacity
+                                                        onPress={() => {
+                                                            if (!f.participantsCanInvite) {
+                                                                set('participantsCanInvite', true);
+                                                                return;
+                                                            }
+                                                            Alert.alert(
+                                                                '🔒 Davet/Paylaşımı Kapat',
+                                                                'Bunu kapatırsan, ilanına kabul edilen katılımcılar başka oyuncu davet edemez, hakem davet edemez ve ilanı paylaşamaz — bunlara izin vermemiş olursun. Sadece sen yapabilirsin.',
+                                                                [
+                                                                    { text: 'Vazgeç', style: 'cancel' },
+                                                                    { text: 'Kapat', style: 'destructive', onPress: () => set('participantsCanInvite', false) },
+                                                                ]
+                                                            );
+                                                        }}
+                                                        style={{ width:30, height:30, alignItems:'center', justifyContent:'center', borderRadius:10, backgroundColor: f.participantsCanInvite ? '#22c55e20' : colors.surface2, borderWidth:1, borderColor: f.participantsCanInvite ? '#22c55e70' : colors.border }}
+                                                    >
+                                                        <Text style={{ fontSize:13 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
+                                                    </TouchableOpacity>
                                                 </View>
                                             </View>
                                         );
@@ -7661,27 +7727,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         </Text>
                                                     </TouchableOpacity>
                                                 )}
-                                                {/* Davete İzin Ver (kilit) — kullanıcı isteğiyle buraya, Derece'nin
-                                                    sağına taşındı (önceden Hakem bloğunun içindeydi). */}
-                                                <TouchableOpacity
-                                                    onPress={() => {
-                                                        if (!f.participantsCanInvite) {
-                                                            set('participantsCanInvite', true);
-                                                            return;
-                                                        }
-                                                        Alert.alert(
-                                                            '🔒 Davet/Paylaşımı Kapat',
-                                                            'Bunu kapatırsan, ilanına kabul edilen katılımcılar başka oyuncu davet edemez, hakem davet edemez ve ilanı paylaşamaz — bunlara izin vermemiş olursun. Sadece sen yapabilirsin.',
-                                                            [
-                                                                { text: 'Vazgeç', style: 'cancel' },
-                                                                { text: 'Kapat', style: 'destructive', onPress: () => set('participantsCanInvite', false) },
-                                                            ]
-                                                        );
-                                                    }}
-                                                    style={{ width:28, height:28, alignItems:'center', justifyContent:'center', borderRadius:8, backgroundColor: f.participantsCanInvite ? '#22c55e20' : colors.surface2, borderWidth:1, borderColor: f.participantsCanInvite ? '#22c55e70' : colors.border, marginLeft:'auto' }}
-                                                >
-                                                    <Text style={{ fontSize:13 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
-                                                </TouchableOpacity>
                                             </View>
                                             <RatingRangeModal
                                                 visible={showRatingRange}
@@ -8281,8 +8326,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             </>)}
 
                             {/* Katılan oyuncular (Digimon kart) — voleybol salonu/kort formunun ALTINA
-                                taşındı (kullanıcı isteği: önce mekan seçilsin, kadro ondan sonra doldurulsun). */}
-                            {isVolleyball && f.rosterSlots.length > 0 && (
+                                taşındı (kullanıcı isteği: önce mekan seçilsin, kadro ondan sonra doldurulsun).
+                                Airsoft'ta da aynı kart kullanılıyor — teamSize serbest sayı girişiyle
+                                belirlendiği için (bkz. TeamSizeModal) kart 2*teamSize kişilik olur. */}
+                            {(isVolleyball || sub === 'airsoft') && f.rosterSlots.length > 0 && (
                                 <View style={{ marginBottom:14 }}>
                                     <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor: cfg.color+'40', padding:10, transform:[{ perspective:800 }, { rotateY: teamCardRotateY }] }}>
                                         {!teamCardBack ? (() => {
@@ -8497,25 +8544,25 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </View>
                             )}
 
-                            {/* Airsoft: Takım Büyüklüğü (1v1..9v9) + Cinsiyet Dağılımı (voleyboldaki
-                                GenderCountModal'ın aynısı) + Derece (üstteki Tarih·Saat·Süre satırından
-                                buraya taşındı) + Kaç Oyun — Bilet Link'ten önce, kullanıcı isteğiyle. */}
+                            {/* Airsoft: Takım Büyüklüğü (serbest sayı girişi, ör. 25v25) + Cinsiyet Dağılımı
+                                (voleyboldaki GenderCountModal'ın aynısı) + Derece (üstteki Tarih·Saat·Süre
+                                satırından buraya taşındı) + Kaç Oyun — Bilet Link'ten önce, kullanıcı isteğiyle. */}
                             {!isMatchedEdit && sub === 'airsoft' && (
                                 <View style={{ marginBottom:10 }}>
-                                    <View style={{ flexDirection:'row', gap:6, zIndex: (showTeamSizePicker || showGenderCountPicker || showWinsNeededPicker) ? 50 : 1 }}>
-                                        <View style={{ flex:1, position:'relative', zIndex: showTeamSizePicker ? 51 : 1 }}>
+                                    <View style={{ flexDirection:'row', gap:6, zIndex: (showGenderCountPicker || showWinsNeededPicker) ? 50 : 1 }}>
+                                        <View style={{ flex:1 }}>
                                             <Text style={[s.fieldLabel, { height:16, lineHeight:16, marginBottom:4 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamSizeLabel}</Text>
-                                            <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowTeamSizePicker(v => !v)}>
+                                            <TouchableOpacity style={s.compactSelectBtn} onPress={() => setShowTeamSizeModal(true)}>
                                                 <Text style={[s.compactSelectText, !f.teamSize && { color: colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                    {f.teamSize ? `${f.teamSize}v${f.teamSize}` : t.teamSizeSelectPlaceholder}
+                                                    {f.teamSize ? `${f.teamSize}v${f.teamSize}` : t.teamSizeManualPlaceholder}
                                                 </Text>
                                             </TouchableOpacity>
-                                            <MiniDropdown
-                                                visible={showTeamSizePicker}
-                                                options={AIRSOFT_SIZES.map(n => ({ value: n, label: `${n}v${n}` }))}
+                                            <TeamSizeModal
+                                                visible={showTeamSizeModal}
                                                 value={f.teamSize}
-                                                onSelect={(v) => setTeamSize(v)}
-                                                onClose={() => setShowTeamSizePicker(false)}
+                                                onConfirm={(n) => setTeamSize(n)}
+                                                onClose={() => setShowTeamSizeModal(false)}
+                                                t={t}
                                             />
                                         </View>
                                         <View style={{ flex:1, position:'relative', zIndex: showGenderCountPicker ? 51 : 1 }}>
