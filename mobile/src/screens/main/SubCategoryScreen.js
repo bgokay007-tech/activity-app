@@ -7540,16 +7540,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         >
                                             <Text style={{ fontSize:14 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
                                         </TouchableOpacity>
-                                    </View>
-                                    )}
-
-                                    {/* Derece + Cinsiyet Kısıtlaması — aynı satır, asla alt satıra kaymasın diye
-                                        flexWrap yok, iki blok da flexShrink ile mevcut genişliğe sığdırılıyor
-                                        (kullanıcı isteği: tekler seçiliyken derece solda, cinsiyet kısıtlaması sağda).
-                                        Kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) Derece formun sonunda,
-                                        Bilet Link ile Mesaj arasında ayrıca gösteriliyor — burada tekrar etmesin. */}
-                                    {!SIMPLIFIED_FEE_SUBS.has(sub) && (
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1, marginBottom:8 }}>
+                                        {/* Derece + Cinsiyet Kısıtlaması — kullanıcı isteğiyle Mod/Format/Kilit ile
+                                            AYNI satırda (ayrı bir alt satır değil), hepsi tek flexWrap içinde. */}
                                         <TouchableOpacity
                                             style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6 }, ((f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]}
                                             onPress={() => setShowRatingRange(true)}>
@@ -7981,20 +7973,63 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 }}
                                 onClose={() => set('showTimePicker', false)}
                             />
-                            <OptionPickerModal
-                                visible={f.showDurationPicker}
-                                title={t.selectDuration}
-                                options={[
-                                    // Voleybolde maçlar genelde set üzerinden oynanır, net bir dakika sınırı
-                                    // olmayabilir — kullanıcı isteğiyle "Yorulana Kadar" seçeneği eklendi
-                                    // (duration alanına -1 olarak kaydedilir, gerçek bir süre değil sentinel).
-                                    ...(isVolleyball ? [{ value: '-1', label: t.untilTiredLabel }] : []),
-                                    ...DURATIONS_FULL_VALUES.map(v => ({ value: v, label: `${v} ${t.minuteSuffix}` })),
-                                ]}
-                                value={f.duration}
-                                onSelect={(v) => set('duration', v)}
-                                onClose={() => set('showDurationPicker', false)}
-                            />
+                            {sub === 'airsoft' ? (
+                                // Airsoft çok değişken bir dal — hazır süreler (30-180dk) yanında serbest
+                                // dakika girişi de olsun diye kullanıcı isteğiyle cancelPenaltyHours'daki
+                                // aynı kalıp (presetler + manuel TextInput tek modalda) kopyalandı.
+                                <Modal visible={f.showDurationPicker} animationType="slide" transparent
+                                    onRequestClose={() => set('showDurationPicker', false)} android_keyboardInputMode="adjustNothing">
+                                    <View style={tg.overlay}>
+                                        <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
+                                            <View style={[tg.box, { height:'55%' }]}>
+                                                <View style={tg.header}>
+                                                    <Text style={tg.title}>{t.selectDuration}</Text>
+                                                    <TouchableOpacity onPress={() => set('showDurationPicker', false)}><Text style={tg.close}>✕</Text></TouchableOpacity>
+                                                </View>
+                                                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:14 }}>
+                                                        {DURATIONS_FULL_VALUES.map(v => (
+                                                            <TouchableOpacity key={v}
+                                                                onPress={() => { set('duration', v); setDurationManualText(''); set('showDurationPicker', false); }}
+                                                                style={[s.chip, f.duration === v && { backgroundColor: cfg.color+'30', borderColor: cfg.color }]}>
+                                                                <Text style={[s.chipText, f.duration === v && { color: cfg.color, fontWeight:'800' }]}>{v} {t.minuteSuffix}</Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </View>
+                                                    <Text style={s.fieldLabel}>{t.durationManualLabel}</Text>
+                                                    <TextInput
+                                                        style={s.fieldInput}
+                                                        value={durationManualText}
+                                                        onChangeText={(v) => {
+                                                            const digits = v.replace(/[^0-9]/g, '');
+                                                            setDurationManualText(digits);
+                                                            set('duration', digits);
+                                                        }}
+                                                        placeholder={t.durationManualPh}
+                                                        placeholderTextColor={colors.textMuted}
+                                                        keyboardType="numeric"
+                                                    />
+                                                </ScrollView>
+                                            </View>
+                                        </KeyboardAvoidingView>
+                                    </View>
+                                </Modal>
+                            ) : (
+                                <OptionPickerModal
+                                    visible={f.showDurationPicker}
+                                    title={t.selectDuration}
+                                    options={[
+                                        // Voleybolde maçlar genelde set üzerinden oynanır, net bir dakika sınırı
+                                        // olmayabilir — kullanıcı isteğiyle "Yorulana Kadar" seçeneği eklendi
+                                        // (duration alanına -1 olarak kaydedilir, gerçek bir süre değil sentinel).
+                                        ...(isVolleyball ? [{ value: '-1', label: t.untilTiredLabel }] : []),
+                                        ...DURATIONS_FULL_VALUES.map(v => ({ value: v, label: `${v} ${t.minuteSuffix}` })),
+                                    ]}
+                                    value={f.duration}
+                                    onSelect={(v) => set('duration', v)}
+                                    onClose={() => set('showDurationPicker', false)}
+                                />
+                            )}
                             <CalendarPickerModal
                                 visible={f.showDatePicker}
                                 value={f.matchDate}
