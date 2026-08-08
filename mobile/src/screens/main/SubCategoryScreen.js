@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useCallback, useRef } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
     View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
@@ -6145,7 +6145,7 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
 // Voleybol takım slotu — kayıtlı kullanıcı aramak (yazınca öneri düşer) veya
 // hesabı olmayan biri için sadece isim yazmak (öneri seçilmezse manuel kalır)
 // için tek satır. CreateRivalModal'ın kendi state'ini (activeSlotKey vb.) kullanır.
-function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSuggestions, slotSearching, onFocus, onChangeText, onPickUser, onClear, onSetPosition, cfg, s, colors, onAssignSide, t }) {
+function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSuggestions, slotSearching, onFocus, onChangeText, onPickUser, onClear, onSetPosition, cfg, s, colors, onAssignSide, onPressAvatar, t }) {
     const key = `${side}-${index}`;
     const text = !slot ? '' : slot.type === 'user' ? (slot.fullName || slot.username) : slot.name;
     const isActive = activeSlotKey === key;
@@ -6176,7 +6176,11 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                 render edilip TextInput'un genişliğini birden değiştiriyordu, ilk harf
                 yazılır yazılmaz alan gözle görülür şekilde küçülüyordu. */}
             <View style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
-                <TouchableOpacity onLongPress={handleLongPress} delayLongPress={350} disabled={!slot || !onSetPosition} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
+                <TouchableOpacity
+                    onPress={slot?.type === 'user' && slot.userId ? () => onPressAvatar?.(slot.userId) : undefined}
+                    onLongPress={handleLongPress} delayLongPress={350}
+                    disabled={!slot || (!onSetPosition && !(slot.type === 'user' && slot.userId))}
+                    hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
                     {slot?.type === 'user'
                         ? <Avatar name={slot.username} avatar={slot.avatar} size={14} color={cfg.color} />
                         : <View style={{ width:14, height:14 }} />}
@@ -6206,9 +6210,11 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
             )}
             {/* Slot dolu ama henüz bir takıma atanmamışsa (onAssignSide verildiyse — sadece
                 havuz slotlarında, yedeklerde yok) hemen orada hızlı atama: kartı çevirmeden
-                Kurucu/Rakip seçilebilir. Dokunulmazsa "belli değil" olarak kalır (bkz. arka
-                yüzdeki Atanmamış listesi). */}
-            {!!slot && onAssignSide && (
+                Kurucu/Rakip seçilebilir. SADECE bu slot aktifken (odaklıyken) gösterilir —
+                kullanıcı başka forma geçince (isActive false olunca) kayboluyor, gereksiz
+                yere her dolu slotun altında sürekli durmuyor. Dokunulmazsa "belli değil"
+                olarak kalır (bkz. arka yüzdeki Atanmamış listesi). */}
+            {!!slot && onAssignSide && isActive && (
                 slot.side ? (
                     <TouchableOpacity onPress={() => onAssignSide(null)} style={{ marginTop:2 }}>
                         <Text style={{ color: slot.side === 'my' ? '#a855f7' : '#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>
@@ -6348,6 +6354,7 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamNam
 
 function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill = null, editItem = null }) {
     const t = useT();
+    const navigation = useNavigation();
     const insets = useSafeAreaInsets();
     const lang = useSelector(s => s.lang?.lang || 'en');
     const myUser = useSelector(s => s.auth.user);
@@ -8379,7 +8386,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 onChangeText={(txt) => onSlotChangeText('pool', i, txt)}
                                                                 onPickUser={(u) => { setSlot('pool', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null, side:null }); setActiveSlotKey(null); setSlotSuggestions([]); }}
                                                                 onClear={() => setSlot('pool', i, null)}
+                                                                onAssignSide={(sd) => setSlotSide(i, sd)}
                                                                 onSetPosition={(p) => setSlotPosition('pool', i, p)}
+                                                                onPressAvatar={(userId) => navigation.push('Profile', { userId })}
                                                                 cfg={cfg} s={s} colors={colors} t={t} />
                                                         </View>
                                                     ))}
@@ -8398,6 +8407,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                         onPickUser={(u) => { setSlot('sub', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null }); setActiveSlotKey(null); setSlotSuggestions([]); }}
                                                                         onClear={() => setSlot('sub', i, null)}
                                                                         onSetPosition={(p) => setSlotPosition('sub', i, p)}
+                                                                        onPressAvatar={(userId) => navigation.push('Profile', { userId })}
                                                                         cfg={cfg} s={s} colors={colors} t={t} />
                                                                 </View>
                                                             ))}
@@ -8456,6 +8466,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                     onPickUser={(u) => { setSlot('pool', idx, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null, side:'my' }); setActiveSlotKey(null); setSlotSuggestions([]); }}
                                                                     onClear={() => setSlot('pool', idx, null)}
                                                                     onSetPosition={(p) => setSlotPosition('pool', idx, p)}
+                                                                    onPressAvatar={(userId) => navigation.push('Profile', { userId })}
                                                                     cfg={cfg} s={s} colors={colors} t={t} />
                                                             </View>
                                                         ))}
@@ -8477,6 +8488,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                     onPickUser={(u) => { setSlot('pool', idx, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null, side:'opp' }); setActiveSlotKey(null); setSlotSuggestions([]); }}
                                                                     onClear={() => setSlot('pool', idx, null)}
                                                                     onSetPosition={(p) => setSlotPosition('pool', idx, p)}
+                                                                    onPressAvatar={(userId) => navigation.push('Profile', { userId })}
                                                                     cfg={cfg} s={s} colors={colors} t={t} />
                                                             </View>
                                                         ))}
