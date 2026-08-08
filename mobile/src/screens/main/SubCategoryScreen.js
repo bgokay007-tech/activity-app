@@ -6372,7 +6372,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const isTennis = sub === 'tennis';
     const INIT = {
         matchType: isTennis ? null : (isPadel ? 'DOUBLE' : 'SINGLE'), teamSize: isFootball ? 5 : (isVolleyball || sub === 'airsoft') ? null : 1,
-        matchMode: isTennis ? null : 'PRACTICE', teamFlexibility: 'FLEXIBLE', flexibleSchedule: false,
+        matchMode: (isTennis || isVolleyball) ? null : 'PRACTICE', teamFlexibility: 'FLEXIBLE', flexibleSchedule: false,
         matchDate: null, matchTime: '', duration: isVolleyball ? '90' : '60',
         showDatePicker: false, showTimePicker: false, showDurationPicker: false,
         courtSearchText: '', courtResults: [], selectedCourt: null,
@@ -7595,24 +7595,32 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         // genişliyor (flex:0). Sığmayan kutular flexWrap ile alt satıra kayar.
                                         return (
                                             <View style={[s.triRow, { flexWrap:'wrap', gap:1, marginBottom:10, alignItems:'flex-start' }]}>
-                                                <TouchableOpacity style={[s.triBtn, { flex:0 }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
+                                                <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center' }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
                                                     <Text style={[s.triValue, { fontSize:11 }, !f.surface && s.triPlaceholder]} numberOfLines={1}>
                                                         {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : `${t.volleyballTypeLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                     </Text>
                                                 </TouchableOpacity>
-                                                <View style={[s.triBtn, { flex:0, position:'relative', zIndex: showModPicker ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
+                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: showModPicker ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
                                                     <TouchableOpacity onPress={() => setShowModPicker(v => !v)}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.matchMode && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.matchMode ? noEmoji(f.matchMode === 'COMPETITIVE' ? t.competitiveMode : t.practiceMode) : `${t.modLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                         </Text>
                                                     </TouchableOpacity>
-                                                    {showModPicker && (
-                                                        <View style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, padding:4 }}>
-                                                            {modeChips}
-                                                        </View>
-                                                    )}
+                                                    <MiniDropdown
+                                                        visible={showModPicker}
+                                                        options={[
+                                                            { value: 'PRACTICE', label: noEmoji(t.practiceMode) },
+                                                            { value: 'COMPETITIVE', label: noEmoji(t.competitiveMode) },
+                                                        ]}
+                                                        value={f.matchMode}
+                                                        onSelect={(v) => {
+                                                            if (v === 'COMPETITIVE' && !eloWarningDismissed) setShowEloWarning(true);
+                                                            set('matchMode', v);
+                                                        }}
+                                                        onClose={() => setShowModPicker(false)}
+                                                    />
                                                 </View>
-                                                <View style={[s.triBtn, { flex:0, position:'relative', zIndex: showTeamSizePicker ? 51 : 1 }]}>
+                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: showTeamSizePicker ? 51 : 1 }]}>
                                                     <TouchableOpacity onPress={() => setShowTeamSizePicker(v => !v)}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.teamSize && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.teamSize ? `${f.teamSize}v${f.teamSize}` : `${t.teamSizeLabel} ${t.courtSurfaceSelectPlaceholder}`}
@@ -7626,7 +7634,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         onClose={() => setShowTeamSizePicker(false)}
                                                     />
                                                 </View>
-                                                <View style={[s.triBtn, { flex:0, position:'relative', zIndex: showSubCountPicker ? 51 : 1 }]}>
+                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: showSubCountPicker ? 51 : 1 }]}>
                                                     <TouchableOpacity onPress={() => setShowSubCountPicker(v => !v)}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.subCount && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.subCount ? String(f.subCount) : `${t.subCountLabel} ${t.courtSurfaceSelectPlaceholder}`}
@@ -7641,7 +7649,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     />
                                                 </View>
                                                 {!!f.teamSize && (
-                                                    <View style={[s.triBtn, { flex:0, position:'relative', zIndex: showGenderCountPicker ? 51 : 1 }]}>
+                                                    <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: showGenderCountPicker ? 51 : 1 }]}>
                                                         <TouchableOpacity onPress={() => setShowGenderCountPicker(true)}>
                                                             <Text style={[s.triValue, { fontSize:11 }, f.requiredMaleCount == null && s.triPlaceholder]} numberOfLines={1}>
                                                                 {f.requiredMaleCount != null ? `👨${f.requiredMaleCount} 👩${2 * f.teamSize - f.requiredMaleCount}` : `${t.genderCountLabel} ${t.courtSurfaceSelectPlaceholder}`}
@@ -7657,7 +7665,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         />
                                                     </View>
                                                 )}
-                                                <TouchableOpacity style={[s.triBtn, { flex:0 }, ((f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]} onPress={() => setShowRatingRange(true)}>
+                                                <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center' }, ((f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]} onPress={() => setShowRatingRange(true)}>
                                                     <Text style={[s.triValue, { fontSize:11 }, ((f.ratingGenderSplit ? !(f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : !(f.minRating || f.maxRating)) && s.triPlaceholder)]} numberOfLines={1}>
                                                         {f.ratingGenderSplit
                                                             ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
@@ -7665,7 +7673,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </Text>
                                                 </TouchableOpacity>
                                                 {!isMatchedEdit && (
-                                                    <TouchableOpacity style={[s.triBtn, { flex:0 }, f.cancelPenaltyHours !== '' && s.triBtnFilled]}
+                                                    <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center' }, f.cancelPenaltyHours !== '' && s.triBtnFilled]}
                                                         onPress={() => {
                                                             const presets = [1,2,3,4,5,6,7,8,9,10,12,24,30,36,48].map(String);
                                                             setCancelPenaltyManualText(f.cancelPenaltyHours && !presets.includes(f.cancelPenaltyHours) ? f.cancelPenaltyHours : '');
@@ -7693,7 +7701,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             ]
                                                         );
                                                     }}
-                                                    style={[s.triBtn, { flex:0, width:40 }, f.participantsCanInvite && { borderColor:'#22c55e70', backgroundColor:'#22c55e20' }]}
+                                                    style={[s.triBtn, { flex:0, width:40, height:30, justifyContent:'center' }, f.participantsCanInvite && { borderColor:'#22c55e70', backgroundColor:'#22c55e20' }]}
                                                 >
                                                     <Text style={{ fontSize:14 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
                                                 </TouchableOpacity>
@@ -8149,7 +8157,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </TouchableOpacity>
                                         ) : (
                                             <TextInput
-                                                style={[s.fieldInput, { flex: isVolleyball ? 1 : 2, marginBottom:0, paddingVertical:5 }]}
+                                                style={isVolleyball
+                                                    ? [s.triBtn, s.triValue, { flex:1, height:30, marginBottom:0, paddingVertical:0, fontSize:11, textAlign:'left' }]
+                                                    : [s.fieldInput, { flex:2, marginBottom:0, paddingVertical:5 }]}
                                                 value={f.courtSearchText}
                                                 onChangeText={searchCourts}
                                                 placeholder={isVolleyball
@@ -8348,7 +8358,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     hücrenin üstünde ayrıca tekrar yazılmıyor. Takıma göre ayrılmamış
                                                     TEK liste — atama arka yüzde yapılır. */}
                                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
-                                                    <View style={{ width:'23.5%' }}>
+                                                    <View style={{ width: isVolleyball ? '32%' : '23.5%' }}>
                                                         <View style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
                                                             <Avatar name={myUser?.username} avatar={myUser?.avatar} size={14} color={cfg.color} />
                                                             <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', opacity:0.8, minHeight:0 }]}>
@@ -8357,7 +8367,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         </View>
                                                     </View>
                                                     {sortedPool.map(({ slot, i }, displayPos) => (
-                                                        <View key={`pool-${i}`} style={{ width:'23.5%', zIndex: activeSlotKey === `pool-${i}` ? 50 : 1, elevation: activeSlotKey === `pool-${i}` ? 50 : 1 }}>
+                                                        <View key={`pool-${i}`} style={{ width: isVolleyball ? '32%' : '23.5%', zIndex: activeSlotKey === `pool-${i}` ? 50 : 1, elevation: activeSlotKey === `pool-${i}` ? 50 : 1 }}>
                                                             <TeamSlotRow side="pool" index={i} slot={slot}
                                                                 placeholder={t.teamSlotPh(displayPos + 2)}
                                                                 activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions} slotSearching={slotSearching}
@@ -8376,7 +8386,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         <Text style={[s.fieldLabel, { fontSize:11, marginTop:8 }]}>{t.subsLabel}</Text>
                                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
                                                             {f.subSlots.map((slot, i) => (
-                                                                <View key={`sub-${i}`} style={{ width:'23.5%', zIndex: activeSlotKey === `sub-${i}` ? 50 : 1, elevation: activeSlotKey === `sub-${i}` ? 50 : 1 }}>
+                                                                <View key={`sub-${i}`} style={{ width: isVolleyball ? '32%' : '23.5%', zIndex: activeSlotKey === `sub-${i}` ? 50 : 1, elevation: activeSlotKey === `sub-${i}` ? 50 : 1 }}>
                                                                     <TeamSlotRow side="sub" index={i} slot={slot}
                                                                         placeholder={t.subSlotPh(i + 1)}
                                                                         activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions} slotSearching={slotSearching}
