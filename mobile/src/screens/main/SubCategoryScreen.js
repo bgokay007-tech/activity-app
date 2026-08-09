@@ -1590,6 +1590,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                                 </TouchableOpacity>
                                                                 <MiniDropdown
                                                                     visible={showSubCountPicker}
+                                                                    minWidth={60}
                                                                     options={[0, 1, 2, 3, 4, 5].map(n => ({ value: n, label: String(n) }))}
                                                                     value={item.substituteCount || 0}
                                                                     onSelect={(v) => updateSubCount(v)}
@@ -7768,6 +7769,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </TouchableOpacity>
                                                     <MiniDropdown
                                                         visible={activePopup === 'teamSize'}
+                                                        minWidth={70}
                                                         options={VOLLEYBALL_SIZES.map(n => ({ value: n, label: `${n}v${n}` }))}
                                                         value={f.teamSize}
                                                         onSelect={(v) => setTeamSize(v)}
@@ -7788,6 +7790,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </TouchableOpacity>
                                                     <MiniDropdown
                                                         visible={activePopup === 'subCount'}
+                                                        minWidth={60}
                                                         options={[0, 1, 2, 3, 4, 5].map(n => ({ value: n, label: String(n) }))}
                                                         value={f.subCount}
                                                         onSelect={(v) => setSubCount(v)}
@@ -8590,6 +8593,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         </TouchableOpacity>
                                         <MiniDropdown
                                             visible={showWinsNeededPicker}
+                                            minWidth={60}
                                             options={WINS_NEEDED_OPTIONS.map(n => ({ value: n, label: String(n) }))}
                                             value={f.winsNeeded}
                                             onSelect={(v) => set('winsNeeded', v)}
