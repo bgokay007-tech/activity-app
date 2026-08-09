@@ -66,11 +66,11 @@ const FOOTBALL_SURFACES = [
 ];
 // Voleybolde bu alan "zemin" değil, dalın türünü seçtiriyor.
 const VOLLEYBALL_SURFACES = [
-    { id: 'INDOOR', label: 'Salon Voleybolu',    emoji: '🏟️' },
-    { id: 'BEACH',  label: 'Plaj Voleybolu',     emoji: '🏖️' },
-    { id: 'GRASS',  label: 'Çimde Voleybol',     emoji: '🌿' },
-    { id: 'STREET', label: 'Mahallede Voleybol', emoji: '🏘️' },
-    { id: 'CLAY',   label: 'Toprakta Voleybol',  emoji: '🟤' },
+    { id: 'INDOOR', label: 'Salon Voleybolu',    labelEn: 'Indoor Volleyball',  emoji: '🏟️' },
+    { id: 'BEACH',  label: 'Plaj Voleybolu',     labelEn: 'Beach Volleyball',   emoji: '🏖️' },
+    { id: 'GRASS',  label: 'Çimde Voleybol',     labelEn: 'Grass Volleyball',   emoji: '🌿' },
+    { id: 'STREET', label: 'Mahallede Voleybol', labelEn: 'Street Volleyball',  emoji: '🏘️' },
+    { id: 'CLAY',   label: 'Toprakta Voleybol',  labelEn: 'Clay Volleyball',    emoji: '🟤' },
 ];
 // Tür seçimine göre alan etiketi + arama placeholder'ı ("Voleybol Salonu ara..." /
 // "Plaj Sahası ara..." gibi) — VOLLEYBALL_SURFACES'teki id'lerle birebir eşleşir.
@@ -13788,6 +13788,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveModalLoading, setArchiveModalLoading] = useState(false);
     const [archiveModalTab, setArchiveModalTab] = useState('details');
 
+    // Voleybol: Salon/Plaj/Çim/Mahalle/Toprak alt tür sekmesi — hangi türde ilan açıldıysa
+    // (bkz. CreateRivalModal'daki f.surface / VOLLEYBALL_SURFACES) Açık İlanlar VE Yaklaşan
+    // Maçlar'da o sekme altında gösterilsin diye (bkz. applyFilter). null = Tümü.
+    const [volleyballSubType, setVolleyballSubType] = useState(null);
     const [filterCity, setFilterCity] = useState('');
     const [filterVenueName, setFilterVenueName] = useState(''); // kort/salon/mekan adına göre ayrı arama — dala göre etiketi değişir
     const [filterDate, setFilterDate] = useState('all'); // 'all' | 'today' | 'week' | 'month' | 'custom'
@@ -15285,6 +15289,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         return true;
     };
     const applyFilter = (item) => {
+        if (sub === 'volleyball' && volleyballSubType && item.surface !== volleyballSubType) return false;
         if (filterCity.trim()) {
             const q = filterCity.trim().toLowerCase();
             const loc = (item.location || '').toLowerCase();
@@ -15802,6 +15807,26 @@ export default function SubCategoryScreen({ route, navigation }) {
                     </TouchableOpacity>
                 ))}
             </ScrollView>
+
+            {/* Voleybol alt tür sekmesi — hangi türde (Salon/Plaj/Çim/Mahalle/Toprak) ilan
+                açıldıysa Açık İlanlar VE Yaklaşan Maçlar'da o sekmenin altında listelensin
+                diye (bkz. applyFilter). Sadece "rivals" sekmesinde anlamlı, diğerlerinde gizli. */}
+            {sub === 'volleyball' && activeTab === 'rivals' && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={s.tabBarInner}>
+                    <TouchableOpacity onPress={() => setVolleyballSubType(null)}
+                        style={[s.tab, { paddingVertical:5 }, !volleyballSubType && { backgroundColor: cfg.color+'30', borderColor: cfg.color }]}>
+                        <Text style={[s.tabText, { fontSize:11 }, !volleyballSubType && { color: cfg.color, fontWeight:'800' }]}>{lang === 'tr' ? 'Tümü' : 'All'}</Text>
+                    </TouchableOpacity>
+                    {VOLLEYBALL_SURFACES.map(vs => (
+                        <TouchableOpacity key={vs.id} onPress={() => setVolleyballSubType(vs.id)}
+                            style={[s.tab, { paddingVertical:5 }, volleyballSubType === vs.id && { backgroundColor: cfg.color+'30', borderColor: cfg.color }]}>
+                            <Text style={[s.tabText, { fontSize:11 }, volleyballSubType === vs.id && { color: cfg.color, fontWeight:'800' }]} numberOfLines={1}>
+                                {vs.emoji} {lang === 'tr' ? vs.label : vs.labelEn}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            )}
 
             {loading ? (
                 <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
