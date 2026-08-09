@@ -2571,16 +2571,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.refereePayment}</Text>}
                     </View>
                 )}
-                {item.refereeRequested && (
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap' }}>
-                        <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50', flexShrink:1 }}>
-                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {t.refereeSlotLabel}: {item.refereeUser ? (item.refereeUser.fullName || item.refereeUser.username) : item.manualRefereeName ? item.manualRefereeName : t.refereeSlotSearching}
-                            </Text>
-                        </View>
-                        {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.refereePayment}</Text>}
-                    </View>
-                )}
                 {item.linkedRivalId && (
                     <Text style={{ color:'#fbbf24', fontSize:moderateScale(10), fontWeight:'700', marginBottom:3 }} numberOfLines={2}>
                         {t.refereeForMatchLabel}
@@ -2654,6 +2644,18 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)}>
                         <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#60a5fa', textDecorationLine:'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>🏟️ {item.courtName}</Text>
                     </TouchableOpacity>
+                )}
+                {/* Hakem — kullanıcı isteğiyle salon adının altında, "rezerve edildi" satırının
+                    üstünde (önceden kartın en üstünde, tarih/derece bilgisinden bile önce çıkıyordu). */}
+                {item.refereeRequested && (
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap' }}>
+                        <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50', flexShrink:1 }}>
+                            <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                {t.refereeSlotLabel}: {item.refereeUser ? (item.refereeUser.fullName || item.refereeUser.username) : item.manualRefereeName ? item.manualRefereeName : t.refereeSlotSearching}
+                            </Text>
+                        </View>
+                        {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.refereePayment}</Text>}
+                    </View>
                 )}
                 <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {item.isCourtReserved ? `✅ ${isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}` : `❌ ${t.courtNotReserved}`}
