@@ -15163,7 +15163,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 onLongPress={() => setCityPickerTab(tab)}
                 delayLongPress={400}
                 disabled={isLoading}
-                style={[{ paddingVertical:0, paddingHorizontal:2, borderRadius:6, backgroundColor: active ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: active ? cfg.color+'60' : '#ffffff20', alignItems:'center', justifyContent:'center' }, style]}
+                style={[{ height:30, paddingVertical:0, paddingHorizontal:2, borderRadius:6, backgroundColor: active ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: active ? cfg.color+'60' : '#ffffff20', alignItems:'center', justifyContent:'center' }, style]}
             >
                 {isLoading
                     ? <ActivityIndicator size="small" color={cfg.color} style={{ width:18 }} />
@@ -15187,7 +15187,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             {dateFilter ? (
                 <TouchableOpacity
                     onPress={() => setShowFilterModal(true)}
-                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: (filterCity || filterVenueName || filterDate!=='all') ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: (filterCity || filterVenueName || filterDate!=='all') ? cfg.color : colors.border }}
+                    style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, backgroundColor: (filterCity || filterVenueName || filterDate!=='all') ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:5, borderWidth:1, borderColor: (filterCity || filterVenueName || filterDate!=='all') ? cfg.color : colors.border }}
                 >
                     <Text style={{ color: (filterCity || filterVenueName || filterDate!=='all') ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         🔍 {filterSummaryLabel()}
@@ -15197,7 +15197,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             ) : (
                 <TouchableOpacity
                     onPress={() => setShowCityFilter(true)}
-                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:colors.surface2, borderRadius:7, paddingVertical:2, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
+                    style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, backgroundColor:colors.surface2, borderRadius:7, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
                 >
                     <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         {filterCity ? filterCity : '📍 İl'}
@@ -18827,10 +18827,10 @@ const s = StyleSheet.create({
     list:             { paddingHorizontal:1, gap:3, paddingBottom:57 },
     sectionTitle:     { color: colors.textSecondary, fontSize:12, fontWeight:'800', marginTop:4, marginBottom:4 },
 
-    createBtn:        { backgroundColor: colors.surface, borderRadius:10, paddingVertical:3, paddingHorizontal:7, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
+    createBtn:        { backgroundColor: colors.surface, borderRadius:10, height:30, justifyContent:'center', paddingHorizontal:7, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
     createBtnText:    { fontWeight:'700', fontSize:14 },
 
-    courtResBtn:      { backgroundColor: '#9333ea20', borderRadius:10, paddingVertical:3, paddingHorizontal:7, alignItems:'center', borderWidth:1, borderColor: '#9333ea50' },
+    courtResBtn:      { backgroundColor: '#9333ea20', borderRadius:10, height:30, justifyContent:'center', paddingHorizontal:7, alignItems:'center', borderWidth:1, borderColor: '#9333ea50' },
     courtResBtnText:  { color: '#a855f7', fontWeight:'800', fontSize:12 },
 
     filterBox:        { backgroundColor: colors.surface, borderRadius:12, padding:5, borderWidth:1, borderColor: colors.border, gap:3 },
