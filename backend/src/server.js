@@ -7,6 +7,7 @@ import { registerBatakHandlers } from './sockets/batak.js';
 import { registerOkeyHandlers } from './sockets/okey.js';
 import { registerTavlaHandlers } from './sockets/tavla.js';
 import { registerChessHandlers } from './sockets/chess.js';
+import { registerFriendFindingLiveHandlers } from './sockets/friendFindingLive.js';
 import { startCleanupJob } from './jobs/cleanupRivals.js';
 import { startAutoCompleteJob } from './jobs/autoCompleteMatches.js';
 import { startTournamentCleanupJob } from './jobs/cleanupTournaments.js';
@@ -96,6 +97,7 @@ io.on('connection', (socket) => {
     registerOkeyHandlers(io, socket);
     registerTavlaHandlers(io, socket);
     registerChessHandlers(io, socket);
+    registerFriendFindingLiveHandlers(io, socket);
 
     socket.on('presence:query', (userIds, cb) => {
         if (typeof cb !== 'function') return;

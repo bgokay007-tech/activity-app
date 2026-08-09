@@ -25,7 +25,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.activity.app",
       "infoPlist": {
-        "UIBackgroundModes": ["audio", "location"]
+        "UIBackgroundModes": [
+          "audio",
+          "location"
+        ]
       }
     },
     "android": {
@@ -77,7 +80,14 @@
           "microphonePermission": "Sesli mesaj gönderebilmek için mikrofonunu kullanmak istiyoruz."
         }
       ],
-      "./plugins/withHuaweiWearEngineRepo.js"
+      "./plugins/withHuaweiWearEngineRepo.js",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "Arkadaş Bulma'da canlı görüşme yapabilmek için kameranı kullanmak istiyoruz.",
+          "microphonePermission": "Arkadaş Bulma'da canlı görüşme yapabilmek için mikrofonunu kullanmak istiyoruz."
+        }
+      ]
     ],
     "extra": {
       "eas": {

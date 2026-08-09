@@ -99,6 +99,9 @@ export default function FriendFindingHomeScreen({ navigation }) {
                     <Text style={s.backText}>{t.back}</Text>
                 </TouchableOpacity>
                 <Text style={s.title}>{t.ffHomeTitle}</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('FriendFindingLive')} style={s.filterBtn}>
+                    <Text style={s.filterBtnText}>🎥 {t.ffLiveBtn || 'Canlı'}</Text>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => setFilterVisible(true)} style={s.filterBtn}>
                     <Text style={s.filterBtnText}>⚙️ Filtreler</Text>
                 </TouchableOpacity>

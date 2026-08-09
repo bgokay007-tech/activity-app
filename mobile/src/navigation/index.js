@@ -133,6 +133,7 @@ import ChessHomeScreen from '../screens/main/ChessHomeScreen';
 import ChessTableScreen from '../screens/main/ChessTableScreen';
 import FriendFindingHomeScreen from '../screens/main/FriendFindingHomeScreen';
 import FriendFindingMatchesScreen from '../screens/main/FriendFindingMatchesScreen';
+import FriendFindingLiveScreen from '../screens/main/FriendFindingLiveScreen';
 import MiniPlayer from '../components/MiniPlayer';
 import YoutubeAudioPlayer from '../components/YoutubeAudioPlayer';
 import colors from '../theme/colors';
@@ -176,6 +177,7 @@ function HomeStackNav() {
             <HomeStack.Screen name="ChessTable" component={ChessTableScreen} options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
             <HomeStack.Screen name="FriendFindingHome" component={FriendFindingHomeScreen} />
             <HomeStack.Screen name="FriendFindingMatches" component={FriendFindingMatchesScreen} />
+            <HomeStack.Screen name="FriendFindingLive" component={FriendFindingLiveScreen} />
         </HomeStack.Navigator>
     );
 }
