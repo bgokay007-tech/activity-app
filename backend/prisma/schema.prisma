@@ -900,6 +900,7 @@ model RivalJoinRequest {
   counterPrice    String?                       // Hakem başvurusu: karşı teklif fiyatı (status=COUNTERED iken dolu)
   counterMessage  String?                       // Hakem başvurusu: karşı teklifle birlikte gönderilen mesaj
   requestedSlot   String?                       // Çiftler (DOUBLE) + teamFlexibility=STRICT: başvuru sırasında seçilen hedef taraf — 'partner' | 'opponent'
+  slotIndex       Int?                          // Takım sporlarında (voleybol/airsoft) isPartnerInvite/isOppTeamInvite daveti kadro kartındaki HANGİ sıradaki forma yazıldıysa (0-index) — kabul edilince kişi senderTeam/participants dizisinde bu index'e yerleşir, dizinin sonuna değil (kullanıcı isteği: "hangi forma yazıldıysa orada kalsın").
   createdAt   DateTime @default(now())
 
   rival      ActivityRequest @relation(fields: [rivalId],  references: [id], onDelete: Cascade)

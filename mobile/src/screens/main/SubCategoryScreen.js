@@ -730,7 +730,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         ? ((Array.isArray(item.senderTeam) && item.senderTeam.length > 0) ? 2 : 3)
         : (item.teamSize || 1);
     const senderSideCount = 1 + (Array.isArray(item.senderTeam) ? item.senderTeam.length : 0);
-    const filled = participants.filter(p => p && p.id).length;
+    // Takım sporlarında (voleybol/airsoft) artık kayıtsız (manuel) rakip oyuncular da
+    // participants içinde tutuluyor (bkz. addManualTeamPlayer) — sayaç onları da içermeli,
+    // yoksa "(X/Y)" başlığı eksik gösteriyordu.
+    const filled = participants.filter(p => p && (p.id || p.manualName)).length;
     // Rakip tarafta uygulamayı kullanmayan (serbest metin) oyuncular participants'a değil,
     // ayrı oppTeamManualNames alanına yazılıyor — sayaca dahil edilmezse "kadroda görünüyor
     // ama sayı hâlâ eksik gösteriyor" hissi oluyordu.
@@ -917,8 +920,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // Kadro kartının arka yüzünde boş bir slota isim yazıp doğrudan Kurucu/Rakip Takım'a
     // davet göndermek için (bkz. TeamSlotInviteField) — kabul edilince o kişi doğrudan o
     // takıma düşer, atanmamış havuzuna değil (backend: inviteToRival'daki side parametresi).
-    const inviteToTeamSlot = (u, side) => {
-        api.post(`/rivals/${item.id}/invite`, { userId: u.id, side })
+    const inviteToTeamSlot = (u, side, slotIndex) => {
+        api.post(`/rivals/${item.id}/invite`, { userId: u.id, side, slotIndex })
             .then(({ data }) => {
                 // Davet gönderilince "📨 Gönderilen Davetler" listesinde anında görünsün diye
                 // (onRefresh() tüm listeyi yeniden çekene kadar beklemeden).
@@ -929,8 +932,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     };
 
     // Uygulamayı kullanmayan (kayıtsız) oyuncu — sadece isim, davet/bildirim gitmez.
-    const addManualPlayerToTeam = (name, side) => {
-        api.patch(`/rivals/${item.id}/add-manual-player`, { name, side })
+    const addManualPlayerToTeam = (name, side, slotIndex) => {
+        api.patch(`/rivals/${item.id}/add-manual-player`, { name, side, slotIndex })
             .then(onRefresh)
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
@@ -1550,7 +1553,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // sağlıyor — kullanıcı isteğiyle oluşturma ekranındaki tasarım kopyalandı.
                             const teamSizeN = item.teamSize || 1;
                             const mySlots = senderTeamArr.filter(p => p?.id || p?.manualName);
-                            const oppSlots = [...participants.filter(p => p?.id), ...oppManualNames.map(n => ({ manualName: n }))];
+                            const oppSlots = [...participants.filter(p => p?.id || p?.manualName), ...oppManualNames.map(n => ({ manualName: n }))];
                             const subSlots = (Array.isArray(item.substitutePlayers) ? item.substitutePlayers : []).filter(p => p?.id || p?.manualName);
 
                             const Cell = ({ p, side, showAssign, allowRemove }) => {
@@ -1601,31 +1604,42 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </View>
                                 </View>
                             );
-                            const TeamColBack = ({ label, color, people, total, allowRemove, side, onEditName }) => (
-                                <View style={{ flex:1 }}>
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
-                                        <Text style={{ color, fontSize:10, fontWeight:'800', flex:1 }} numberOfLines={1}>{label}</Text>
-                                        {isOwner && onEditName && (
-                                            <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                                                <Text style={{ fontSize:10 }}>✎</Text>
-                                            </TouchableOpacity>
-                                        )}
-                                    </View>
-                                    {people.map((p, i) => (
-                                        <View key={p.id || `m-${i}`} style={{ marginBottom:3 }}><Cell p={p} allowRemove={allowRemove} /></View>
-                                    ))}
-                                    {Array.from({ length: Math.max(0, total - people.length) }).map((_, i) => (
-                                        <View key={`e-${i}`} style={{ marginBottom:3 }}>
-                                            {isOwner && side ? (
-                                                <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t}
-                                                    placeholder={t.teamSlotPh(people.length + i + 1)}
-                                                    onInvite={(u) => inviteToTeamSlot(u, side)}
-                                                    onAddManual={(name) => addManualPlayerToTeam(name, side)} />
-                                            ) : <EmptyCell />}
+                            // Kullanıcı isteğiyle her slot SABİT bir pozisyon — "6. forma yazdım"
+                            // gerçekten 6. sırada kalır, dizinin sonuna atlamaz. peoplePositional
+                            // dolu olmayan index'lerde null/undefined içerebilir (bkz. backend
+                            // setAtSlot); legacyManualExtra (eski oppTeamManualNames — pozisyonu
+                            // bilinmeyen çok eski kayıtlar) sabit slotların ALTINDA, ekstra
+                            // satırlar olarak ayrıca gösterilir, kaybolmasınlar diye.
+                            const TeamColBack = ({ label, color, peoplePositional, legacyManualExtra = [], total, allowRemove, side, onEditName }) => {
+                                const slots = Array.from({ length: total }, (_, i) => peoplePositional[i] || null);
+                                return (
+                                    <View style={{ flex:1 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
+                                            <Text style={{ color, fontSize:10, fontWeight:'800', flex:1 }} numberOfLines={1}>{label}</Text>
+                                            {isOwner && onEditName && (
+                                                <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                    <Text style={{ fontSize:10 }}>✎</Text>
+                                                </TouchableOpacity>
+                                            )}
                                         </View>
-                                    ))}
-                                </View>
-                            );
+                                        {slots.map((p, i) => p ? (
+                                            <View key={p.id || `m-${i}`} style={{ marginBottom:3 }}><Cell p={p} allowRemove={allowRemove} /></View>
+                                        ) : (
+                                            <View key={`e-${i}`} style={{ marginBottom:3 }}>
+                                                {isOwner && side ? (
+                                                    <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t}
+                                                        placeholder={t.teamSlotPh(i + 1)}
+                                                        onInvite={(u) => inviteToTeamSlot(u, side, i)}
+                                                        onAddManual={(name) => addManualPlayerToTeam(name, side, i)} />
+                                                ) : <EmptyCell />}
+                                            </View>
+                                        ))}
+                                        {legacyManualExtra.map((p, i) => (
+                                            <View key={`legacy-${i}`} style={{ marginBottom:3 }}><Cell p={p} allowRemove={allowRemove} /></View>
+                                        ))}
+                                    </View>
+                                );
+                            };
 
                             const poolEmptyCount = Math.max(0, (2 * teamSizeN - 1) - mySlots.length - oppSlots.length - unassignedSlots.length);
 
@@ -1683,9 +1697,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </>
                                     ) : (
                                         <View style={{ flexDirection:'row', gap:6 }}>
-                                            <TeamColBack label={`👑 ${item.founderTeamName || t.myTeamLabel}`} color={cfg.color} people={[item.sender, ...mySlots].filter(Boolean)} total={teamSizeN} allowRemove={false}
+                                            <TeamColBack label={`👑 ${item.founderTeamName || t.myTeamLabel}`} color={cfg.color} peoplePositional={[item.sender, ...senderTeamArr]} total={teamSizeN} allowRemove={false}
                                                 side="my" onEditName={() => setTeamNameEdit({ side:'founder', value: item.founderTeamName || '' })} />
-                                            <TeamColBack label={`⚔️ ${item.opponentTeamName || t.oppTeamLabel}`} color="#f87171" people={oppSlots} total={teamSizeN} allowRemove={isOwner}
+                                            <TeamColBack label={`⚔️ ${item.opponentTeamName || t.oppTeamLabel}`} color="#f87171" peoplePositional={participants} legacyManualExtra={oppManualNames.map(n => ({ manualName: n }))} total={teamSizeN} allowRemove={isOwner}
                                                 side="opp" onEditName={() => setTeamNameEdit({ side:'opponent', value: item.opponentTeamName || '' })} />
                                         </View>
                                     )}
@@ -2453,7 +2467,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const required = item.matchType === 'DOUBLE'
         ? ((Array.isArray(item.senderTeam) && item.senderTeam.length > 0) ? 2 : 3)
         : (item.teamSize || 1);
-    const filled = participants.filter(p => p?.id).length;
+    const filled = participants.filter(p => p?.id || p?.manualName).length;
     const isFull = filled >= required;
     const [localJoinStatus, setLocalJoinStatus] = useState(null);
     const mySentReq = localJoinStatus ?? item._myJoinStatus;
@@ -4092,8 +4106,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             isVolleyball={isVolleyball}
                             sub={match.subCategory}
                             category={match.category}
-                            founderPlayers={[match.sender, ...(Array.isArray(match.senderTeam) ? match.senderTeam.filter(p => p?.id || p?.manualName) : [])].filter(Boolean)}
-                            oppPlayers={[...participantsArr, ...(Array.isArray(match.oppTeamManualNames) ? match.oppTeamManualNames.map(n => ({ manualName: n })) : [])]}
+                            founderPlayers={[match.sender, ...(Array.isArray(match.senderTeam) ? match.senderTeam : [])]}
+                            oppPlayers={Array.isArray(match.participants) ? match.participants : []}
+                            legacyOppManualNames={(Array.isArray(match.oppTeamManualNames) ? match.oppTeamManualNames : []).map(n => ({ manualName: n }))}
                             unassigned={unassignedArr}
                             substitutePlayers={substitutePlayersArr}
                             teamSize={match.teamSize || 1}
@@ -4110,16 +4125,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     .then(() => onRefresh())
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
-                            onInviteSlot={(u, side) => {
-                                api.post(`/rivals/${match.id}/invite`, { userId: u.id, side })
+                            onInviteSlot={(u, side, slotIndex) => {
+                                api.post(`/rivals/${match.id}/invite`, { userId: u.id, side, slotIndex })
                                     .then(({ data }) => {
                                         if (Array.isArray(data?.request?.joinRequests)) setLocalSubRequests(data.request.joinRequests);
                                         onRefresh();
                                     })
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
-                            onAddManualSlot={(name, side) => {
-                                api.patch(`/rivals/${match.id}/add-manual-player`, { name, side })
+                            onAddManualSlot={(name, side, slotIndex) => {
+                                api.patch(`/rivals/${match.id}/add-manual-player`, { name, side, slotIndex })
                                     .then(() => onRefresh())
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
@@ -6655,7 +6670,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onAddManual, cfg, t, pla
 // "seç sonra hedefe dokun" ile atama. Kullanıcı isteğiyle iki kart birebir aynı davransın
 // diye kopyalandı — sadece veri kaynağı farklı (burada zaten kabul edilmiş gerçek
 // katılımcılar, formdaki gibi serbest metinle aranan boş slotlar değil).
-function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onInviteSlot, onAddManualSlot, t, emoji = '🏐' }) {
+function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onInviteSlot, onAddManualSlot, legacyOppManualNames = [], t, emoji = '🏐' }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const [selectedId, setSelectedId] = useState(null);
@@ -6667,7 +6682,9 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
     };
     const rotateY = flipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
     // Ön yüz: rol farkı gözetmeksizin TEK liste — kurucu (founderPlayers[0]) her zaman ilk sırada.
-    const allPlayers = [...founderPlayers, ...oppPlayers, ...unassigned];
+    // founderPlayers/oppPlayers artık arka yüzde POZİSYONEL kullanılıyor (bkz. renderColumn,
+    // null'lu olabilir) — ön yüzde boşluk/atlama görünmesin diye burada null'lar süzülüyor.
+    const allPlayers = [...founderPlayers, ...oppPlayers, ...unassigned].filter(p => p && (p.id || p.manualName));
     const cellWidth = isVolleyball ? '32%' : '23.5%';
     const cellStyle = { flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 };
     const renderGrid = (players) => (
@@ -6687,14 +6704,15 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
     // (ör. 6v6'da 8 kişi) oyuncu atanabiliyordu. Dolu slottan sonrası boş ("—") gösterilir,
     // sütun dolunca başlığa dokunup atama artık devre dışı kalır (backend de aynısını
     // reddediyor, bkz. assignPlayerToSide).
-    const renderColumn = (players, label, color, canEditName, onEditName, targetSide, slotsCount, lockFirst = false) => {
-        const isFull = players.length >= slotsCount;
+    const renderColumn = (players, label, color, canEditName, onEditName, targetSide, slotsCount, lockFirst = false, legacyManualExtra = []) => {
+        const filledCount = players.filter(p => p && (p.id || p.manualName)).length;
+        const isFull = filledCount >= slotsCount;
         return (
             <View style={{ flex:1 }}>
                 <TouchableOpacity disabled={!selectedId || isFull} onPress={() => { onAssign(selectedId, targetSide); setSelectedId(null); }}>
                     <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                         <Text style={{ color, fontSize:10, fontWeight:'800', flex:1 }} numberOfLines={1}>
-                            {label} ({players.length}/{slotsCount}){selectedId && !isFull ? ' ↩' : ''}
+                            {label} ({filledCount}/{slotsCount}){selectedId && !isFull ? ' ↩' : ''}
                         </Text>
                         {canEditName && (
                             <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
@@ -6714,18 +6732,22 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                         );
                     }
                     // Boş slot — ilan sahibi isim yazıp doğrudan bu takıma davet gönderebilir
-                    // (kullanıcı isteği: ilan oluşturma formundaki gibi yazarak davet).
+                    // (kullanıcı isteği: ilan oluşturma formundaki gibi yazarak davet, hangi
+                    // forma yazıldıysa orada kalır — bkz. slotIndex).
                     return isOwner && onInviteSlot ? (
                         <View key={`empty-${i}`} style={{ marginBottom:2 }}>
                             <TeamSlotInviteField sub={sub} category={category} cfg={{ color }} t={t}
                                 placeholder={t.teamSlotPh(i + 1)}
-                                onInvite={(u) => onInviteSlot(u, targetSide)}
-                                onAddManual={onAddManualSlot ? (name) => onAddManualSlot(name, targetSide) : undefined} />
+                                onInvite={(u) => onInviteSlot(u, targetSide, i)}
+                                onAddManual={onAddManualSlot ? (name) => onAddManualSlot(name, targetSide, i) : undefined} />
                         </View>
                     ) : (
                         <Text key={`empty-${i}`} style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>{i + 1}. —</Text>
                     );
                 })}
+                {legacyManualExtra.map((p, i) => (
+                    <Text key={`legacy-${i}`} style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{p.manualName}</Text>
+                ))}
             </View>
         );
     };
@@ -6758,7 +6780,7 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                         </View>
                         <View style={{ flexDirection:'row', gap:6 }}>
                             {renderColumn(founderPlayers, founderTeamName || t.founderTeamShortLabel, '#a855f7', canEditFounderName, onEditFounderName, 'my', teamSize, true)}
-                            {renderColumn(oppPlayers, opponentTeamName || t.opponentTeamShortLabel, '#f87171', canEditOppName, onEditOppName, 'opp', teamSize, false)}
+                            {renderColumn(oppPlayers, opponentTeamName || t.opponentTeamShortLabel, '#f87171', canEditOppName, onEditOppName, 'opp', teamSize, false, legacyOppManualNames)}
                         </View>
                         {isOwner && unassigned.length > 0 && (
                             <View style={{ marginTop:6 }}>

@@ -304,6 +304,18 @@ function teamFilledCount(request, overrides = {}) {
         + manualOppNames.length;
 }
 
+// Kadro kartında (Kurucu/Rakip Takım) bir oyuncu HANGİ sıradaki forma yazıldıysa/davet
+// edildiyse, kabul edilince (ya da manuel eklenince) dizinin SONUNA değil TAM O index'e
+// yerleşsin diye — kullanıcı isteği: "hangi forma yazıldıysa orada kalsın". index boşsa
+// (null/undefined) eskisi gibi dizinin sonuna eklenir. Aradaki boşluklar null ile doldurulur.
+function setAtSlot(arr, index, value) {
+    const next = [...arr];
+    const idx = Number.isInteger(index) ? index : next.length;
+    while (next.length <= idx) next.push(null);
+    next[idx] = value;
+    return next;
+}
+
 // Voleybol/airsoft (teamSize>1) bireysel kabul: ilanda Cinsiyet Dağılımı (requiredMaleCount)
 // kısıtlaması varsa, kabul edilecek oyuncunun cinsiyeti o kotayı doldurmuşsa reddedilir —
 // önceden bu hiç kontrol edilmiyordu, ör. 6 kadın hedefiyle açılan bir ilana 8-9 kadın kabul
@@ -2293,7 +2305,7 @@ export const setRivalJoinPartner = async (req, res, next) => {
 export const inviteToRival = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { userId, side } = req.body;
+        const { userId, side, slotIndex } = req.body; // slotIndex: kadro kartında hangi sıradaki forma yazıldıysa (0-index) — kabul edilince kişi o pozisyona yerleşir
         if (!userId) return res.status(400).json({ message: 'userId required' });
         if (side !== undefined && side !== null && !['my', 'opp'].includes(side)) return res.status(400).json({ message: 'Geçersiz taraf' });
 
@@ -2331,7 +2343,9 @@ export const inviteToRival = async (req, res, next) => {
             if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi doğrudan takıma davet edebilir' });
             const teamSizeN = rival.teamSize || 1;
             if (side === 'my' && senderTeamArr.length >= teamSizeN - 1) return res.status(400).json({ message: 'Kurucu Takımı zaten dolu.' });
-            if (side === 'opp' && participants.filter(p => p?.id).length >= teamSizeN) return res.status(400).json({ message: 'Rakip Takımı zaten dolu.' });
+            if (side === 'opp' && participants.filter(p => p?.id || p?.manualName).length + (Array.isArray(rival.oppTeamManualNames) ? rival.oppTeamManualNames.length : 0) >= teamSizeN) {
+                return res.status(400).json({ message: 'Rakip Takımı zaten dolu.' });
+            }
         } else if (rival.status !== 'OPEN') {
             return res.status(400).json({ message: 'Bu ilan artık açık değil' });
         }
@@ -2348,7 +2362,9 @@ export const inviteToRival = async (req, res, next) => {
             return res.status(400).json({ message: 'Bu kullanıcıya zaten bir istek/davet gönderilmiş', status: existing.status });
         }
 
-        const teamSlotFlags = isTeamSlotInvite ? (side === 'my' ? { isPartnerInvite: true } : { isOppTeamInvite: true }) : {};
+        const teamSlotFlags = isTeamSlotInvite
+            ? { ...(side === 'my' ? { isPartnerInvite: true } : { isOppTeamInvite: true }), slotIndex: Number.isInteger(slotIndex) ? slotIndex : null }
+            : {};
         if (existing) {
             await prisma.rivalJoinRequest.update({
                 where: { rivalId_userId: { rivalId: id, userId } },
@@ -2459,11 +2475,13 @@ export const respondToJoin = async (req, res, next) => {
             // DOUBLE'da (tenis/padel) senderTeam zaten tek partnerle sınırlı ve boştan
             // başlıyordu — ekleme=değiştirme, davranış değişmiyor. Voleybolde ise kurucu
             // takıma birden fazla kişi davet edilebildiği için mevcut diziye EKLENİR,
-            // üzerine YAZILMAZ (önceden burada [joinerData] ile tüm dizi eziliyordu).
+            // üzerine YAZILMAZ. Davet kadro kartında belirli bir forma yazıldıysa (slotIndex)
+            // dizinin sonuna değil tam o pozisyona yerleşir — önceden hep sona ekleniyordu, bu
+            // da "6. forma yazdım ama 1. sıraya gitti" şikayetine yol açıyordu.
             const existingSenderTeam = Array.isArray(joinReq.rival.senderTeam) ? joinReq.rival.senderTeam : [];
             const updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },
-                data: { senderTeam: [...existingSenderTeam, joinerData] },
+                data: { senderTeam: setAtSlot(existingSenderTeam, joinReq.slotIndex, joinerData) },
                 include: {
                     sender: { select: SENDER_SELECT },
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
@@ -2487,14 +2505,17 @@ export const respondToJoin = async (req, res, next) => {
         if (joinReq.isOppTeamInvite) {
             const teamSizeN = joinReq.rival.teamSize || 1;
             const existingParticipants = Array.isArray(joinReq.rival.participants) ? joinReq.rival.participants : [];
-            if (existingParticipants.filter(p => p?.id).length >= teamSizeN) {
+            const legacyOppManualCount = Array.isArray(joinReq.rival.oppTeamManualNames) ? joinReq.rival.oppTeamManualNames.length : 0;
+            if (existingParticipants.filter(p => p?.id || p?.manualName).length + legacyOppManualCount >= teamSizeN) {
                 await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
                 emitToUser(joinReq.userId, 'joinRejected', { rivalId: joinReq.rivalId });
                 return res.status(400).json({ message: 'Rakip Takımı zaten dolu.' });
             }
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
             const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar };
-            const updatedParticipantsArr = [...existingParticipants, joinerData];
+            // Davet kadro kartında belirli bir forma yazıldıysa (slotIndex) tam o pozisyona
+            // yerleşir, dizinin sonuna değil.
+            const updatedParticipantsArr = setAtSlot(existingParticipants, joinReq.slotIndex, joinerData);
             const isFullNow = teamSizeN > 1
                 ? teamFilledCount(joinReq.rival, { participants: updatedParticipantsArr }) >= totalPlayerCount(joinReq.rival)
                 : false;
@@ -4049,7 +4070,7 @@ export const assignPlayerToSide = async (req, res, next) => {
 export const addManualTeamPlayer = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { name, side } = req.body;
+        const { name, side, slotIndex } = req.body; // slotIndex: kadro kartında hangi sıradaki forma yazıldıysa (0-index)
         if (!name || !name.trim()) return res.status(400).json({ message: 'İsim gerekli' });
         if (!['my', 'opp'].includes(side)) return res.status(400).json({ message: 'Geçersiz taraf' });
 
@@ -4063,23 +4084,31 @@ export const addManualTeamPlayer = async (req, res, next) => {
         const teamSizeN = rival.teamSize || 1;
         const senderTeam = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
-        const oppManualNames = Array.isArray(rival.oppTeamManualNames) ? rival.oppTeamManualNames : [];
         const trimmed = name.trim().slice(0, 40);
 
+        // Hangi forma yazıldıysa (slotIndex) tam o pozisyona yerleşir — dizinin sonuna değil
+        // (kullanıcı isteği). Rakip tarafta artık ayrı oppTeamManualNames yerine doğrudan
+        // participants içine {manualName} olarak yazılıyor — gerçek katılımcılarla AYNI
+        // dizide olmadan pozisyonel sıralama (real+manuel karışık) mümkün olmuyordu. Eski
+        // oppTeamManualNames alanı (ilan oluşturma formundaki eski kayıtlar için) hâlâ ayrıca
+        // gösteriliyor, sadece buradan yeni eklenen isimler artık participants'a gidiyor.
         let data;
         if (side === 'my') {
-            if (senderTeam.length >= teamSizeN - 1) return res.status(400).json({ message: 'Kurucu Takımı zaten dolu.' });
-            data = { senderTeam: [...senderTeam, { manualName: trimmed }] };
+            if (senderTeam.filter(p => p && (p.id || p.manualName)).length >= teamSizeN - 1) {
+                return res.status(400).json({ message: 'Kurucu Takımı zaten dolu.' });
+            }
+            data = { senderTeam: setAtSlot(senderTeam, slotIndex, { manualName: trimmed }) };
         } else {
-            if (participants.filter(p => p?.id).length + oppManualNames.length >= teamSizeN) {
+            const legacyOppManualCount = Array.isArray(rival.oppTeamManualNames) ? rival.oppTeamManualNames.length : 0;
+            if (participants.filter(p => p && (p.id || p.manualName)).length + legacyOppManualCount >= teamSizeN) {
                 return res.status(400).json({ message: 'Rakip Takımı zaten dolu.' });
             }
-            data = { oppTeamManualNames: [...oppManualNames, trimmed] };
+            data = { participants: setAtSlot(participants, slotIndex, { manualName: trimmed }) };
         }
 
         const isFullNow = teamFilledCount(rival, {
             senderTeam: data.senderTeam ?? senderTeam,
-            oppTeamManualNames: data.oppTeamManualNames ?? oppManualNames,
+            participants: data.participants ?? participants,
         }) >= totalPlayerCount(rival);
         if (isFullNow) {
             data.status = 'MATCHED';
