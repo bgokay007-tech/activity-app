@@ -1137,8 +1137,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🔄 Çevir</Text>
                                 </TouchableOpacity>
                             )}
-                            {item.matchType === 'DOUBLE' && (isOwner || isParticipant) && !showTeamCards && (isOwner ? item.teamFlexibility !== 'STRICT' : true) &&
-                                (senderTeamArr[0]?.id || participants[0]?.id || participants[1]?.id) && (
+                            {/* Voleyboldeki (teamSize>1) çevirme butonu kimse katılmasa da hep görünür —
+                                DOUBLE'da eskiden en az bir katılımcı kabul edilmiş olması şart koşuluyordu,
+                                bu da henüz kimsenin katılmadığı yeni bir ilanda butonun hiç çıkmamasına
+                                (kullanıcı "digimon kart nerede" diye şaşırmasına) yol açıyordu. */}
+                            {item.matchType === 'DOUBLE' && (isOwner || isParticipant) && !showTeamCards && (isOwner ? item.teamFlexibility !== 'STRICT' : true) && (
                                 <TouchableOpacity onPress={() => toggleTeamCards(true)} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🗂️ {isOwner ? 'Takımları Düzenle' : 'Takımları Gör'}</Text>
                                 </TouchableOpacity>
