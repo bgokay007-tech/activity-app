@@ -503,6 +503,11 @@ const det = StyleSheet.create({
 function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin }) {
     const insets = useSafeAreaInsets();
     const [localParticipants, setLocalParticipants] = useState(null);
+    // "Atanmamış" havuzu için ayrı local override — önceden yoktu, bu yüzden kabul edilen bir
+    // oyuncu atanmamışa düştüğünde (voleybol bireysel kabul, DOUBLE) kartta anında görünmüyor,
+    // sadece onRefresh()'in tüm ilan listesini yeniden çekmesini bekleyip ortaya çıkıyordu —
+    // "kabul edince isim yerleşmesi çok yavaş" hissinin asıl sebebi buydu.
+    const [localUnassigned, setLocalUnassigned] = useState(null);
     const [localSenderTeam, setLocalSenderTeam] = useState(null); // partner slotu — swap-positions sonrası anında güncellensin diye
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
     const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
@@ -627,6 +632,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
     useEffect(() => {
         setLocalParticipants(null);
+        setLocalUnassigned(null);
         setLocalSenderTeam(null);
         setLocalJoinRequests(null);
         setLocalGender(null);
@@ -646,6 +652,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     });
                     if (Array.isArray(data.joinRequests)) setLocalJoinRequests(data.joinRequests);
                     if (Array.isArray(data.participants)) setLocalParticipants(data.participants);
+                    if (Array.isArray(data.unassignedPlayers)) setLocalUnassigned(data.unassignedPlayers);
                 })
                 .catch(() => {});
             setLoadingComments(true);
@@ -697,6 +704,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     );
     const participants = localParticipants ?? (Array.isArray(item.participants) ? item.participants : []);
     const senderTeamArr = localSenderTeam ?? (Array.isArray(item.senderTeam) ? item.senderTeam : []);
+    const unassignedArr = localUnassigned ?? (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []);
     const joinRequests = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
     const reqTimeAgo = (dateStr) => {
         if (!dateStr) return '';
@@ -724,7 +732,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const oppManualNames = Array.isArray(item.oppTeamManualNames) ? item.oppTeamManualNames.filter(n => typeof n === 'string' && n.trim()) : [];
     // Atanmamış havuz — kadro kartının ön yüzünde de sayılmalı, aksi halde başlıktaki
     // (X/Y) kartta gösterilenle uyuşmuyordu.
-    const unassignedSlots = (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []).filter(p => p?.id || p?.manualName);
+    const unassignedSlots = unassignedArr.filter(p => p?.id || p?.manualName);
     // Çiftlerde (DOUBLE) toplam kapasite sabit 4 (2 taraf x 2) ve "required" zaten
     // rakip tarafta kalan boş kontenjanı ifade eder. Takım sporlarında (voleybol 6v6 vb.)
     // "required" tek bir tarafın TAM boyutu (teamSize) — iki tarafı da saymadan
@@ -791,6 +799,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             if (res.data?.request) {
                 setLocalJoinRequests(Array.isArray(res.data.request.joinRequests) ? res.data.request.joinRequests : []);
                 if (Array.isArray(res.data.request.participants)) setLocalParticipants(res.data.request.participants);
+                if (Array.isArray(res.data.request.unassignedPlayers)) setLocalUnassigned(res.data.request.unassignedPlayers);
+                if (Array.isArray(res.data.request.senderTeam)) setLocalSenderTeam(res.data.request.senderTeam);
             }
             if (res.data?.lateAccept) {
                 // İstek 1 saatten eskiyse hemen katılımcıya dönüşmez — karşı taraftan son
@@ -856,7 +866,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // uç nokta, ilan henüz MATCHED olmasa da çalışır.
     const assignUnassignedToSide = (userId, side) => {
         api.patch(`/rivals/${item.id}/assign-player`, { userId, side })
-            .then(onRefresh)
+            .then(({ data }) => {
+                if (Array.isArray(data?.participants)) setLocalParticipants(data.participants);
+                if (Array.isArray(data?.senderTeam)) setLocalSenderTeam(data.senderTeam);
+                if (Array.isArray(data?.unassignedPlayers)) setLocalUnassigned(data.unassignedPlayers);
+                onRefresh();
+            })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
 
@@ -865,7 +880,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // Rakip2'ye atayabilir.
     const assignDoubleSlot = (userId, slot) => {
         api.patch(`/rivals/${item.id}/assign-double-slot`, { userId, slot })
-            .then(onRefresh)
+            .then(({ data }) => {
+                if (Array.isArray(data?.participants)) setLocalParticipants(data.participants);
+                if (Array.isArray(data?.senderTeam)) setLocalSenderTeam(data.senderTeam);
+                if (Array.isArray(data?.unassignedPlayers)) setLocalUnassigned(data.unassignedPlayers);
+                onRefresh();
+            })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
 
@@ -1305,7 +1325,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             ];
                             const teamSlots = allTeamSlots.filter(sl => sl.p?.id);
                             const acceptedOthers = teamSlots.map(sl => sl.p);
-                            const unassignedDoubleSlots = (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []).filter(p => p?.id);
+                            const unassignedDoubleSlots = unassignedArr.filter(p => p?.id);
 
                             if (!showTeamCards) {
                                 // Kullanıcı isteğiyle ön yüzde her satıra 2 oyuncu sığıyor (önceden tek
@@ -3111,6 +3131,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [billViewLoading, setBillViewLoading] = useState(false);
     const [billActionBusy, setBillActionBusy] = useState(false);
     const [showBillView, setShowBillView] = useState(false);
+    // Maç zaten eşleşmiş (MATCHED) olsa da voleybol/airsoft'ta boş Yedek kontenjanı varsa
+    // katılım isteği gönderilebiliyor (bkz. backend sendJoinRequest'teki subSlotOpenForRequest)
+    // — ilan sahibi bu bekleyen istekleri burada görüp kabul/red eder.
+    const [localSubRequests, setLocalSubRequests] = useState(null);
+    const [subJoinSubmitting, setSubJoinSubmitting] = useState(false);
+    const [subJoinSent, setSubJoinSent] = useState(false);
     // Yaklaşan maçta kort/gün/saat değiştirme — açık ilan düzenlemesiyle aynı ekran (CreateRivalModal)
     const [editVisible, setEditVisible] = useState(false);
     // Telefonun geri tuşu, CreateRivalModal açıkken varsayılan olarak ekranın tamamından
@@ -3137,6 +3163,35 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // maçını görüntüleyen biri) sipariş verme gibi katılımcıya özel aksiyonları görmemeli.
     const isParticipant = isOwner || match.receiverId === myId
         || participantsArr.some(p => p.id === myId) || senderTeamArr.some(p => p.id === myId);
+    // Voleybol/airsoft: maç eşleşmiş olsa da hâlâ boş Yedek kontenjanı varsa katılım isteği
+    // gönderilebilir (bkz. backend sendJoinRequest subSlotOpenForRequest) — henüz katılmamış
+    // biri "Yedek Olarak Başvur" ile başvurabilir, ilan sahibi aşağıdaki listeden kabul eder.
+    const subRequests = localSubRequests ?? (Array.isArray(match.joinRequests) ? match.joinRequests : []);
+    const substitutePlayersArr = (Array.isArray(match.substitutePlayers) ? match.substitutePlayers : []).filter(p => p?.id || p?.manualName);
+    const substituteSlotsOpen = ['volleyball', 'airsoft'].includes(match.subCategory) && (match.teamSize || 1) > 1
+        && substitutePlayersArr.length < (match.substituteCount || 0);
+    const myPendingSubRequest = subRequests.find(jr => jr.userId === myId);
+    const applyAsSubstitute = async () => {
+        setSubJoinSubmitting(true);
+        try {
+            await api.post(`/rivals/${match.id}/respond`, { asSubstitute: true });
+            setSubJoinSent(true);
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setSubJoinSubmitting(false);
+        }
+    };
+    const respondToSubRequest = async (jrId, action) => {
+        setLocalSubRequests(subRequests.filter(r => r.id !== jrId));
+        try {
+            await api.patch(`/rivals/join/${jrId}`, { action });
+            onRefresh();
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+            setLocalSubRequests(subRequests);
+        }
+    };
     // Maç saati geçtiyse (Skor Bekleyen Maçlar listesindeki kartlar) artık tesiste
     // sipariş vermenin bir anlamı kalmıyor — bu buton sadece maç henüz oynanmamışken gösterilir.
     const matchEnded = (() => {
@@ -3960,6 +4015,39 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
                         />
+                    )}
+
+                    {/* Yedek istekleri — maç zaten MATCHED olsa da boş Yedek kontenjanı olduğu
+                        sürece gönderilebilen istekler (bkz. subRequests) — ilan sahibi burada
+                        kabul/red eder. initiatedBy=OWNER olanlar (ileride eklenebilecek bir
+                        "yedek davet et" akışı) burada gösterilmez — o zaman sırası davet edilen
+                        kişide olur, ilan sahibinde değil. */}
+                    {isOwner && subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
+                        <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:9, borderWidth:1, borderColor: colors.border, marginBottom:12 }}>
+                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8 }}>🪑 Yedek İstekleri ({subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
+                            {subRequests.filter(jr => jr.initiatedBy !== 'OWNER').map(jr => (
+                                <View key={jr.id} style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6 }}>
+                                    <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={26} color={cfg.color} />
+                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>{jr.user?.fullName || jr.user?.username}</Text>
+                                    <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'accept')} style={{ backgroundColor:'#16a34a', borderRadius:8, paddingHorizontal:10, paddingVertical:5 }}>
+                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>Kabul</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'reject')} style={{ backgroundColor:'#ef444420', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#ef444440' }}>
+                                        <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </View>
+                    )}
+                    {!isOwner && !isParticipant && substituteSlotsOpen && (
+                        subJoinSent || myPendingSubRequest ? (
+                            <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700', textAlign:'center', marginBottom:12 }}>⏳ Yedek başvurun bekleniyor</Text>
+                        ) : (
+                            <TouchableOpacity onPress={applyAsSubstitute} disabled={subJoinSubmitting}
+                                style={{ backgroundColor: cfg.color+'20', borderRadius:10, paddingVertical:9, alignItems:'center', borderWidth:1, borderColor: cfg.color+'50', marginBottom:12, opacity: subJoinSubmitting ? 0.6 : 1 }}>
+                                <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }}>🪑 Yedek Olarak Başvur</Text>
+                            </TouchableOpacity>
+                        )
                     )}
 
                     {/* Takım ismi düzenle */}
@@ -6380,10 +6468,41 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamNam
             ))}
         </View>
     );
+    // Kart, açık ilanlardaki (RivalDetailModal) Digimon kartıyla AYNI yönde çeviriliyor —
+    // ön yüz katılım sırasına göre düz liste (2'li kart satırı), arka yüz Kurucu/Rakip
+    // atama ızgarası. Önceden bu tam TERSİYDİ (ön=organize, arka=liste), kullanıcı isteğiyle
+    // Yaklaşan Maçlar'daki kart açık ilanlardakiyle birebir aynı davranışa getirildi.
+    const cardBox = { width:'48%', backgroundColor:'#0f172a', borderRadius:8, borderWidth:1, borderColor:'#ffffff20', paddingVertical:5, paddingHorizontal:6, marginBottom:6 };
     return (
         <View style={{ marginBottom:12 }}>
             <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:'#ffffff20', padding:8, transform:[{ perspective:800 }, { rotateY }] }}>
                 {!isBack ? (
+                    <>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.participantListLabel}</Text>
+                            <TouchableOpacity onPress={flip} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                <Text style={{ fontSize:14 }}>🗂️</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
+                            {allPlayers.map((p, i) => (
+                                <View key={p.id || `m-${i}`} style={cardBox}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                        {p.id
+                                            ? <Avatar name={p.username} avatar={p.avatar} size={22} color={p._role === 'my' ? '#a855f7' : p._role === 'opp' ? '#f87171' : colors.textMuted} />
+                                            : <Text style={{ fontSize:16 }}>👤</Text>}
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{p.id ? senderAlias(p) : p.manualName}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>
+                                                {i + 1}{p._role == null ? ` · ${t.unassignedLabel}` : ''}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    </>
+                ) : (
                     <>
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
                             <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }}>{emoji}</Text>
@@ -6409,25 +6528,6 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamNam
                                 <Text style={{ color: colors.textMuted, fontSize:9, marginTop:2 }}>{t.assignHintLabel}</Text>
                             </View>
                         )}
-                    </>
-                ) : (
-                    <>
-                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
-                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.participantListLabel}</Text>
-                            <TouchableOpacity onPress={flip} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                                <Text style={{ fontSize:14 }}>🔄</Text>
-                            </TouchableOpacity>
-                        </View>
-                        {allPlayers.map((p, i) => (
-                            <View key={p.id || `m-${i}`} style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:2 }}>
-                                {p.id
-                                    ? <Avatar name={p.username} avatar={p.avatar} size={16} color={p._role === 'my' ? '#a855f7' : p._role === 'opp' ? '#f87171' : colors.textMuted} />
-                                    : <Text style={{ fontSize:12 }}>👤</Text>}
-                                <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>
-                                    {i + 1}. {p.id ? senderAlias(p) : p.manualName}{p._role == null ? ` (${t.unassignedLabel})` : ''}
-                                </Text>
-                            </View>
-                        ))}
                     </>
                 )}
             </Animated.View>
