@@ -4003,6 +4003,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             oppPlayers={participantsArr}
                             unassigned={unassignedArr}
                             substitutePlayers={substitutePlayersArr}
+                            teamSize={match.teamSize || 1}
                             founderTeamName={match.founderTeamName}
                             opponentTeamName={match.opponentTeamName}
                             canEditFounderName={isOwner || senderTeamArr.some(p => p.id === myId)}
@@ -6442,7 +6443,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
 // "seç sonra hedefe dokun" ile atama. Kullanıcı isteğiyle iki kart birebir aynı davransın
 // diye kopyalandı — sadece veri kaynağı farklı (burada zaten kabul edilmiş gerçek
 // katılımcılar, formdaki gibi serbest metinle aranan boş slotlar değil).
-function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], isVolleyball = true, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, t, emoji = '🏐' }) {
+function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], isVolleyball = true, teamSize = 1, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, t, emoji = '🏐' }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const [selectedId, setSelectedId] = useState(null);
@@ -6469,27 +6470,41 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
             ))}
         </View>
     );
-    const renderColumn = (players, label, color, canEditName, onEditName, targetSide) => (
-        <View style={{ flex:1 }}>
-            <TouchableOpacity disabled={!selectedId} onPress={() => { onAssign(selectedId, targetSide); setSelectedId(null); }}>
-                <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                    <Text style={{ color, fontSize:10, fontWeight:'800', flex:1 }} numberOfLines={1}>
-                        {label}{selectedId ? ' ↩' : ''}
-                    </Text>
-                    {canEditName && (
-                        <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                            <Text style={{ fontSize:10 }}>✎</Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
-            </TouchableOpacity>
-            {players.map((p, i) => (
-                <TouchableOpacity key={p.id || `m-${i}`} disabled={!isOwner || !p.id} onPress={() => p.id && onAssign(p.id, null)}>
-                    <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{i + 1}. {p.id ? senderAlias(p) : p.manualName}</Text>
+    // Her sütun artık Takım Büyüklüğü kadar SABİT slot gösteriyor (voleybol formundaki/açık
+    // ilandaki gibi) — önceden sınırsız büyüyebiliyordu, bir tarafa teamSize'ı aşan sayıda
+    // (ör. 6v6'da 8 kişi) oyuncu atanabiliyordu. Dolu slottan sonrası boş ("—") gösterilir,
+    // sütun dolunca başlığa dokunup atama artık devre dışı kalır (backend de aynısını
+    // reddediyor, bkz. assignPlayerToSide).
+    const renderColumn = (players, label, color, canEditName, onEditName, targetSide, slotsCount, lockFirst = false) => {
+        const isFull = players.length >= slotsCount;
+        return (
+            <View style={{ flex:1 }}>
+                <TouchableOpacity disabled={!selectedId || isFull} onPress={() => { onAssign(selectedId, targetSide); setSelectedId(null); }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                        <Text style={{ color, fontSize:10, fontWeight:'800', flex:1 }} numberOfLines={1}>
+                            {label} ({players.length}/{slotsCount}){selectedId && !isFull ? ' ↩' : ''}
+                        </Text>
+                        {canEditName && (
+                            <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                <Text style={{ fontSize:10 }}>✎</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </TouchableOpacity>
-            ))}
-        </View>
-    );
+                {Array.from({ length: slotsCount }).map((_, i) => {
+                    const p = players[i];
+                    const locked = lockFirst && i === 0;
+                    return p ? (
+                        <TouchableOpacity key={p.id || i} disabled={!isOwner || locked} onPress={() => onAssign(p.id, null)}>
+                            <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{i + 1}. {senderAlias(p)}{locked ? ' 🔒' : ''}</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <Text key={`empty-${i}`} style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>{i + 1}. —</Text>
+                    );
+                })}
+            </View>
+        );
+    };
     return (
         <View style={{ marginBottom:12 }}>
             <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor:'#ffffff20', padding:10, transform:[{ perspective:800 }, { rotateY }] }}>
@@ -6518,8 +6533,8 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                             </TouchableOpacity>
                         </View>
                         <View style={{ flexDirection:'row', gap:6 }}>
-                            {renderColumn(founderPlayers, founderTeamName || t.founderTeamShortLabel, '#a855f7', canEditFounderName, onEditFounderName, 'my')}
-                            {renderColumn(oppPlayers, opponentTeamName || t.opponentTeamShortLabel, '#f87171', canEditOppName, onEditOppName, 'opp')}
+                            {renderColumn(founderPlayers, founderTeamName || t.founderTeamShortLabel, '#a855f7', canEditFounderName, onEditFounderName, 'my', teamSize, true)}
+                            {renderColumn(oppPlayers, opponentTeamName || t.opponentTeamShortLabel, '#f87171', canEditOppName, onEditOppName, 'opp', teamSize, false)}
                         </View>
                         {isOwner && unassigned.length > 0 && (
                             <View style={{ marginTop:6 }}>
@@ -6629,6 +6644,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         // Yedekler — takıma bağımsız, kullanıcı sayısını kendi seçiyor (Yedek Sayısı alanı).
         subCount: 0,
         subSlots: [],
+        // Kurucu/Rakip takım isimleri artık ilan oluştururken de girilebiliyor (önceden
+        // sadece ilan açıldıktan sonra "✎" ile değiştirilebiliyordu) — bkz. kadro kartının
+        // arka yüzündeki ✎ butonları.
+        founderTeamName: '',
+        opponentTeamName: '',
     };
 
     const buildInitialState = () => {
@@ -6670,6 +6690,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 maxRatingFemale: editItem.maxRatingFemale != null ? String(editItem.maxRatingFemale) : '',
                 cancelPenaltyHours: editItem.cancelPenaltyHours != null ? String(editItem.cancelPenaltyHours) : '',
                 subCount: editItem.substituteCount || 0,
+                founderTeamName: editItem.founderTeamName || '',
+                opponentTeamName: editItem.opponentTeamName || '',
                 genderReq: editItem.genderReq || 'MIX',
                 partnerGenderReq: editItem.partnerGenderReq || 'MIX',
                 opp1GenderReq: editItem.opp1GenderReq || 'MIX',
@@ -6915,6 +6937,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // Arka yüzde "Atanmamış" havuzundan seçilen kişi — sonra Kurucu/Rakip başlığına
     // dokununca o kişinin side'ı set edilir (mevcut swapSlot tak-seç-hedefe-dokun deseniyle aynı mantık).
     const [selectedUnassignedIndex, setSelectedUnassignedIndex] = useState(null);
+    // Kurucu/Rakip takım ismi düzenleme — açık ilandaki (RivalDetailModal/UpcomingCard)
+    // "✎" ile aynı küçük pencere, sadece burada henüz API'ye gitmiyor, submit'e kadar
+    // sadece form state'inde (f.founderTeamName/opponentTeamName) tutuluyor.
+    const [teamNameEdit, setTeamNameEdit] = useState(null); // { side: 'founder'|'opponent', value } | null
     const [showEloWarning, setShowEloWarning] = useState(false);
     const [eloWarningDismissed, setEloWarningDismissed] = useState(false);
     // Panel varsayılan kapalı — düzenlemede de format (Çiftli) chip'ine tıklanınca
@@ -7237,6 +7263,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 minRatingFemale: f.minRatingFemale !== '' ? f.minRatingFemale : null,
                 maxRatingFemale: f.maxRatingFemale !== '' ? f.maxRatingFemale : null,
                 ...(isVolleyball && { cancelPenaltyHours: f.cancelPenaltyHours !== '' ? f.cancelPenaltyHours : null }),
+                ...((isVolleyball || sub === 'airsoft') && { founderTeamName: f.founderTeamName.trim() || null, opponentTeamName: f.opponentTeamName.trim() || null }),
                 matchMode: f.matchMode || 'PRACTICE',
                 venueId: f.venueId || null,
                 venueCourtId: f.venueCourtId || null,
@@ -7409,6 +7436,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 maxRatingFemale: f.maxRatingFemale !== '' ? parseFloat(f.maxRatingFemale) : undefined,
                 cancelPenaltyHours: isVolleyball && f.cancelPenaltyHours !== '' ? parseInt(f.cancelPenaltyHours, 10) : undefined,
                 subCount: isVolleyball ? (f.subCount || 0) : undefined,
+                founderTeamName: (isVolleyball || sub === 'airsoft') && f.founderTeamName.trim() ? f.founderTeamName.trim() : undefined,
+                opponentTeamName: (isVolleyball || sub === 'airsoft') && f.opponentTeamName.trim() ? f.opponentTeamName.trim() : undefined,
                 genderReq: (sub === 'tennis' || sub === 'padel') ? (f.genderReq || 'MIX') : undefined,
                 partnerGenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.partnerGenderReq : undefined,
                 opp1GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp1GenderReq : undefined,
@@ -8822,20 +8851,25 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             return (
                                             <>
                                                 <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
-                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.myTeamLabel} ↔ {t.oppTeamLabel}</Text>
+                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', flex:1 }} numberOfLines={1}>{f.founderTeamName || t.myTeamLabel} ↔ {f.opponentTeamName || t.oppTeamLabel}</Text>
                                                     <TouchableOpacity onPress={flipTeamCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
                                                         <Text style={{ fontSize:15 }}>🔄</Text>
                                                     </TouchableOpacity>
                                                 </View>
                                                 <View style={{ flexDirection:'row', gap:6 }}>
                                                     <View style={{ flex:1 }}>
-                                                        <TouchableOpacity disabled={selectedUnassignedIndex == null}
-                                                            onPress={() => { setSlotSide(selectedUnassignedIndex, 'my'); setSelectedUnassignedIndex(null); }}>
-                                                            <Text style={[s.fieldLabel, { fontSize:10, color: selectedUnassignedIndex != null ? cfg.color : undefined }]} numberOfLines={1}>
-                                                                {t.myTeamLabel}{selectedUnassignedIndex != null ? ' ↩' : ''}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                        <Text style={{ color:'#fff', fontSize:11, marginBottom:3 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                                                            <TouchableOpacity disabled={selectedUnassignedIndex == null} style={{ flex:1 }}
+                                                                onPress={() => { setSlotSide(selectedUnassignedIndex, 'my'); setSelectedUnassignedIndex(null); }}>
+                                                                <Text style={[s.fieldLabel, { fontSize:10, marginBottom:0, color: selectedUnassignedIndex != null ? cfg.color : undefined }]} numberOfLines={1}>
+                                                                    {f.founderTeamName || t.myTeamLabel}{selectedUnassignedIndex != null ? ' ↩' : ''}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity onPress={() => setTeamNameEdit({ side:'founder', value: f.founderTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                                <Text style={{ fontSize:10 }}>✎</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                        <Text style={{ color:'#fff', fontSize:11, marginBottom:3, marginTop:2 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
                                                         {mySlotOrder.map((idx, orderI) => (
                                                             <View key={`my-slot-${idx}`} style={{ position:'relative', zIndex: activeSlotKey === `pool-${idx}` ? 51 : 1, marginBottom:2 }}>
                                                                 <TeamSlotRow side="pool" index={idx} slot={f.rosterSlots[idx]}
@@ -8852,12 +8886,17 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         ))}
                                                     </View>
                                                     <View style={{ flex:1 }}>
-                                                        <TouchableOpacity disabled={selectedUnassignedIndex == null}
-                                                            onPress={() => { setSlotSide(selectedUnassignedIndex, 'opp'); setSelectedUnassignedIndex(null); }}>
-                                                            <Text style={[s.fieldLabel, { fontSize:10, color: selectedUnassignedIndex != null ? cfg.color : undefined }]} numberOfLines={1}>
-                                                                {t.oppTeamLabel}{selectedUnassignedIndex != null ? ' ↩' : ''}
-                                                            </Text>
-                                                        </TouchableOpacity>
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                                                            <TouchableOpacity disabled={selectedUnassignedIndex == null} style={{ flex:1 }}
+                                                                onPress={() => { setSlotSide(selectedUnassignedIndex, 'opp'); setSelectedUnassignedIndex(null); }}>
+                                                                <Text style={[s.fieldLabel, { fontSize:10, marginBottom:0, color: selectedUnassignedIndex != null ? cfg.color : undefined }]} numberOfLines={1}>
+                                                                    {f.opponentTeamName || t.oppTeamLabel}{selectedUnassignedIndex != null ? ' ↩' : ''}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity onPress={() => setTeamNameEdit({ side:'opponent', value: f.opponentTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                                <Text style={{ fontSize:10 }}>✎</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
                                                         {oppSlotOrder.map((idx, orderI) => (
                                                             <View key={`opp-slot-${idx}`} style={{ position:'relative', zIndex: activeSlotKey === `pool-${idx}` ? 51 : 1, marginBottom:2 }}>
                                                                 <TeamSlotRow side="pool" index={idx} slot={f.rosterSlots[idx]}
@@ -8895,6 +8934,36 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     </Animated.View>
                                 </View>
                             )}
+
+                            {/* Kurucu/Rakip takım ismi düzenleme — kaydet, sadece f.founderTeamName/
+                                opponentTeamName'i günceller, API'ye submit'e kadar gitmez. */}
+                            <Modal visible={!!teamNameEdit} animationType="fade" transparent onRequestClose={() => setTeamNameEdit(null)}>
+                                <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', paddingHorizontal:30 }}>
+                                    <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:16 }}>
+                                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', marginBottom:10 }}>
+                                            {teamNameEdit?.side === 'founder' ? 'Kurucu Takım İsmi' : 'Rakip Takım İsmi'}
+                                        </Text>
+                                        <TextInput
+                                            value={teamNameEdit?.value || ''}
+                                            onChangeText={(v) => setTeamNameEdit(p => ({ ...p, value: v }))}
+                                            placeholder="Ör: Şimşekler"
+                                            placeholderTextColor={colors.textMuted}
+                                            maxLength={24}
+                                            style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:colors.border, color:'#fff', fontSize:14, paddingHorizontal:12, paddingVertical:9, marginBottom:12 }}
+                                        />
+                                        <View style={{ flexDirection:'row', gap:8 }}>
+                                            <TouchableOpacity onPress={() => setTeamNameEdit(null)} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor:'#ffffff10' }}>
+                                                <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => { set(teamNameEdit.side === 'founder' ? 'founderTeamName' : 'opponentTeamName', (teamNameEdit.value || '').trim()); setTeamNameEdit(null); }}
+                                                style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor: colors.purple }}>
+                                                <Text style={{ color:'#fff', fontWeight:'800' }}>Kaydet</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                </View>
+                            </Modal>
 
                             {/* Hizmetler > Hakem'de eklenen isim, o pencereyi tekrar açmadan da
                                 görülebilsin diye kadro kartının hemen altında ayrıca gösteriliyor. */}
