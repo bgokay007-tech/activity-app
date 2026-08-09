@@ -1561,7 +1561,7 @@ export const createRivalRequest = async (req, res, next) => {
         const oppTeamIds = Array.isArray(oppTeamInviteIds) ? [...new Set(oppTeamInviteIds.filter(Boolean))] : [];
         for (const oppInviteId of oppTeamIds) {
             prisma.rivalJoinRequest.create({
-                data: { rivalId: request.id, userId: oppInviteId, initiatedBy: 'OWNER' },
+                data: { rivalId: request.id, userId: oppInviteId, initiatedBy: 'OWNER', isOppTeamInvite: true },
             }).then(async () => {
                 const updatedRival = await prisma.activityRequest.findUnique({
                     where: { id: request.id },
@@ -2285,15 +2285,23 @@ export const setRivalJoinPartner = async (req, res, next) => {
 };
 
 // Creator invites a specific player to their own open listing
+// side (opsiyonel): 'my' | 'opp' — takım sporlarında (voleybol/airsoft) kadro kartından
+// doğrudan Kurucu/Rakip Takım'a davet göndermek için. Kullanıcı isteğiyle bu, ilan
+// oluştururken bir isim yazıp davet etmekle AYNI mantık — sadece ilan zaten var (açık
+// ya da eşleşmiş) ve davet doğrudan o slota gidiyor, kabul edilince atanmamış havuzuna
+// değil doğrudan o takıma düşüyor (bkz. respondToJoin'deki isPartnerInvite/isOppTeamInvite).
 export const inviteToRival = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { userId } = req.body;
+        const { userId, side } = req.body;
         if (!userId) return res.status(400).json({ message: 'userId required' });
+        if (side !== undefined && side !== null && !['my', 'opp'].includes(side)) return res.status(400).json({ message: 'Geçersiz taraf' });
 
         const rival = await prisma.activityRequest.findUnique({ where: { id } });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
+        const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+        const isTeamSlotInvite = (side === 'my' || side === 'opp') && ['volleyball', 'airsoft'].includes(rival.subCategory) && (rival.teamSize || 1) > 1;
 
         // Sahibi her zaman davet edebilir. Hakem ilanına davet ediliyorsa (linkedRivalId
         // dolu) yetki, asıl maçın katılımcısı olup olmadığına ve o maçın "Davete İzin
@@ -2316,10 +2324,20 @@ export const inviteToRival = async (req, res, next) => {
             }
         }
         if (!isAuthorized) return res.status(403).json({ message: 'Forbidden' });
-        if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Bu ilan artık açık değil' });
+        if (isTeamSlotInvite) {
+            // Kadro kartından doğrudan takıma davet — sadece ilan sahibi yapabilir, maç zaten
+            // eşleşmiş (MATCHED) olsa bile hedef tarafta boş kontenjan varsa hâlâ mümkün
+            // (Yaklaşan Maçlar'daki kadro kartı da bu uç noktayı kullanıyor).
+            if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi doğrudan takıma davet edebilir' });
+            const teamSizeN = rival.teamSize || 1;
+            if (side === 'my' && senderTeamArr.length >= teamSizeN - 1) return res.status(400).json({ message: 'Kurucu Takımı zaten dolu.' });
+            if (side === 'opp' && participants.filter(p => p?.id).length >= teamSizeN) return res.status(400).json({ message: 'Rakip Takımı zaten dolu.' });
+        } else if (rival.status !== 'OPEN') {
+            return res.status(400).json({ message: 'Bu ilan artık açık değil' });
+        }
         if (userId === req.userId) return res.status(400).json({ message: 'Kendinizi davet edemezsiniz' });
 
-        if (participants.some(p => p?.id === userId)) {
+        if (participants.some(p => p?.id === userId) || senderTeamArr.some(p => p?.id === userId)) {
             return res.status(400).json({ message: 'Bu kullanıcı zaten maça katılmış' });
         }
 
@@ -2330,22 +2348,28 @@ export const inviteToRival = async (req, res, next) => {
             return res.status(400).json({ message: 'Bu kullanıcıya zaten bir istek/davet gönderilmiş', status: existing.status });
         }
 
+        const teamSlotFlags = isTeamSlotInvite ? (side === 'my' ? { isPartnerInvite: true } : { isOppTeamInvite: true }) : {};
         if (existing) {
             await prisma.rivalJoinRequest.update({
                 where: { rivalId_userId: { rivalId: id, userId } },
-                data: { status: 'PENDING', initiatedBy: 'OWNER', joiningTeam: [] },
+                data: { status: 'PENDING', initiatedBy: 'OWNER', joiningTeam: [], isPartnerInvite: false, isOppTeamInvite: false, isSubstituteInvite: false, isUnassignedInvite: false, ...teamSlotFlags },
             });
         } else {
-            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId, initiatedBy: 'OWNER' } });
+            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId, initiatedBy: 'OWNER', ...teamSlotFlags } });
         }
 
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: SENDER_SELECT });
 
         const isRefereeAd = Array.isArray(rival.positions) && rival.positions.includes('REFEREE');
+        const teamInviteEmoji = rival.subCategory === 'airsoft' ? '🪖' : '🏐';
         createNotification(
             userId, 'MATCH_INVITE',
-            isRefereeAd ? '🟨 Hakemlik Daveti' : '🎾 Maç Daveti',
-            isRefereeAd ? `@${me?.username} sizi maçında hakemlik yapmaya davet etti.` : `@${me?.username} sizi bir maça davet etti.`,
+            isRefereeAd ? '🟨 Hakemlik Daveti'
+                : isTeamSlotInvite ? `${teamInviteEmoji} ${subCategoryTR(rival.subCategory)} ${side === 'my' ? 'Takım' : 'Maç'} Daveti`
+                : `🎾 ${subCategoryTR(rival.subCategory)} Maç Daveti`,
+            isRefereeAd ? `@${me?.username} sizi maçında hakemlik yapmaya davet etti.`
+                : isTeamSlotInvite ? `@${me?.username} sizi ${side === 'my' ? 'Kurucu Takım' : 'Rakip Takım'}'a davet etti.`
+                : `@${me?.username} sizi bir maça davet etti.`,
             { category: rival.category, subCategory: rival.subCategory, rivalId: rival.id, ...(isRefereeAd && { refereeAd: true }) }
         ).catch(() => {});
 
@@ -2454,6 +2478,46 @@ export const respondToJoin = async (req, res, next) => {
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
             return res.json({ message: 'Partner daveti kabul edildi.', request: updatedRival });
+        }
+
+        // Rakip Takım daveti kabul: participants'a DOĞRUDAN eklenir (atanmamış havuzuna değil)
+        // — ilan sahibi bilerek bu kişiyi Rakip Takım'a davet etmişti (bkz. inviteToRival'daki
+        // isTeamSlotInvite). Kapasite (teamSize) burada da kontrol edilir; kabul maçı
+        // tamamlıyorsa MATCHED'e geçirir.
+        if (joinReq.isOppTeamInvite) {
+            const teamSizeN = joinReq.rival.teamSize || 1;
+            const existingParticipants = Array.isArray(joinReq.rival.participants) ? joinReq.rival.participants : [];
+            if (existingParticipants.filter(p => p?.id).length >= teamSizeN) {
+                await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
+                emitToUser(joinReq.userId, 'joinRejected', { rivalId: joinReq.rivalId });
+                return res.status(400).json({ message: 'Rakip Takımı zaten dolu.' });
+            }
+            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar };
+            const updatedParticipantsArr = [...existingParticipants, joinerData];
+            const isFullNow = teamSizeN > 1
+                ? teamFilledCount(joinReq.rival, { participants: updatedParticipantsArr }) >= totalPlayerCount(joinReq.rival)
+                : false;
+            const updatedRival = await prisma.activityRequest.update({
+                where: { id: joinReq.rivalId },
+                data: {
+                    participants: updatedParticipantsArr,
+                    ...(isFullNow && { status: 'MATCHED', receiverId: joinReq.userId, reopenedAt: null }),
+                },
+                include: {
+                    sender: { select: SENDER_SELECT },
+                    joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                },
+            });
+            emitToUser(joinReq.rival.senderId, 'rivalUpdate', updatedRival);
+            emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: isFullNow });
+            createNotification(
+                joinReq.rival.senderId, 'MATCH_CONFIRMED',
+                '⚔️ Rakip Takım Daveti Kabul Edildi',
+                `${joinReq.user.username} Rakip Takım'a katılmayı kabul etti.${isFullNow ? ' Maç doldu!' : ''}`,
+                { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
+            ).catch(() => {});
+            return res.json({ message: 'Rakip Takım daveti kabul edildi.', request: updatedRival, matched: isFullNow });
         }
 
         // Yedek daveti kabul: substitutePlayers'a ekle
