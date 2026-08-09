@@ -5002,7 +5002,8 @@ const tg = StyleSheet.create({
 });
 
 function RatingPickerModal({ visible, title, value, onSelect, onClose }) {
-    const ratings = ['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0','5.5','6.0','6.5','7.0','7.5','8.0','8.5','9.0','9.5','10.0'];
+    // Gerçek derece skalası 0.00–5.00 (bkz. RatingRangeModal'daki aynı düzeltme).
+    const ratings = ['', '0.0','0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'];
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={tg.overlay}>
@@ -5064,7 +5065,13 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
     ownRating = null, ownGender = null, // ilan sahibinin kendi derece puanı/cinsiyeti — kendi puanına uymayan bir aralık seçemesin diye (backend'de submit'te de aynı kontrol var, bkz. createRivalRequest)
 }) {
     const t = useT();
-    const ratings = ['', '0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0','5.5','6.0','6.5','7.0','7.5','8.0','8.5','9.0','9.5','10.0'];
+    // Gerçek derece skalası 0.00–5.00 (bkz. schema.prisma skillRating) — burada yanlışlıkla
+    // 10.0'a kadar gidiyordu ve en düşük seçenek "0.5"ten başlıyordu (gerçek "0" yoktu).
+    // Bu yüzden bir kullanıcı "kısıtlamayı kaldırayım" diye min'i en düşük seçenek olan
+    // 0.5'e çekince, henüz değerlendirmesi tamamlanmamış/yeni bir oyuncunun (skillRating
+    // tam 0.00) hâlâ "aralığın dışında" reddedilmesine yol açıyordu — kullanıcı aralığı
+    // "0-10" yaptığını düşünse de gerçek min hâlâ 0'dan büyüktü.
+    const ratings = ['', '0.0','0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'];
     const showGenderToggle = !!onToggleGenderSplit;
 
     // Alt limit üst limitten büyük, üst limit alt limitten küçük seçilemesin — hangi spor
@@ -7709,8 +7716,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             onPress={() => setShowRatingRange(true)}>
                                             <Text style={[s.triValue, { fontSize:11 }, ((f.ratingGenderSplit ? !(f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : !(f.minRating || f.maxRating)) && s.triPlaceholder)]} numberOfLines={1}>
                                                 {f.ratingGenderSplit
-                                                    ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
-                                                    : ((!f.minRating && !f.maxRating) ? `${t.ratingLimitLabel} ${t.courtSurfaceSelectPlaceholder}` : `${f.minRating || '0'}–${f.maxRating || '10'}`)}
+                                                    ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '5'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '5'}`
+                                                    : ((!f.minRating && !f.maxRating) ? `${t.ratingLimitLabel} ${t.courtSurfaceSelectPlaceholder}` : `${f.minRating || '0'}–${f.maxRating || '5'}`)}
                                             </Text>
                                         </TouchableOpacity>
                                         {(sub === 'tennis' || sub === 'padel') && f.matchType === 'SINGLE' && (
@@ -7921,8 +7928,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center' }, ((f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]} onPress={() => setShowRatingRange(true)}>
                                                     <Text style={[s.triValue, { fontSize:11 }, ((f.ratingGenderSplit ? !(f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : !(f.minRating || f.maxRating)) && s.triPlaceholder)]} numberOfLines={1}>
                                                         {f.ratingGenderSplit
-                                                            ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
-                                                            : ((!f.minRating && !f.maxRating) ? `${t.ratingLimitLabel} ${t.courtSurfaceSelectPlaceholder}` : `${f.minRating || '0'}–${f.maxRating || '10'}`)}
+                                                            ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '5'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '5'}`
+                                                            : ((!f.minRating && !f.maxRating) ? `${t.ratingLimitLabel} ${t.courtSurfaceSelectPlaceholder}` : `${f.minRating || '0'}–${f.maxRating || '5'}`)}
                                                     </Text>
                                                 </TouchableOpacity>
                                                 )}
@@ -8054,7 +8061,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 onPress={() => setShowRatingRange(true)}>
                                                 <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
                                                 <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                    {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`}
+                                                    {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '5'}`}
                                                 </Text>
                                             </TouchableOpacity>
                                         )}
@@ -8682,7 +8689,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         onPress={() => setShowRatingRange(true)}>
                                         <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
                                         <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                            {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`}
+                                            {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '5'}`}
                                         </Text>
                                     </TouchableOpacity>
                                     <View style={{ position:'relative', zIndex: showWinsNeededPicker ? 51 : 1 }}>
@@ -12605,8 +12612,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.border }}>
                                         <Text style={{ color: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                                             {f.ratingGenderSplit
-                                                ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '10'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '10'}`
-                                                : ((!f.minRating && !f.maxRating) ? 'Serbest' : `${f.minRating || '0'}-${f.maxRating || '10'}`)}
+                                                ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '5'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '5'}`
+                                                : ((!f.minRating && !f.maxRating) ? 'Serbest' : `${f.minRating || '0'}-${f.maxRating || '5'}`)}
                                         </Text>
                                     </View>
                                 </TouchableOpacity>
