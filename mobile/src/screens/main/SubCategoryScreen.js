@@ -7774,6 +7774,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         onClose={() => setActivePopup(null)}
                                                     />
                                                 </View>
+                                                {/* Yedek/Derece/Cinsiyet Dağılımı/Geç İptal Cezası — Takım Büyüklüğü
+                                                    seçilmeden bu alanların hiçbiri anlamlı değil (Cinsiyet Dağılımı ve
+                                                    Derece 2*teamSize'a göre hesaplanıyor, Geç İptal Cezası da takım
+                                                    kurulduktan sonraki bir kural) — kullanıcı isteğiyle Takım Büyüklüğü
+                                                    seçilene kadar hiçbiri gösterilmiyor. */}
+                                                {!!f.teamSize && (
                                                 <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'subCount' ? 51 : 1 }]}>
                                                     <TouchableOpacity onPress={() => toggleActivePopup('subCount')}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.subCount && s.triPlaceholder]} numberOfLines={1}>
@@ -7788,6 +7794,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         onClose={() => setActivePopup(null)}
                                                     />
                                                 </View>
+                                                )}
                                                 {!!f.teamSize && (
                                                     <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: showGenderCountPicker ? 51 : 1 }]}>
                                                         <TouchableOpacity onPress={() => setShowGenderCountPicker(true)}>
@@ -7805,6 +7812,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         />
                                                     </View>
                                                 )}
+                                                {!!f.teamSize && (
                                                 <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center' }, ((f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]} onPress={() => setShowRatingRange(true)}>
                                                     <Text style={[s.triValue, { fontSize:11 }, ((f.ratingGenderSplit ? !(f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : !(f.minRating || f.maxRating)) && s.triPlaceholder)]} numberOfLines={1}>
                                                         {f.ratingGenderSplit
@@ -7812,7 +7820,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             : ((!f.minRating && !f.maxRating) ? `${t.ratingLimitLabel} ${t.courtSurfaceSelectPlaceholder}` : `${f.minRating || '0'}–${f.maxRating || '10'}`)}
                                                     </Text>
                                                 </TouchableOpacity>
-                                                {!isMatchedEdit && (
+                                                )}
+                                                {!!f.teamSize && !isMatchedEdit && (
                                                     <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center' }, f.cancelPenaltyHours !== '' && s.triBtnFilled]}
                                                         onPress={() => {
                                                             const presets = [1,2,3,4,5,6,7,8,9,10,12,24,30,36,48].map(String);
