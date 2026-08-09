@@ -722,7 +722,8 @@ export const updateRivalRequest = async (req, res, next) => {
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
                 matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq, requiredMaleCount, winsNeeded,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment, refereeFeeIncluded, manualRefereeName,
-                teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes, cancelPenaltyHours, subCount } = req.body;
+                teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes, cancelPenaltyHours, subCount,
+                founderTeamName, opponentTeamName } = req.body;
 
         let cleanExtraServices;
         if (extraServices !== undefined) {
@@ -773,6 +774,8 @@ export const updateRivalRequest = async (req, res, next) => {
             where: { id },
             data: {
                 ...(message !== undefined && { message }),
+                ...(founderTeamName !== undefined && { founderTeamName: founderTeamName ? founderTeamName.trim().slice(0, 24) || null : null }),
+                ...(opponentTeamName !== undefined && { opponentTeamName: opponentTeamName ? opponentTeamName.trim().slice(0, 24) || null : null }),
                 ...(matchDate !== undefined && { matchDate: matchDate ? new Date(matchDate) : null }),
                 ...(matchTime !== undefined && { matchTime }),
                 ...(duration !== undefined && { duration: duration !== null && duration !== '' ? parseInt(duration, 10) : null }),
@@ -1244,6 +1247,7 @@ export const createRivalRequest = async (req, res, next) => {
             participantsCanInvite, // true ise kabul edilmiş katılımcılar da oyuncu davet edebilir / ilanı paylaşabilir
             cancelPenaltyHours, // voleybol: maça kaç saat kala tek taraflı iptalin cezalı (-0.10★) sayılacağı — null/undefined = genel 5 saat/-0.20 kuralı geçerli
             subCount, // voleybol: istenen yedek oyuncu kontenjanı (substitutePlayers doluluğundan bağımsız)
+            founderTeamName, opponentTeamName, // voleybol/DOUBLE: takım isimleri artık ilan oluştururken de baştan girilebiliyor (önceden sadece ilan açıldıktan sonra setTeamName ile değiştirilebiliyordu)
         } = req.body;
         console.log(`[rival] createRivalRequest creatorId=${creatorId} sub=${subCategory}`);
 
@@ -1351,6 +1355,8 @@ export const createRivalRequest = async (req, res, next) => {
                 ...(subCategory === 'volleyball' && cancelPenaltyHours !== undefined && cancelPenaltyHours !== null && cancelPenaltyHours !== ''
                     && { cancelPenaltyHours: parseInt(cancelPenaltyHours, 10) }),
                 ...(subCategory === 'volleyball' && { substituteCount: Math.max(0, parseInt(subCount, 10) || 0) }),
+                ...(founderTeamName && founderTeamName.trim() && { founderTeamName: founderTeamName.trim().slice(0, 24) }),
+                ...(opponentTeamName && opponentTeamName.trim() && { opponentTeamName: opponentTeamName.trim().slice(0, 24) }),
                 ...(req.body.duration && { duration: Number(req.body.duration) }),
                 participants: [],
                 // DOUBLE + partnerInviteId: partner henüz kabul etmedi, senderTeam boş.
@@ -3944,6 +3950,17 @@ export const assignPlayerToSide = async (req, res, next) => {
         const nextSenderTeam = senderTeam.filter(p => p?.id !== userId);
         const nextParticipants = participants.filter(p => p?.id !== userId);
         const nextUnassigned = unassigned.filter(p => p?.id !== userId);
+        // Her tarafın kontenjanı Takım Büyüklüğü ile sınırlı — kurucu zaten 1 kişilik sabit
+        // slotu tuttuğu için senderTeam en fazla (teamSize-1) kişi alır, Rakip Takımı ise
+        // tam teamSize. Önceden bu hiç kontrol edilmiyordu, bir tarafa teamSize'ı aşacak
+        // sayıda oyuncu (ör. 6v6'da 8 kişi) atanabiliyordu.
+        const teamSizeN = rival.teamSize || 1;
+        if (side === 'my' && nextSenderTeam.length > teamSizeN - 1) {
+            return res.status(400).json({ message: `Kurucu Takımı zaten dolu (${teamSizeN} kişilik kontenjan).` });
+        }
+        if (side === 'opp' && nextParticipants.length > teamSizeN) {
+            return res.status(400).json({ message: `Rakip Takımı zaten dolu (${teamSizeN} kişilik kontenjan).` });
+        }
         if (side === 'my') nextSenderTeam.push(player);
         else if (side === 'opp') nextParticipants.push(player);
         else nextUnassigned.push(player);
