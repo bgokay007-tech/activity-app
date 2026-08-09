@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Animated, PanResponder, Dimensions } from 'react-native';
 import { mediaDevices, RTCPeerConnection, RTCView, RTCIceCandidate, RTCSessionDescription } from 'react-native-webrtc';
+import * as Location from 'expo-location';
+import api from '../../services/api';
 import { getSocket, onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
@@ -63,18 +65,27 @@ export default function FriendFindingLiveScreen({ navigation }) {
         return pc;
     }, []);
 
-    // İlk açılış: kamera/mikrofon izni + yerel akış, sonra kuyruğa gir.
+    // İlk açılış: konum + kamera/mikrofon izni + yerel akış, sonra kuyruğa gir. Konum
+    // burada da (Arkadaş Bulma ana ekranındaki ensureLocation ile aynı şekilde) tazeden
+    // alınıp sunucuya gönderiliyor — kullanıcı bu ekrana ana ekrana hiç uğramadan direkt
+    // gelirse sunucudaki konum boş kalıp eşleştirme hiç tetiklenmiyordu.
     useEffect(() => {
         let cancelled = false;
         (async () => {
             try {
+                const locPerm = await Location.requestForegroundPermissionsAsync();
+                if (!locPerm.granted) { if (!cancelled) setErrorMsg(t.ffLocationRequired || 'Konum izni gerekiyor.'); return; }
+                const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                if (cancelled) return;
+                await api.post('/friend-finding/location', { lat: pos.coords.latitude, lng: pos.coords.longitude });
+
                 const stream = await mediaDevices.getUserMedia({ audio: true, video: { facingMode: 'user' } });
                 if (cancelled) { stream.getTracks().forEach(tr => tr.stop()); return; }
                 localStreamRef.current = stream;
                 setPhase('queued');
                 getSocket()?.emit('ff:live:ready');
             } catch {
-                if (!cancelled) setErrorMsg(t.ffLiveCameraDenied || 'Canlı eşleş için kamera/mikrofon izni gerekiyor.');
+                if (!cancelled) setErrorMsg(t.ffLocationFailed || t.ffLiveCameraDenied || 'Konum/kamera alınamadı.');
             }
         })();
         return () => { cancelled = true; cleanupAll(); };

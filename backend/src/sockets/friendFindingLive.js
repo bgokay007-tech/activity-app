@@ -109,6 +109,7 @@ export function registerFriendFindingLiveHandlers(io, socket) {
             prisma.friendFindingProfile.findUnique({ where: { userId: verifiedUserId } }),
         ]);
         if (!profile) return socket.emit('ff:live:error', { message: 'Önce Arkadaş Bulma anketini tamamlamalısın' });
+        if (!profile.active) return socket.emit('ff:live:error', { message: 'Arkadaş Bulma profilin kapalı — önce ana ekrandan aç' });
         if (user.lat == null || user.lng == null) return socket.emit('ff:live:error', { message: 'Konum gerekli' });
 
         queue.push({ userId: verifiedUserId, socket, user, profile });
