@@ -13,6 +13,7 @@ import api from '../../services/api';
 import RainbowLogo from '../../components/RainbowLogo';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
 import useT from '../../hooks/useT';
+import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 
 // ── Statik kategori + dal tanımları (her zaman gösterilir) ──
 const STATIC_CATS = [
@@ -1299,7 +1300,7 @@ export default function ActivityFeedScreen({ navigation }) {
                                                 key={`rival-${it.id}`}
                                                 coordinate={{ latitude: it.courtLat, longitude: it.courtLng }}
                                                 pinColor={catMeta.color}
-                                                title={`${it.subCategory} · ${it.sender?.fullName || it.sender?.username || ''}`}
+                                                title={`${getSubCategoryLabel(it.subCategory, lang)} · ${it.sender?.fullName || it.sender?.username || ''}`}
                                                 description={it.courtName || it.location || ''}
                                                 onCalloutPress={() => {
                                                     setShowActivityMap(false);

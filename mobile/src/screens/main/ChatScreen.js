@@ -6,6 +6,7 @@ import { Audio } from 'expo-av';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
+import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import { onSocket } from '../../services/socket';
 
 function Avatar({ user, size = 36 }) {
@@ -535,7 +536,7 @@ export default function ChatScreen({ route, navigation }) {
                 <View style={styles.rivalBanner}>
                     <Text style={styles.rivalBannerLabel}>📋 İlan Detayı</Text>
                     <View style={styles.rivalBannerRow}>
-                        <Text style={styles.rivalBannerChip}>🏅 {rival.subCategory}{rival.matchType && rival.matchType !== 'PLAYER_WANTED' ? ` · ${rival.matchType === 'DOUBLE' ? '2v2' : '1v1'}` : ''}{rival.level ? ` · ${rival.level}` : ''}</Text>
+                        <Text style={styles.rivalBannerChip}>🏅 {getSubCategoryLabel(rival.subCategory, t.lang)}{rival.matchType && rival.matchType !== 'PLAYER_WANTED' ? ` · ${rival.matchType === 'DOUBLE' ? '2v2' : '1v1'}` : ''}{rival.level ? ` · ${rival.level}` : ''}</Text>
                         {rival.flexibleSchedule ? (
                             <Text style={styles.rivalBannerChip}>📅 Esnek tarih</Text>
                         ) : rival.matchDate ? (

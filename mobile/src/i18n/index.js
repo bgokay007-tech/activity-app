@@ -1,4 +1,5 @@
 const en = {
+    lang: 'en',
     // Tab bar
     home: 'Home', messages: 'Messages', alerts: 'Alerts', profile: 'Profile',
 
@@ -1335,6 +1336,7 @@ const en = {
 };
 
 const tr = {
+    lang: 'tr',
     // Tab bar
     home: 'Ana Sayfa', messages: 'Mesajlar', alerts: 'Bildirimler', profile: 'Profil',
 

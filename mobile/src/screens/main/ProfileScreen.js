@@ -2817,7 +2817,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             {/* Sport + badges */}
                                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
                                                 <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'800' }}>
-                                                    {SUB_EMOJI[m.subCategory] || '🏅'} {m.subCategory}
+                                                    {SUB_EMOJI[m.subCategory] || '🏅'} {getSubCategoryLabel(m.subCategory, lang)}
                                                 </Text>
                                             </View>
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
@@ -2926,7 +2926,7 @@ export default function ProfileScreen({ route, navigation }) {
                                     return (
                                         <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:9 }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6, flexWrap:'wrap' }}>
-                                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'800' }}>{SUB_EMOJI[m.subCategory] || '🏅'} {m.subCategory}</Text>
+                                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'800' }}>{SUB_EMOJI[m.subCategory] || '🏅'} {getSubCategoryLabel(m.subCategory, lang)}</Text>
                                                 <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text>
                                                 <Text style={{ color: colors.purple, fontSize:11, fontWeight:'700' }}>{sizeTxt2}</Text>
                                                 {modeTxt2 ? <><Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text><Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:11, fontWeight:'700' }}>{modeTxt2}</Text></> : null}
@@ -2988,7 +2988,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                         </View>
                                                     ) : null}
                                                 </View>
-                                                <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'700' }}>{SUB_EMOJI[tourn.subCategory] || '🏅'} {tourn.subCategory}</Text>
+                                                <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'700' }}>{SUB_EMOJI[tourn.subCategory] || '🏅'} {getSubCategoryLabel(tourn.subCategory, lang)}</Text>
                                                 <Text style={{ color: colors.textMuted, fontSize:11 }}>
                                                     👤 {tourn.creator?.fullName || tourn.creator?.username}
                                                     {tourn.city ? `  📍 ${tourn.city}` : ''}
@@ -3093,7 +3093,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                 <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:9, paddingVertical:3, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50', marginBottom:14 }}>
                                                     <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>✅ Tamamlandı</Text>
                                                 </View>
-                                                {tourn.subCategory ? row('🏅 Dal', `${SUB_EMOJI[tourn.subCategory] || ''} ${tourn.subCategory}`) : null}
+                                                {tourn.subCategory ? row('🏅 Dal', `${SUB_EMOJI[tourn.subCategory] || ''} ${getSubCategoryLabel(tourn.subCategory, lang)}`) : null}
                                                 {row('👤 Organizatör', tourn.creator?.fullName || tourn.creator?.username)}
                                                 {tourn.city ? row('📍 Şehir', tourn.city) : null}
                                                 {tourn.location ? row('🏟️ Mekan', tourn.location) : null}
@@ -3713,7 +3713,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 <View key={i.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                     <Text style={{ fontSize:22, marginRight:10 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>
                                     <View style={{ flex:1 }}>
-                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{i.subCategory}</Text>
+                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{getSubCategoryLabel(i.subCategory, lang)}</Text>
                                         <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.levelTr?.[i.level] || i.level}{i.skillRating != null ? `  ${Number(i.skillRating).toFixed(2)}★` : ''}</Text>
                                     </View>
                                 </View>
@@ -3788,7 +3788,7 @@ export default function ProfileScreen({ route, navigation }) {
                                     style={[s.branchOption, storyBranch?.subCategory === i.subCategory && s.branchOptionActive]}
                                     onPress={() => setStoryBranch({ category: i.category, subCategory: i.subCategory })}
                                 >
-                                    <Text style={s.branchOptionText}>{SUB_EMOJI[i.subCategory] || '🏅'} {i.subCategory}</Text>
+                                    <Text style={s.branchOptionText}>{SUB_EMOJI[i.subCategory] || '🏅'} {getSubCategoryLabel(i.subCategory, lang)}</Text>
                                     {storyBranch?.subCategory === i.subCategory && <Text style={{ color: colors.purple }}>✓</Text>}
                                 </TouchableOpacity>
                             ))}
@@ -4448,7 +4448,7 @@ export default function ProfileScreen({ route, navigation }) {
                                     style={[s.branchOption, reelBranch?.subCategory === i.subCategory && s.branchOptionActive]}
                                     onPress={() => setReelBranch({ category: i.category, subCategory: i.subCategory })}
                                 >
-                                    <Text style={s.branchOptionText}>{SUB_EMOJI[i.subCategory] || '🏅'} {i.subCategory}</Text>
+                                    <Text style={s.branchOptionText}>{SUB_EMOJI[i.subCategory] || '🏅'} {getSubCategoryLabel(i.subCategory, lang)}</Text>
                                     {reelBranch?.subCategory === i.subCategory && <Text style={{ color: colors.purple }}>✓</Text>}
                                 </TouchableOpacity>
                             ))}
@@ -4513,7 +4513,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                 }
                                                 <View style={s.archiveLabel}>
                                                     <Text style={{ color: '#fff', fontSize: 9, fontWeight: '700' }}>
-                                                        {SUB_EMOJI[story.subCategory] || ''} {story.subCategory}
+                                                        {SUB_EMOJI[story.subCategory] || ''} {getSubCategoryLabel(story.subCategory, lang)}
                                                     </Text>
                                                 </View>
                                             </View>

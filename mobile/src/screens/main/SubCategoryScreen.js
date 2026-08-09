@@ -28,6 +28,7 @@ import ExtraServicesEditor from '../../components/ExtraServicesEditor';
 import TrailsTab from './TrailsTab';
 import { shareRival, shareTournament } from '../../utils/share';
 import { computeVarDurationPrice } from '../../utils/priceProration';
+import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -341,7 +342,7 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
                                 <View style={{ gap: 3, width: '100%' }}>
                                     {profile.interests.filter(i => i.lateCancelCount > 0).map(i => (
                                         <View key={i.id} style={{ backgroundColor:'#dc262615', borderRadius:10, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor:'#dc262640', flexDirection:'row', justifyContent:'space-between' }}>
-                                            <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>{i.subCategory}</Text>
+                                            <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>{getSubCategoryLabel(i.subCategory, t.lang)}</Text>
                                             <Text style={{ color:'#f87171', fontSize:12, fontWeight:'800' }}>{t.lateCancelLabel(i.lateCancelCount)}</Text>
                                         </View>
                                     ))}
@@ -374,7 +375,7 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
                                     {profile.interests.map(i => (
                                         <View key={i.id} style={s.profileInterestRow}>
                                             <View style={{ flex: 1 }}>
-                                                <Text style={s.profileInterestName}>{i.subCategory}</Text>
+                                                <Text style={s.profileInterestName}>{getSubCategoryLabel(i.subCategory, t.lang)}</Text>
                                                 {(i.wins > 0 || i.losses > 0) && (
                                                     <Text style={s.profileWL}>{i.wins}G · {i.losses}M</Text>
                                                 )}
@@ -1055,7 +1056,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <Text style={{ color:'#fff', fontSize:moderateScale(22), fontWeight:'300' }}>←</Text>
                     </TouchableOpacity>
                     <View style={{ flex:1 }}>
-                        <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800' }}>{item.subCategory}</Text>
+                        <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800' }}>{getSubCategoryLabel(item.subCategory, t.lang)}</Text>
                         <Text style={{ color: colors.textMuted, fontSize:moderateScale(12), marginTop:1 }}>{senderAlias(item.sender)}</Text>
                     </View>
                 </View>
@@ -3732,7 +3733,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
                     </TouchableOpacity>
                     <View style={{ flex:1 }}>
-                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800' }}>{match.subCategory}</Text>
+                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800' }}>{getSubCategoryLabel(match.subCategory, t.lang)}</Text>
                         <Text style={{ color: colors.textMuted, fontSize:12 }}>
                             {allPlayers.filter(p => !p._emptySlot).map(p => senderAlias(p)).join(' · ')}
                         </Text>
@@ -16912,7 +16913,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <TouchableOpacity key={l.id}
                                             onPress={() => { setCvUploadListingId(l.id); setCvUploadType(type); }}
                                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:9, paddingHorizontal:10, backgroundColor:colors.surface2, borderRadius:8, borderWidth:1, borderColor:colors.border, marginBottom:6 }}>
-                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{l.subCategory}{l.cvUrl ? '  ✓' : ''}</Text>
+                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{getSubCategoryLabel(l.subCategory, t.lang)}{l.cvUrl ? '  ✓' : ''}</Text>
                                             <Text style={{ color: l.cvUrl ? '#4ade80' : cfg.color, fontSize:11, fontWeight:'700' }}>{l.cvUrl ? 'Değiştir' : 'CV Yükle'}</Text>
                                         </TouchableOpacity>
                                     );
@@ -18528,7 +18529,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
                                 </TouchableOpacity>
                                 <View style={{ flex:1 }}>
-                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'800' }}>{commentMatch.subCategory}</Text>
+                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'800' }}>{getSubCategoryLabel(commentMatch.subCategory, t.lang)}</Text>
                                     <Text style={{ color: colors.textMuted, fontSize:12, marginTop:1 }}>
                                         {allP2.map(p => senderAlias(p)).join(' · ')}
                                     </Text>
@@ -18950,7 +18951,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : <View style={{ alignItems: 'center' }}><Text style={{ fontSize: 60 }}>🎬</Text><Text style={{ color: '#fff', marginTop: 8 }}>Video</Text></View>
                                 }
                                 <Text style={{ color: '#ffffff90', fontSize: 12, fontWeight: '700', marginTop: 8 }}>
-                                    {mp.user?.username} · {mp.subCategory}
+                                    {mp.user?.username} · {getSubCategoryLabel(mp.subCategory, t.lang)}
                                 </Text>
 
                                 {/* Like + Comment bar */}
