@@ -1,0 +1,1 @@
+import prisma from './src/config/prisma.js'; async function main() { const users = await prisma.user.findMany({ include: { friendFindingProfile: true } }); console.log(JSON.stringify(users, null, 2)); } main();

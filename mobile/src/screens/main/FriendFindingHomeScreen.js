@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import FriendFindingFilterModal from '../../components/FriendFindingFilterModal';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -15,6 +16,7 @@ export default function FriendFindingHomeScreen({ navigation }) {
     const [loading, setLoading]       = useState(true);
     const [swiping, setSwiping]       = useState(false);
     const [locationReady, setLocationReady] = useState(false);
+    const [filterVisible, setFilterVisible] = useState(false);
 
     const ensureLocation = async () => {
         try {
@@ -64,6 +66,15 @@ export default function FriendFindingHomeScreen({ navigation }) {
         } catch (e) { console.error(e); }
     };
 
+    const handleApplyFilter = async (payload) => {
+        setFilterVisible(false);
+        try {
+            const { data } = await api.patch('/friend-finding/profile', payload);
+            setProfile(data);
+            loadCandidates();
+        } catch (e) { console.error(e); }
+    };
+
     const current = candidates[index];
 
     const doSwipe = async (decision) => {
@@ -88,6 +99,9 @@ export default function FriendFindingHomeScreen({ navigation }) {
                     <Text style={s.backText}>{t.back}</Text>
                 </TouchableOpacity>
                 <Text style={s.title}>{t.ffHomeTitle}</Text>
+                <TouchableOpacity onPress={() => setFilterVisible(true)} style={s.filterBtn}>
+                    <Text style={s.filterBtnText}>⚙️ Filtreler</Text>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => navigation.navigate('FriendFindingMatches')} style={s.matchesLink}>
                     <Text style={s.matchesLinkText}>{t.ffMatchesTab}</Text>
                 </TouchableOpacity>
@@ -157,6 +171,13 @@ export default function FriendFindingHomeScreen({ navigation }) {
                     </View>
                 </ScrollView>
             )}
+
+            <FriendFindingFilterModal 
+                visible={filterVisible} 
+                onClose={() => setFilterVisible(false)} 
+                profile={profile} 
+                onApply={handleApplyFilter} 
+            />
         </View>
     );
 }
@@ -167,6 +188,8 @@ const s = StyleSheet.create({
     back:          {},
     backText:      { color: colors.purple, fontSize: 15, fontWeight: '700' },
     title:         { color: '#fff', fontSize: 18, fontWeight: '900', flex: 1, textAlign: 'center' },
+    filterBtn:     { marginRight: 12 },
+    filterBtnText: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
     matchesLink:   {},
     matchesLinkText: { color: '#d97706', fontSize: 13, fontWeight: '700' },
 

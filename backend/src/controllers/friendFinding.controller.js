@@ -121,7 +121,7 @@ export const getCandidates = async (req, res, next) => {
 
         const [blocks, swipes] = await Promise.all([
             prisma.block.findMany({ where: { OR: [{ blockerId: req.userId }, { blockedId: req.userId }] } }),
-            prisma.friendFindingSwipe.findMany({ where: { swiperId: req.userId }, select: { targetId: true } }),
+            prisma.friendFindingSwipe.findMany({ where: { swiperId: req.userId, decision: 'LIKE' }, select: { targetId: true } }),
         ]);
         const excludeIds = new Set([
             req.userId,
