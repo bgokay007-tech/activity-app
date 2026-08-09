@@ -1509,12 +1509,12 @@ export const createRivalRequest = async (req, res, next) => {
                 const me = request.sender;
                 createNotification(
                     partnerInviteId, 'MATCH_INVITE',
-                    '🤝 Partner Daveti',
+                    `🤝 ${subCategoryTR(request.subCategory)} Partner Daveti`,
                     `@${me?.username || 'Biri'} sizi çiftler maçında partner olmaya davet etti.`,
                     { category: request.category, subCategory: request.subCategory, rivalId: request.id }
                 ).catch(() => {});
                 emitToUser(partnerInviteId, 'notification', {
-                    type: 'MATCH_INVITE', title: '🤝 Partner Daveti',
+                    type: 'MATCH_INVITE', title: `🤝 ${subCategoryTR(request.subCategory)} Partner Daveti`,
                     body: `@${me?.username || 'Biri'} sizi çiftler maçında partner olmaya davet etti.`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });
@@ -1542,12 +1542,12 @@ export const createRivalRequest = async (req, res, next) => {
                 const me = request.sender;
                 createNotification(
                     oppInviteId, 'MATCH_INVITE',
-                    '🎾 Maç Daveti',
+                    `🎾 ${subCategoryTR(request.subCategory)} Maç Daveti`,
                     `@${me?.username || 'Biri'} sizi bir maça davet etti.`,
                     { category: request.category, subCategory: request.subCategory, rivalId: request.id }
                 ).catch(() => {});
                 emitToUser(oppInviteId, 'notification', {
-                    type: 'MATCH_INVITE', title: '🎾 Maç Daveti',
+                    type: 'MATCH_INVITE', title: `🎾 ${subCategoryTR(request.subCategory)} Maç Daveti`,
                     body: `@${me?.username || 'Biri'} sizi bir maça davet etti.`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });
@@ -1577,13 +1577,13 @@ export const createRivalRequest = async (req, res, next) => {
                 const me = request.sender;
                 createNotification(
                     oppInviteId, 'MATCH_INVITE',
-                    `${teamInviteEmoji} Maç Daveti`,
-                    `@${me?.username || 'Biri'} sizi bir takım maçına davet etti.`,
+                    `${teamInviteEmoji} ${subCategoryTR(request.subCategory)} Maç Daveti`,
+                    `@${me?.username || 'Biri'} sizi Rakip Takım'a davet etti.`,
                     { category: request.category, subCategory: request.subCategory, rivalId: request.id }
                 ).catch(() => {});
                 emitToUser(oppInviteId, 'notification', {
-                    type: 'MATCH_INVITE', title: `${teamInviteEmoji} Maç Daveti`,
-                    body: `@${me?.username || 'Biri'} sizi bir takım maçına davet etti.`,
+                    type: 'MATCH_INVITE', title: `${teamInviteEmoji} ${subCategoryTR(request.subCategory)} Maç Daveti`,
+                    body: `@${me?.username || 'Biri'} sizi Rakip Takım'a davet etti.`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });
             }).catch(() => {});
@@ -1611,13 +1611,13 @@ export const createRivalRequest = async (req, res, next) => {
                 const me = request.sender;
                 createNotification(
                     founderInviteId, 'MATCH_INVITE',
-                    `${teamInviteEmoji} Takım Daveti`,
-                    `@${me?.username || 'Biri'} sizi kendi takımında bir maça davet etti.`,
+                    `${teamInviteEmoji} ${subCategoryTR(request.subCategory)} Takım Daveti`,
+                    `@${me?.username || 'Biri'} sizi Kurucu Takım'a davet etti.`,
                     { category: request.category, subCategory: request.subCategory, rivalId: request.id }
                 ).catch(() => {});
                 emitToUser(founderInviteId, 'notification', {
-                    type: 'MATCH_INVITE', title: `${teamInviteEmoji} Takım Daveti`,
-                    body: `@${me?.username || 'Biri'} sizi kendi takımında bir maça davet etti.`,
+                    type: 'MATCH_INVITE', title: `${teamInviteEmoji} ${subCategoryTR(request.subCategory)} Takım Daveti`,
+                    body: `@${me?.username || 'Biri'} sizi Kurucu Takım'a davet etti.`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });
             }).catch(() => {});
@@ -1644,12 +1644,12 @@ export const createRivalRequest = async (req, res, next) => {
                 const me = request.sender;
                 createNotification(
                     subInviteId, 'MATCH_INVITE',
-                    '🏐 Yedek Daveti',
+                    `🏐 ${subCategoryTR(request.subCategory)} Yedek Daveti`,
                     `@${me?.username || 'Biri'} sizi bir maçta yedek oyuncu olmaya davet etti.`,
                     { category: request.category, subCategory: request.subCategory, rivalId: request.id }
                 ).catch(() => {});
                 emitToUser(subInviteId, 'notification', {
-                    type: 'MATCH_INVITE', title: '🏐 Yedek Daveti',
+                    type: 'MATCH_INVITE', title: `🏐 ${subCategoryTR(request.subCategory)} Yedek Daveti`,
                     body: `@${me?.username || 'Biri'} sizi bir maçta yedek oyuncu olmaya davet etti.`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });
@@ -1679,12 +1679,12 @@ export const createRivalRequest = async (req, res, next) => {
                 const me = request.sender;
                 createNotification(
                     unassignedInviteId, 'MATCH_INVITE',
-                    `${teamInviteEmoji} Maç Daveti`,
+                    `${teamInviteEmoji} ${subCategoryTR(request.subCategory)} Maç Daveti`,
                     `@${me?.username || 'Biri'} sizi bir maça davet etti — takımınız yakında belli olacak.`,
                     { category: request.category, subCategory: request.subCategory, rivalId: request.id }
                 ).catch(() => {});
                 emitToUser(unassignedInviteId, 'notification', {
-                    type: 'MATCH_INVITE', title: `${teamInviteEmoji} Maç Daveti`,
+                    type: 'MATCH_INVITE', title: `${teamInviteEmoji} ${subCategoryTR(request.subCategory)} Maç Daveti`,
                     body: `@${me?.username || 'Biri'} sizi bir maça davet etti — takımınız yakında belli olacak.`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });

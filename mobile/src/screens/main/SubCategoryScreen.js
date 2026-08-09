@@ -2773,14 +2773,25 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </View>
                 ) : isLinkedMatchPlayer ? (
                     <Text style={{ color: colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }} numberOfLines={2}>Bu maça oyuncu olarak katıldığınız için hakemlik başvurusu yapamazsınız.</Text>
-                ) : myInvite ? (
-                    <TouchableOpacity
-                        style={{ backgroundColor:'#16a34a', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }}
-                        onPress={() => setDetailVisible(true)}
-                    >
-                        <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.invitedBadge}</Text>
-                    </TouchableOpacity>
-                ) : mySentReq === 'AWAITING_JOINER_CONFIRM' ? (
+                ) : myInvite ? (() => {
+                    // Kullanıcı isteğiyle davet rozeti artık hangi takıma/role davet edildiğini
+                    // açıkça yazıyor — önceden hepsi aynı genel "Davet Edildi" yazısıydı, oyuncu
+                    // Kurucu mu Rakip mi olacağını ancak detaya girip bakınca anlayabiliyordu.
+                    const teamHint = (item.teamSize || 1) > 1
+                        ? (myInvite.isPartnerInvite ? ` (${t.founderTeamShortLabel})`
+                            : myInvite.isSubstituteInvite ? ` (${t.subsLabel})`
+                            : myInvite.isUnassignedInvite ? ''
+                            : ` (${t.opponentTeamShortLabel})`)
+                        : (myInvite.isPartnerInvite ? ` (${t.founderTeamShortLabel})` : '');
+                    return (
+                        <TouchableOpacity
+                            style={{ backgroundColor:'#16a34a', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }}
+                            onPress={() => setDetailVisible(true)}
+                        >
+                            <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.invitedBadge}{teamHint}</Text>
+                        </TouchableOpacity>
+                    );
+                })() : mySentReq === 'AWAITING_JOINER_CONFIRM' ? (
                     <View style={{ gap:3 }}>
                         <Text style={{ color:'#f59e0b', fontSize:moderateScale(9), textAlign:'center', marginBottom:2 }}>{t.awaitingYourConfirm}</Text>
                         <View style={{ flexDirection:'row', gap:3 }}>
