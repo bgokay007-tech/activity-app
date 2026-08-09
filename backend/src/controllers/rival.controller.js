@@ -304,6 +304,41 @@ function teamFilledCount(request, overrides = {}) {
         + manualOppNames.length;
 }
 
+// Voleybol/airsoft (teamSize>1) bireysel kabul: ilanda Cinsiyet Dağılımı (requiredMaleCount)
+// kısıtlaması varsa, kabul edilecek oyuncunun cinsiyeti o kotayı doldurmuşsa reddedilir —
+// önceden bu hiç kontrol edilmiyordu, ör. 6 kadın hedefiyle açılan bir ilana 8-9 kadın kabul
+// edilebiliyordu. Mevcut kadronun cinsiyetleri (participants/senderTeam/unassignedPlayers'a
+// accept akışıyla eklenen kayıtlarda gender saklanmıyor) User tablosundan taze çekilir.
+async function checkGenderCountQuota(rival, newJoinerGender) {
+    if (!['volleyball', 'airsoft'].includes(rival.subCategory)) return null;
+    if ((rival.teamSize || 1) <= 1) return null;
+    if (rival.requiredMaleCount == null) return null;
+    if (newJoinerGender === 'OTHER') return null; // mevcut tek-slot cinsiyet kontrolleriyle aynı: OTHER kotaya dahil değil
+    if (!newJoinerGender) {
+        return 'Bu ilanda cinsiyet dağılımı kısıtlaması var, profilinde cinsiyet bilgisi girilmemiş oyuncular kabul edilemiyor.';
+    }
+
+    const totalSlots = 2 * rival.teamSize;
+    const femaleQuota = totalSlots - rival.requiredMaleCount;
+    const existingIds = [
+        rival.senderId,
+        ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []).map(p => p?.id).filter(Boolean),
+        ...(Array.isArray(rival.participants) ? rival.participants : []).map(p => p?.id).filter(Boolean),
+        ...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []).map(p => p?.id).filter(Boolean),
+    ];
+    const existingUsers = await prisma.user.findMany({ where: { id: { in: existingIds } }, select: { gender: true } });
+    const maleCount = existingUsers.filter(u => u.gender === 'MALE').length;
+    const femaleCount = existingUsers.filter(u => u.gender === 'FEMALE').length;
+
+    if (newJoinerGender === 'MALE' && maleCount >= rival.requiredMaleCount) {
+        return `Bu ilanda erkek kontenjanı (${rival.requiredMaleCount}) zaten doldu — kabul etmeden önce ayarlardan cinsiyet dağılımını artırman gerekiyor.`;
+    }
+    if (newJoinerGender === 'FEMALE' && femaleCount >= femaleQuota) {
+        return `Bu ilanda kadın kontenjanı (${femaleQuota}) zaten doldu — kabul etmeden önce ayarlardan cinsiyet dağılımını artırman gerekiyor.`;
+    }
+    return null;
+}
+
 // DOUBLE maçta bireysel/takım kabul için cinsiyet uyumlu slot ataması — hem respondToJoin
 // (hemen kabul) hem confirmLateJoin (joiner'ın geç-kabul onayı; durum o an yeniden kontrol
 // edilmeli, çünkü aradan geçen sürede başka slotlar dolmuş olabilir) tarafından ortak
@@ -1910,7 +1945,15 @@ export const sendJoinRequest = async (req, res, next) => {
             request = refAd;
         }
 
-        if (request.status !== 'OPEN') return res.status(400).json({ message: 'This request is no longer open' });
+        // Voleybol/airsoft (teamSize>1): maç zaten eşleşmiş (MATCHED) olsa bile, hâlâ boş Yedek
+        // kontenjanı varsa oyuncular yedek olarak başvurabilir — önceden MATCHED'a geçince TÜM
+        // başvurular (yedek dahil) tamamen kapanıyordu, ilan sahibi ancak kendi daveti üzerinden
+        // yedek bulabiliyordu.
+        const subSlotOpenForRequest = req.body.asSubstitute
+            && ['volleyball', 'airsoft'].includes(request.subCategory)
+            && (request.teamSize || 1) > 1
+            && (Array.isArray(request.substitutePlayers) ? request.substitutePlayers.filter(p => p?.id).length : 0) < (request.substituteCount || 0);
+        if (request.status !== 'OPEN' && !subSlotOpenForRequest) return res.status(400).json({ message: 'This request is no longer open' });
         if (request.senderId === req.userId) return res.status(400).json({ message: 'You cannot join your own request' });
 
         await requireActiveInterest(req.userId, request.category, request.subCategory);
@@ -2066,10 +2109,10 @@ export const sendJoinRequest = async (req, res, next) => {
             // tarihe bakıp yanlışlıkla "geç kabul" (joiner'a son onay sorusu) akışına sokar.
             await prisma.rivalJoinRequest.update({
                 where: { rivalId_userId: { rivalId: id, userId: req.userId } },
-                data: { status: 'PENDING', joiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null, createdAt: new Date() },
+                data: { status: 'PENDING', joiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null, createdAt: new Date(), ...(subSlotOpenForRequest && { isSubstituteInvite: true }) },
             });
         } else {
-            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null } });
+            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null, ...(subSlotOpenForRequest && { isSubstituteInvite: true }) } });
         }
 
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: SENDER_SELECT });
@@ -2422,12 +2465,24 @@ export const respondToJoin = async (req, res, next) => {
             });
             emitToUser(joinReq.rival.senderId, 'rivalUpdate', updatedRival);
             emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: false });
-            createNotification(
-                joinReq.rival.senderId, 'MATCH_CONFIRMED',
-                '🪑 Yedek Kabul Etti',
-                `${joinReq.user.username} yedek oyuncu olarak katılmayı kabul etti.`,
-                { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
-            ).catch(() => {});
+            // Bu istek ilan sahibinin daveti (initiatedBy=OWNER) OLABİLİR, ya da oyuncunun kendisinin
+            // "Yedek Olarak Başvur" ile gönderdiği bir başvuru (initiatedBy=JOINER, MATCHED bir maça
+            // da gönderilebiliyor artık) OLABİLİR — bildirim doğru tarafa, doğru cümleyle gitmeli.
+            if (joinReq.initiatedBy === 'JOINER') {
+                createNotification(
+                    joinReq.userId, 'MATCH_CONFIRMED',
+                    '✓ Yedek Başvurun Kabul Edildi',
+                    `"${joinReq.rival.sender?.username || 'İlan sahibi'}" seni yedek oyuncu olarak kabul etti.`,
+                    { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
+                ).catch(() => {});
+            } else {
+                createNotification(
+                    joinReq.rival.senderId, 'MATCH_CONFIRMED',
+                    '🪑 Yedek Kabul Etti',
+                    `${joinReq.user.username} yedek oyuncu olarak katılmayı kabul etti.`,
+                    { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
+                ).catch(() => {});
+            }
             return res.json({ message: 'Yedek daveti kabul edildi.', request: updatedRival });
         }
 
@@ -2516,13 +2571,17 @@ export const respondToJoin = async (req, res, next) => {
             if (isTeamJoin && countFilled(participants) > 0) {
                 return res.status(400).json({ message: 'Bu ilanda zaten kabul edilmiş bireysel katılımcı(lar) var. Takım eşleşmesini kabul etmeden önce onları çıkarın.' });
             }
-            // Voleybol/airsoft (teamSize>1): getRequired() sadece "1 rakip temsilcisi" istiyor —
-            // ilk katılan MATCHED'ı tetiklemesi için normal şekilde participants'a girer. Maç
-            // zaten eşleştikten SONRA gelen ek katılımcılar artık otomatik Rakip Takım'a düşmez,
-            // "atanmamış" havuzuna eklenir — ilan sahibi Yaklaşan Maçlar kartından Kurucu/Rakip'e
-            // elle yerleştirir (kullanıcı onayıyla netleşen davranış değişikliği).
-            const isExtraTeamJoin = ['volleyball', 'airsoft'].includes(rival.subCategory) && (rival.teamSize || 1) > 1 && !isTeamJoin && countFilled(participants) > 0;
-            if (isExtraTeamJoin) {
+            // Voleybol/airsoft (teamSize>1): bireysel kabul artık HER ZAMAN (ilk katılan dahil)
+            // atanmamış havuzuna eklenir — hangi tarafta oynayacağı ilan sahibi ya da oyuncunun
+            // kendisi tarafından sonradan seçilir (assignUnassignedToSide), DOUBLE'daki atanmamış
+            // havuzuyla aynı mantık. Önceden SADECE ilk katılan doğrudan Rakip Takım'a (participants)
+            // yazılıyordu — "neden ilk kabul ettiğim oyuncu direkt rakibe atanıyor" şikayetine yol
+            // açan yanlış bir davranıştı; MATCHED eşiği zaten teamFilledCount ile (participants +
+            // unassigned + senderTeam toplamı) hesaplandığı için kimin nerede olduğunun bir önemi yok.
+            const isIndividualTeamJoin = ['volleyball', 'airsoft'].includes(rival.subCategory) && (rival.teamSize || 1) > 1 && !isTeamJoin;
+            if (isIndividualTeamJoin) {
+                const genderQuotaError = await checkGenderCountQuota(rival, u.gender);
+                if (genderQuotaError) return res.status(400).json({ message: genderQuotaError });
                 updatedParticipants = participants;
                 updatedUnassigned = [...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []), joinerEntry];
             } else {
@@ -2924,9 +2983,11 @@ export const confirmLateJoin = async (req, res, next) => {
             if (isTeamJoin && participants.length > 0) {
                 return res.status(400).json({ message: 'Bu ilanda zaten kabul edilmiş bireysel katılımcı(lar) var.' });
             }
-            // Bkz. respondToJoin'deki aynı isim ve gerekçeli kontrol.
-            const isExtraTeamJoin = ['volleyball', 'airsoft'].includes(rival.subCategory) && (rival.teamSize || 1) > 1 && !isTeamJoin && countFilled(participants) > 0;
-            if (isExtraTeamJoin) {
+            // Bkz. respondToJoin'deki aynı isim ve gerekçeli kontrol (artık ilk katılan dahil hep atanmamışa gidiyor).
+            const isIndividualTeamJoin = ['volleyball', 'airsoft'].includes(rival.subCategory) && (rival.teamSize || 1) > 1 && !isTeamJoin;
+            if (isIndividualTeamJoin) {
+                const genderQuotaError = await checkGenderCountQuota(rival, u.gender);
+                if (genderQuotaError) return res.status(400).json({ message: genderQuotaError });
                 updatedParticipants = participants;
                 updatedUnassigned = [...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []), joinerEntry];
             } else {
@@ -4258,6 +4319,17 @@ export const getMyUpcomingMatches = async (req, res, next) => {
                     where: { userId: { in: allUserIds } },
                     select: { userId: true, subCategory: true, skillRating: true },
                 }) : [];
+            // Voleybol/airsoft: maç MATCHED olduktan sonra gönderilen "Yedek Olarak Başvur"
+            // istekleri (bkz. sendJoinRequest'teki subSlotOpenForRequest) — ilan sahibinin
+            // bunları görüp kabul/red edebilmesi için PENDING olanlar listeye eklenir.
+            const subCandidateIds = mine.filter(m => ['volleyball', 'airsoft'].includes(m.subCategory) && (m.teamSize || 1) > 1).map(m => m.id);
+            const pendingSubReqs = subCandidateIds.length > 0
+                ? await prisma.rivalJoinRequest.findMany({
+                    where: { rivalId: { in: subCandidateIds }, isSubstituteInvite: true, status: 'PENDING' },
+                    include: { user: { select: SENDER_SELECT } },
+                }) : [];
+            const subReqsByRival = pendingSubReqs.reduce((acc, jr) => { (acc[jr.rivalId] ??= []).push(jr); return acc; }, {});
+
             const enriched = mine.map(m => ({
                 ...m,
                 senderSkillRating: interests.find(i => i.userId === m.senderId && i.subCategory === m.subCategory)?.skillRating ?? null,
@@ -4265,6 +4337,7 @@ export const getMyUpcomingMatches = async (req, res, next) => {
                     ...p,
                     skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
                 })),
+                joinRequests: subReqsByRival[m.id] || [],
             }));
             return res.json(enriched);
         } catch (_) {
