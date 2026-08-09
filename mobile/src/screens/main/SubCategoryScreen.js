@@ -8517,11 +8517,82 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             )}
                             </>)}
 
+                            {/* Airsoft: Takım Büyüklüğü + Cinsiyet Dağılımı + Derece + Kaç Oyun — voleybol
+                                satırındaki (Tarih·Saat·Süre) triBtn mantığına döndürüldü: başlık ayrı bir
+                                üst satır değil, değerle birlikte butonun İÇİNDE (triLabel+triValue), buton
+                                da içeriğe göre daralıp genişliyor (flex:0 — sabit eşit sütun yok). Takım
+                                Büyüklüğü'nde başlık yok, kullanıcı isteğiyle sadece "...v..." / "NvN" değeri
+                                gösteriliyor; formu yine TeamSizeModal (serbest sayı girişi). Kullanıcı isteğiyle
+                                kadro kartının (Digimon kart) ÜSTÜNDE — takım büyüklüğü belirlenmeden kart zaten
+                                render olmuyor, bu yüzden mantıken önce burası doldurulmalı. */}
+                            {!isMatchedEdit && sub === 'airsoft' && (
+                                <View style={[s.triRow, { flexWrap:'wrap', marginBottom:10, zIndex: showWinsNeededPicker ? 50 : 1 }]}>
+                                    <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.teamSize && s.triBtnFilled]}
+                                        onPress={() => setShowTeamSizeModal(true)}>
+                                        <Text style={[s.triValue, !f.teamSize && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                            {f.teamSize ? `${f.teamSize}v${f.teamSize}` : t.teamSizeManualPlaceholder}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TeamSizeModal
+                                        visible={showTeamSizeModal}
+                                        value={f.teamSize}
+                                        onConfirm={(n) => setTeamSize(n)}
+                                        onClose={() => setShowTeamSizeModal(false)}
+                                        t={t}
+                                    />
+                                    <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, !f.teamSize && { opacity:0.5 }]}
+                                        disabled={!f.teamSize} onPress={() => setShowGenderCountPicker(true)}>
+                                        <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.genderCountLabel}</Text>
+                                        <Text style={[s.triValue, { fontSize:10 }, f.requiredMaleCount == null && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                            {f.requiredMaleCount != null ? `👨${f.requiredMaleCount} 👩${2 * f.teamSize - f.requiredMaleCount}` : t.genderCountFreeLabel}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    {!!f.teamSize && (
+                                        <GenderCountModal
+                                            visible={showGenderCountPicker}
+                                            total={2 * f.teamSize}
+                                            value={f.requiredMaleCount}
+                                            onSelect={(v) => set('requiredMaleCount', v)}
+                                            onClose={() => setShowGenderCountPicker(false)}
+                                            t={t}
+                                        />
+                                    )}
+                                    <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }]}
+                                        onPress={() => setShowRatingRange(true)}>
+                                        <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
+                                        <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                            {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <View style={{ position:'relative', zIndex: showWinsNeededPicker ? 51 : 1 }}>
+                                        <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.winsNeeded && s.triBtnFilled]}
+                                            onPress={() => setShowWinsNeededPicker(v => !v)}>
+                                            <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.winsNeededLabel}</Text>
+                                            <Text style={[s.triValue, !f.winsNeeded && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                {f.winsNeeded ? String(f.winsNeeded) : t.courtSurfaceSelectPlaceholder}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <MiniDropdown
+                                            visible={showWinsNeededPicker}
+                                            options={WINS_NEEDED_OPTIONS.map(n => ({ value: n, label: String(n) }))}
+                                            value={f.winsNeeded}
+                                            onSelect={(v) => set('winsNeeded', v)}
+                                            onClose={() => setShowWinsNeededPicker(false)}
+                                        />
+                                    </View>
+                                </View>
+                            )}
+
                             {/* Katılan oyuncular (Digimon kart) — voleybol salonu/kort formunun ALTINA
                                 taşındı (kullanıcı isteği: önce mekan seçilsin, kadro ondan sonra doldurulsun).
                                 Airsoft'ta da aynı kart kullanılıyor — teamSize serbest sayı girişiyle
                                 belirlendiği için (bkz. TeamSizeModal) kart 2*teamSize kişilik olur. */}
-                            {(isVolleyball || sub === 'airsoft') && f.rosterSlots.length > 0 && (
+                            {/* Kart artık Takım Büyüklüğü seçilmeden de görünüyor (sadece boş bir ipucuyla) —
+                                önceden Takım Büyüklüğü seçilene kadar kart TAMAMEN yoktu, bu da seçim
+                                yapılır yapılmaz ekranda büyük bir kartın aniden belirmesine ("odak karta
+                                kaymış" hissi) yol açıp kullanıcının hemen üstündeki Yedek/Derece/Cinsiyet
+                                Dağılımı/Geç İptal Cezası kutularını fark etmeden atlamasına neden oluyordu. */}
+                            {(isVolleyball || sub === 'airsoft') && (
                                 <View style={{ marginBottom:14 }}>
                                     <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor: cfg.color+'40', padding:10, transform:[{ perspective:800 }, { rotateY: teamCardRotateY }] }}>
                                         {!teamCardBack ? (() => {
@@ -8537,9 +8608,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <>
                                                 <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
                                                     <Text style={[s.fieldLabel, { marginBottom:0, flex:1 }]}>{t.rosterPoolLabel}</Text>
-                                                    <TouchableOpacity onPress={flipTeamCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                                                        <Text style={{ fontSize:15 }}>🔄</Text>
-                                                    </TouchableOpacity>
+                                                    {!!f.teamSize && (
+                                                        <TouchableOpacity onPress={flipTeamCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                            <Text style={{ fontSize:15 }}>🔄</Text>
+                                                        </TouchableOpacity>
+                                                    )}
                                                 </View>
                                                 {/* 1. oyuncu her zaman ilanı açan kişi — salt okunur, taşınamaz/silinemez.
                                                     Kullanıcı isteğiyle o da 4'lü gridin bir parçası (ayrı kilitli satır
@@ -8592,7 +8665,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         </View>
                                                     </>
                                                 )}
-                                                <Text style={s.fieldHint}>{t.rosterFrontHint}</Text>
+                                                <Text style={s.fieldHint}>{f.teamSize ? t.rosterFrontHint : t.rosterNeedTeamSizeHint}</Text>
                                             </>
                                             );
                                         })() : (() => {
@@ -8737,70 +8810,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 multiline />
                                         </>
                                     )}
-                                </View>
-                            )}
-
-                            {/* Airsoft: Takım Büyüklüğü + Cinsiyet Dağılımı + Derece + Kaç Oyun — voleybol
-                                satırındaki (Tarih·Saat·Süre) triBtn mantığına döndürüldü: başlık ayrı bir
-                                üst satır değil, değerle birlikte butonun İÇİNDE (triLabel+triValue), buton
-                                da içeriğe göre daralıp genişliyor (flex:0 — sabit eşit sütun yok). Takım
-                                Büyüklüğü'nde başlık yok, kullanıcı isteğiyle sadece "...v..." / "NvN" değeri
-                                gösteriliyor; formu yine TeamSizeModal (serbest sayı girişi). */}
-                            {!isMatchedEdit && sub === 'airsoft' && (
-                                <View style={[s.triRow, { flexWrap:'wrap', marginBottom:10, zIndex: showWinsNeededPicker ? 50 : 1 }]}>
-                                    <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.teamSize && s.triBtnFilled]}
-                                        onPress={() => setShowTeamSizeModal(true)}>
-                                        <Text style={[s.triValue, !f.teamSize && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                            {f.teamSize ? `${f.teamSize}v${f.teamSize}` : t.teamSizeManualPlaceholder}
-                                        </Text>
-                                    </TouchableOpacity>
-                                    <TeamSizeModal
-                                        visible={showTeamSizeModal}
-                                        value={f.teamSize}
-                                        onConfirm={(n) => setTeamSize(n)}
-                                        onClose={() => setShowTeamSizeModal(false)}
-                                        t={t}
-                                    />
-                                    <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, !f.teamSize && { opacity:0.5 }]}
-                                        disabled={!f.teamSize} onPress={() => setShowGenderCountPicker(true)}>
-                                        <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.genderCountLabel}</Text>
-                                        <Text style={[s.triValue, { fontSize:10 }, f.requiredMaleCount == null && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
-                                            {f.requiredMaleCount != null ? `👨${f.requiredMaleCount} 👩${2 * f.teamSize - f.requiredMaleCount}` : t.genderCountFreeLabel}
-                                        </Text>
-                                    </TouchableOpacity>
-                                    {!!f.teamSize && (
-                                        <GenderCountModal
-                                            visible={showGenderCountPicker}
-                                            total={2 * f.teamSize}
-                                            value={f.requiredMaleCount}
-                                            onSelect={(v) => set('requiredMaleCount', v)}
-                                            onClose={() => setShowGenderCountPicker(false)}
-                                            t={t}
-                                        />
-                                    )}
-                                    <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }]}
-                                        onPress={() => setShowRatingRange(true)}>
-                                        <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ratingLimitLabel}</Text>
-                                        <Text style={[s.triValue, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                            {(!f.minRating && !f.maxRating) ? t.ratingFreeLabel : `${f.minRating || '0'}–${f.maxRating || '10'}`}
-                                        </Text>
-                                    </TouchableOpacity>
-                                    <View style={{ position:'relative', zIndex: showWinsNeededPicker ? 51 : 1 }}>
-                                        <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.winsNeeded && s.triBtnFilled]}
-                                            onPress={() => setShowWinsNeededPicker(v => !v)}>
-                                            <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.winsNeededLabel}</Text>
-                                            <Text style={[s.triValue, !f.winsNeeded && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                {f.winsNeeded ? String(f.winsNeeded) : t.courtSurfaceSelectPlaceholder}
-                                            </Text>
-                                        </TouchableOpacity>
-                                        <MiniDropdown
-                                            visible={showWinsNeededPicker}
-                                            options={WINS_NEEDED_OPTIONS.map(n => ({ value: n, label: String(n) }))}
-                                            value={f.winsNeeded}
-                                            onSelect={(v) => set('winsNeeded', v)}
-                                            onClose={() => setShowWinsNeededPicker(false)}
-                                        />
-                                    </View>
                                 </View>
                             )}
 
