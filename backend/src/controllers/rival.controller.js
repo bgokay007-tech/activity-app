@@ -296,7 +296,7 @@ function teamFilledCount(request, overrides = {}) {
     const senderTeamArr = overrides.senderTeam ?? (Array.isArray(request.senderTeam) ? request.senderTeam : []);
     const participantsArr = overrides.participants ?? (Array.isArray(request.participants) ? request.participants : []);
     const unassignedArr = overrides.unassignedPlayers ?? (Array.isArray(request.unassignedPlayers) ? request.unassignedPlayers : []);
-    const manualOppNames = Array.isArray(request.oppTeamManualNames) ? request.oppTeamManualNames : [];
+    const manualOppNames = overrides.oppTeamManualNames ?? (Array.isArray(request.oppTeamManualNames) ? request.oppTeamManualNames : []);
     return 1 // kurucu (sender)
         + senderTeamArr.filter(hasSlot).length
         + participantsArr.filter(hasSlot).length
@@ -4037,6 +4037,62 @@ export const assignPlayerToSide = async (req, res, next) => {
 
         broadcast('rivalUpdate', updated);
         emitToUser(userId, 'rivalUpdate', updated);
+        res.json(updated);
+    } catch (error) { next(error); }
+};
+
+// İlan sahibi, uygulamayı kullanmayan (kayıtsız) bir oyuncuyu sadece isim yazarak doğrudan
+// Kurucu/Rakip Takım'a ekleyebilir — kadro kartındaki TeamSlotInviteField'ın "Bu Oyuncu
+// Kalsın" seçeneği (kullanıcı isteği). Bu kişiye davet/bildirim gitmez, çünkü hesabı yok —
+// isim doğrudan yazılır. Kurucu tarafta ilan oluşturma formundakiyle aynı şekilde senderTeam
+// içine {manualName} olarak, Rakip tarafta ayrı oppTeamManualNames dizisine eklenir.
+export const addManualTeamPlayer = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { name, side } = req.body;
+        if (!name || !name.trim()) return res.status(400).json({ message: 'İsim gerekli' });
+        if (!['my', 'opp'].includes(side)) return res.status(400).json({ message: 'Geçersiz taraf' });
+
+        const rival = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi ekleyebilir' });
+        if (!['volleyball', 'airsoft'].includes(rival.subCategory) || (rival.teamSize || 1) <= 1) {
+            return res.status(400).json({ message: 'Bu işlem sadece takım maçlarında yapılabilir' });
+        }
+
+        const teamSizeN = rival.teamSize || 1;
+        const senderTeam = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+        const participants = Array.isArray(rival.participants) ? rival.participants : [];
+        const oppManualNames = Array.isArray(rival.oppTeamManualNames) ? rival.oppTeamManualNames : [];
+        const trimmed = name.trim().slice(0, 40);
+
+        let data;
+        if (side === 'my') {
+            if (senderTeam.length >= teamSizeN - 1) return res.status(400).json({ message: 'Kurucu Takımı zaten dolu.' });
+            data = { senderTeam: [...senderTeam, { manualName: trimmed }] };
+        } else {
+            if (participants.filter(p => p?.id).length + oppManualNames.length >= teamSizeN) {
+                return res.status(400).json({ message: 'Rakip Takımı zaten dolu.' });
+            }
+            data = { oppTeamManualNames: [...oppManualNames, trimmed] };
+        }
+
+        const isFullNow = teamFilledCount(rival, {
+            senderTeam: data.senderTeam ?? senderTeam,
+            oppTeamManualNames: data.oppTeamManualNames ?? oppManualNames,
+        }) >= totalPlayerCount(rival);
+        if (isFullNow) {
+            data.status = 'MATCHED';
+            data.reopenedAt = null;
+        }
+
+        const updated = await prisma.activityRequest.update({
+            where: { id },
+            data,
+            include: { sender: { select: SENDER_SELECT } },
+        });
+
+        broadcast('rivalUpdate', updated);
         res.json(updated);
     } catch (error) { next(error); }
 };

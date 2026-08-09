@@ -928,6 +928,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
 
+    // Uygulamayı kullanmayan (kayıtsız) oyuncu — sadece isim, davet/bildirim gitmez.
+    const addManualPlayerToTeam = (name, side) => {
+        api.patch(`/rivals/${item.id}/add-manual-player`, { name, side })
+            .then(onRefresh)
+            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+    };
+
     const SLOT_LABELS = { partner: 'Kurucu Takımı (Partner)', opp1: 'Rakip 1', opp2: 'Rakip 2' };
 
     // Asıl taşıma isteğini backend'e gönderir ve İKİ dizinin de (participants +
@@ -1612,7 +1619,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             {isOwner && side ? (
                                                 <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t}
                                                     placeholder={t.teamSlotPh(people.length + i + 1)}
-                                                    onInvite={(u) => inviteToTeamSlot(u, side)} />
+                                                    onInvite={(u) => inviteToTeamSlot(u, side)}
+                                                    onAddManual={(name) => addManualPlayerToTeam(name, side)} />
                                             ) : <EmptyCell />}
                                         </View>
                                     ))}
@@ -4084,8 +4092,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             isVolleyball={isVolleyball}
                             sub={match.subCategory}
                             category={match.category}
-                            founderPlayers={[match.sender, ...senderTeamArr].filter(Boolean)}
-                            oppPlayers={participantsArr}
+                            founderPlayers={[match.sender, ...(Array.isArray(match.senderTeam) ? match.senderTeam.filter(p => p?.id || p?.manualName) : [])].filter(Boolean)}
+                            oppPlayers={[...participantsArr, ...(Array.isArray(match.oppTeamManualNames) ? match.oppTeamManualNames.map(n => ({ manualName: n })) : [])]}
                             unassigned={unassignedArr}
                             substitutePlayers={substitutePlayersArr}
                             teamSize={match.teamSize || 1}
@@ -4108,6 +4116,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         if (Array.isArray(data?.request?.joinRequests)) setLocalSubRequests(data.request.joinRequests);
                                         onRefresh();
                                     })
+                                    .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+                            }}
+                            onAddManualSlot={(name, side) => {
+                                api.patch(`/rivals/${match.id}/add-manual-player`, { name, side })
+                                    .then(() => onRefresh())
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
                         />
@@ -6557,7 +6570,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
 // aynı mantık (kullanıcı isteği: "form a yazarak davet edicem açık ilandaki gibi"), sadece
 // burada ilan zaten var (açık ya da eşleşmiş) ve davet backend'e gidiyor (bkz. inviteToRival'daki
 // side parametresi), form state'ine değil.
-function TeamSlotInviteField({ sub, category, onInvite, cfg, t, placeholder }) {
+function TeamSlotInviteField({ sub, category, onInvite, onAddManual, cfg, t, placeholder }) {
     const [text, setText] = useState('');
     const [results, setResults] = useState([]);
     const [searching, setSearching] = useState(false);
@@ -6585,7 +6598,7 @@ function TeamSlotInviteField({ sub, category, onInvite, cfg, t, placeholder }) {
                 placeholderTextColor={colors.textMuted}
             />
             {searching && focused && <ActivityIndicator size="small" color={cfg.color} style={{ position:'absolute', right:5, top:3 }} />}
-            {focused && results.length > 0 && (
+            {focused && (results.length > 0 || (onAddManual && text.trim().length >= 3)) && (
                 <View style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:50, elevation:20, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, marginTop:2 }}>
                     {results.map(u => (
                         <TouchableOpacity key={u.id}
@@ -6602,11 +6615,33 @@ function TeamSlotInviteField({ sub, category, onInvite, cfg, t, placeholder }) {
                                     ]
                                 );
                             }}
-                            style={{ paddingVertical:5, paddingHorizontal:6, flexDirection:'row', alignItems:'center', gap:4 }}>
+                            style={{ paddingVertical:5, paddingHorizontal:6, flexDirection:'row', alignItems:'center', gap:4, borderBottomWidth:1, borderBottomColor: colors.border+'60' }}>
                             <Avatar name={u.username} avatar={u.avatar} size={16} color={cfg.color} />
                             <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{u.fullName || u.username}</Text>
                         </TouchableOpacity>
                     ))}
+                    {/* Uygulamayı kullanmayan (kayıtsız) oyuncu — sadece isim yazıp bu takıma
+                        eklenebilir, davet/bildirim gitmez (hesabı olmadığı için). Sadece ilan
+                        sahibi görebiliyor (bkz. onAddManual sadece owner'a geçiliyor). */}
+                    {onAddManual && text.trim().length >= 3 && (
+                        <TouchableOpacity
+                            onPress={() => {
+                                const manualName = text.trim();
+                                setText(''); setResults([]); setFocused(false);
+                                Alert.alert(
+                                    'Bu Oyuncu Kalsın',
+                                    `"${manualName}" uygulamayı kullanmıyor olarak takıma eklensin mi? Kendisine davet/bildirim gitmez.`,
+                                    [
+                                        { text: 'Vazgeç', style: 'cancel' },
+                                        { text: 'Bu Oyuncu Kalsın', onPress: () => onAddManual(manualName) },
+                                    ]
+                                );
+                            }}
+                            style={{ paddingVertical:6, paddingHorizontal:6, flexDirection:'row', alignItems:'center', gap:4 }}>
+                            <Text style={{ fontSize:13 }}>👤</Text>
+                            <Text style={{ color: cfg.color, fontSize:10, flex:1, fontWeight:'700' }} numberOfLines={2}>"{text.trim()}" — uygulamada yok, bu oyuncu kalsın</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             )}
         </View>
@@ -6620,7 +6655,7 @@ function TeamSlotInviteField({ sub, category, onInvite, cfg, t, placeholder }) {
 // "seç sonra hedefe dokun" ile atama. Kullanıcı isteğiyle iki kart birebir aynı davransın
 // diye kopyalandı — sadece veri kaynağı farklı (burada zaten kabul edilmiş gerçek
 // katılımcılar, formdaki gibi serbest metinle aranan boş slotlar değil).
-function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onInviteSlot, t, emoji = '🏐' }) {
+function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onInviteSlot, onAddManualSlot, t, emoji = '🏐' }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const [selectedId, setSelectedId] = useState(null);
@@ -6673,8 +6708,8 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                     const locked = lockFirst && i === 0;
                     if (p) {
                         return (
-                            <TouchableOpacity key={p.id || i} disabled={!isOwner || locked} onPress={() => onAssign(p.id, null)}>
-                                <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{i + 1}. {senderAlias(p)}{locked ? ' 🔒' : ''}</Text>
+                            <TouchableOpacity key={p.id || i} disabled={!isOwner || !p.id || locked} onPress={() => p.id && onAssign(p.id, null)}>
+                                <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{i + 1}. {p.id ? senderAlias(p) : p.manualName}{locked ? ' 🔒' : ''}</Text>
                             </TouchableOpacity>
                         );
                     }
@@ -6684,7 +6719,8 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                         <View key={`empty-${i}`} style={{ marginBottom:2 }}>
                             <TeamSlotInviteField sub={sub} category={category} cfg={{ color }} t={t}
                                 placeholder={t.teamSlotPh(i + 1)}
-                                onInvite={(u) => onInviteSlot(u, targetSide)} />
+                                onInvite={(u) => onInviteSlot(u, targetSide)}
+                                onAddManual={onAddManualSlot ? (name) => onAddManualSlot(name, targetSide) : undefined} />
                         </View>
                     ) : (
                         <Text key={`empty-${i}`} style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>{i + 1}. —</Text>
