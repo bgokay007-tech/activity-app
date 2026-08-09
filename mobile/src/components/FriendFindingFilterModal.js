@@ -9,6 +9,7 @@ export default function FriendFindingFilterModal({ visible, onClose, profile, on
     const [ageMax, setAgeMax] = useState('');
     const [maxDistanceKm, setMaxDistanceKm] = useState('50');
     const [genderPref, setGenderPref] = useState([]);
+    const [seekingFilter, setSeekingFilter] = useState(null);
 
     useEffect(() => {
         if (visible && profile) {
@@ -16,6 +17,7 @@ export default function FriendFindingFilterModal({ visible, onClose, profile, on
             setAgeMax(profile.ageMax ? String(profile.ageMax) : '');
             setMaxDistanceKm(profile.maxDistanceKm ? String(profile.maxDistanceKm) : '50');
             setGenderPref(Array.isArray(profile.genderPref) ? profile.genderPref : []);
+            setSeekingFilter(profile.seekingFilter || null);
         }
     }, [visible, profile]);
 
@@ -30,7 +32,8 @@ export default function FriendFindingFilterModal({ visible, onClose, profile, on
             ageMin: ageMin.trim() ? parseInt(ageMin, 10) : null,
             ageMax: ageMax.trim() ? parseInt(ageMax, 10) : null,
             maxDistanceKm: maxDistanceKm.trim() ? parseInt(maxDistanceKm, 10) : 50,
-            genderPref
+            genderPref,
+            seekingFilter,
         };
         onApply(payload);
     };
@@ -39,6 +42,15 @@ export default function FriendFindingFilterModal({ visible, onClose, profile, on
         { id: 'MALE', label: t.ffMale || 'Erkek' },
         { id: 'FEMALE', label: t.ffFemale || 'Kadın' },
         { id: 'OTHER', label: t.ffOther || 'Diğer' }
+    ];
+
+    // Anketteki "Ne arıyorsun" cevabı sadece karakter analizi (aiProfile) için — kimin
+    // kime görüneceğini artık SADECE bu filtre belirliyor, seçilmezse (Fark etmez) herkes uygun.
+    const seekingOptions = [
+        { id: null, label: t.ffSeekingAny || 'Fark etmez' },
+        { id: 'FRIENDS', label: t.ffSeekingFriends || 'Arkadaş' },
+        { id: 'PARTNER', label: t.ffSeekingPartner || 'Sevgili' },
+        { id: 'BOTH', label: t.ffSeekingBoth || 'İkisi de' },
     ];
 
     return (
@@ -85,6 +97,25 @@ export default function FriendFindingFilterModal({ visible, onClose, profile, on
                             value={maxDistanceKm}
                             onChangeText={setMaxDistanceKm}
                         />
+
+                        {/* Ne Arıyorsun (görünürlüğü belirleyen filtre — anket sadece bilgi amaçlı) */}
+                        <Text style={s.sectionTitle}>Ne Arıyorlar</Text>
+                        <View style={s.genderRow}>
+                            {seekingOptions.map(opt => {
+                                const selected = seekingFilter === opt.id;
+                                return (
+                                    <TouchableOpacity
+                                        key={String(opt.id)}
+                                        style={[s.genderBtn, selected && s.genderBtnSelected]}
+                                        onPress={() => setSeekingFilter(opt.id)}
+                                    >
+                                        <Text style={[s.genderText, selected && s.genderTextSelected]}>
+                                            {opt.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
 
                         {/* Cinsiyet Tercihi */}
                         <Text style={s.sectionTitle}>Cinsiyet Tercihi (Boş = Hepsi)</Text>

@@ -1706,6 +1706,7 @@ model FriendFindingProfile {
   ageMax           Int?
   genderPref       Json     @default("[]")
   maxDistanceKm    Int      @default(50)
+  seekingFilter    String?  // FRIENDS | PARTNER | BOTH | null — opsiyonel filtre, dolarsa sadece bunu arayanlar gösterilir (anketteki kendi "seeking" cevabı artık görünürlüğü etkilemiyor, bkz. getCandidates)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

@@ -86,6 +86,7 @@ export const getMyProfile = async (req, res, next) => {
             id: profile.id, seeking: profile.seeking, active: profile.active,
             ageMin: profile.ageMin, ageMax: profile.ageMax,
             genderPref: profile.genderPref, maxDistanceKm: profile.maxDistanceKm,
+            seekingFilter: profile.seekingFilter,
             createdAt: profile.createdAt,
         });
     } catch (error) { next(error); }
@@ -93,7 +94,10 @@ export const getMyProfile = async (req, res, next) => {
 
 export const updatePrefs = async (req, res, next) => {
     try {
-        const { active, ageMin, ageMax, genderPref, maxDistanceKm } = req.body;
+        const { active, ageMin, ageMax, genderPref, maxDistanceKm, seekingFilter } = req.body;
+        if (seekingFilter !== undefined && seekingFilter !== null && !['FRIENDS', 'PARTNER', 'BOTH'].includes(seekingFilter)) {
+            return res.status(400).json({ message: 'Invalid seekingFilter value' });
+        }
         const profile = await prisma.friendFindingProfile.findUnique({ where: { userId: req.userId } });
         if (!profile) return res.status(404).json({ message: 'Complete the survey first' });
 
@@ -105,9 +109,10 @@ export const updatePrefs = async (req, res, next) => {
                 ...(ageMax !== undefined && { ageMax }),
                 ...(genderPref !== undefined && { genderPref }),
                 ...(maxDistanceKm !== undefined && { maxDistanceKm }),
+                ...(seekingFilter !== undefined && { seekingFilter }),
             },
         });
-        res.json({ id: updated.id, seeking: updated.seeking, active: updated.active, ageMin: updated.ageMin, ageMax: updated.ageMax, genderPref: updated.genderPref, maxDistanceKm: updated.maxDistanceKm });
+        res.json({ id: updated.id, seeking: updated.seeking, active: updated.active, ageMin: updated.ageMin, ageMax: updated.ageMax, genderPref: updated.genderPref, maxDistanceKm: updated.maxDistanceKm, seekingFilter: updated.seekingFilter });
     } catch (error) { next(error); }
 };
 
@@ -131,13 +136,20 @@ export const getCandidates = async (req, res, next) => {
 
         const { minLat, maxLat, minLng, maxLng } = boundingBox(me.lat, me.lng, myProfile.maxDistanceKm);
 
+        // Anketteki "seeking" cevabı (Arkadaş/Sevgili/İkisi) artık kimin kime görüneceğini
+        // belirlemiyor — sadece karakter analizi (aiProfile) için bilgi amaçlı. Görünürlük
+        // sadece kullanıcının kendi FİLTRESİNDE (seekingFilter) açıkça seçtiği bir şey varsa
+        // ona göre daralıyor; filtre boşsa (varsayılan) seeking'e bakılmaksızın herkes uygun.
         const rawCandidates = await prisma.user.findMany({
             where: {
                 id: { notIn: [...excludeIds] },
                 lat: { gte: minLat, lte: maxLat },
                 lng: { gte: minLng, lte: maxLng },
                 friendFindingProfile: {
-                    is: { active: true, seeking: { in: compatibleSeekings(myProfile.seeking) } },
+                    is: {
+                        active: true,
+                        ...(myProfile.seekingFilter && { seeking: { in: compatibleSeekings(myProfile.seekingFilter) } }),
+                    },
                 },
             },
             select: { ...CANDIDATE_SELECT, friendFindingProfile: true },
