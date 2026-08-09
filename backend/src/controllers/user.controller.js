@@ -438,7 +438,7 @@ export const searchUsers = async (req, res, next) => {
                 ],
             },
             select: {
-                id: true, username: true, fullName: true, avatar: true, isPublic: true,
+                id: true, username: true, fullName: true, avatar: true, isPublic: true, gender: true,
                 ...(subCategory && {
                     interests: {
                         where: {
