@@ -919,7 +919,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // takıma düşer, atanmamış havuzuna değil (backend: inviteToRival'daki side parametresi).
     const inviteToTeamSlot = (u, side) => {
         api.post(`/rivals/${item.id}/invite`, { userId: u.id, side })
-            .then(onRefresh)
+            .then(({ data }) => {
+                // Davet gönderilince "📨 Gönderilen Davetler" listesinde anında görünsün diye
+                // (onRefresh() tüm listeyi yeniden çekene kadar beklemeden).
+                if (Array.isArray(data?.request?.joinRequests)) setLocalJoinRequests(data.request.joinRequests);
+                onRefresh();
+            })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
 
@@ -1606,6 +1611,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <View key={`e-${i}`} style={{ marginBottom:3 }}>
                                             {isOwner && side ? (
                                                 <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t}
+                                                    placeholder={t.teamSlotPh(people.length + i + 1)}
                                                     onInvite={(u) => inviteToTeamSlot(u, side)} />
                                             ) : <EmptyCell />}
                                         </View>
@@ -4098,17 +4104,43 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             }}
                             onInviteSlot={(u, side) => {
                                 api.post(`/rivals/${match.id}/invite`, { userId: u.id, side })
-                                    .then(() => onRefresh())
+                                    .then(({ data }) => {
+                                        if (Array.isArray(data?.request?.joinRequests)) setLocalSubRequests(data.request.joinRequests);
+                                        onRefresh();
+                                    })
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
                         />
                     )}
 
+                    {/* Gönderilen Davetler — ilan sahibinin kadro kartından doğrudan Kurucu/Rakip
+                        Takım/Yedek'e gönderdiği davetler (bkz. inviteToRival'daki side parametresi),
+                        açık ilandaki "📨 Gönderilen Davetler" bölümüyle aynı — kullanıcı isteğiyle
+                        davet gönderilince burada "⏳ Onay Bekleniyor · Rakip Takım" gibi görünüyor,
+                        ✕ ile iptal edilebiliyor. */}
+                    {isOwner && subRequests.filter(jr => jr.initiatedBy === 'OWNER').length > 0 && (
+                        <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:9, borderWidth:1, borderColor: colors.border, marginBottom:12 }}>
+                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8 }}>📨 Gönderilen Davetler</Text>
+                            {subRequests.filter(jr => jr.initiatedBy === 'OWNER').map(jr => (
+                                <View key={jr.id} style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6 }}>
+                                    <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={26} color={cfg.color} />
+                                    <View style={{ flex:1 }}>
+                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{jr.user?.fullName || jr.user?.username}</Text>
+                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>
+                                            ⏳ Onay Bekleniyor · {jr.isPartnerInvite ? t.founderTeamShortLabel : jr.isSubstituteInvite ? t.subsLabel : t.opponentTeamShortLabel}
+                                        </Text>
+                                    </View>
+                                    <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'reject')} style={{ backgroundColor:'#dc262620', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
+                                        <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>✕</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </View>
+                    )}
+
                     {/* Yedek istekleri — maç zaten MATCHED olsa da boş Yedek kontenjanı olduğu
                         sürece gönderilebilen istekler (bkz. subRequests) — ilan sahibi burada
-                        kabul/red eder. initiatedBy=OWNER olanlar (ileride eklenebilecek bir
-                        "yedek davet et" akışı) burada gösterilmez — o zaman sırası davet edilen
-                        kişide olur, ilan sahibinde değil. */}
+                        kabul/red eder. */}
                     {isOwner && subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
                         <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:9, borderWidth:1, borderColor: colors.border, marginBottom:12 }}>
                             <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8 }}>🪑 Yedek İstekleri ({subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
@@ -6525,7 +6557,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
 // aynı mantık (kullanıcı isteği: "form a yazarak davet edicem açık ilandaki gibi"), sadece
 // burada ilan zaten var (açık ya da eşleşmiş) ve davet backend'e gidiyor (bkz. inviteToRival'daki
 // side parametresi), form state'ine değil.
-function TeamSlotInviteField({ sub, category, onInvite, cfg, t }) {
+function TeamSlotInviteField({ sub, category, onInvite, cfg, t, placeholder }) {
     const [text, setText] = useState('');
     const [results, setResults] = useState([]);
     const [searching, setSearching] = useState(false);
@@ -6549,14 +6581,27 @@ function TeamSlotInviteField({ sub, category, onInvite, cfg, t }) {
                 onChangeText={setText}
                 onFocus={() => setFocused(true)}
                 onBlur={() => setTimeout(() => setFocused(false), 150)}
-                placeholder={t.teamSlotPh ? t.teamSlotPh(1) : 'İsim yaz...'}
+                placeholder={placeholder || (t.teamSlotPh ? t.teamSlotPh(1) : 'İsim yaz...')}
                 placeholderTextColor={colors.textMuted}
             />
             {searching && focused && <ActivityIndicator size="small" color={cfg.color} style={{ position:'absolute', right:5, top:3 }} />}
             {focused && results.length > 0 && (
                 <View style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:50, elevation:20, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, marginTop:2 }}>
                     {results.map(u => (
-                        <TouchableOpacity key={u.id} onPress={() => { onInvite(u); setText(''); setResults([]); }}
+                        <TouchableOpacity key={u.id}
+                            onPress={() => {
+                                setText(''); setResults([]); setFocused(false);
+                                // Kullanıcı isteğiyle tıklayınca direkt gönderilmiyor — önce onay
+                                // isteniyor (yanlışlıkla yanlış kişiye davet gitmesin diye).
+                                Alert.alert(
+                                    'Davet Gönder',
+                                    `${u.fullName || u.username} kişisine davet gönderilsin mi?`,
+                                    [
+                                        { text: 'Vazgeç', style: 'cancel' },
+                                        { text: 'Davet Gönder', onPress: () => onInvite(u) },
+                                    ]
+                                );
+                            }}
                             style={{ paddingVertical:5, paddingHorizontal:6, flexDirection:'row', alignItems:'center', gap:4 }}>
                             <Avatar name={u.username} avatar={u.avatar} size={16} color={cfg.color} />
                             <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{u.fullName || u.username}</Text>
@@ -6638,6 +6683,7 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                     return isOwner && onInviteSlot ? (
                         <View key={`empty-${i}`} style={{ marginBottom:2 }}>
                             <TeamSlotInviteField sub={sub} category={category} cfg={{ color }} t={t}
+                                placeholder={t.teamSlotPh(i + 1)}
                                 onInvite={(u) => onInviteSlot(u, targetSide)} />
                         </View>
                     ) : (

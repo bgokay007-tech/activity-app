@@ -2382,7 +2382,7 @@ export const inviteToRival = async (req, res, next) => {
         });
         emitToUser(userId, 'rivalUpdate', updatedRival);
 
-        res.status(201).json({ message: 'Davet gönderildi.' });
+        res.status(201).json({ message: 'Davet gönderildi.', request: updatedRival });
     } catch (error) { next(error); }
 };
 
@@ -4400,13 +4400,16 @@ export const getMyUpcomingMatches = async (req, res, next) => {
                     where: { userId: { in: allUserIds } },
                     select: { userId: true, subCategory: true, skillRating: true },
                 }) : [];
-            // Voleybol/airsoft: maç MATCHED olduktan sonra gönderilen "Yedek Olarak Başvur"
-            // istekleri (bkz. sendJoinRequest'teki subSlotOpenForRequest) — ilan sahibinin
-            // bunları görüp kabul/red edebilmesi için PENDING olanlar listeye eklenir.
+            // Voleybol/airsoft: maç MATCHED olduktan sonra hâlâ bekleyen istek/davetler —
+            // (a) joiner'ın gönderdiği "Yedek Olarak Başvur" istekleri (bkz. sendJoinRequest'teki
+            // subSlotOpenForRequest), (b) ilan sahibinin kadro kartından doğrudan gönderdiği
+            // Kurucu/Rakip Takım/Yedek davetleri (bkz. inviteToRival'daki side parametresi).
+            // İkisi de PENDING olduğu sürece listeye eklenir — owner kabul/red edebilsin,
+            // sahibi de kendi gönderdiği davetleri görüp iptal edebilsin.
             const subCandidateIds = mine.filter(m => ['volleyball', 'airsoft'].includes(m.subCategory) && (m.teamSize || 1) > 1).map(m => m.id);
             const pendingSubReqs = subCandidateIds.length > 0
                 ? await prisma.rivalJoinRequest.findMany({
-                    where: { rivalId: { in: subCandidateIds }, isSubstituteInvite: true, status: 'PENDING' },
+                    where: { rivalId: { in: subCandidateIds }, status: 'PENDING', OR: [{ isSubstituteInvite: true }, { isPartnerInvite: true }, { isOppTeamInvite: true }] },
                     include: { user: { select: SENDER_SELECT } },
                 }) : [];
             const subReqsByRival = pendingSubReqs.reduce((acc, jr) => { (acc[jr.rivalId] ??= []).push(jr); return acc; }, {});
