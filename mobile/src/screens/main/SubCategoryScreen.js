@@ -7956,10 +7956,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </Text>
                                             </TouchableOpacity>
                                         )}
-                                        {/* Kişi Başı Ücret — Süre'nin sağına sıkıştırılmış olarak çıkar. Normal dallarda
-                                            kort seçilince tetiklenir; kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS)
-                                            aynı mantık Ücretli işaretlenince tetiklenir (Mekan Adı'na yazmak courtSearchText'i
-                                            de doldurduğu için o eski koşulla karışmasın diye ayrıca ele alınıyor). Airsoft'ta
+                                        {/* Kişi Başı Ücret — Süre'nin sağına sıkıştırılmış olarak çıkar. Kort kavramı olan
+                                            dallarda (voleybol/tenis/padel/futbol) artık kort seçilmeden de SABİT görünüyor
+                                            (kullanıcı isteği: "gizli form olup sonradan açılmasına gerek yok") — Pro ve üstü
+                                            işletme kortu seçilip fiyatı bilindiğinde zaten ayrı bir efekt (bkz. selectedCourt
+                                            değişince courtFeePerPerson'ı court.pricePerSlot/totalPrice'tan dolduran kodlar)
+                                            bu alanı otomatik dolduruyor; kullanıcı manuel de yazabilir. Kort kavramı olmayan
+                                            dallarda (SIMPLIFIED_FEE_SUBS) hâlâ Ücretli işaretlenince tetikleniyor. Airsoft'ta
                                             Ücretli/Ücretsiz sekmesi yok — dokununca açılan FeeModal'dan (aşağıda) seçilir. */}
                                         {sub === 'airsoft' ? (
                                             <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, feeTouched && s.triBtnFilled]}
@@ -7969,10 +7972,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     {!feeTouched ? t.courtSurfaceSelectPlaceholder : (f.activityIsPaid && f.courtFeePerPerson ? `${f.courtFeePerPerson}₺` : t.tournFreeOption)}
                                                 </Text>
                                             </TouchableOpacity>
-                                        ) : (SIMPLIFIED_FEE_SUBS.has(sub)
-                                            ? f.activityIsPaid
-                                            : (!f.courtMutual && (f.selectedCourt || f.courtSearchText.length >= 2 || (f.showManualCourt && f.manualCourtName)))
-                                        ) && (
+                                        ) : (SIMPLIFIED_FEE_SUBS.has(sub) ? f.activityIsPaid : true) && (
                                             <View style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }]}>
                                                 <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.courtFeeShortLabel}</Text>
                                                 <TextInput
@@ -8211,19 +8211,19 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             ))}
                                         </View>
                                     )}
-                                    {f.selectedCourt && (
-                                        <View style={[s.triBtn, { flex:0, alignSelf:'flex-start', paddingHorizontal:6, paddingVertical:3 }]}>
-                                            <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.courtFeeShortLabel}</Text>
-                                            <TextInput
-                                                style={[s.triValue, { padding:0, minWidth:34, textAlign:'center' }]}
-                                                value={f.courtFeePerPerson}
-                                                onChangeText={v => set('courtFeePerPerson', v.replace(/[^0-9]/g, ''))}
-                                                placeholder={t.courtFeePh}
-                                                placeholderTextColor={colors.textMuted}
-                                                keyboardType="numeric"
-                                            />
-                                        </View>
-                                    )}
+                                    {/* Kullanıcı isteğiyle kort seçilmeden de sabit görünüyor — bkz. yukarıdaki
+                                        (esnek olmayan program) aynı alan için eklenen açıklama. */}
+                                    <View style={[s.triBtn, { flex:0, alignSelf:'flex-start', paddingHorizontal:6, paddingVertical:3 }]}>
+                                        <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.courtFeeShortLabel}</Text>
+                                        <TextInput
+                                            style={[s.triValue, { padding:0, minWidth:34, textAlign:'center' }]}
+                                            value={f.courtFeePerPerson}
+                                            onChangeText={v => set('courtFeePerPerson', v.replace(/[^0-9]/g, ''))}
+                                            placeholder={t.courtFeePh}
+                                            placeholderTextColor={colors.textMuted}
+                                            keyboardType="numeric"
+                                        />
+                                    </View>
                                 </View>
                             )}
 
