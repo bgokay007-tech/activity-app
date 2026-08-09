@@ -7739,7 +7739,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : `${t.volleyballTypeLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                     </Text>
                                                 </TouchableOpacity>
-                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'volleyballMod' ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
+                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'volleyballMod' ? 51 : 1, elevation: activePopup === 'volleyballMod' ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
                                                     <TouchableOpacity onPress={() => toggleActivePopup('volleyballMod')}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.matchMode && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.matchMode ? noEmoji(f.matchMode === 'COMPETITIVE' ? t.competitiveMode : t.practiceMode) : `${t.modLabel} ${t.courtSurfaceSelectPlaceholder}`}
@@ -7760,7 +7760,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         onClose={() => setActivePopup(null)}
                                                     />
                                                 </View>
-                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'teamSize' ? 51 : 1 }]}>
+                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'teamSize' ? 51 : 1, elevation: activePopup === 'teamSize' ? 51 : 1 }]}>
                                                     <TouchableOpacity onPress={() => toggleActivePopup('teamSize')}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.teamSize && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.teamSize ? `${f.teamSize}v${f.teamSize}` : `${t.teamSizeLabel} ${t.courtSurfaceSelectPlaceholder}`}
@@ -7780,7 +7780,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     kurulduktan sonraki bir kural) — kullanıcı isteğiyle Takım Büyüklüğü
                                                     seçilene kadar hiçbiri gösterilmiyor. */}
                                                 {!!f.teamSize && (
-                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'subCount' ? 51 : 1 }]}>
+                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'subCount' ? 51 : 1, elevation: activePopup === 'subCount' ? 51 : 1 }]}>
                                                     <TouchableOpacity onPress={() => toggleActivePopup('subCount')}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.subCount && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.subCount ? String(f.subCount) : `${t.subCountLabel} ${t.courtSurfaceSelectPlaceholder}`}
@@ -7872,6 +7872,22 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     ownRating={myOwnRating}
                                                     ownGender={myUser?.gender}
                                                 />
+                                                {/* Mod/Takım Büyüklüğü/Yedek Sayısı açılır kutuları (MiniDropdown) tıklanan
+                                                    seçenek dışında hiçbir şeyle kapanmıyordu — kullanıcı boş bir alana
+                                                    dokunup vazgeçmek istediğinde kutu açık kalıyordu. Bu iki görünmez
+                                                    bant, satırın hemen üstünü/altını kaplayıp (satırın kendisiyle
+                                                    ÇAKIŞMADAN, böylece diğer kutulara dokunma hâlâ normal çalışıyor)
+                                                    başka bir yere dokununca popup'ı kapatıyor — zIndex'i satırdaki
+                                                    kutulardan (1) yüksek ama aktif kutudan (51) düşük tutulduğu için
+                                                    açık olan popup'ın kendisi hâlâ tıklanabilir kalıyor. */}
+                                                {!!activePopup && (
+                                                    <>
+                                                        <TouchableOpacity activeOpacity={1} onPress={() => setActivePopup(null)}
+                                                            style={{ position:'absolute', top:'100%', left:0, right:0, height:3000, zIndex:2 }} />
+                                                        <TouchableOpacity activeOpacity={1} onPress={() => setActivePopup(null)}
+                                                            style={{ position:'absolute', bottom:'100%', left:0, right:0, height:1000, zIndex:2 }} />
+                                                    </>
+                                                )}
                                             </View>
                                         );
                                     })()}
