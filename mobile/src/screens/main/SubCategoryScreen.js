@@ -3998,9 +3998,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {(isVolleyball || match.subCategory === 'airsoft') && (senderTeamArr.length > 0 || participantsArr.length > 0 || unassignedArr.length > 0) && (
                         <TeamAssignCard
                             emoji={match.subCategory === 'airsoft' ? '🪖' : '🏐'}
+                            isVolleyball={isVolleyball}
                             founderPlayers={[match.sender, ...senderTeamArr].filter(Boolean)}
                             oppPlayers={participantsArr}
                             unassigned={unassignedArr}
+                            substitutePlayers={substitutePlayersArr}
                             founderTeamName={match.founderTeamName}
                             opponentTeamName={match.opponentTeamName}
                             canEditFounderName={isOwner || senderTeamArr.some(p => p.id === myId)}
@@ -6433,12 +6435,14 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
     );
 }
 
-// Voleybol takım yönetimi — Digimon kartı gibi çevrilebilir (flip) kart. Bu, MAÇ ZATEN
-// eşleştikten/açık ilana katılım oldukça büyüyen roster için — CreateRivalModal'daki havuz
-// kartının TERSİ: burada ÖN yüz Kurucu/Rakip'e göre ayrılmış organize slotlar (+ henüz
-// atanmamış varsa küçük bir tepsi, tak-seç-hedefe-dokun deseniyle atanır), ARKA yüz düz
-// "Katılımcı Listesi". Animasyon tekniği ProfileScreen.js'teki SportCardFlipModal ile aynı.
-function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, t, emoji = '🏐' }) {
+// Yaklaşan Maçlar'daki kadro kartı — ilan OLUŞTURMA formundaki kadro kartıyla (bkz.
+// CreateRivalModal, "Katılan oyuncular (Digimon kart)" bölümü) AYNI stil ve etkileşim:
+// ön yüz sender kilitli ilk hücre + herkes (rol farkı gözetmeksizin) 3'lü/4'lü grid +
+// altında aynı stilde Yedekler, arka yüz Kurucu/Rakip iki sütun + atanmamış tepsisinden
+// "seç sonra hedefe dokun" ile atama. Kullanıcı isteğiyle iki kart birebir aynı davransın
+// diye kopyalandı — sadece veri kaynağı farklı (burada zaten kabul edilmiş gerçek
+// katılımcılar, formdaki gibi serbest metinle aranan boş slotlar değil).
+function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], isVolleyball = true, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, t, emoji = '🏐' }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const [selectedId, setSelectedId] = useState(null);
@@ -6449,11 +6453,22 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamNam
         });
     };
     const rotateY = flipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
-    const allPlayers = [
-        ...founderPlayers.map(p => ({ ...p, _role: 'my' })),
-        ...oppPlayers.map(p => ({ ...p, _role: 'opp' })),
-        ...unassigned.map(p => ({ ...p, _role: null })),
-    ];
+    // Ön yüz: rol farkı gözetmeksizin TEK liste — kurucu (founderPlayers[0]) her zaman ilk sırada.
+    const allPlayers = [...founderPlayers, ...oppPlayers, ...unassigned];
+    const cellWidth = isVolleyball ? '32%' : '23.5%';
+    const cellStyle = { flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 };
+    const renderGrid = (players) => (
+        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
+            {players.map((p, i) => (
+                <View key={p.id || `m-${i}`} style={{ width: cellWidth }}>
+                    <View style={cellStyle}>
+                        {p.id ? <Avatar name={p.username} avatar={p.avatar} size={14} color="#a855f7" /> : <Text style={{ fontSize:11 }}>👤</Text>}
+                        <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{i + 1}. {p.id ? senderAlias(p) : p.manualName}</Text>
+                    </View>
+                </View>
+            ))}
+        </View>
+    );
     const renderColumn = (players, label, color, canEditName, onEditName, targetSide) => (
         <View style={{ flex:1 }}>
             <TouchableOpacity disabled={!selectedId} onPress={() => { onAssign(selectedId, targetSide); setSelectedId(null); }}>
@@ -6475,39 +6490,24 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, founderTeamNam
             ))}
         </View>
     );
-    // Kart, açık ilanlardaki (RivalDetailModal) Digimon kartıyla AYNI yönde çeviriliyor —
-    // ön yüz katılım sırasına göre düz liste (2'li kart satırı), arka yüz Kurucu/Rakip
-    // atama ızgarası. Önceden bu tam TERSİYDİ (ön=organize, arka=liste), kullanıcı isteğiyle
-    // Yaklaşan Maçlar'daki kart açık ilanlardakiyle birebir aynı davranışa getirildi.
-    const cardBox = { width:'48%', backgroundColor:'#0f172a', borderRadius:8, borderWidth:1, borderColor:'#ffffff20', paddingVertical:5, paddingHorizontal:6, marginBottom:6 };
     return (
         <View style={{ marginBottom:12 }}>
-            <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:'#ffffff20', padding:8, transform:[{ perspective:800 }, { rotateY }] }}>
+            <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor:'#ffffff20', padding:10, transform:[{ perspective:800 }, { rotateY }] }}>
                 {!isBack ? (
                     <>
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
-                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.participantListLabel}</Text>
+                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.rosterPoolLabel}</Text>
                             <TouchableOpacity onPress={flip} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                                <Text style={{ fontSize:14 }}>🗂️</Text>
+                                <Text style={{ fontSize:15 }}>🔄</Text>
                             </TouchableOpacity>
                         </View>
-                        <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
-                            {allPlayers.map((p, i) => (
-                                <View key={p.id || `m-${i}`} style={cardBox}>
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                                        {p.id
-                                            ? <Avatar name={p.username} avatar={p.avatar} size={22} color={p._role === 'my' ? '#a855f7' : p._role === 'opp' ? '#f87171' : colors.textMuted} />
-                                            : <Text style={{ fontSize:16 }}>👤</Text>}
-                                        <View style={{ flex:1 }}>
-                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{p.id ? senderAlias(p) : p.manualName}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>
-                                                {i + 1}{p._role == null ? ` · ${t.unassignedLabel}` : ''}
-                                            </Text>
-                                        </View>
-                                    </View>
-                                </View>
-                            ))}
-                        </View>
+                        {renderGrid(allPlayers)}
+                        {substitutePlayers.length > 0 && (
+                            <>
+                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginTop:8, marginBottom:6 }}>{t.subsLabel}</Text>
+                                {renderGrid(substitutePlayers)}
+                            </>
+                        )}
                     </>
                 ) : (
                     <>
