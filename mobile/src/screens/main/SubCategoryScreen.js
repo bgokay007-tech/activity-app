@@ -3476,6 +3476,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             : senderTeamArr.filter(p => p?.id)),
         ...participantsArr,
     ];
+    // Takım sporlarında (voleybol/airsoft) kadro kartı (Digimon kart) ZATEN tüm kadroyu
+    // (gerçek + manuel/kayıtsız oyuncular) doğru pozisyonlarıyla gösteriyor — allPlayers ise
+    // sadece gerçek kullanıcıları (senderTeamArr/participantsArr .filter(p=>p?.id)) sayıyor,
+    // manuel isimleri hiç görmüyor. Bu yüzden kompakt kartta "2 oyuncu" gibi eksik/yanıltıcı
+    // bir liste gösteriyordu (kullanıcı raporu) — kadro kartı olan maçlarda bu liste artık
+    // gizlenip yerine takım isimleri özet satırı gösteriliyor.
+    const hasTeamRoster = (isVolleyball || match.subCategory === 'airsoft') && (senderTeamArr.length > 0 || participantsArr.length > 0 || unassignedArr.length > 0);
 
     const getMatchEnd = (m) => {
         if (!m.matchDate || !m.matchTime) return null;
@@ -3917,8 +3924,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             activeOpacity={0.75}
             onPress={openDetail}
         >
-            {/* Players + ratings */}
-            {allPlayers.map((p, idx) => (
+            {/* Players + ratings — takım sporlarında (kadro kartı olan maçlarda) bu ham liste
+                yerine takım isimleri gösterilir, kadro kartı zaten tam listeyi (manuel oyuncular
+                dahil) doğru gösteriyor (bkz. hasTeamRoster). */}
+            {hasTeamRoster ? (
+                <Text style={s.cardName} numberOfLines={1}>
+                    {match.founderTeamName || t.founderTeamShortLabel} <Text style={{ color: colors.textMuted, fontWeight:'400' }}>vs</Text> {match.opponentTeamName || t.opponentTeamShortLabel}
+                </Text>
+            ) : allPlayers.map((p, idx) => (
                 <View key={`player-${idx}-${p.id || 'x'}`} style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginBottom: idx < allPlayers.length - 1 ? 2 : 0 }}>
                     {p._emptySlot ? (
                         <Text style={{ color: colors.textMuted, fontSize:13, fontStyle:'italic' }}>— ortak slot boş —</Text>
@@ -4002,8 +4015,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     </TouchableOpacity>
                     <View style={{ flex:1 }}>
                         <Text style={{ color:'#fff', fontSize:16, fontWeight:'800' }}>{getSubCategoryLabel(match.subCategory, t.lang)}</Text>
+                        {/* Takım sporlarında (kadro kartı olan maçlarda) burada da gerçek kullanıcı
+                            isimleriyle sınırlı, eksik bir liste gösterip kafa karıştırıyordu — kadro
+                            kartı zaten tam listeyi gösteriyor (bkz. hasTeamRoster). */}
                         <Text style={{ color: colors.textMuted, fontSize:12 }}>
-                            {allPlayers.filter(p => !p._emptySlot).map(p => senderAlias(p)).join(' · ')}
+                            {hasTeamRoster
+                                ? `${match.founderTeamName || t.founderTeamShortLabel} vs ${match.opponentTeamName || t.opponentTeamShortLabel}`
+                                : allPlayers.filter(p => !p._emptySlot).map(p => senderAlias(p)).join(' · ')}
                         </Text>
                     </View>
                 </View>
