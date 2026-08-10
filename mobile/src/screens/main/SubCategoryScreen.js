@@ -545,9 +545,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // Çiftlerde kabul edilen oyuncular varsayılan olarak Partner/Rakip 1/Rakip 2 kartlarına
     // otomatik yerleşmiş gösterilmez — önce sırayla "Katılımcı 1/2/3" olarak listelenir,
     // kurucu isterse "Takımları Düzenle" ile mevcut kart/takas ekranını açar.
-    // Bildirimden ("...Rakip Takım'a davet etti") açıldıysa (highlightSlot dolu) kart
-    // doğrudan arka yüzden (davet edilen slot görünür halde) başlasın diye.
-    const [showTeamCards, setShowTeamCards] = useState(() => !!highlightSlot);
+    const [showTeamCards, setShowTeamCards] = useState(false);
     // Oyuncular kartı "Takımları Düzenle"ye basınca kart çevrilir gibi arka
     // yüzüne (takım düzenleme ızgarası) döner; tekrar çevirince ön yüze
     // (katılımcı listesi) geri gelir. rotateY 0->90 derece dönerken (kart
@@ -564,20 +562,29 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     };
     const cardRotateY = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '90deg'] });
     // Davetten gelindiyse (highlightSlot) kart otomatik olarak birkaç kez çevrilip kullanıcının
-    // dikkatini "arka yüzde bir şey var" a çeksin — kullanıcı isteği: arka açık başlasın, 2sn
-    // sonra öne, 2sn sonra tekrar arkaya, 1sn sonra tekrar öne dönüp orada kalsın. Modal her
-    // açılışta bir kere çalışsın diye ref ile korunuyor (StrictMode/rerender'da tekrarlamasın).
+    // dikkatini "arka yüzde bir şey var" a çeksin — kullanıcı isteği: önce ön yüz (diğer
+    // ilanlarla aynı, şaşırtıcı olmasın), hemen arkaya dönüp 2sn dursun, öne dönüp 1sn,
+    // tekrar arkaya dönüp 2sn, sonra öne dönüp kullanıcıya bırakılsın. Kullanıcı bu 5 saniye
+    // içinde kendisi çevirme butonuna dokunursa dizi hemen iptal edilir (bkz. userFlippedRef,
+    // manuel buton onPress'i). Modal her açılışta bir kere çalışsın diye ref ile korunuyor.
     const highlightSeqRanRef = useRef(false);
+    const highlightTimersRef = useRef([]);
+    const userFlippedRef = useRef(false);
     const [flipHintActive, setFlipHintActive] = useState(false);
+    const cancelHighlightSequence = () => {
+        userFlippedRef.current = true;
+        highlightTimersRef.current.forEach(clearTimeout);
+        highlightTimersRef.current = [];
+    };
     useEffect(() => {
         if (!visible || !highlightSlot || highlightSeqRanRef.current) return;
         highlightSeqRanRef.current = true;
-        const timers = [
-            setTimeout(() => toggleTeamCards(false), 2000),
-            setTimeout(() => toggleTeamCards(true), 4000),
-            setTimeout(() => { toggleTeamCards(false); setFlipHintActive(true); }, 5000),
-        ];
-        return () => timers.forEach(clearTimeout);
+        const schedule = (fn, delay) => highlightTimersRef.current.push(setTimeout(() => { if (!userFlippedRef.current) fn(); }, delay));
+        schedule(() => toggleTeamCards(true), 400);
+        schedule(() => toggleTeamCards(false), 400 + 2000);
+        schedule(() => toggleTeamCards(true), 400 + 2000 + 1000);
+        schedule(() => { toggleTeamCards(false); setFlipHintActive(true); }, 400 + 2000 + 1000 + 2000);
+        return () => highlightTimersRef.current.forEach(clearTimeout);
     }, [visible, highlightSlot]);
     // Vurgulanan boş slotun (ve çevirme butonundaki ipucu rozetinin) yanıp sönmesi için ortak
     // pulse animasyonu.
@@ -1269,7 +1276,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 Rakip Takımı (teamSize'lık sabit sütunlar). Aynı showTeamCards/cardRotateY
                                 state'i (DOUBLE'da kullanılanla aynı) burada da ön/arka geçişi için kullanılıyor. */}
                             {item.matchType !== 'DOUBLE' && !isRefereeAd && (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) && (
-                                <TouchableOpacity onPress={() => toggleTeamCards(!showTeamCards)} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20', position:'relative' }}>
+                                <TouchableOpacity onPress={() => { cancelHighlightSequence(); toggleTeamCards(!showTeamCards); }} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20', position:'relative' }}>
                                     <Text style={{ color: cfg.color, fontSize:13, fontWeight:'700' }}>🔄</Text>
                                     {/* Otomatik çevirme dizisi bitip önde kalınca, arkada bir davet vurgusu
                                         olduğunu unutmasın diye butonda yanıp sönen küçük bir rozet bırakılır. */}
@@ -6731,8 +6738,11 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
             )}
             {/* Rekabetçi maçta Elo puanı hesaplandığı için uygulamada hesabı olmayan (manuel)
                 oyuncu eklenemiyor — sadece Antrenman modunda "bu oyuncuyu var say" + cinsiyet
-                seçimi sunulur (kullanıcı isteği: cinsiyet dağılımı algoritmasıyla tutarlı olsun). */}
-            {showStatus && slotSuggestions.length === 0 && !slotSearching && matchMode !== 'COMPETITIVE' && (
+                seçimi sunulur (kullanıcı isteği: cinsiyet dağılımı algoritmasıyla tutarlı olsun).
+                Cinsiyet zaten seçildiyse bu istem bir daha çıkmaz — aksi halde slot aktif kaldığı
+                sürece sürekli yeniden görünüp "tekrar seçtiriyor" gibi hissettiriyordu; değiştirmek
+                isteyen slotu silip yeniden yazabilir. */}
+            {showStatus && slotSuggestions.length === 0 && !slotSearching && matchMode !== 'COMPETITIVE' && !slot?.gender && (
                 <View style={{ marginTop:3 }}>
                     <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>{t.manualPlayerAssumePrompt}</Text>
                     <View style={{ flexDirection:'row', gap:3, marginTop:2 }}>
