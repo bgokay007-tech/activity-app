@@ -4433,8 +4433,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         />
                     )}
 
-                    {/* Non-DOUBLE: owner remove */}
-                    {isOwner && match.matchType !== 'DOUBLE' && participantsArr.length > 0 && (
+                    {/* Non-DOUBLE: owner remove — takım sporlarında (kadro kartı olan maçlarda,
+                        hasTeamRoster) bu ayrı liste artık gösterilmiyor: kadro kartındaki
+                        "Değiştir/Çıkar" ZATEN aynı işlevi (Çıkar/Atanmamışa Taşı) görüyor, bu ikinci
+                        liste sadece GERÇEK katılımcıları (manuel oyuncuları değil) gösterdiği için
+                        kart altında eksik/yanıltıcı "2 oyuncu" gibi bir liste olarak kalıyordu. */}
+                    {isOwner && match.matchType !== 'DOUBLE' && !hasTeamRoster && participantsArr.length > 0 && (
                         <View style={{ marginBottom:12, gap:3 }}>
                             {participantsArr.map(p => (
                                 <View key={p.id} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:7, paddingVertical:3 }}>
