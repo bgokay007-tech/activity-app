@@ -4149,8 +4149,13 @@ export const setTeamName = async (req, res, next) => {
 export const assignPlayerToSide = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { userId, side } = req.body; // side: 'my' | 'opp' | null (null = atanmamışa geri al)
+        // side: 'my' | 'opp' | null (null = atanmamışa geri al). userId gerçek kullanıcılar
+        // için, manualName ise "Atanmamış" listesindeki uygulamayı kullanmayan (kayıtsız)
+        // kişiler için — önceden sadece userId destekleniyordu, "Atanmamış" listesindeki
+        // manuel isimlere dokununca hiçbir şey olmuyordu (kullanıcı raporu).
+        const { userId, manualName, side } = req.body;
         if (![null, 'my', 'opp'].includes(side)) return res.status(400).json({ message: 'Geçersiz taraf' });
+        if (!userId && !manualName) return res.status(400).json({ message: 'Oyuncu belirtilmedi' });
 
         const rival = await prisma.activityRequest.findUnique({ where: { id } });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
@@ -4158,17 +4163,18 @@ export const assignPlayerToSide = async (req, res, next) => {
         if (!['volleyball', 'airsoft'].includes(rival.subCategory) || (rival.teamSize || 1) <= 1) {
             return res.status(400).json({ message: 'Bu işlem sadece takım maçlarında yapılabilir' });
         }
-        if (userId === rival.senderId) return res.status(400).json({ message: 'İlan sahibi taşınamaz' });
+        if (userId && userId === rival.senderId) return res.status(400).json({ message: 'İlan sahibi taşınamaz' });
 
         const senderTeam = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
         const unassigned = Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : [];
-        const player = senderTeam.find(p => p?.id === userId) || participants.find(p => p?.id === userId) || unassigned.find(p => p?.id === userId);
+        const matchPlayer = (p) => userId ? p?.id === userId : (!p?.id && p?.manualName === manualName);
+        const player = senderTeam.find(matchPlayer) || participants.find(matchPlayer) || unassigned.find(matchPlayer);
         if (!player) return res.status(404).json({ message: 'Oyuncu bu ilanda bulunamadı' });
 
-        const nextSenderTeam = senderTeam.filter(p => p?.id !== userId);
-        const nextParticipants = participants.filter(p => p?.id !== userId);
-        const nextUnassigned = unassigned.filter(p => p?.id !== userId);
+        const nextSenderTeam = senderTeam.filter(p => !matchPlayer(p));
+        const nextParticipants = participants.filter(p => !matchPlayer(p));
+        const nextUnassigned = unassigned.filter(p => !matchPlayer(p));
         // Her tarafın kontenjanı Takım Büyüklüğü ile sınırlı — kurucu zaten 1 kişilik sabit
         // slotu tuttuğu için senderTeam en fazla (teamSize-1) kişi alır, Rakip Takımı ise
         // tam teamSize. Önceden bu hiç kontrol edilmiyordu, bir tarafa teamSize'ı aşacak
@@ -4191,7 +4197,7 @@ export const assignPlayerToSide = async (req, res, next) => {
         });
 
         broadcast('rivalUpdate', updated);
-        emitToUser(userId, 'rivalUpdate', updated);
+        if (userId) emitToUser(userId, 'rivalUpdate', updated);
         res.json(updated);
     } catch (error) { next(error); }
 };
