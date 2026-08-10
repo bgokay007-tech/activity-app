@@ -4299,6 +4299,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             matchMode={match.matchMode}
                             unassigned={unassignedArr}
                             substitutePlayers={substitutePlayersArr}
+                            substituteCount={match.substituteCount || 0}
                             teamSize={match.teamSize || 1}
                             founderTeamName={match.founderTeamName}
                             opponentTeamName={match.opponentTeamName}
@@ -6958,7 +6959,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onAddManual, cfg, t, pla
 // "seç sonra hedefe dokun" ile atama. Kullanıcı isteğiyle iki kart birebir aynı davransın
 // diye kopyalandı — sadece veri kaynağı farklı (burada zaten kabul edilmiş gerçek
 // katılımcılar, formdaki gibi serbest metinle aranan boş slotlar değil).
-function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onRemovePlayer, onInviteSlot, onAddManualSlot, matchMode, legacyOppManualNames = [], t, emoji = '🏐' }) {
+function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], substituteCount = 0, isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onRemovePlayer, onInviteSlot, onAddManualSlot, matchMode, legacyOppManualNames = [], t, emoji = '🏐' }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const flip = () => {
@@ -7090,10 +7091,32 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                             </TouchableOpacity>
                         </View>
                         {renderGrid(allPlayers)}
-                        {substitutePlayers.length > 0 && (
+                        {/* Yedek Sayısı belirtildiyse (subCount) maç Yaklaşan Maçlar'a geçtikten sonra
+                            da gösterilmeye devam eder — kullanıcı isteği: "kadro tamamlanınca direkt
+                            yaklaşan maçlara alıyor, yedek kadrosunu da orada tamamlayabilsinler".
+                            Önceden sadece ZATEN kabul edilmiş yedek varsa görünüyordu, boş kontenjan
+                            (henüz kimse yoksa) tamamen kayboluyordu. */}
+                        {(substituteCount > 0 || substitutePlayers.length > 0) && (
                             <>
-                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginTop:8, marginBottom:6 }}>{t.subsLabel}</Text>
-                                {renderGrid(substitutePlayers)}
+                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginTop:8, marginBottom:6 }}>{t.subsLabel} ({substitutePlayers.length}/{substituteCount})</Text>
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
+                                    {substitutePlayers.map((p, i) => (
+                                        <View key={p.id || `sub-${i}`} style={{ width: cellWidth }}>
+                                            <View style={cellStyle}>
+                                                {p.id ? <Avatar name={p.username} avatar={p.avatar} size={14} color="#a855f7" /> : <Text style={{ fontSize:11 }}>👤</Text>}
+                                                <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{p.id ? senderAlias(p) : p.manualName}</Text>
+                                            </View>
+                                        </View>
+                                    ))}
+                                    {Array.from({ length: Math.max(0, substituteCount - substitutePlayers.length) }).map((_, i) => (
+                                        <View key={`sub-empty-${i}`} style={{ width: cellWidth }}>
+                                            <View style={[cellStyle, { opacity:0.55, borderStyle:'dashed' }]}>
+                                                <Text style={{ fontSize:11 }}>?</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:10, flex:1 }} numberOfLines={1}>Bekleniyor</Text>
+                                            </View>
+                                        </View>
+                                    ))}
+                                </View>
                             </>
                         )}
                     </>
