@@ -469,21 +469,25 @@ function EmptyState({ emoji, text, onAdd, addLabel }) {
     );
 }
 
-function ModeBadge({ mode }) {
+// noEmoji: voleybol kartlarında (Açık İlanlar/Yaklaşan Maçlar) mod/tarih/saat/ücret/kort
+// gibi alanların başındaki emojiler kalabalık ve gereksiz bulunduğu için kaldırılıyor —
+// diğer dallarda bu prop verilmiyor, davranış aynı kalıyor.
+function ModeBadge({ mode, noEmoji }) {
     const t = useT();
+    const label = (raw) => noEmoji ? noEmojiStr(raw) : raw;
     if (mode === 'BOTH') return (
         <View style={[s.modeBadge, { backgroundColor:'#a855f720', borderColor:'#a855f740' }]}>
-            <Text style={[s.modeBadgeText, { color:'#c084fc' }]}>{t.modeBoth}</Text>
+            <Text style={[s.modeBadgeText, { color:'#c084fc' }]}>{label(t.modeBoth)}</Text>
         </View>
     );
     if (mode === 'COMPETITIVE') return (
         <View style={[s.modeBadge, { backgroundColor:'#dc262620', borderColor:'#dc262640' }]}>
-            <Text style={[s.modeBadgeText, { color:'#f87171' }]}>{t.modeCompetitive}</Text>
+            <Text style={[s.modeBadgeText, { color:'#f87171' }]}>{label(t.modeCompetitive)}</Text>
         </View>
     );
     return (
         <View style={[s.modeBadge, { backgroundColor:'#2563eb20', borderColor:'#2563eb40' }]}>
-            <Text style={[s.modeBadgeText, { color:'#60a5fa' }]}>{t.modePractice}</Text>
+            <Text style={[s.modeBadgeText, { color:'#60a5fa' }]}>{label(t.modePractice)}</Text>
         </View>
     );
 }
@@ -2718,7 +2722,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         </View>
                         {/* Mod + 1v1/2v2 — fotoğrafın sağına, isimle aynı hizada */}
                         <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginTop:3, flexWrap:'wrap' }}>
-                            <ModeBadge mode={item.matchMode} />
+                            <ModeBadge mode={item.matchMode} noEmoji={isVolleyball} />
                             <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0 }]}>
                                 <Text style={[s.modeBadgeText, { color: cfg.color, fontSize: moderateScale(10) }]}>
                                     {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
@@ -2745,10 +2749,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 {/* Tarih / Saat / Süre */}
                 {!item.flexibleSchedule && (item.matchDate || item.matchTime || item.duration) && (
                     <View style={{ gap:3, marginBottom:3 }}>
-                        {item.matchDate && <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={2}>📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'long',weekday:'long'})}</Text>}
+                        {item.matchDate && <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={2}>{isVolleyball ? '' : '📅 '}{new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'long',weekday:'long'})}</Text>}
                         {(item.matchTime || item.duration) && (
                             <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {item.matchTime ? (() => { const [h,m]=item.matchTime.split(':').map(Number); const dur=parseInt(item.duration||0); const tot=h*60+m+dur; const endT=dur>0?`–${String(Math.floor(tot/60)%24).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`:''; return `🕐 ${item.matchTime}${endT}`; })() : ''}{item.matchTime && item.duration ? '  ·  ' : ''}{item.duration ? `${item.duration} ${t.timeMinSuffix}` : ''}
+                                {item.matchTime ? (() => { const [h,m]=item.matchTime.split(':').map(Number); const dur=parseInt(item.duration||0); const tot=h*60+m+dur; const endT=dur>0?`–${String(Math.floor(tot/60)%24).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`:''; return `${isVolleyball ? '' : '🕐 '}${item.matchTime}${endT}`; })() : ''}{item.matchTime && item.duration ? '  ·  ' : ''}{item.duration ? `${item.duration} ${t.timeMinSuffix}` : ''}
                             </Text>
                         )}
                     </View>
@@ -2769,8 +2773,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                             {hasRatingRange && (
                                 <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700' }}>
                                     {item.ratingGenderSplit
-                                        ? `⭐ 👨${item.minRatingMale ?? 0}-${item.maxRatingMale ?? 5}  👩${item.minRatingFemale ?? 0}-${item.maxRatingFemale ?? 5}★`
-                                        : `⭐ ${item.minRating ?? '0'}–${item.maxRating ?? '5'}★`}
+                                        ? `⭐ 👨${item.minRatingMale ?? 0}-${item.maxRatingMale ?? 5}  👩${item.minRatingFemale ?? 0}-${item.maxRatingFemale ?? 5}`
+                                        : `⭐ ${item.minRating ?? '0'}–${item.maxRating ?? '5'}`}
                                 </Text>
                             )}
                             {hasGenderCount && (
@@ -2815,7 +2819,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 )}
                 {item.courtName && (
                     <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)}>
-                        <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#60a5fa', textDecorationLine:'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>🏟️ {item.courtName}</Text>
+                        <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#60a5fa', textDecorationLine:'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{isVolleyball ? '' : '🏟️ '}{item.courtName}</Text>
                     </TouchableOpacity>
                 )}
                 {/* Hakem — kullanıcı isteğiyle salon adının altında, "rezerve edildi" satırının
@@ -2831,11 +2835,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </View>
                 )}
                 <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                    {item.isCourtReserved ? `✅ ${isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}` : `❌ ${t.courtNotReserved}`}
+                    {item.isCourtReserved ? `${isVolleyball ? '' : '✅ '}${isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}` : `${isVolleyball ? '' : '❌ '}${t.courtNotReserved}`}
                 </Text>
                 {item.courtFeePerPerson > 0 && (
                     <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#4ade80' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                        💰 {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
+                        {isVolleyball ? '' : '💰 '}{item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
                     </Text>
                 )}
                 {!!feeByMethodHint(item.courtFeePerPersonByMethod) && (
@@ -3844,17 +3848,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 </View>
                 {match.matchMode?.toUpperCase() === 'COMPETITIVE' && (
                     <View style={[s.modeBadge, { backgroundColor:'#ef444420', borderColor:'#ef444440' }]}>
-                        <Text style={[s.modeBadgeText, { color:'#ef4444' }]}>{t.modeCompetitive}</Text>
+                        <Text style={[s.modeBadgeText, { color:'#ef4444' }]}>{isVolleyball ? noEmojiStr(t.modeCompetitive) : t.modeCompetitive}</Text>
                     </View>
                 )}
                 {match.matchMode?.toUpperCase() === 'PRACTICE' && (
                     <View style={[s.modeBadge, { backgroundColor:'#22c55e20', borderColor:'#22c55e40' }]}>
-                        <Text style={[s.modeBadgeText, { color:'#22c55e' }]}>{t.modePractice}</Text>
+                        <Text style={[s.modeBadgeText, { color:'#22c55e' }]}>{isVolleyball ? noEmojiStr(t.modePractice) : t.modePractice}</Text>
                     </View>
                 )}
                 {match.flexibleSchedule && (
                     <View style={[s.modeBadge, { backgroundColor:'#f59e0b20', borderColor:'#f59e0b40' }]}>
-                        <Text style={[s.modeBadgeText, { color:'#f59e0b' }]}>📅 Esnek</Text>
+                        <Text style={[s.modeBadgeText, { color:'#f59e0b' }]}>{isVolleyball ? 'Esnek' : '📅 Esnek'}</Text>
                     </View>
                 )}
             </View>
@@ -3873,7 +3877,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             )}
             {/* Court */}
             {match.courtName && (
-                <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2 }]}>🏟️ {match.courtName}</Text>
+                <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2 }]}>{isVolleyball ? '' : '🏟️ '}{match.courtName}</Text>
             )}
             {match.venueId && isParticipant && (
                 <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:4 }}>
