@@ -316,6 +316,17 @@ function setAtSlot(arr, index, value) {
     return next;
 }
 
+// Kurucu Takım (side 'my') tarafında kadro kartındaki slot index'i HER ZAMAN kurucunun
+// kendisini de sayar (0 = kurucu, 1 = senderTeam[0], 2 = senderTeam[1]...) — frontend'de
+// hem TeamColBack hem TeamAssignCard bu şekilde numaralandırıyor (bkz. peoplePositional =
+// [sender, ...senderTeam]). Ama senderTeam DİZİSİ kurucuyu içermiyor, bu yüzden ona
+// setAtSlot ile yazarken index'in 1 eksiği kullanılmalı — bu düzeltme olmadan "2. forma"
+// (index 1) davet edilen biri senderTeam[1]'e (yani görsel 3. slota) yerleşiyordu.
+function setAtFounderSlot(senderTeamArr, peoplePositionalIndex, value) {
+    const idx = Number.isInteger(peoplePositionalIndex) ? peoplePositionalIndex - 1 : null;
+    return setAtSlot(senderTeamArr, idx, value);
+}
+
 // İlan oluştururken kurucu/rakip/yedek/atanmamış için girilen manuel (uygulamayı kullanmayan)
 // isimler eskiden düz metin diziydi (cinsiyetsiz) — artık {name, gender} nesnesi de kabul
 // ediliyor (Antrenman modunda manuel oyuncu eklerken cinsiyet seçimi zorunlu, bkz. mobil
@@ -1611,9 +1622,13 @@ export const createRivalRequest = async (req, res, next) => {
         // sadece DOUBLE'a değil takımSize>1 olan herhangi bir maça uygulanıyor.
         const teamInviteEmoji = subCategory === 'airsoft' ? '🪖' : '🏐';
         const oppTeamIds = Array.isArray(oppTeamInviteIds) ? [...new Set(oppTeamInviteIds.filter(Boolean))] : [];
-        for (const oppInviteId of oppTeamIds) {
+        oppTeamIds.forEach((oppInviteId, oppInviteIdx) => {
+            // Kadro kartında hangi forma denk geleceği — manuel isimlerden (cleanOppManual,
+            // participants'ın başında duruyor) sonraki ilk boş slotlar. Bildirime tıklayınca
+            // kartın arka yüzü bu slotu vurgulasın diye (bkz. mobil highlightSlot).
+            const slotIndex = cleanOppManual.length + oppInviteIdx;
             prisma.rivalJoinRequest.create({
-                data: { rivalId: request.id, userId: oppInviteId, initiatedBy: 'OWNER', isOppTeamInvite: true },
+                data: { rivalId: request.id, userId: oppInviteId, initiatedBy: 'OWNER', isOppTeamInvite: true, slotIndex },
             }).then(async () => {
                 const updatedRival = await prisma.activityRequest.findUnique({
                     where: { id: request.id },
@@ -1631,23 +1646,27 @@ export const createRivalRequest = async (req, res, next) => {
                     oppInviteId, 'MATCH_INVITE',
                     `${teamInviteEmoji} ${subCategoryTR(request.subCategory)} Maç Daveti`,
                     `@${me?.username || 'Biri'} sizi Rakip Takım'a davet etti.`,
-                    { category: request.category, subCategory: request.subCategory, rivalId: request.id }
+                    { category: request.category, subCategory: request.subCategory, rivalId: request.id, inviteSide: 'opp', inviteSlotIndex: slotIndex }
                 ).catch(() => {});
                 emitToUser(oppInviteId, 'notification', {
                     type: 'MATCH_INVITE', title: `${teamInviteEmoji} ${subCategoryTR(request.subCategory)} Maç Daveti`,
                     body: `@${me?.username || 'Biri'} sizi Rakip Takım'a davet etti.`,
-                    data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
+                    data: { category: request.category, subCategory: request.subCategory, rivalId: request.id, inviteSide: 'opp', inviteSlotIndex: slotIndex },
                 });
             }).catch(() => {});
-        }
+        });
 
         // Voleybol: kurucu takım slotlarına doğrudan davet — oppTeamIds ile birebir aynı
         // akış, sadece isPartnerInvite:true (kabul edilince senderTeam'e eklenir, bkz.
         // respondToJoinRequest). partnerInviteId (DOUBLE) ile karışmasın diye ayrı tutuluyor.
         const founderTeamIds = Array.isArray(founderTeamInviteIds) ? [...new Set(founderTeamInviteIds.filter(Boolean))] : [];
-        for (const founderInviteId of founderTeamIds) {
+        founderTeamIds.forEach((founderInviteId, founderInviteIdx) => {
+            // "my" tarafta kadro kartı slot 0'ı her zaman kurucunun kendisi sayar (bkz.
+            // setAtFounderSlot) — cleanFounderManual zaten senderTeam'in başında duruyor,
+            // yeni davetler onlardan sonraki ilk boş slotlara denk gelir.
+            const slotIndex = 1 + cleanFounderManual.length + founderInviteIdx;
             prisma.rivalJoinRequest.create({
-                data: { rivalId: request.id, userId: founderInviteId, initiatedBy: 'OWNER', isPartnerInvite: true },
+                data: { rivalId: request.id, userId: founderInviteId, initiatedBy: 'OWNER', isPartnerInvite: true, slotIndex },
             }).then(async () => {
                 const updatedRival = await prisma.activityRequest.findUnique({
                     where: { id: request.id },
@@ -1665,15 +1684,15 @@ export const createRivalRequest = async (req, res, next) => {
                     founderInviteId, 'MATCH_INVITE',
                     `${teamInviteEmoji} ${subCategoryTR(request.subCategory)} Takım Daveti`,
                     `@${me?.username || 'Biri'} sizi Kurucu Takım'a davet etti.`,
-                    { category: request.category, subCategory: request.subCategory, rivalId: request.id }
+                    { category: request.category, subCategory: request.subCategory, rivalId: request.id, inviteSide: 'my', inviteSlotIndex: slotIndex }
                 ).catch(() => {});
                 emitToUser(founderInviteId, 'notification', {
                     type: 'MATCH_INVITE', title: `${teamInviteEmoji} ${subCategoryTR(request.subCategory)} Takım Daveti`,
                     body: `@${me?.username || 'Biri'} sizi Kurucu Takım'a davet etti.`,
-                    data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
+                    data: { category: request.category, subCategory: request.subCategory, rivalId: request.id, inviteSide: 'my', inviteSlotIndex: slotIndex },
                 });
             }).catch(() => {});
-        }
+        });
 
         // Voleybol: yedek oyuncu daveti — aynı akış, isSubstituteInvite:true (kabul edilince
         // substitutePlayers'a eklenir).
@@ -2527,7 +2546,7 @@ export const respondToJoin = async (req, res, next) => {
             const existingSenderTeam = Array.isArray(joinReq.rival.senderTeam) ? joinReq.rival.senderTeam : [];
             const updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },
-                data: { senderTeam: setAtSlot(existingSenderTeam, joinReq.slotIndex, joinerData) },
+                data: { senderTeam: setAtFounderSlot(existingSenderTeam, joinReq.slotIndex, joinerData) },
                 include: {
                     sender: { select: SENDER_SELECT },
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
@@ -4152,7 +4171,7 @@ export const addManualTeamPlayer = async (req, res, next) => {
             if (senderTeam.filter(p => p && (p.id || p.manualName)).length >= teamSizeN - 1) {
                 return res.status(400).json({ message: 'Kurucu Takımı zaten dolu.' });
             }
-            data = { senderTeam: setAtSlot(senderTeam, slotIndex, { manualName: trimmed, gender }) };
+            data = { senderTeam: setAtFounderSlot(senderTeam, slotIndex, { manualName: trimmed, gender }) };
         } else {
             const legacyOppManualCount = Array.isArray(rival.oppTeamManualNames) ? rival.oppTeamManualNames.length : 0;
             if (participants.filter(p => p && (p.id || p.manualName)).length + legacyOppManualCount >= teamSizeN) {
