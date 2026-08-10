@@ -54,7 +54,12 @@ function navigateFromNotif(data) {
         else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED') initialTab = 'archive';
         navigationRef.navigate('HomeTab', {
             screen: 'SubCategory',
-            params: { category: data.category, sub: data.subCategory, initialTab, highlightRivalId: data.rivalId || null },
+            params: {
+                category: data.category, sub: data.subCategory, initialTab, highlightRivalId: data.rivalId || null,
+                // Kadro kartındaki bir slota doğrudan davet edildiyse (bkz. inviteToRival),
+                // ilan detayı açılınca kartın arka yüzü o slotu vurgulayarak açılsın diye.
+                ...(data.inviteSide && { inviteSide: data.inviteSide, inviteSlotIndex: data.inviteSlotIndex ?? null }),
+            },
         });
     }
 }

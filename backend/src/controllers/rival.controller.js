@@ -2426,7 +2426,13 @@ export const inviteToRival = async (req, res, next) => {
             isRefereeAd ? `@${me?.username} sizi maçında hakemlik yapmaya davet etti.`
                 : isTeamSlotInvite ? `@${me?.username} sizi ${side === 'my' ? 'Kurucu Takım' : 'Rakip Takım'}'a davet etti.`
                 : `@${me?.username} sizi bir maça davet etti.`,
-            { category: rival.category, subCategory: rival.subCategory, rivalId: rival.id, ...(isRefereeAd && { refereeAd: true }) }
+            {
+                category: rival.category, subCategory: rival.subCategory, rivalId: rival.id, ...(isRefereeAd && { refereeAd: true }),
+                // Bildirime tıklayınca kadro kartının arka yüzü hangi slotu vurgulayarak
+                // açılsın diye (bkz. mobil navigateFromNotif) — sadece doğrudan slota
+                // davet edildiyse (isTeamSlotInvite) anlamlı.
+                ...(isTeamSlotInvite && { inviteSide: side, inviteSlotIndex: Number.isInteger(slotIndex) ? slotIndex : null }),
+            }
         ).catch(() => {});
 
         const updatedRival = await prisma.activityRequest.findUnique({

@@ -177,7 +177,12 @@ export default function NotificationsScreen({ navigation }) {
                 navigation.push('SubCategory', { category: cat, sub: data.subCategory, initialTab: 'coaches', initialCoachSubTab: 'referees', highlightRivalId: data.rivalId || null });
                 return;
             }
-            navigation.push('SubCategory', { category: cat, sub: data.subCategory, initialTab: tab, highlightRivalId: data.rivalId || null, initialTournSubTab: tournSubTab, openChatTournamentId });
+            navigation.push('SubCategory', {
+                category: cat, sub: data.subCategory, initialTab: tab, highlightRivalId: data.rivalId || null, initialTournSubTab: tournSubTab, openChatTournamentId,
+                // Kadro kartındaki bir slota doğrudan davet edildiyse (bkz. inviteToRival),
+                // ilan detayı açılınca kartın arka yüzü o slotu vurgulayarak açılsın diye.
+                ...(data.inviteSide && { inviteSide: data.inviteSide, inviteSlotIndex: data.inviteSlotIndex ?? null }),
+            });
         };
         const goToEquipmentListing = () => {
             if (!data.category || !data.subCategory || !data.listingId) return;

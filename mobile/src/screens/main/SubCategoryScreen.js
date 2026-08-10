@@ -501,7 +501,7 @@ const det = StyleSheet.create({
     chatBtnTxt:   { fontSize:moderateScale(13) },
 });
 
-function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin }) {
+function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin, highlightSlot = null }) {
     const insets = useSafeAreaInsets();
     const [localParticipants, setLocalParticipants] = useState(null);
     // "Atanmamış" havuzu için ayrı local override — önceden yoktu, bu yüzden kabul edilen bir
@@ -523,7 +523,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // Çiftlerde kabul edilen oyuncular varsayılan olarak Partner/Rakip 1/Rakip 2 kartlarına
     // otomatik yerleşmiş gösterilmez — önce sırayla "Katılımcı 1/2/3" olarak listelenir,
     // kurucu isterse "Takımları Düzenle" ile mevcut kart/takas ekranını açar.
-    const [showTeamCards, setShowTeamCards] = useState(false);
+    // Bildirimden ("...Rakip Takım'a davet etti") açıldıysa (highlightSlot dolu) kart
+    // doğrudan arka yüzden (davet edilen slot görünür halde) başlasın diye.
+    const [showTeamCards, setShowTeamCards] = useState(() => !!highlightSlot);
     // Oyuncular kartı "Takımları Düzenle"ye basınca kart çevrilir gibi arka
     // yüzüne (takım düzenleme ızgarası) döner; tekrar çevirince ön yüze
     // (katılımcı listesi) geri gelir. rotateY 0->90 derece dönerken (kart
@@ -539,6 +541,34 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         });
     };
     const cardRotateY = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '90deg'] });
+    // Davetten gelindiyse (highlightSlot) kart otomatik olarak birkaç kez çevrilip kullanıcının
+    // dikkatini "arka yüzde bir şey var" a çeksin — kullanıcı isteği: arka açık başlasın, 2sn
+    // sonra öne, 2sn sonra tekrar arkaya, 1sn sonra tekrar öne dönüp orada kalsın. Modal her
+    // açılışta bir kere çalışsın diye ref ile korunuyor (StrictMode/rerender'da tekrarlamasın).
+    const highlightSeqRanRef = useRef(false);
+    const [flipHintActive, setFlipHintActive] = useState(false);
+    useEffect(() => {
+        if (!visible || !highlightSlot || highlightSeqRanRef.current) return;
+        highlightSeqRanRef.current = true;
+        const timers = [
+            setTimeout(() => toggleTeamCards(false), 2000),
+            setTimeout(() => toggleTeamCards(true), 4000),
+            setTimeout(() => { toggleTeamCards(false); setFlipHintActive(true); }, 5000),
+        ];
+        return () => timers.forEach(clearTimeout);
+    }, [visible, highlightSlot]);
+    // Vurgulanan boş slotun (ve çevirme butonundaki ipucu rozetinin) yanıp sönmesi için ortak
+    // pulse animasyonu.
+    const highlightPulse = useRef(new Animated.Value(0.4)).current;
+    useEffect(() => {
+        if (!highlightSlot) return;
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(highlightPulse, { toValue: 1, duration: 550, useNativeDriver: true }),
+            Animated.timing(highlightPulse, { toValue: 0.4, duration: 550, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [highlightSlot]);
     const [comments, setComments] = useState([]);
     const [loadingComments, setLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
@@ -1217,8 +1247,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 Rakip Takımı (teamSize'lık sabit sütunlar). Aynı showTeamCards/cardRotateY
                                 state'i (DOUBLE'da kullanılanla aynı) burada da ön/arka geçişi için kullanılıyor. */}
                             {item.matchType !== 'DOUBLE' && !isRefereeAd && (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) && (
-                                <TouchableOpacity onPress={() => toggleTeamCards(!showTeamCards)} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
+                                <TouchableOpacity onPress={() => toggleTeamCards(!showTeamCards)} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20', position:'relative' }}>
                                     <Text style={{ color: cfg.color, fontSize:13, fontWeight:'700' }}>🔄</Text>
+                                    {/* Otomatik çevirme dizisi bitip önde kalınca, arkada bir davet vurgusu
+                                        olduğunu unutmasın diye butonda yanıp sönen küçük bir rozet bırakılır. */}
+                                    {flipHintActive && (
+                                        <Animated.View style={{ position:'absolute', top:-3, right:-3, width:9, height:9, borderRadius:5, backgroundColor: cfg.color, opacity: highlightPulse }} />
+                                    )}
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -1628,18 +1663,29 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </TouchableOpacity>
                                             )}
                                         </View>
-                                        {slots.map((p, i) => p ? (
-                                            <View key={p.id || `m-${i}`} style={{ marginBottom:3 }}><Cell p={p} allowRemove={allowRemove} /></View>
-                                        ) : (
-                                            <View key={`e-${i}`} style={{ marginBottom:3 }}>
-                                                {isOwner && side ? (
-                                                    <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t}
-                                                        placeholder={t.teamSlotPh(i + 1)}
-                                                        onInvite={(u) => inviteToTeamSlot(u, side, i)}
-                                                        onAddManual={item.matchMode === 'COMPETITIVE' ? undefined : (name, gender) => addManualPlayerToTeam(name, side, i, gender)} />
-                                                ) : <EmptyCell />}
-                                            </View>
-                                        ))}
+                                        {slots.map((p, i) => {
+                                            // Bildirimden ("...Rakip Takım'a davet etti") gelindiyse, davet edilen
+                                            // boş slot yanıp sönen bir çerçeveyle vurgulanır (kullanıcı isteği:
+                                            // hangi forma davet edildiğini görsün).
+                                            const isHighlighted = !p && highlightSlot?.side === side && highlightSlot?.slotIndex === i;
+                                            return p ? (
+                                                <View key={p.id || `m-${i}`} style={{ marginBottom:3 }}><Cell p={p} allowRemove={allowRemove} /></View>
+                                            ) : (
+                                                <View key={`e-${i}`} style={{ marginBottom:3 }}>
+                                                    {isOwner && side ? (
+                                                        <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t}
+                                                            placeholder={t.teamSlotPh(i + 1)}
+                                                            onInvite={(u) => inviteToTeamSlot(u, side, i)}
+                                                            onAddManual={item.matchMode === 'COMPETITIVE' ? undefined : (name, gender) => addManualPlayerToTeam(name, side, i, gender)} />
+                                                    ) : isHighlighted ? (
+                                                        <Animated.View style={{ flexDirection:'row', alignItems:'center', gap:3, borderWidth:2, borderColor: cfg.color, borderRadius:8, padding:2, opacity: highlightPulse }}>
+                                                            <Text style={{ fontSize:12 }}>👉</Text>
+                                                            <View style={{ flex:1 }}><EmptyCell /></View>
+                                                        </Animated.View>
+                                                    ) : <EmptyCell />}
+                                                </View>
+                                            );
+                                        })}
                                         {legacyManualExtra.map((p, i) => (
                                             <View key={`legacy-${i}`} style={{ marginBottom:3 }}><Cell p={p} allowRemove={allowRemove} /></View>
                                         ))}
@@ -2446,7 +2492,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
 // ─── Rival Card ────────────────────────────────────────────────────────────────
 
-function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpened, myRating = 0, refereeListings = [] }) {
+function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpened, myRating = 0, refereeListings = [], highlightSlot = null }) {
     const t = useT();
     const cfg = getConfig(sub);
     const isVolleyball = sub === 'volleyball';
@@ -2966,6 +3012,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             onEdit={() => { editOpenedFromDetailRef.current = true; setDetailVisible(false); setTimeout(() => setEditVisible(true), 300); }}
             myRefereeListing={refereeListings.find(r => r.userId === myId)}
             onConfirmLateJoin={handleConfirmLateJoin}
+            highlightSlot={highlightSlot}
         />
         {editVisible && (
             <CreateRivalModal
@@ -13869,7 +13916,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function SubCategoryScreen({ route, navigation }) {
-    const { category, sub, initialTab, highlightRivalId, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
+    const { category, sub, initialTab, highlightRivalId, inviteSide, inviteSlotIndex, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
             openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor,
             openEquipmentId, initialCoachSubTab, openCoachId } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
@@ -13977,6 +14024,11 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const [autoOpenId, setAutoOpenId] = useState(null);
     const autoOpenHandledRef = useRef(null);
+    // Bildirimden ("... Rakip Takım'a davet etti") tıklanınca kadro kartı arka yüzü,
+    // davet edildiği slotu vurgulayarak açılsın diye — bkz. RivalDetailModal'daki
+    // highlightSlot prop'u ve navigateFromNotif/NotificationsScreen'deki inviteSide/
+    // inviteSlotIndex param'ları.
+    const [autoHighlightSlot] = useState(() => (inviteSide ? { side: inviteSide, slotIndex: inviteSlotIndex ?? null } : null));
 
     const [rivals, setRivals] = useState([]);
     const [playerWanted, setPlayerWanted] = useState([]);
@@ -16163,7 +16215,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : (
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                             {filteredRivals.map(item => (
-                                                <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} />
+                                                <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} />
                                             ))}
                                         </View>
                                     )
@@ -16952,7 +17004,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         : (
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                                 {refereeMatches.map(item => (
-                                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} />
+                                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} />
                                                 ))}
                                             </View>
                                         )
