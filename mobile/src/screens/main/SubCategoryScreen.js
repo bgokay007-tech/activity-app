@@ -1163,6 +1163,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     {item.matchTime ? `🕐 ${item.matchTime}${item.duration ? (() => { const [h,m]=item.matchTime.split(':').map(Number); const tot=h*60+m+parseInt(item.duration); return `–${String(Math.floor(tot/60)%24).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`; })() : ''}` : `⏱ ${item.duration} ${t.timeMinSuffix}`}
                                 </Text>
                             )}
+                            {item.subCategory === 'volleyball' && !!VOLLEYBALL_SURFACES.find(v => v.id === item.surface) && (
+                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
+                                    {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === item.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : v.labelEn}`; })()}
+                                </Text>
+                            )}
                             {item.courtName && (
                                 <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)} style={{ maxWidth:'100%' }}>
                                     <Text style={{ color:'#60a5fa', fontSize:moderateScale(10), textDecorationLine:'underline' }} numberOfLines={2}>🏟️ {item.courtName}</Text>
@@ -2755,6 +2760,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     );
                 })()}
 
+                {/* Voleybol türü (Salon/Plaj/Çim/Mahalle/Toprak) artık ayrı filtre sekmesi değil,
+                    kort bilgisinin hemen üstünde bilgi satırı olarak gösteriliyor (kullanıcı isteği). */}
+                {item.subCategory === 'volleyball' && !!VOLLEYBALL_SURFACES.find(v => v.id === item.surface) && (
+                    <Text style={{ fontSize:moderateScale(10), marginBottom:2, color: colors.textMuted, fontWeight:'700' }} numberOfLines={1}>
+                        {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === item.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : v.labelEn}`; })()}
+                    </Text>
+                )}
                 {item.courtName && (
                     <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)}>
                         <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#60a5fa', textDecorationLine:'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>🏟️ {item.courtName}</Text>
@@ -3805,6 +3817,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 {!match.flexibleSchedule && match.matchTime ? ` · ${match.matchTime}` : ''}
                 {match.duration ? ` · ${match.duration} ${t.timeMinSuffix}` : ''}
             </Text>
+            {/* Voleybol türü (Salon/Plaj/Çim/Mahalle/Toprak) — filtre sekmesi değil, kort
+                bilgisinin hemen üstünde bilgi satırı (kullanıcı isteği). */}
+            {match.subCategory === 'volleyball' && !!VOLLEYBALL_SURFACES.find(v => v.id === match.surface) && (
+                <Text style={[s.cardSub, { color: colors.textMuted, fontWeight:'700', marginTop:2 }]}>
+                    {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === match.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : v.labelEn}`; })()}
+                </Text>
+            )}
             {/* Court */}
             {match.courtName && (
                 <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2 }]}>🏟️ {match.courtName}</Text>
@@ -3889,6 +3908,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             {!match.flexibleSchedule && match.matchTime ? ` · ${match.matchTime}` : ''}
                             {match.duration ? ` · ${match.duration} ${t.timeMinSuffix}` : ''}
                         </Text>
+                        {match.subCategory === 'volleyball' && !!VOLLEYBALL_SURFACES.find(v => v.id === match.surface) && (
+                            <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4, fontWeight:'700' }}>
+                                {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === match.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : v.labelEn}`; })()}
+                            </Text>
+                        )}
                         {match.location && <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4 }}>📍 {match.location}{match.district ? ` / ${match.district}` : ''}</Text>}
                         {match.courtName && (
                             <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
@@ -14085,10 +14109,6 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveModalLoading, setArchiveModalLoading] = useState(false);
     const [archiveModalTab, setArchiveModalTab] = useState('details');
 
-    // Voleybol: Salon/Plaj/Çim/Mahalle/Toprak alt tür sekmesi — hangi türde ilan açıldıysa
-    // (bkz. CreateRivalModal'daki f.surface / VOLLEYBALL_SURFACES) Açık İlanlar VE Yaklaşan
-    // Maçlar'da o sekme altında gösterilsin diye (bkz. applyFilter). null = Tümü.
-    const [volleyballSubType, setVolleyballSubType] = useState(null);
     const [filterCity, setFilterCity] = useState('');
     const [filterVenueName, setFilterVenueName] = useState(''); // kort/salon/mekan adına göre ayrı arama — dala göre etiketi değişir
     const [filterDate, setFilterDate] = useState('all'); // 'all' | 'today' | 'week' | 'month' | 'custom'
@@ -15586,7 +15606,6 @@ export default function SubCategoryScreen({ route, navigation }) {
         return true;
     };
     const applyFilter = (item) => {
-        if (sub === 'volleyball' && volleyballSubType && item.surface !== volleyballSubType) return false;
         if (filterCity.trim()) {
             const q = filterCity.trim().toLowerCase();
             const loc = (item.location || '').toLowerCase();
@@ -16104,26 +16123,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                     </TouchableOpacity>
                 ))}
             </ScrollView>
-
-            {/* Voleybol alt tür sekmesi — hangi türde (Salon/Plaj/Çim/Mahalle/Toprak) ilan
-                açıldıysa Açık İlanlar VE Yaklaşan Maçlar'da o sekmenin altında listelensin
-                diye (bkz. applyFilter). Sadece "rivals" sekmesinde anlamlı, diğerlerinde gizli. */}
-            {sub === 'volleyball' && activeTab === 'rivals' && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={s.tabBarInner}>
-                    <TouchableOpacity onPress={() => setVolleyballSubType(null)}
-                        style={[s.tab, { paddingVertical:5 }, !volleyballSubType && { backgroundColor: cfg.color+'30', borderColor: cfg.color }]}>
-                        <Text style={[s.tabText, { fontSize:11 }, !volleyballSubType && { color: cfg.color, fontWeight:'800' }]}>{lang === 'tr' ? 'Tümü' : 'All'}</Text>
-                    </TouchableOpacity>
-                    {VOLLEYBALL_SURFACES.map(vs => (
-                        <TouchableOpacity key={vs.id} onPress={() => setVolleyballSubType(vs.id)}
-                            style={[s.tab, { paddingVertical:5 }, volleyballSubType === vs.id && { backgroundColor: cfg.color+'30', borderColor: cfg.color }]}>
-                            <Text style={[s.tabText, { fontSize:11 }, volleyballSubType === vs.id && { color: cfg.color, fontWeight:'800' }]} numberOfLines={1}>
-                                {vs.emoji} {lang === 'tr' ? vs.label : vs.labelEn}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-            )}
 
             {loading ? (
                 <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
