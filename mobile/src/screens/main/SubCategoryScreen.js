@@ -1837,15 +1837,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     {showTeamCards && unassignedSlots.length > 0 && (
                                         <View style={{ marginTop:8, paddingTop:8, borderTopWidth:1, borderTopColor: colors.border }}>
                                             <Text style={[s.fieldLabel, { fontSize:10, marginBottom:4 }]}>{t.unassignedLabel} ({unassignedSlots.length})</Text>
-                                            {unassignedSlots.map((p, i) => (
-                                                <TouchableOpacity key={p.id || `unassigned-back-${i}`} disabled={!isOwner}
-                                                    onPress={() => promptAssignTeam(p)}
-                                                    style={{ flexDirection:'row', alignItems:'center', gap:5, paddingVertical:4 }}>
-                                                    {p.id ? <Avatar name={p.username} avatar={p.avatar} size={16} color={cfg.color} /> : <Text style={{ fontSize:13 }}>👤</Text>}
-                                                    <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1}>{p.id ? playerDisplayName(p) : p.manualName}</Text>
-                                                    {isOwner && <Text style={{ color: colors.textMuted, fontSize:10 }}>▸</Text>}
-                                                </TouchableOpacity>
-                                            ))}
+                                            {/* Kullanıcı isteği: satır başına 3 isim — tek sütun dikey liste yerine ızgara. */}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
+                                                {unassignedSlots.map((p, i) => (
+                                                    <TouchableOpacity key={p.id || `unassigned-back-${i}`} disabled={!isOwner}
+                                                        onPress={() => promptAssignTeam(p)}
+                                                        style={{ width:'32%', flexDirection:'row', alignItems:'center', gap:3, paddingVertical:4 }}>
+                                                        {p.id ? <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} /> : <Text style={{ fontSize:11 }}>👤</Text>}
+                                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1}>{p.id ? playerDisplayName(p) : p.manualName}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
                                         </View>
                                     )}
                                 </View>
@@ -7091,14 +7093,16 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                         {isOwner && unassigned.length > 0 && (
                             <View style={{ marginTop:8, paddingTop:8, borderTopWidth:1, borderTopColor: colors.border }}>
                                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:4 }}>{t.unassignedLabel} ({unassigned.length})</Text>
-                                {unassigned.map((p, i) => (
-                                    <TouchableOpacity key={p.id || `m-${i}`} onPress={() => promptAssignTeam(p)}
-                                        style={{ flexDirection:'row', alignItems:'center', gap:5, paddingVertical:4 }}>
-                                        {p.id ? <Avatar name={p.username} avatar={p.avatar} size={16} color="#a855f7" /> : <Text style={{ fontSize:13 }}>👤</Text>}
-                                        <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1}>{p.id ? senderAlias(p) : p.manualName}</Text>
-                                        <Text style={{ color: colors.textMuted, fontSize:10 }}>▸</Text>
-                                    </TouchableOpacity>
-                                ))}
+                                {/* Kullanıcı isteği: satır başına 3 isim — tek sütun dikey liste yerine ızgara. */}
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
+                                    {unassigned.map((p, i) => (
+                                        <TouchableOpacity key={p.id || `m-${i}`} onPress={() => promptAssignTeam(p)}
+                                            style={{ width:'32%', flexDirection:'row', alignItems:'center', gap:3, paddingVertical:4 }}>
+                                            {p.id ? <Avatar name={p.username} avatar={p.avatar} size={14} color="#a855f7" /> : <Text style={{ fontSize:11 }}>👤</Text>}
+                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1}>{p.id ? senderAlias(p) : p.manualName}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
                             </View>
                         )}
                     </>
