@@ -340,22 +340,29 @@ function normalizeManualNames(arr) {
         .map(n => ({ name: n.name.trim().slice(0, 40), gender: ['MALE', 'FEMALE'].includes(n.gender) ? n.gender : null }));
 }
 
-// Voleybol/airsoft (teamSize>1) bireysel kabul: ilanda Cinsiyet Dağılımı (requiredMaleCount)
-// kısıtlaması varsa, kabul edilecek oyuncunun cinsiyeti o kotayı doldurmuşsa reddedilir —
+// Voleybol/airsoft (teamSize>1) bireysel kabul: ilanda Cinsiyet Dağılımı kısıtlaması varsa,
+// kabul edilecek oyuncunun cinsiyeti o kotayı doldurmuşsa/imkansız kılıyorsa reddedilir —
 // önceden bu hiç kontrol edilmiyordu, ör. 6 kadın hedefiyle açılan bir ilana 8-9 kadın kabul
-// edilebiliyordu. Mevcut kadronun cinsiyetleri (participants/senderTeam/unassignedPlayers'a
-// accept akışıyla eklenen kayıtlarda gender saklanmıyor) User tablosundan taze çekilir.
+// edilebiliyordu. İki mod var (bkz. GenderCountModal): 'EXACT' — havuzun TAMAMININ dağılımı
+// (requiredMaleCount, eski davranış — genderCountMode null olan eski ilanlarda da requiredMaleCount
+// doluysa geriye dönük EXACT sayılır). 'MIN' — sadece minGenderReq cinsiyetinden en az
+// minGenderCount kişi gerekir, geri kalan slotlar serbest (kullanıcı isteği: "2 kesin kız
+// lazım, kalan 10 kişi fark etmez") — roster dolarken minimum hâlâ karşılanabilir mi diye
+// "kalan slotlar yeter mi" mantığıyla kontrol edilir. Mevcut kadronun cinsiyetleri
+// (participants/senderTeam/unassignedPlayers'a accept akışıyla eklenen kayıtlarda gender
+// saklanmıyor) User tablosundan taze çekilir.
 async function checkGenderCountQuota(rival, newJoinerGender) {
     if (!['volleyball', 'airsoft'].includes(rival.subCategory)) return null;
     if ((rival.teamSize || 1) <= 1) return null;
-    if (rival.requiredMaleCount == null) return null;
+    const isExactMode = rival.requiredMaleCount != null && (rival.genderCountMode == null || rival.genderCountMode === 'EXACT');
+    const isMinMode = rival.genderCountMode === 'MIN' && rival.minGenderCount != null && ['MALE', 'FEMALE'].includes(rival.minGenderReq);
+    if (!isExactMode && !isMinMode) return null;
     if (newJoinerGender === 'OTHER') return null; // mevcut tek-slot cinsiyet kontrolleriyle aynı: OTHER kotaya dahil değil
     if (!newJoinerGender) {
         return 'Bu ilanda cinsiyet dağılımı kısıtlaması var, profilinde cinsiyet bilgisi girilmemiş oyuncular kabul edilemiyor.';
     }
 
     const totalSlots = 2 * rival.teamSize;
-    const femaleQuota = totalSlots - rival.requiredMaleCount;
     const rosterArrays = [
         ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []),
         ...(Array.isArray(rival.participants) ? rival.participants : []),
@@ -372,11 +379,30 @@ async function checkGenderCountQuota(rival, newJoinerGender) {
     const maleCount = existingUsers.filter(u => u.gender === 'MALE').length + manualMaleCount;
     const femaleCount = existingUsers.filter(u => u.gender === 'FEMALE').length + manualFemaleCount;
 
-    if (newJoinerGender === 'MALE' && maleCount >= rival.requiredMaleCount) {
-        return `Bu ilanda erkek kontenjanı (${rival.requiredMaleCount}) zaten doldu — kabul etmeden önce ayarlardan cinsiyet dağılımını artırman gerekiyor.`;
+    if (isExactMode) {
+        const femaleQuota = totalSlots - rival.requiredMaleCount;
+        if (newJoinerGender === 'MALE' && maleCount >= rival.requiredMaleCount) {
+            return `Bu ilanda erkek kontenjanı (${rival.requiredMaleCount}) zaten doldu — kabul etmeden önce ayarlardan cinsiyet dağılımını artırman gerekiyor.`;
+        }
+        if (newJoinerGender === 'FEMALE' && femaleCount >= femaleQuota) {
+            return `Bu ilanda kadın kontenjanı (${femaleQuota}) zaten doldu — kabul etmeden önce ayarlardan cinsiyet dağılımını artırman gerekiyor.`;
+        }
+        return null;
     }
-    if (newJoinerGender === 'FEMALE' && femaleCount >= femaleQuota) {
-        return `Bu ilanda kadın kontenjanı (${femaleQuota}) zaten doldu — kabul etmeden önce ayarlardan cinsiyet dağılımını artırman gerekiyor.`;
+
+    // MIN modu: yeni oyuncu eklendikten sonra bile, roster tamamen dolana kadar minimum
+    // HÂLÂ karşılanabilir mi diye bakılır — aksi halde ör. "en az 2 kadın" hedefi, önce
+    // 11 erkek kabul edilip son 1 slota sıkışarak imkansız hale gelebilirdi.
+    const hasSlot = (p) => p && (p.id || p.manualName);
+    const currentTotalFilled = 1 + rosterArrays.filter(hasSlot).length; // +1 kurucu
+    const currentMinGenderCount = rival.minGenderReq === 'MALE' ? maleCount : femaleCount;
+    const newTotalFilled = currentTotalFilled + 1;
+    const newMinGenderCount = currentMinGenderCount + (newJoinerGender === rival.minGenderReq ? 1 : 0);
+    const remainingAfter = totalSlots - newTotalFilled;
+    const neededMore = Math.max(0, rival.minGenderCount - newMinGenderCount);
+    if (neededMore > remainingAfter) {
+        const label = rival.minGenderReq === 'MALE' ? 'erkek' : 'kadın';
+        return `Bu ilanda en az ${rival.minGenderCount} ${label} olması gerekiyor — bu oyuncuyu kabul etmek bu minimumu imkansız hale getiriyor. Kabul etmeden önce ayarlardan cinsiyet dağılımını düzenlemen gerekiyor.`;
     }
     return null;
 }
@@ -762,10 +788,23 @@ export const updateRivalRequest = async (req, res, next) => {
 
         const { message, matchDate, matchTime, duration, location, district, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
-                matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq, requiredMaleCount, winsNeeded,
+                matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq, genderCountMode, requiredMaleCount, minGenderReq, minGenderCount, winsNeeded,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment, refereeFeeIncluded, manualRefereeName,
                 teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes, cancelPenaltyHours, subCount,
                 founderTeamName, opponentTeamName } = req.body;
+
+        // Cinsiyet dağılımı iki moddan biri: 'EXACT' (requiredMaleCount, eski davranış) ya da
+        // 'MIN' (minGenderReq/minGenderCount — sadece bir cinsiyetten en az kaç kişi gerektiği,
+        // kalanı serbest). genderCountMode değişiyorsa diğer moda ait alan temizlenir, ikisi
+        // birden dolu kalıp tutarsız bir duruma düşmesin diye.
+        if (genderCountMode !== undefined) {
+            if (genderCountMode !== null && !['EXACT', 'MIN'].includes(genderCountMode)) {
+                return res.status(400).json({ message: 'Geçersiz cinsiyet dağılımı modu' });
+            }
+            if (genderCountMode === 'MIN' && !['MALE', 'FEMALE'].includes(minGenderReq)) {
+                return res.status(400).json({ message: 'Minimum cinsiyet dağılımı için cinsiyet seçimi gerekli' });
+            }
+        }
 
         let cleanExtraServices;
         if (extraServices !== undefined) {
@@ -840,7 +879,12 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(partnerGenderReq !== undefined && { partnerGenderReq }),
                 ...(opp1GenderReq !== undefined && { opp1GenderReq }),
                 ...(opp2GenderReq !== undefined && { opp2GenderReq }),
-                ...(requiredMaleCount !== undefined && { requiredMaleCount: requiredMaleCount !== null && requiredMaleCount !== '' ? parseInt(requiredMaleCount, 10) : null }),
+                ...(genderCountMode !== undefined && {
+                    genderCountMode,
+                    requiredMaleCount: genderCountMode === 'EXACT' && requiredMaleCount !== null && requiredMaleCount !== '' ? parseInt(requiredMaleCount, 10) : null,
+                    minGenderReq: genderCountMode === 'MIN' ? minGenderReq : null,
+                    minGenderCount: genderCountMode === 'MIN' && minGenderCount !== null && minGenderCount !== '' ? parseInt(minGenderCount, 10) : null,
+                }),
                 ...(winsNeeded !== undefined && { winsNeeded: winsNeeded !== null && winsNeeded !== '' ? parseInt(winsNeeded, 10) : null }),
                 ...(cancelPenaltyHours !== undefined && { cancelPenaltyHours: cancelPenaltyHours !== null && cancelPenaltyHours !== '' ? parseInt(cancelPenaltyHours, 10) : null }),
                 ...(subCount !== undefined && { substituteCount: Math.max(0, parseInt(subCount, 10) || 0) }),
@@ -1274,7 +1318,13 @@ export const createRivalRequest = async (req, res, next) => {
             partnerGenderReq = 'MIX',
             opp1GenderReq = 'MIX',
             opp2GenderReq = 'MIX',
+            // Cinsiyet dağılımı: 'EXACT' modda requiredMaleCount havuzun TAMAMININ kaçının erkek
+            // olacağını belirtir (eski davranış). 'MIN' modda sadece minGenderReq cinsiyetinden
+            // en az minGenderCount kişi gerekir, geri kalan slotlar serbest (kullanıcı isteği).
+            genderCountMode, // 'EXACT' | 'MIN' | undefined/null = kısıtlama yok
             requiredMaleCount, // voleybol takım ilanı: havuzun (2*teamSize) kaç kişisinin erkek olması gerektiği — undefined/null = kısıtlama yok
+            minGenderReq, // 'MIN' modda: 'MALE' | 'FEMALE'
+            minGenderCount, // 'MIN' modda: en az kaç kişi
             winsNeeded, // örn. airsoft: kaç raunt/oyun kazanınca maç biter
             partnerInviteId, // DOUBLE: partner daveti gönderilecek kullanıcının id'si
             opp1InviteId, opp2InviteId, // DOUBLE: rakip 1 / rakip 2 slotuna doğrudan davet gönderilecek kullanıcı id'leri
@@ -1335,7 +1385,7 @@ export const createRivalRequest = async (req, res, next) => {
                 return res.status(400).json({ message: `Bu kısıtlamayı koyamazsınız: en fazla ${creatorEffMax}★ kabul ediyorsunuz ama kendi puanınız ${creatorRating.toFixed(2)}★.` });
         }
 
-        if (requiredMaleCount !== undefined && requiredMaleCount !== null && requiredMaleCount !== '') {
+        if (genderCountMode === 'EXACT' && requiredMaleCount !== undefined && requiredMaleCount !== null && requiredMaleCount !== '') {
             const totalSlots = 2 * (Number(teamSize) || 1);
             const rmc = parseInt(requiredMaleCount, 10);
             if (Number.isNaN(rmc) || rmc < 0 || rmc > totalSlots) {
@@ -1351,6 +1401,23 @@ export const createRivalRequest = async (req, res, next) => {
             }
             if (manualFemale > totalSlots - rmc) {
                 return res.status(400).json({ message: `Cinsiyet dağılımı: manuel eklediğiniz kadın oyuncu sayısı kadın kontenjanını (${totalSlots - rmc}) aşıyor.` });
+            }
+        } else if (genderCountMode === 'MIN') {
+            // Minimum modda sadece BİR cinsiyetten en az kaç kişi gerektiği belirtilir (ör.
+            // "en az 2 kadın"), geri kalan slotların cinsiyeti serbest (kullanıcı isteği:
+            // "2 kesin kız lazım, kalan 10 kişi fark etmez").
+            if (!['MALE', 'FEMALE'].includes(minGenderReq)) {
+                return res.status(400).json({ message: 'Minimum cinsiyet dağılımı için cinsiyet seçimi gerekli' });
+            }
+            const totalSlots = 2 * (Number(teamSize) || 1);
+            const mgc = parseInt(minGenderCount, 10);
+            if (Number.isNaN(mgc) || mgc < 1 || mgc > totalSlots) {
+                return res.status(400).json({ message: 'Geçersiz minimum oyuncu sayısı' });
+            }
+            const allManual = [...cleanFounderManual, ...cleanOppManual, ...cleanSubManual, ...cleanUnassignedManual];
+            const otherGenderManual = allManual.filter(n => n.gender && n.gender !== minGenderReq).length;
+            if (otherGenderManual > totalSlots - mgc) {
+                return res.status(400).json({ message: `Cinsiyet dağılımı: manuel eklediğiniz oyuncular minimum kontenjanı (${mgc}) imkansız kılıyor.` });
             }
         }
 
@@ -1465,8 +1532,10 @@ export const createRivalRequest = async (req, res, next) => {
                 partnerGenderReq: partnerGenderReq || 'MIX',
                 opp1GenderReq: opp1GenderReq || 'MIX',
                 opp2GenderReq: opp2GenderReq || 'MIX',
-                ...(requiredMaleCount !== undefined && requiredMaleCount !== null && requiredMaleCount !== ''
-                    && { requiredMaleCount: parseInt(requiredMaleCount, 10) }),
+                ...(genderCountMode === 'EXACT' && requiredMaleCount !== undefined && requiredMaleCount !== null && requiredMaleCount !== ''
+                    && { genderCountMode: 'EXACT', requiredMaleCount: parseInt(requiredMaleCount, 10) }),
+                ...(genderCountMode === 'MIN' && minGenderCount !== undefined && minGenderCount !== null && minGenderCount !== ''
+                    && { genderCountMode: 'MIN', minGenderReq, minGenderCount: parseInt(minGenderCount, 10) }),
                 ...(winsNeeded !== undefined && winsNeeded !== null && winsNeeded !== ''
                     && { winsNeeded: parseInt(winsNeeded, 10) }),
                 status: 'OPEN',
