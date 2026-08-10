@@ -8922,7 +8922,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     </View>}
                                     <OptionPickerModal
                                         visible={showSurfacePicker}
-                                        title={t.surfaceLabel}
+                                        title={isVolleyball ? t.volleyballTypeLabel : t.surfaceLabel}
                                         options={courtSurfaces.map(sf => ({ value: sf.id, label: sf.label || getSurface(t, sf.id) }))}
                                         value={f.surface}
                                         onSelect={(v) => set('surface', v)}
@@ -14167,6 +14167,10 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const [filterCity, setFilterCity] = useState('');
     const [filterVenueName, setFilterVenueName] = useState(''); // kort/salon/mekan adına göre ayrı arama — dala göre etiketi değişir
+    // Voleybol Türü (Salon/Plaj/Çim/Mahalle/Toprak) — önceden ayrı sekmeler halindeydi,
+    // kullanıcı isteğiyle kaldırılıp diğer filtrelerle (il, tarih vb.) aynı "Filtrele"
+    // modalına taşındı. null = Tümü. Sadece sub==='volleyball' iken anlamlı.
+    const [filterVolleyballType, setFilterVolleyballType] = useState(null);
     const [filterDate, setFilterDate] = useState('all'); // 'all' | 'today' | 'week' | 'month' | 'custom'
     const [filterDateFrom, setFilterDateFrom] = useState(null);
     const [filterDateTo, setFilterDateTo] = useState(null);
@@ -15662,6 +15666,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         return true;
     };
     const applyFilter = (item) => {
+        if (sub === 'volleyball' && filterVolleyballType && item.surface !== filterVolleyballType) return false;
         if (filterCity.trim()) {
             const q = filterCity.trim().toLowerCase();
             const loc = (item.location || '').toLowerCase();
@@ -15780,17 +15785,20 @@ export default function SubCategoryScreen({ route, navigation }) {
         <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8, flexWrap:'wrap' }}>
             {children}
             <CityAlertBtn tab={tab} />
-            {dateFilter ? (
+            {dateFilter ? (() => {
+                const hasActiveFilter = filterCity || filterVenueName || filterDate!=='all' || (sub === 'volleyball' && filterVolleyballType);
+                return (
                 <TouchableOpacity
                     onPress={() => setShowFilterModal(true)}
-                    style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, backgroundColor: (filterCity || filterVenueName || filterDate!=='all') ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:5, borderWidth:1, borderColor: (filterCity || filterVenueName || filterDate!=='all') ? cfg.color : colors.border }}
+                    style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, backgroundColor: hasActiveFilter ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:5, borderWidth:1, borderColor: hasActiveFilter ? cfg.color : colors.border }}
                 >
-                    <Text style={{ color: (filterCity || filterVenueName || filterDate!=='all') ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                    <Text style={{ color: hasActiveFilter ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         🔍 {filterSummaryLabel()}
                     </Text>
                     <Text style={{ color: colors.textMuted, fontSize:10 }}>▾</Text>
                 </TouchableOpacity>
-            ) : (
+                );
+            })() : (
                 <TouchableOpacity
                     onPress={() => setShowCityFilter(true)}
                     style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, backgroundColor:colors.surface2, borderRadius:7, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
@@ -15828,6 +15836,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
     const filterSummaryLabel = () => {
         const parts = [];
+        if (sub === 'volleyball' && filterVolleyballType) {
+            const v = VOLLEYBALL_SURFACES.find(sf => sf.id === filterVolleyballType);
+            if (v) parts.push(lang === 'tr' ? v.label : v.labelEn);
+        }
         if (filterCity) parts.push(filterCity);
         if (filterVenueName) parts.push(filterVenueName);
         if (filterDate !== 'all') parts.push(dateFilterLabel());
@@ -16040,6 +16052,31 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🔍 {lang==='tr' ? 'Filtrele' : 'Filter'}</Text>
                             <TouchableOpacity onPress={() => setShowFilterModal(false)}><Text style={{ color:colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
+
+                        {sub === 'volleyball' && (
+                            <>
+                                <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>🏐 {t.volleyballTypeLabel}</Text>
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:18 }}>
+                                    <TouchableOpacity
+                                        onPress={() => setFilterVolleyballType(null)}
+                                        style={{ backgroundColor: !filterVolleyballType ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:7, paddingHorizontal:12, borderWidth:1, borderColor: !filterVolleyballType ? cfg.color : colors.border }}
+                                    >
+                                        <Text style={{ color: !filterVolleyballType ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Tümü' : 'All'}</Text>
+                                    </TouchableOpacity>
+                                    {VOLLEYBALL_SURFACES.map(v => (
+                                        <TouchableOpacity
+                                            key={v.id}
+                                            onPress={() => setFilterVolleyballType(filterVolleyballType === v.id ? null : v.id)}
+                                            style={{ backgroundColor: filterVolleyballType === v.id ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:7, paddingHorizontal:12, borderWidth:1, borderColor: filterVolleyballType === v.id ? cfg.color : colors.border }}
+                                        >
+                                            <Text style={{ color: filterVolleyballType === v.id ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>
+                                                {v.emoji} {lang==='tr' ? v.label : v.labelEn}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </>
+                        )}
 
                         <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>📍 {lang==='tr' ? 'Konum' : 'Location'}</Text>
                         <TouchableOpacity
