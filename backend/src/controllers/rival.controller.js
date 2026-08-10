@@ -316,6 +316,19 @@ function setAtSlot(arr, index, value) {
     return next;
 }
 
+// İlan oluştururken kurucu/rakip/yedek/atanmamış için girilen manuel (uygulamayı kullanmayan)
+// isimler eskiden düz metin diziydi (cinsiyetsiz) — artık {name, gender} nesnesi de kabul
+// ediliyor (Antrenman modunda manuel oyuncu eklerken cinsiyet seçimi zorunlu, bkz. mobil
+// TeamSlotRow) ki cinsiyet dağılımı kotası (requiredMaleCount) manuel oyuncuları da görebilsin.
+// Düz string gelirse gender null kalır (eski istemci ya da bilinmeyen cinsiyet).
+function normalizeManualNames(arr) {
+    if (!Array.isArray(arr)) return [];
+    return arr
+        .map(n => (typeof n === 'string' ? { name: n, gender: null } : (n && typeof n === 'object' ? { name: n.name, gender: n.gender } : null)))
+        .filter(n => n && typeof n.name === 'string' && n.name.trim())
+        .map(n => ({ name: n.name.trim().slice(0, 40), gender: ['MALE', 'FEMALE'].includes(n.gender) ? n.gender : null }));
+}
+
 // Voleybol/airsoft (teamSize>1) bireysel kabul: ilanda Cinsiyet Dağılımı (requiredMaleCount)
 // kısıtlaması varsa, kabul edilecek oyuncunun cinsiyeti o kotayı doldurmuşsa reddedilir —
 // önceden bu hiç kontrol edilmiyordu, ör. 6 kadın hedefiyle açılan bir ilana 8-9 kadın kabul
@@ -332,15 +345,21 @@ async function checkGenderCountQuota(rival, newJoinerGender) {
 
     const totalSlots = 2 * rival.teamSize;
     const femaleQuota = totalSlots - rival.requiredMaleCount;
-    const existingIds = [
-        rival.senderId,
-        ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []).map(p => p?.id).filter(Boolean),
-        ...(Array.isArray(rival.participants) ? rival.participants : []).map(p => p?.id).filter(Boolean),
-        ...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []).map(p => p?.id).filter(Boolean),
+    const rosterArrays = [
+        ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []),
+        ...(Array.isArray(rival.participants) ? rival.participants : []),
+        ...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []),
     ];
+    const existingIds = [rival.senderId, ...rosterArrays.map(p => p?.id).filter(Boolean)];
     const existingUsers = await prisma.user.findMany({ where: { id: { in: existingIds } }, select: { gender: true } });
-    const maleCount = existingUsers.filter(u => u.gender === 'MALE').length;
-    const femaleCount = existingUsers.filter(u => u.gender === 'FEMALE').length;
+    // Uygulamayı kullanmayan (manuel) oyuncuların cinsiyeti eklenirken doğrudan
+    // {manualName, gender} olarak kaydediliyor (bkz. addManualTeamPlayer/createRivalRequest)
+    // — User tablosunda karşılığı olmadığı için gerçek kullanıcı sayımından ayrı toplanır,
+    // yoksa manuel eklenen oyuncular kotaya hiç dahil olmuyordu (tutarsızlık).
+    const manualMaleCount = rosterArrays.filter(p => p?.manualName && p.gender === 'MALE').length;
+    const manualFemaleCount = rosterArrays.filter(p => p?.manualName && p.gender === 'FEMALE').length;
+    const maleCount = existingUsers.filter(u => u.gender === 'MALE').length + manualMaleCount;
+    const femaleCount = existingUsers.filter(u => u.gender === 'FEMALE').length + manualFemaleCount;
 
     if (newJoinerGender === 'MALE' && maleCount >= rival.requiredMaleCount) {
         return `Bu ilanda erkek kontenjanı (${rival.requiredMaleCount}) zaten doldu — kabul etmeden önce ayarlardan cinsiyet dağılımını artırman gerekiyor.`;
@@ -1263,6 +1282,16 @@ export const createRivalRequest = async (req, res, next) => {
         } = req.body;
         console.log(`[rival] createRivalRequest creatorId=${creatorId} sub=${subCategory}`);
 
+        // Rekabetçi maçta puan (Elo) kazanım/kaybı hesaplanıyor, hesabı olmayan (manuel) bir
+        // oyuncunun puanı olamayacağı için manuel isim eklemesi sadece Antrenman modunda
+        // geçerli — frontend zaten bu modda seçeneği göstermiyor, burada savunma amaçlı
+        // sessizce boşaltılıyor (kullanıcı isteği).
+        const isCompetitiveCreate = (matchMode || '').toUpperCase() === 'COMPETITIVE';
+        const cleanFounderManual = isCompetitiveCreate ? [] : normalizeManualNames(founderTeamManualNames);
+        const cleanOppManual = isCompetitiveCreate ? [] : normalizeManualNames(oppTeamManualNames);
+        const cleanSubManual = isCompetitiveCreate ? [] : normalizeManualNames(substituteManualNames);
+        const cleanUnassignedManual = isCompetitiveCreate ? [] : normalizeManualNames(unassignedManualNames);
+
         let cleanExtraServices = [];
         if (extraServices !== undefined) {
             cleanExtraServices = sanitizeExtraServices(extraServices);
@@ -1300,6 +1329,17 @@ export const createRivalRequest = async (req, res, next) => {
             const rmc = parseInt(requiredMaleCount, 10);
             if (Number.isNaN(rmc) || rmc < 0 || rmc > totalSlots) {
                 return res.status(400).json({ message: 'Geçersiz erkek oyuncu sayısı' });
+            }
+            // Manuel eklenen oyuncuların cinsiyeti de kotaya dahil — daha ilan açılırken
+            // kotayı aşan bir kadro girilmiş olabilir (tutarsızlık olmasın diye burada da kontrol).
+            const allManual = [...cleanFounderManual, ...cleanOppManual, ...cleanSubManual, ...cleanUnassignedManual];
+            const manualMale = allManual.filter(n => n.gender === 'MALE').length;
+            const manualFemale = allManual.filter(n => n.gender === 'FEMALE').length;
+            if (manualMale > rmc) {
+                return res.status(400).json({ message: `Cinsiyet dağılımı: manuel eklediğiniz erkek oyuncu sayısı erkek kontenjanını (${rmc}) aşıyor.` });
+            }
+            if (manualFemale > totalSlots - rmc) {
+                return res.status(400).json({ message: `Cinsiyet dağılımı: manuel eklediğiniz kadın oyuncu sayısı kadın kontenjanını (${totalSlots - rmc}) aşıyor.` });
             }
         }
 
@@ -1370,29 +1410,29 @@ export const createRivalRequest = async (req, res, next) => {
                 ...(founderTeamName && founderTeamName.trim() && { founderTeamName: founderTeamName.trim().slice(0, 24) }),
                 ...(opponentTeamName && opponentTeamName.trim() && { opponentTeamName: opponentTeamName.trim().slice(0, 24) }),
                 ...(req.body.duration && { duration: Number(req.body.duration) }),
-                participants: [],
+                // Rakip tarafta manuel (kayıtsız) isimler artık eski oppTeamManualNames yerine
+                // doğrudan participants'a {manualName, gender} olarak yazılıyor — post-creation
+                // kadro kartındaki addManualTeamPlayer ile AYNI dizi/format, gerçek katılımcılarla
+                // karışık pozisyonel sıralama ve cinsiyet kotası sayımı tutarlı çalışsın diye.
+                participants: cleanOppManual.map(n => ({ manualName: n.name, gender: n.gender })),
                 // DOUBLE + partnerInviteId: partner henüz kabul etmedi, senderTeam boş.
                 // Voleybol: kurucu takımda uygulamayı kullanmayan (manuel isim) oyuncular
-                // da senderTeam'e {manualName} şeklinde direkt eklenir (davetsiz, bilgi amaçlı).
+                // da senderTeam'e {manualName, gender} şeklinde direkt eklenir (davetsiz, bilgi amaçlı).
                 senderTeam: (partnerInviteId && matchType.toUpperCase() === 'DOUBLE')
                     ? []
                     : [
                         ...(Array.isArray(senderTeam) ? senderTeam : []),
-                        ...(Array.isArray(founderTeamManualNames)
-                            ? founderTeamManualNames.filter(n => typeof n === 'string' && n.trim()).map(n => ({ manualName: n.trim() }))
-                            : []),
+                        ...cleanFounderManual.map(n => ({ manualName: n.name, gender: n.gender })),
                     ],
-                oppTeamManualNames: Array.isArray(oppTeamManualNames) ? oppTeamManualNames.filter(n => typeof n === 'string' && n.trim()).map(n => n.trim()) : [],
-                substitutePlayers: Array.isArray(substituteManualNames)
-                    ? substituteManualNames.filter(n => typeof n === 'string' && n.trim()).map(n => ({ manualName: n.trim() }))
-                    : [],
+                // Artık yeni ilanlarda yazılmıyor (yukarı bkz.) — sadece bu mimari değişiklikten
+                // ÖNCE oluşturulmuş eski ilanlarda hâlâ dolu, geriye dönük gösterim için duruyor.
+                oppTeamManualNames: [],
+                substitutePlayers: cleanSubManual.map(n => ({ manualName: n.name, gender: n.gender })),
                 // İlan oluştururken herkesi bir takıma atamak zorunlu değil (kullanıcı isteği) —
                 // hangi tarafta oynayacağı henüz belli olmayan serbest metin isimler doğrudan
                 // buraya, kayıtlı kullanıcı davetleri ise kabul edildikten sonra buraya eklenir
                 // (bkz. unassignedInviteIds döngüsü ve respondToJoin'deki isUnassignedInvite dalı).
-                unassignedPlayers: Array.isArray(unassignedManualNames)
-                    ? unassignedManualNames.filter(n => typeof n === 'string' && n.trim()).map(n => ({ manualName: n.trim() }))
-                    : [],
+                unassignedPlayers: cleanUnassignedManual.map(n => ({ manualName: n.name, gender: n.gender })),
                 positions: Array.isArray(positions) ? positions : [],
                 extraServices: cleanExtraServices,
                 ...(refereePayment && { refereePayment }),
@@ -4070,9 +4110,10 @@ export const assignPlayerToSide = async (req, res, next) => {
 export const addManualTeamPlayer = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { name, side, slotIndex } = req.body; // slotIndex: kadro kartında hangi sıradaki forma yazıldıysa (0-index)
+        const { name, side, slotIndex, gender } = req.body; // slotIndex: kadro kartında hangi sıradaki forma yazıldıysa (0-index)
         if (!name || !name.trim()) return res.status(400).json({ message: 'İsim gerekli' });
         if (!['my', 'opp'].includes(side)) return res.status(400).json({ message: 'Geçersiz taraf' });
+        if (!['MALE', 'FEMALE'].includes(gender)) return res.status(400).json({ message: 'Cinsiyet seçimi gerekli' });
 
         const rival = await prisma.activityRequest.findUnique({ where: { id } });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
@@ -4080,6 +4121,14 @@ export const addManualTeamPlayer = async (req, res, next) => {
         if (!['volleyball', 'airsoft'].includes(rival.subCategory) || (rival.teamSize || 1) <= 1) {
             return res.status(400).json({ message: 'Bu işlem sadece takım maçlarında yapılabilir' });
         }
+        // Rekabetçi maçta puan (Elo) kazanım/kaybı hesaplanıyor, hesabı olmayan bir oyuncunun
+        // puanı olamayacağı için rekabetçi maça uygulamada kayıtlı olmayan oyuncu eklenemez —
+        // sadece Antrenman modunda izin veriliyor (kullanıcı isteği).
+        if (rival.matchMode === 'COMPETITIVE') {
+            return res.status(400).json({ message: 'Rekabetçi maçlarda sadece uygulamaya kayıtlı oyuncular eklenebilir (Elo puanı gerekiyor).' });
+        }
+        const genderQuotaError = await checkGenderCountQuota(rival, gender);
+        if (genderQuotaError) return res.status(400).json({ message: genderQuotaError });
 
         const teamSizeN = rival.teamSize || 1;
         const senderTeam = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
@@ -4097,13 +4146,13 @@ export const addManualTeamPlayer = async (req, res, next) => {
             if (senderTeam.filter(p => p && (p.id || p.manualName)).length >= teamSizeN - 1) {
                 return res.status(400).json({ message: 'Kurucu Takımı zaten dolu.' });
             }
-            data = { senderTeam: setAtSlot(senderTeam, slotIndex, { manualName: trimmed }) };
+            data = { senderTeam: setAtSlot(senderTeam, slotIndex, { manualName: trimmed, gender }) };
         } else {
             const legacyOppManualCount = Array.isArray(rival.oppTeamManualNames) ? rival.oppTeamManualNames.length : 0;
             if (participants.filter(p => p && (p.id || p.manualName)).length + legacyOppManualCount >= teamSizeN) {
                 return res.status(400).json({ message: 'Rakip Takımı zaten dolu.' });
             }
-            data = { participants: setAtSlot(participants, slotIndex, { manualName: trimmed }) };
+            data = { participants: setAtSlot(participants, slotIndex, { manualName: trimmed, gender }) };
         }
 
         const isFullNow = teamFilledCount(rival, {

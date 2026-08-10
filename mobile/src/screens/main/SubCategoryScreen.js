@@ -931,9 +931,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
 
-    // Uygulamayı kullanmayan (kayıtsız) oyuncu — sadece isim, davet/bildirim gitmez.
-    const addManualPlayerToTeam = (name, side, slotIndex) => {
-        api.patch(`/rivals/${item.id}/add-manual-player`, { name, side, slotIndex })
+    // Uygulamayı kullanmayan (kayıtsız) oyuncu — sadece isim, davet/bildirim gitmez. Cinsiyet
+    // de gönderiliyor ki cinsiyet dağılımı kotası (requiredMaleCount) tutarlı sayabilsin.
+    const addManualPlayerToTeam = (name, side, slotIndex, gender) => {
+        api.patch(`/rivals/${item.id}/add-manual-player`, { name, side, slotIndex, gender })
             .then(onRefresh)
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
@@ -1630,7 +1631,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t}
                                                         placeholder={t.teamSlotPh(i + 1)}
                                                         onInvite={(u) => inviteToTeamSlot(u, side, i)}
-                                                        onAddManual={(name) => addManualPlayerToTeam(name, side, i)} />
+                                                        onAddManual={item.matchMode === 'COMPETITIVE' ? undefined : (name, gender) => addManualPlayerToTeam(name, side, i, gender)} />
                                                 ) : <EmptyCell />}
                                             </View>
                                         ))}
@@ -4109,6 +4110,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             founderPlayers={[match.sender, ...(Array.isArray(match.senderTeam) ? match.senderTeam : [])]}
                             oppPlayers={Array.isArray(match.participants) ? match.participants : []}
                             legacyOppManualNames={(Array.isArray(match.oppTeamManualNames) ? match.oppTeamManualNames : []).map(n => ({ manualName: n }))}
+                            matchMode={match.matchMode}
                             unassigned={unassignedArr}
                             substitutePlayers={substitutePlayersArr}
                             teamSize={match.teamSize || 1}
@@ -4133,8 +4135,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     })
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
-                            onAddManualSlot={(name, side, slotIndex) => {
-                                api.patch(`/rivals/${match.id}/add-manual-player`, { name, side, slotIndex })
+                            onAddManualSlot={(name, side, slotIndex, gender) => {
+                                api.patch(`/rivals/${match.id}/add-manual-player`, { name, side, slotIndex, gender })
                                     .then(() => onRefresh())
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
@@ -6472,7 +6474,7 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
 // Voleybol takım slotu — kayıtlı kullanıcı aramak (yazınca öneri düşer) veya
 // hesabı olmayan biri için sadece isim yazmak (öneri seçilmezse manuel kalır)
 // için tek satır. CreateRivalModal'ın kendi state'ini (activeSlotKey vb.) kullanır.
-function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSuggestions, slotSearching, onFocus, onChangeText, onPickUser, onClear, onSetPosition, cfg, s, colors, onAssignSide, onPressAvatar, t }) {
+function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSuggestions, slotSearching, onFocus, onChangeText, onPickUser, onClear, onSetPosition, onSetGender, matchMode, cfg, s, colors, onAssignSide, onPressAvatar, t }) {
     const key = `${side}-${index}`;
     const text = !slot ? '' : slot.type === 'user' ? (slot.fullName || slot.username) : slot.name;
     const isActive = activeSlotKey === key;
@@ -6535,6 +6537,14 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                     🏐 {slot.position === 'SPIKER' ? t.positionSpiker : slot.position === 'LIBERO' ? t.positionLibero : t.positionSetter}
                 </Text>
             )}
+            {/* Manuel (uygulamayı kullanmayan) oyuncu için cinsiyet seçilmediyse her zaman
+                (sadece odaklıyken değil) uyarı görünür kalsın — aksi halde slottan uzaklaşınca
+                "Cinsiyet seç" fırsatı gözden kayboluyor, cinsiyet dağılımı kotası tutarsız kalıyordu. */}
+            {!!slot && slot.type === 'manual' && (
+                <Text style={{ color: slot.gender === 'MALE' ? '#3b82f6' : slot.gender === 'FEMALE' ? '#ec4899' : '#f59e0b', fontSize:8 }} numberOfLines={1}>
+                    {slot.gender === 'MALE' ? t.genderMale : slot.gender === 'FEMALE' ? t.genderFemale : `⚠ ${t.gender}`}
+                </Text>
+            )}
             {/* Slot dolu ama henüz bir takıma atanmamışsa (onAssignSide verildiyse — sadece
                 havuz slotlarında, yedeklerde yok) hemen orada hızlı atama: kartı çevirmeden
                 Kurucu/Rakip seçilebilir. SADECE bu slot aktifken (odaklıyken) gösterilir —
@@ -6572,9 +6582,27 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                 </View>
             )}
             {showStatus && slotSuggestions.length === 0 && (
-                <Text style={{ color: colors.textMuted, fontSize:9, marginTop:2 }} numberOfLines={1}>
-                    {slotSearching ? t.searchingLabel : t.noRegisteredUserFound}
+                <Text style={{ color: matchMode === 'COMPETITIVE' ? '#f87171' : colors.textMuted, fontSize:9, marginTop:2 }} numberOfLines={2}>
+                    {slotSearching ? t.searchingLabel : matchMode === 'COMPETITIVE' ? t.competitiveNoManualPlayers : t.noRegisteredUserFound}
                 </Text>
+            )}
+            {/* Rekabetçi maçta Elo puanı hesaplandığı için uygulamada hesabı olmayan (manuel)
+                oyuncu eklenemiyor — sadece Antrenman modunda "bu oyuncuyu var say" + cinsiyet
+                seçimi sunulur (kullanıcı isteği: cinsiyet dağılımı algoritmasıyla tutarlı olsun). */}
+            {showStatus && slotSuggestions.length === 0 && !slotSearching && matchMode !== 'COMPETITIVE' && (
+                <View style={{ marginTop:3 }}>
+                    <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>{t.manualPlayerAssumePrompt}</Text>
+                    <View style={{ flexDirection:'row', gap:3, marginTop:2 }}>
+                        <TouchableOpacity onPress={() => onSetGender?.('MALE')}
+                            style={{ paddingHorizontal:6, paddingVertical:2, borderRadius:6, backgroundColor: slot?.gender==='MALE' ? '#3b82f6' : '#3b82f620', borderWidth:1, borderColor:'#3b82f6' }}>
+                            <Text style={{ color: slot?.gender==='MALE' ? '#fff' : '#3b82f6', fontSize:9, fontWeight:'700' }}>{t.genderMale}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => onSetGender?.('FEMALE')}
+                            style={{ paddingHorizontal:6, paddingVertical:2, borderRadius:6, backgroundColor: slot?.gender==='FEMALE' ? '#ec4899' : '#ec489920', borderWidth:1, borderColor:'#ec4899' }}>
+                            <Text style={{ color: slot?.gender==='FEMALE' ? '#fff' : '#ec4899', fontSize:9, fontWeight:'700' }}>{t.genderFemale}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
             )}
         </View>
     );
@@ -6638,6 +6666,10 @@ function TeamSlotInviteField({ sub, category, onInvite, onAddManual, cfg, t, pla
                     {/* Uygulamayı kullanmayan (kayıtsız) oyuncu — sadece isim yazıp bu takıma
                         eklenebilir, davet/bildirim gitmez (hesabı olmadığı için). Sadece ilan
                         sahibi görebiliyor (bkz. onAddManual sadece owner'a geçiliyor). */}
+                    {/* Rekabetçi maçta Elo puanı hesaplandığı için hesabı olmayan oyuncu
+                        eklenemiyor — çağıran taraf bu modda onAddManual'ı hiç geçmiyor
+                        (bkz. TeamColBack/TeamAssignCard). Cinsiyet, kotayla (requiredMaleCount)
+                        tutarlı sayılabilsin diye ekleme onayıyla birlikte isteniyor. */}
                     {onAddManual && text.trim().length >= 3 && (
                         <TouchableOpacity
                             onPress={() => {
@@ -6645,10 +6677,11 @@ function TeamSlotInviteField({ sub, category, onInvite, onAddManual, cfg, t, pla
                                 setText(''); setResults([]); setFocused(false);
                                 Alert.alert(
                                     'Bu Oyuncu Kalsın',
-                                    `"${manualName}" uygulamayı kullanmıyor olarak takıma eklensin mi? Kendisine davet/bildirim gitmez.`,
+                                    `"${manualName}" uygulamayı kullanmıyor olarak takıma eklensin mi? Kendisine davet/bildirim gitmez. Cinsiyet seçin:`,
                                     [
                                         { text: 'Vazgeç', style: 'cancel' },
-                                        { text: 'Bu Oyuncu Kalsın', onPress: () => onAddManual(manualName) },
+                                        { text: t.genderMale, onPress: () => onAddManual(manualName, 'MALE') },
+                                        { text: t.genderFemale, onPress: () => onAddManual(manualName, 'FEMALE') },
                                     ]
                                 );
                             }}
@@ -6670,7 +6703,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onAddManual, cfg, t, pla
 // "seç sonra hedefe dokun" ile atama. Kullanıcı isteğiyle iki kart birebir aynı davransın
 // diye kopyalandı — sadece veri kaynağı farklı (burada zaten kabul edilmiş gerçek
 // katılımcılar, formdaki gibi serbest metinle aranan boş slotlar değil).
-function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onInviteSlot, onAddManualSlot, legacyOppManualNames = [], t, emoji = '🏐' }) {
+function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onInviteSlot, onAddManualSlot, matchMode, legacyOppManualNames = [], t, emoji = '🏐' }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const [selectedId, setSelectedId] = useState(null);
@@ -6739,7 +6772,7 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                             <TeamSlotInviteField sub={sub} category={category} cfg={{ color }} t={t}
                                 placeholder={t.teamSlotPh(i + 1)}
                                 onInvite={(u) => onInviteSlot(u, targetSide, i)}
-                                onAddManual={onAddManualSlot ? (name) => onAddManualSlot(name, targetSide, i) : undefined} />
+                                onAddManual={onAddManualSlot && matchMode !== 'COMPETITIVE' ? (name, gender) => onAddManualSlot(name, targetSide, i, gender) : undefined} />
                         </View>
                     ) : (
                         <Text key={`empty-${i}`} style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>{i + 1}. —</Text>
@@ -7065,6 +7098,18 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             const arr = p[key].slice();
             if (!arr[index]) return p;
             arr[index] = { ...arr[index], position };
+            return { ...p, [key]: arr };
+        });
+    };
+    // Manuel (uygulamayı kullanmayan) oyuncu "var sayılırken" cinsiyeti de seçilir — cinsiyet
+    // dağılımı (requiredMaleCount) kotası gerçek kullanıcılarla aynı algoritmadan geçsin diye
+    // (kullanıcı isteği: "tutarsızlık olmasın"). Sadece Antrenman modunda sunulur, bkz. TeamSlotRow.
+    const setSlotGender = (group, index, gender) => {
+        const key = group === 'pool' ? 'rosterSlots' : 'subSlots';
+        setF(p => {
+            const arr = p[key].slice();
+            if (!arr[index]) return p;
+            arr[index] = { ...arr[index], gender };
             return { ...p, [key]: arr };
         });
     };
@@ -7585,6 +7630,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 Alert.alert('', t.ratingRangeViolationMsg(ratingViolator.fullName || ratingViolator.username));
                 return;
             }
+            // Rekabetçi maçta Elo puanı hesaplandığı için hesabı olmayan (manuel) oyuncu
+            // eklenemiyor; Antrenman modunda ise cinsiyet dağılımı kotasıyla tutarlı kalması
+            // için manuel eklenen her oyuncunun cinsiyeti seçilmiş olmalı (kullanıcı isteği).
+            const manualSlots = [...f.rosterSlots, ...f.subSlots].filter(sl => sl?.type === 'manual');
+            if (f.matchMode === 'COMPETITIVE') {
+                if (manualSlots[0]) { Alert.alert('', t.competitiveManualPlayerBlockAlert(manualSlots[0].name)); return; }
+            } else {
+                const missingGender = manualSlots.find(sl => !sl.gender);
+                if (missingGender) { Alert.alert('', t.manualPlayerGenderMissingAlert(missingGender.name)); return; }
+            }
         }
         if ((isTennis || isPadel) && !editItem) {
             if (!f.matchMode) { Alert.alert('', 'Lütfen mod seçin (Antrenman/Rekabetçi).'); return; }
@@ -7721,19 +7776,19 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     ? f.rosterSlots.filter(s => s?.type === 'user' && s.side === 'my').map(s => s.userId)
                     : undefined,
                 founderTeamManualNames: (isVolleyball || sub === 'airsoft')
-                    ? f.rosterSlots.filter(s => s?.type === 'manual' && s.side === 'my').map(s => s.name)
+                    ? f.rosterSlots.filter(s => s?.type === 'manual' && s.side === 'my').map(s => ({ name: s.name, gender: s.gender }))
                     : undefined,
                 oppTeamInviteIds: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'user' && s.side === 'opp').map(s => s.userId)
                     : undefined,
                 oppTeamManualNames: (isVolleyball || sub === 'airsoft')
-                    ? f.rosterSlots.filter(s => s?.type === 'manual' && s.side === 'opp').map(s => s.name)
+                    ? f.rosterSlots.filter(s => s?.type === 'manual' && s.side === 'opp').map(s => ({ name: s.name, gender: s.gender }))
                     : undefined,
                 substituteInviteIds: isVolleyball
                     ? f.subSlots.filter(s => s?.type === 'user').map(s => s.userId)
                     : undefined,
                 substituteManualNames: isVolleyball
-                    ? f.subSlots.filter(s => s?.type === 'manual').map(s => s.name)
+                    ? f.subSlots.filter(s => s?.type === 'manual').map(s => ({ name: s.name, gender: s.gender }))
                     : undefined,
                 // Hangi takımda oynayacağı henüz belli olmayan (side:null) dolu slotlar —
                 // ilan oluştururken herkesi atamak artık zorunlu değil (kullanıcı isteği).
@@ -7741,7 +7796,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     ? f.rosterSlots.filter(s => s?.type === 'user' && !s.side).map(s => s.userId)
                     : undefined,
                 unassignedManualNames: (isVolleyball || sub === 'airsoft')
-                    ? f.rosterSlots.filter(s => s?.type === 'manual' && !s.side).map(s => s.name)
+                    ? f.rosterSlots.filter(s => s?.type === 'manual' && !s.side).map(s => ({ name: s.name, gender: s.gender }))
                     : undefined,
             });
             // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
@@ -9043,6 +9098,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 onClear={() => setSlot('pool', i, null)}
                                                                 onAssignSide={(sd) => setSlotSide(i, sd)}
                                                                 onSetPosition={(p) => setSlotPosition('pool', i, p)}
+                                                                onSetGender={(g) => setSlotGender('pool', i, g)}
+                                                                matchMode={f.matchMode}
                                                                 onPressAvatar={(userId) => navigation.push('Profile', { userId })}
                                                                 cfg={cfg} s={s} colors={colors} t={t} />
                                                         </View>
@@ -9062,6 +9119,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                         onPickUser={(u) => { setSlot('sub', i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null }); setActiveSlotKey(null); setSlotSuggestions([]); }}
                                                                         onClear={() => setSlot('sub', i, null)}
                                                                         onSetPosition={(p) => setSlotPosition('sub', i, p)}
+                                                                        onSetGender={(g) => setSlotGender('sub', i, g)}
+                                                                        matchMode={f.matchMode}
                                                                         onPressAvatar={(userId) => navigation.push('Profile', { userId })}
                                                                         cfg={cfg} s={s} colors={colors} t={t} />
                                                                 </View>
@@ -9126,6 +9185,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                     onPickUser={(u) => { setSlot('pool', idx, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null, side:'my' }); setActiveSlotKey(null); setSlotSuggestions([]); }}
                                                                     onClear={() => setSlot('pool', idx, null)}
                                                                     onSetPosition={(p) => setSlotPosition('pool', idx, p)}
+                                                                    onSetGender={(g) => setSlotGender('pool', idx, g)}
+                                                                    matchMode={f.matchMode}
                                                                     onPressAvatar={(userId) => navigation.push('Profile', { userId })}
                                                                     cfg={cfg} s={s} colors={colors} t={t} />
                                                             </View>
@@ -9153,6 +9214,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                     onPickUser={(u) => { setSlot('pool', idx, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null, side:'opp' }); setActiveSlotKey(null); setSlotSuggestions([]); }}
                                                                     onClear={() => setSlot('pool', idx, null)}
                                                                     onSetPosition={(p) => setSlotPosition('pool', idx, p)}
+                                                                    onSetGender={(g) => setSlotGender('pool', idx, g)}
+                                                                    matchMode={f.matchMode}
                                                                     onPressAvatar={(userId) => navigation.push('Profile', { userId })}
                                                                     cfg={cfg} s={s} colors={colors} t={t} />
                                                             </View>
