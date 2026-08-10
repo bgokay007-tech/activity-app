@@ -72,6 +72,10 @@ const VOLLEYBALL_SURFACES = [
     { id: 'STREET', label: 'Mahallede Voleybol', labelEn: 'Street Volleyball',  emoji: '🏘️' },
     { id: 'CLAY',   label: 'Toprakta Voleybol',  labelEn: 'Clay Volleyball',    emoji: '🟤' },
 ];
+// "Kort" yerine hangi voleybol türü seçildiyse onun kısa adı gösterilsin diye (ör. "Salon/Saat",
+// "Plaj/Saat") — kullanıcı isteği. VOLLEYBALL_VENUE_NOUN'daki uzun ("Voleybol Salonu" gibi)
+// isimlerden farklı, sadece tek kelimelik kısa etiket.
+const VOLLEYBALL_VENUE_SHORT = { INDOOR: 'Salon', BEACH: 'Plaj', GRASS: 'Çim', STREET: 'Mahalle', CLAY: 'Toprak' };
 // Cinsiyet dağılımı iki moddan biri olabilir (bkz. GenderCountModal): 'EXACT' (havuzun
 // TAMAMININ dağılımı, requiredMaleCount) ya da 'MIN' (sadece bir cinsiyetten en az kaç kişi,
 // minGenderReq/minGenderCount — geri kalanı serbest). genderCountMode alanı bu özellikten
@@ -4284,8 +4288,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             onEditOppName={() => setTeamNameModal({ side:'opponent', value: match.opponentTeamName || '' })}
                             isOwner={isOwner}
                             t={t}
-                            onAssign={(userId, side) => {
-                                api.patch(`/rivals/${match.id}/assign-player`, { userId, side })
+                            onAssign={(userId, side, manualName) => {
+                                api.patch(`/rivals/${match.id}/assign-player`, userId ? { userId, side } : { manualName, side })
+                                    .then(() => onRefresh())
+                                    .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+                            }}
+                            // Kullanıcı isteği: açık ilan detayındaki ("Çıkar/Değiştir") ile aynı mantık —
+                            // ilandan tamamen çıkarma, DELETE /participants/:userId (bkz. RivalDetailModal'daki
+                            // removeRivalParticipant, aynı uç nokta).
+                            onRemovePlayer={(userId) => {
+                                api.delete(`/rivals/${match.id}/participants/${userId}`)
                                     .then(() => onRefresh())
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
@@ -4716,7 +4728,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', alignItems:'center' }}
                                         onPress={() => setEditVisible(true)}>
-                                        <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>✏️ Kort/Saat</Text>
+                                        <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>
+                                            ✏️ {(match.subCategory === 'volleyball' && VOLLEYBALL_VENUE_SHORT[match.surface]) || 'Kort'}/Saat
+                                        </Text>
                                     </TouchableOpacity>
                                 )}
                                 {withinPenaltyWindow && !iAlreadyRequestedMutual && (
@@ -6920,10 +6934,9 @@ function TeamSlotInviteField({ sub, category, onInvite, onAddManual, cfg, t, pla
 // "seç sonra hedefe dokun" ile atama. Kullanıcı isteğiyle iki kart birebir aynı davransın
 // diye kopyalandı — sadece veri kaynağı farklı (burada zaten kabul edilmiş gerçek
 // katılımcılar, formdaki gibi serbest metinle aranan boş slotlar değil).
-function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onInviteSlot, onAddManualSlot, matchMode, legacyOppManualNames = [], t, emoji = '🏐' }) {
+function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onRemovePlayer, onInviteSlot, onAddManualSlot, matchMode, legacyOppManualNames = [], t, emoji = '🏐' }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
-    const [selectedId, setSelectedId] = useState(null);
     const flip = () => {
         Animated.timing(flipAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(() => {
             setIsBack(b => !b);
@@ -6935,18 +6948,54 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
     // founderPlayers/oppPlayers artık arka yüzde POZİSYONEL kullanılıyor (bkz. renderColumn,
     // null'lu olabilir) — ön yüzde boşluk/atlama görünmesin diye burada null'lar süzülüyor.
     const allPlayers = [...founderPlayers, ...oppPlayers, ...unassigned].filter(p => p && (p.id || p.manualName));
+    // Atanmamış (side'ı belli olmayan) kişilerin ismi ön yüzde kırmızı yanıp söner — açık
+    // ilan detayındaki (RivalDetailModal) ile AYNI mantık (kullanıcı isteği).
+    const unassignedKeys = new Set(unassigned.filter(p => p?.id || p?.manualName).map(p => p.id || p.manualName));
+    const unassignedBlink = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+        if (unassignedKeys.size === 0) return;
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(unassignedBlink, { toValue: 0.25, duration: 500, useNativeDriver: true }),
+            Animated.timing(unassignedBlink, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [unassignedKeys.size]);
+    // Açık ilan detayındaki (RivalDetailModal) promptAssignTeam/promptSlotAction ile AYNI
+    // mantık — isme dokununca hangi takıma atanacağı sorulur, dolu bir slotta "Değiştir/Çıkar"
+    // ile Çıkar/Atanmamışa Taşı seçilir (kullanıcı isteği: "aynı mantık").
+    const promptAssignTeam = (p) => {
+        const name = p.id ? senderAlias(p) : p.manualName;
+        Alert.alert(name, 'Hangi takıma atansın?', [
+            { text: 'Vazgeç', style: 'cancel' },
+            { text: founderTeamName || t.founderTeamShortLabel, onPress: () => onAssign(p.id, 'my', p.id ? undefined : p.manualName) },
+            { text: opponentTeamName || t.opponentTeamShortLabel, onPress: () => onAssign(p.id, 'opp', p.id ? undefined : p.manualName) },
+        ]);
+    };
+    const promptSlotAction = (p) => {
+        const name = p.id ? senderAlias(p) : p.manualName;
+        const buttons = [{ text: 'Vazgeç', style: 'cancel' }];
+        if (p.id && onRemovePlayer) buttons.push({ text: 'Çıkar', style: 'destructive', onPress: () => onRemovePlayer(p.id) });
+        buttons.push({ text: 'Atanmamışa Taşı', onPress: () => onAssign(p.id, null, p.id ? undefined : p.manualName) });
+        Alert.alert(name, '', buttons);
+    };
     const cellWidth = isVolleyball ? '32%' : '23.5%';
     const cellStyle = { flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 };
     const renderGrid = (players) => (
         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
-            {players.map((p, i) => (
-                <View key={p.id || `m-${i}`} style={{ width: cellWidth }}>
-                    <View style={cellStyle}>
-                        {p.id ? <Avatar name={p.username} avatar={p.avatar} size={14} color="#a855f7" /> : <Text style={{ fontSize:11 }}>👤</Text>}
-                        <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{i + 1}. {p.id ? senderAlias(p) : p.manualName}</Text>
+            {players.map((p, i) => {
+                const isUnassigned = unassignedKeys.has(p.id || p.manualName);
+                return (
+                    <View key={p.id || `m-${i}`} style={{ width: cellWidth }}>
+                        <View style={cellStyle}>
+                            {p.id ? <Avatar name={p.username} avatar={p.avatar} size={14} color="#a855f7" /> : <Text style={{ fontSize:11 }}>👤</Text>}
+                            <Animated.View style={{ flex:1, opacity: isUnassigned ? unassignedBlink : 1 }}>
+                                <Text style={{ color: isUnassigned ? '#ef4444' : '#fff', fontSize:10, fontWeight: isUnassigned ? '800' : '400' }} numberOfLines={1}>{i + 1}. {p.id ? senderAlias(p) : p.manualName}</Text>
+                            </Animated.View>
+                        </View>
                     </View>
-                </View>
-            ))}
+                );
+            })}
         </View>
     );
     // Her sütun artık Takım Büyüklüğü kadar SABİT slot gösteriyor (voleybol formundaki/açık
@@ -6956,29 +7005,33 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
     // reddediyor, bkz. assignPlayerToSide).
     const renderColumn = (players, label, color, canEditName, onEditName, targetSide, slotsCount, lockFirst = false, legacyManualExtra = []) => {
         const filledCount = players.filter(p => p && (p.id || p.manualName)).length;
-        const isFull = filledCount >= slotsCount;
         return (
             <View style={{ flex:1 }}>
-                <TouchableOpacity disabled={!selectedId || isFull} onPress={() => { onAssign(selectedId, targetSide); setSelectedId(null); }}>
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                        <Text style={{ color, fontSize:10, fontWeight:'800', flex:1 }} numberOfLines={1}>
-                            {label} ({filledCount}/{slotsCount}){selectedId && !isFull ? ' ↩' : ''}
-                        </Text>
-                        {canEditName && (
-                            <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                                <Text style={{ fontSize:10 }}>✎</Text>
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                </TouchableOpacity>
+                <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                    <Text style={{ color, fontSize:10, fontWeight:'800', flex:1 }} numberOfLines={1}>
+                        {label} ({filledCount}/{slotsCount})
+                    </Text>
+                    {canEditName && (
+                        <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                            <Text style={{ fontSize:10 }}>✎</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
                 {Array.from({ length: slotsCount }).map((_, i) => {
                     const p = players[i];
                     const locked = lockFirst && i === 0;
                     if (p) {
                         return (
-                            <TouchableOpacity key={p.id || i} disabled={!isOwner || !p.id || locked} onPress={() => p.id && onAssign(p.id, null)}>
-                                <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{i + 1}. {p.id ? senderAlias(p) : p.manualName}{locked ? ' 🔒' : ''}</Text>
-                            </TouchableOpacity>
+                            <View key={p.id || i} style={{ flexDirection:'row', alignItems:'center', marginBottom:2 }}>
+                                <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{i + 1}. {p.id ? senderAlias(p) : p.manualName}{locked ? ' 🔒' : ''}</Text>
+                                {/* Kullanıcı isteği: açık ilan detayındaki ("Çıkar/Değiştir") ile aynı mantık —
+                                    isme dokunup direkt atanmamışa atmak yerine, sağda bir menü açılır. */}
+                                {isOwner && !locked && (
+                                    <TouchableOpacity onPress={() => promptSlotAction(p)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700', textDecorationLine:'underline' }} numberOfLines={1}>Değiştir/Çıkar</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
                         );
                     }
                     // Boş slot — ilan sahibi isim yazıp doğrudan bu takıma davet gönderebilir
@@ -7032,18 +7085,20 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                             {renderColumn(founderPlayers, founderTeamName || t.founderTeamShortLabel, '#a855f7', canEditFounderName, onEditFounderName, 'my', teamSize, true)}
                             {renderColumn(oppPlayers, opponentTeamName || t.opponentTeamShortLabel, '#f87171', canEditOppName, onEditOppName, 'opp', teamSize, false, legacyOppManualNames)}
                         </View>
+                        {/* Atanmamış — açık ilan detayındaki (RivalDetailModal) ile AYNI mantık: isme
+                            dokununca hangi takıma (gerçek isimleriyle) atanacağı sorulur, atanınca
+                            listeden otomatik kalkar (kullaıcı isteği: "aynı mantık"). */}
                         {isOwner && unassigned.length > 0 && (
-                            <View style={{ marginTop:6 }}>
-                                <Text style={{ color: colors.textMuted, fontSize:9 }}>{t.unassignedLabel}</Text>
-                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginTop:2 }}>
-                                    {unassigned.map((p, i) => (
-                                        <TouchableOpacity key={p.id || `m-${i}`} disabled={!p.id} onPress={() => p.id && setSelectedId(sel => sel === p.id ? null : p.id)}
-                                            style={{ paddingHorizontal:6, paddingVertical:3, borderRadius:7, backgroundColor: selectedId === p.id ? '#9333ea40' : '#ffffff10', borderWidth:1, borderColor: selectedId === p.id ? '#a855f7' : '#ffffff20', opacity: p.id ? 1 : 0.7 }}>
-                                            <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{p.id ? senderAlias(p) : p.manualName}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                                <Text style={{ color: colors.textMuted, fontSize:9, marginTop:2 }}>{t.assignHintLabel}</Text>
+                            <View style={{ marginTop:8, paddingTop:8, borderTopWidth:1, borderTopColor: colors.border }}>
+                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:4 }}>{t.unassignedLabel} ({unassigned.length})</Text>
+                                {unassigned.map((p, i) => (
+                                    <TouchableOpacity key={p.id || `m-${i}`} onPress={() => promptAssignTeam(p)}
+                                        style={{ flexDirection:'row', alignItems:'center', gap:5, paddingVertical:4 }}>
+                                        {p.id ? <Avatar name={p.username} avatar={p.avatar} size={16} color="#a855f7" /> : <Text style={{ fontSize:13 }}>👤</Text>}
+                                        <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1}>{p.id ? senderAlias(p) : p.manualName}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:10 }}>▸</Text>
+                                    </TouchableOpacity>
+                                ))}
                             </View>
                         )}
                     </>
@@ -8112,7 +8167,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
                         <View style={[s.modalHeader, { marginBottom:3 }]}>
-                            <Text style={s.modalTitle}>{isMatchedEdit ? '✏️ Kort/Saat Değiştir' : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : t.createTitle)}</Text>
+                            <Text style={s.modalTitle}>{isMatchedEdit ? `✏️ ${(isVolleyball && VOLLEYBALL_VENUE_SHORT[f.surface]) || 'Kort'}/Saat Değiştir` : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : t.createTitle)}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
