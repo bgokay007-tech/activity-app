@@ -980,6 +980,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
+    // Kadro kartının arka yüzünde dolu bir slota basınca (kullanıcı isteği: "sağında çıkar/
+    // değiştir yazsın, tıklayınca küçük pencerede Çıkar / Atanmamışa Taşı çıksın"). Manuel
+    // (kayıtsız) isimlerde "Çıkar" backend'de henüz desteklenmiyor (bkz. removeRivalParticipant
+    // sadece gerçek userId alıyor) — onlar için sadece Atanmamışa Taşı sunulur.
+    const promptSlotAction = (p) => {
+        const name = p.id ? playerDisplayName(p) : p.manualName;
+        const buttons = [{ text: 'Vazgeç', style: 'cancel' }];
+        if (p.id) buttons.push({ text: 'Çıkar', style: 'destructive', onPress: () => removeRivalParticipant(p.id, p.username) });
+        buttons.push({ text: 'Atanmamışa Taşı', onPress: () => (p.id ? assignUnassignedToSide(p.id, null) : assignManualToSide(p.manualName, null)) });
+        Alert.alert(name, '', buttons);
+    };
 
     // Çiftler (DOUBLE): kabul edilen bireysel oyuncu atanmamış havuzuna düşer — ilan sahibi
     // herkesi, oyuncunun kendisi de (sadece kendini, atanmamışken) Takım Arkadaşı/Rakip1/
@@ -1672,8 +1683,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             const Cell = ({ p, allowRemove, unassignedWarning }) => {
                                 const isFounder = p.id && p.id === item.senderId;
                                 return (
-                                    <View>
-                                        <TouchableOpacity disabled={!p.id} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center' }}>
+                                        <TouchableOpacity disabled={!p.id} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} style={{ flexDirection:'row', alignItems:'center', gap:2, flex:1, minWidth:0 }}>
                                             {p.id
                                                 ? <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
                                                 : <View style={{ width:14, height:14 }} />}
@@ -1681,9 +1692,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Text style={{ color: unassignedWarning ? '#ef4444' : '#fff', fontSize:10, fontWeight: unassignedWarning ? '800' : '400' }} numberOfLines={1}>{p.id ? playerDisplayName(p) : p.manualName}</Text>
                                             </Animated.View>
                                         </TouchableOpacity>
-                                        {isOwner && p.id && !isFounder && allowRemove && (
-                                            <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ marginTop:2 }}>
-                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>Çıkar</Text>
+                                        {/* Kullanıcı isteği: "Çıkar" yazısı hangi oyuncuya ait olduğu belirsizdi
+                                            (isim altında, sıkışık) — artık aynı satırda SAĞDA, adla birebir
+                                            hizalı. Dokununca küçük bir pencerede Çıkar / Atanmamışa Taşı sorulur
+                                            (bkz. promptSlotAction). */}
+                                        {isOwner && !isFounder && allowRemove && (
+                                            <TouchableOpacity onPress={() => promptSlotAction(p)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
+                                                <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700', textDecorationLine:'underline' }} numberOfLines={1}>Çıkar/Değiştir</Text>
                                             </TouchableOpacity>
                                         )}
                                     </View>
@@ -1806,7 +1821,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </>
                                     ) : (
                                         <View style={{ flexDirection:'row', gap:6 }}>
-                                            <TeamColBack label={`👑 ${item.founderTeamName || t.myTeamLabel}`} color={cfg.color} peoplePositional={[item.sender, ...senderTeamArr]} total={teamSizeN} allowRemove={false}
+                                            <TeamColBack label={`👑 ${item.founderTeamName || t.myTeamLabel}`} color={cfg.color} peoplePositional={[item.sender, ...senderTeamArr]} total={teamSizeN} allowRemove={isOwner}
                                                 side="my" onEditName={() => setTeamNameEdit({ side:'founder', value: item.founderTeamName || '' })} />
                                             <TeamColBack label={`⚔️ ${item.opponentTeamName || t.oppTeamLabel}`} color="#f87171" peoplePositional={participants} legacyManualExtra={oppManualNames.map(n => ({ manualName: n }))} total={teamSizeN} allowRemove={isOwner}
                                                 side="opp" onEditName={() => setTeamNameEdit({ side:'opponent', value: item.opponentTeamName || '' })} />
@@ -2014,14 +2029,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                     <View style={{ flex:1 }}>
                                         <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
-                                        <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>
-                                            ⏳ Onay Bekleniyor{item.matchType !== 'DOUBLE' ? (
-                                                jr.isPartnerInvite ? ` · ${t.founderTeamLabel}`
-                                                    : jr.isSubstituteInvite ? ` · ${t.subCountLabel}`
-                                                    : jr.isUnassignedInvite ? ` · ${t.unassignedLabel}`
-                                                    : ` · ${t.oppTeamLabel}`
-                                            ) : ''}
-                                        </Text>
+                                        {/* Kullanıcı isteği: hangi takıma davet edildiği burada ayrıca yazılmasın —
+                                            hem gereksiz tekrar hem de takım ismi sonradan değiştirilince (bkz.
+                                            item.founderTeamName/opponentTeamName) burada hâlâ eski/genel etiket
+                                            kalıyordu. Sınıflandırma zaten kadro kartının arka yüzünde. */}
+                                        <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
                                     </View>
                                     <TouchableOpacity onPress={() => rejectLocal(jr.id)} style={{ backgroundColor:'#dc262620', borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28), justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
                                         <Text style={{ color:'#f87171', fontSize: moderateScale(12), fontWeight:'700' }}>✕</Text>
@@ -4306,9 +4318,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={26} color={cfg.color} />
                                     <View style={{ flex:1 }}>
                                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{jr.user?.fullName || jr.user?.username}</Text>
-                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>
-                                            ⏳ Onay Bekleniyor · {jr.isPartnerInvite ? t.founderTeamShortLabel : jr.isSubstituteInvite ? t.subsLabel : t.opponentTeamShortLabel}
-                                        </Text>
+                                        {/* Kullanıcı isteği: hangi takıma davet edildiği burada ayrıca yazılmasın —
+                                            hem gereksiz tekrar hem de takım ismi sonradan değiştirilince burada
+                                            hâlâ eski/genel etiket kalıyordu. Sınıflandırma zaten kadro kartının
+                                            arka yüzünde. */}
+                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
                                     </View>
                                     <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'reject')} style={{ backgroundColor:'#dc262620', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
                                         <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>✕</Text>
