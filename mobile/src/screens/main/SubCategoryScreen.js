@@ -598,6 +598,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         loop.start();
         return () => loop.stop();
     }, [highlightSlot]);
+    // Ön yüzde takıma atanmamış (side'ı henüz belli olmayan) katılımcıların ismi kırmızı
+    // yanıp söner — kullanıcı isteği: "ataması olmayan isimler uyarıcı hatırlatma olsun".
+    // Atama artık arka yüzdeki "Atanmamış" listesinden yapılıyor (bkz. promptAssignTeam).
+    const unassignedBlink = useRef(new Animated.Value(1)).current;
     const [comments, setComments] = useState([]);
     const [loadingComments, setLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
@@ -800,6 +804,28 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // Atanmamış havuz — kadro kartının ön yüzünde de sayılmalı, aksi halde başlıktaki
     // (X/Y) kartta gösterilenle uyuşmuyordu.
     const unassignedSlots = unassignedArr.filter(p => p?.id || p?.manualName);
+    useEffect(() => {
+        if (unassignedSlots.length === 0) return;
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(unassignedBlink, { toValue: 0.25, duration: 500, useNativeDriver: true }),
+            Animated.timing(unassignedBlink, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [unassignedSlots.length]);
+    // Arka yüzdeki "Atanmamış" listesinde bir isme dokununca hangi takıma (Kurucu/Rakip,
+    // gerçek isimleriyle) atanacağı sorulur — kullanıcı isteği: "isme tıklayınca takımların
+    // isimleri çıksın, birini seçip atayabilsin". Manuel (kayıtsız) girişler atanamıyor
+    // (backend sadece gerçek kullanıcı id'siyle atama yapabiliyor, bkz. Cell'deki p.id şartı).
+    const promptAssignTeam = (p) => {
+        if (!p.id) return;
+        const name = playerDisplayName(p);
+        Alert.alert(name, 'Hangi takıma atansın?', [
+            { text: 'Vazgeç', style: 'cancel' },
+            { text: item.founderTeamName || t.myTeamLabel, onPress: () => assignUnassignedToSide(p.id, 'my') },
+            { text: item.opponentTeamName || t.oppTeamLabel, onPress: () => assignUnassignedToSide(p.id, 'opp') },
+        ]);
+    };
     // Çiftlerde (DOUBLE) toplam kapasite sabit 4 (2 taraf x 2) ve "required" zaten
     // rakip tarafta kalan boş kontenjanı ifade eder. Takım sporlarında (voleybol 6v6 vb.)
     // "required" tek bir tarafın TAM boyutu (teamSize) — iki tarafı da saymadan
@@ -1626,7 +1652,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             const oppSlots = [...participants.filter(p => p?.id || p?.manualName), ...oppManualNames.map(n => ({ manualName: n }))];
                             const subSlots = (Array.isArray(item.substitutePlayers) ? item.substitutePlayers : []).filter(p => p?.id || p?.manualName);
 
-                            const Cell = ({ p, side, showAssign, allowRemove }) => {
+                            const Cell = ({ p, side, showAssign, allowRemove, unassignedWarning }) => {
                                 const isFounder = p.id && p.id === item.senderId;
                                 return (
                                     <View>
@@ -1634,9 +1660,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             {p.id
                                                 ? <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
                                                 : <View style={{ width:14, height:14 }} />}
-                                            <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', opacity:0.8, minHeight:0 }]}>
-                                                <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{p.id ? playerDisplayName(p) : p.manualName}</Text>
-                                            </View>
+                                            <Animated.View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', opacity: unassignedWarning ? unassignedBlink : 0.8, minHeight:0 }]}>
+                                                <Text style={{ color: unassignedWarning ? '#ef4444' : '#fff', fontSize:10, fontWeight: unassignedWarning ? '800' : '400' }} numberOfLines={1}>{p.id ? playerDisplayName(p) : p.manualName}</Text>
+                                            </Animated.View>
                                         </TouchableOpacity>
                                         {isOwner && p.id && !isFounder && showAssign && (
                                             side ? (
@@ -1645,7 +1671,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         ✓ {side === 'my' ? t.myTeamLabel : t.oppTeamLabel} ✕
                                                     </Text>
                                                 </TouchableOpacity>
-                                            ) : (
+                                            ) : !unassignedWarning ? (
                                                 <View style={{ flexDirection:'row', gap:2, marginTop:2 }}>
                                                     <TouchableOpacity onPress={() => assignUnassignedToSide(p.id, 'my')} style={{ flex:1, paddingVertical:2, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50', alignItems:'center' }}>
                                                         <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.myTeamLabel}</Text>
@@ -1654,7 +1680,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.oppTeamLabel}</Text>
                                                     </TouchableOpacity>
                                                 </View>
-                                            )
+                                            ) : null
                                         )}
                                         {isOwner && p.id && !isFounder && allowRemove && (
                                             <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ marginTop:2 }}>
@@ -1740,7 +1766,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </View>
                                                 {mySlots.map((p, i) => <View key={p.id || `my-${i}`} style={{ width:'23.5%' }}><Cell p={p} side="my" showAssign /></View>)}
                                                 {oppSlots.map((p, i) => <View key={p.id || `opp-${i}`} style={{ width:'23.5%' }}><Cell p={p} side="opp" showAssign /></View>)}
-                                                {unassignedSlots.map((p, i) => <View key={p.id || `u-${i}`} style={{ width:'23.5%' }}><Cell p={p} side={null} showAssign /></View>)}
+                                                {/* Atama artık burada (ön yüzde) değil, kartı çevirip arka yüzdeki "Atanmamış"
+                                                    listesinden yapılıyor (bkz. promptAssignTeam) — burada sadece kırmızı yanıp
+                                                    sönen isimle "bunlara takım ataması yapılmadı" hatırlatması gösteriliyor. */}
+                                                {unassignedSlots.map((p, i) => <View key={p.id || `u-${i}`} style={{ width:'23.5%' }}><Cell p={p} side={null} unassignedWarning /></View>)}
                                                 {Array.from({ length: poolEmptyCount }).map((_, i) => (
                                                     <View key={`empty-${i}`} style={{ width:'23.5%' }}><EmptyCell /></View>
                                                 ))}
@@ -1782,6 +1811,23 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 side="my" onEditName={() => setTeamNameEdit({ side:'founder', value: item.founderTeamName || '' })} />
                                             <TeamColBack label={`⚔️ ${item.opponentTeamName || t.oppTeamLabel}`} color="#f87171" peoplePositional={participants} legacyManualExtra={oppManualNames.map(n => ({ manualName: n }))} total={teamSizeN} allowRemove={isOwner}
                                                 side="opp" onEditName={() => setTeamNameEdit({ side:'opponent', value: item.opponentTeamName || '' })} />
+                                        </View>
+                                    )}
+                                    {/* Atanmamış — kullanıcı isteğiyle arka yüzde, iki takım sütununun ALTINDA tek
+                                        liste: isme dokununca hangi takıma (gerçek isimleriyle) atanacağı sorulur,
+                                        atanınca listeden otomatik kalkar (bkz. promptAssignTeam/assignUnassignedToSide). */}
+                                    {showTeamCards && unassignedSlots.length > 0 && (
+                                        <View style={{ marginTop:8, paddingTop:8, borderTopWidth:1, borderTopColor: colors.border }}>
+                                            <Text style={[s.fieldLabel, { fontSize:10, marginBottom:4 }]}>{t.unassignedLabel} ({unassignedSlots.length})</Text>
+                                            {unassignedSlots.map((p, i) => (
+                                                <TouchableOpacity key={p.id || `unassigned-back-${i}`} disabled={!isOwner || !p.id}
+                                                    onPress={() => promptAssignTeam(p)}
+                                                    style={{ flexDirection:'row', alignItems:'center', gap:5, paddingVertical:4 }}>
+                                                    {p.id ? <Avatar name={p.username} avatar={p.avatar} size={16} color={cfg.color} /> : <Text style={{ fontSize:13 }}>👤</Text>}
+                                                    <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1}>{p.id ? playerDisplayName(p) : p.manualName}</Text>
+                                                    {isOwner && p.id && <Text style={{ color: colors.textMuted, fontSize:10 }}>▸</Text>}
+                                                </TouchableOpacity>
+                                            ))}
                                         </View>
                                     )}
                                 </View>
