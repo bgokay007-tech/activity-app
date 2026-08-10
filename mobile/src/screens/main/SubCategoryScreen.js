@@ -2218,10 +2218,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </View>
                                 )}
                                 <View style={{ flexDirection:'row', gap:3 }}>
-                                    <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor:'#16a34a', borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => handleRespondJoin(myInvite.id, 'accept')}>
+                                    {/* acceptLocal/rejectLocal (bkz. yukarısı) — handleRespondJoin (üst bileşenden
+                                        gelen prop) sadece onRefresh() ile tüm listeyi yeniden çekiyordu, bu da
+                                        "kabul ettim ama buton hâlâ duruyor, ekrandan çıkıp girmem gerekti" hissine
+                                        yol açıyordu. acceptLocal/rejectLocal API'nin döndürdüğü güncel veriyle
+                                        (participants/senderTeam/joinRequests) anında local state'i güncelliyor. */}
+                                    <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor:'#16a34a', borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => acceptLocal(myInvite.id)}>
                                         <Text style={[s.joinBtnText, { fontSize: moderateScale(12) }]}>{myInvite.isPartnerInvite ? 'Partner Ol' : t.inviteAcceptBtn}</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]} onPress={() => handleRespondJoin(myInvite.id, 'reject')}>
+                                    <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]} onPress={() => rejectLocal(myInvite.id)}>
                                         <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>{t.inviteRejectBtn}</Text>
                                     </TouchableOpacity>
                                 </View>
