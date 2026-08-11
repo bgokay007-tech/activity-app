@@ -8789,19 +8789,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 Alert.alert('', t.ratingRangeViolationMsg(ratingViolator.fullName || ratingViolator.username));
                 return;
             }
-            // Rekabetçi maçta Elo puanı hesaplandığı için hesabı olmayan (manuel) oyuncu
-            // eklenemiyor; Antrenman modunda ise cinsiyet dağılımı kotasıyla tutarlı kalması
-            // için manuel eklenen her oyuncunun cinsiyeti seçilmiş olmalı (kullanıcı isteği).
-            // Voleybolde ise mod fark etmeksizin manuel oyuncu tamamen kapalı — herkes
-            // uygulamadan aranıp seçilmek zorunda (kullanıcı isteği: uygulama kullanımını teşvik).
+            // Uygulamada hesabı olmayan (manuel) oyuncu artık hiçbir dalda/modda eklenemiyor —
+            // herkes uygulamadan aranıp seçilmek zorunda (kullanıcı isteği: "manuel oyuncu
+            // mantığı hiçbir yerde kalmasın", uygulama kullanımını teşvik).
             const manualSlots = [...f.rosterSlots, ...f.subSlots].filter(sl => sl?.type === 'manual');
-            if (sub === 'volleyball') {
-                if (manualSlots[0]) { Alert.alert('', t.volleyballManualPlayerBlockAlert(manualSlots[0].name)); return; }
-            } else if (f.matchMode === 'COMPETITIVE') {
-                if (manualSlots[0]) { Alert.alert('', t.competitiveManualPlayerBlockAlert(manualSlots[0].name)); return; }
-            } else {
-                const missingGender = manualSlots.find(sl => !sl.gender);
-                if (missingGender) { Alert.alert('', t.manualPlayerGenderMissingAlert(missingGender.name)); return; }
+            if (manualSlots[0]) {
+                Alert.alert('', sub === 'volleyball' ? t.volleyballManualPlayerBlockAlert(manualSlots[0].name) : t.teamManualPlayerBlockAlert(manualSlots[0].name));
+                return;
             }
         }
         if ((isTennis || isPadel) && !editItem) {
@@ -8960,9 +8954,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 unassignedInviteIds: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'user' && !s.side).map(s => s.userId)
                     : undefined,
-                unassignedManualNames: sub === 'airsoft'
-                    ? f.rosterSlots.filter(s => s?.type === 'manual' && !s.side).map(s => ({ name: s.name, gender: s.gender }))
-                    : undefined,
+                unassignedManualNames: undefined,
             });
             // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
             // endpoint'i ile gönderilir (DOUBLE'daki partner/opp1/opp2InviteId create-time akışından
@@ -10462,10 +10454,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
                             {/* Hizmetler > Hakem'de eklenen isim, o pencereyi tekrar açmadan da
                                 görülebilsin diye kadro kartının hemen altında ayrıca gösteriliyor. */}
-                            {f.refereeRequested && ((sub !== 'volleyball' && f.manualRefereeName.trim()) || f.refereeInvites.length > 0) && (
+                            {f.refereeRequested && f.refereeInvites.length > 0 && (
                                 <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:14 }}>
                                     <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'800', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                                        🧑‍⚖️ {t.refereeSlotLabel}: {f.refereeInvites[0] ? (f.refereeInvites[0].user.fullName || f.refereeInvites[0].user.username) : f.manualRefereeName.trim()}
+                                        🧑‍⚖️ {t.refereeSlotLabel}: {f.refereeInvites[0].user.fullName || f.refereeInvites[0].user.username}
                                     </Text>
                                 </View>
                             )}
