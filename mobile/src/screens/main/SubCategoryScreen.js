@@ -1790,15 +1790,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 const teamAvgRating = teamRatings.length > 0 ? teamRatings.reduce((s, r) => s + Number(r), 0) / teamRatings.length : null;
                                 return (
                                     <View style={{ flex:1 }}>
-                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
-                                            <Text style={{ color, fontSize:10, fontWeight:'800', flex:1 }} numberOfLines={1}>{label}</Text>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:3 }}>
+                                            <Text style={{ color, fontSize:10, fontWeight:'800' }} numberOfLines={1}>{label}</Text>
+                                            {isOwner && onEditName && (
+                                                <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }} style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
+                                                    <Text style={{ fontSize:10 }}>✎</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.teamNameChangeBtn}</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            <View style={{ flex:1 }} />
                                             {teamAvgRating != null && (
                                                 <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {teamAvgRating.toFixed(2)}★</Text>
-                                            )}
-                                            {isOwner && onEditName && (
-                                                <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                                                    <Text style={{ fontSize:10 }}>✎</Text>
-                                                </TouchableOpacity>
                                             )}
                                         </View>
                                         {slots.map((p, i) => {
@@ -7679,17 +7681,19 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
         const teamAvgRating = teamRatings.length > 0 ? teamRatings.reduce((s, r) => s + r, 0) / teamRatings.length : null;
         return (
             <View style={{ flex:1 }}>
-                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap' }}>
-                    <Text style={{ color, fontSize:10, fontWeight:'800', flex:1 }} numberOfLines={1}>
+                <View style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap' }}>
+                    <Text style={{ color, fontSize:10, fontWeight:'800' }} numberOfLines={1}>
                         {label} ({filledCount}/{slotsCount})
                     </Text>
+                    {canEditName && (
+                        <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }} style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
+                            <Text style={{ fontSize:10 }}>✎</Text>
+                            <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.teamNameChangeBtn}</Text>
+                        </TouchableOpacity>
+                    )}
+                    <View style={{ flex:1 }} />
                     {teamAvgRating != null && (
                         <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {teamAvgRating.toFixed(2)}★</Text>
-                    )}
-                    {canEditName && (
-                        <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                            <Text style={{ fontSize:10 }}>✎</Text>
-                        </TouchableOpacity>
                     )}
                 </View>
                 {Array.from({ length: slotsCount }).map((_, i) => {
@@ -8401,7 +8405,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             showManualCourt: false,
             manualCity: court.city || '',
             surface: court.surface || p.surface,
-            venueType: court.venueType || p.venueType,
+            // court.venueType diye bir alan hiç yok (Court modelinde boolean "indoor" var) —
+            // bu satır her zaman p.venueType'a düşüyordu, yani kort seçilince zemin tipi
+            // otomatik geliyordu ama açık/kapalı bilgisi hiç gelmiyordu (kullanıcı raporu:
+            // "zemin tipi toprak otomatik geldi ama açık alan neden gelmedi").
+            venueType: court.indoor != null ? (court.indoor ? 'INDOOR' : 'OUTDOOR') : p.venueType,
         }));
     };
 
@@ -9850,8 +9858,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             yüksekliğine otomatik eşitleniyor — sabit piksel tahmini yerine güvenilir yöntem.
                                             triBtn'in taban flex:1 ağırlığı yarıya (0.5) indirildi, düşen 1.0 birim
                                             arama kutusuna eklendi (flex:1 → flex:2). Voleybolde Zemin artık formun en
-                                            üstünde (Mod'un solunda) seçiliyor, burada tekrar göstermiyoruz. */}
-                                        {isVolleyball ? null : isPadel ? (
+                                            üstünde (Mod'un solunda) seçiliyor, burada tekrar göstermiyoruz.
+                                            Kullanıcı isteği: "kort seçtikten sonra gelsin, kortlar zamanla zemin/açık-
+                                            kapalı bilgisiyle kayıt oldukça otomatik dolu gelecek" — kort SEÇİLENE (ya da
+                                            listede yoksa manuel eklenene) KADAR bu iki buton hiç gösterilmiyor; seçilince
+                                            zaten kortun kendi bilgisinden otomatik doluyor (bkz. selectCourt), burada
+                                            sadece gerekirse düzeltmek için duruyor. */}
+                                        {(f.selectedCourt || f.showManualCourt) && (isVolleyball ? null : isPadel ? (
                                             <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6 }]}>
                                                 <Text style={[s.triValue, { fontSize:11 }]} numberOfLines={1}>Suni Çim</Text>
                                             </View>
@@ -9861,8 +9874,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : `${t.surfaceLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                 </Text>
                                             </TouchableOpacity>
-                                        )}
-                                        {!isVolleyball && (
+                                        ))}
+                                        {!isVolleyball && (f.selectedCourt || f.showManualCourt) && (
                                             <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6 }, f.venueType && s.triBtnFilled]} onPress={() => setShowVenueTypePicker(true)}>
                                                 <Text style={[s.triValue, { fontSize:11 }, !f.venueType && s.triPlaceholder]} numberOfLines={1}>
                                                     {f.venueType ? noEmoji((isPadel ? { OUTDOOR:t.outdoor, INDOOR:t.indoor, INDOOR_AC:t.indoorAc } : { OUTDOOR:t.outdoor, INDOOR:t.indoor })[f.venueType] || '') : `${t.venueLabel} ${t.courtSurfaceSelectPlaceholder}`}
@@ -10193,15 +10206,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </View>
                                                 <View style={{ flexDirection:'row', gap:6 }}>
                                                     <View style={{ flex:1 }}>
-                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                                                            <TouchableOpacity disabled={selectedUnassignedIndex == null} style={{ flex:1 }}
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                            <TouchableOpacity disabled={selectedUnassignedIndex == null}
                                                                 onPress={() => { setSlotSide(selectedUnassignedIndex, 'my'); setSelectedUnassignedIndex(null); }}>
                                                                 <Text style={[s.fieldLabel, { fontSize:10, marginBottom:0, color: selectedUnassignedIndex != null ? cfg.color : undefined }]} numberOfLines={1}>
                                                                     {f.founderTeamName || t.myTeamLabel}{selectedUnassignedIndex != null ? ' ↩' : ''}
                                                                 </Text>
                                                             </TouchableOpacity>
-                                                            <TouchableOpacity onPress={() => setTeamNameEdit({ side:'founder', value: f.founderTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                            <TouchableOpacity onPress={() => setTeamNameEdit({ side:'founder', value: f.founderTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }} style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
                                                                 <Text style={{ fontSize:10 }}>✎</Text>
+                                                                <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.teamNameChangeBtn}</Text>
                                                             </TouchableOpacity>
                                                         </View>
                                                         <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:3, marginTop:2 }}>
@@ -10229,15 +10243,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         ))}
                                                     </View>
                                                     <View style={{ flex:1 }}>
-                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                                                            <TouchableOpacity disabled={selectedUnassignedIndex == null} style={{ flex:1 }}
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                                                            <TouchableOpacity disabled={selectedUnassignedIndex == null}
                                                                 onPress={() => { setSlotSide(selectedUnassignedIndex, 'opp'); setSelectedUnassignedIndex(null); }}>
                                                                 <Text style={[s.fieldLabel, { fontSize:10, marginBottom:0, color: selectedUnassignedIndex != null ? cfg.color : undefined }]} numberOfLines={1}>
                                                                     {f.opponentTeamName || t.oppTeamLabel}{selectedUnassignedIndex != null ? ' ↩' : ''}
                                                                 </Text>
                                                             </TouchableOpacity>
-                                                            <TouchableOpacity onPress={() => setTeamNameEdit({ side:'opponent', value: f.opponentTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                            <TouchableOpacity onPress={() => setTeamNameEdit({ side:'opponent', value: f.opponentTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }} style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
                                                                 <Text style={{ fontSize:10 }}>✎</Text>
+                                                                <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.teamNameChangeBtn}</Text>
                                                             </TouchableOpacity>
                                                         </View>
                                                         {oppSlotOrder.map((idx, orderI) => (
