@@ -646,7 +646,27 @@ export const getRivalById = async (req, res, next) => {
             },
         });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
-        res.json(rival);
+
+        // getRivalRequests'teki AYNI derece-puanı zenginleştirmesi (bkz. oradaki yorum) —
+        // tek kayıt çekildiğinde de (ör. atama sonrası yenileme) kadro kartı güncel puanı görsün.
+        const teamUserIds = [...new Set([
+            ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []).filter(p => p?.id).map(p => p.id),
+            ...(Array.isArray(rival.participants) ? rival.participants : []).filter(p => p?.id).map(p => p.id),
+            ...(Array.isArray(rival.substitutePlayers) ? rival.substitutePlayers : []).filter(p => p?.id).map(p => p.id),
+        ])];
+        const teamInterests = teamUserIds.length > 0
+            ? await prisma.userInterest.findMany({ where: { userId: { in: teamUserIds }, subCategory: rival.subCategory }, select: { userId: true, skillRating: true } })
+            : [];
+        const withTeamRating = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id
+            ? { ...p, skillRating: teamInterests.find(i => i.userId === p.id)?.skillRating ?? null }
+            : p);
+
+        res.json({
+            ...rival,
+            senderTeam: withTeamRating(rival.senderTeam),
+            participants: withTeamRating(rival.participants),
+            substitutePlayers: withTeamRating(rival.substitutePlayers),
+        });
     } catch (error) { next(error); }
 };
 
@@ -2024,8 +2044,27 @@ export const getRivalRequests = async (req, res, next) => {
         const myJoinMap = Object.fromEntries(myJoinReqs.map(j => [j.rivalId, { status: j.status, id: j.id, counterPrice: j.counterPrice, counterMessage: j.counterMessage, initiatedBy: j.initiatedBy, offerPrice: j.offerPrice, offerMessage: j.offerMessage }]));
         const commentCountMap = Object.fromEntries(commentCounts.map(c => [c.rivalId, c._count.id]));
 
+        // Kadro kartında oyuncuların yanında (ve takım ortalamasında) derece puanı gösterilebilsin
+        // diye (kullanıcı isteği) — senderTeam/participants/substitutePlayers sadece id/username/avatar
+        // snapshot'ı tutan Json alanlar, güncel skillRating burada canlı ekleniyor. Manuel (userId'siz)
+        // oyuncular olduğu gibi bırakılıyor, skillRating aranmıyor.
+        const teamUserIds = [...new Set(requests.flatMap(r => [
+            ...(Array.isArray(r.senderTeam) ? r.senderTeam : []).filter(p => p?.id).map(p => p.id),
+            ...(Array.isArray(r.participants) ? r.participants : []).filter(p => p?.id).map(p => p.id),
+            ...(Array.isArray(r.substitutePlayers) ? r.substitutePlayers : []).filter(p => p?.id).map(p => p.id),
+        ]))];
+        const teamInterests = teamUserIds.length > 0
+            ? await prisma.userInterest.findMany({ where: { userId: { in: teamUserIds } }, select: { userId: true, subCategory: true, skillRating: true } })
+            : [];
+        const withTeamRating = (arr, subCategory) => (Array.isArray(arr) ? arr : []).map(p => p?.id
+            ? { ...p, skillRating: teamInterests.find(i => i.userId === p.id && i.subCategory === subCategory)?.skillRating ?? null }
+            : p);
+
         res.json(requests.map(r => ({
             ...r,
+            senderTeam: withTeamRating(r.senderTeam, r.subCategory),
+            participants: withTeamRating(r.participants, r.subCategory),
+            substitutePlayers: withTeamRating(r.substitutePlayers, r.subCategory),
             _myJoinStatus: myJoinMap[r.id]?.status || null,
             _myJoinRequestId: myJoinMap[r.id]?.id || null,
             _myJoinCounterPrice: myJoinMap[r.id]?.counterPrice || null,
@@ -3344,6 +3383,7 @@ export const getUpcomingMatches = async (req, res, next) => {
                 ...active.map(m => m.senderId),
                 ...active.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).filter(p => p?.id).map(p => p.id)),
                 ...active.flatMap(m => (Array.isArray(m.senderTeam) ? m.senderTeam : []).filter(p => p?.id).map(p => p.id)),
+                ...active.flatMap(m => (Array.isArray(m.substitutePlayers) ? m.substitutePlayers : []).filter(p => p?.id).map(p => p.id)),
             ].filter(Boolean))];
 
             const interests = allUserIds.length > 0
@@ -3383,6 +3423,11 @@ export const getUpcomingMatches = async (req, res, next) => {
                     skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
                     alias: p.alias || interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.alias || null,
                 })),
+                substitutePlayers: (Array.isArray(m.substitutePlayers) ? m.substitutePlayers : []).map(p => p?.id ? ({
+                    ...p,
+                    skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
+                    alias: p.alias || interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.alias || null,
+                }) : p),
                 _myNoShowPending: myNoShowSet.has(m.id),
                 commentCount: commentCountMap[m.id] ?? 0,
             }));

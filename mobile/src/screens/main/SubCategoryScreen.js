@@ -1704,6 +1704,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // atanmamışlar için kırmızı yanıp sönen uyarı (unassignedWarning).
                             const Cell = ({ p, side, allowRemove, unassignedWarning }) => {
                                 const isFounder = p.id && p.id === item.senderId;
+                                // İlan sahibi (item.sender) SENDER_SELECT+interests ilişkisiyle geliyor
+                                // (interests[0].skillRating), diğer oyuncular ise senderTeam/participants
+                                // Json snapshot'ından (backend'in eklediği düz p.skillRating) — ikisini de kapsa.
+                                const cellRating = p.skillRating ?? p.interests?.[0]?.skillRating;
                                 return (
                                     <View style={{ flexDirection:'row', alignItems:'center' }}>
                                         <TouchableOpacity disabled={!p.id} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} style={{ flexDirection:'row', alignItems:'center', gap:2, flex:1, minWidth:0 }}>
@@ -1714,6 +1718,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Text style={{ color: unassignedWarning ? '#ef4444' : '#fff', fontSize:10, fontWeight: unassignedWarning ? '800' : '400' }} numberOfLines={1}>{p.id ? playerDisplayName(p) : p.manualName}</Text>
                                             </Animated.View>
                                         </TouchableOpacity>
+                                        {/* Kullanıcı isteği: "kadro kartta oyuncuların yanında derece puanları
+                                            sağlarında yazsın" — rekabetçi maçlarda takım gücünü görebilmek için. */}
+                                        {p.id && cellRating != null && (
+                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:3 }} numberOfLines={1}>{Number(cellRating).toFixed(2)}★</Text>
+                                        )}
                                         {/* Kullanıcı isteği: "Çıkar" yazısı hangi oyuncuya ait olduğu belirsizdi
                                             (isim altında, sıkışık) — artık aynı satırda SAĞDA, adla birebir
                                             hizalı. Dokununca küçük bir pencerede Çıkar / Atanmamışa Taşı sorulur
@@ -1744,10 +1753,21 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // satırlar olarak ayrıca gösterilir, kaybolmasınlar diye.
                             const TeamColBack = ({ label, color, peoplePositional, legacyManualExtra = [], total, allowRemove, side, onEditName }) => {
                                 const slots = Array.from({ length: total }, (_, i) => peoplePositional[i] || null);
+                                // Kullanıcı isteği: "takımlar belli olduğuna göre takımların ortalama
+                                // derecesi kaç, rekabetçi maç modu önemli" — dolu forma sayısı üzerinden
+                                // (henüz derecesi olmayan/manuel oyuncular ortalamaya katılmıyor).
+                                const teamRatings = [...slots, ...legacyManualExtra]
+                                    .filter(Boolean)
+                                    .map(p => p.skillRating ?? p.interests?.[0]?.skillRating)
+                                    .filter(r => r != null);
+                                const teamAvgRating = teamRatings.length > 0 ? teamRatings.reduce((s, r) => s + Number(r), 0) / teamRatings.length : null;
                                 return (
                                     <View style={{ flex:1 }}>
                                         <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
                                             <Text style={{ color, fontSize:10, fontWeight:'800', flex:1 }} numberOfLines={1}>{label}</Text>
+                                            {teamAvgRating != null && (
+                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {teamAvgRating.toFixed(2)}★</Text>
+                                            )}
                                             {isOwner && onEditName && (
                                                 <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
                                                     <Text style={{ fontSize:10 }}>✎</Text>
@@ -1798,6 +1818,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', opacity:0.8, minHeight:0 }]}>
                                                             <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{playerDisplayName(item.sender)}</Text>
                                                         </View>
+                                                        {item.sender?.interests?.[0]?.skillRating != null && (
+                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(item.sender.interests[0].skillRating).toFixed(2)}★</Text>
+                                                        )}
                                                     </TouchableOpacity>
                                                 </View>
                                                 {mySlots.map((p, i) => <View key={p.id || `my-${i}`} style={{ width:'23.5%' }}><Cell p={p} /></View>)}
@@ -4028,8 +4051,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         <Modal visible={showDetail} animationType="slide" onRequestClose={() => setShowDetail(false)}>
             <View style={{ flex:1, backgroundColor: colors.bg }}>
                 {/* Header */}
+                {/* paddingTop sabit 24 idi — Android'de saat/pil gibi durum çubuğu simgeleriyle
+                    başlık iç içe giriyordu (kullanıcı raporu, voleybol kadro kartı açıldığında).
+                    RivalDetailModal'daki header'la aynı desen: insets.top kullan. */}
                 <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:9,
-                    paddingTop: Platform.OS==='ios' ? 56 : 24, paddingBottom:11,
+                    paddingTop: Platform.OS==='ios' ? 56 : insets.top + 14, paddingBottom:11,
                     borderBottomWidth:1, borderBottomColor: colors.border }}>
                     <TouchableOpacity onPress={() => setShowDetail(false)} style={{ marginRight:14, padding:1 }}>
                         <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
@@ -4314,7 +4340,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             isVolleyball={isVolleyball}
                             sub={match.subCategory}
                             category={match.category}
-                            founderPlayers={[match.sender, ...(Array.isArray(match.senderTeam) ? match.senderTeam : [])]}
+                            founderPlayers={[{ ...match.sender, skillRating: match.senderSkillRating }, ...(Array.isArray(match.senderTeam) ? match.senderTeam : [])]}
                             oppPlayers={Array.isArray(match.participants) ? match.participants : []}
                             legacyOppManualNames={(Array.isArray(match.oppTeamManualNames) ? match.oppTeamManualNames : []).map(n => ({ manualName: n }))}
                             matchMode={match.matchMode}
@@ -7081,6 +7107,11 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                             <Animated.View style={{ flex:1, opacity: isUnassigned ? unassignedBlink : 1 }}>
                                 <Text style={{ color: isUnassigned ? '#ef4444' : '#fff', fontSize:10, fontWeight: isUnassigned ? '800' : '400' }} numberOfLines={1}>{i + 1}. {p.id ? senderAlias(p) : p.manualName}</Text>
                             </Animated.View>
+                            {/* Kullanıcı isteği: "kadro kartta oyuncuların yanında derece puanları
+                                sağlarında yazsın" — rekabetçi maçlarda takım gücünü görebilmek için. */}
+                            {p.id && p.skillRating != null && (
+                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
+                            )}
                         </View>
                     </View>
                 );
@@ -7094,12 +7125,20 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
     // reddediyor, bkz. assignPlayerToSide).
     const renderColumn = (players, label, color, canEditName, onEditName, targetSide, slotsCount, lockFirst = false, legacyManualExtra = []) => {
         const filledCount = players.filter(p => p && (p.id || p.manualName)).length;
+        // Kullanıcı isteği: "takımlar belli olduğuna göre takımların ortalama derecesi kaç,
+        // rekabetçi maç modu önemli" — dolu forma sayısı üzerinden (henüz derecesi olmayan/
+        // manuel oyuncular ortalamaya katılmıyor).
+        const teamRatings = [...players, ...legacyManualExtra].filter(p => p?.id && p.skillRating != null).map(p => Number(p.skillRating));
+        const teamAvgRating = teamRatings.length > 0 ? teamRatings.reduce((s, r) => s + r, 0) / teamRatings.length : null;
         return (
             <View style={{ flex:1 }}>
-                <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap' }}>
                     <Text style={{ color, fontSize:10, fontWeight:'800', flex:1 }} numberOfLines={1}>
                         {label} ({filledCount}/{slotsCount})
                     </Text>
+                    {teamAvgRating != null && (
+                        <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {teamAvgRating.toFixed(2)}★</Text>
+                    )}
                     {canEditName && (
                         <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
                             <Text style={{ fontSize:10 }}>✎</Text>
@@ -7113,6 +7152,9 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                         return (
                             <View key={p.id || i} style={{ flexDirection:'row', alignItems:'center', marginBottom:2 }}>
                                 <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{i + 1}. {p.id ? senderAlias(p) : p.manualName}{locked ? ' 🔒' : ''}</Text>
+                                {p.id && p.skillRating != null && (
+                                    <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginRight:3 }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
+                                )}
                                 {/* Kullanıcı isteği: açık ilan detayındaki ("Çıkar/Değiştir") ile aynı mantık —
                                     isme dokunup direkt atanmamışa atmak yerine, sağda bir menü açılır. */}
                                 {isOwner && !locked && (
@@ -7169,6 +7211,9 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                                             <View style={cellStyle}>
                                                 {p.id ? <Avatar name={p.username} avatar={p.avatar} size={14} color="#a855f7" /> : <Text style={{ fontSize:11 }}>👤</Text>}
                                                 <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{p.id ? senderAlias(p) : p.manualName}</Text>
+                                                {p.id && p.skillRating != null && (
+                                                    <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
+                                                )}
                                             </View>
                                         </View>
                                     ))}
