@@ -1085,6 +1085,28 @@ function notifyMatchParticipants(activity, { title, body, excludeUserId }) {
     }).catch(() => {});
 }
 
+// Kadro kartı düzenlendiğinde (Değiştir/Çıkar ile takım değişimi, manuel oyuncu eklenmesi,
+// çıkarılma) GÜNCEL kadrodaki herkese (Kurucu/Rakip Takım + Yedekler) haber verir — kullanıcı
+// isteği: "son gördüğü halden sonra takımı değişirse kendisi ya da takım arkadaşları her
+// değişimde bildirim gitsin" (maç günü/saati başka bir gün uymayabilir ama en az takımın kimin
+// olduğunu da bilsinler istiyor). İlan sahibi (değişikliği yapan) hariç, opsiyonel excludeUserId
+// (ör. taşınan/çıkarılan oyuncunun kendisi, ona zaten ayrı ve daha spesifik bir bildirim gidiyor).
+function notifyRosterChange(activity, { title, body, excludeUserId }) {
+    const participantIds = Array.isArray(activity.participants) ? activity.participants.map(p => p?.id).filter(Boolean) : [];
+    const senderTeamIds = Array.isArray(activity.senderTeam) ? activity.senderTeam.map(p => p?.id).filter(Boolean) : [];
+    const subIds = Array.isArray(activity.substitutePlayers) ? activity.substitutePlayers.map(p => p?.id).filter(Boolean) : [];
+    const recipients = new Set([...participantIds, ...senderTeamIds, ...subIds]);
+    if (excludeUserId) recipients.delete(excludeUserId);
+    recipients.delete(activity.senderId);
+    for (const uid of recipients) {
+        // 'RESERVATION' KULLANILMIYOR — o tip mobil tarafta işletme rezervasyon ekranına
+        // yönlendiriyor (bkz. navigation/index.js, NotificationsScreen.js); kadro bildirimi
+        // tıklanınca maçın kendisine (SubCategory/rivals) gitmeli, o yüzden category/subCategory
+        // ile eşleşen ve o yönlendirmeyi tetiklemeyen 'ROSTER_CHANGED' kullanılıyor.
+        createNotification(uid, 'ROSTER_CHANGED', title, body, { rivalId: activity.id, category: activity.category, subCategory: activity.subCategory }).catch(() => {});
+    }
+}
+
 // Eşleşmiş (MATCHED) bir ilanda sadece kort/gün/saat değişikliğine izin verir — takım/katılımcı
 // alanlarına dokunulmaz. Gerçek bir işletme rezervasyonuna bağlıysa (venueReservationId), ilgili
 // CourtReservation da senkronize edilir: aynı işletme içinde kort/saat değişikliği "değiştirme"
@@ -4247,6 +4269,24 @@ export const assignPlayerToSide = async (req, res, next) => {
 
         broadcast('rivalUpdate', updated);
         if (userId) emitToUser(userId, 'rivalUpdate', updated);
+
+        // Kullanıcı isteği: "son gördüğü halden sonra takımı değişirse kendisi ya da takım
+        // arkadaşları her değişimde bildirim gitsin" — taşınan oyuncunun kendisine (gerçek
+        // kullanıcıysa) VE mevcut kadrodaki herkese (ilan sahibi hariç) haber verilir.
+        const movedName = userId ? (player.fullName || player.username) : player.manualName;
+        const sideLabel = side === 'my' ? (updated.founderTeamName || 'Kurucu Takım') : side === 'opp' ? (updated.opponentTeamName || 'Rakip Takım') : 'Atanmamış';
+        if (userId) {
+            createNotification(userId, 'ROSTER_CHANGED', '🔄 Kadro Değişti',
+                side ? `${sideLabel}'a atandın.` : 'Atanmamış listesine alındın.',
+                { rivalId: id, category: updated.category, subCategory: updated.subCategory }
+            ).catch(() => {});
+        }
+        notifyRosterChange(updated, {
+            title: '🔄 Kadro Değişti',
+            body: `${movedName || 'Bir oyuncu'} ${sideLabel}'a taşındı.`,
+            excludeUserId: userId || undefined,
+        });
+
         res.json(updated);
     } catch (error) { next(error); }
 };
@@ -4320,6 +4360,14 @@ export const addManualTeamPlayer = async (req, res, next) => {
         });
 
         broadcast('rivalUpdate', updated);
+
+        // Kullanıcı isteği: kadro değiştiğinde mevcut takım arkadaşları da haberdar olsun.
+        const sideLabel = side === 'my' ? (updated.founderTeamName || 'Kurucu Takım') : (updated.opponentTeamName || 'Rakip Takım');
+        notifyRosterChange(updated, {
+            title: '🔄 Kadro Değişti',
+            body: `${trimmed} ${sideLabel}'a eklendi.`,
+        });
+
         res.json(updated);
     } catch (error) { next(error); }
 };
@@ -4450,6 +4498,16 @@ export const removeRivalParticipant = async (req, res, next) => {
                 { rivalId: id, subCategory: rival.subCategory }
             ).catch(() => {});
         }
+        // Kullanıcı isteği: kadro değiştiğinde (biri çıkarıldığında) kalan takım
+        // arkadaşları da haberdar olsun.
+        const removedName = (Array.isArray(rival.participants) ? rival.participants : []).find(p => p?.id === userId)?.username
+            || (Array.isArray(rival.senderTeam) ? rival.senderTeam : []).find(p => p?.id === userId)?.username
+            || 'Bir oyuncu';
+        notifyRosterChange(updated, {
+            title: '🔄 Kadro Değişti',
+            body: `${removedName} takımdan çıkarıldı.`,
+            excludeUserId: userId,
+        });
         // Maç doluyken bu değişiklik olduysa, ilana bekleyen istek göndermiş
         // herkese de haber ver — belki artık uygun değillerdir ya da tam tersi.
         if (wasMatched) notifyPendingRequestersOfReopen(id, rival.category, rival.subCategory, removeIds);
