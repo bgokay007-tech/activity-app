@@ -3791,17 +3791,25 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         return new Date() >= new Date(d.getTime() + 60 * 1000);
     })();
 
-    // Build player list: sender → partner (DOUBLE) / takım arkadaşları (takım sporları) → opponents.
+    // Build player list: sender → partner (DOUBLE) / takım arkadaşları (takım sporları) → opponents → atanmamışlar.
     // Eskiden takım sporlarında (voleybol) senderTeam hiç eklenmiyordu — kurucunun takım
     // arkadaşları "Gelmedi" bildirimi gibi listelerde hiç görünmüyordu.
+    // DOUBLE'da bireysel kabuller artık atanmamış havuzuna düşüyor (bkz. resolveDoubleAcceptance) —
+    // maç dolup MATCHED olsa bile senderTeam boş kalabiliyordu, bu da kartta gerçekte 4 kişi
+    // varken "ortak slot boş" yazmasına yol açıyordu (kullanıcı raporu: "yaklaşan maçlarda hala
+    // oyuncular yok"). "Boş slot" artık sadece gerçekten kimse yoksa gösteriliyor, atanmamış
+    // oyuncular varsa (henüz Takım Arkadaşı/Rakip1/Rakip2'ye atanmamış olsalar da) isimleriyle listeleniyor.
     const allPlayers = [
         { ...match.sender, skillRating: match.senderSkillRating, alias: match.senderAlias },
         ...(match.matchType === 'DOUBLE'
             ? senderTeamArr.length > 0
                 ? senderTeamArr
-                : [{ id: '__empty_partner__', _emptySlot: true }]
+                : unassignedArr.length === 0
+                    ? [{ id: '__empty_partner__', _emptySlot: true }]
+                    : []
             : senderTeamArr.filter(p => p?.id)),
         ...participantsArr,
+        ...(match.matchType === 'DOUBLE' ? unassignedArr : []),
     ];
     // Takım sporlarında (voleybol/airsoft) kadro kartı (Digimon kart) ZATEN tüm kadroyu
     // (gerçek + manuel/kayıtsız oyuncular) doğru pozisyonlarıyla gösteriyor — allPlayers ise
