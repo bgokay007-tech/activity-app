@@ -1114,7 +1114,9 @@ function notifyRosterChange(activity, { title, body, excludeUserId }) {
     const senderTeamIds = Array.isArray(activity.senderTeam) ? activity.senderTeam.map(p => p?.id).filter(Boolean) : [];
     const subIds = Array.isArray(activity.substitutePlayers) ? activity.substitutePlayers.map(p => p?.id).filter(Boolean) : [];
     const recipients = new Set([...participantIds, ...senderTeamIds, ...subIds]);
-    if (excludeUserId) recipients.delete(excludeUserId);
+    for (const uid of (Array.isArray(excludeUserId) ? excludeUserId : [excludeUserId])) {
+        if (uid) recipients.delete(uid);
+    }
     recipients.delete(activity.senderId);
     for (const uid of recipients) {
         // 'RESERVATION' KULLANILMIYOR — o tip mobil tarafta işletme rezervasyon ekranına
@@ -4380,6 +4382,89 @@ export const assignPlayerToSide = async (req, res, next) => {
             title: '🔄 Kadro Değişti',
             body: `${movedName || 'Bir oyuncu'} ${sideLabel}'a taşındı.`,
             excludeUserId: userId || undefined,
+        });
+
+        res.json(updated);
+    } catch (error) { next(error); }
+};
+
+// Kullanıcı isteği: "karşıdaki oyunculardan biri ile değiştirmek isteniyorsa tüm slotlar
+// doluysa atanmamışa atıp sonra tekrar dağıtmakla uğraşmak yerine" — Değiştir/Çıkar menüsünde
+// karşı taraf DOLUYKEN, o taraftaki bir oyuncunun ismine dokununca doğrudan YER DEĞİŞTİRİR:
+// oyuncu A'nın slotuna karşı taraftaki B, B'nin slotuna A yerleşir (iki taraf da hep dolu
+// kalır, kimse "Atanmamış"a düşmez). assignPlayerToSide'daki push-tabanlı taşımadan farklı
+// olarak burada array INDEX'i (yani forma sırası) korunur.
+export const swapTeamPlayers = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        // userId/manualName: taşınan oyuncu (mover). swapUserId/swapManualName: karşı taraftaki,
+        // yerine geçilecek oyuncu.
+        const { userId, manualName, swapUserId, swapManualName } = req.body;
+        if (!userId && !manualName) return res.status(400).json({ message: 'Oyuncu belirtilmedi' });
+        if (!swapUserId && !swapManualName) return res.status(400).json({ message: 'Değişilecek oyuncu belirtilmedi' });
+
+        const rival = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi oyuncu değiştirebilir' });
+        if (!['volleyball', 'airsoft'].includes(rival.subCategory) || (rival.teamSize || 1) <= 1) {
+            return res.status(400).json({ message: 'Bu işlem sadece takım maçlarında yapılabilir' });
+        }
+        if (userId === rival.senderId || swapUserId === rival.senderId) {
+            return res.status(400).json({ message: 'İlan sahibi taşınamaz' });
+        }
+
+        const senderTeam = Array.isArray(rival.senderTeam) ? [...rival.senderTeam] : [];
+        const participants = Array.isArray(rival.participants) ? [...rival.participants] : [];
+        const matchMover = (p) => userId ? p?.id === userId : (!p?.id && p?.manualName === manualName);
+        const matchTarget = (p) => swapUserId ? p?.id === swapUserId : (!p?.id && p?.manualName === swapManualName);
+
+        const moverInSender = senderTeam.findIndex(matchMover);
+        const moverInParts  = participants.findIndex(matchMover);
+        const targetInSender = senderTeam.findIndex(matchTarget);
+        const targetInParts  = participants.findIndex(matchTarget);
+
+        if (moverInSender === -1 && moverInParts === -1) return res.status(404).json({ message: 'Oyuncu bu ilanda bulunamadı' });
+        if (targetInSender === -1 && targetInParts === -1) return res.status(404).json({ message: 'Değişilecek oyuncu bu ilanda bulunamadı' });
+        // İkisi de aynı tarafta olamaz — "değiş" tam olarak KARŞI takımla yer değiştirmek demek,
+        // aksi halde assignPlayerToSide zaten aynı işi (basit taşıma) yapıyor.
+        const moverSide  = moverInSender  !== -1 ? 'my' : 'opp';
+        const targetSide = targetInSender !== -1 ? 'my' : 'opp';
+        if (moverSide === targetSide) return res.status(400).json({ message: 'Sadece karşı takımdaki bir oyuncuyla yer değiştirilebilir' });
+
+        const mover  = moverSide  === 'my' ? senderTeam[moverInSender]   : participants[moverInParts];
+        const target = targetSide === 'my' ? senderTeam[targetInSender] : participants[targetInParts];
+
+        if (moverSide === 'my') { senderTeam[moverInSender] = target; participants[targetInParts] = mover; }
+        else { participants[moverInParts] = target; senderTeam[targetInSender] = mover; }
+
+        const updated = await prisma.activityRequest.update({
+            where: { id },
+            data: { senderTeam, participants },
+            include: { sender: { select: SENDER_SELECT } },
+        });
+
+        broadcast('rivalUpdate', updated);
+        if (userId) emitToUser(userId, 'rivalUpdate', updated);
+        if (swapUserId) emitToUser(swapUserId, 'rivalUpdate', updated);
+
+        const moverName  = mover.fullName || mover.username || mover.manualName;
+        const targetName = target.fullName || target.username || target.manualName;
+        if (userId) {
+            createNotification(userId, 'ROSTER_CHANGED', '🔄 Kadro Değişti',
+                `${targetName} ile yer değiştirdin.`,
+                { rivalId: id, category: updated.category, subCategory: updated.subCategory }
+            ).catch(() => {});
+        }
+        if (swapUserId) {
+            createNotification(swapUserId, 'ROSTER_CHANGED', '🔄 Kadro Değişti',
+                `${moverName} ile yer değiştirdin.`,
+                { rivalId: id, category: updated.category, subCategory: updated.subCategory }
+            ).catch(() => {});
+        }
+        notifyRosterChange(updated, {
+            title: '🔄 Kadro Değişti',
+            body: `${moverName} ile ${targetName} yer değiştirdi.`,
+            excludeUserId: [userId, swapUserId],
         });
 
         res.json(updated);

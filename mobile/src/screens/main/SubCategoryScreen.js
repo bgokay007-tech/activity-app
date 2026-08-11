@@ -988,6 +988,20 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
+    // Kullanıcı isteği: "karşıdaki oyunculardan biriyle değiştirmek isteniyorsa tüm slotlar
+    // doluysa atanmamışa atıp sonra tekrar dağıtmakla uğraşmak yerine" — karşı taraf DOLUYKEN
+    // doğrudan o taraftaki bir oyuncuyla yer değiştirir (ikisi de dolu kalır, kimse atanmamışa düşmez).
+    const swapTeamPlayer = (mover, target) => {
+        api.patch(`/rivals/${item.id}/swap-team-player`, {
+            userId: mover.id || undefined, manualName: mover.id ? undefined : mover.manualName,
+            swapUserId: target.id || undefined, swapManualName: target.id ? undefined : target.manualName,
+        })
+            .then(({ data }) => {
+                if (Array.isArray(data?.participants)) setLocalParticipants(data.participants);
+                if (Array.isArray(data?.senderTeam)) setLocalSenderTeam(data.senderTeam);
+            })
+            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+    };
     // Kadro kartının arka yüzünde dolu bir slota basınca (kullanıcı isteği: "sağında çıkar/
     // değiştir yazsın, tıklayınca küçük pencerede Çıkar / Atanmamışa Taşı çıksın"). Manuel
     // (kayıtsız) isimlerde "Çıkar" backend'de henüz desteklenmiyor (bkz. removeRivalParticipant
@@ -1008,6 +1022,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         const actions = [];
         if (!oppositeFull) {
             actions.push({ label: `${oppositeLabel}'a Taşı`, onPress: () => (p.id ? assignUnassignedToSide(p.id, oppositeSide) : assignManualToSide(p.manualName, oppositeSide)) });
+        } else {
+            // Kullanıcı isteği: karşı taraf doluyken atanmamışa atıp sonra yeniden dağıtmakla
+            // uğraşmak yerine, doğrudan karşı taraftaki bir oyuncuyla yer değiştirilebilsin.
+            const oppositeRoster = oppositeSide === 'my'
+                ? senderTeamArr.filter(x => x?.id || x?.manualName)
+                : [...participants.filter(x => x?.id || x?.manualName), ...oppManualNames.map(n => ({ manualName: n }))];
+            for (const target of oppositeRoster) {
+                const targetName = target.id ? playerDisplayName(target) : target.manualName;
+                actions.push({ label: `🔁 ${targetName} ile Değiş`, onPress: () => swapTeamPlayer(p, target) });
+            }
         }
         actions.push({ label: 'Atanmamışa Taşı', onPress: () => (p.id ? assignUnassignedToSide(p.id, null) : assignManualToSide(p.manualName, null)) });
         if (p.id) actions.push({ label: 'Çıkar', destructive: true, onPress: () => removeRivalParticipant(p.id, p.username) });
@@ -4387,6 +4411,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     .then(() => onRefresh())
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
+                            // Kullanıcı isteği: "karşıdaki oyunculardan biriyle değiştirmek isteniyorsa
+                            // tüm slotlar doluysa atanmamışa atıp sonra tekrar dağıtmakla uğraşmak yerine" —
+                            // karşı taraf doluyken doğrudan bir oyuncuyla yer değiştirir.
+                            onSwap={(mover, target) => {
+                                api.patch(`/rivals/${match.id}/swap-team-player`, {
+                                    userId: mover.id || undefined, manualName: mover.id ? undefined : mover.manualName,
+                                    swapUserId: target.id || undefined, swapManualName: target.id ? undefined : target.manualName,
+                                })
+                                    .then(() => onRefresh())
+                                    .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+                            }}
                             // Kullanıcı isteği: açık ilan detayındaki ("Çıkar/Değiştir") ile aynı mantık —
                             // ilandan tamamen çıkarma, DELETE /participants/:userId (bkz. RivalDetailModal'daki
                             // removeRivalParticipant, aynı uç nokta).
@@ -7089,7 +7124,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onAddManual, cfg, t, pla
 // "seç sonra hedefe dokun" ile atama. Kullanıcı isteğiyle iki kart birebir aynı davransın
 // diye kopyalandı — sadece veri kaynağı farklı (burada zaten kabul edilmiş gerçek
 // katılımcılar, formdaki gibi serbest metinle aranan boş slotlar değil).
-function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], substituteCount = 0, isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onRemovePlayer, onInviteSlot, onAddManualSlot, matchMode, legacyOppManualNames = [], t, emoji = '🏐' }) {
+function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], substituteCount = 0, isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onSwap, onRemovePlayer, onInviteSlot, onAddManualSlot, matchMode, legacyOppManualNames = [], t, emoji = '🏐' }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const flip = () => {
@@ -7148,6 +7183,14 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
         const actions = [];
         if (!oppositeFull) {
             actions.push({ label: `${oppositeLabel}'a Taşı`, onPress: () => onAssign(p.id, oppositeSide, p.id ? undefined : p.manualName) });
+        } else if (onSwap) {
+            // Kullanıcı isteği: karşı taraf doluyken atanmamışa atıp sonra yeniden dağıtmakla
+            // uğraşmak yerine, doğrudan karşı taraftaki bir oyuncuyla yer değiştirilebilsin.
+            const oppositeRoster = (oppositeSide === 'my' ? founderPlayers : oppPlayers).filter(x => x?.id || x?.manualName);
+            for (const target of oppositeRoster) {
+                const targetName = target.id ? senderAlias(target) : target.manualName;
+                actions.push({ label: `🔁 ${targetName} ile Değiş`, onPress: () => onSwap(p, target) });
+            }
         }
         actions.push({ label: 'Atanmamışa Taşı', onPress: () => onAssign(p.id, null, p.id ? undefined : p.manualName) });
         if (p.id && onRemovePlayer) actions.push({ label: 'Çıkar', destructive: true, onPress: () => onRemovePlayer(p.id) });

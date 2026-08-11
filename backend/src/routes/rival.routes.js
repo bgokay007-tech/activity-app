@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-    createRivalRequest, getRivalRequests, getRivalById, swapMatchPositions, setTeamName, assignPlayerToSide, assignDoubleSlot, addManualTeamPlayer,
+    createRivalRequest, getRivalRequests, getRivalById, swapMatchPositions, setTeamName, assignPlayerToSide, swapTeamPlayers, assignDoubleSlot, addManualTeamPlayer,
     sendJoinRequest, respondToJoin, confirmLateJoin, withdrawJoinRequest, inviteToRival, setRivalJoinPartner,
     getUpcomingMatches, getMyRequests,
     cancelRequest, enterScore, confirmScore, disputeScore, reportDispute, appealScore,
@@ -56,6 +56,7 @@ router.delete('/:id/participants/:userId', authenticate, removeRivalParticipant)
 router.patch('/:id/swap-positions',  authenticate, swapMatchPositions);
 router.patch('/:id/team-name',       authenticate, setTeamName);
 router.patch('/:id/assign-player',   authenticate, assignPlayerToSide);
+router.patch('/:id/swap-team-player', authenticate, swapTeamPlayers);
 router.patch('/:id/add-manual-player', authenticate, addManualTeamPlayer);
 router.patch('/:id/assign-double-slot', authenticate, assignDoubleSlot);
 router.get('/:id',                   authenticate, getRivalById);
