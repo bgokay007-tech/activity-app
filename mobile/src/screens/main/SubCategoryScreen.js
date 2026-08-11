@@ -994,19 +994,25 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // sadece gerçek userId alıyor) — onlar için sadece Atanmamışa Taşı sunulur.
     // side: bu kişinin ŞU AN hangi takımda olduğu ('my'|'opp') — kullanıcı isteği: "karşıya
     // taşımak istiyorsa karşı rakibin ismi neyse x takıma taşı seçeneği olsun, boşluk varsa".
-    const promptSlotAction = (p, side) => {
+    // Alert.alert DEĞİL SlotActionSheet kullanılıyor — Android'de Alert 3 buton sınırına
+    // takılıp 4. butonu (genelde "Atanmamışa Taşı") sessizce düşürüyordu (kullanıcı raporu).
+    const [slotActionTarget, setSlotActionTarget] = useState(null); // { p, side } | null
+    const promptSlotAction = (p, side) => setSlotActionTarget({ p, side });
+    const slotActionSheetProps = (() => {
+        if (!slotActionTarget) return { visible: false, title: '', actions: [] };
+        const { p, side } = slotActionTarget;
         const name = p.id ? playerDisplayName(p) : p.manualName;
         const oppositeSide = side === 'my' ? 'opp' : 'my';
         const oppositeFull = oppositeSide === 'my' ? founderFullForAssign : oppFullForAssign;
         const oppositeLabel = oppositeSide === 'my' ? (item.founderTeamName || t.myTeamLabel) : (item.opponentTeamName || t.oppTeamLabel);
-        const buttons = [{ text: 'Vazgeç', style: 'cancel' }];
-        if (p.id) buttons.push({ text: 'Çıkar', style: 'destructive', onPress: () => removeRivalParticipant(p.id, p.username) });
+        const actions = [];
         if (!oppositeFull) {
-            buttons.push({ text: `${oppositeLabel}'a Taşı`, onPress: () => (p.id ? assignUnassignedToSide(p.id, oppositeSide) : assignManualToSide(p.manualName, oppositeSide)) });
+            actions.push({ label: `${oppositeLabel}'a Taşı`, onPress: () => (p.id ? assignUnassignedToSide(p.id, oppositeSide) : assignManualToSide(p.manualName, oppositeSide)) });
         }
-        buttons.push({ text: 'Atanmamışa Taşı', onPress: () => (p.id ? assignUnassignedToSide(p.id, null) : assignManualToSide(p.manualName, null)) });
-        Alert.alert(name, '', buttons);
-    };
+        actions.push({ label: 'Atanmamışa Taşı', onPress: () => (p.id ? assignUnassignedToSide(p.id, null) : assignManualToSide(p.manualName, null)) });
+        if (p.id) actions.push({ label: 'Çıkar', destructive: true, onPress: () => removeRivalParticipant(p.id, p.username) });
+        return { visible: true, title: name, actions };
+    })();
 
     // Çiftler (DOUBLE): kabul edilen bireysel oyuncu atanmamış havuzuna düşer — ilan sahibi
     // herkesi, oyuncunun kendisi de (sadece kendini, atanmamışken) Takım Arkadaşı/Rakip1/
@@ -2518,6 +2524,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 </View>
             </View>
         </Modal>
+
+        {/* Kadro kartında "Değiştir/Çıkar" — bkz. promptSlotAction/SlotActionSheet */}
+        <SlotActionSheet {...slotActionSheetProps} onClose={() => setSlotActionTarget(null)} />
 
         {/* Oyuncu Davet Et — arama modali */}
         <Modal visible={inviteModalVisible} animationType="slide" transparent onRequestClose={() => setInviteModalVisible(false)}>
@@ -5171,6 +5180,30 @@ const opt = StyleSheet.create({
     itemTextActive:{ color:'#fff', fontWeight:'800' },
 });
 
+// Kadro kartındaki "Çıkar/Değiştir" için (bkz. promptSlotAction) — Alert.alert Android'de
+// 3 buton sınırına takılıp fazla butonu (ör. "Atanmamışa Taşı") sessizce düşürüyordu
+// (kullanıcı raporu: "atanmamışa taşı yok"). 4 aksiyona kadar (Vazgeç, Çıkar, Karşı Takıma
+// Taşı, Atanmamışa Taşı) güvenle sığması için Alert yerine bu basit bottom-sheet kullanılıyor.
+function SlotActionSheet({ visible, title, actions, onClose }) {
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <TouchableOpacity style={opt.overlay} activeOpacity={1} onPress={onClose}>
+                <TouchableOpacity activeOpacity={1} style={opt.box} onPress={() => {}}>
+                    <View style={opt.header}>
+                        <Text style={opt.title} numberOfLines={1}>{title}</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
+                    </View>
+                    {(actions || []).map((a, i) => (
+                        <TouchableOpacity key={i} style={opt.item} onPress={() => { onClose(); a.onPress(); }}>
+                            <Text style={[opt.itemText, a.destructive && { color:'#f87171', fontWeight:'800' }]}>{a.label}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </TouchableOpacity>
+            </TouchableOpacity>
+        </Modal>
+    );
+}
+
 // Tam ekran alttan açılan OptionPickerModal yerine, alanın hemen altına doğru açılan
 // küçük dropdown — Takım Büyüklüğü/Yedek Sayısı gibi dar sütunlarda tam ekran modal
 // gereksiz büyük duruyordu (kullanıcı isteği). Konumlandırma için Modal/measure
@@ -7016,19 +7049,25 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
     };
     // side: bu kişinin ŞU AN hangi takımda olduğu ('my'|'opp') — kullanıcı isteği: "karşıya
     // taşımak istiyorsa karşı rakibin ismi neyse x takıma taşı seçeneği olsun, boşluk varsa".
-    const promptSlotAction = (p, side) => {
+    // Alert.alert DEĞİL SlotActionSheet kullanılıyor — Android'de Alert 3 buton sınırına
+    // takılıp 4. butonu (genelde "Atanmamışa Taşı") sessizce düşürüyordu (kullanıcı raporu).
+    const [slotActionTarget, setSlotActionTarget] = useState(null); // { p, side } | null
+    const promptSlotAction = (p, side) => setSlotActionTarget({ p, side });
+    const slotActionSheetProps = (() => {
+        if (!slotActionTarget) return { visible: false, title: '', actions: [] };
+        const { p, side } = slotActionTarget;
         const name = p.id ? senderAlias(p) : p.manualName;
         const oppositeSide = side === 'my' ? 'opp' : 'my';
         const oppositeFull = oppositeSide === 'my' ? founderFull : oppFull;
         const oppositeLabel = oppositeSide === 'my' ? (founderTeamName || t.founderTeamShortLabel) : (opponentTeamName || t.opponentTeamShortLabel);
-        const buttons = [{ text: 'Vazgeç', style: 'cancel' }];
-        if (p.id && onRemovePlayer) buttons.push({ text: 'Çıkar', style: 'destructive', onPress: () => onRemovePlayer(p.id) });
+        const actions = [];
         if (!oppositeFull) {
-            buttons.push({ text: `${oppositeLabel}'a Taşı`, onPress: () => onAssign(p.id, oppositeSide, p.id ? undefined : p.manualName) });
+            actions.push({ label: `${oppositeLabel}'a Taşı`, onPress: () => onAssign(p.id, oppositeSide, p.id ? undefined : p.manualName) });
         }
-        buttons.push({ text: 'Atanmamışa Taşı', onPress: () => onAssign(p.id, null, p.id ? undefined : p.manualName) });
-        Alert.alert(name, '', buttons);
-    };
+        actions.push({ label: 'Atanmamışa Taşı', onPress: () => onAssign(p.id, null, p.id ? undefined : p.manualName) });
+        if (p.id && onRemovePlayer) actions.push({ label: 'Çıkar', destructive: true, onPress: () => onRemovePlayer(p.id) });
+        return { visible: true, title: name, actions };
+    })();
     const cellWidth = isVolleyball ? '32%' : '23.5%';
     const cellStyle = { flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 };
     const renderGrid = (players) => (
@@ -7178,6 +7217,8 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                     </>
                 )}
             </Animated.View>
+            {/* Kadro kartında "Değiştir/Çıkar" — bkz. promptSlotAction/SlotActionSheet */}
+            <SlotActionSheet {...slotActionSheetProps} onClose={() => setSlotActionTarget(null)} />
         </View>
     );
 }
