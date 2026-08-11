@@ -6702,6 +6702,7 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
     const renderPlayer = (p, isFounderSidePlayer) => {
         const hist = snapshot[p.id];
         const rBefore = hist?.skillRating_before;
+        const rAfter = hist?.skillRating_after;
         const pts = hist?.change ?? null;
         const pSets = sets ? sets.map(s2 => isFounderSidePlayer ? s2.sender : s2.opponent) : null;
         const pWins = sets ? sets.filter(s2 => (isFounderSidePlayer ? s2.sender : s2.opponent) > (isFounderSidePlayer ? s2.opponent : s2.sender)).length : null;
@@ -6709,9 +6710,12 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
             <View key={p.id || p.username} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:6 }}>
                 <TouchableOpacity onPress={() => { if (p.id) { onUserPress(p.id); onClose(); } }} style={{ flex:1 }} activeOpacity={0.7}>
                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
-                    <View style={{ flexDirection:'row', gap:6, marginTop:2 }}>
+                    {/* Kullanıcı isteği: skor girildikten sonra maç öncesi puan → kazanılan/kaybedilen
+                        → güncel puan sırasıyla görünsün. */}
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:2 }}>
                         {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>{Number(rBefore).toFixed(2)} ★</Text>}
                         {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'700' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
+                        {rAfter != null && <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>→ <Text style={{ color:'#4ade80' }}>{Number(rAfter).toFixed(2)} ★</Text></Text>}
                     </View>
                 </TouchableOpacity>
                 {pSets && (
@@ -13971,7 +13975,11 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
     const isVolleyball = sub === 'volleyball';
     const [section, setSection] = useState(isVolleyball ? 'kurallar' : 'dominant');
     const rows = section === 'dominant' ? RATING_DOM : RATING_REC;
-    const label = section === 'dominant' ? '🏆 DOMİNANT  (6-0, 6-1, 6-2)' : '⚔️ REKABETÇİ  (6-3, 6-4, 7-5)';
+    // Tenis skoru (6-0 vb.) voleybolde anlamsız — voleybolde dominantlık SET FARKINA göre
+    // belirlenir (bkz. backend applyCompetitivePoints): fark ≥2 set dominant, fark 1 set rekabetçi.
+    const label = isVolleyball
+        ? (section === 'dominant' ? '🏆 DOMİNANT  (ör. 3-0, 4-1, 5-0 — set farkı 2+)' : '⚔️ REKABETÇİ  (ör. 2-1, 3-2 — set farkı 1)')
+        : (section === 'dominant' ? '🏆 DOMİNANT  (6-0, 6-1, 6-2)' : '⚔️ REKABETÇİ  (6-3, 6-4, 7-5)');
 
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -14018,7 +14026,7 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                                     Maça <Text style={{ color:'#fff', fontWeight:'800' }}>mazeretsiz gelmeyen</Text> bir oyuncu diğer katılımcılar tarafından bildirilebilir. Bildirim admin tarafından onaylanırsa:
                                 </Text>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21, marginTop:6 }}>
-                                    • Derece puanından <Text style={{ color:'#f87171', fontWeight:'800' }}>0.40 puan</Text> kesilir.{'\n'}
+                                    • Derece puanından <Text style={{ color:'#f87171', fontWeight:'800' }}>0.20 puan</Text> kesilir.{'\n'}
                                     • Mazeret sunulmadığı için <Text style={{ color:'#f87171', fontWeight:'800' }}>3 maç boyunca yeni bir maça katılım engeli</Text> uygulanabilir.
                                 </Text>
                             </View>
@@ -14030,6 +14038,17 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
                                     Rekabetçi maçlarda puan değişimi <Text style={{ color:'#fff', fontWeight:'800' }}>iki takımın ortalama derece puanı</Text> karşılaştırılarak hesaplanır (kadro kartında her oyuncunun yanında ve takım başlığının yanında görebilirsin). Aşağıdaki Dominant/Rekabetçi sekmelerindeki tablo, bu iki ortalama arasındaki <Text style={{ color:'#fff', fontWeight:'800' }}>farka</Text> göre okunur.
+                                </Text>
+                            </View>
+
+                            <View style={{ backgroundColor:'#a855f712', borderRadius:12, borderWidth:1, borderColor:'#a855f740', padding:12, marginBottom:12 }}>
+                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
+                                    <Text style={{ fontSize:18 }}>🎯</Text>
+                                    <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Takım Bazlı Kalibrasyon Koruması</Text>
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
+                                    Kazanan takımın ortalama derece puanı, kaybeden takımınkinden <Text style={{ color:'#fff', fontWeight:'800' }}>1.0 puan veya daha fazla düşükse</Text> (ör. kazanan takım ortalaması 0.20, kaybeden 1.30), bu sonuç şüpheli kabul edilir — muhtemelen anket yanlış cevaplanmış ya da kadroya seviyesi uygun olmayan bir oyuncu eklenmiştir.{'\n\n'}
+                                    Bu durumda <Text style={{ color:'#f87171', fontWeight:'800' }}>kazanan takımın hiçbiri puan kazanmaz</Text> (voleybolde bu, tenis/padel'den farklı olarak sadece yeni ankete girenlerle sınırlı değil, TÜM kazanan takıma uygulanır) ve herkes derecelendirme anketine tekrar yönlendirilir.
                                 </Text>
                             </View>
 
@@ -14052,8 +14071,12 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                             <View style={{ backgroundColor:'#fbbf2412', borderRadius:14, borderWidth:1, borderColor:'#fbbf2440', padding:14, marginBottom:12 }}>
                                 <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'900', marginBottom:8 }}>🎯 Derece Kalibrasyon Koruması</Text>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Bir oyuncu <Text style={{ color:'#fff', fontWeight:'800' }}>derecelendirme anketini</Text> tamamladıktan sonra rekabetçi modda oynadığı{' '}
-                                    <Text style={{ color:'#fbbf24', fontWeight:'800' }}>ilk 3 maçta</Text> şu koşul değerlendirilir:
+                                    {isVolleyball ? (
+                                        <>Voleybolde bu koruma <Text style={{ color:'#fbbf24', fontWeight:'800' }}>takım bazında</Text>, her maçta değerlendirilir (tenis/padel'deki gibi sadece anketten sonraki ilk 3 maçla sınırlı değildir):</>
+                                    ) : (
+                                        <>Bir oyuncu <Text style={{ color:'#fff', fontWeight:'800' }}>derecelendirme anketini</Text> tamamladıktan sonra rekabetçi modda oynadığı{' '}
+                                        <Text style={{ color:'#fbbf24', fontWeight:'800' }}>ilk 3 maçta</Text> şu koşul değerlendirilir:</>
+                                    )}
                                 </Text>
                             </View>
 
@@ -14065,7 +14088,10 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                                     </Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Oyuncu bireysel ve/veya takım olarak <Text style={{ color:'#fbbf24', fontWeight:'800' }}>ortalama derece puanından 1 puan veya daha fazla fark</Text> ile kazanıyorsa sistem bu maçın derecesinin yanlış hesaplandığını tespit eder.
+                                    {isVolleyball
+                                        ? <>Kazanan takımın ortalaması, kaybeden takımınkinden <Text style={{ color:'#fbbf24', fontWeight:'800' }}>1 puan veya daha fazla düşükse</Text> (ör. 0.20'ye karşı 1.30) sistem bu sonucu şüpheli kabul eder — anket yanlış cevaplanmış ya da kadroya seviyesi uygun olmayan bir oyuncu eklenmiş olabilir.</>
+                                        : <>Oyuncu bireysel ve/veya takım olarak <Text style={{ color:'#fbbf24', fontWeight:'800' }}>ortalama derece puanından 1 puan veya daha fazla fark</Text> ile kazanıyorsa sistem bu maçın derecesinin yanlış hesaplandığını tespit eder.</>
+                                    }
                                 </Text>
                             </View>
 
@@ -14089,7 +14115,7 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                                     </Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Oyuncu doğru derece puanlaması yapılabilmesi için <Text style={{ color:'#4ade80', fontWeight:'800' }}>otomatik olarak derecelendirme anketine yönlendirilir</Text> ve anketi yeniden tamamlaması istenir.
+                                    {isVolleyball ? 'Kazanan takımın tamamı' : 'Oyuncu'} doğru derece puanlaması yapılabilmesi için <Text style={{ color:'#4ade80', fontWeight:'800' }}>otomatik olarak derecelendirme anketine yönlendirilir</Text> ve anketi yeniden tamamlaması istenir.
                                 </Text>
                             </View>
 

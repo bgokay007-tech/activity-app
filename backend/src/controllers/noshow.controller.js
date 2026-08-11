@@ -98,6 +98,11 @@ export const getNoShowReports = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Dal bazında gelmeme cezası miktarı — kullanıcı isteği: voleybolda 0.40 yerine 0.20
+// kesiliyor. Listede olmayan dallar için varsayılan (DEFAULT) kullanılır.
+const NO_SHOW_PENALTY_BY_SUBCATEGORY = { volleyball: 0.20 };
+const DEFAULT_NO_SHOW_PENALTY = 0.40;
+
 export const approveNoShow = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -105,6 +110,7 @@ export const approveNoShow = async (req, res, next) => {
         if (!report) return res.status(404).json({ message: 'Rapor bulunamadı' });
         if (report.status !== 'PENDING') return res.status(400).json({ message: 'Zaten işleme alındı' });
 
+        const penalty = NO_SHOW_PENALTY_BY_SUBCATEGORY[report.subCategory] ?? DEFAULT_NO_SHOW_PENALTY;
         const absentIds = Array.isArray(report.absentUserIds) ? report.absentUserIds : [];
         for (const userId of absentIds) {
             // Clamp skillRating to minimum 0
@@ -113,7 +119,7 @@ export const approveNoShow = async (req, res, next) => {
                 select: { id: true, skillRating: true },
             });
             if (interest) {
-                const newRating = Math.max(0, Number(interest.skillRating) - 0.40);
+                const newRating = Math.max(0, Number(interest.skillRating) - penalty);
                 await prisma.userInterest.update({
                     where: { id: interest.id },
                     data: { skillRating: newRating },
@@ -123,7 +129,7 @@ export const approveNoShow = async (req, res, next) => {
                 userId,
                 'NO_SHOW_PENALTY',
                 '⚠️ Gelmeme Cezası',
-                `${report.subCategory} maçına gelmediğiniz için 0.40 puan kesildi.`,
+                `${report.subCategory} maçına gelmediğiniz için ${penalty.toFixed(2)} puan kesildi.`,
                 { rivalId: report.rivalId },
             );
         }

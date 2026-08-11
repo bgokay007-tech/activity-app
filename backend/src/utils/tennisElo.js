@@ -49,8 +49,15 @@ export const MIN_MATCHES_FOR_TOURNAMENT = 3;
 // winnerInterests/loserInterests: o taraftaki oyuncuların UserInterest kayıtları
 // (matchesSinceAssessment alanı dahil). winnerAvg/loserAvg: taraf ortalama skillRating.
 // Dönüş: anketi tekrar doldurması gereken kazanan taraf UserInterest kayıtları (boşsa flag yok).
-export function getReassessmentFlags(winnerInterests, loserInterests, winnerAvg, loserAvg) {
+export function getReassessmentFlags(winnerInterests, loserInterests, winnerAvg, loserAvg, subCategory) {
     if (winnerAvg >= loserAvg) return [];
     if (loserAvg - winnerAvg < ASSESSMENT_GRACE_RATING_GAP) return [];
+    // Voleybol: kullanıcı isteği — kalibrasyon koruması burada BİREYSEL değil TAKIM
+    // bazında uygulanır, sadece anketten sonraki ilk 3 maçıyla sınırlı değil. Örnek:
+    // takım ortalaması 0.20 olan bir takım, ortalaması 1.30 olan bir takımı yenerse bu
+    // fark (≥1.0) tek başına şüphelidir — ya anket yanlış cevaplanmıştır ya da kadroya
+    // (kaçak/derecesi uygun olmayan) bir oyuncu eklenmiştir. Bu yüzden kazanan takımın
+    // TAMAMI (matchesSinceAssessment'tan bağımsız) puan kazanmaz ve ankete yönlendirilir.
+    if (subCategory === 'volleyball') return winnerInterests;
     return winnerInterests.filter(i => (i.matchesSinceAssessment ?? 0) < ASSESSMENT_GRACE_MATCHES);
 }
