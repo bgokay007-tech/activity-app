@@ -139,6 +139,32 @@ export const deleteCourt = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+// Kullanıcı isteği: onaydan SONRA da (gözden kaçan bir bilgi olabilir) admin herhangi bir
+// kortu düzenleyebilsin — court.controller.js'teki updateCourt sadece kortu ekleyen kişiye
+// (addedBy) izin veriyor, admin community kortlarını (kendisi eklemediği için) o uç noktayla
+// düzenleyemiyordu. Bu, admin paneli için ayrı, sahiplik kontrolü olmayan bir sürüm.
+export const adminUpdateCourt = async (req, res, next) => {
+    try {
+        const { name, address, city, district, surface, indoor, fee, feeAmount, lights, description } = req.body;
+        const court = await prisma.court.update({
+            where: { id: req.params.id },
+            data: {
+                ...(name !== undefined && { name }),
+                ...(address !== undefined && { address: address || null }),
+                ...(city !== undefined && { city }),
+                ...(district !== undefined && { district: district || null }),
+                ...(surface !== undefined && { surface: surface || null }),
+                ...(indoor !== undefined && { indoor }),
+                ...(fee !== undefined && { fee }),
+                ...(feeAmount !== undefined && { feeAmount: feeAmount || null }),
+                ...(lights !== undefined && { lights }),
+                ...(description !== undefined && { description: description || null }),
+            },
+        });
+        res.json(court);
+    } catch (e) { next(e); }
+};
+
 export const getAllPosts = async (req, res, next) => {
     try {
         const posts = await prisma.post.findMany({

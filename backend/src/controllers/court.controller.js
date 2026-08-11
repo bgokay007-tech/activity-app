@@ -266,7 +266,7 @@ export const getPendingCourts = async (req, res, next) => {
 export const verifyCourt = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { name, address, city, district, sport, surface } = req.body; // admin can correct fields before approving
+        const { name, address, city, district, sport, surface, indoor } = req.body; // admin can correct fields before approving
         const court = await prisma.court.update({
             where: { id },
             data: {
@@ -278,6 +278,10 @@ export const verifyCourt = async (req, res, next) => {
                 ...(district !== undefined && { district: district || null }),
                 ...(sport    && { sport }),
                 ...(surface  && { surface }),
+                // Admin panelindeki (VenuesPanel) "Açık/Kapalı" seçimi zaten body'de gönderiliyordu
+                // ama burada hiç okunmuyordu — onaylarken seçilen açık/kapalı bilgisi sessizce
+                // kayboluyordu (kullanıcı raporu).
+                ...(indoor   !== undefined && indoor !== null && { indoor }),
             },
         });
         res.json(court);

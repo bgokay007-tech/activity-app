@@ -4,7 +4,7 @@ import { requireAdmin } from '../middlewares/admin.middleware.js';
 import {
     getStats, getUsers, updateUser, deleteUser,
     getDisputes, resolveDispute, resolveAppeal,
-    getAllCourts, deleteCourt,
+    getAllCourts, deleteCourt, adminUpdateCourt,
     getAllPosts, deletePost,
     getTournamentPermissionRequests, approveTournamentPermission, rejectTournamentPermission, revokeTournamentPermission,
     getFlaggedListings, moderateListing,
@@ -27,6 +27,7 @@ router.get('/disputes',           getDisputes);
 router.patch('/disputes/:id/resolve', resolveDispute);
 router.patch('/disputes/:id/resolve-appeal', resolveAppeal);
 router.get('/courts',             getAllCourts);
+router.patch('/courts/:id',       adminUpdateCourt);
 router.delete('/courts/:id',      deleteCourt);
 router.get('/posts',              getAllPosts);
 router.delete('/posts/:id',       deletePost);

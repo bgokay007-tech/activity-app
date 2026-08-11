@@ -10,7 +10,7 @@ const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'bi
 const TAB_LABEL = {
     dashboard:          '📊 Dashboard',
     users:              '👥 Users',
-    courts:             '🏟️ Courts',
+    courts:             '🏟️ Salon/Kort/Saha',
     disputes:           '⚠️ Disputes',
     posts:              '📝 Posts',
     venues:             '🏗️ Pending Venues',
@@ -151,12 +151,116 @@ function UsersPanel() {
 }
 
 // ── COURTS ─────────────────────────────────────────────────────────────────
+// Kullanıcı isteği: onaylanmış bir kort/salon/saha satırına tıklayınca detay bilgileri
+// (zemin, açık/kapalı, adres, il, ilçe vb.) açılsın, orada da (onay anında olduğu gibi)
+// değiştirme/ekleme yapılabilsin — onay sırasında gözden kaçan bir bilgi olabilir.
+// PATCH /admin/courts/:id (adminUpdateCourt) sahiplik kontrolü yapmadığı için community
+// kortlarında da (admin kendisi eklememiş olsa bile) çalışır.
+function CourtEditModal({ court, onClose, onSave }) {
+    const [form, setForm] = useState({
+        name: court.name || '', city: court.city || '', district: court.district || '',
+        address: court.address || '', surface: court.surface || '', indoor: !!court.indoor,
+        fee: !!court.fee, feeAmount: court.feeAmount || '', lights: !!court.lights,
+        description: court.description || '',
+    });
+    const [saving, setSaving] = useState(false);
+    const [err, setErr] = useState(null);
+
+    const save = async () => {
+        setSaving(true); setErr(null);
+        try {
+            const { data } = await api.patch(`/admin/courts/${court.id}`, form);
+            onSave(data);
+            onClose();
+        } catch (e) { setErr(e?.response?.data?.message || e?.message || 'Kaydedilemedi'); }
+        finally { setSaving(false); }
+    };
+
+    const inputCls = "w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm";
+
+    return (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-lg max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center px-6 py-4 border-b border-gray-800 flex-shrink-0">
+                    <div>
+                        <h3 className="text-white font-bold">✏️ Kort/Salon/Saha Düzenle</h3>
+                        <p className="text-gray-500 text-xs mt-0.5">{court.sport} · @{court.user?.username}</p>
+                    </div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
+                </div>
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+                    {err && <p className="text-red-400 text-xs font-bold">{err}</p>}
+                    <div><label className="text-gray-500 text-xs block mb-1">İsim</label>
+                        <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} /></div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div><label className="text-gray-500 text-xs block mb-1">İl</label>
+                            <input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} className={inputCls} /></div>
+                        <div><label className="text-gray-500 text-xs block mb-1">İlçe</label>
+                            <input value={form.district} onChange={e => setForm(f => ({ ...f, district: e.target.value }))} className={inputCls} /></div>
+                    </div>
+                    <div><label className="text-gray-500 text-xs block mb-1">Adres</label>
+                        <input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} className={inputCls} /></div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-gray-500 text-xs block mb-1">Zemin</label>
+                            <select value={form.surface} onChange={e => setForm(f => ({ ...f, surface: e.target.value }))} className={inputCls}>
+                                <option value="">— Belirtilmemiş —</option>
+                                <option value="HARD">Hard</option>
+                                <option value="CLAY">Toprak</option>
+                                <option value="GRASS">Çim</option>
+                                <option value="CARPET">Halı</option>
+                                <option value="ARTIFICIAL">Suni Çim</option>
+                                <option value="SAND">Kum</option>
+                                <option value="WOOD">Parke</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-gray-500 text-xs block mb-1">Açık / Kapalı</label>
+                            <select value={String(form.indoor)} onChange={e => setForm(f => ({ ...f, indoor: e.target.value === 'true' }))} className={inputCls}>
+                                <option value="false">Açık (Outdoor)</option>
+                                <option value="true">Kapalı (Indoor)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        {[
+                            { key: 'indoor', label: '🏠 Kapalı' },
+                            { key: 'lights', label: '💡 Işıklandırma' },
+                            { key: 'fee',    label: '💰 Ücretli'    },
+                        ].map(tg => (
+                            <button key={tg.key} type="button"
+                                onClick={() => setForm(f => ({ ...f, [tg.key]: !f[tg.key] }))}
+                                className={`py-2 rounded-xl text-xs font-bold border transition ${form[tg.key] ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-gray-800 border-gray-700 text-gray-400'}`}>
+                                {tg.label}
+                            </button>
+                        ))}
+                    </div>
+                    {form.fee && (
+                        <input value={form.feeAmount} onChange={e => setForm(f => ({ ...f, feeAmount: e.target.value }))}
+                            placeholder="Ücret (ör. 150₺/saat)" className={inputCls} />
+                    )}
+                    <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                        placeholder="Açıklama (opsiyonel)" rows={2} className={inputCls + ' resize-none'} />
+                </div>
+                <div className="px-6 py-4 border-t border-gray-800 flex gap-3 flex-shrink-0">
+                    <button onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 text-sm">Vazgeç</button>
+                    <button onClick={save} disabled={saving}
+                        className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2.5 rounded-xl disabled:opacity-50 text-sm">
+                        {saving ? 'Kaydediliyor...' : 'Kaydet'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function CourtsPanel() {
     const [courts, setCourts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [sportFilter, setSportFilter] = useState('all');
     const [error, setError] = useState(null);
+    const [editingCourt, setEditingCourt] = useState(null);
 
     useEffect(() => {
         api.get('/admin/courts')
@@ -209,7 +313,8 @@ function CourtsPanel() {
             <p className="text-gray-500 text-xs">{filtered.length} courts</p>
             <div className="space-y-2">
                 {filtered.map(c => (
-                    <div key={c.id} className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-3">
+                    <div key={c.id} onClick={() => setEditingCourt(c)}
+                        className="bg-gray-900 border border-gray-800 hover:border-purple-500/50 rounded-2xl px-4 py-3 flex items-center gap-3 cursor-pointer transition">
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                                 <p className="text-white font-bold text-sm">{c.name || '—'}</p>
@@ -220,7 +325,7 @@ function CourtsPanel() {
                             {c.feeAmount && <p className="text-gray-500 text-[10px]">Fee: {c.feeAmount}₺ · {c.hasLights ? '💡 Lights' : 'No lights'} · {c.isIndoor ? '🏠 Indoor' : '☀️ Outdoor'}</p>}
                             <p className="text-gray-600 text-[10px]">Submitted by @{c.user?.username} · {new Date(c.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                         </div>
-                        <div className="flex-shrink-0 flex items-center gap-1.5">
+                        <div className="flex-shrink-0 flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                             {c.pending && (
                                 <>
                                     <button onClick={() => approve(c.id)}
@@ -241,6 +346,13 @@ function CourtsPanel() {
                     </div>
                 ))}
             </div>
+            {editingCourt && (
+                <CourtEditModal
+                    court={editingCourt}
+                    onClose={() => setEditingCourt(null)}
+                    onSave={updated => setCourts(prev => prev.map(c => c.id === updated.id ? updated : c))}
+                />
+            )}
         </div>
     );
 }
