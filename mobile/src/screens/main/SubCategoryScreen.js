@@ -7401,7 +7401,15 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                     </View>
                 )
             )}
-            {activeSlotKey === key && slotSuggestions.length > 0 && (
+            {/* Kullanıcı isteği: yazılan isme yakın (ör. "Burak Gök" yazınca "Burak Gökay")
+                kayıtlı bir kullanıcı önerisi çıktığı sürece manuel ekleme istemi (cinsiyet
+                seçimi) hiç görünmüyordu — önceden ayrı, birbirini SAYDIRAN (results varsa
+                manuel istem hiç render edilmiyordu) iki blok olduğu için öneri "sabit"
+                kalıyor, kullanıcı önerideki kişiyi DEĞİL kendi yazdığı (uygulamada olmayan)
+                ismi hiçbir şekilde ekleyemiyordu (kullanıcı raporu). Artık TeamSlotInviteField'
+                daki gibi TEK bir açılır kutuda ikisi birlikte gösteriliyor — öneriler varsa
+                üstte, manuel ekleme istemi altında, üst üste binmeden art arda sıralanıyor. */}
+            {activeSlotKey === key && (slotSuggestions.length > 0 || showStatus) && (
                 <View style={[s.courtResultsBox, { position:'absolute', top:'100%', left:0, right:0, zIndex:30, elevation:8 }]}>
                     {slotSuggestions.map(u => (
                         <TouchableOpacity key={u.id} style={[s.courtResultRow, { flexDirection:'row', alignItems:'center', gap:3 }]} onPress={() => onPickUser(u)}>
@@ -7411,32 +7419,30 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                             </Text>
                         </TouchableOpacity>
                     ))}
-                </View>
-            )}
-            {showStatus && slotSuggestions.length === 0 && (
-                <Text style={{ color: matchMode === 'COMPETITIVE' ? '#f87171' : colors.textMuted, fontSize:9, marginTop:2 }} numberOfLines={2}>
-                    {slotSearching ? t.searchingLabel : matchMode === 'COMPETITIVE' ? t.competitiveNoManualPlayers : t.noRegisteredUserFound}
-                </Text>
-            )}
-            {/* Rekabetçi maçta Elo puanı hesaplandığı için uygulamada hesabı olmayan (manuel)
-                oyuncu eklenemiyor — sadece Antrenman modunda "bu oyuncuyu var say" + cinsiyet
-                seçimi sunulur (kullanıcı isteği: cinsiyet dağılımı algoritmasıyla tutarlı olsun).
-                Cinsiyet zaten seçildiyse bu istem bir daha çıkmaz — aksi halde slot aktif kaldığı
-                sürece sürekli yeniden görünüp "tekrar seçtiriyor" gibi hissettiriyordu; değiştirmek
-                isteyen slotu silip yeniden yazabilir. */}
-            {showStatus && slotSuggestions.length === 0 && !slotSearching && matchMode !== 'COMPETITIVE' && !slot?.gender && (
-                <View style={{ marginTop:3 }}>
-                    <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1}>{t.manualPlayerAssumePrompt}</Text>
-                    <View style={{ flexDirection:'row', gap:3, marginTop:2 }}>
-                        <TouchableOpacity onPress={() => onSetGender?.('MALE')}
-                            style={{ paddingHorizontal:6, paddingVertical:2, borderRadius:6, backgroundColor: slot?.gender==='MALE' ? '#3b82f6' : '#3b82f620', borderWidth:1, borderColor:'#3b82f6' }}>
-                            <Text style={{ color: slot?.gender==='MALE' ? '#fff' : '#3b82f6', fontSize:9, fontWeight:'700' }}>{t.genderMale}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => onSetGender?.('FEMALE')}
-                            style={{ paddingHorizontal:6, paddingVertical:2, borderRadius:6, backgroundColor: slot?.gender==='FEMALE' ? '#ec4899' : '#ec489920', borderWidth:1, borderColor:'#ec4899' }}>
-                            <Text style={{ color: slot?.gender==='FEMALE' ? '#fff' : '#ec4899', fontSize:9, fontWeight:'700' }}>{t.genderFemale}</Text>
-                        </TouchableOpacity>
-                    </View>
+                    {showStatus && slotSuggestions.length === 0 && (
+                        <Text style={{ color: matchMode === 'COMPETITIVE' ? '#f87171' : colors.textMuted, fontSize:9, padding:6 }} numberOfLines={2}>
+                            {slotSearching ? t.searchingLabel : matchMode === 'COMPETITIVE' ? t.competitiveNoManualPlayers : t.noRegisteredUserFound}
+                        </Text>
+                    )}
+                    {/* Rekabetçi maçta Elo puanı hesaplandığı için uygulamada hesabı olmayan
+                        (manuel) oyuncu eklenemiyor — sadece Antrenman modunda "bu oyuncuyu var
+                        say" + cinsiyet seçimi sunulur. Cinsiyet zaten seçildiyse bu istem bir
+                        daha çıkmaz. */}
+                    {showStatus && !slotSearching && matchMode !== 'COMPETITIVE' && !slot?.gender && (
+                        <View style={{ padding:6, borderTopWidth: slotSuggestions.length > 0 ? 1 : 0, borderTopColor: colors.border }}>
+                            <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={2}>{t.manualPlayerAssumePrompt}</Text>
+                            <View style={{ flexDirection:'row', gap:3, marginTop:3 }}>
+                                <TouchableOpacity onPress={() => onSetGender?.('MALE')}
+                                    style={{ paddingHorizontal:6, paddingVertical:2, borderRadius:6, backgroundColor: slot?.gender==='MALE' ? '#3b82f6' : '#3b82f620', borderWidth:1, borderColor:'#3b82f6' }}>
+                                    <Text style={{ color: slot?.gender==='MALE' ? '#fff' : '#3b82f6', fontSize:9, fontWeight:'700' }}>{t.genderMale}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => onSetGender?.('FEMALE')}
+                                    style={{ paddingHorizontal:6, paddingVertical:2, borderRadius:6, backgroundColor: slot?.gender==='FEMALE' ? '#ec4899' : '#ec489920', borderWidth:1, borderColor:'#ec4899' }}>
+                                    <Text style={{ color: slot?.gender==='FEMALE' ? '#fff' : '#ec4899', fontSize:9, fontWeight:'700' }}>{t.genderFemale}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
                 </View>
             )}
         </View>
