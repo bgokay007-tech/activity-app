@@ -224,7 +224,7 @@ function getTabs(sub, category) {
     if (sub === 'football')
         return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', 'referee', 'media'];
     if (sub === 'volleyball')
-        return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'tickets', 'archive', 'media'];
+        return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'equipment', 'tickets', 'archive', 'media'];
     if (sub === 'tennis' || sub === 'padel')
         return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
     return ['rivals', 'tournaments', 'coaches', 'archive', 'media'];
@@ -3740,13 +3740,31 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     }));
                 }
             }
-            await api.patch(`/rivals/${match.id}/abandon`, body);
-            Alert.alert('', abandonReason === 'other' ? t.otherSuccess : t.abandonSuccess);
+            const { data } = await api.patch(`/rivals/${match.id}/abandon`, body);
+            // Voleybolde çoğunluk onayı gerekiyorsa backend hemen uygulamaz, öneriyi kaydedip
+            // "pending" döner — geri kalan kadro onaylayınca uygulanır (bkz. abandonMatch).
+            Alert.alert('', data?.pending
+                ? t.abandonVotePendingSent(data.proposal?.voterIds?.length || 1, data.majorityNeeded)
+                : (abandonReason === 'other' ? t.otherSuccess : t.abandonSuccess));
             setShowCantScore(false);
             setAbandonReason(null);
             onRefresh();
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.abandonFailed); }
         finally { setAbandoning(false); }
+    };
+
+    // Kullanıcı isteği: voleybolde bekleyen bir öneri varsa, geri kalan kadro tekrar form
+    // doldurmadan — sadece mevcut öneriyi (aynı reason) onaylayarak oy verir.
+    const [votingAbandon, setVotingAbandon] = useState(false);
+    const voteAbandon = async () => {
+        if (!match.abandonProposal) return;
+        setVotingAbandon(true);
+        try {
+            const { data } = await api.patch(`/rivals/${match.id}/abandon`, { reason: match.abandonProposal.reason });
+            Alert.alert('', data?.resolved ? t.abandonVoteResolved : t.abandonVotePendingSent(data.proposal?.voterIds?.length || 1, data.majorityNeeded));
+            onRefresh();
+        } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.abandonFailed); }
+        finally { setVotingAbandon(false); }
     };
 
     const doCancel = async () => {
@@ -3882,6 +3900,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const otherPlayers = allPlayers.filter(p => p.id !== myId);
     const matchStarted = matchStart ? new Date() >= matchStart : false;
     const canReportNoShow = matchStarted && match.scoreStatus !== 'CONFIRMED' && !match._myNoShowPending;
+
+    // Voleybolde "Skor Girilemiyor" (berabere/arşiv ya da yeniden planlama) çoğunluk onayı —
+    // bkz. backend abandonMatch. Frontend aynı formülle (kurucu + iki takım, sadece gerçek
+    // kullanıcılar) gerekli onay sayısını hesaplar, backend'in döndüğü voterIds ile karşılaştırır.
+    const abandonProposal = match.abandonProposal;
+    const abandonRosterIds = [...new Set([match.senderId, ...senderTeamArr.map(p => p.id), ...participantsArr.map(p => p.id)])];
+    const abandonMajorityNeeded = Math.floor(abandonRosterIds.length / 2) + 1;
+    const iVotedAbandon = !!abandonProposal?.voterIds?.includes(myId);
 
     const toggleAbsent = (id) => setNoShowAbsent(prev =>
         prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
@@ -4771,6 +4797,29 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </TouchableOpacity>
                     )}
 
+                    {/* Kullanıcı isteği: "çoğunluk onayı önemli voleybolda" — voleybolde bekleyen
+                        bir öneri (berabere/arşiv ya da yeniden planlama) varsa herkes formu tekrar
+                        doldurmak yerine burada tek dokunuşla onaylar. */}
+                    {isVolleyball && abandonProposal && (
+                        <View style={{ backgroundColor:'#a855f718', borderRadius:10, padding:9, marginBottom:8, borderWidth:1, borderColor:'#a855f740' }}>
+                            <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700', marginBottom:2 }}>
+                                🗳️ {abandonProposal.reason === 'other' ? t.abandonProposalOtherDesc : t.abandonProposalReschedDesc(abandonProposal.newDate || '', abandonProposal.newTime || '')}
+                            </Text>
+                            <Text style={{ color: colors.textMuted, fontSize:11, marginBottom: iVotedAbandon ? 0 : 6 }}>
+                                {t.abandonVoteStatus(abandonProposal.voterIds?.length || 0, abandonMajorityNeeded)}
+                            </Text>
+                            {iVotedAbandon ? (
+                                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>{t.abandonAlreadyVoted(abandonProposal.voterIds?.length || 0, abandonMajorityNeeded)}</Text>
+                            ) : (
+                                <TouchableOpacity
+                                    style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, backgroundColor:'#a855f7', alignItems:'center', alignSelf:'flex-start' }}
+                                    onPress={voteAbandon} disabled={votingAbandon}>
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{votingAbandon ? t.sending : `✅ ${t.abandonVoteApprove}`}</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    )}
+
                     {/* Action buttons */}
                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:8, marginBottom:20 }}>
                         {!hasScore && scoreUnlocked && (
@@ -4780,11 +4829,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     onPress={() => setShowScore(v => !v)}>
                                     <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>{showScore ? '▲ Kapat' : t.enterScore}</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262640', backgroundColor:'#dc262615', flex:1, alignItems:'center' }}
-                                    onPress={() => setShowCantScore(true)}>
-                                    <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>{t.cantScoreBtn}</Text>
-                                </TouchableOpacity>
+                                {!(isVolleyball && abandonProposal) && (
+                                    <TouchableOpacity
+                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262640', backgroundColor:'#dc262615', flex:1, alignItems:'center' }}
+                                        onPress={() => setShowCantScore(true)}>
+                                        <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>{t.cantScoreBtn}</Text>
+                                    </TouchableOpacity>
+                                )}
                                 {match.venueId && (
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#7c3aed50', backgroundColor:'#7c3aed18', flex:1, alignItems:'center' }}
@@ -4796,7 +4847,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                         {match.scoreStatus !== 'CONFIRMED' && (
                             <>
-                                {isOwner && match.matchDate && (
+                                {/* Kullanıcı isteği: maç saati geçip "Skor Bekleyen Maçlar"a düşünce bu
+                                    düzeltme butonunun ne işi var — maç zaten oynandı/oynanamadı, kort/saat
+                                    "düzeltmek" anlamsız. Yeni tarih/saat belirlemek gerekiyorsa zaten aşağıdaki
+                                    "Skor Girilemiyor → Maç Yarıda Kaldı" akışı bunu karşılıyor. */}
+                                {isOwner && match.matchDate && !matchEnded && (
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', alignItems:'center' }}
                                         onPress={() => setEditVisible(true)}>
@@ -14452,6 +14507,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (sub === 'volleyball') {
             if (tab === 'rivals') return t.player_wantedTab;
             if (tab === 'player_wanted') return t.rivalsTab;
+            // Diğer sporlarda (ör. tenis) equipmentTab sabit "Tennis Equipment" metni —
+            // voleybolde kullanıcı isteğiyle sporun adıyla "Voleybol Ekipmanları" gösteriliyor.
+            if (tab === 'equipment') return lang === 'tr' ? `${sportDisplayName} Ekipmanları` : `${sportDisplayName} Equipment`;
         }
         return t[tab + 'Tab'];
     };
@@ -15843,8 +15901,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                 if (!alreadyReferenced) {
                     await api.post(`/messages/send/${otherId}`, {
                         content: isOwnerContactingBidder
-                            ? `🎾 "${listing.title}" ilanına verdiğiniz teklif hakkında yazıyorum.`
-                            : `🎾 "${listing.title}" ilanı hakkında mesajlaşmak istiyorum.`,
+                            ? `📦 "${listing.title}" ilanına verdiğiniz teklif hakkında yazıyorum.`
+                            : `📦 "${listing.title}" ilanı hakkında mesajlaşmak istiyorum.`,
                         equipmentListingId: listing.id,
                     });
                 }
@@ -16784,7 +16842,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {activeTab === 'player_wanted' && (
                         <>
                             <CityAlertRow tab="player_wanted" dateFilter>
-                                <TouchableOpacity style={[s.createBtn, { borderColor: cfg.color+'60', marginBottom:0 }]} onPress={() => setShowCreatePW(true)}>
+                                {/* Voleybolde "Rakip Bul" sekmesindeki (player_wanted) "Rakip Aranıyor" ilanı artık
+                                    eski basit CreatePlayerWantedModal yerine "Oyuncu Ara" sekmesindekiyle (rivals)
+                                    BİREBİR AYNI CreateRivalModal'ı açıyor — kullanıcı isteğiyle, aynı showCreateRival
+                                    state'i paylaşılıyor. Diğer dallarda (futbol vb.) eski davranış aynen kalıyor. */}
+                                <TouchableOpacity style={[s.createBtn, { borderColor: cfg.color+'60', marginBottom:0 }]}
+                                    onPress={() => sub === 'volleyball' ? setShowCreateRival(true) : setShowCreatePW(true)}>
                                     <Text style={[s.createBtnText, { color: cfg.color }]}>{sub === 'volleyball' ? t.createOpponentWantedBtn : t.createPlayerWantedBtn}</Text>
                                 </TouchableOpacity>
                             </CityAlertRow>
@@ -17002,7 +17065,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {loadingEquipment ? (
                                 <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:10 }} />
                             ) : filteredEquipment.length === 0 ? (
-                                <EmptyState emoji="🎾" text={equipmentViewStatus === 'SOLD' ? t.equipNoSold : (equipmentListings.length === 0 ? "Henüz ekipman ilanı yok" : "Filtreyle eşleşen ilan bulunamadı")} />
+                                <EmptyState emoji="📦" text={equipmentViewStatus === 'SOLD' ? t.equipNoSold : (equipmentListings.length === 0 ? "Henüz ekipman ilanı yok" : "Filtreyle eşleşen ilan bulunamadı")} />
                             ) : (
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                     {filteredEquipment.map(eq => (
@@ -17012,7 +17075,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 <Image source={{ uri: eq.images[0] }} style={{ width:'100%', height:120 }} resizeMode="cover" />
                                             ) : (
                                                 <View style={{ width:'100%', height:120, alignItems:'center', justifyContent:'center', backgroundColor: colors.surface }}>
-                                                    <Text style={{ fontSize:36 }}>🎾</Text>
+                                                    <Text style={{ fontSize:36 }}>📦</Text>
                                                 </View>
                                             )}
                                             <View style={{ position:'absolute', top:6, left:6, backgroundColor: eq.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:2, paddingVertical:0 }}>
@@ -17045,7 +17108,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
                                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
                                         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
-                                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🎾 Ekipman İlanı Ver</Text>
+                                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>Ekipman İlanı Ver</Text>
                                             <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                                                 {['NEW','USED'].map(c => (
                                                     <TouchableOpacity key={c} onPress={() => setEquipmentForm(f => ({...f, condition:c}))}
@@ -18290,7 +18353,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             loadingArchiveEquipment ? (
                                 <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
                             ) : archiveEquipment.length === 0 ? (
-                                <EmptyState emoji="🎾" text={t.equipNoSold} />
+                                <EmptyState emoji="📦" text={t.equipNoSold} />
                             ) : (
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingVertical:5 }}>
                                     {archiveEquipment.map(eq => (
@@ -18300,7 +18363,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 <Image source={{ uri: eq.images[0] }} style={{ width:'100%', height:120 }} resizeMode="cover" />
                                             ) : (
                                                 <View style={{ width:'100%', height:120, alignItems:'center', justifyContent:'center', backgroundColor: colors.surface }}>
-                                                    <Text style={{ fontSize:36 }}>🎾</Text>
+                                                    <Text style={{ fontSize:36 }}>📦</Text>
                                                 </View>
                                             )}
                                             <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#6b7280', borderRadius:6, paddingHorizontal:4, paddingVertical:1 }}>

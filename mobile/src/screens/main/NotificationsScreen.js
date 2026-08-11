@@ -35,6 +35,8 @@ const TYPE_ICON = {
     RIVAL_REOPENED: '↩️',
     RIVAL_EDITED_RECONFIRM: '✏️',
     ROSTER_CHANGED: '🔄',
+    ABANDON_VOTE_NEEDED: '🗳️',
+    ABANDON_RESOLVED: '✅',
     REFEREE_NOT_FOUND: '🧑‍⚖️',
     JOIN_LATE_ACCEPT: '⏰',
     MATCH_INVITE: '✉️',

@@ -804,6 +804,7 @@ model ActivityRequest {
   opponentTeamName String?                 // DOUBLE veya voleybol takımı: rakip takımın (opp1+opp2 veya katılımcılar) isteğe bağlı özel takım adı
   scheduleProposal    Json?                   // {userId, date, time, location, courtName, proposedAt}
   schedulingDeadline  DateTime?               // 24h after MATCHED for flexible matches
+  abandonProposal     Json?                   // Voleybolde "Skor Girilemiyor" (berabere/arşiv ya da yeniden planlama) çoğunluk onayı bekleyen teklif: {reason, initiatorId, voterIds:[], newDate?, newTime?, newCourtName?, newLocation?, partialSets?, createdAt} — bkz. abandonMatch
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 

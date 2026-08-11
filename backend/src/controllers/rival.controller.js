@@ -3552,47 +3552,124 @@ export const deleteMatchComment = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Skor girilemeyen bir maçı berabere sayıp arşive alır ('other') ya da yeni tarih/saate
+// erteler ('abandoned'). Uygular: reason + gerekiyorsa payload (reschedule alanları).
+async function applyAbandonResolution(id, userId, reason, payload) {
+    if (reason === 'other') {
+        const updated = await prisma.activityRequest.update({
+            where: { id },
+            data: {
+                score: { sets: [], winner: 'draw' },
+                status: 'COMPLETED',
+                scoreStatus: 'CONFIRMED',
+                scoreEnteredBy: userId,
+                completedAt: new Date(),
+                archived: true,
+                abandonProposal: null,
+            },
+            include: { sender: { select: SENDER_SELECT } },
+        });
+        return { updated, message: 'Maç berabere sayıldı ve arşive alındı.' };
+    }
+    const updated = await prisma.activityRequest.update({
+        where: { id },
+        data: {
+            ...(payload.newDate      && { matchDate: new Date(payload.newDate) }),
+            ...(payload.newTime      && { matchTime: payload.newTime }),
+            ...(payload.newCourtName && { courtName: payload.newCourtName }),
+            ...(payload.newLocation  && { location: payload.newLocation }),
+            ...(Array.isArray(payload.partialSets) && payload.partialSets.length > 0 && {
+                score: { sets: payload.partialSets, winner: null, partial: true },
+            }),
+            abandonProposal: null,
+        },
+        include: { sender: { select: SENDER_SELECT } },
+    });
+    return { updated, message: 'Maç yeniden planlandı.' };
+}
+
 export const abandonMatch = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { reason, newDate, newTime, newLocation, newCourtName, partialSets } = req.body;
+        if (!['other', 'abandoned'].includes(reason)) return res.status(400).json({ message: 'Geçersiz neden' });
 
         const request = await prisma.activityRequest.findUnique({ where: { id } });
         if (!request) return res.status(404).json({ message: 'Not found' });
 
         const parts = Array.isArray(request.participants) ? request.participants : [];
-        const isInvolved = request.senderId === req.userId || parts.some(p => p.id === req.userId);
+        const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
+        const isInvolved = request.senderId === req.userId || parts.some(p => p?.id === req.userId) || senderTeamArr.some(p => p?.id === req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
-        if (reason === 'other') {
-            await prisma.activityRequest.update({
-                where: { id },
-                data: {
-                    score: { sets: [], winner: 'draw' },
-                    status: 'COMPLETED',
-                    scoreStatus: 'CONFIRMED',
-                    scoreEnteredBy: req.userId,
-                    completedAt: new Date(),
-                    archived: true,
-                },
-            });
-            return res.json({ message: 'Maç berabere sayıldı.' });
+        // Voleybolde (kullanıcı isteği: "çoğunluk onayı önemli voleybolda") bu aksiyonlar
+        // (berabere/arşive alma VEYA yeniden planlama) tek kişinin kararıyla değil, kadronun
+        // (kurucu + iki takım, sadece uygulamaya kayıtlı gerçek kullanıcılar — manuel/kayıtsız
+        // oyuncular oy kullanamaz) YARISINDAN FAZLASININ aynı öneriyi onaylamasıyla uygulanır —
+        // 6v6 gibi kalabalık takım maçlarında tek bir oyuncunun herkesi etkileyecek bir kararı
+        // (maçı berabere/iptal etmek ya da yeni bir tarihe ertelemek) tek başına vermesi adil değil.
+        if (request.subCategory !== 'volleyball') {
+            const { updated, message } = await applyAbandonResolution(id, req.userId, reason, { newDate, newTime, newCourtName, newLocation, partialSets });
+            broadcast('rivalUpdate', updated);
+            return res.json({ message });
         }
 
-        // reason === 'abandoned' → reschedule + optional partial score
-        await prisma.activityRequest.update({
-            where: { id },
-            data: {
-                ...(newDate      && { matchDate: new Date(newDate) }),
-                ...(newTime      && { matchTime: newTime }),
-                ...(newCourtName && { courtName: newCourtName }),
-                ...(newLocation  && { location: newLocation }),
-                ...(Array.isArray(partialSets) && partialSets.length > 0 && {
-                    score: { sets: partialSets, winner: null, partial: true },
+        const rosterIds = [...new Set([
+            request.senderId,
+            ...senderTeamArr.filter(p => p?.id).map(p => p.id),
+            ...parts.filter(p => p?.id).map(p => p.id),
+        ])];
+        const majorityNeeded = Math.floor(rosterIds.length / 2) + 1;
+
+        const existing = request.abandonProposal;
+        let proposal;
+        if (existing && existing.reason === reason && !existing.resolvedAt) {
+            // Aynı öneriye oy ekleniyor — reschedule alanları İLK öneriyi yapan kişinin
+            // gönderdiği değerlerde sabit kalır, sonraki oylayanlar sadece onaylar (kendi
+            // formuna farklı tarih/saat yazsalar bile bu görmezden gelinir, tek bir tutarlı
+            // öneri üzerinde oylama yapılır).
+            const voterIds = new Set(existing.voterIds || []);
+            voterIds.add(req.userId);
+            proposal = { ...existing, voterIds: [...voterIds] };
+        } else {
+            proposal = {
+                reason, initiatorId: req.userId, voterIds: [req.userId],
+                ...(reason === 'abandoned' && {
+                    newDate: newDate || null, newTime: newTime || null,
+                    newCourtName: newCourtName || null, newLocation: newLocation || null,
+                    partialSets: Array.isArray(partialSets) ? partialSets : [],
                 }),
-            },
-        });
-        res.json({ message: 'Maç yeniden planlandı.' });
+                createdAt: new Date().toISOString(),
+            };
+        }
+
+        if (proposal.voterIds.length < majorityNeeded) {
+            const updated = await prisma.activityRequest.update({
+                where: { id }, data: { abandonProposal: proposal },
+                include: { sender: { select: SENDER_SELECT } },
+            });
+            broadcast('rivalUpdate', updated);
+            const others = rosterIds.filter(uid => uid !== req.userId);
+            const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
+            const reasonLabel = reason === 'other' ? 'maçın berabere sayılıp arşive alınmasını' : 'maçın yeni bir tarih/saate ertelenmesini';
+            for (const uid of others) {
+                createNotification(uid, 'ABANDON_VOTE_NEEDED', '🗳️ Onayın Gerekiyor',
+                    `${me?.fullName || me?.username} ${reasonLabel} öneriyor (${proposal.voterIds.length}/${majorityNeeded} onay toplandı). Sen de onaylayabilirsin.`,
+                    { rivalId: id, category: request.category, subCategory: request.subCategory }
+                ).catch(() => {});
+            }
+            return res.json({ pending: true, proposal, majorityNeeded, message: `Onay bekleniyor (${proposal.voterIds.length}/${majorityNeeded}).` });
+        }
+
+        const { updated, message } = await applyAbandonResolution(id, req.userId, proposal.reason, proposal);
+        broadcast('rivalUpdate', updated);
+        const nonVoters = rosterIds.filter(uid => !proposal.voterIds.includes(uid));
+        for (const uid of nonVoters) {
+            createNotification(uid, 'ABANDON_RESOLVED', '✅ Karar Alındı', message,
+                { rivalId: id, category: request.category, subCategory: request.subCategory }
+            ).catch(() => {});
+        }
+        return res.json({ message, resolved: true });
     } catch (error) { next(error); }
 };
 
