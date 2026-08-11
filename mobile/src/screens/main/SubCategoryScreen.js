@@ -18712,12 +18712,17 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? 'Rakip Takım' : (opponentSide[0] ? senderAlias(opponentSide[0]) : 'Rakip'));
                                         const founderSetWins = sets ? sets.filter(s2 => s2.sender > s2.opponent).length : null;
                                         const opponentSetWins = sets ? sets.filter(s2 => s2.opponent > s2.sender).length : null;
-                                        const avgOf = (side) => {
-                                            const rs = side.map(p => snapshot[p.id]?.skillRating_after).filter(r => r != null);
+                                        // Kullanıcı isteği: takım ortalaması "maç öncesi" ve "maç sonrası" olarak
+                                        // ayrı ayrı belirtilsin — tek bir güncel ortalama yerine, oyuncu satırlarındaki
+                                        // "önceki puan → güncel puan" mantığının takım seviyesindeki karşılığı.
+                                        const avgOf = (side, key) => {
+                                            const rs = side.map(p => snapshot[p.id]?.[key]).filter(r => r != null);
                                             return rs.length > 0 ? rs.reduce((a, b) => a + b, 0) / rs.length : null;
                                         };
-                                        const founderAvg = avgOf(founderSide);
-                                        const opponentAvg = avgOf(opponentSide);
+                                        const founderAvgBefore = avgOf(founderSide, 'skillRating_before');
+                                        const founderAvgAfter = avgOf(founderSide, 'skillRating_after');
+                                        const opponentAvgBefore = avgOf(opponentSide, 'skillRating_before');
+                                        const opponentAvgAfter = avgOf(opponentSide, 'skillRating_after');
                                         return (
                                             <TouchableOpacity key={m.id} activeOpacity={0.8} onPress={() => setArchiveDetailMatch(m)} style={[s.card, { width:'48%', paddingHorizontal:0, paddingTop:0, paddingBottom:0 }, m.id === highlightRivalId && { borderColor:'#f97316', borderWidth:2 }]}>
                                                 <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap' }}>
@@ -18731,10 +18736,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     {sets && <Text style={{ color:'#fff', fontSize:14, fontWeight:'900' }}>{founderSetWins} - {opponentSetWins}</Text>}
                                                     <Text style={{ color:'#fca5a5', fontSize:12, fontWeight:'700', flex:1, textAlign:'right' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{opponentLabel}</Text>
                                                 </View>
-                                                {(founderAvg != null || opponentAvg != null) && (
+                                                {(founderAvgBefore != null || opponentAvgBefore != null) && (
+                                                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:1 }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:10, flex:1 }} numberOfLines={1}>{founderAvgBefore != null ? `Önce Ø ${founderAvgBefore.toFixed(2)} ★` : ''}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'right' }} numberOfLines={1}>{opponentAvgBefore != null ? `Önce Ø ${opponentAvgBefore.toFixed(2)} ★` : ''}</Text>
+                                                    </View>
+                                                )}
+                                                {(founderAvgAfter != null || opponentAvgAfter != null) && (
                                                     <View style={{ flexDirection:'row', alignItems:'center', marginBottom:3 }}>
-                                                        <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700', flex:1 }}>{founderAvg != null ? `Ø ${founderAvg.toFixed(2)} ★` : ''}</Text>
-                                                        <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700', flex:1, textAlign:'right' }}>{opponentAvg != null ? `Ø ${opponentAvg.toFixed(2)} ★` : ''}</Text>
+                                                        <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1}>{founderAvgAfter != null ? `Sonra Ø ${founderAvgAfter.toFixed(2)} ★` : ''}</Text>
+                                                        <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700', flex:1, textAlign:'right' }} numberOfLines={1}>{opponentAvgAfter != null ? `Sonra Ø ${opponentAvgAfter.toFixed(2)} ★` : ''}</Text>
                                                     </View>
                                                 )}
                                                 <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
