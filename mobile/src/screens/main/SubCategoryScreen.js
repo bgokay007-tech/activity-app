@@ -2921,6 +2921,21 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                     {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
                                 </Text>
                             </View>
+                            {/* Kullanıcı isteği: takım büyüklüğünün ("6v6") hemen sağında kadronun
+                                şu an kaçta kaç dolduğu (ör. 4/12) — kart açılmadan görülsün. */}
+                            {TEAM_SPORTS.has(sub) && (() => {
+                                const teamSizeN = item.teamSize || 1;
+                                const filledCount = 1 // kurucu
+                                    + senderTeamArr.filter(p => p?.id || p?.manualName).length
+                                    + participants.filter(p => p?.id || p?.manualName).length
+                                    + (Array.isArray(item.oppTeamManualNames) ? item.oppTeamManualNames.length : 0)
+                                    + (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers.filter(p => p?.id || p?.manualName).length : 0);
+                                return (
+                                    <Text style={{ color: colors.textMuted, fontSize: moderateScale(10), fontWeight:'700' }}>
+                                        {filledCount}/{teamSizeN * 2}
+                                    </Text>
+                                );
+                            })()}
                         </View>
                     </View>
                 </View>
@@ -7355,6 +7370,13 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                     placeholderTextColor={colors.textMuted}
                     numberOfLines={1}
                 />
+                {/* Kullanıcı isteği: cinsiyet ayrı bir satırda "Erkek"/"Kadın" yazmak yerine
+                    ismin hemen yanında kısa (E)/(K) — EN'de (M)/(F) — olarak yeterli. */}
+                {!!slot && slot.type === 'manual' && slot.gender && (
+                    <Text style={{ color: slot.gender === 'MALE' ? '#3b82f6' : '#ec4899', fontSize:10, fontWeight:'700' }} numberOfLines={1}>
+                        ({slot.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})
+                    </Text>
+                )}
                 <TouchableOpacity onPress={onClear} disabled={!slot} hitSlop={{ top:6, bottom:6, left:6, right:6 }} style={{ opacity: slot ? 1 : 0 }}>
                     <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
                 </TouchableOpacity>
@@ -7371,11 +7393,10 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
             )}
             {/* Manuel (uygulamayı kullanmayan) oyuncu için cinsiyet seçilmediyse her zaman
                 (sadece odaklıyken değil) uyarı görünür kalsın — aksi halde slottan uzaklaşınca
-                "Cinsiyet seç" fırsatı gözden kayboluyor, cinsiyet dağılımı kotası tutarsız kalıyordu. */}
-            {!!slot && slot.type === 'manual' && (
-                <Text style={{ color: slot.gender === 'MALE' ? '#3b82f6' : slot.gender === 'FEMALE' ? '#ec4899' : '#f59e0b', fontSize:8 }} numberOfLines={1}>
-                    {slot.gender === 'MALE' ? t.genderMale : slot.gender === 'FEMALE' ? t.genderFemale : `⚠ ${t.gender}`}
-                </Text>
+                "Cinsiyet seç" fırsatı gözden kayboluyor, cinsiyet dağılımı kotası tutarsız kalıyordu.
+                Cinsiyet zaten seçildiyse artık burada değil, isme bitişik kısa (E)/(K) rozetinde. */}
+            {!!slot && slot.type === 'manual' && !slot.gender && (
+                <Text style={{ color:'#f59e0b', fontSize:8 }} numberOfLines={1}>⚠ {t.gender}</Text>
             )}
             {/* Slot dolu ama henüz bir takıma atanmamışsa (onAssignSide verildiyse — sadece
                 havuz slotlarında, yedeklerde yok) hemen orada hızlı atama: kartı çevirmeden
