@@ -917,7 +917,7 @@ export const updateRivalRequest = async (req, res, next) => {
         if (rival.status === 'MATCHED') return updateMatchedRivalCourt(req, res, rival);
         if (rival.status !== 'OPEN') return res.status(400).json({ message: 'Sadece açık veya eşleşmiş ilanlar düzenlenebilir' });
 
-        const { message, matchDate, matchTime, duration, location, district, ticketUrl, courtName, courtAddress, courtLat, courtLng,
+        const { message, wager, matchDate, matchTime, duration, location, district, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
                 matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq, genderCountMode, requiredMaleCount, minGenderReq, minGenderCount, winsNeeded,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment, refereeFeeIncluded, manualRefereeName,
@@ -986,6 +986,7 @@ export const updateRivalRequest = async (req, res, next) => {
             where: { id },
             data: {
                 ...(message !== undefined && { message }),
+                ...(wager !== undefined && { wager: wager ? wager.trim().slice(0, 120) || null : null }),
                 ...(founderTeamName !== undefined && { founderTeamName: founderTeamName ? founderTeamName.trim().slice(0, 24) || null : null }),
                 ...(opponentTeamName !== undefined && { opponentTeamName: opponentTeamName ? opponentTeamName.trim().slice(0, 24) || null : null }),
                 ...(matchDate !== undefined && { matchDate: matchDate ? new Date(matchDate) : null }),
@@ -1453,7 +1454,7 @@ export const createRivalRequest = async (req, res, next) => {
     const creatorId = req.userId; // capture before any async ops
     try {
         const {
-            category, subCategory, message, level, levelDetail,
+            category, subCategory, message, wager, level, levelDetail,
             location, district, ticketUrl, courtName, courtAddress, courtLat, courtLng,
             venueId, venueCourtId, venueReservationId,
             isCourtReserved, flexibleSchedule, matchDate, matchTime,
@@ -1606,6 +1607,7 @@ export const createRivalRequest = async (req, res, next) => {
                 category,
                 subCategory,
                 message,
+                ...(wager && wager.trim() && { wager: wager.trim().slice(0, 120) }),
                 level,
                 levelDetail,
                 location,

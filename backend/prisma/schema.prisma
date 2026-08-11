@@ -725,6 +725,7 @@ model ActivityRequest {
   category        CategoryType
   subCategory     String
   message         String?
+  wager           String?   // "bizi yenene saha ücretsiz", "beni yenene dondurma" gibi eğlence amaçlı bahis/ödül metni (tenis/padel/voleybol)
   level           String?
   location        String?
   district        String?

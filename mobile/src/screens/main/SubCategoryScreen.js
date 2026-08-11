@@ -143,6 +143,12 @@ const SUB_CONFIG = {
     running:        { name:'Running',        nameTR:'Koşu',            emoji:'🏃', color:'#16a34a' },
     walking:        { name:'Walking',        nameTR:'Yürüyüş',         emoji:'🚶', color:'#0d9488' },
     hiking:         { name:'Hiking',         nameTR:'Doğa Yürüyüşü',   emoji:'🥾', color:'#65a30d' },
+    wellness:         { name:'Yoga / Pilates / Reformer', nameTR:'Yoga / Pilates / Reformer', emoji:'🧘',  color:'#8b5cf6' },
+    shooting_hunting: { name:'Shooting & Hunting',        nameTR:'Atıcılık & Avcılık',         emoji:'🔫',  color:'#57534e' },
+    golf:             { name:'Golf',                      nameTR:'Golf',                       emoji:'⛳',  color:'#15803d' },
+    skiing_snowboard: { name:'Skiing & Snowboard',        nameTR:'Kayak & Snowboard',           emoji:'⛷️', color:'#0ea5e9' },
+    ice_skating:      { name:'Ice Skating',                nameTR:'Buz Pateni',                 emoji:'⛸️', color:'#0891b2' },
+    motorcycle:       { name:'Motorcycle Riding',          nameTR:'Motosiklet',                 emoji:'🏍️', color:'#b91c1c' },
     sanal_alem:     { name:'Virtual World',  nameTR:'Sanal Alem',     emoji:'🌐', color:'#ec4899' },
     default:    { name:'Sport',      nameTR:'Spor',       emoji:'🏅', color: colors.purple },
 };
@@ -168,7 +174,7 @@ function feeByMethodHint(byMethod) {
 // Bilet Al, Haberler, Arşiv.
 const SIMPLE_TAB_SUBS = new Set([
     'airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'paintball', 'sup_kano', 'running', 'walking', 'hiking',
-    'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting',
+    'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting', 'golf',
 ]);
 
 // GPS rota kaydetme/paylaşma (Wikiloc tarzı) mantıklı olan dallar — "Etkinlik"in
@@ -178,7 +184,10 @@ const ROUTE_ENABLED_SUBS = new Set(['hiking', 'camping', 'running', 'motorcycle'
 // Bu dallarda gerçek bir "kort" kavramı yok (rezerve edilecek tesis/saat dilimi
 // söz konusu değil) — Etkinlik Oluştur formunda Mod/Format ve kort/il/ilçe/adres
 // arama bloğu tamamen kaldırılıp yerine basit Ücretli/Ücretsiz seçimi konur.
-const SIMPLIFIED_FEE_SUBS = new Set(['sup_kano', 'airsoft', 'equestrian', 'fitness_gym', 'camping', 'running', 'walking', 'extreme_sports', 'hiking', 'archery', 'climbing', 'paintball']);
+const SIMPLIFIED_FEE_SUBS = new Set([
+    'sup_kano', 'airsoft', 'equestrian', 'fitness_gym', 'camping', 'running', 'walking', 'extreme_sports', 'hiking', 'archery', 'climbing', 'paintball',
+    'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting', 'golf',
+]);
 
 // extreme_sports için Format'ın yerini alan asıl dal seçimi — mevcut `surface`
 // alanı (voleybolda zemin türünü tutan aynı genel-amaçlı string) buradaki
@@ -1347,6 +1356,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </View>
                     </View>
                     {item.message && <Text style={[s.cardMsg, { marginBottom:12, fontSize: moderateScale(13) }]}>{item.message}</Text>}
+                    {item.wager && (
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'#f59e0b20', borderWidth:1, borderColor:'#f59e0b50', borderRadius:10, paddingHorizontal:8, paddingVertical:6, marginBottom:12 }}>
+                            <Text style={{ fontSize:14 }}>🏆</Text>
+                            <Text style={{ color:'#fbbf24', fontSize: moderateScale(12), fontWeight:'700', flex:1 }}>{item.wager}</Text>
+                        </View>
+                    )}
 
                     {/* Oyuncular */}
                     <View style={det.section}>
@@ -3082,6 +3097,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </View>
                 )}
                 {item.message && <Text style={[s.cardMsg, { fontSize: moderateScale(12), marginBottom:3 }]} numberOfLines={2}>{item.message}</Text>}
+                {item.wager && (
+                    <Text style={{ color:'#fbbf24', fontSize: moderateScale(11), fontWeight:'700', marginBottom:4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                        🏆 {item.wager}
+                    </Text>
+                )}
                 {/* Kabul edilen oyuncular — çiftlerde henüz "Rakip 1/Rakip 2" gibi kesin bir
                     koltuğa atanmış gibi gösterilmez (bu, kendi aralarında karar verip
                     pozisyon değiştirebildikleri "yaklaşan maçlar" ekranındaki kartlarda olur) —
@@ -3856,6 +3876,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         ]);
     };
 
+    // Çiftler (DOUBLE): kabul edilen bireysel oyuncu atanmamış havuzuna düşüyor — maç
+    // MATCHED olup Yaklaşan Maçlar'a geçtikten sonra da (RivalDetailModal'daki aynı akış,
+    // bkz. assignDoubleSlot orada) ilan sahibi herkesi, oyuncunun kendisi de sadece kendini
+    // Takım Arkadaşı/Rakip1/Rakip2'ye atayabilsin diye — önceden bu kart atanmamışları hiç
+    // göstermiyordu, kabul edilmiş oyuncular "katılımcı bekleniyor" gibi kaybolmuş görünüyordu.
+    const assignDoubleSlot = (userId, slot) => {
+        api.patch(`/rivals/${match.id}/assign-double-slot`, { userId, slot })
+            .then(() => onRefresh())
+            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+    };
+
     const saveTeamName = async () => {
         if (!teamNameModal) return;
         setSavingTeamName(true);
@@ -4619,6 +4650,37 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 </View>
                                 {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && !locked && (
                                     <Text style={{ color: colors.textMuted, fontSize:10, marginTop:4, textAlign:'center' }}>↕ Bir oyuncuya dokun → seç → diğerine dokun → yer değiştir</Text>
+                                )}
+                                {/* Atanmamış — kabul edilmiş ama henüz Takım Arkadaşı/Rakip1/Rakip2'ye
+                                    yerleşmemiş oyuncular (bkz. yukarıdaki assignDoubleSlot). RivalDetailModal'daki
+                                    aynı bölümün buradaki karşılığı — önceden burada hiç gösterilmiyordu. */}
+                                {unassignedArr.length > 0 && (
+                                    <View style={{ marginTop:8 }}>
+                                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800', marginBottom:4 }}>Atanmamış</Text>
+                                        {unassignedArr.map(p => {
+                                            const isMe = p.id === myId;
+                                            const openSlotOptions = [
+                                                !partner && { key:'partner', label: SLOT_LABEL.partner },
+                                                !opp1 && { key:'opp1', label: SLOT_LABEL.opp1 },
+                                                !opp2 && { key:'opp2', label: SLOT_LABEL.opp2 },
+                                            ].filter(Boolean);
+                                            return (
+                                                <View key={p.id} style={{ backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:4 }}>
+                                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                                    {(isOwner || isMe) && openSlotOptions.length > 0 && (
+                                                        <View style={{ flexDirection:'row', gap:4, marginTop:3 }}>
+                                                            {openSlotOptions.map(opt => (
+                                                                <TouchableOpacity key={opt.key} onPress={() => assignDoubleSlot(p.id, opt.key)}
+                                                                    style={{ flex:1, paddingVertical:3, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50', alignItems:'center' }}>
+                                                                    <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{opt.label}</Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            );
+                                        })}
+                                    </View>
                                 )}
                             </View>
                         );
@@ -7863,6 +7925,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         activityIsPaid: false,
         feeIncludes: '',
         message: '',
+        wager: '',
         ticketUrl: '',
         minRating: '', maxRating: '',
         ratingGenderSplit: false,
@@ -7947,6 +8010,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 activityIsPaid: editItem.courtFeePerPerson != null,
                 feeIncludes: editItem.feeIncludes || '',
                 message: editItem.message || '',
+                wager: editItem.wager || '',
                 ticketUrl: editItem.ticketUrl || '',
                 minRating: editItem.minRating != null ? String(editItem.minRating) : '',
                 maxRating: editItem.maxRating != null ? String(editItem.maxRating) : '',
@@ -8558,6 +8622,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
             await api.patch(`/rivals/${editItem.id}`, {
                 message: f.message || null,
+                ...((isTennis || isPadel || isVolleyball) && { wager: f.wager.trim() || null }),
                 ...((category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub)) && { ticketUrl: f.ticketUrl || null }),
                 matchDate: f.flexibleSchedule ? null : (matchDateStr || null),
                 matchTime: f.flexibleSchedule ? null : (f.matchTime || null),
@@ -8758,6 +8823,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 courtFeePerPersonByMethod: f.courtFeePerPersonByMethod || undefined,
                 feeIncludes: SIMPLIFIED_FEE_SUBS.has(sub) && f.activityIsPaid ? (f.feeIncludes || undefined) : undefined,
                 message:   f.message || undefined,
+                wager: (isTennis || isPadel || isVolleyball) && f.wager.trim() ? f.wager.trim() : undefined,
                 ticketUrl: (category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub)) ? (f.ticketUrl || undefined) : undefined,
                 minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
                 maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
@@ -10416,6 +10482,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </>
                             )}
 
+                            {/* Bahis/ödül — eğlence amaçlı, maçı kazanana ne var? (kullanıcı isteği:
+                                "bizi yenene saha ücretsiz", "beni yenene dondurma" gibi). Sadece
+                                tenis/padel/voleybolde, açık ilan kartında mesajın hemen altında gösterilir. */}
+                            {!isMatchedEdit && (isTennis || isPadel || isVolleyball) && (
+                                <>
+                                    <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.wagerLabel}</Text>
+                                    <TextInput style={s.fieldInput}
+                                        value={f.wager} onChangeText={v => set('wager', v)}
+                                        placeholder={t.wagerPh}
+                                        placeholderTextColor={colors.textMuted}
+                                        maxLength={120} />
+                                </>
+                            )}
+
                             {!isMatchedEdit && !SIMPLIFIED_FEE_SUBS.has(sub) && (category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub)) && (
                                 <>
                                     <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.ticketUrlLabel}</Text>
@@ -10711,7 +10791,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 function CreatePlayerWantedModal({ visible, onClose, category, sub, onCreated }) {
     const t = useT();
     const sizes = sub==='football' ? FOOTBALL_SIZES : sub==='volleyball' ? VOLLEYBALL_SIZES : [];
-    const [f, setF] = useState({ message:'', matchDate:'', matchTime:'', teamSize:5, position:'ANY', location:'' });
+    const [f, setF] = useState({ message:'', wager:'', matchDate:'', matchTime:'', teamSize:5, position:'ANY', location:'' });
     const [submitting, setSubmitting] = useState(false);
     const set = (key,val) => setF(p => ({...p,[key]:val}));
 
@@ -10722,6 +10802,7 @@ function CreatePlayerWantedModal({ visible, onClose, category, sub, onCreated })
                 category, subCategory:sub, matchType:'PLAYER_WANTED',
                 teamSize: f.teamSize,
                 message: f.message,
+                ...(sub === 'volleyball' && f.wager.trim() && { wager: f.wager.trim() }),
                 matchDate: f.matchDate || undefined,
                 matchTime: f.matchTime || undefined,
                 location: f.location || undefined,
@@ -10789,6 +10870,13 @@ function CreatePlayerWantedModal({ visible, onClose, category, sub, onCreated })
                                 value={f.message} onChangeText={v=>set('message',v)}
                                 placeholder={t.playerWantedMsgPh}
                                 placeholderTextColor={colors.textMuted} multiline />
+                            {sub === 'volleyball' && (
+                                <>
+                                    <Text style={s.fieldLabel}>{t.wagerLabel}</Text>
+                                    <TextInput style={s.fieldInput} value={f.wager} onChangeText={v=>set('wager',v)}
+                                        placeholder={t.wagerPh} placeholderTextColor={colors.textMuted} maxLength={120} />
+                                </>
+                            )}
                             <TouchableOpacity style={[s.submitBtn, submitting&&{opacity:0.6}]} onPress={submit} disabled={submitting}>
                                 <Text style={s.submitBtnText}>{submitting ? t.submittingBtn : t.publishAdBtn}</Text>
                             </TouchableOpacity>
