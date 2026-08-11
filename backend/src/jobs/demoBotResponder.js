@@ -1,5 +1,5 @@
 import prisma from '../config/prisma.js';
-import { respondToJoin, cancelMatch } from '../controllers/rival.controller.js';
+import { respondToJoin, cancelMatch, confirmScore } from '../controllers/rival.controller.js';
 import { invokeControllerAs } from '../utils/internalInvoke.js';
 
 const AUTO_RESPOND_DELAY_MS = 20 * 1000;
@@ -70,9 +70,39 @@ async function respondMutualCancels() {
     }
 }
 
+// Kullanıcı isteği: "botlar skorları otomatik onaylamaya ayarlı olsun test için kullanıyorum
+// sonuçta botları" — skoru rakip taraf (scoreEnteredBy'ın olmadığı taraf) girdi, o tarafta
+// demo bot varsa 20 saniye sonra bot onaylar. Onay TEK kişilik yeterli (bkz. confirmScore),
+// bu yüzden karşı taraftaki ilk demo bot yeterli.
+async function respondPendingScores() {
+    const cutoff = new Date(Date.now() - AUTO_RESPOND_DELAY_MS);
+    const pending = await prisma.activityRequest.findMany({
+        where: { scoreStatus: 'PENDING', completedAt: { lte: cutoff } },
+        select: { id: true, senderId: true, senderTeam: true, participants: true, scoreEnteredBy: true },
+    });
+    for (const rival of pending) {
+        const senderTeamIds = (Array.isArray(rival.senderTeam) ? rival.senderTeam : []).filter(p => p?.id).map(p => p.id);
+        const participantIds = (Array.isArray(rival.participants) ? rival.participants : []).filter(p => p?.id).map(p => p.id);
+        const teamAIds = [rival.senderId, ...senderTeamIds];
+        const scorerInA = teamAIds.includes(rival.scoreEnteredBy);
+        const confirmSideIds = scorerInA ? participantIds : teamAIds;
+        if (confirmSideIds.length === 0) continue;
+
+        const demoUser = await prisma.user.findFirst({ where: { id: { in: confirmSideIds }, isDemoUser: true }, select: { id: true } });
+        if (!demoUser) continue;
+
+        try {
+            await invokeControllerAs(confirmScore, { userId: demoUser.id, params: { id: rival.id }, body: {} });
+        } catch (e) {
+            console.error('[demoBot] confirm score error:', e.message);
+        }
+    }
+}
+
 async function tick() {
     try { await respondPendingInvites(); } catch (e) { console.error('[demoBot] invite tick error:', e.message); }
     try { await respondMutualCancels(); } catch (e) { console.error('[demoBot] mutual tick error:', e.message); }
+    try { await respondPendingScores(); } catch (e) { console.error('[demoBot] score tick error:', e.message); }
 }
 
 export function startDemoBotResponderJob() {

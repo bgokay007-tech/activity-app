@@ -63,6 +63,9 @@ class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
                 "sport" to json.optString("sport"),
                 "pointLabelA" to json.optString("pointLabelA"),
                 "pointLabelB" to json.optString("pointLabelB"),
+                // Ham sayı (voleybolde tenis usulü pointLabel anlamsız kaldığı için) — bkz. PhoneSync.kt.
+                "pointsA" to json.optInt("pointsA"),
+                "pointsB" to json.optInt("pointsB"),
                 "gamesA" to json.optInt("gamesA"),
                 "gamesB" to json.optInt("gamesB"),
                 "setsA" to json.optInt("setsA"),

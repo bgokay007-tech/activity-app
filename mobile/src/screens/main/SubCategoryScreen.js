@@ -13,6 +13,9 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import * as MediaLibrary from 'expo-media-library';
+import { addMatchUpdateListener, isWatchConnected } from '../../../modules/wear-bridge';
 import api from '../../services/api';
 import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
@@ -2062,15 +2065,40 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 .map(jr => (
                                 <View key={jr.id} style={det.playerRow}>
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
-                                    <View style={{ flex:1 }}>
-                                        <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
-                                        <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
-                                        {jr.requestedSlot && (
-                                            <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'700', marginTop:1 }}>
-                                                🎯 {jr.requestedSlot === 'partner' ? t.founderTeamLabel : jr.requestedSlot === 'opp1' ? t.opp1Label : jr.requestedSlot === 'opp2' ? t.opp2Label : t.joinAsOpponentBtn}
+                                    {/* Voleybol "Rakip Aranıyor": tek isim yerine tam takım kadrosu + ortalama
+                                        puan gösterilir — bkz. TeamJoinRequestModal (bu isteği gönderen kişi
+                                        kendi tam takımını doldurup göndermişti). */}
+                                    {Array.isArray(jr.joiningTeam) && jr.joiningTeam.length > 0 ? (
+                                        <View style={{ flex:1 }}>
+                                            <Text style={det.playerName}>
+                                                {t.teamJoinRequestLabel}
+                                                {(() => {
+                                                    const ratings = jr.joiningTeam.filter(m => !m.isSubstitute && m.skillRating != null).map(m => m.skillRating);
+                                                    const avg = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
+                                                    return avg != null ? `  Ort ${avg.toFixed(2)}★` : '';
+                                                })()}
                                             </Text>
-                                        )}
-                                    </View>
+                                            <Text style={det.playerSub} numberOfLines={2}>
+                                                {jr.joiningTeam.filter(m => !m.isSubstitute).map(m => m.username || m.fullName || m.manualName).join(', ')}
+                                            </Text>
+                                            {jr.joiningTeam.some(m => m.isSubstitute) && (
+                                                <Text style={{ color: colors.textMuted, fontSize: moderateScale(9) }} numberOfLines={1}>
+                                                    {t.subsLabel}: {jr.joiningTeam.filter(m => m.isSubstitute).map(m => m.username || m.fullName || m.manualName).join(', ')}
+                                                </Text>
+                                            )}
+                                            <Text style={{ color: colors.textMuted, fontSize: moderateScale(9) }}>🕐 {reqTimeAgo(jr.createdAt)}</Text>
+                                        </View>
+                                    ) : (
+                                        <View style={{ flex:1 }}>
+                                            <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
+                                            <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
+                                            {jr.requestedSlot && (
+                                                <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'700', marginTop:1 }}>
+                                                    🎯 {jr.requestedSlot === 'partner' ? t.founderTeamLabel : jr.requestedSlot === 'opp1' ? t.opp1Label : jr.requestedSlot === 'opp2' ? t.opp2Label : t.joinAsOpponentBtn}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    )}
                                     {jr.status === 'AWAITING_JOINER_CONFIRM' ? (
                                         <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
                                     ) : (
@@ -2691,6 +2719,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const myInvite = (Array.isArray(item.joinRequests) ? item.joinRequests : []).find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER');
     const [detailVisible, setDetailVisible] = useState(false);
     const [editVisible, setEditVisible] = useState(false);
+    // Voleybol "Rakip Aranıyor" (player_wanted + teamSize>1): katılma tek başına değil,
+    // tam takım doldurularak yapılıyor — bkz. TeamJoinRequestModal.
+    const [showTeamJoinModal, setShowTeamJoinModal] = useState(false);
+    const isTeamWantedAd = sub === 'volleyball' && item.matchType === 'PLAYER_WANTED' && (item.teamSize || 1) > 1;
     // Düzenleme, ilan detayından mı yoksa karttaki ✏️ butonundan mı açıldı —
     // kapatınca (X veya telefonun geri tuşu) sadece detaydan açıldıysa detaya
     // geri dönülsün diye.
@@ -3152,7 +3184,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 ) : (
                     <TouchableOpacity
                         style={{ backgroundColor:cfg.color, borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }}
-                        onPress={() => handleJoinPress()}
+                        onPress={() => isTeamWantedAd ? setShowTeamJoinModal(true) : handleJoinPress()}
                     >
                         <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }}>{t.joinBtn}</Text>
                     </TouchableOpacity>
@@ -3169,7 +3201,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             t={t}
             onClose={() => setDetailVisible(false)}
             navigation={navigation}
-            handleJoin={(slot) => { setDetailVisible(false); setTimeout(() => handleJoinPress(slot), 300); }}
+            handleJoin={(slot) => { setDetailVisible(false); setTimeout(() => isTeamWantedAd ? setShowTeamJoinModal(true) : handleJoinPress(slot), 300); }}
             handleCancel={() => { setDetailVisible(false); setTimeout(handleCancel, 300); }}
             handleRespondJoin={handleRespondJoin}
             handleWithdraw={() => { setDetailVisible(false); setTimeout(handleWithdraw, 300); }}
@@ -3179,6 +3211,19 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             onConfirmLateJoin={handleConfirmLateJoin}
             highlightSlot={highlightSlot}
         />
+        {isTeamWantedAd && (
+            <TeamJoinRequestModal
+                visible={showTeamJoinModal}
+                onClose={() => setShowTeamJoinModal(false)}
+                rival={item}
+                sub={sub}
+                category={item.category}
+                cfg={cfg}
+                navigation={navigation}
+                onSent={onRefresh}
+                t={t}
+            />
+        )}
         {editVisible && (
             <CreateRivalModal
                 visible
@@ -3402,6 +3447,171 @@ function TeamSlot({ slot, player, color, label, disabled, isSelected, isTarget, 
     );
 }
 
+// Maç saati gelince "Maçı Başlat" ile açılan seçim ekranı — kamera kaydı ve/ya da saatten
+// canlı skor takibi arasında seçim yapılır (kullanıcı isteği: ikisi de olabilir, biri de).
+function MatchStartModal({ visible, onClose, onStart, t }) {
+    const [wantCamera, setWantCamera] = useState(false);
+    const [wantWatch, setWantWatch] = useState(false);
+    useEffect(() => {
+        if (visible) { setWantCamera(false); setWantWatch(false); }
+    }, [visible]);
+    const Toggle = ({ active, onPress, emoji, label, desc }) => (
+        <TouchableOpacity onPress={onPress}
+            style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor: active ? colors.purple+'20' : colors.surface2, borderRadius:12, borderWidth:1, borderColor: active ? colors.purple : colors.border, padding:12, marginBottom:10 }}>
+            <Text style={{ fontSize:22 }}>{emoji}</Text>
+            <View style={{ flex:1 }}>
+                <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>{label}</Text>
+                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:1 }}>{desc}</Text>
+            </View>
+            <View style={{ width:22, height:22, borderRadius:11, borderWidth:2, borderColor: active ? colors.purple : colors.textMuted, backgroundColor: active ? colors.purple : 'transparent', alignItems:'center', justifyContent:'center' }}>
+                {active && <Text style={{ color:'#fff', fontSize:12, fontWeight:'900' }}>✓</Text>}
+            </View>
+        </TouchableOpacity>
+    );
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={opt.overlay}>
+                <View style={opt.box}>
+                    <View style={opt.header}>
+                        <Text style={opt.title}>{t.matchStartModalTitle}</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
+                    </View>
+                    <Toggle active={wantCamera} onPress={() => setWantCamera(v => !v)} emoji="📹" label={t.matchStartCameraLabel} desc={t.matchStartCameraDesc} />
+                    <Toggle active={wantWatch} onPress={() => setWantWatch(v => !v)} emoji="⌚" label={t.matchStartWatchLabel} desc={t.matchStartWatchDesc} />
+                    <TouchableOpacity onPress={() => onStart({ wantCamera, wantWatch })}
+                        disabled={!wantCamera && !wantWatch}
+                        style={{ backgroundColor: colors.purple, borderRadius:14, paddingVertical:12, alignItems:'center', marginTop:6, opacity: (!wantCamera && !wantWatch) ? 0.5 : 1 }}>
+                        <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>{t.matchStartGoBtn}</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
+// Maçı Başlat sonrası açılan tam ekran: kamera kaydı ve/veya saatten gelen canlı skor.
+// İkisi de seçiliyse kamera tam ekran, üstünde küçük canlı skor kutusu (kullanıcı isteği:
+// spor yayınlarındaki skorbord gibi). Kayıt bitince telefonun galerisine kaydedilir.
+function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, t }) {
+    const insets = useSafeAreaInsets();
+    const [camPerm, requestCamPerm] = useCameraPermissions();
+    const [micPerm, requestMicPerm] = useMicrophonePermissions();
+    const [, requestMediaPerm] = MediaLibrary.usePermissions();
+    const cameraRef = useRef(null);
+    const [recording, setRecording] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [wearConnected, setWearConnected] = useState(null); // null = henüz bilinmiyor
+    const [wearScore, setWearScore] = useState(null);
+
+    useEffect(() => {
+        if (!visible || !wantCamera) return;
+        requestCamPerm();
+        requestMicPerm();
+        requestMediaPerm();
+    }, [visible, wantCamera]);
+
+    useEffect(() => {
+        if (!visible || !wantWatch) return;
+        isWatchConnected().then(setWearConnected).catch(() => setWearConnected(false));
+        const subscription = addMatchUpdateListener((update) => { setWearConnected(true); setWearScore(update); });
+        return () => subscription.remove();
+    }, [visible, wantWatch]);
+
+    const stopRecording = () => {
+        cameraRef.current?.stopRecording();
+    };
+    const startRecording = async () => {
+        if (!cameraRef.current) return;
+        try {
+            setRecording(true);
+            const video = await cameraRef.current.recordAsync();
+            if (video?.uri) {
+                setSaving(true);
+                await MediaLibrary.saveToLibraryAsync(video.uri);
+                Alert.alert(t.matchRecordSavedTitle, t.matchRecordSavedMsg);
+            }
+        } catch (e) {
+            Alert.alert(t.error, t.actionFailed);
+        } finally {
+            setRecording(false);
+            setSaving(false);
+        }
+    };
+    // Kayıt sürerken kapatma (✕) kilitli — kamera view'ı kayıt bitmeden unmount olursa
+    // recordAsync() sonucu (video uri) hiç gelmeyip kayıt kaybolabilir. Önce durdurmaları
+    // gerekiyor (aynı buton, kayıt sırasında zaten "durdur" olarak gösteriliyor).
+
+    const scoreLabel = wearScore
+        ? (sub === 'volleyball' ? `${wearScore.pointsA}-${wearScore.pointsB}` : `${wearScore.pointLabelA}-${wearScore.pointLabelB}`)
+        : null;
+    const waitingLabel = wearConnected === false ? t.matchLiveWatchNotConnected : t.matchLiveWaitingScore;
+
+    return (
+        <Modal visible={visible} animationType="slide" onRequestClose={recording ? undefined : onClose}>
+            <View style={{ flex:1, backgroundColor:'#000' }}>
+                {!visible ? null : wantCamera ? (
+                    camPerm?.granted && micPerm?.granted ? (
+                        <CameraView ref={cameraRef} style={{ flex:1 }} mode="video" facing="back" />
+                    ) : (
+                        <View style={{ flex:1, alignItems:'center', justifyContent:'center', padding:20 }}>
+                            <Text style={{ color:'#fff', fontSize:14, textAlign:'center', marginBottom:14 }}>{t.matchCameraPermMsg}</Text>
+                            <TouchableOpacity onPress={() => { requestCamPerm(); requestMicPerm(); }} style={{ backgroundColor: colors.purple, borderRadius:12, paddingHorizontal:20, paddingVertical:10 }}>
+                                <Text style={{ color:'#fff', fontWeight:'800' }}>{t.matchCameraPermBtn}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )
+                ) : (
+                    <View style={{ flex:1, alignItems:'center', justifyContent:'center' }}>
+                        {wearScore ? (
+                            <>
+                                <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', marginBottom:10 }}>{t.matchLiveSetsLabel} {wearScore.setsA}-{wearScore.setsB}</Text>
+                                <Text style={{ color:'#facc15', fontSize:56, fontWeight:'900' }}>{scoreLabel}</Text>
+                                {sub !== 'volleyball' && (
+                                    <Text style={{ color: colors.textMuted, fontSize:16, marginTop:10 }}>{t.matchLiveGamesLabel} {wearScore.gamesA}-{wearScore.gamesB}</Text>
+                                )}
+                            </>
+                        ) : (
+                            <Text style={{ color: colors.textMuted, fontSize:14, textAlign:'center', paddingHorizontal:30 }}>{waitingLabel}</Text>
+                        )}
+                    </View>
+                )}
+                {wantWatch && wantCamera && (
+                    <View style={{ position:'absolute', top: insets.top + 10, right:10, backgroundColor:'#000000c0', borderRadius:12, padding:10, minWidth:120 }}>
+                        {wearScore ? (
+                            <>
+                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', textAlign:'center', marginBottom:4 }}>{t.matchLiveSetsLabel} {wearScore.setsA}-{wearScore.setsB}</Text>
+                                <Text style={{ color:'#facc15', fontSize:18, fontWeight:'900', textAlign:'center' }}>{scoreLabel}</Text>
+                                {sub !== 'volleyball' && (
+                                    <Text style={{ color: colors.textMuted, fontSize:10, textAlign:'center', marginTop:2 }}>{t.matchLiveGamesLabel} {wearScore.gamesA}-{wearScore.gamesB}</Text>
+                                )}
+                            </>
+                        ) : (
+                            <Text style={{ color: colors.textMuted, fontSize:11, textAlign:'center' }}>{waitingLabel}</Text>
+                        )}
+                    </View>
+                )}
+                <View style={{ position:'absolute', top: insets.top + 10, left:10 }}>
+                    <TouchableOpacity onPress={onClose} disabled={recording}
+                        style={{ backgroundColor:'#000000c0', borderRadius:20, width:38, height:38, alignItems:'center', justifyContent:'center', opacity: recording ? 0.4 : 1 }}>
+                        <Text style={{ color:'#fff', fontSize:16 }}>✕</Text>
+                    </TouchableOpacity>
+                </View>
+                {wantCamera && camPerm?.granted && micPerm?.granted && (
+                    <View style={{ position:'absolute', bottom: insets.bottom + 24, left:0, right:0, alignItems:'center' }}>
+                        <TouchableOpacity onPress={recording ? stopRecording : startRecording} disabled={saving}
+                            style={{ width:70, height:70, borderRadius:35, backgroundColor: recording ? '#dc2626' : '#fff', alignItems:'center', justifyContent:'center', borderWidth:4, borderColor:'#ffffff80' }}>
+                            {saving ? <ActivityIndicator color={recording ? '#fff' : '#dc2626'} /> : (
+                                <View style={{ width: recording ? 24 : 54, height: recording ? 24 : 54, borderRadius: recording ? 4 : 27, backgroundColor: recording ? '#fff' : '#dc2626' }} />
+                            )}
+                        </TouchableOpacity>
+                        <Text style={{ color:'#fff', fontSize:12, marginTop:8 }}>{recording ? t.matchRecordingLabel : t.matchTapToRecordLabel}</Text>
+                    </View>
+                )}
+            </View>
+        </Modal>
+    );
+}
+
 function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress }) {
     const t = useT();
     const insets = useSafeAreaInsets();
@@ -3487,6 +3697,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
     const participantsArr = (Array.isArray(match.participants) ? match.participants : []).filter(p => p?.id);
     const senderTeamArr   = (Array.isArray(match.senderTeam)   ? match.senderTeam   : []).filter(p => p?.id);
+    // Kullanıcı isteği: skor girişinde "Sen"/"Rakip" yerine takım adları görünsün — sadece
+    // ilan sahibi değil, kurucunun takım arkadaşları da kendi tarafını "Sen" değil kurucunun
+    // tarafı olarak görmeli (eskiden isOwner tek başına kullanılıyordu, takım arkadaşı için
+    // yanlışlıkla Rakip tarafına sayılıyordu).
+    const iAmFounderSide = isOwner || senderTeamArr.some(p => p.id === myId);
+    const isTeamMatch = (match.teamSize || 1) > 1;
+    const myScoreLabel  = isTeamMatch ? (iAmFounderSide ? (match.founderTeamName || t.founderTeamShortLabel) : (match.opponentTeamName || t.opponentTeamShortLabel)) : 'Sen';
+    const oppScoreLabel = isTeamMatch ? (iAmFounderSide ? (match.opponentTeamName || t.opponentTeamShortLabel) : (match.founderTeamName || t.founderTeamShortLabel)) : 'Rakip';
     // Voleybol: açık ilana sonradan katılıp henüz Kurucu/Rakip'e atanmamış oyuncular.
     const unassignedArr   = (Array.isArray(match.unassignedPlayers) ? match.unassignedPlayers : []).filter(p => p?.id);
     // Maça dahil olmayan kullanıcılar (örn. herkese açık "Yaklaşan Maçlar" listesinde başkasının
@@ -3643,9 +3861,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const autoWinner = mySetWins === oppSetWins && totalMy === totalOpp
         ? 'draw'
         : (mySetWins > oppSetWins || (mySetWins === oppSetWins && totalMy > totalOpp))
-            ? (isOwner ? 'sender' : 'opponent')
-            : (isOwner ? 'opponent' : 'sender');
-    const iWin = autoWinner === (isOwner ? 'sender' : 'opponent');
+            ? (iAmFounderSide ? 'sender' : 'opponent')
+            : (iAmFounderSide ? 'opponent' : 'sender');
+    const iWin = autoWinner === (iAmFounderSide ? 'sender' : 'opponent');
 
     const submitScore = async () => {
         if (!hasAnyInput) { Alert.alert('', t.missingScore); return; }
@@ -3664,8 +3882,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         setSubmitting(true);
         try {
             const apiSets = sets.map(r => ({
-                sender:   isOwner ? (parseInt(r.my) || 0) : (parseInt(r.opp) || 0),
-                opponent: isOwner ? (parseInt(r.opp) || 0) : (parseInt(r.my) || 0),
+                sender:   iAmFounderSide ? (parseInt(r.my) || 0) : (parseInt(r.opp) || 0),
+                opponent: iAmFounderSide ? (parseInt(r.opp) || 0) : (parseInt(r.my) || 0),
             }));
             const doRequest = () => api.patch(`/rivals/${match.id}/score`, { sets: apiSets, winner: autoWinner });
             try {
@@ -3759,8 +3977,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 const validSets = abanSets.filter(r => r.my !== '' || r.opp !== '');
                 if (validSets.length > 0) {
                     body.partialSets = validSets.map(r => ({
-                        sender:   isOwner ? (parseInt(r.my)||0) : (parseInt(r.opp)||0),
-                        opponent: isOwner ? (parseInt(r.opp)||0) : (parseInt(r.my)||0),
+                        sender:   iAmFounderSide ? (parseInt(r.my)||0) : (parseInt(r.opp)||0),
+                        opponent: iAmFounderSide ? (parseInt(r.opp)||0) : (parseInt(r.my)||0),
                     }));
                 }
             }
@@ -3979,9 +4197,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const existingSets = Array.isArray(match.score?.sets) ? match.score.sets : null;
     const existingWinner = match.score?.winner;
     const hasScore = !!existingSets;
-    const dispMyTotal  = hasScore ? existingSets.filter(r => (isOwner ? r.sender : r.opponent) > (isOwner ? r.opponent : r.sender)).length : 0;
-    const dispOppTotal = hasScore ? existingSets.filter(r => (isOwner ? r.opponent : r.sender) > (isOwner ? r.sender : r.opponent)).length : 0;
-    const dispIWin = existingWinner === (isOwner ? 'sender' : 'opponent');
+    // isOwner değil iAmFounderSide kullanılıyor — kurucunun takım arkadaşı (senderTeam) sahip
+    // olmasa da hep "sender" tarafındadır, önceden isOwner tek başına kullanıldığı için
+    // takım arkadaşı kendi kazandığı maçta bile ❌ görüyordu (kullanıcı raporu benzeri, bkz.
+    // ArchiveMatchDetailModal'daki aynı düzeltme).
+    const dispMyTotal  = hasScore ? existingSets.filter(r => (iAmFounderSide ? r.sender : r.opponent) > (iAmFounderSide ? r.opponent : r.sender)).length : 0;
+    const dispOppTotal = hasScore ? existingSets.filter(r => (iAmFounderSide ? r.opponent : r.sender) > (iAmFounderSide ? r.sender : r.opponent)).length : 0;
+    const dispIWin = existingWinner === (iAmFounderSide ? 'sender' : 'opponent');
     const dispDraw = existingWinner === 'draw';
 
     const openDetail = useCallback(async () => {
@@ -4710,13 +4932,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {hasScore && (
                         <View style={sc.box}>
                             <View style={sc.headerRow}>
-                                <Text style={sc.colMe}>Sen</Text>
+                                <Text style={sc.colMe} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{myScoreLabel}</Text>
                                 <Text style={sc.colLabel}></Text>
-                                <Text style={sc.colOpp}>Rakip</Text>
+                                <Text style={sc.colOpp} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{oppScoreLabel}</Text>
                             </View>
                             {existingSets.map((row, i) => {
-                                const mySc  = isOwner ? row.sender : row.opponent;
-                                const oppSc = isOwner ? row.opponent : row.sender;
+                                const mySc  = iAmFounderSide ? row.sender : row.opponent;
+                                const oppSc = iAmFounderSide ? row.opponent : row.sender;
                                 return (
                                     <View key={i} style={sc.setRow}>
                                         <Text style={[sc.setScore, { color: mySc > oppSc ? '#4ade80' : mySc < oppSc ? '#f87171' : '#fff' }]}>{mySc}</Text>
@@ -4752,9 +4974,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {showScore && !hasScore && (
                         <View style={sc.box}>
                             <View style={sc.headerRow}>
-                                <Text style={sc.colMe}>Sen</Text>
+                                <Text style={sc.colMe} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{myScoreLabel}</Text>
                                 <Text style={sc.colLabel}></Text>
-                                <Text style={sc.colOpp}>Rakip</Text>
+                                <Text style={sc.colOpp} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{oppScoreLabel}</Text>
                             </View>
                             {sets.map((row, i) => (
                                 <View key={i} style={sc.setInputRow}>
@@ -4816,6 +5038,32 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             </TouchableOpacity>
                         </View>
                     )}
+
+                    {/* Maçı Başlat — maç saati gelince (skor kilidi açılmadan çok önce), kamera
+                        kaydı ve/ya da saatten canlı skor takibi başlatılabilir. Kullanıcı isteğiyle
+                        sadece tenis/padel/voleybolde; sadece maça dahil olanlar başlatabilir. */}
+                    {isParticipant && !hasScore && matchStart && new Date() >= matchStart && ['tennis', 'padel', 'volleyball'].includes(match.subCategory) && (
+                        <TouchableOpacity
+                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor: cfg.color+'20', borderRadius:12, borderWidth:1, borderColor: cfg.color+'60', paddingVertical:10, marginBottom:8 }}
+                            onPress={() => setShowMatchStart(true)}>
+                            <Text style={{ fontSize:16 }}>▶️</Text>
+                            <Text style={{ color: cfg.color, fontSize:14, fontWeight:'800' }}>{t.matchStartBtn}</Text>
+                        </TouchableOpacity>
+                    )}
+                    <MatchStartModal
+                        visible={showMatchStart}
+                        onClose={() => setShowMatchStart(false)}
+                        onStart={(opts) => { setMatchLiveOptions(opts); setShowMatchStart(false); setShowMatchLive(true); }}
+                        t={t}
+                    />
+                    <MatchLiveScreen
+                        visible={showMatchLive}
+                        onClose={() => setShowMatchLive(false)}
+                        sub={match.subCategory}
+                        wantCamera={matchLiveOptions.wantCamera}
+                        wantWatch={matchLiveOptions.wantWatch}
+                        t={t}
+                    />
 
                     {/* Lock message */}
                     {!hasScore && !scoreUnlocked && matchEnd && (
@@ -5542,6 +5790,168 @@ function TeamSizeModal({ visible, value, onConfirm, onClose, t }) {
                             style={{ backgroundColor: colors.purple, borderRadius:14, paddingVertical:12, alignItems:'center', opacity: valid ? 1 : 0.5 }}>
                             <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>{t.dateRangeApply}</Text>
                         </TouchableOpacity>
+                    </View>
+                </KeyboardAvoidingView>
+            </View>
+        </Modal>
+    );
+}
+
+// Voleybol "Rakip Aranıyor" (Rakip Bul sekmesi, matchType player_wanted + teamSize>1):
+// tek başına katılım yerine, başvuran kendi tam takımını (teamSize ana + rival.substituteCount
+// yedek) TeamSlotRow ile doldurup gönderiyor — bkz. plan "voleybol rakip aranıyor tam takım
+// başvurusu". Kurucu (kendisi) her zaman ilk slot, salt okunur (CreateRivalModal'daki roster
+// kartıyla aynı kural). Backend sendJoinRequest bu diziyi ayrıca doğrulayıp zenginleştiriyor.
+function TeamJoinRequestModal({ visible, onClose, rival, sub, category, cfg, navigation, onSent, t }) {
+    const myUser = useSelector(st => st.auth.user);
+    const teamSize = rival?.teamSize || 1;
+    const subCount = rival?.substituteCount || 0;
+    const [mainSlots, setMainSlots] = useState(() => Array(Math.max(0, teamSize - 1)).fill(null));
+    const [subSlots, setSubSlots] = useState(() => Array(subCount).fill(null));
+    const [activeSlotKey, setActiveSlotKey] = useState(null);
+    const [slotSuggestions, setSlotSuggestions] = useState([]);
+    const [slotSearching, setSlotSearching] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (visible) {
+            setMainSlots(Array(Math.max(0, teamSize - 1)).fill(null));
+            setSubSlots(Array(subCount).fill(null));
+            setActiveSlotKey(null);
+            setSlotSuggestions([]);
+        }
+    }, [visible, teamSize, subCount]);
+
+    const setSlot = (group, index, value) => {
+        const setter = group === 'main' ? setMainSlots : setSubSlots;
+        setter(prev => { const arr = prev.slice(); arr[index] = value; return arr; });
+    };
+    const onSlotChangeText = (group, index, text) => {
+        setActiveSlotKey(`${group}-${index}`);
+        setSlot(group, index, text ? { type: 'manual', name: text } : null);
+    };
+    const setSlotGender = (group, index, gender) => {
+        const arr = (group === 'main' ? mainSlots : subSlots).slice();
+        if (!arr[index]) return;
+        arr[index] = { ...arr[index], gender };
+        (group === 'main' ? setMainSlots : setSubSlots)(arr);
+    };
+
+    // İsim arama/öneri deseni CreateRivalModal'daki onSlotChangeText+debounce ile birebir aynı.
+    useEffect(() => {
+        if (!activeSlotKey) return;
+        const [group, idxStr] = activeSlotKey.split('-');
+        const idx = Number(idxStr);
+        const slot = (group === 'main' ? mainSlots : subSlots)[idx];
+        const q = (slot?.type === 'manual' ? slot.name : '').trim();
+        if (!q || q.length < 2) { setSlotSuggestions([]); return; }
+        setSlotSearching(true);
+        const task = setTimeout(() => {
+            api.get(`/users/search?q=${encodeURIComponent(q)}&subCategory=${sub}&category=${category}`)
+                .then(res => setSlotSuggestions(Array.isArray(res.data) ? res.data.slice(0, 5) : []))
+                .catch(() => setSlotSuggestions([]))
+                .finally(() => setSlotSearching(false));
+        }, 350);
+        return () => clearTimeout(task);
+    }, [activeSlotKey, mainSlots, subSlots, sub, category]);
+
+    const myOwnRating = (myUser?.interests || []).find(i => i.subCategory === sub)?.skillRating ?? null;
+    const myRatings = [myOwnRating, ...mainSlots.map(s => s?.type === 'user' ? s.skillRating : null)].filter(r => r != null);
+    const myAvg = myRatings.length > 0 ? myRatings.reduce((a, b) => a + b, 0) / myRatings.length : null;
+    const theirRatings = [rival?.senderSkillRating, ...(Array.isArray(rival?.senderTeam) ? rival.senderTeam : []).map(p => p?.skillRating)].filter(r => r != null);
+    const theirAvg = theirRatings.length > 0 ? theirRatings.reduce((a, b) => a + b, 0) / theirRatings.length : null;
+
+    const slotFilled = (sl) => !!sl && (sl.type === 'user' || (sl.type === 'manual' && sl.name?.trim()));
+    const allFilled = mainSlots.every(slotFilled) && subSlots.every(slotFilled);
+
+    const submit = async () => {
+        const toEntry = (sl, isSubstitute) => sl.type === 'user'
+            ? { userId: sl.userId, isSubstitute }
+            : { manualName: sl.name.trim(), gender: sl.gender || null, isSubstitute };
+        try {
+            setSubmitting(true);
+            await api.post(`/rivals/${rival.id}/respond`, {
+                joiningTeam: [
+                    { userId: myUser.id, isSubstitute: false },
+                    ...mainSlots.map(sl => toEntry(sl, false)),
+                    ...subSlots.map(sl => toEntry(sl, true)),
+                ],
+            });
+            onSent?.();
+            onClose();
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const renderGroup = (group, slots, offset) => (
+        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
+            {group === 'main' && (
+                <View style={{ width:'23.5%' }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
+                        <Avatar name={myUser?.username} avatar={myUser?.avatar} size={14} color={cfg.color} />
+                        <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', opacity:0.8, minHeight:0 }]}>
+                            <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{myUser?.fullName || myUser?.username}</Text>
+                        </View>
+                    </View>
+                </View>
+            )}
+            {slots.map((slot, i) => (
+                <View key={`${group}-${i}`} style={{ width:'23.5%', zIndex: activeSlotKey === `${group}-${i}` ? 50 : 1, elevation: activeSlotKey === `${group}-${i}` ? 50 : 1 }}>
+                    <TeamSlotRow side={group} index={i} slot={slot}
+                        placeholder={group === 'main' ? t.teamSlotPh(i + offset) : t.subSlotPh(i + offset)}
+                        activeSlotKey={activeSlotKey} slotSuggestions={slotSuggestions} slotSearching={slotSearching}
+                        onFocus={() => setActiveSlotKey(`${group}-${i}`)}
+                        onChangeText={(txt) => onSlotChangeText(group, i, txt)}
+                        onPickUser={(u) => { setSlot(group, i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null }); setActiveSlotKey(null); setSlotSuggestions([]); }}
+                        onClear={() => setSlot(group, i, null)}
+                        onSetGender={(g) => setSlotGender(group, i, g)}
+                        matchMode={rival?.matchMode}
+                        cfg={cfg} s={s} colors={colors} t={t}
+                        onPressAvatar={(userId) => navigation.push('Profile', { userId })}
+                    />
+                </View>
+            ))}
+        </View>
+    );
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
+            <View style={tg.overlay}>
+                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
+                    <View style={[tg.box, { height:'80%' }]}>
+                        <View style={tg.header}>
+                            <Text style={tg.title}>{t.teamJoinModalTitle}</Text>
+                            <TouchableOpacity onPress={onClose}><Text style={tg.close}>✕</Text></TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                            <Text style={[s.fieldHint, { marginBottom:8 }]}>{t.teamJoinRosterHint}</Text>
+                            <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.rosterPoolLabel}</Text>
+                            {renderGroup('main', mainSlots, 2)}
+                            {subCount > 0 && (
+                                <>
+                                    <Text style={[s.fieldLabel, { fontSize:11, marginTop:8, marginBottom:4 }]}>{t.subsLabel}</Text>
+                                    {renderGroup('sub', subSlots, 1)}
+                                </>
+                            )}
+                            <View style={{ flexDirection:'row', gap:6, marginTop:14, marginBottom:10 }}>
+                                <View style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, padding:8, alignItems:'center' }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:10 }}>{t.teamJoinYourAvgLabel}</Text>
+                                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{myAvg != null ? `${myAvg.toFixed(2)}★` : '—'}</Text>
+                                </View>
+                                <View style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, padding:8, alignItems:'center' }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:10 }}>{t.teamJoinTheirAvgLabel}</Text>
+                                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{theirAvg != null ? `${theirAvg.toFixed(2)}★` : '—'}</Text>
+                                </View>
+                            </View>
+                        </ScrollView>
+                        <TouchableOpacity onPress={submit} disabled={!allFilled || submitting}
+                            style={{ backgroundColor: cfg.color, borderRadius:14, paddingVertical:12, alignItems:'center', marginTop:8, opacity: (!allFilled || submitting) ? 0.5 : 1 }}>
+                            <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>{submitting ? t.submittingBtn : t.teamJoinSendBtn}</Text>
+                        </TouchableOpacity>
+                        {!allFilled && <Text style={{ color: colors.textMuted, fontSize:11, marginTop:6, textAlign:'center' }}>{t.teamJoinMissingSlotsMsg}</Text>}
                     </View>
                 </KeyboardAvoidingView>
             </View>

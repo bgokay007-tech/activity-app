@@ -4,6 +4,10 @@ export type WearMatchUpdate = {
     sport: string;
     pointLabelA: string;
     pointLabelB: string;
+    // Ham sayı — voleybolde pointLabelA/B tenis usulü (0/15/30/40) üretildiği için anlamsız
+    // kalıyor, voleybolde bunun yerine bu ham değer gösterilmeli.
+    pointsA: number;
+    pointsB: number;
     gamesA: number;
     gamesB: number;
     setsA: number;

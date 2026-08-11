@@ -425,6 +425,82 @@ async function checkGenderCountQuota(rival, newJoinerGender) {
     return null;
 }
 
+// Voleybol "Rakip Aranıyor" (matchType PLAYER_WANTED, teamSize>1): başvuran kendi tam
+// takımını tek seferde gönderiyor (bkz. mobil TeamJoinRequestModal). checkGenderCountQuota
+// tek kişilik kontrol yapıyor — burada aynı fonksiyon değiştirilmeden, her yeni üye sırayla
+// eklenmiş gibi simüle edilerek çağrılıyor (mantık tekrarlanmadan aynı kota kuralı uygulanır).
+async function checkTeamGenderQuota(rival, mainMembers) {
+    let simulated = rival;
+    for (const m of mainMembers) {
+        const gender = m.gender || null;
+        const err = await checkGenderCountQuota(simulated, gender);
+        if (err) return err;
+        const entry = m.id ? { id: m.id, gender } : { manualName: m.manualName, gender };
+        simulated = { ...simulated, participants: [...(Array.isArray(simulated.participants) ? simulated.participants : []), entry] };
+    }
+    return null;
+}
+
+// joiningTeam (istemciden [{userId?, manualName?, gender?, isSubstitute?}]) sunucu tarafında
+// doğrulanıp zenginleştirilir — istemcinin gönderdiği username/skillRating gibi bilgilere
+// güvenilmez, DB'den taze çekilir (kayıtlı olmayan/manuel oyuncular hariç). Hata varsa
+// { error } döner, yoksa { resolvedMembers } döner.
+async function resolveAndValidateTeam(rival, joiningTeam, submitterId) {
+    const realIdEntries = joiningTeam.filter(m => m?.userId).map(m => m.userId);
+    const realIds = [...new Set(realIdEntries)];
+    if (realIds.length !== realIdEntries.length) {
+        return { error: 'Aynı oyuncu kadroda birden fazla kez var.' };
+    }
+    if (!realIds.includes(submitterId)) {
+        return { error: 'Kendinizi kadroya eklemeniz gerekiyor.' };
+    }
+    const existingIds = new Set([
+        rival.senderId,
+        ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []).map(p => p?.id).filter(Boolean),
+        ...(Array.isArray(rival.participants) ? rival.participants : []).map(p => p?.id).filter(Boolean),
+        ...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []).map(p => p?.id).filter(Boolean),
+    ]);
+    for (const uid of realIds) {
+        if (existingIds.has(uid)) return { error: 'Kadronuzdaki bir oyuncu zaten bu ilanda.' };
+    }
+    const [users, interests] = await Promise.all([
+        prisma.user.findMany({ where: { id: { in: realIds } }, select: { id: true, username: true, fullName: true, avatar: true, gender: true } }),
+        prisma.userInterest.findMany({ where: { userId: { in: realIds }, category: rival.category, subCategory: rival.subCategory }, select: { userId: true, skillRating: true } }),
+    ]);
+    if (users.length !== realIds.length) return { error: 'Kadrodaki bir oyuncu bulunamadı.' };
+    const userMap = new Map(users.map(u => [u.id, u]));
+    const ratingMap = new Map(interests.map(i => [i.userId, i.skillRating]));
+
+    const resolvedMembers = joiningTeam.map(m => {
+        if (m?.userId) {
+            const u = userMap.get(m.userId);
+            return { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, gender: u.gender || null, skillRating: ratingMap.get(u.id) ?? null, isSubstitute: !!m.isSubstitute };
+        }
+        const manualName = (m?.manualName || '').trim();
+        return manualName ? { manualName, gender: m?.gender || null, skillRating: null, isSubstitute: !!m.isSubstitute } : null;
+    }).filter(Boolean);
+    if (resolvedMembers.length !== joiningTeam.length) return { error: 'Geçersiz kadro girdisi.' };
+
+    // Derece kısıtlaması — solo başvurudaki mantığın aynısı (sendJoinRequest'in başındaki
+    // effMinRating/effMaxRating hesabı), her bilinen puanlı ana kadro üyesi için tekrarlanır.
+    for (const m of resolvedMembers.filter(mm => !mm.isSubstitute && mm.skillRating != null)) {
+        let effMin = rival.minRating, effMax = rival.maxRating;
+        if (rival.ratingGenderSplit) {
+            if (m.gender === 'MALE') { effMin = rival.minRatingMale; effMax = rival.maxRatingMale; }
+            else if (m.gender === 'FEMALE') { effMin = rival.minRatingFemale; effMax = rival.maxRatingFemale; }
+            else { effMin = null; effMax = null; }
+        }
+        const label = m.username || m.fullName || m.manualName || 'Oyuncu';
+        if (effMin != null && m.skillRating < effMin) return { error: `${label} bu ilan için gereken en az ${effMin}★ puanına sahip değil.` };
+        if (effMax != null && m.skillRating > effMax) return { error: `${label} bu ilanın en fazla ${effMax}★ puan sınırını aşıyor.` };
+    }
+
+    const genderErr = await checkTeamGenderQuota(rival, resolvedMembers.filter(m => !m.isSubstitute));
+    if (genderErr) return { error: genderErr };
+
+    return { resolvedMembers };
+}
+
 // DOUBLE maçta bireysel/takım kabul için cinsiyet uyumlu slot ataması — hem respondToJoin
 // (hemen kabul) hem confirmLateJoin (joiner'ın geç-kabul onayı; durum o an yeniden kontrol
 // edilmeli, çünkü aradan geçen sürede başka slotlar dolmuş olabilir) tarafından ortak
@@ -2288,6 +2364,32 @@ export const sendJoinRequest = async (req, res, next) => {
         }
 
         const joiningTeam = Array.isArray(req.body.joiningTeam) ? req.body.joiningTeam : [];
+
+        // Voleybol "Rakip Aranıyor" (PLAYER_WANTED, teamSize>1): tek başına katılım kapalı —
+        // başvuran kendi tam takımını (teamSize ana + substituteCount yedek) tek seferde
+        // göndermek zorunda. Diğer joiningTeam gönderenler (futbol COMPETITIVE web akışı)
+        // bu koşula hiç girmediği için etkilenmiyor.
+        let resolvedJoiningTeam = joiningTeam;
+        let teamAvgForNotif = null;
+        if (request.subCategory === 'volleyball' && request.matchType === 'PLAYER_WANTED' && (request.teamSize || 1) > 1) {
+            if (joiningTeam.length === 0) {
+                return res.status(400).json({ message: 'Bu ilana tek başına katılamazsınız — kendi takımınızı doldurup başvurmalısınız.' });
+            }
+            const mainEntries = joiningTeam.filter(m => m && !m.isSubstitute);
+            const subEntries = joiningTeam.filter(m => m && m.isSubstitute);
+            if (mainEntries.length !== request.teamSize) {
+                return res.status(400).json({ message: `Takımınız tam ${request.teamSize} kişi olmalı.` });
+            }
+            if (subEntries.length !== (request.substituteCount || 0)) {
+                return res.status(400).json({ message: `Bu ilan ${request.substituteCount || 0} yedek gerektiriyor — kadronuzdaki yedek sayısı eşleşmiyor.` });
+            }
+            const { resolvedMembers, error } = await resolveAndValidateTeam(request, joiningTeam, req.userId);
+            if (error) return res.status(400).json({ message: error });
+            resolvedJoiningTeam = resolvedMembers;
+            const ratings = resolvedMembers.filter(m => !m.isSubstitute && m.skillRating != null).map(m => m.skillRating);
+            teamAvgForNotif = ratings.length > 0 ? ratings.reduce((s, r) => s + r, 0) / ratings.length : null;
+        }
+
         let partnerId = req.body.partnerId || null;
         if (partnerId) {
             if (request.matchType !== 'DOUBLE') return res.status(400).json({ message: 'Partner seçimi sadece çiftler ilanlarında mümkün' });
@@ -2336,10 +2438,10 @@ export const sendJoinRequest = async (req, res, next) => {
             // tarihe bakıp yanlışlıkla "geç kabul" (joiner'a son onay sorusu) akışına sokar.
             await prisma.rivalJoinRequest.update({
                 where: { rivalId_userId: { rivalId: id, userId: req.userId } },
-                data: { status: 'PENDING', joiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null, createdAt: new Date(), ...(subSlotOpenForRequest && { isSubstituteInvite: true }) },
+                data: { status: 'PENDING', joiningTeam: resolvedJoiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null, createdAt: new Date(), ...(subSlotOpenForRequest && { isSubstituteInvite: true }) },
             });
         } else {
-            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null, ...(subSlotOpenForRequest && { isSubstituteInvite: true }) } });
+            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam: resolvedJoiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null, ...(subSlotOpenForRequest && { isSubstituteInvite: true }) } });
         }
 
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: SENDER_SELECT });
@@ -2361,10 +2463,12 @@ export const sendJoinRequest = async (req, res, next) => {
         createNotification(
             request.senderId,
             'RIVAL_JOIN_REQUEST',
-            isRefereeAd ? '🟨 Yeni Hakemlik Başvurusu' : '📥 Yeni Katılım İsteği',
+            isRefereeAd ? '🟨 Yeni Hakemlik Başvurusu' : (teamAvgForNotif != null ? '📥 Bir Takımdan Başvuru' : '📥 Yeni Katılım İsteği'),
             isRefereeAd
                 ? `${me?.fullName || me?.username || 'Biri'}, "${subCategoryTR(request.subCategory)}" maçınız için hakemlik başvurusu gönderdi.`
-                : `${me?.fullName || me?.username || 'Biri'}, "${subCategoryTR(request.subCategory)}" ilanınıza katılmak istiyor.`,
+                : teamAvgForNotif != null
+                    ? `${me?.fullName || me?.username || 'Biri'} takımıyla (Ort ${teamAvgForNotif.toFixed(2)}★) "${subCategoryTR(request.subCategory)}" ilanınıza başvurdu.`
+                    : `${me?.fullName || me?.username || 'Biri'}, "${subCategoryTR(request.subCategory)}" ilanınıza katılmak istiyor.`,
             // Hakem başvurusunda bildirim, bağlı bir maç varsa asıl maça yönlendirir — başvurular
             // orada "Hakem Başvuruları" bölümünde görünür. Bağımsız hakem ilanıysa (eski akış)
             // ilanın kendisine, Hakemler sekmesi üzerinden.
@@ -2865,6 +2969,7 @@ export const respondToJoin = async (req, res, next) => {
         let assignedToPartner = false;
         let updatedSenderTeam = null;
         let updatedUnassigned = null;
+        let updatedSubstitutePlayers = null;
 
         if (rival.matchType === 'DOUBLE') {
             const resolved = await resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoinReqToAccept, joinerEntry, participants, countFilled });
@@ -2890,8 +2995,23 @@ export const respondToJoin = async (req, res, next) => {
                 if (genderQuotaError) return res.status(400).json({ message: genderQuotaError });
                 updatedParticipants = participants;
                 updatedUnassigned = [...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []), joinerEntry];
+            } else if (isTeamJoin) {
+                // Voleybol "Rakip Aranıyor" (Rakip Bul sekmesi): sendJoinRequest'te doğrulanıp
+                // zenginleştirilmiş takım, ana kadro/yedek olarak ayrıştırılır — isSubstitute
+                // bayrağı YOKSA (futbolun COMPETITIVE web akışı, bkz. TeamChallengeModal) eski
+                // davranış aynen korunur: tüm dizi doğrudan participants'a yazılır.
+                const hasSubFlag = joiningTeam.some(m => m && typeof m.isSubstitute === 'boolean');
+                if (hasSubFlag) {
+                    updatedParticipants = joiningTeam.filter(m => !m.isSubstitute);
+                    updatedSubstitutePlayers = [
+                        ...(Array.isArray(rival.substitutePlayers) ? rival.substitutePlayers : []),
+                        ...joiningTeam.filter(m => m.isSubstitute),
+                    ];
+                } else {
+                    updatedParticipants = joiningTeam;
+                }
             } else {
-                updatedParticipants = isTeamJoin ? joiningTeam : [...participants, joinerEntry];
+                updatedParticipants = [...participants, joinerEntry];
             }
         }
 
@@ -2967,6 +3087,7 @@ export const respondToJoin = async (req, res, next) => {
             participants: updatedParticipants,
             ...(assignedToPartner && { senderTeam: updatedSenderTeam }),
             ...(updatedUnassigned && { unassignedPlayers: updatedUnassigned }),
+            ...(updatedSubstitutePlayers && { substitutePlayers: updatedSubstitutePlayers }),
         };
 
         const updated = await prisma.activityRequest.update({
@@ -3001,6 +3122,19 @@ export const respondToJoin = async (req, res, next) => {
         // Notify the joiner that they were accepted
         emitToUser(u.id, 'joinAccepted', { rivalId: rival.id, matched: isFull });
         if (partnerJoinReqToAccept) emitToUser(partnerJoinReqToAccept.userId, 'joinAccepted', { rivalId: rival.id, matched: isFull });
+        // Voleybol takım başvurusu: sadece isteği gönderen değil, kadrodaki (ana+yedek) tüm
+        // gerçek kullanıcılar da maçın kabul edildiğini görmeli.
+        if (updatedSubstitutePlayers !== null || (isTeamJoin && joiningTeam.length > 1)) {
+            joiningTeam.filter(m => m?.id && m.id !== u.id).forEach(m => {
+                emitToUser(m.id, 'joinAccepted', { rivalId: rival.id, matched: isFull });
+                createNotification(
+                    m.id, 'MATCH_CONFIRMED',
+                    isFull ? '🎉 Maç onaylandı!' : '✓ Takım başvurunuz kabul edildi!',
+                    `${rival.sender?.username || 'İlan sahibi'} takımınızın başvurusunu kabul etti.${isFull ? ' Maç doldu!' : ''}`,
+                    { rivalId: rival.id, category: rival.category, subCategory: rival.subCategory }
+                ).catch(() => {});
+            });
+        }
         // Also notify all participants and senderTeam of the match status
         if (isFull) {
             updatedParticipants.filter(p => p?.id).forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
@@ -3271,6 +3405,7 @@ export const confirmLateJoin = async (req, res, next) => {
         let assignedToPartner = false;
         let updatedSenderTeam = null;
         let updatedUnassigned = null;
+        let updatedSubstitutePlayers = null;
 
         if (rival.matchType === 'DOUBLE') {
             // Aradan geçen sürede diğer slotlar dolmuş/değişmiş olabilir — cinsiyet/slot uyumu
@@ -3296,8 +3431,21 @@ export const confirmLateJoin = async (req, res, next) => {
                 if (genderQuotaError) return res.status(400).json({ message: genderQuotaError });
                 updatedParticipants = participants;
                 updatedUnassigned = [...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []), joinerEntry];
+            } else if (isTeamJoin) {
+                // Bkz. respondToJoin'deki aynı mantık: isSubstitute bayrağı yoksa (futbol
+                // COMPETITIVE) eski davranış korunur.
+                const hasSubFlag = joiningTeam.some(m => m && typeof m.isSubstitute === 'boolean');
+                if (hasSubFlag) {
+                    updatedParticipants = joiningTeam.filter(m => !m.isSubstitute);
+                    updatedSubstitutePlayers = [
+                        ...(Array.isArray(rival.substitutePlayers) ? rival.substitutePlayers : []),
+                        ...joiningTeam.filter(m => m.isSubstitute),
+                    ];
+                } else {
+                    updatedParticipants = joiningTeam;
+                }
             } else {
-                updatedParticipants = isTeamJoin ? joiningTeam : [...participants, joinerEntry];
+                updatedParticipants = [...participants, joinerEntry];
             }
         }
         const isFull = assignedToPartner
@@ -3321,6 +3469,7 @@ export const confirmLateJoin = async (req, res, next) => {
                 receiverId: isFull ? u.id : rival.receiverId,
                 ...(assignedToPartner && { senderTeam: updatedSenderTeam }),
                 ...(updatedUnassigned && { unassignedPlayers: updatedUnassigned }),
+                ...(updatedSubstitutePlayers && { substitutePlayers: updatedSubstitutePlayers }),
                 ...(isFull && { reopenedAt: null }),
                 ...(isFull && rival.flexibleSchedule && {
                     schedulingDeadline: new Date(Date.now() + 24 * 60 * 60 * 1000),
@@ -3349,6 +3498,18 @@ export const confirmLateJoin = async (req, res, next) => {
         emitToUser(u.id, 'joinAccepted', { rivalId: rival.id, matched: isFull });
         if (partnerJoinReqToAccept) emitToUser(partnerJoinReqToAccept.userId, 'joinAccepted', { rivalId: rival.id, matched: isFull });
         if (isFull) updatedParticipants.forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
+        // Voleybol takım başvurusu: kadrodaki (ana+yedek) tüm gerçek kullanıcılar bilgilendirilir.
+        if (updatedSubstitutePlayers !== null || (isTeamJoin && joiningTeam.length > 1)) {
+            joiningTeam.filter(m => m?.id && m.id !== u.id).forEach(m => {
+                emitToUser(m.id, 'joinAccepted', { rivalId: rival.id, matched: isFull });
+                createNotification(
+                    m.id, 'MATCH_CONFIRMED',
+                    isFull ? '🎉 Maç onaylandı!' : '✓ Takım başvurunuz kabul edildi!',
+                    `${rival.sender?.username || 'İlan sahibi'} takımınızın başvurusunu kabul etti.${isFull ? ' Maç doldu!' : ''}`,
+                    { rivalId: rival.id, category: rival.category, subCategory: rival.subCategory }
+                ).catch(() => {});
+            });
+        }
 
         res.json({ message: isFull ? '🎉 Match is full!' : '✓ Confirmed!', request: updated, matched: isFull });
 

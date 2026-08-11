@@ -16,6 +16,11 @@ object PhoneSync {
             put("sport", state.config.sport.name)
             put("pointLabelA", state.gamePointLabel(Team.A))
             put("pointLabelB", state.gamePointLabel(Team.B))
+            // Ham sayı da gönderiliyor — voleybolde gamePointLabel tenis usulü (0/15/30/40)
+            // etiket üretiyor, oysa voleybol sayısı 25'e kadar çıkıyor; telefon tarafı
+            // voleybolde bu ham değeri, tenis/padelde ise pointLabel'i gösteriyor.
+            put("pointsA", state.pointsA)
+            put("pointsB", state.pointsB)
             put("gamesA", state.gamesA)
             put("gamesB", state.gamesB)
             put("setsA", state.setsWonA)

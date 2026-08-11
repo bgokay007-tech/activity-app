@@ -87,6 +87,21 @@
           "cameraPermission": "Arkadaş Bulma'da canlı görüşme yapabilmek için kameranı kullanmak istiyoruz.",
           "microphonePermission": "Arkadaş Bulma'da canlı görüşme yapabilmek için mikrofonunu kullanmak istiyoruz."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Maçını kaydedebilmek için kameranı kullanmak istiyoruz.",
+          "microphonePermission": "Maç kaydına ses eklemek için mikrofonunu kullanmak istiyoruz."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Kaydettiğin maç videolarını galerine kaydedebilmek için erişim istiyoruz.",
+          "savePhotosPermission": "Maç videosunu galerine kaydedebilmek için izin istiyoruz.",
+          "isAccessMediaLocationEnabled": false
+        }
       ]
     ],
     "extra": {
