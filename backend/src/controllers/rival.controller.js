@@ -4177,13 +4177,17 @@ export const assignPlayerToSide = async (req, res, next) => {
         const nextUnassigned = unassigned.filter(p => !matchPlayer(p));
         // Her tarafın kontenjanı Takım Büyüklüğü ile sınırlı — kurucu zaten 1 kişilik sabit
         // slotu tuttuğu için senderTeam en fazla (teamSize-1) kişi alır, Rakip Takımı ise
-        // tam teamSize. Önceden bu hiç kontrol edilmiyordu, bir tarafa teamSize'ı aşacak
-        // sayıda oyuncu (ör. 6v6'da 8 kişi) atanabiliyordu.
+        // tam teamSize. Bu kontrol nextSenderTeam/nextParticipants HENÜZ push() edilmeden
+        // ÖNCE yapılıyor — yani "dolu mu" değil "push'tan SONRA dolacak/taşacak mı" sorusu
+        // soruluyor, bu yüzden >= gerekiyor. Önceden > kullanılıyordu: takım TAM kapasitedeyken
+        // (ör. 6v6'da senderTeam.length===5) kontrol yanlışlıkla geçiyor, 6. kişi push edilip
+        // kapasite sessizce taşıyordu — o kişi de renderColumn'ın sabit slotsCount döngüsünde
+        // (i=0..5) hiç render edilmediği için arayüzden "kayboluyordu" (kullanıcı raporu).
         const teamSizeN = rival.teamSize || 1;
-        if (side === 'my' && nextSenderTeam.length > teamSizeN - 1) {
+        if (side === 'my' && nextSenderTeam.length >= teamSizeN - 1) {
             return res.status(400).json({ message: `Kurucu Takımı zaten dolu (${teamSizeN} kişilik kontenjan).` });
         }
-        if (side === 'opp' && nextParticipants.length > teamSizeN) {
+        if (side === 'opp' && nextParticipants.length >= teamSizeN) {
             return res.status(400).json({ message: `Rakip Takımı zaten dolu (${teamSizeN} kişilik kontenjan).` });
         }
         if (side === 'my') nextSenderTeam.push(player);

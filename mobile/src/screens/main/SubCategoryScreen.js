@@ -820,15 +820,19 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // Arka yüzdeki "Atanmamış" listesinde bir isme dokununca hangi takıma (Kurucu/Rakip,
     // gerçek isimleriyle) atanacağı sorulur — kullanıcı isteği: "isme tıklayınca takımların
     // isimleri çıksın, birini seçip atayabilsin". Hem gerçek kullanıcılar (p.id) hem manuel
-    // (kayıtsız, p.manualName) isimler için çalışır (bkz. assignManualToSide/backend).
+    // (kayıtsız, p.manualName) isimler için çalışır (bkz. assignManualToSide/backend). Dolu bir
+    // takım seçeneklerde hiç ÇIKMAZ (kullanıcı isteği) — backend zaten reddediyordu ama seçilebilir
+    // görünmesi kafa karıştırıyordu (bkz. assignPlayerToSide'daki kapasite kontrolü).
+    const teamSizeNForAssign = item.teamSize || 1;
+    const founderFullForAssign = 1 + senderTeamArr.filter(p => p && (p.id || p.manualName)).length >= teamSizeNForAssign;
+    const oppFullForAssign = participants.filter(p => p && (p.id || p.manualName)).length + oppManualNames.length >= teamSizeNForAssign;
     const promptAssignTeam = (p) => {
         const name = p.id ? playerDisplayName(p) : p.manualName;
         const doAssign = (side) => p.id ? assignUnassignedToSide(p.id, side) : assignManualToSide(p.manualName, side);
-        Alert.alert(name, 'Hangi takıma atansın?', [
-            { text: 'Vazgeç', style: 'cancel' },
-            { text: item.founderTeamName || t.myTeamLabel, onPress: () => doAssign('my') },
-            { text: item.opponentTeamName || t.oppTeamLabel, onPress: () => doAssign('opp') },
-        ]);
+        const buttons = [{ text: 'Vazgeç', style: 'cancel' }];
+        if (!founderFullForAssign) buttons.push({ text: item.founderTeamName || t.myTeamLabel, onPress: () => doAssign('my') });
+        if (!oppFullForAssign) buttons.push({ text: item.opponentTeamName || t.oppTeamLabel, onPress: () => doAssign('opp') });
+        Alert.alert(name, buttons.length > 1 ? 'Hangi takıma atansın?' : 'İki takım da dolu — önce birinden yer açman gerekiyor.', buttons);
     };
     // Çiftlerde (DOUBLE) toplam kapasite sabit 4 (2 taraf x 2) ve "required" zaten
     // rakip tarafta kalan boş kontenjanı ifade eder. Takım sporlarında (voleybol 6v6 vb.)
@@ -6988,14 +6992,19 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
     }, [unassignedKeys.size]);
     // Açık ilan detayındaki (RivalDetailModal) promptAssignTeam/promptSlotAction ile AYNI
     // mantık — isme dokununca hangi takıma atanacağı sorulur, dolu bir slotta "Değiştir/Çıkar"
-    // ile Çıkar/Atanmamışa Taşı seçilir (kullanıcı isteği: "aynı mantık").
+    // ile Çıkar/Atanmamışa Taşı seçilir (kullanıcı isteği: "aynı mantık"). Dolu bir takım
+    // seçeneklerde hiç ÇIKMAZ (kullanıcı isteği) — backend zaten reddediyordu ama seçilebilir
+    // görünmesi kafa karıştırıyordu (bkz. assignPlayerToSide'daki kapasite kontrolü).
+    const founderFilledCount = founderPlayers.filter(p => p && (p.id || p.manualName)).length;
+    const oppFilledCount = oppPlayers.filter(p => p && (p.id || p.manualName)).length;
+    const founderFull = founderFilledCount >= teamSize;
+    const oppFull = oppFilledCount >= teamSize;
     const promptAssignTeam = (p) => {
         const name = p.id ? senderAlias(p) : p.manualName;
-        Alert.alert(name, 'Hangi takıma atansın?', [
-            { text: 'Vazgeç', style: 'cancel' },
-            { text: founderTeamName || t.founderTeamShortLabel, onPress: () => onAssign(p.id, 'my', p.id ? undefined : p.manualName) },
-            { text: opponentTeamName || t.opponentTeamShortLabel, onPress: () => onAssign(p.id, 'opp', p.id ? undefined : p.manualName) },
-        ]);
+        const buttons = [{ text: 'Vazgeç', style: 'cancel' }];
+        if (!founderFull) buttons.push({ text: founderTeamName || t.founderTeamShortLabel, onPress: () => onAssign(p.id, 'my', p.id ? undefined : p.manualName) });
+        if (!oppFull) buttons.push({ text: opponentTeamName || t.opponentTeamShortLabel, onPress: () => onAssign(p.id, 'opp', p.id ? undefined : p.manualName) });
+        Alert.alert(name, buttons.length > 1 ? 'Hangi takıma atansın?' : 'İki takım da dolu — önce birinden yer açman gerekiyor.', buttons);
     };
     const promptSlotAction = (p) => {
         const name = p.id ? senderAlias(p) : p.manualName;
