@@ -731,7 +731,17 @@ export const getRivalById = async (req, res, next) => {
         const rival = await prisma.activityRequest.findUnique({
             where: { id },
             include: {
-                sender: { select: { ...SENDER_SELECT, interests: { select: { alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
+                // NOT: sender.interests BURADA seçilmiyor — aşağıda ayrı bir sorguyla subCategory'ye
+                // GÖRE FİLTRELENEREK ekleniyor (bkz. senderInterest). Önceden buradaki interests
+                // select'inde where filtresi yoktu; bir kullanıcının birden fazla spor ilgisi varsa
+                // Prisma'nın döndürdüğü SIRA garantili değildi — ör. voleybolde 1.26 puanlı bir
+                // kullanıcının interests[0]'ı bazen tenis/padel'deki 3.40 puanına denk geliyordu.
+                // Bu da "bir anda 3.40 oldu, birkaç saniye sonra 1.26'ya geri döndü" olarak
+                // görünüyordu (kullanıcı raporu) — geri dönüş, sonraki doğru-filtrelenmiş bir
+                // listeleme isteğiyle oluyordu. Bu uç nokta zaten socket'le CANLI yayınlanan bir
+                // ilanı (ör. bir demo bot katılım isteği gönderince) her görüntüleyene ittiği için
+                // hata anlık ama görünür oluyordu.
+                sender: { select: SENDER_SELECT },
                 refereeUser: { select: SENDER_SELECT },
                 joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
                 // Hakem Arıyorum ilanları (matchType PLAYER_WANTED, positions:['REFEREE']) için:
@@ -743,20 +753,27 @@ export const getRivalById = async (req, res, next) => {
 
         // getRivalRequests'teki AYNI derece-puanı zenginleştirmesi (bkz. oradaki yorum) —
         // tek kayıt çekildiğinde de (ör. atama sonrası yenileme) kadro kartı güncel puanı görsün.
+        // Kurucunun (sender) kendi puanı da AYNI sorguya (ve subCategory filtresine) dahil.
         const teamUserIds = [...new Set([
+            rival.senderId,
             ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []).filter(p => p?.id).map(p => p.id),
             ...(Array.isArray(rival.participants) ? rival.participants : []).filter(p => p?.id).map(p => p.id),
             ...(Array.isArray(rival.substitutePlayers) ? rival.substitutePlayers : []).filter(p => p?.id).map(p => p.id),
         ])];
         const teamInterests = teamUserIds.length > 0
-            ? await prisma.userInterest.findMany({ where: { userId: { in: teamUserIds }, subCategory: rival.subCategory }, select: { userId: true, skillRating: true } })
+            ? await prisma.userInterest.findMany({
+                where: { userId: { in: teamUserIds }, subCategory: rival.subCategory },
+                select: { userId: true, alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true },
+            })
             : [];
         const withTeamRating = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id
             ? { ...p, skillRating: teamInterests.find(i => i.userId === p.id)?.skillRating ?? null }
             : p);
+        const senderInterest = teamInterests.find(i => i.userId === rival.senderId);
 
         res.json({
             ...rival,
+            sender: { ...rival.sender, interests: senderInterest ? [senderInterest] : [] },
             senderTeam: withTeamRating(rival.senderTeam),
             participants: withTeamRating(rival.participants),
             substitutePlayers: withTeamRating(rival.substitutePlayers),
@@ -2451,8 +2468,14 @@ export const sendJoinRequest = async (req, res, next) => {
         const updatedRival = await prisma.activityRequest.findUnique({
             where: { id },
             include: {
-                sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
-                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                // where filtresi ÖNEMLİ — filtresiz interests select'i, birden fazla spor
+                // ilgisi olan bir kurucunun derece puanının ilgisiz bir daldaki (ör.
+                // tenis/padel) puanla anlık olarak yer değiştirip görünmesine sebep oluyordu
+                // (kullanıcı raporu: "bir anda 3.40 oldu, 20-30 saniye sonra 1.26'ya döndü" —
+                // bu uç nokta socket'le CANLI yayınlandığı için (ör. bir demo bot katılım
+                // isteği gönderince) hata anlık ama görünür oluyordu).
+                sender: { select: { ...SENDER_SELECT, interests: { where: { category: request.category, subCategory: request.subCategory }, select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: request.category, subCategory: request.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
             },
         });
         broadcast('rivalUpdate', updatedRival);
@@ -2522,7 +2545,8 @@ export const withdrawJoinRequest = async (req, res, next) => {
         const updatedRival = await prisma.activityRequest.findUnique({
             where: { id: joinReq.rivalId },
             include: {
-                sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
+                // where filtresi ÖNEMLİ — bkz. sendJoinRequest'teki aynı düzeltmenin yorumu.
+                sender: { select: { ...SENDER_SELECT, interests: { where: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }, select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
                 joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
             },
         });
@@ -2584,7 +2608,8 @@ export const setRivalJoinPartner = async (req, res, next) => {
         const updatedRival = await prisma.activityRequest.findUnique({
             where: { id },
             include: {
-                sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
+                // where filtresi ÖNEMLİ — bkz. sendJoinRequest'teki aynı düzeltmenin yorumu.
+                sender: { select: { ...SENDER_SELECT, interests: { where: { category: request.category, subCategory: request.subCategory }, select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
                 joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
             },
         });
@@ -2711,7 +2736,8 @@ export const inviteToRival = async (req, res, next) => {
         const updatedRival = await prisma.activityRequest.findUnique({
             where: { id },
             include: {
-                sender: { select: { ...SENDER_SELECT, interests: { select: { level: true, totalPoints: true, wins: true, losses: true, alias: true } } } },
+                // where filtresi ÖNEMLİ — bkz. sendJoinRequest'teki aynı düzeltmenin yorumu.
+                sender: { select: { ...SENDER_SELECT, interests: { where: { category: rival.category, subCategory: rival.subCategory }, select: { level: true, totalPoints: true, wins: true, losses: true, alias: true } } } },
                 joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
             },
         });
@@ -4801,22 +4827,47 @@ export const removeRivalParticipant = async (req, res, next) => {
 
         const wasMatched = rival.status === 'MATCHED';
 
+        // Voleybol: dolu bir maçtan biri çıkarılınca, bekleyen bir Yedek varsa (kullanıcı
+        // isteği) ilan tekrar açılıp herkese sunulmak yerine sırada bekleyen ilk yedek
+        // doğrudan asıl kadroya terfi ettirilir — maç MATCHED kalmaya devam eder. Yedek
+        // yoksa aşağıdaki eski davranış (ilan yeniden açılır) aynen çalışır.
+        let finalParticipants = updatedParticipants;
+        let finalSenderTeam = updatedSenderTeam;
+        let promotedSub = null;
+        let remainingSubs = null;
+        if (wasMatched && rival.subCategory === 'volleyball') {
+            const subs = Array.isArray(rival.substitutePlayers) ? rival.substitutePlayers : [];
+            if (subs.length > 0) {
+                promotedSub = subs[0];
+                remainingSubs = subs.slice(1);
+                if (inParticipants) {
+                    const vacatedIndex = participants.findIndex(p => removeIds.includes(p?.id));
+                    finalParticipants = setAtSlot(updatedParticipants, vacatedIndex, promotedSub);
+                } else if (inSenderTeam) {
+                    finalSenderTeam = [...updatedSenderTeam, promotedSub];
+                }
+            }
+        }
+        const staysMatched = !!promotedSub;
+
         const updated = await prisma.activityRequest.update({
             where: { id },
             data: {
-                participants: updatedParticipants,
-                senderTeam: updatedSenderTeam,
-                status: 'OPEN',
-                receiverId: null,
-                schedulingDeadline: null,
+                participants: finalParticipants,
+                senderTeam: finalSenderTeam,
+                ...(promotedSub && { substitutePlayers: remainingSubs }),
+                status: staysMatched ? 'MATCHED' : 'OPEN',
+                receiverId: staysMatched ? rival.receiverId : null,
+                schedulingDeadline: staysMatched ? rival.schedulingDeadline : null,
                 // matchDate/matchTime yalnızca esnek programlı ilanlarda (eşleşme sonrası
                 // belirlendiği için) sıfırlanır — sabit tarih/saatli ilanlarda bunlar
                 // kort rezervasyonuyla birlikte ilan sahibinin kendi belirlediği bilgidir,
                 // bir katılımcı çıkarıldı diye kaybolmamalı (kort rezervesi zaten duruyor).
-                ...(rival.flexibleSchedule && { matchDate: null, matchTime: null }),
+                ...(rival.flexibleSchedule && !staysMatched && { matchDate: null, matchTime: null }),
                 // Maç doluyken açılan bir slot — sonraki kabul (kimi kabul ederse etsin,
                 // süre farketmeksizin) joiner'dan son onay ister (bkz. respondToJoin).
-                ...(wasMatched && { reopenedAt: new Date() }),
+                // Yedek terfi ettiyse maç zaten dolu kaldığı için bu akışa hiç girmiyor.
+                ...(wasMatched && !staysMatched && { reopenedAt: new Date() }),
             },
             include: { sender: { select: SENDER_SELECT } },
         });
@@ -4825,9 +4876,18 @@ export const removeRivalParticipant = async (req, res, next) => {
             where: { rivalId: id, userId: { in: removeIds }, status: 'ACCEPTED' },
             data: { status: 'REJECTED' },
         });
+        // Terfi eden yedeğin bekleyen "yedek olarak başvur" isteği varsa artık asıl kadroda,
+        // ayrıca bir kabul/red beklemesine gerek yok.
+        if (promotedSub?.id) {
+            await prisma.rivalJoinRequest.updateMany({
+                where: { rivalId: id, userId: promotedSub.id, status: 'PENDING' },
+                data: { status: 'ACCEPTED' },
+            }).catch(() => {});
+        }
 
         broadcast('rivalUpdate', updated);
         for (const uid of removeIds) emitToUser(uid, 'rivalUpdate', updated);
+        if (promotedSub?.id) emitToUser(promotedSub.id, 'rivalUpdate', updated);
 
         res.json({ removed: removeIds, request: updated });
 
@@ -4835,8 +4895,19 @@ export const removeRivalParticipant = async (req, res, next) => {
         for (const uid of removeIds) {
             createNotification(uid, 'MATCH_CANCELLED',
                 '⚠️ Katılımınız Kaldırıldı',
-                `${senderName} sizi "${subCategoryTR(rival.subCategory)}" ilanından çıkardı. İlan tekrar açık hâle geldi.`,
+                staysMatched
+                    ? `${senderName} sizi "${subCategoryTR(rival.subCategory)}" ilanından çıkardı. Yerinize bir yedek oyuncu geçti, maç dolu kaldı.`
+                    : `${senderName} sizi "${subCategoryTR(rival.subCategory)}" ilanından çıkardı. İlan tekrar açık hâle geldi.`,
                 { rivalId: id, subCategory: rival.subCategory }
+            ).catch(() => {});
+        }
+        // Yedekten asıl kadroya terfi — maçı kaçırmasın diye yüksek öncelikli push.
+        if (promotedSub?.id) {
+            createNotification(promotedSub.id, 'MATCH_CONFIRMED',
+                '🚨 Yedekten Asıl Kadroya Geçtiniz!',
+                `"${subCategoryTR(rival.subCategory)}" maçında kadrodan biri ayrıldı, yerine siz asıl kadroya alındınız — maçınız var!`,
+                { rivalId: id, subCategory: rival.subCategory },
+                'high'
             ).catch(() => {});
         }
         // Kullanıcı isteği: kadro değiştiğinde (biri çıkarıldığında) kalan takım
@@ -4846,12 +4917,15 @@ export const removeRivalParticipant = async (req, res, next) => {
             || 'Bir oyuncu';
         notifyRosterChange(updated, {
             title: '🔄 Kadro Değişti',
-            body: `${removedName} takımdan çıkarıldı.`,
+            body: promotedSub
+                ? `${removedName} takımdan çıkarıldı, yerine bir yedek oyuncu asıl kadroya alındı.`
+                : `${removedName} takımdan çıkarıldı.`,
             excludeUserId: userId,
         });
-        // Maç doluyken bu değişiklik olduysa, ilana bekleyen istek göndermiş
-        // herkese de haber ver — belki artık uygun değillerdir ya da tam tersi.
-        if (wasMatched) notifyPendingRequestersOfReopen(id, rival.category, rival.subCategory, removeIds);
+        // Maç doluyken bu değişiklik olduysa VE yerini dolduran bir yedek yoksa, ilana
+        // bekleyen istek göndermiş herkese de haber ver — belki artık uygun değillerdir
+        // ya da tam tersi. Yedek terfi ettiyse maç zaten dolu, bu bildirime gerek yok.
+        if (wasMatched && !staysMatched) notifyPendingRequestersOfReopen(id, rival.category, rival.subCategory, removeIds);
     } catch (error) { next(error); }
 };
 

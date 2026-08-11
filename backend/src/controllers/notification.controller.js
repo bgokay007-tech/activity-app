@@ -2,14 +2,14 @@ import prisma from '../config/prisma.js';
 import { emitToUser } from '../config/socket.js';
 import axios from 'axios';
 
-async function sendPush(pushToken, title, body, data = {}) {
+async function sendPush(pushToken, title, body, data = {}, priority = 'default') {
     if (!pushToken?.startsWith('ExponentPushToken')) {
         console.warn('[push] invalid token:', pushToken?.substring(0, 30));
         return;
     }
     try {
         const res = await axios.post('https://exp.host/--/api/v2/push/send', {
-            to: pushToken, title, body, sound: 'default', data,
+            to: pushToken, title, body, sound: 'default', data, priority,
         }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
         const ticket = res.data?.data;
         if (ticket?.status === 'error') {
@@ -53,7 +53,10 @@ export const markOneRead = async (req, res, next) => {
 };
 
 // Helper — called from other controllers
-export async function createNotification(userId, type, title, body, data = {}) {
+// priority: 'default' | 'high' — Expo push'un Android FCM teslim önceliği. Sadece gerçekten
+// aciliyeti olan durumlarda (ör. yedekten asıl kadroya terfi — maçı kaçırmasınlar) 'high' kullan,
+// aksi halde varsayılan kalsın (her bildirimi 'high' yapmak anlamını kaybettirir).
+export async function createNotification(userId, type, title, body, data = {}, priority = 'default') {
     try {
         const [notif, user] = await Promise.all([
             prisma.notification.create({ data: { userId, type, title, body, data } }),
@@ -61,7 +64,7 @@ export async function createNotification(userId, type, title, body, data = {}) {
         ]);
         emitToUser(userId, 'notification', notif);
         console.log(`[push] user=${userId} hasToken=${!!user?.pushToken}`);
-        if (user?.pushToken) sendPush(user.pushToken, title, body, { ...data, type });
+        if (user?.pushToken) sendPush(user.pushToken, title, body, { ...data, type }, priority);
         return notif;
     } catch { /* non-critical */ }
 }

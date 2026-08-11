@@ -5914,6 +5914,10 @@ function TeamJoinRequestModal({ visible, onClose, rival, sub, category, cfg, nav
                         <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', opacity:0.8, minHeight:0 }]}>
                             <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{myUser?.fullName || myUser?.username}</Text>
                         </View>
+                        {/* Kullanıcı isteği: yıldız puanı formun içinde isim soyisminin sağında yazsın. */}
+                        {myOwnRating != null && (
+                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(myOwnRating).toFixed(2)}★</Text>
+                        )}
                     </View>
                 </View>
             )}
@@ -10107,6 +10111,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', opacity:0.8, minHeight:0 }]}>
                                                                 <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{myUser?.fullName || myUser?.username}</Text>
                                                             </View>
+                                                            {/* Kullanıcı isteği: yıldız puanı formun içinde isim soyisminin sağında yazsın. */}
+                                                            {myOwnRating != null && (
+                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(myOwnRating).toFixed(2)}★</Text>
+                                                            )}
                                                         </View>
                                                     </View>
                                                     {sortedPool.map(({ slot, i }, displayPos) => (
@@ -10196,7 +10204,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 <Text style={{ fontSize:10 }}>✎</Text>
                                                             </TouchableOpacity>
                                                         </View>
-                                                        <Text style={{ color:'#fff', fontSize:11, marginBottom:3, marginTop:2 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:3, marginTop:2 }}>
+                                                            <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
+                                                            {/* Kullanıcı isteği: yıldız puanı formun içinde isim soyisminin sağında yazsın. */}
+                                                            {myOwnRating != null && (
+                                                                <Text style={{ color:'#facc15', fontSize:10, fontWeight:'800' }} numberOfLines={1}>{Number(myOwnRating).toFixed(2)}★</Text>
+                                                            )}
+                                                        </View>
                                                         {mySlotOrder.map((idx, orderI) => (
                                                             <View key={`my-slot-${idx}`} style={{ position:'relative', zIndex: activeSlotKey === `pool-${idx}` ? 51 : 1, marginBottom:2 }}>
                                                                 <TeamSlotRow side="pool" index={idx} slot={f.rosterSlots[idx]}
