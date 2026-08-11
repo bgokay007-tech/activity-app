@@ -992,10 +992,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // değiştir yazsın, tıklayınca küçük pencerede Çıkar / Atanmamışa Taşı çıksın"). Manuel
     // (kayıtsız) isimlerde "Çıkar" backend'de henüz desteklenmiyor (bkz. removeRivalParticipant
     // sadece gerçek userId alıyor) — onlar için sadece Atanmamışa Taşı sunulur.
-    const promptSlotAction = (p) => {
+    // side: bu kişinin ŞU AN hangi takımda olduğu ('my'|'opp') — kullanıcı isteği: "karşıya
+    // taşımak istiyorsa karşı rakibin ismi neyse x takıma taşı seçeneği olsun, boşluk varsa".
+    const promptSlotAction = (p, side) => {
         const name = p.id ? playerDisplayName(p) : p.manualName;
+        const oppositeSide = side === 'my' ? 'opp' : 'my';
+        const oppositeFull = oppositeSide === 'my' ? founderFullForAssign : oppFullForAssign;
+        const oppositeLabel = oppositeSide === 'my' ? (item.founderTeamName || t.myTeamLabel) : (item.opponentTeamName || t.oppTeamLabel);
         const buttons = [{ text: 'Vazgeç', style: 'cancel' }];
         if (p.id) buttons.push({ text: 'Çıkar', style: 'destructive', onPress: () => removeRivalParticipant(p.id, p.username) });
+        if (!oppositeFull) {
+            buttons.push({ text: `${oppositeLabel}'a Taşı`, onPress: () => (p.id ? assignUnassignedToSide(p.id, oppositeSide) : assignManualToSide(p.manualName, oppositeSide)) });
+        }
         buttons.push({ text: 'Atanmamışa Taşı', onPress: () => (p.id ? assignUnassignedToSide(p.id, null) : assignManualToSide(p.manualName, null)) });
         Alert.alert(name, '', buttons);
     };
@@ -1688,7 +1696,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // takım adı/atama butonu YOK — atama sadece arka yüzdeki "Atanmamış"
                             // listesinden yapılıyor (bkz. promptAssignTeam), ön yüz sadece görüntüleme +
                             // atanmamışlar için kırmızı yanıp sönen uyarı (unassignedWarning).
-                            const Cell = ({ p, allowRemove, unassignedWarning }) => {
+                            const Cell = ({ p, side, allowRemove, unassignedWarning }) => {
                                 const isFounder = p.id && p.id === item.senderId;
                                 return (
                                     <View style={{ flexDirection:'row', alignItems:'center' }}>
@@ -1705,7 +1713,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             hizalı. Dokununca küçük bir pencerede Çıkar / Atanmamışa Taşı sorulur
                                             (bkz. promptSlotAction). */}
                                         {isOwner && !isFounder && allowRemove && (
-                                            <TouchableOpacity onPress={() => promptSlotAction(p)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
+                                            <TouchableOpacity onPress={() => promptSlotAction(p, side)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
                                                 <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700', textDecorationLine:'underline' }} numberOfLines={1}>Çıkar/Değiştir</Text>
                                             </TouchableOpacity>
                                         )}
@@ -1746,7 +1754,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             // hangi forma davet edildiğini görsün).
                                             const isHighlighted = !p && highlightSlot?.side === side && highlightSlot?.slotIndex === i;
                                             return p ? (
-                                                <View key={p.id || `m-${i}`} style={{ marginBottom:3 }}><Cell p={p} allowRemove={allowRemove} /></View>
+                                                <View key={p.id || `m-${i}`} style={{ marginBottom:3 }}><Cell p={p} side={side} allowRemove={allowRemove} /></View>
                                             ) : (
                                                 <View key={`e-${i}`} style={{ marginBottom:3 }}>
                                                     {isOwner && side ? (
@@ -1764,7 +1772,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             );
                                         })}
                                         {legacyManualExtra.map((p, i) => (
-                                            <View key={`legacy-${i}`} style={{ marginBottom:3 }}><Cell p={p} allowRemove={allowRemove} /></View>
+                                            <View key={`legacy-${i}`} style={{ marginBottom:3 }}><Cell p={p} side={side} allowRemove={allowRemove} /></View>
                                         ))}
                                     </View>
                                 );
@@ -7006,10 +7014,18 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
         if (!oppFull) buttons.push({ text: opponentTeamName || t.opponentTeamShortLabel, onPress: () => onAssign(p.id, 'opp', p.id ? undefined : p.manualName) });
         Alert.alert(name, buttons.length > 1 ? 'Hangi takıma atansın?' : 'İki takım da dolu — önce birinden yer açman gerekiyor.', buttons);
     };
-    const promptSlotAction = (p) => {
+    // side: bu kişinin ŞU AN hangi takımda olduğu ('my'|'opp') — kullanıcı isteği: "karşıya
+    // taşımak istiyorsa karşı rakibin ismi neyse x takıma taşı seçeneği olsun, boşluk varsa".
+    const promptSlotAction = (p, side) => {
         const name = p.id ? senderAlias(p) : p.manualName;
+        const oppositeSide = side === 'my' ? 'opp' : 'my';
+        const oppositeFull = oppositeSide === 'my' ? founderFull : oppFull;
+        const oppositeLabel = oppositeSide === 'my' ? (founderTeamName || t.founderTeamShortLabel) : (opponentTeamName || t.opponentTeamShortLabel);
         const buttons = [{ text: 'Vazgeç', style: 'cancel' }];
         if (p.id && onRemovePlayer) buttons.push({ text: 'Çıkar', style: 'destructive', onPress: () => onRemovePlayer(p.id) });
+        if (!oppositeFull) {
+            buttons.push({ text: `${oppositeLabel}'a Taşı`, onPress: () => onAssign(p.id, oppositeSide, p.id ? undefined : p.manualName) });
+        }
         buttons.push({ text: 'Atanmamışa Taşı', onPress: () => onAssign(p.id, null, p.id ? undefined : p.manualName) });
         Alert.alert(name, '', buttons);
     };
@@ -7061,7 +7077,7 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                                 {/* Kullanıcı isteği: açık ilan detayındaki ("Çıkar/Değiştir") ile aynı mantık —
                                     isme dokunup direkt atanmamışa atmak yerine, sağda bir menü açılır. */}
                                 {isOwner && !locked && (
-                                    <TouchableOpacity onPress={() => promptSlotAction(p)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
+                                    <TouchableOpacity onPress={() => promptSlotAction(p, targetSide)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
                                         <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700', textDecorationLine:'underline' }} numberOfLines={1}>Değiştir/Çıkar</Text>
                                     </TouchableOpacity>
                                 )}
