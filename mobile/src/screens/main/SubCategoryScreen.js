@@ -3658,6 +3658,22 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [showMatchLive, setShowMatchLive] = useState(false);
     const [matchLiveOptions, setMatchLiveOptions] = useState({ wantCamera: false, wantWatch: false });
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
+    // Çiftler (DOUBLE) kadro kartı artık voleyboldeki (TeamAssignCard) gibi çevrilebilir:
+    // ön yüz numaralı forma havuzu, arka yüz Kurucu/Rakip sütunları (kullanıcı isteği:
+    // "tenisdeki kartın stilini de voleyboldeki gibi forma olarak yap, daha anlaşılır oluyor").
+    // assignPlayerToSide/swapTeamPlayers backend'de SADECE takım sporlarında (teamSize>1)
+    // çalıştığı için TeamAssignCard doğrudan kullanılamadı — aynı görsel dil, ama DOUBLE'a
+    // özgü assign-double-slot/swap-positions uç noktalarıyla (aşağıdaki assignDoubleSlot/
+    // handleSwapTap) kendi flip state'i burada tutuluyor.
+    const [doubleCardBack, setDoubleCardBack] = useState(false);
+    const doubleFlipAnim = useRef(new Animated.Value(0)).current;
+    const doubleUnassignedBlink = useRef(new Animated.Value(1)).current;
+    const flipDoubleCard = () => {
+        Animated.timing(doubleFlipAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(() => {
+            setDoubleCardBack(b => !b);
+            Animated.timing(doubleFlipAnim, { toValue: doubleCardBack ? 0 : 1, duration: 150, useNativeDriver: true }).start();
+        });
+    };
     const [teamNameModal, setTeamNameModal] = useState(null); // { side: 'founder'|'opponent', value } | null
     const [savingTeamName, setSavingTeamName] = useState(false);
     const [sets, setSets] = useState([{ my: '', opp: '' }]);
@@ -3748,6 +3764,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const oppScoreLabel = isTeamMatch ? (iAmFounderSide ? (match.opponentTeamName || t.opponentTeamShortLabel) : (match.founderTeamName || t.founderTeamShortLabel)) : 'Rakip';
     // Voleybol: açık ilana sonradan katılıp henüz Kurucu/Rakip'e atanmamış oyuncular.
     const unassignedArr   = (Array.isArray(match.unassignedPlayers) ? match.unassignedPlayers : []).filter(p => p?.id);
+    useEffect(() => {
+        if (match.matchType !== 'DOUBLE' || unassignedArr.length === 0) return;
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(doubleUnassignedBlink, { toValue: 0.25, duration: 500, useNativeDriver: true }),
+            Animated.timing(doubleUnassignedBlink, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [match.matchType, unassignedArr.length]);
     // Maça dahil olmayan kullanıcılar (örn. herkese açık "Yaklaşan Maçlar" listesinde başkasının
     // maçını görüntüleyen biri) sipariş verme gibi katılımcıya özel aksiyonları görmemeli.
     const isParticipant = isOwner || match.receiverId === myId
@@ -4602,94 +4627,139 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 </View>
                             );
                         };
+                        // Ön yüz havuzu — kurucu kilitli ilk forma + partner/rakip1/rakip2, voleyboldeki
+                        // TeamAssignCard'ın ön yüzüyle AYNI görsel dil (numaralı forma, atanmamışlar
+                        // kırmızı yanıp söner).
+                        const doublePool = [{ ...match.sender, skillRating: match.senderSkillRating }, partner, opp1, opp2].filter(p => p && (p.id || p.manualName));
+                        const unassignedKeys = new Set(unassignedArr.map(p => p.id));
+                        const rotateY = doubleFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
                         return (
                             <View style={{ marginBottom:12 }}>
-                                {swapSlot && (
-                                    <View style={{ backgroundColor:'#f59e0b10', borderRadius:5, padding:1, marginBottom:4, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
-                                        <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>Hedef slota dokun</Text>
-                                        <TouchableOpacity onPress={() => setSwapSlot(null)}><Text style={{ color: colors.textMuted, fontSize:9 }}>İptal</Text></TouchableOpacity>
-                                    </View>
-                                )}
-                                {/* İlan sahibi/partner sol sütunda dip dibe, her biri kendi karşısındaki
-                                    rakiple aynı satırda hizalanır (kurucu ↔ rakip1, partner ↔ rakip2). */}
-                                <View style={{ gap:3 }}>
-                                    <View style={{ flexDirection:'row', gap:3, alignItems:'stretch' }}>
-                                        <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
-                                                <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', flex:1 }} numberOfLines={1}>{founderLabel1}</Text>
-                                                {canEditFounder && (
-                                                    <TouchableOpacity onPress={() => setTeamNameModal({ side:'founder', value: match.founderTeamName || '' })}>
-                                                        <Text style={{ fontSize:9 }}>✎</Text>
-                                                    </TouchableOpacity>
-                                                )}
+                                <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor:'#ffffff20', padding:10, transform:[{ perspective:800 }, { rotateY }] }}>
+                                    {!doubleCardBack ? (
+                                        <>
+                                            <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.rosterPoolLabel}</Text>
+                                                <TouchableOpacity onPress={flipDoubleCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                    <Text style={{ fontSize:15 }}>🔄</Text>
+                                                </TouchableOpacity>
                                             </View>
-                                            <View style={{ borderRadius:5, paddingHorizontal:2, paddingVertical:0, backgroundColor:'#1e293b' }}>
-                                                <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(match.sender)} 🔒</Text>
-                                            </View>
-                                        </View>
-                                        <View style={{ width:16, alignItems:'center', justifyContent:'center' }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }}>vs</Text>
-                                        </View>
-                                        <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#f8717120' }}>
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
-                                                <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', flex:1 }} numberOfLines={1}>{oppLabel1}</Text>
-                                                {canEditOpponent && (
-                                                    <TouchableOpacity onPress={() => setTeamNameModal({ side:'opponent', value: match.opponentTeamName || '' })}>
-                                                        <Text style={{ fontSize:9 }}>✎</Text>
-                                                    </TouchableOpacity>
-                                                )}
-                                            </View>
-                                            {mkSlot('opp1', opp1, '#fca5a5')}
-                                        </View>
-                                    </View>
-                                    <View style={{ flexDirection:'row', gap:3, alignItems:'stretch' }}>
-                                        <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
-                                            <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }} numberOfLines={1}>{founderLabel2}</Text>
-                                            {mkSlot('partner', partner, '#c084fc')}
-                                        </View>
-                                        <View style={{ width:16, alignItems:'center', justifyContent:'center' }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }}>vs</Text>
-                                        </View>
-                                        <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#f8717120' }}>
-                                            <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }} numberOfLines={1}>{oppLabel2}</Text>
-                                            {mkSlot('opp2', opp2, '#fca5a5')}
-                                        </View>
-                                    </View>
-                                </View>
-                                {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && !locked && (
-                                    <Text style={{ color: colors.textMuted, fontSize:10, marginTop:4, textAlign:'center' }}>↕ Bir oyuncuya dokun → seç → diğerine dokun → yer değiştir</Text>
-                                )}
-                                {/* Atanmamış — kabul edilmiş ama henüz Takım Arkadaşı/Rakip1/Rakip2'ye
-                                    yerleşmemiş oyuncular (bkz. yukarıdaki assignDoubleSlot). RivalDetailModal'daki
-                                    aynı bölümün buradaki karşılığı — önceden burada hiç gösterilmiyordu. */}
-                                {unassignedArr.length > 0 && (
-                                    <View style={{ marginTop:8 }}>
-                                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800', marginBottom:4 }}>Atanmamış</Text>
-                                        {unassignedArr.map(p => {
-                                            const isMe = p.id === myId;
-                                            const openSlotOptions = [
-                                                !partner && { key:'partner', label: SLOT_LABEL.partner },
-                                                !opp1 && { key:'opp1', label: SLOT_LABEL.opp1 },
-                                                !opp2 && { key:'opp2', label: SLOT_LABEL.opp2 },
-                                            ].filter(Boolean);
-                                            return (
-                                                <View key={p.id} style={{ backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:4 }}>
-                                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
-                                                    {(isOwner || isMe) && openSlotOptions.length > 0 && (
-                                                        <View style={{ flexDirection:'row', gap:4, marginTop:3 }}>
-                                                            {openSlotOptions.map(opt => (
-                                                                <TouchableOpacity key={opt.key} onPress={() => assignDoubleSlot(p.id, opt.key)}
-                                                                    style={{ flex:1, paddingVertical:3, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50', alignItems:'center' }}>
-                                                                    <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{opt.label}</Text>
-                                                                </TouchableOpacity>
-                                                            ))}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
+                                                {doublePool.map((p, i) => {
+                                                    const isUnassigned = unassignedKeys.has(p.id);
+                                                    return (
+                                                        <View key={p.id || `m-${i}`} style={{ width:'23.5%' }}>
+                                                            <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
+                                                                <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
+                                                                <Animated.View style={{ flex:1, opacity: isUnassigned ? doubleUnassignedBlink : 1 }}>
+                                                                    <Text style={{ color: isUnassigned ? '#ef4444' : '#fff', fontSize:10, fontWeight: isUnassigned ? '800' : '400' }} numberOfLines={1}>{i + 1}. {senderAlias(p)}</Text>
+                                                                </Animated.View>
+                                                                {p.skillRating != null && (
+                                                                    <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
+                                                                )}
+                                                            </View>
                                                         </View>
-                                                    )}
+                                                    );
+                                                })}
+                                            </View>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{cfg.emoji}</Text>
+                                                <TouchableOpacity onPress={flipDoubleCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                    <Text style={{ fontSize:14 }}>🔄</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                            {swapSlot && (
+                                                <View style={{ backgroundColor:'#f59e0b10', borderRadius:5, padding:1, marginBottom:4, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+                                                    <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>Hedef slota dokun</Text>
+                                                    <TouchableOpacity onPress={() => setSwapSlot(null)}><Text style={{ color: colors.textMuted, fontSize:9 }}>İptal</Text></TouchableOpacity>
                                                 </View>
-                                            );
-                                        })}
-                                    </View>
-                                )}
+                                            )}
+                                            {/* İlan sahibi/partner sol sütunda dip dibe, her biri kendi karşısındaki
+                                                rakiple aynı satırda hizalanır (kurucu ↔ rakip1, partner ↔ rakip2). */}
+                                            <View style={{ gap:3 }}>
+                                                <View style={{ flexDirection:'row', gap:3, alignItems:'stretch' }}>
+                                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
+                                                            <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', flex:1 }} numberOfLines={1}>{founderLabel1}</Text>
+                                                            {canEditFounder && (
+                                                                <TouchableOpacity onPress={() => setTeamNameModal({ side:'founder', value: match.founderTeamName || '' })}>
+                                                                    <Text style={{ fontSize:9 }}>✎</Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                        </View>
+                                                        <View style={{ borderRadius:5, paddingHorizontal:2, paddingVertical:0, backgroundColor:'#1e293b' }}>
+                                                            <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(match.sender)} 🔒</Text>
+                                                        </View>
+                                                    </View>
+                                                    <View style={{ width:16, alignItems:'center', justifyContent:'center' }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }}>vs</Text>
+                                                    </View>
+                                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#f8717120' }}>
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
+                                                            <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', flex:1 }} numberOfLines={1}>{oppLabel1}</Text>
+                                                            {canEditOpponent && (
+                                                                <TouchableOpacity onPress={() => setTeamNameModal({ side:'opponent', value: match.opponentTeamName || '' })}>
+                                                                    <Text style={{ fontSize:9 }}>✎</Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                        </View>
+                                                        {mkSlot('opp1', opp1, '#fca5a5')}
+                                                    </View>
+                                                </View>
+                                                <View style={{ flexDirection:'row', gap:3, alignItems:'stretch' }}>
+                                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
+                                                        <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }} numberOfLines={1}>{founderLabel2}</Text>
+                                                        {mkSlot('partner', partner, '#c084fc')}
+                                                    </View>
+                                                    <View style={{ width:16, alignItems:'center', justifyContent:'center' }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }}>vs</Text>
+                                                    </View>
+                                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#f8717120' }}>
+                                                        <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }} numberOfLines={1}>{oppLabel2}</Text>
+                                                        {mkSlot('opp2', opp2, '#fca5a5')}
+                                                    </View>
+                                                </View>
+                                            </View>
+                                            {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && !locked && (
+                                                <Text style={{ color: colors.textMuted, fontSize:10, marginTop:4, textAlign:'center' }}>↕ Bir oyuncuya dokun → seç → diğerine dokun → yer değiştir</Text>
+                                            )}
+                                            {/* Atanmamış — kabul edilmiş ama henüz Takım Arkadaşı/Rakip1/Rakip2'ye
+                                                yerleşmemiş oyuncular (bkz. yukarıdaki assignDoubleSlot). RivalDetailModal'daki
+                                                aynı bölümün buradaki karşılığı — önceden burada hiç gösterilmiyordu. */}
+                                            {unassignedArr.length > 0 && (
+                                                <View style={{ marginTop:8 }}>
+                                                    <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800', marginBottom:4 }}>Atanmamış</Text>
+                                                    {unassignedArr.map(p => {
+                                                        const isMe = p.id === myId;
+                                                        const openSlotOptions = [
+                                                            !partner && { key:'partner', label: SLOT_LABEL.partner },
+                                                            !opp1 && { key:'opp1', label: SLOT_LABEL.opp1 },
+                                                            !opp2 && { key:'opp2', label: SLOT_LABEL.opp2 },
+                                                        ].filter(Boolean);
+                                                        return (
+                                                            <View key={p.id} style={{ backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:4 }}>
+                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                                                {(isOwner || isMe) && openSlotOptions.length > 0 && (
+                                                                    <View style={{ flexDirection:'row', gap:4, marginTop:3 }}>
+                                                                        {openSlotOptions.map(opt => (
+                                                                            <TouchableOpacity key={opt.key} onPress={() => assignDoubleSlot(p.id, opt.key)}
+                                                                                style={{ flex:1, paddingVertical:3, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50', alignItems:'center' }}>
+                                                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{opt.label}</Text>
+                                                                            </TouchableOpacity>
+                                                                        ))}
+                                                                    </View>
+                                                                )}
+                                                            </View>
+                                                        );
+                                                    })}
+                                                </View>
+                                            )}
+                                        </>
+                                    )}
+                                </Animated.View>
                             </View>
                         );
                     })()}
@@ -5952,13 +6022,13 @@ function TeamJoinRequestModal({ visible, onClose, rival, sub, category, cfg, nav
     const theirRatings = [rival?.senderSkillRating, ...(Array.isArray(rival?.senderTeam) ? rival.senderTeam : []).map(p => p?.skillRating)].filter(r => r != null);
     const theirAvg = theirRatings.length > 0 ? theirRatings.reduce((a, b) => a + b, 0) / theirRatings.length : null;
 
-    const slotFilled = (sl) => !!sl && (sl.type === 'user' || (sl.type === 'manual' && sl.name?.trim()));
+    // Voleybolde manuel (uygulamasız) oyuncu yok — herkes teşvik gereği uygulamadan aranıp
+    // seçilmek zorunda, sadece type==='user' "dolu" sayılır (bkz. TeamSlotRow, sub==='volleyball').
+    const slotFilled = (sl) => sl?.type === 'user';
     const allFilled = mainSlots.every(slotFilled) && subSlots.every(slotFilled);
 
     const submit = async () => {
-        const toEntry = (sl, isSubstitute) => sl.type === 'user'
-            ? { userId: sl.userId, isSubstitute }
-            : { manualName: sl.name.trim(), gender: sl.gender || null, isSubstitute };
+        const toEntry = (sl, isSubstitute) => ({ userId: sl.userId, isSubstitute });
         try {
             setSubmitting(true);
             await api.post(`/rivals/${rival.id}/respond`, {
@@ -6003,7 +6073,7 @@ function TeamJoinRequestModal({ visible, onClose, rival, sub, category, cfg, nav
                         onPickUser={(u) => { setSlot(group, i, { type:'user', userId:u.id, username:u.username, fullName:u.fullName, avatar:u.avatar, gender:u.gender||null, skillRating:u.interests?.[0]?.skillRating ?? null }); setActiveSlotKey(null); setSlotSuggestions([]); }}
                         onClear={() => setSlot(group, i, null)}
                         onSetGender={(g) => setSlotGender(group, i, g)}
-                        matchMode={rival?.matchMode}
+                        matchMode={rival?.matchMode} sub="volleyball"
                         cfg={cfg} s={s} colors={colors} t={t}
                         onPressAvatar={(userId) => navigation.push('Profile', { userId })}
                     />
@@ -7397,7 +7467,11 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
 // Voleybol takım slotu — kayıtlı kullanıcı aramak (yazınca öneri düşer) veya
 // hesabı olmayan biri için sadece isim yazmak (öneri seçilmezse manuel kalır)
 // için tek satır. CreateRivalModal'ın kendi state'ini (activeSlotKey vb.) kullanır.
-function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSuggestions, slotSearching, onFocus, onChangeText, onPickUser, onClear, onSetPosition, onSetGender, matchMode, cfg, s, colors, onAssignSide, onPressAvatar, t }) {
+function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSuggestions, slotSearching, onFocus, onChangeText, onPickUser, onClear, onSetPosition, onSetGender, matchMode, sub, cfg, s, colors, onAssignSide, onPressAvatar, t }) {
+    // Voleybolde herkesin uygulama kullanması teşvik edilmek isteniyor — uygulamada kayıtlı
+    // olmayan biri için "var say" (manuel isim + cinsiyet atama) yolu burada kapatılıyor,
+    // sadece Antrenman modunda ve voleybol dışındaki dallarda hâlâ açık (kullanıcı isteği).
+    const noManual = matchMode === 'COMPETITIVE' || sub === 'volleyball';
     const key = `${side}-${index}`;
     const text = !slot ? '' : slot.type === 'user' ? (slot.fullName || slot.username) : slot.name;
     const isActive = activeSlotKey === key;
@@ -7517,15 +7591,15 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                         </TouchableOpacity>
                     ))}
                     {showStatus && slotSuggestions.length === 0 && (
-                        <Text style={{ color: matchMode === 'COMPETITIVE' ? '#f87171' : colors.textMuted, fontSize:9, padding:6 }} numberOfLines={2}>
-                            {slotSearching ? t.searchingLabel : matchMode === 'COMPETITIVE' ? t.competitiveNoManualPlayers : t.noRegisteredUserFound}
+                        <Text style={{ color: noManual ? '#f87171' : colors.textMuted, fontSize:9, padding:6 }} numberOfLines={2}>
+                            {slotSearching ? t.searchingLabel : matchMode === 'COMPETITIVE' ? t.competitiveNoManualPlayers : sub === 'volleyball' ? t.volleyballNoManualPlayers : t.noRegisteredUserFound}
                         </Text>
                     )}
-                    {/* Rekabetçi maçta Elo puanı hesaplandığı için uygulamada hesabı olmayan
-                        (manuel) oyuncu eklenemiyor — sadece Antrenman modunda "bu oyuncuyu var
-                        say" + cinsiyet seçimi sunulur. Cinsiyet zaten seçildiyse bu istem bir
-                        daha çıkmaz. */}
-                    {showStatus && !slotSearching && matchMode !== 'COMPETITIVE' && !slot?.gender && (
+                    {/* Rekabetçi maçta Elo puanı hesaplandığı için, voleybolde de herkes uygulama
+                        kullansın diye uygulamada hesabı olmayan (manuel) oyuncu eklenemiyor —
+                        sadece diğer dallarda ve Antrenman modunda "bu oyuncuyu var say" + cinsiyet
+                        seçimi sunulur. Cinsiyet zaten seçildiyse bu istem bir daha çıkmaz. */}
+                    {showStatus && !slotSearching && !noManual && !slot?.gender && (
                         <View style={{ padding:6, borderTopWidth: slotSuggestions.length > 0 ? 1 : 0, borderTopColor: colors.border }}>
                             <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={2}>{t.manualPlayerAssumePrompt}</Text>
                             <View style={{ flexDirection:'row', gap:3, marginTop:3 }}>
@@ -8671,7 +8745,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     refereeRequested: !!f.refereeRequested,
                     refereePayment: f.refereeRequested && !f.refereeFeeIncluded && f.refereePayment !== '' ? `${f.refereePayment}₺` : null,
                     refereeFeeIncluded: !!f.refereeFeeIncluded,
-                    manualRefereeName: f.refereeRequested && f.manualRefereeName.trim() ? f.manualRefereeName.trim() : null,
+                    manualRefereeName: sub !== 'volleyball' && f.refereeRequested && f.manualRefereeName.trim() ? f.manualRefereeName.trim() : null,
                     participantsCanInvite: !!f.participantsCanInvite,
                     extraServices: f.extraServices,
                 }),
@@ -8872,7 +8946,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 refereeInvites: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && f.refereeRequested && f.refereeInvites.length > 0
                     ? f.refereeInvites.map(inv => ({ userId: inv.user.id, message: inv.message || undefined, price: inv.price || undefined }))
                     : undefined,
-                manualRefereeName: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && f.refereeRequested && f.manualRefereeName.trim()
+                // Voleybolde hakem de uygulama üzerinden aranıp seçilmek zorunda — manuel isim
+                // burada gönderilmiyor (bkz. RefereeTypeContent, referee.allowManual).
+                manualRefereeName: ['tennis', 'padel', 'airsoft'].includes(sub) && f.refereeRequested && f.manualRefereeName.trim()
                     ? f.manualRefereeName.trim() : undefined,
                 participantsCanInvite: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) ? !!f.participantsCanInvite : undefined,
                 extraServices: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
@@ -8883,27 +8959,28 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 founderTeamInviteIds: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'user' && s.side === 'my').map(s => s.userId)
                     : undefined,
-                founderTeamManualNames: (isVolleyball || sub === 'airsoft')
+                // Voleybolde manuel isim artık hiç gönderilmiyor — sadece airsoft'ta devam ediyor
+                // (kullanıcı isteği: voleybolde herkes uygulamadan aranıp seçilmek zorunda).
+                founderTeamManualNames: sub === 'airsoft'
                     ? f.rosterSlots.filter(s => s?.type === 'manual' && s.side === 'my').map(s => ({ name: s.name, gender: s.gender }))
                     : undefined,
                 oppTeamInviteIds: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'user' && s.side === 'opp').map(s => s.userId)
                     : undefined,
-                oppTeamManualNames: (isVolleyball || sub === 'airsoft')
+                oppTeamManualNames: sub === 'airsoft'
                     ? f.rosterSlots.filter(s => s?.type === 'manual' && s.side === 'opp').map(s => ({ name: s.name, gender: s.gender }))
                     : undefined,
                 substituteInviteIds: isVolleyball
                     ? f.subSlots.filter(s => s?.type === 'user').map(s => s.userId)
                     : undefined,
-                substituteManualNames: isVolleyball
-                    ? f.subSlots.filter(s => s?.type === 'manual').map(s => ({ name: s.name, gender: s.gender }))
-                    : undefined,
+                // Voleybolde yedek de sadece uygulama kullanıcısı olabilir — manuel yedek kaldırıldı.
+                substituteManualNames: undefined,
                 // Hangi takımda oynayacağı henüz belli olmayan (side:null) dolu slotlar —
                 // ilan oluştururken herkesi atamak artık zorunlu değil (kullanıcı isteği).
                 unassignedInviteIds: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'user' && !s.side).map(s => s.userId)
                     : undefined,
-                unassignedManualNames: (isVolleyball || sub === 'airsoft')
+                unassignedManualNames: sub === 'airsoft'
                     ? f.rosterSlots.filter(s => s?.type === 'manual' && !s.side).map(s => ({ name: s.name, gender: s.gender }))
                     : undefined,
             });
@@ -10216,7 +10293,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 onAssignSide={(sd) => setSlotSide(i, sd)}
                                                                 onSetPosition={(p) => setSlotPosition('pool', i, p)}
                                                                 onSetGender={(g) => setSlotGender('pool', i, g)}
-                                                                matchMode={f.matchMode}
+                                                                matchMode={f.matchMode} sub={sub}
                                                                 onPressAvatar={(userId) => navigation.push('Profile', { userId })}
                                                                 cfg={cfg} s={s} colors={colors} t={t} />
                                                         </View>
@@ -10237,7 +10314,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                         onClear={() => setSlot('sub', i, null)}
                                                                         onSetPosition={(p) => setSlotPosition('sub', i, p)}
                                                                         onSetGender={(g) => setSlotGender('sub', i, g)}
-                                                                        matchMode={f.matchMode}
+                                                                        matchMode={f.matchMode} sub={sub}
                                                                         onPressAvatar={(userId) => navigation.push('Profile', { userId })}
                                                                         cfg={cfg} s={s} colors={colors} t={t} />
                                                                 </View>
@@ -10310,7 +10387,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                     onClear={() => setSlot('pool', idx, null)}
                                                                     onSetPosition={(p) => setSlotPosition('pool', idx, p)}
                                                                     onSetGender={(g) => setSlotGender('pool', idx, g)}
-                                                                    matchMode={f.matchMode}
+                                                                    matchMode={f.matchMode} sub={sub}
                                                                     onPressAvatar={(userId) => navigation.push('Profile', { userId })}
                                                                     cfg={cfg} s={s} colors={colors} t={t} />
                                                             </View>
@@ -10340,7 +10417,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                     onClear={() => setSlot('pool', idx, null)}
                                                                     onSetPosition={(p) => setSlotPosition('pool', idx, p)}
                                                                     onSetGender={(g) => setSlotGender('pool', idx, g)}
-                                                                    matchMode={f.matchMode}
+                                                                    matchMode={f.matchMode} sub={sub}
                                                                     onPressAvatar={(userId) => navigation.push('Profile', { userId })}
                                                                     cfg={cfg} s={s} colors={colors} t={t} />
                                                             </View>
