@@ -7,6 +7,11 @@ Pod::Spec.new do |s|
   s.platform       = :ios, '15.1'
   s.source         = { git: '' }
   s.static_framework = true
+  # swift_version belirtilmezse CocoaPods, hangi Swift derleyicisi kullanılacağını
+  # anlamak için toolchain'i otomatik keşfetmeye çalışıyor — bazı ortamlarda (ör. EAS
+  # build makineleri) bu keşif başarısız olup "Unable to automatically discover your
+  # Swift toolchain" hatasını veriyor. ExpoModulesCore'un kendi podspec'iyle aynı sürüm.
+  s.swift_version  = '5.9'
 
   s.dependency 'ExpoModulesCore'
 

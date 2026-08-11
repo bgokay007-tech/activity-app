@@ -3616,6 +3616,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const t = useT();
     const insets = useSafeAreaInsets();
     const [showScore, setShowScore] = useState(false);
+    // Maçı Başlat — kamera kaydı ve/ya da saatten canlı skor takibi.
+    const [showMatchStart, setShowMatchStart] = useState(false);
+    const [showMatchLive, setShowMatchLive] = useState(false);
+    const [matchLiveOptions, setMatchLiveOptions] = useState({ wantCamera: false, wantWatch: false });
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
     const [teamNameModal, setTeamNameModal] = useState(null); // { side: 'founder'|'opponent', value } | null
     const [savingTeamName, setSavingTeamName] = useState(false);
@@ -18699,6 +18703,21 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         const isTeam = m.matchMode?.toUpperCase() === 'TEAM';
                                         const sizeTxt = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                         const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
+                                        // Kullanıcı isteği: kompakt arşiv kartında sadece takımlar, skor, takım
+                                        // ortalamaları, tarih/saat/süre/mod görünsün — oyuncu bazlı detaylar
+                                        // (derece/puan değişimi, set dökümü) ve itiraz/akran/hakem aksiyonları
+                                        // artık kartta değil, karta dokununca açılan detayda (bkz.
+                                        // ArchiveMatchDetailModal — bunların hepsi zaten orada var).
+                                        const founderLabel = m.founderTeamName || (founderSide.length > 1 ? 'Kurucu Takım' : (founderSide[0] ? senderAlias(founderSide[0]) : 'Kurucu'));
+                                        const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? 'Rakip Takım' : (opponentSide[0] ? senderAlias(opponentSide[0]) : 'Rakip'));
+                                        const founderSetWins = sets ? sets.filter(s2 => s2.sender > s2.opponent).length : null;
+                                        const opponentSetWins = sets ? sets.filter(s2 => s2.opponent > s2.sender).length : null;
+                                        const avgOf = (side) => {
+                                            const rs = side.map(p => snapshot[p.id]?.skillRating_after).filter(r => r != null);
+                                            return rs.length > 0 ? rs.reduce((a, b) => a + b, 0) / rs.length : null;
+                                        };
+                                        const founderAvg = avgOf(founderSide);
+                                        const opponentAvg = avgOf(opponentSide);
                                         return (
                                             <TouchableOpacity key={m.id} activeOpacity={0.8} onPress={() => setArchiveDetailMatch(m)} style={[s.card, { width:'48%', paddingHorizontal:0, paddingTop:0, paddingBottom:0 }, m.id === highlightRivalId && { borderColor:'#f97316', borderWidth:2 }]}>
                                                 <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap' }}>
@@ -18707,82 +18726,22 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:11, fontWeight:'700' }}>{modeTxt}</Text> : null}
                                                     {myResult ? <Text style={{ fontSize:14, marginLeft:'auto' }}>{myResult}</Text> : null}
                                                 </View>
-                                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                    {m.flexibleSchedule ? '📅 Esnek' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
-                                                    {!m.flexibleSchedule && m.matchTime ? ` ${m.matchTime}` : ''}
-                                                </Text>
-                                                {(m.courtName || m.location) ? (
-                                                    <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                        🏟️ {m.courtName || m.location}
-                                                        {m.courtName && m.location ? `  📍 ${m.location}` : ''}
-                                                    </Text>
-                                                ) : null}
-                                                {(() => {
-                                                    const renderCompactPlayer = (p, isFounderSidePlayer) => {
-                                                        const hist = snapshot[p.id];
-                                                        const rBefore = hist?.skillRating_before;
-                                                        const pts = hist?.change ?? null;
-                                                        const pSets = sets ? sets.map(s2 => isFounderSidePlayer ? s2.sender : s2.opponent) : null;
-                                                        const pWins = sets ? sets.filter(s2 => (isFounderSidePlayer ? s2.sender : s2.opponent) > (isFounderSidePlayer ? s2.opponent : s2.sender)).length : null;
-                                                        return (
-                                                            <View key={p.id || p.username} style={{ alignItems:'flex-start', gap:3 }}>
-                                                                <TouchableOpacity onPress={() => p.id && setProfileUserId(p.id)} activeOpacity={0.7} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:0, paddingVertical:0, flexDirection:'row', alignItems:'center', gap:3, maxWidth:100 }}>
-                                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'600', flexShrink:1 }} numberOfLines={1} ellipsizeMode="tail">{senderAlias(p)}</Text>
-                                                                    {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(rBefore).toFixed(2)} ★</Text>}
-                                                                    {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'800' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
-                                                                </TouchableOpacity>
-                                                                {pSets && (
-                                                                    <Text style={{ color: colors.textMuted, fontSize:11, paddingLeft:3 }}>
-                                                                        {pSets.join('  ')}
-                                                                        {'  '}<Text style={{ color: pWins != null && pWins > (sets.length - pWins) ? '#4ade80' : pWins != null && pWins < (sets.length - pWins) ? '#f87171' : colors.textMuted, fontWeight:'800' }}>({pWins})</Text>
-                                                                    </Text>
-                                                                )}
-                                                            </View>
-                                                        );
-                                                    };
-                                                    return (
-                                                        <View style={{ marginBottom: sets ? 3 : 0 }}>
-                                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 }}>
-                                                                {founderSide.map(p => renderCompactPlayer(p, true))}
-                                                            </View>
-                                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
-                                                                {opponentSide.map(p => renderCompactPlayer(p, false))}
-                                                            </View>
-                                                        </View>
-                                                    );
-                                                })()}
-                                                {m.scoreStatus === 'CONFIRMED' && !m.scoreAppeal && m.completedAt
-                                                    && (Date.now() - new Date(m.completedAt).getTime()) <= 48 * 3600 * 1000 && (
-                                                    <TouchableOpacity
-                                                        onPress={() => handleAppeal(m)}
-                                                        style={{ marginTop:4, backgroundColor:'#f9731620', borderRadius:6, paddingVertical:3, paddingHorizontal:6, borderWidth:1, borderColor:'#f9731650', alignSelf:'flex-start' }}>
-                                                        <Text style={{ color:'#f97316', fontSize:10, fontWeight:'700' }}>⚠️ İtiraz Et</Text>
-                                                    </TouchableOpacity>
-                                                )}
-                                                {m.scoreAppeal && (
-                                                    <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:4 }}>⏳ İtiraz İnceleniyor</Text>
-                                                )}
-                                                {m.needsPeerReview && (
-                                                    <TouchableOpacity
-                                                        onPress={() => setPeerReviewRivalId(m.id)}
-                                                        style={{ marginTop:4, backgroundColor: cfg.color + '20', borderRadius:6, paddingVertical:3, paddingHorizontal:6, borderWidth:1, borderColor: cfg.color + '50', alignSelf:'flex-start' }}>
-                                                        <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>{t.peerReviewNeedsReviewBtn}</Text>
-                                                    </TouchableOpacity>
-                                                )}
-                                                {m.refereeId && m.myRefereeReview && (
-                                                    <View style={{ marginTop:4, backgroundColor:'#fbbf2415', borderRadius:6, paddingVertical:3, paddingHorizontal:6, borderWidth:1, borderColor:'#fbbf2440', alignSelf:'flex-start' }}>
-                                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>
-                                                            {'⭐'.repeat(m.myRefereeReview.rating)} Hakemi değerlendirdin
-                                                        </Text>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:2 }}>
+                                                    <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{founderLabel}</Text>
+                                                    {sets && <Text style={{ color:'#fff', fontSize:14, fontWeight:'900' }}>{founderSetWins} - {opponentSetWins}</Text>}
+                                                    <Text style={{ color:'#fca5a5', fontSize:12, fontWeight:'700', flex:1, textAlign:'right' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{opponentLabel}</Text>
+                                                </View>
+                                                {(founderAvg != null || opponentAvg != null) && (
+                                                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:3 }}>
+                                                        <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700', flex:1 }}>{founderAvg != null ? `Ø ${founderAvg.toFixed(2)} ★` : ''}</Text>
+                                                        <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700', flex:1, textAlign:'right' }}>{opponentAvg != null ? `Ø ${opponentAvg.toFixed(2)} ★` : ''}</Text>
                                                     </View>
                                                 )}
-                                                {m.refereeId && !m.myRefereeReview && m.canReviewReferee && (
-                                                    <TouchableOpacity
-                                                        onPress={() => openRefereeReview(m)}
-                                                        style={{ marginTop:4, backgroundColor:'#fbbf2420', borderRadius:6, paddingVertical:3, paddingHorizontal:6, borderWidth:1, borderColor:'#fbbf2450', alignSelf:'flex-start' }}>
-                                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>Hakemi Değerlendir</Text>
-                                                    </TouchableOpacity>
-                                                )}
+                                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                    {m.flexibleSchedule ? '📅 Esnek' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
+                                                    {!m.flexibleSchedule && m.matchTime ? ` · 🕐 ${m.matchTime}` : ''}
+                                                    {m.duration != null ? ` · ⏱ ${m.duration} dk` : ''}
+                                                </Text>
                                             </TouchableOpacity>
                                         );
                                     })}
