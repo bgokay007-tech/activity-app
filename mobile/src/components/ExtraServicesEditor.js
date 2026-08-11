@@ -98,8 +98,11 @@ function RefereeTypeContent({ referee }) {
     // + Ekle ile serbest metin olarak eklenir. İkisi aynı anda olamaz.
     const trimmedName = referee.name.trim();
     const invitedUser = referee.invites[0]?.user || null;
+    // allowManual false olduğunda (ör. voleybol) uygulamada kayıtlı olmayan biri serbest
+    // metinle eklenemez — herkesi uygulama kullanmaya teşvik etmek için (kullanıcı isteği).
+    const allowManual = referee.allowManual !== false;
     const confirmReferee = () => {
-        if (!trimmedName) return;
+        if (!allowManual || !trimmedName) return;
         if (!referee.requested) referee.onToggleRequested();
         Keyboard.dismiss();
     };
@@ -133,7 +136,7 @@ function RefereeTypeContent({ referee }) {
                             style={[st.input, { marginBottom:0, height:34 }]}
                             value={referee.name}
                             onChangeText={referee.onChangeName}
-                            placeholder="Hakem adı soyadı"
+                            placeholder={allowManual ? 'Hakem adı soyadı' : 'Hakem adı yaz, listeden seç...'}
                             placeholderTextColor={colors.textMuted}
                             returnKeyType="done"
                             onSubmitEditing={confirmReferee}
@@ -148,17 +151,22 @@ function RefereeTypeContent({ referee }) {
                                 ))}
                             </View>
                         )}
+                        {!allowManual && trimmedName.length >= 2 && referee.suggestions.length === 0 && (
+                            <Text style={{ color: colors.textMuted, fontSize:10, marginTop:3 }}>Kayıtlı kullanıcı bulunamadı — sadece uygulamayı kullanan biri hakem eklenebilir.</Text>
+                        )}
                     </View>
-                    <TouchableOpacity
-                        onPress={confirmReferee}
-                        disabled={!trimmedName}
-                        style={{ flex:0.5, height:34, alignItems:'center', justifyContent:'center', borderRadius:8, backgroundColor: trimmedName ? colors.purple : colors.surface, borderWidth:1, borderColor: trimmedName ? colors.purple : colors.border, opacity: trimmedName ? 1 : 0.5 }}
-                    >
-                        <Text style={{ color: trimmedName ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'800' }}>Ekle</Text>
-                    </TouchableOpacity>
+                    {allowManual && (
+                        <TouchableOpacity
+                            onPress={confirmReferee}
+                            disabled={!trimmedName}
+                            style={{ flex:0.5, height:34, alignItems:'center', justifyContent:'center', borderRadius:8, backgroundColor: trimmedName ? colors.purple : colors.surface, borderWidth:1, borderColor: trimmedName ? colors.purple : colors.border, opacity: trimmedName ? 1 : 0.5 }}
+                        >
+                            <Text style={{ color: trimmedName ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'800' }}>Ekle</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             )}
-            {referee.requested && (trimmedName || invitedUser) && (
+            {referee.requested && ((allowManual && trimmedName) || invitedUser) && (
                 <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:8 }}>
                     <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'800', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                         {invitedUser

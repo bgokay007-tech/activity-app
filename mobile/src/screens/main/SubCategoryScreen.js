@@ -1830,8 +1830,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     {isOwner && side ? (
                                                         <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t}
                                                             placeholder={t.teamSlotPh(i + 1)}
-                                                            onInvite={(u) => inviteToTeamSlot(u, side, i)}
-                                                            onAddManual={item.matchMode === 'COMPETITIVE' ? undefined : (name, gender) => addManualPlayerToTeam(name, side, i, gender)} />
+                                                            onInvite={(u) => inviteToTeamSlot(u, side, i)} />
                                                     ) : isHighlighted ? (
                                                         <Animated.View style={{ flexDirection:'row', alignItems:'center', gap:3, borderWidth:2, borderColor: cfg.color, borderRadius:8, padding:2, opacity: highlightPulse }}>
                                                             <Text style={{ fontSize:12 }}>👉</Text>
@@ -7468,10 +7467,9 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
 // hesabı olmayan biri için sadece isim yazmak (öneri seçilmezse manuel kalır)
 // için tek satır. CreateRivalModal'ın kendi state'ini (activeSlotKey vb.) kullanır.
 function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSuggestions, slotSearching, onFocus, onChangeText, onPickUser, onClear, onSetPosition, onSetGender, matchMode, sub, cfg, s, colors, onAssignSide, onPressAvatar, t }) {
-    // Voleybolde herkesin uygulama kullanması teşvik edilmek isteniyor — uygulamada kayıtlı
-    // olmayan biri için "var say" (manuel isim + cinsiyet atama) yolu burada kapatılıyor,
-    // sadece Antrenman modunda ve voleybol dışındaki dallarda hâlâ açık (kullanıcı isteği).
-    const noManual = matchMode === 'COMPETITIVE' || sub === 'volleyball';
+    // Herkesin uygulama kullanması teşvik edilmek isteniyor — uygulamada kayıtlı olmayan
+    // biri için "var say" (manuel isim + cinsiyet atama) yolu hiçbir dalda/modda kalmasın
+    // diye tamamen kapatıldı (kullanıcı isteği: "manuel oyuncu mantığı hiçbir yerde kalmasın").
     const key = `${side}-${index}`;
     const text = !slot ? '' : slot.type === 'user' ? (slot.fullName || slot.username) : slot.name;
     const isActive = activeSlotKey === key;
@@ -7590,29 +7588,13 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                             </Text>
                         </TouchableOpacity>
                     ))}
+                    {/* Uygulamada hesabı olmayan (manuel) oyuncu artık hiçbir dalda/modda
+                        eklenemiyor — herkes uygulamadan aranıp seçilmek zorunda (kullanıcı isteği:
+                        "manuel oyuncu mantığı hiçbir yerde kalmasın", uygulama kullanımını teşvik). */}
                     {showStatus && slotSuggestions.length === 0 && (
-                        <Text style={{ color: noManual ? '#f87171' : colors.textMuted, fontSize:9, padding:6 }} numberOfLines={2}>
-                            {slotSearching ? t.searchingLabel : matchMode === 'COMPETITIVE' ? t.competitiveNoManualPlayers : sub === 'volleyball' ? t.volleyballNoManualPlayers : t.noRegisteredUserFound}
+                        <Text style={{ color: '#f87171', fontSize:9, padding:6 }} numberOfLines={2}>
+                            {slotSearching ? t.searchingLabel : matchMode === 'COMPETITIVE' ? t.competitiveNoManualPlayers : sub === 'volleyball' ? t.volleyballNoManualPlayers : t.noManualPlayersMsg}
                         </Text>
-                    )}
-                    {/* Rekabetçi maçta Elo puanı hesaplandığı için, voleybolde de herkes uygulama
-                        kullansın diye uygulamada hesabı olmayan (manuel) oyuncu eklenemiyor —
-                        sadece diğer dallarda ve Antrenman modunda "bu oyuncuyu var say" + cinsiyet
-                        seçimi sunulur. Cinsiyet zaten seçildiyse bu istem bir daha çıkmaz. */}
-                    {showStatus && !slotSearching && !noManual && !slot?.gender && (
-                        <View style={{ padding:6, borderTopWidth: slotSuggestions.length > 0 ? 1 : 0, borderTopColor: colors.border }}>
-                            <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={2}>{t.manualPlayerAssumePrompt}</Text>
-                            <View style={{ flexDirection:'row', gap:3, marginTop:3 }}>
-                                <TouchableOpacity onPress={() => onSetGender?.('MALE')}
-                                    style={{ paddingHorizontal:6, paddingVertical:2, borderRadius:6, backgroundColor: slot?.gender==='MALE' ? '#3b82f6' : '#3b82f620', borderWidth:1, borderColor:'#3b82f6' }}>
-                                    <Text style={{ color: slot?.gender==='MALE' ? '#fff' : '#3b82f6', fontSize:9, fontWeight:'700' }}>{t.genderMale}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => onSetGender?.('FEMALE')}
-                                    style={{ paddingHorizontal:6, paddingVertical:2, borderRadius:6, backgroundColor: slot?.gender==='FEMALE' ? '#ec4899' : '#ec489920', borderWidth:1, borderColor:'#ec4899' }}>
-                                    <Text style={{ color: slot?.gender==='FEMALE' ? '#fff' : '#ec4899', fontSize:9, fontWeight:'700' }}>{t.genderFemale}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
                     )}
                 </View>
             )}
@@ -7867,8 +7849,7 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                         <View key={`empty-${i}`} style={{ marginBottom:2 }}>
                             <TeamSlotInviteField sub={sub} category={category} cfg={{ color }} t={t}
                                 placeholder={t.teamSlotPh(i + 1)}
-                                onInvite={(u) => onInviteSlot(u, targetSide, i)}
-                                onAddManual={onAddManualSlot && matchMode !== 'COMPETITIVE' ? (name, gender) => onAddManualSlot(name, targetSide, i, gender) : undefined} />
+                                onInvite={(u) => onInviteSlot(u, targetSide, i)} />
                         </View>
                     ) : (
                         <Text key={`empty-${i}`} style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>{i + 1}. —</Text>
@@ -8745,7 +8726,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     refereeRequested: !!f.refereeRequested,
                     refereePayment: f.refereeRequested && !f.refereeFeeIncluded && f.refereePayment !== '' ? `${f.refereePayment}₺` : null,
                     refereeFeeIncluded: !!f.refereeFeeIncluded,
-                    manualRefereeName: sub !== 'volleyball' && f.refereeRequested && f.manualRefereeName.trim() ? f.manualRefereeName.trim() : null,
+                    manualRefereeName: null,
                     participantsCanInvite: !!f.participantsCanInvite,
                     extraServices: f.extraServices,
                 }),
@@ -8811,8 +8792,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             // Rekabetçi maçta Elo puanı hesaplandığı için hesabı olmayan (manuel) oyuncu
             // eklenemiyor; Antrenman modunda ise cinsiyet dağılımı kotasıyla tutarlı kalması
             // için manuel eklenen her oyuncunun cinsiyeti seçilmiş olmalı (kullanıcı isteği).
+            // Voleybolde ise mod fark etmeksizin manuel oyuncu tamamen kapalı — herkes
+            // uygulamadan aranıp seçilmek zorunda (kullanıcı isteği: uygulama kullanımını teşvik).
             const manualSlots = [...f.rosterSlots, ...f.subSlots].filter(sl => sl?.type === 'manual');
-            if (f.matchMode === 'COMPETITIVE') {
+            if (sub === 'volleyball') {
+                if (manualSlots[0]) { Alert.alert('', t.volleyballManualPlayerBlockAlert(manualSlots[0].name)); return; }
+            } else if (f.matchMode === 'COMPETITIVE') {
                 if (manualSlots[0]) { Alert.alert('', t.competitiveManualPlayerBlockAlert(manualSlots[0].name)); return; }
             } else {
                 const missingGender = manualSlots.find(sl => !sl.gender);
@@ -8948,8 +8933,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     : undefined,
                 // Voleybolde hakem de uygulama üzerinden aranıp seçilmek zorunda — manuel isim
                 // burada gönderilmiyor (bkz. RefereeTypeContent, referee.allowManual).
-                manualRefereeName: ['tennis', 'padel', 'airsoft'].includes(sub) && f.refereeRequested && f.manualRefereeName.trim()
-                    ? f.manualRefereeName.trim() : undefined,
+                manualRefereeName: undefined,
                 participantsCanInvite: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) ? !!f.participantsCanInvite : undefined,
                 extraServices: ['tennis', 'padel', 'volleyball', 'airsoft'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
                 // Takım havuzu (voleybol + airsoft) — kartın arka yüzünde Kurucu/Rakip'e atanan
@@ -8961,15 +8945,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     : undefined,
                 // Voleybolde manuel isim artık hiç gönderilmiyor — sadece airsoft'ta devam ediyor
                 // (kullanıcı isteği: voleybolde herkes uygulamadan aranıp seçilmek zorunda).
-                founderTeamManualNames: sub === 'airsoft'
-                    ? f.rosterSlots.filter(s => s?.type === 'manual' && s.side === 'my').map(s => ({ name: s.name, gender: s.gender }))
-                    : undefined,
+                founderTeamManualNames: undefined,
                 oppTeamInviteIds: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'user' && s.side === 'opp').map(s => s.userId)
                     : undefined,
-                oppTeamManualNames: sub === 'airsoft'
-                    ? f.rosterSlots.filter(s => s?.type === 'manual' && s.side === 'opp').map(s => ({ name: s.name, gender: s.gender }))
-                    : undefined,
+                oppTeamManualNames: undefined,
                 substituteInviteIds: isVolleyball
                     ? f.subSlots.filter(s => s?.type === 'user').map(s => s.userId)
                     : undefined,
@@ -9625,6 +9605,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     invites: f.refereeInvites,
                                                     onInvitePress: () => setInviteTarget('referee'),
                                                     onRemoveInvite: removeRefereeInvite,
+                                                    // Hakem de uygulama üzerinden aranıp seçilmeli — hangi dal olursa
+                                                    // olsun manuel isim ekleme kapalı (kullanıcı isteği: "hiçbir yerde
+                                                    // kalmasın", herkes uygulama kullansın).
+                                                    allowManual: false,
                                                 } : null}
                                             />
                                         )}
@@ -10478,7 +10462,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
                             {/* Hizmetler > Hakem'de eklenen isim, o pencereyi tekrar açmadan da
                                 görülebilsin diye kadro kartının hemen altında ayrıca gösteriliyor. */}
-                            {f.refereeRequested && (f.manualRefereeName.trim() || f.refereeInvites.length > 0) && (
+                            {f.refereeRequested && ((sub !== 'volleyball' && f.manualRefereeName.trim()) || f.refereeInvites.length > 0) && (
                                 <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:14 }}>
                                     <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'800', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                                         🧑‍⚖️ {t.refereeSlotLabel}: {f.refereeInvites[0] ? (f.refereeInvites[0].user.fullName || f.refereeInvites[0].user.username) : f.manualRefereeName.trim()}

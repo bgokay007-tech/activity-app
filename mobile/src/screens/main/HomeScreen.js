@@ -24,17 +24,6 @@ export default function HomeScreen({ navigation }) {
         SPORTS: t.catLabelSports, SOCIAL: t.catLabelSocial, ARTS: t.catLabelArts, GAMES: t.catLabelGames,
     };
 
-    const CAT_DESC = {
-        SPORTS: t.catDescSports,
-        SOCIAL: t.catDescSocial,
-        ARTS:   t.catDescArts,
-        GAMES:  t.catDescGames,
-    };
-
-    const CAT_EXPLORE = {
-        SPORTS: t.exploreSports, SOCIAL: t.exploreSocial, ARTS: t.exploreArts, GAMES: t.exploreGames,
-    };
-
     useEffect(() => {
         const load = async () => {
             try {
@@ -72,27 +61,30 @@ export default function HomeScreen({ navigation }) {
                     <Text style={s.heroSub}>{t.heroSub}</Text>
                 </View>
 
-                {/* Category Cards */}
+                {/* Category Cards — kullanıcı isteği: 4'ü de dikey sütun halinde yan yana
+                    (tek satırda) — önceden her biri tam genişlikte, alt alta büyük kart olarak
+                    duruyordu. Dar sütuna sığması için açıklama metni ve ayrı "Keşfet" butonu
+                    kaldırıldı, kartın tamamı tıklanabilir yapıldı. */}
                 <View style={s.cards}>
                     {CATEGORIES.map(cat => (
-                        <View key={cat.id} style={[s.card, { borderColor: cat.borderColor, backgroundColor: cat.bgColor, opacity: cat.enabled ? 1 : 0.5 }]}>
+                        <TouchableOpacity
+                            key={cat.id}
+                            style={[s.card, { borderColor: cat.borderColor, backgroundColor: cat.bgColor, opacity: cat.enabled ? 1 : 0.5 }]}
+                            onPress={() => cat.enabled && navigation.navigate('Category', { category: cat.id })}
+                            activeOpacity={cat.enabled ? 0.8 : 1}
+                            disabled={!cat.enabled}
+                        >
                             {!cat.enabled && (
                                 <View style={s.maintenanceBadge}>
-                                    <Text style={s.maintenanceText}>{t.maintenance}</Text>
+                                    <Text style={s.maintenanceText} numberOfLines={1}>{t.maintenance}</Text>
                                 </View>
                             )}
                             <Text style={s.cardEmoji}>{cat.emoji}</Text>
-                            <Text style={[s.cardLabel, { color: cat.btnColor }]}>{CAT_LABELS[cat.id]}</Text>
-                            <Text style={s.cardDesc}>{CAT_DESC[cat.id]}</Text>
-                            <TouchableOpacity
-                                style={[s.cardBtn, { backgroundColor: cat.enabled ? cat.btnColor : '#374151' }]}
-                                onPress={() => cat.enabled && navigation.navigate('Category', { category: cat.id })}
-                                activeOpacity={cat.enabled ? 0.8 : 1}
-                                disabled={!cat.enabled}
-                            >
-                                <Text style={s.cardBtnText}>{cat.enabled ? CAT_EXPLORE[cat.id] : t.comingSoon}</Text>
-                            </TouchableOpacity>
-                        </View>
+                            <Text style={[s.cardLabel, { color: cat.btnColor }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                {CAT_LABELS[cat.id]}
+                            </Text>
+                            <View style={[s.cardDot, { backgroundColor: cat.enabled ? cat.btnColor : '#374151' }]} />
+                        </TouchableOpacity>
                     ))}
                 </View>
 
@@ -109,19 +101,16 @@ const s = StyleSheet.create({
     heroTitle: { color: '#fff', fontSize: 28, fontWeight: '900', textAlign: 'center', lineHeight: 36, marginBottom: 10 },
     heroSub: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 20 },
 
-    cards: { paddingHorizontal: 17, gap: 3 },
+    // 4 kategori (Spor/Sosyal/Sanat/Oyunlar) dikey sütun halinde yan yana — kullanıcı isteği.
+    cards: { flexDirection: 'row', paddingHorizontal: 13, gap: 6 },
     card: {
-        borderRadius: 24, borderWidth: 1.5, padding: 21,
-        alignItems: 'flex-start', position: 'relative',
+        flex: 1, minHeight: 118, borderRadius: 18, borderWidth: 1.5,
+        paddingVertical: 16, paddingHorizontal: 6,
+        alignItems: 'center', justifyContent: 'center', position: 'relative',
     },
-    cardEmoji: { fontSize: 48, marginBottom: 12 },
-    cardLabel: { fontSize: 24, fontWeight: '900', marginBottom: 8 },
-    cardDesc: { color: colors.textSecondary, fontSize: 14, lineHeight: 20, marginBottom: 20 },
-    cardBtn: {
-        borderRadius: 24, paddingHorizontal: 17, paddingVertical: 9,
-        alignSelf: 'stretch', alignItems: 'center',
-    },
-    cardBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-    maintenanceBadge: { position: 'absolute', top: 12, right: 12, backgroundColor: '#374151', borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
-    maintenanceText: { color: '#9ca3af', fontSize: 11, fontWeight: '700' },
+    cardEmoji: { fontSize: 30, marginBottom: 10 },
+    cardLabel: { fontSize: 13, fontWeight: '900', textAlign: 'center' },
+    cardDot: { width: 6, height: 6, borderRadius: 3, marginTop: 10 },
+    maintenanceBadge: { position: 'absolute', top: 6, left: 4, right: 4, backgroundColor: '#374151', borderRadius: 6, paddingHorizontal: 3, paddingVertical: 1, alignItems: 'center' },
+    maintenanceText: { color: '#9ca3af', fontSize: 8, fontWeight: '700' },
 });
