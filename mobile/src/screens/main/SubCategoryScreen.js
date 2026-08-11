@@ -13967,8 +13967,9 @@ const RATING_REC = [
     { range:'2.00+',         lowWin:'1.80',  lowLose:'0.008',  highWin:'0.008',  highLose:'1.80'  },
 ];
 
-function RatingInfoModal({ visible, onClose, cfg }) {
-    const [section, setSection] = useState('dominant');
+function RatingInfoModal({ visible, onClose, cfg, sub }) {
+    const isVolleyball = sub === 'volleyball';
+    const [section, setSection] = useState(isVolleyball ? 'kurallar' : 'dominant');
     const rows = section === 'dominant' ? RATING_DOM : RATING_REC;
     const label = section === 'dominant' ? '🏆 DOMİNANT  (6-0, 6-1, 6-2)' : '⚔️ REKABETÇİ  (6-3, 6-4, 7-5)';
 
@@ -13978,31 +13979,74 @@ function RatingInfoModal({ visible, onClose, cfg }) {
                 <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, maxHeight:'92%', paddingBottom:24 }}>
                     {/* Başlık */}
                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', padding:16, borderBottomWidth:1, borderColor: colors.border }}>
-                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>📊 Rekabetçi Maç Puan Sistemi</Text>
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{isVolleyball ? '🏐 Voleybol Kuralları & Puan Sistemi' : '📊 Rekabetçi Maç Puan Sistemi'}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:18, fontWeight:'700' }}>✕</Text></TouchableOpacity>
                     </View>
 
                     {/* Açıklama */}
-                    {section !== 'kalibrasyon' && (
+                    {section !== 'kalibrasyon' && section !== 'kurallar' && (
                         <View style={{ paddingHorizontal:14, paddingTop:10, paddingBottom:8 }}>
                             <Text style={{ color: colors.textSecondary, fontSize:12, lineHeight:18 }}>
                                 Puanlar oyuncular arasındaki <Text style={{ color:'#fbbf24', fontWeight:'800' }}>FARK</Text>'a ve maç tipine göre değişir.{'\n'}
                                 <Text style={{ color:'#4ade80', fontWeight:'700' }}>Yeşil</Text> = kazanılan puan  ·  <Text style={{ color:'#f87171', fontWeight:'700' }}>Kırmızı</Text> = kaybedilen puan
+                                {isVolleyball ? ' (takım maçlarında iki takımın ortalama derece puanına göre hesaplanır.)' : ''}
                             </Text>
                         </View>
                     )}
 
-                    {/* Segment: Dominant / Rekabetçi / Kalibrasyon */}
-                    <View style={{ flexDirection:'row', gap:3, marginHorizontal:14, marginBottom:10, marginTop: section === 'kalibrasyon' ? 10 : 0 }}>
-                        {[['dominant','🏆 Dominant'],['rekabetci','⚔️ Rekabetçi'],['kalibrasyon','🎯 Kalibrasyon']].map(([key, lbl]) => (
+                    {/* Segment: (Voleybolde ek "Kurallar") Dominant / Rekabetçi / Kalibrasyon */}
+                    <View style={{ flexDirection:'row', gap:3, marginHorizontal:14, marginBottom:10, marginTop: (section === 'kalibrasyon' || section === 'kurallar') ? 10 : 0, flexWrap:'wrap' }}>
+                        {[
+                            ...(isVolleyball ? [['kurallar','📋 Kurallar']] : []),
+                            ['dominant','🏆 Dominant'], ['rekabetci','⚔️ Rekabetçi'], ['kalibrasyon','🎯 Kalibrasyon'],
+                        ].map(([key, lbl]) => (
                             <TouchableOpacity key={key} onPress={() => setSection(key)}
-                                style={{ flex:1, paddingVertical:7, borderRadius:10, alignItems:'center', backgroundColor: section===key ? cfg.color : colors.surface2, borderWidth:1, borderColor: section===key ? cfg.color : colors.border }}>
-                                <Text style={{ color: section===key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }}>{lbl}</Text>
+                                style={{ flex:1, minWidth:'23%', paddingVertical:7, borderRadius:10, alignItems:'center', backgroundColor: section===key ? cfg.color : colors.surface2, borderWidth:1, borderColor: section===key ? cfg.color : colors.border }}>
+                                <Text style={{ color: section===key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{lbl}</Text>
                             </TouchableOpacity>
                         ))}
                     </View>
 
-                    {section === 'kalibrasyon' ? (
+                    {section === 'kurallar' ? (
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal:14 }}>
+                            <View style={{ backgroundColor:'#ef444412', borderRadius:12, borderWidth:1, borderColor:'#ef444440', padding:12, marginBottom:12 }}>
+                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
+                                    <Text style={{ fontSize:18 }}>🚫</Text>
+                                    <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Gelmeme (No-Show) Cezası</Text>
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
+                                    Maça <Text style={{ color:'#fff', fontWeight:'800' }}>mazeretsiz gelmeyen</Text> bir oyuncu diğer katılımcılar tarafından bildirilebilir. Bildirim admin tarafından onaylanırsa:
+                                </Text>
+                                <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21, marginTop:6 }}>
+                                    • Derece puanından <Text style={{ color:'#f87171', fontWeight:'800' }}>0.40 puan</Text> kesilir.{'\n'}
+                                    • Mazeret sunulmadığı için <Text style={{ color:'#f87171', fontWeight:'800' }}>3 maç boyunca yeni bir maça katılım engeli</Text> uygulanabilir.
+                                </Text>
+                            </View>
+
+                            <View style={{ backgroundColor:'#fbbf2412', borderRadius:12, borderWidth:1, borderColor:'#fbbf2440', padding:12, marginBottom:12 }}>
+                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
+                                    <Text style={{ fontSize:18 }}>🧩</Text>
+                                    <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Takım Ortalaması</Text>
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
+                                    Rekabetçi maçlarda puan değişimi <Text style={{ color:'#fff', fontWeight:'800' }}>iki takımın ortalama derece puanı</Text> karşılaştırılarak hesaplanır (kadro kartında her oyuncunun yanında ve takım başlığının yanında görebilirsin). Aşağıdaki Dominant/Rekabetçi sekmelerindeki tablo, bu iki ortalama arasındaki <Text style={{ color:'#fff', fontWeight:'800' }}>farka</Text> göre okunur.
+                                </Text>
+                            </View>
+
+                            <View style={{ backgroundColor:'#4ade8012', borderRadius:12, borderWidth:1, borderColor:'#4ade8040', padding:12, marginBottom:12 }}>
+                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
+                                    <Text style={{ fontSize:18 }}>🏐</Text>
+                                    <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Antrenman vs Rekabetçi</Text>
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
+                                    <Text style={{ color:'#fff', fontWeight:'800' }}>Antrenman</Text> modundaki maçlarda derece puanı değişmez, uygulamada kayıtlı olmayan oyuncular da kadroya eklenebilir.{'\n'}
+                                    <Text style={{ color:'#fff', fontWeight:'800' }}>Rekabetçi</Text> modda ise sadece uygulamaya kayıtlı (derece puanı olan) oyuncular kadroya eklenebilir, maç sonunda puan kazanılır/kaybedilir.
+                                </Text>
+                            </View>
+
+                            <View style={{ height:16 }} />
+                        </ScrollView>
+                    ) : section === 'kalibrasyon' ? (
                         <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal:14 }}>
                             {/* Kalibrasyon açıklama kartı */}
                             <View style={{ backgroundColor:'#fbbf2412', borderRadius:14, borderWidth:1, borderColor:'#fbbf2440', padding:14, marginBottom:12 }}>
@@ -16593,12 +16637,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                 ) : (
                     <Text style={s.title}>{cfg.emoji} {sportDisplayName}</Text>
                 )}
-                {(sub === 'tennis' || sub === 'padel') && (
+                {(sub === 'tennis' || sub === 'padel' || sub === 'volleyball') && (
                     <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                        <TouchableOpacity onPress={() => setShowVenuesSheet(true)}
-                            style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
-                            <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{lang === 'tr' ? 'Kortlar' : 'Courts'}</Text>
-                        </TouchableOpacity>
+                        {(sub === 'tennis' || sub === 'padel') && (
+                            <TouchableOpacity onPress={() => setShowVenuesSheet(true)}
+                                style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
+                                <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{lang === 'tr' ? 'Kortlar' : 'Courts'}</Text>
+                            </TouchableOpacity>
+                        )}
+                        {/* Kullanıcı isteği: voleybolde de (tenis/padel'deki gibi) sağ üstte bir İ butonu —
+                            tıklanınca puan sistemi + kadro/ceza kurallarını anlatan modal açılsın. */}
                         <TouchableOpacity onPress={() => setShowRatingInfo(true)}>
                             <Text style={{ fontSize:19 }}>ℹ️</Text>
                         </TouchableOpacity>
@@ -19842,7 +19890,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             </Modal>
         </View>
         <TennisSpotlightModal visible={showSpotlight} onClose={() => setShowSpotlight(false)} cfg={cfg} sub={sub} />
-        <RatingInfoModal visible={showRatingInfo} onClose={() => setShowRatingInfo(false)} cfg={cfg} />
+        <RatingInfoModal visible={showRatingInfo} onClose={() => setShowRatingInfo(false)} cfg={cfg} sub={sub} />
         </>
     );
 }
