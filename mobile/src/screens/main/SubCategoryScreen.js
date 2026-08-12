@@ -3675,6 +3675,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     };
     const [teamNameModal, setTeamNameModal] = useState(null); // { side: 'founder'|'opponent', value } | null
     const [savingTeamName, setSavingTeamName] = useState(false);
+    // Boş bir formaya uzun basınca açılan çoklu-seç arkadaş listesi (bkz. mkSlot) — sadece
+    // DOUBLE'da kullanılıyor, tek bir paylaşılan pencere yeterli (hangi slottan açıldığı önemli
+    // değil, kalan boş slotlara seçim sırasıyla eşleniyor).
+    const [showDoubleFriendsPicker, setShowDoubleFriendsPicker] = useState(false);
     const [sets, setSets] = useState([{ my: '', opp: '' }]);
     const [submitting, setSubmitting] = useState(false);
     const [showCantScore, setShowCantScore] = useState(false);
@@ -3920,6 +3924,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const assignDoubleSlot = (userId, slot) => {
         api.patch(`/rivals/${match.id}/assign-double-slot`, { userId, slot })
             .then(() => onRefresh())
+            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+    };
+    // Digimon kart'taki boş bir formaya yazıp öneriden tıklayınca — voleybolün onInviteSlot'unun
+    // birebir DOUBLE karşılığı (bkz. backend inviteToRival'daki isDoubleSlotInvite).
+    const onInviteDoubleSlot = (u, slot) => {
+        api.post(`/rivals/${match.id}/invite`, { userId: u.id, slot })
+            .then(({ data }) => { if (Array.isArray(data?.request?.joinRequests)) setLocalSubRequests(data.request.joinRequests); onRefresh(); })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
 
@@ -4602,13 +4613,29 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         // veya partner, rakip tarafı ilan sahibi veya opp1/opp2'den biri değiştirebilir.
                         const canEditFounder = isOwner || (partner && partner.id === myId);
                         const canEditOpponent = isOwner || (opp1 && opp1.id === myId) || (opp2 && opp2.id === myId);
-                        const founderLabel1 = match.founderTeamName ? `${match.founderTeamName} 1` : 'İlan Sahibi';
                         const founderLabel2 = (match.founderTeamName ? `${match.founderTeamName} 2` : SLOT_LABEL.partner) + genderTag(match.partnerGenderReq);
                         const oppLabel1 = (match.opponentTeamName ? `${match.opponentTeamName} 1` : SLOT_LABEL.opp1) + genderTag(match.opp1GenderReq);
                         const oppLabel2 = (match.opponentTeamName ? `${match.opponentTeamName} 2` : SLOT_LABEL.opp2) + genderTag(match.opp2GenderReq);
                         const mkSlot = (slot, p, color) => {
                             const isSel = swapSlot === slot;
                             const isTgt = !!swapSlot && swapSlot !== slot;
+                            // Boş forma + sahip + aktif takas yoksa: voleybolün Digimon kartındaki gibi
+                            // (bkz. TeamAssignCard.renderColumn) doğrudan formanın içinde arama/davet —
+                            // yazıp öneriden tıklayınca davet gider, uzun basınca çoklu-seç arkadaş
+                            // listesi açılır (kullanıcı isteği). Aktif takas varken (isTgt/hedef) ya da
+                            // sahip değilken eski statik "bekleniyor"/"buraya taşı" davranışı korunur.
+                            if (!p && isOwner && !swapSlot) {
+                                return (
+                                    <View key={slot}>
+                                        <TeamSlotInviteField
+                                            sub={match.subCategory} category={match.category} cfg={cfg} t={t}
+                                            placeholder={SLOT_LABEL[slot]}
+                                            onInvite={(u) => onInviteDoubleSlot(u, slot)}
+                                            onLongPress={() => setShowDoubleFriendsPicker(true)}
+                                        />
+                                    </View>
+                                );
+                            }
                             return (
                                 <View key={slot}>
                                     <TeamSlot
@@ -4651,7 +4678,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                 {doublePool.map((p, i) => {
                                                     const isUnassigned = unassignedKeys.has(p.id);
                                                     return (
-                                                        <View key={p.id || `m-${i}`} style={{ width:'23.5%' }}>
+                                                        <View key={p.id || `m-${i}`} style={{ width:'48%' }}>
                                                             <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
                                                                 <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
                                                                 <Animated.View style={{ flex:1, opacity: isUnassigned ? doubleUnassignedBlink : 1 }}>
@@ -4680,50 +4707,40 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                     <TouchableOpacity onPress={() => setSwapSlot(null)}><Text style={{ color: colors.textMuted, fontSize:9 }}>İptal</Text></TouchableOpacity>
                                                 </View>
                                             )}
-                                            {/* İlan sahibi/partner sol sütunda dip dibe, her biri kendi karşısındaki
-                                                rakiple aynı satırda hizalanır (kurucu ↔ rakip1, partner ↔ rakip2). */}
-                                            <View style={{ gap:3 }}>
-                                                <View style={{ flexDirection:'row', gap:3, alignItems:'stretch' }}>
-                                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
-                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
-                                                            <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', flex:1 }} numberOfLines={1}>{founderLabel1}</Text>
-                                                            {canEditFounder && (
-                                                                <TouchableOpacity onPress={() => setTeamNameModal({ side:'founder', value: match.founderTeamName || '' })}>
-                                                                    <Text style={{ fontSize:9 }}>✎</Text>
-                                                                </TouchableOpacity>
-                                                            )}
-                                                        </View>
-                                                        <View style={{ borderRadius:5, paddingHorizontal:2, paddingVertical:0, backgroundColor:'#1e293b' }}>
-                                                            <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(match.sender)} 🔒</Text>
-                                                        </View>
+                                            {/* Takım 1 (Kurucu+Partner) | Takım 2 (Rakip1+Rakip2) — voleybolün Digimon
+                                                kartındaki (TeamAssignCard.renderColumn) iki sütunlu düzeniyle AYNI görsel
+                                                dil (kullanıcı isteği: "voleybol mantığının aynısı"). Cinsiyet etiketleri
+                                                (♂/♀, founderLabel2/oppLabel1/oppLabel2 içinde zaten hesaplanıyor) sütun
+                                                alt-başlığı olarak aynen korunuyor. */}
+                                            <View style={{ flexDirection:'row', gap:6 }}>
+                                                <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#a855f720' }}>
+                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
+                                                        <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{match.founderTeamName || 'Takım 1'}</Text>
+                                                        {canEditFounder && (
+                                                            <TouchableOpacity onPress={() => setTeamNameModal({ side:'founder', value: match.founderTeamName || '' })}>
+                                                                <Text style={{ fontSize:9 }}>✎</Text>
+                                                            </TouchableOpacity>
+                                                        )}
                                                     </View>
-                                                    <View style={{ width:16, alignItems:'center', justifyContent:'center' }}>
-                                                        <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }}>vs</Text>
+                                                    <View style={{ borderRadius:5, paddingHorizontal:3, paddingVertical:2, backgroundColor:'#1e293b', marginBottom:4 }}>
+                                                        <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(match.sender)} 🔒</Text>
                                                     </View>
-                                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#f8717120' }}>
-                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
-                                                            <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', flex:1 }} numberOfLines={1}>{oppLabel1}</Text>
-                                                            {canEditOpponent && (
-                                                                <TouchableOpacity onPress={() => setTeamNameModal({ side:'opponent', value: match.opponentTeamName || '' })}>
-                                                                    <Text style={{ fontSize:9 }}>✎</Text>
-                                                                </TouchableOpacity>
-                                                            )}
-                                                        </View>
-                                                        {mkSlot('opp1', opp1, '#fca5a5')}
-                                                    </View>
+                                                    <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>{founderLabel2}</Text>
+                                                    {mkSlot('partner', partner, '#c084fc')}
                                                 </View>
-                                                <View style={{ flexDirection:'row', gap:3, alignItems:'stretch' }}>
-                                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#a855f720' }}>
-                                                        <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'800', marginBottom:3 }} numberOfLines={1}>{founderLabel2}</Text>
-                                                        {mkSlot('partner', partner, '#c084fc')}
+                                                <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#f8717120' }}>
+                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
+                                                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{match.opponentTeamName || 'Takım 2'}</Text>
+                                                        {canEditOpponent && (
+                                                            <TouchableOpacity onPress={() => setTeamNameModal({ side:'opponent', value: match.opponentTeamName || '' })}>
+                                                                <Text style={{ fontSize:9 }}>✎</Text>
+                                                            </TouchableOpacity>
+                                                        )}
                                                     </View>
-                                                    <View style={{ width:16, alignItems:'center', justifyContent:'center' }}>
-                                                        <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }}>vs</Text>
-                                                    </View>
-                                                    <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:2, borderWidth:1, borderColor:'#f8717120' }}>
-                                                        <Text style={{ color:'#f87171', fontSize:8, fontWeight:'800', marginBottom:3 }} numberOfLines={1}>{oppLabel2}</Text>
-                                                        {mkSlot('opp2', opp2, '#fca5a5')}
-                                                    </View>
+                                                    <Text style={{ color:'#f87171', fontSize:8, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>{oppLabel1}</Text>
+                                                    {mkSlot('opp1', opp1, '#fca5a5')}
+                                                    <Text style={{ color:'#f87171', fontSize:8, fontWeight:'700', marginTop:4, marginBottom:2 }} numberOfLines={1}>{oppLabel2}</Text>
+                                                    {mkSlot('opp2', opp2, '#fca5a5')}
                                                 </View>
                                             </View>
                                             {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && !locked && (
@@ -4763,6 +4780,19 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         </>
                                     )}
                                 </Animated.View>
+                                <FriendsMultiPickerModal
+                                    visible={showDoubleFriendsPicker}
+                                    onClose={() => setShowDoubleFriendsPicker(false)}
+                                    sub={match.subCategory} category={match.category} cfg={cfg} t={t}
+                                    maxSelect={['partner', 'opp1', 'opp2'].filter(k => !({ partner, opp1, opp2 }[k])).length}
+                                    confirmLabel={(n) => t.friendsMultiPickerInviteBtn(n)}
+                                    onConfirm={(users) => {
+                                        const emptyKeys = ['partner', 'opp1', 'opp2'].filter(k => !({ partner, opp1, opp2 }[k]));
+                                        Promise.all(users.map((u, i) => api.post(`/rivals/${match.id}/invite`, { userId: u.id, slot: emptyKeys[i] })))
+                                            .then(() => onRefresh())
+                                            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+                                    }}
+                                />
                             </View>
                         );
                     })()}
@@ -7623,7 +7653,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
 // aynı mantık (kullanıcı isteği: "form a yazarak davet edicem açık ilandaki gibi"), sadece
 // burada ilan zaten var (açık ya da eşleşmiş) ve davet backend'e gidiyor (bkz. inviteToRival'daki
 // side parametresi), form state'ine değil.
-function TeamSlotInviteField({ sub, category, onInvite, onAddManual, cfg, t, placeholder }) {
+function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onLongPress, cfg, t, placeholder }) {
     const [text, setText] = useState('');
     const [results, setResults] = useState([]);
     const [searching, setSearching] = useState(false);
@@ -7641,22 +7671,38 @@ function TeamSlotInviteField({ sub, category, onInvite, onAddManual, cfg, t, pla
     }, [text]);
     return (
         <View style={{ position:'relative' }}>
-            <TextInput
-                style={{ backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:10, paddingHorizontal:5, paddingVertical:3, minHeight:0 }}
-                value={text}
-                onChangeText={setText}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setTimeout(() => setFocused(false), 150)}
-                placeholder={placeholder || (t.teamSlotPh ? t.teamSlotPh(1) : 'İsim yaz...')}
-                placeholderTextColor={colors.textMuted}
-            />
-            {searching && focused && <ActivityIndicator size="small" color={cfg.color} style={{ position:'absolute', right:5, top:3 }} />}
+            <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                <View style={{ flex:1, position:'relative' }}>
+                    <TextInput
+                        style={{ backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:10, paddingHorizontal:5, paddingVertical:3, minHeight:0 }}
+                        value={text}
+                        onChangeText={setText}
+                        onFocus={() => setFocused(true)}
+                        onBlur={() => setTimeout(() => setFocused(false), 150)}
+                        placeholder={placeholder || (t.teamSlotPh ? t.teamSlotPh(1) : 'İsim yaz...')}
+                        placeholderTextColor={colors.textMuted}
+                    />
+                    {searching && focused && <ActivityIndicator size="small" color={cfg.color} style={{ position:'absolute', right:5, top:3 }} />}
+                </View>
+                {/* Yazarak aramanın yanında, arkadaş listesinden ÇOKLU seçim için ayrı bir uzun-basma
+                    hedefi — TextInput'un kendi dokunma/imleç davranışıyla çakışmasın diye TeamSlotRow'daki
+                    avatar uzun-basma deseniyle aynı: ayrı, küçük bir dokunma alanı. */}
+                {onLongPress && (
+                    <TouchableOpacity onLongPress={onLongPress} delayLongPress={350} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                        <Text style={{ fontSize:13 }}>👥</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
             {focused && (results.length > 0 || (onAddManual && text.trim().length >= 3)) && (
                 <View style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:50, elevation:20, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, marginTop:2 }}>
                     {results.map(u => (
                         <TouchableOpacity key={u.id}
                             onPress={() => {
                                 setText(''); setResults([]); setFocused(false);
+                                // onPick verildiyse (ör. DOUBLE ilan oluşturma formu) seçim yerel
+                                // state'e yazılır, davet ancak ilan submit edilince gider — o anda
+                                // zaten bir onay diyaloğuna gerek yok (bkz. DoubleRosterCard).
+                                if (onPick) { onPick(u); return; }
                                 // Kullanıcı isteğiyle tıklayınca direkt gönderilmiyor — önce onay
                                 // isteniyor (yanlışlıkla yanlış kişiye davet gitmesin diye).
                                 Alert.alert(
@@ -7702,6 +7748,242 @@ function TeamSlotInviteField({ sub, category, onInvite, onAddManual, cfg, t, pla
                     )}
                 </View>
             )}
+        </View>
+    );
+}
+
+// DOUBLE (tenis/padel 2v2) Digimon kartındaki boş bir formaya uzun basınca açılan, ÇOKLU seçimli
+// arkadaş/oyuncu listesi — kullanıcı isteği: "birden fazla seç, Seçilenleri Davet Et ile kalan
+// boş formalara sırayla davet gitsin". CreateRivalModal'daki mevcut tek-seçimli Arkadaşlarım/Tüm
+// Oyuncular arama penceresiyle (showPartnerSearch) AYNI iki uç noktayı kullanır (GET /friends,
+// GET /users/by-sport) ama kendi bağımsız state'i var — hem UpcomingCard hem CreateRivalModal'dan
+// çağrılabilsin diye (showPartnerSearch sadece CreateRivalModal içinde tanımlıydı).
+function FriendsMultiPickerModal({ visible, onClose, sub, category, t, cfg, maxSelect, confirmLabel, onConfirm }) {
+    const [tab, setTab] = useState('friends');
+    const [query, setQuery] = useState('');
+    const [friendsList, setFriendsList] = useState([]);
+    const [loadingFriends, setLoadingFriends] = useState(false);
+    const [sportUsers, setSportUsers] = useState([]);
+    const [loadingSportUsers, setLoadingSportUsers] = useState(false);
+    const [selected, setSelected] = useState([]); // seçim SIRASINI koruyan dizi — kalan boş slotlara bu sırayla eşlenir
+
+    useEffect(() => {
+        if (visible) { setTab('friends'); setQuery(''); setSelected([]); }
+    }, [visible]);
+
+    useEffect(() => {
+        if (!visible || friendsList.length > 0 || loadingFriends) return;
+        setLoadingFriends(true);
+        api.get('/friends')
+            .then(res => setFriendsList(Array.isArray(res.data) ? res.data : []))
+            .catch(() => setFriendsList([]))
+            .finally(() => setLoadingFriends(false));
+    }, [visible]);
+
+    useEffect(() => {
+        if (!visible || tab !== 'all') return;
+        setLoadingSportUsers(true);
+        const task = setTimeout(() => {
+            api.get(`/users/by-sport?subCategory=${sub}&category=${category}${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ''}`)
+                .then(res => setSportUsers(Array.isArray(res.data) ? res.data : []))
+                .catch(() => setSportUsers([]))
+                .finally(() => setLoadingSportUsers(false));
+        }, 300);
+        return () => clearTimeout(task);
+    }, [query, visible, tab]);
+
+    const toggleSelect = (u) => {
+        setSelected(prev => {
+            if (prev.some(s => s.id === u.id)) return prev.filter(s => s.id !== u.id);
+            // Boş slot sayısına ulaşıldıysa fazladan seçimin hedefi belli olmaz — engellenir
+            // (sessizce düşürülmez, kullanıcı isteği: "kalan boş formalara sırayla").
+            if (maxSelect != null && prev.length >= maxSelect) return prev;
+            return [...prev, u];
+        });
+    };
+
+    const q = query.trim().toLowerCase();
+    const shownFriends = q
+        ? friendsList.filter(u => (u.username || '').toLowerCase().startsWith(q) || (u.fullName || '').toLowerCase().startsWith(q))
+        : friendsList;
+
+    const renderRow = (u) => {
+        const isSel = selected.some(s => s.id === u.id);
+        const disabled = !isSel && maxSelect != null && selected.length >= maxSelect;
+        return (
+            <TouchableOpacity key={u.id} disabled={disabled} onPress={() => toggleSelect(u)}
+                style={{ flexDirection:'row', alignItems:'center', gap:6, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40', opacity: disabled ? 0.4 : 1 }}>
+                <View style={{ width:18, height:18, borderRadius:4, borderWidth:1.5, borderColor: isSel ? cfg.color : colors.border, backgroundColor: isSel ? cfg.color : 'transparent', alignItems:'center', justifyContent:'center' }}>
+                    {isSel && <Text style={{ color:'#fff', fontSize:11, fontWeight:'900' }}>✓</Text>}
+                </View>
+                <Avatar name={u.username} avatar={u.avatar} size={32} color={cfg.color} />
+                <View style={{ flex:1 }}>
+                    <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }} numberOfLines={1}>{u.fullName || u.username}</Text>
+                    <Text style={{ color: colors.textMuted, fontSize:11 }} numberOfLines={1}>{u.username}</Text>
+                </View>
+            </TouchableOpacity>
+        );
+    };
+
+    return (
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
+            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:20, maxHeight:'80%' }}>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:10 }}>
+                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.friendsMultiPickerTitle}</Text>
+                            <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text></TouchableOpacity>
+                        </View>
+                        {maxSelect != null && (
+                            <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:8 }}>{t.friendsMultiPickerMaxHint(maxSelect)}</Text>
+                        )}
+                        <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
+                            {[{ id:'friends', label: t.friendsListLabel }, { id:'all', label: t.inviteTabAllPlayers }].map(tb => (
+                                <TouchableOpacity key={tb.id} onPress={() => setTab(tb.id)}
+                                    style={{ flex:1, paddingVertical:6, borderRadius:10, alignItems:'center', backgroundColor: tab === tb.id ? cfg.color + '25' : colors.surface2, borderWidth:1, borderColor: tab === tb.id ? cfg.color : colors.border }}>
+                                    <Text style={{ fontSize:12, fontWeight:'700', color: tab === tb.id ? cfg.color : colors.textMuted }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{tb.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                        <TextInput
+                            style={{ backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13, paddingHorizontal:10, paddingVertical:8 }}
+                            value={query} onChangeText={setQuery} placeholder={t.inviteSearchPh} placeholderTextColor={colors.textMuted} autoFocus
+                        />
+                        {(tab === 'friends' ? loadingFriends : loadingSportUsers) && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
+                        <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
+                            {tab === 'friends' ? (
+                                <>
+                                    {!loadingFriends && shownFriends.length === 0 && (
+                                        <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:12 }}>{t.noFriendsLabel}</Text>
+                                    )}
+                                    {shownFriends.map(renderRow)}
+                                </>
+                            ) : (
+                                <>
+                                    {sportUsers.map(renderRow)}
+                                    {!loadingSportUsers && sportUsers.length === 0 && (
+                                        <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:13 }}>{t.inviteNoResults}</Text>
+                                    )}
+                                </>
+                            )}
+                        </ScrollView>
+                        <TouchableOpacity disabled={selected.length === 0} onPress={() => { onConfirm(selected); onClose(); }}
+                            style={{ backgroundColor: cfg.color, borderRadius:14, paddingVertical:12, alignItems:'center', marginTop:10, opacity: selected.length === 0 ? 0.5 : 1 }}>
+                            <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>{confirmLabel(selected.length)}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </KeyboardAvoidingView>
+            </View>
+        </Modal>
+    );
+}
+
+// DOUBLE (tenis/padel 2v2) ilan OLUŞTURMA formundaki kadro kartı — voleybol/airsoft'un Digimon
+// kartıyla AYNI görsel dil: ön yüz katılan/seçilenlerin havuzu, arka yüz Takım 1 (kurucu+partner)
+// | Takım 2 (rakip1+rakip2) sütunları, boş formaya yazıp öneriden tıklayınca (ya da uzun basıp
+// çoklu-seç arkadaş listesinden) seçilir (kullanıcı isteği). DOUBLE'ın kendi rosterSlots genel
+// state-makinesine SOKULMUYOR (SPIKER/LIBERO/manuel oyuncu içeriyor, DOUBLE'a uymuyor) — doğrudan
+// f.partner/f.opp1Invite/f.opp2Invite'a bağlı, submit'teki partnerInviteId/opp1InviteId/
+// opp2InviteId mekaniği HİÇ değişmiyor (bkz. CreateRivalModal submit).
+function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, t, editItem, onLongPressEmptySlot }) {
+    const flipAnim = useRef(new Animated.Value(0)).current;
+    const [isBack, setIsBack] = useState(false);
+    const flip = () => {
+        Animated.timing(flipAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(() => {
+            setIsBack(b => !b);
+            Animated.timing(flipAnim, { toValue: isBack ? 0 : 1, duration: 150, useNativeDriver: true }).start();
+        });
+    };
+    const rotateY = flipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
+    const noEmojiLocal = (str) => (str || '').replace(/^\S+\s+/, '');
+    const GENDERS = [
+        { id:'MIX', label: noEmojiLocal(t.genderMix || '🤝 Mix') },
+        { id:'MALE', label: noEmojiLocal(t.genderMale || '👨 Erkek') },
+        { id:'FEMALE', label: noEmojiLocal(t.genderFemale || '👩 Kadın') },
+    ];
+    const GenderRow = ({ label, field }) => (
+        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+            <Text style={[s.fieldLabel, { marginBottom:0, fontSize:11 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{label}</Text>
+            <View style={{ flexDirection:'row', gap:3 }}>
+                {GENDERS.map(g => (
+                    <TouchableOpacity key={g.id} onPress={() => set(field, g.id)}
+                        style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:2 }, f[field] === g.id && s.chipBtnActive]}>
+                        <Text style={[s.chipBtnText, { fontSize:10 }, f[field] === g.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{g.label}</Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+        </View>
+    );
+    // Dolu forma → isim + ✕; boş forma (düzenleme DIŞINDayken — backend invite ID'lerini
+    // düzenlemede kabul etmiyor) → arama/davet alanı, dolu olsa da olmasa da GenderRow her zaman
+    // görünür kalır (mevcut davranış — sadece seçim UI'ı düzenlemede gizleniyordu).
+    const renderSlot = (field, placeholder) => f[field] ? (
+        <TouchableOpacity onPress={() => set(field, null)}
+            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:5, paddingVertical:4 }}>
+            <Avatar name={f[field].username} avatar={f[field].avatar} size={16} color={cfg.color} />
+            <Text style={{ color:'#fff', fontSize:10, flex:1, fontWeight:'700' }} numberOfLines={1}>{f[field].fullName || f[field].username}</Text>
+            <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
+        </TouchableOpacity>
+    ) : !editItem ? (
+        <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={placeholder}
+            onPick={(u) => set(field, u)} onLongPress={onLongPressEmptySlot} />
+    ) : null;
+    // myUser henüz yüklenmemişken {...null} boş ama "truthy" bir nesne üretip havuzda hayalet bir
+    // hücre olarak görünebilirdi — Boolean(myUser) kontrolü önce yapılıyor.
+    const pool = [myUser && { ...myUser, skillRating: myOwnRating }, f.partner, f.opp1Invite, f.opp2Invite].filter(Boolean);
+    return (
+        <View style={{ marginBottom:10 }}>
+            <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor:'#ffffff20', padding:10, transform:[{ perspective:800 }, { rotateY }] }}>
+                {!isBack ? (
+                    <>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.rosterPoolLabel}</Text>
+                            <TouchableOpacity onPress={flip} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                <Text style={{ fontSize:15 }}>🔄</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
+                            {pool.map((p, i) => (
+                                <View key={p.id || `m-${i}`} style={{ width:'48%' }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
+                                        <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
+                                        <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{i + 1}. {p.fullName || p.username}</Text>
+                                        {p.skillRating != null && (
+                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
+                                        )}
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    </>
+                ) : (
+                    <>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>👥</Text>
+                            <TouchableOpacity onPress={flip} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                <Text style={{ fontSize:14 }}>🔄</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={{ flexDirection:'row', gap:6 }}>
+                            <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#a855f720' }}>
+                                <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>Takım 1</Text>
+                                <View style={{ borderRadius:5, paddingHorizontal:3, paddingVertical:2, backgroundColor:'#1e293b', marginBottom:4 }}>
+                                    <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{myUser?.fullName || myUser?.username} 🔒</Text>
+                                </View>
+                                <View style={{ marginBottom:3 }}><GenderRow label={t.partnerGenderLabel || 'Takım Arkadaşı'} field="partnerGenderReq" /></View>
+                                {renderSlot('partner', t.choosePartnerBtn)}
+                            </View>
+                            <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#f8717120' }}>
+                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>Takım 2</Text>
+                                <View style={{ marginBottom:3 }}><GenderRow label={t.opp1GenderLabel || 'Rakip 1'} field="opp1GenderReq" /></View>
+                                {renderSlot('opp1Invite', t.inviteSendBtn)}
+                                <View style={{ marginTop:5, marginBottom:3 }}><GenderRow label={t.opp2GenderLabel || 'Rakip 2'} field="opp2GenderReq" /></View>
+                                {renderSlot('opp2Invite', t.inviteSendBtn)}
+                            </View>
+                        </View>
+                    </>
+                )}
+            </Animated.View>
         </View>
     );
 }
@@ -8397,6 +8679,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // açılıp kapanabiliyor (format kilidi sadece matchType değişimini engelliyor,
     // panelin kendisini değil).
     const [showDoubleOptions, setShowDoubleOptions] = useState(false);
+    // DoubleRosterCard'daki boş bir formaya uzun basınca açılan çoklu-seç arkadaş listesi —
+    // seçilenler kalan boş partner/opp1/opp2 alanlarına sırayla yerel state'e yazılır (kullanıcı
+    // isteği), ilan submit edilmeden davet gitmez (bkz. FriendsMultiPickerModal onConfirm).
+    const [showDoubleFriendsPicker, setShowDoubleFriendsPicker] = useState(false);
     const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null });
     const [myUnlistedRes, setMyUnlistedRes] = useState([]);
     // "Değiştir"e basılınca kort alanları hemen temizlenir ama eski rezervasyon
@@ -10606,83 +10892,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     <TouchableOpacity onPress={() => setShowDoubleOptions(false)}><Text style={tg.close}>✕</Text></TouchableOpacity>
                                 </View>
                                 <ScrollView showsVerticalScrollIndicator={false}>
-                                    {(sub === 'tennis' || sub === 'padel') && (() => {
-                                        const GENDERS = [
-                                            { id:'MIX', label: noEmoji(t.genderMix || '🤝 Mix') },
-                                            { id:'MALE', label: noEmoji(t.genderMale || '👨 Erkek') },
-                                            { id:'FEMALE', label: noEmoji(t.genderFemale || '👩 Kadın') },
-                                        ];
-                                        const GenderRow = ({ label, field }) => (
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                                                <Text style={[s.fieldLabel, { marginBottom:0, fontSize:12 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{label}</Text>
-                                                <View style={{ flexDirection:'row', gap:3 }}>
-                                                    {GENDERS.map(g => (
-                                                        <TouchableOpacity key={g.id} onPress={() => set(field, g.id)}
-                                                            style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f[field]===g.id && s.chipBtnActive]}>
-                                                            <Text style={[s.chipBtnText, { fontSize:11 }, f[field]===g.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{g.label}</Text>
-                                                        </TouchableOpacity>
-                                                    ))}
-                                                </View>
-                                            </View>
-                                        );
-                                        return (
-                                            <View style={{ marginBottom:10, gap:8 }}>
-                                                {/* Takım Arkadaşı Cinsiyeti */}
-                                                <GenderRow label={t.partnerGenderLabel || 'Takım Arkadaşı Cinsiyeti'} field="partnerGenderReq" />
-                                                {/* Partneri Seç — Takım Arkadaşı'nın altında, kendi satırında.
-                                                    Düzenlemede gizli: backend partnerInviteId'yi düzenlemede kabul etmiyor. */}
-                                                {!isTeamSport && !editItem && (
-                                                    f.partner ? (
-                                                        <TouchableOpacity onPress={() => set('partner', null)}
-                                                            style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{f.partner.fullName || f.partner.username}</Text>
-                                                            <Text style={{ color: colors.textMuted, fontSize:13 }}>✕</Text>
-                                                        </TouchableOpacity>
-                                                    ) : (
-                                                        <TouchableOpacity onPress={() => setInviteTarget('partner')}
-                                                            style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                            <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.choosePartnerBtn}</Text>
-                                                        </TouchableOpacity>
-                                                    )
-                                                )}
-                                                {/* Rakip 1 + Rakip 2 Cinsiyeti, altlarında Davet Et — alt alta */}
-                                                <View style={{ gap:8 }}>
-                                                    <View style={{ gap:4 }}>
-                                                        <GenderRow label={t.opp1GenderLabel || 'Rakip 1 Cinsiyeti'} field="opp1GenderReq" />
-                                                        {/* Davet Et düzenlemede gizli: backend opp1InviteId'yi düzenlemede kabul etmiyor. */}
-                                                        {!editItem && (f.opp1Invite ? (
-                                                            <TouchableOpacity onPress={() => set('opp1Invite', null)}
-                                                                style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{f.opp1Invite.fullName || f.opp1Invite.username}</Text>
-                                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
-                                                            </TouchableOpacity>
-                                                        ) : (
-                                                            <TouchableOpacity onPress={() => setInviteTarget('opp1')}
-                                                                style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteSendBtn}</Text>
-                                                            </TouchableOpacity>
-                                                        ))}
-                                                    </View>
-                                                    <View style={{ gap:4 }}>
-                                                        <GenderRow label={t.opp2GenderLabel || 'Rakip 2 Cinsiyeti'} field="opp2GenderReq" />
-                                                        {/* Davet Et düzenlemede gizli: backend opp2InviteId'yi düzenlemede kabul etmiyor. */}
-                                                        {!editItem && (f.opp2Invite ? (
-                                                            <TouchableOpacity onPress={() => set('opp2Invite', null)}
-                                                                style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{f.opp2Invite.fullName || f.opp2Invite.username}</Text>
-                                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
-                                                            </TouchableOpacity>
-                                                        ) : (
-                                                            <TouchableOpacity onPress={() => setInviteTarget('opp2')}
-                                                                style={{ alignSelf:'flex-start', backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5 }}>
-                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteSendBtn}</Text>
-                                                            </TouchableOpacity>
-                                                        ))}
-                                                    </View>
-                                                </View>
-                                            </View>
-                                        );
-                                    })()}
+                                    {(sub === 'tennis' || sub === 'padel') && (
+                                        <DoubleRosterCard
+                                            f={f} set={set} myUser={myUser} myOwnRating={myOwnRating}
+                                            cfg={cfg} sub={sub} category={category} s={s} t={t} editItem={editItem}
+                                            onLongPressEmptySlot={() => setShowDoubleFriendsPicker(true)}
+                                        />
+                                    )}
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:10 }}>
                                         <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamFlexLabel}</Text>
                                         <View style={{ flexDirection:'row', gap:3 }}>
@@ -10703,6 +10919,18 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                         </TouchableOpacity>
                     </View>
                 )}
+
+                <FriendsMultiPickerModal
+                    visible={showDoubleFriendsPicker}
+                    onClose={() => setShowDoubleFriendsPicker(false)}
+                    sub={sub} category={category} cfg={cfg} t={t}
+                    maxSelect={['partner', 'opp1Invite', 'opp2Invite'].filter(k => !f[k]).length}
+                    confirmLabel={(n) => t.friendsMultiPickerAddBtn(n)}
+                    onConfirm={(users) => {
+                        const emptyKeys = ['partner', 'opp1Invite', 'opp2Invite'].filter(k => !f[k]);
+                        users.forEach((u, i) => { if (emptyKeys[i]) set(emptyKeys[i], u); });
+                    }}
+                />
 
                 {/* Partner / Rakip 1 / Rakip 2 davet — ortak arama + arkadaşlar penceresi.
                     Ayrı bir <Modal> DEĞİL: Android'de iç içe Modal, klavye açılınca pencerenin

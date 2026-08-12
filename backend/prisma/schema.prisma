@@ -904,7 +904,7 @@ model RivalJoinRequest {
   offerCvUrl      String?                       // Hakem başvurusu: CV linki (varsa)
   counterPrice    String?                       // Hakem başvurusu: karşı teklif fiyatı (status=COUNTERED iken dolu)
   counterMessage  String?                       // Hakem başvurusu: karşı teklifle birlikte gönderilen mesaj
-  requestedSlot   String?                       // Çiftler (DOUBLE) + teamFlexibility=STRICT: başvuru sırasında seçilen hedef taraf — 'partner' | 'opponent'
+  requestedSlot   String?                       // İki kullanımı var: (1) Çiftler (DOUBLE) + teamFlexibility=STRICT, initiatedBy='JOINER': başvuru sırasında seçilen hedef taraf — 'partner' | 'opponent'. (2) Çiftler (DOUBLE), initiatedBy='OWNER': Digimon kart'tan Rakip 1/Rakip 2 formasına doğrudan davet — 'opp1' | 'opp2' (bkz. inviteToRival/respondToJoin). Yazım ve initiatedBy farklı olduğu için asla çakışmaz.
   slotIndex       Int?                          // Takım sporlarında (voleybol/airsoft) isPartnerInvite/isOppTeamInvite daveti kadro kartındaki HANGİ sıradaki forma yazıldıysa (0-index) — kabul edilince kişi senderTeam/participants dizisinde bu index'e yerleşir, dizinin sonuna değil (kullanıcı isteği: "hangi forma yazıldıysa orada kalsın").
   createdAt   DateTime @default(now())
 
