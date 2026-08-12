@@ -10556,7 +10556,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             {!isMatchedEdit && !SIMPLIFIED_FEE_SUBS.has(sub) && (
                                 <View style={{ flexDirection: (isTennis || isPadel || isVolleyball) ? 'row' : 'column', gap: 8 }}>
                                     <View style={(isTennis || isPadel || isVolleyball) ? { flex: 2 } : null}>
-                                        <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.messageFieldLabel}</Text>
+                                        <Text style={[s.fieldLabel, { marginTop:4 }]} numberOfLines={1}>{t.messageFieldLabel}</Text>
                                         <TextInput style={[s.fieldInput, { height:80, textAlignVertical:'top' }]}
                                             value={f.message} onChangeText={v => set('message', v)}
                                             placeholder={t.messagePh}
@@ -10564,7 +10564,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     </View>
                                     {(isTennis || isPadel || isVolleyball) && (
                                         <View style={{ flex: 1 }}>
-                                            <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.wagerLabel}</Text>
+                                            <Text style={[s.fieldLabel, { marginTop:4 }]} numberOfLines={1}>{t.wagerLabel}</Text>
                                             <TextInput style={[s.fieldInput, { height:80, textAlignVertical:'top' }]}
                                                 value={f.wager} onChangeText={v => set('wager', v)}
                                                 placeholder={t.wagerPh}

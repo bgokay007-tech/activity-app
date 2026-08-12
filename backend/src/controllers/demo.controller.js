@@ -215,6 +215,34 @@ export const seedOneTournamentJoin = async (req, res, next) => {
 // Rakip Bul (rival) çiftler testi için 10 demo oyuncu — 5 kadın / 5 erkek, 0-5 puan
 // aralığında dağıtılmış (3 kişi 0-1, 3 kişi 1-2, 2 kişi 2-3, 1 kişi 3-4, 1 kişi 4-5).
 // Hem tenis hem padel için aynı 10 kimlik kullanılır (her ikisinde de UserInterest açılır).
+// Yüksek dereceli havuz — kullanıcı isteği: tenis gibi dallarda derece filtresi 4 üstü
+// olunca (10 kişilik orijinal havuzda tek yüksek dereceli demo_r_yusuf hızla tükeniyordu)
+// "uygun demo oyuncu bulunamadı" hatası alınıyordu. 20 kadın + 20 erkek, 4.00-4.99 arası
+// dağıtılmış derece — isimler deterministik üretiliyor ki tekrar çağrılınca aynı 40
+// kullanıcı tekrar kullanılsın (bkz. ensureDemoRivalPlayer'daki upsert).
+const HI_FEMALE_FIRST_NAMES = ['Ayşe','Elif','Zeynep','Fatma','Emine','Meryem','Büşra','Esra','Merve','Selin','Aslı','Ceren','Deniz','Ece','Gizem','Hande','İrem','Kübra','Nazlı','Öykü'];
+const HI_MALE_FIRST_NAMES   = ['Mehmet','Ahmet','Mustafa','Ali','Hüseyin','Hasan','İbrahim','Emre','Burak','Cem','Doruk','Eren','Furkan','Gökhan','Halil','İlker','Kaan','Levent','Murat','Onur'];
+const HI_LAST_NAMES = ['Yılmaz','Kaya','Demir','Şahin','Çelik','Yıldız','Yıldırım','Öztürk','Aydın','Özdemir','Arslan','Doğan','Kılıç','Aslan','Çetin','Kara','Koç','Kurt','Özkan','Şimşek'];
+
+function buildHighRatedDemoPool() {
+    const pool = [];
+    const buildGender = (firstNames, genderCode, genderLabel) => {
+        for (let i = 0; i < 20; i++) {
+            const first = firstNames[i];
+            const last = HI_LAST_NAMES[(i * 7 + 3) % HI_LAST_NAMES.length];
+            pool.push({
+                username: `demo_r_hi_${genderCode}${String(i + 1).padStart(2, '0')}`,
+                fullName: `${first} ${last}`,
+                gender: genderLabel,
+                skillRating: Math.round((4.00 + i * (0.99 / 19)) * 100) / 100, // 4.00 → 4.99, eşit dağıtılmış
+            });
+        }
+    };
+    buildGender(HI_FEMALE_FIRST_NAMES, 'k', 'FEMALE');
+    buildGender(HI_MALE_FIRST_NAMES, 'e', 'MALE');
+    return pool;
+}
+
 const DEMO_RIVAL_PLAYERS = [
     { username: 'demo_r_ada',   fullName: 'Ada Yılmaz',     gender: 'FEMALE', skillRating: 0.42 },
     { username: 'demo_r_kerem', fullName: 'Kerem Aydın',    gender: 'MALE',   skillRating: 0.78 },
@@ -226,6 +254,7 @@ const DEMO_RIVAL_PLAYERS = [
     { username: 'demo_r_bora',  fullName: 'Bora Arslan',    gender: 'MALE',   skillRating: 2.95 },
     { username: 'demo_r_sude',  fullName: 'Sude Koç',       gender: 'FEMALE', skillRating: 3.40 },
     { username: 'demo_r_yusuf', fullName: 'Yusuf Polat',    gender: 'MALE',   skillRating: 4.65 },
+    ...buildHighRatedDemoPool(),
 ];
 
 function levelForRating(r) {
