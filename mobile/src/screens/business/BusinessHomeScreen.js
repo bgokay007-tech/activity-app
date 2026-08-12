@@ -1463,6 +1463,13 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const [venueLights, setVenueLights] = useState(
         () => (venue.courts || []).find(c => c.lightsFrom)?.lightsFrom || null
     );
+    // Kullanıcı isteği: "gece ışıkları belirlediği saatten sonra kort ücretlerine +200 TL
+    // gibi ekleyebilsin" — ışık saati zaten var olan bir alandı (sadece bilgi amaçlıydı, fiyata
+    // hiç etkisi yoktu), buraya saat başı ek ücret eklendi.
+    const [venueLightsFee, setVenueLightsFee] = useState(
+        () => { const c = (venue.courts || []).find(c => c.lightsFee != null); return c ? String(c.lightsFee) : ''; }
+    );
+    const [savingLightsFee, setSavingLightsFee] = useState(false);
     const [showVenueLightsPicker, setShowVenueLightsPicker] = useState(false);
     const [savingSlot, setSavingSlot]           = useState(false);
     const [savingApproval, setSavingApproval]   = useState(false);
@@ -1878,6 +1885,20 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
             );
             setVenueLights(lightsFrom || null);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+    };
+
+    const handleUpdateVenueLightsFee = async () => {
+        const fee = venueLightsFee.trim() === '' ? null : parseInt(venueLightsFee, 10);
+        if (venueLightsFee.trim() !== '' && (isNaN(fee) || fee < 0)) { Alert.alert('Hata', 'Geçerli bir tutar giriniz'); return; }
+        setSavingLightsFee(true);
+        try {
+            await Promise.all(
+                (venue.courts || []).map(c =>
+                    api.patch(`/venues/${venue.id}/courts/${c.id}/settings`, { lightsFee: fee })
+                )
+            );
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingLightsFee(false); }
     };
 
     const handleGlobalIndoor = async (isIndoor) => {
@@ -3367,6 +3388,34 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                     </TouchableOpacity>
                                 )}
                             </View>
+                            {venueLights && (
+                                <View style={{ marginTop: 10 }}>
+                                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 8, lineHeight: 16 }}>
+                                        {venueLights} sonrası saat başı ek ücret (opsiyonel — ör. 200)
+                                    </Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                        <TextInput
+                                            style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                                paddingHorizontal: 12, paddingVertical: 9, color: '#fff',
+                                                fontSize: 14, borderWidth: 1,
+                                                borderColor: venueLightsFee ? '#fbbf2460' : '#ffffff15' }}
+                                            placeholder="0"
+                                            placeholderTextColor="#444"
+                                            keyboardType="number-pad"
+                                            value={venueLightsFee}
+                                            onChangeText={v => setVenueLightsFee(v.replace(/[^0-9]/g, ''))}
+                                        />
+                                        <Text style={{ color: '#555', fontSize: 14 }}>₺/saat</Text>
+                                        <TouchableOpacity disabled={savingLightsFee} onPress={handleUpdateVenueLightsFee}
+                                            style={{ backgroundColor: '#fbbf2430', borderRadius: 8, paddingHorizontal: 14,
+                                                paddingVertical: 9, borderWidth: 1, borderColor: '#fbbf2460' }}>
+                                            {savingLightsFee
+                                                ? <ActivityIndicator size="small" color="#fbbf24" />
+                                                : <Text style={{ color: '#fbbf24', fontWeight: '700', fontSize: 13 }}>Kaydet</Text>}
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            )}
                             <TimePickerModal
                                 visible={showVenueLightsPicker}
                                 value={venueLights || ''}

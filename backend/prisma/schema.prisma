@@ -1519,6 +1519,7 @@ model VenueCourt {
   surface          String?
   indoor           Boolean? // null = tesis varsayılanı kullan
   lightsFrom       String?
+  lightsFee        Int?     // gece ışıkları (lightsFrom) açıldıktan sonra saat başı eklenecek ek ücret — kullanıcı isteği: "ışıkları belirlediği saatten sonra kort ücretlerine +200 TL gibi ekleyebilsin"
   pricePerSlot     Int?     // null = tesis varsayılanı kullan
   maintenanceDates Json?    // [{ from: "YYYY-MM-DD", to: "YYYY-MM-DD" }]
   approvalMode     String?  // null = tesis varsayılanı kullan

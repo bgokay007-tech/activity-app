@@ -207,20 +207,32 @@ function splitPriceSegments(venue, court, rangeStartMins, rangeEndMins) {
             if (raw > rangeStartMins && raw < rangeEndMins) points.add(raw);
         }
     }
+    // Gece ışık ücreti (lightsFee) lightsFrom saatinden itibaren geçerli — bir rezervasyon bu
+    // sınırın ortasına düşerse (ör. ışıklar 20:00'de yanıyor, rezervasyon 19:30-20:30), ışık
+    // ücretinin sadece 20:00'den sonraki kısma uygulanması için burada da sınır noktası eklenir.
+    if (court?.lightsFrom) {
+        const lf = toMins(court.lightsFrom);
+        if (lf > rangeStartMins && lf < rangeEndMins) points.add(lf);
+    }
     const sorted = [...points].sort((a, b) => a - b);
     const segments = [];
     for (let i = 0; i < sorted.length - 1; i++) {
         const segStart = sorted[i], segEnd = sorted[i + 1];
         if (segEnd <= segStart) continue;
         const { basePrice, paymentDeltas } = resolvePriceRule(venue, court, toTime(segStart));
-        segments.push({ startMins: segStart, endMins: segEnd, basePrice, paymentDeltas });
+        // Kullanıcı isteği: "gece ışıkları belirlediği saatten sonra kort ücretlerine +200 TL
+        // gibi ekleyebilsin" — lightsFrom set edilmiş VE bu segment o saatten sonra başlıyorsa
+        // saat başı ek ücret (lightsFee) uygulanır.
+        const lightsOn = court?.lightsFrom != null && segStart >= toMins(court.lightsFrom);
+        const lightsFee = lightsOn ? (court.lightsFee || 0) : 0;
+        segments.push({ startMins: segStart, endMins: segEnd, basePrice, paymentDeltas, lightsFee });
     }
     return segments;
 }
 
 function getSlotPrice(venue, court, startTime, durationMins = 60) {
     const segs = splitPriceSegments(venue, court, toMins(startTime), toMins(startTime) + durationMins);
-    const total = segs.reduce((sum, seg) => sum + seg.basePrice * ((seg.endMins - seg.startMins) / 60), 0);
+    const total = segs.reduce((sum, seg) => sum + (seg.basePrice + seg.lightsFee) * ((seg.endMins - seg.startMins) / 60), 0);
     return Math.round(total);
 }
 
@@ -236,7 +248,7 @@ function resolveMethodRate(basePricePerHour, paymentDeltas, method) {
 // Tek bir ödeme yöntemi için, fiyat sınırlarına bölünerek hesaplanmış nihai tutar.
 function getMethodPrice(venue, court, startTime, durationMins, method) {
     const segs = splitPriceSegments(venue, court, toMins(startTime), toMins(startTime) + durationMins);
-    const total = segs.reduce((sum, seg) => sum + resolveMethodRate(seg.basePrice, seg.paymentDeltas, method) * ((seg.endMins - seg.startMins) / 60), 0);
+    const total = segs.reduce((sum, seg) => sum + (resolveMethodRate(seg.basePrice, seg.paymentDeltas, method) + seg.lightsFee) * ((seg.endMins - seg.startMins) / 60), 0);
     return Math.round(total);
 }
 
@@ -566,7 +578,7 @@ export const getVenueSlots = async (req, res, next) => {
 export const updateCourtSettings = async (req, res, next) => {
     try {
         const { id, courtId } = req.params;
-        const { slotType, surface, indoor, lightsFrom, pricePerSlot, maintenanceDates, approvalMode } = req.body;
+        const { slotType, surface, indoor, lightsFrom, lightsFee, pricePerSlot, maintenanceDates, approvalMode } = req.body;
         const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         const VALID_SURFACES = ['CLAY', 'HARD', 'CARPET', 'GRASS', 'PARQUET', 'SYNTHETIC'];
         const VALID_APPROVAL = ['FULL_AUTO', 'EFT_TIMED', 'PAYMENT_AUTO', 'MANUAL'];
@@ -587,6 +599,7 @@ export const updateCourtSettings = async (req, res, next) => {
         if (surface           !== undefined) data.surface           = surface           || null;
         if (indoor            !== undefined) data.indoor            = indoor === null ? null : Boolean(indoor);
         if (lightsFrom        !== undefined) data.lightsFrom        = lightsFrom        || null;
+        if (lightsFee         !== undefined) data.lightsFee         = lightsFee === null || lightsFee === '' ? null : Math.max(0, parseInt(lightsFee) || 0);
         if (pricePerSlot      !== undefined) data.pricePerSlot      = pricePerSlot === null ? null : (parseInt(pricePerSlot) || 0);
         if (maintenanceDates  !== undefined) data.maintenanceDates  = Array.isArray(maintenanceDates) ? maintenanceDates : null;
         if (approvalMode      !== undefined) data.approvalMode      = approvalMode || null;
