@@ -1575,10 +1575,11 @@ function MaintenancePickerModal({ visible, venue, courts, localOpenSlots, courtM
                     ))}
                 </View>
 
-                {/* Kort sütunları + saat hücreleri */}
-                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={true}
-                        contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 16 }}>
+                {/* Kort sütunları + saat hücreleri — iç içe zıt yönlü ScrollView'lar Android'de
+                    dikey kaydırmayı erken kesebiliyor, nestedScrollEnabled bunu düzeltiyor. */}
+                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={true} nestedScrollEnabled
+                        contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 30 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
                             {courts.length === 0
                                 ? <Text style={{ color: '#555', fontSize: 13 }}>Kort bulunamadı</Text>
