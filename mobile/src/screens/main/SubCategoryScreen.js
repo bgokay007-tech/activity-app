@@ -7926,7 +7926,7 @@ function FriendsMultiPickerModal({ visible, onClose, sub, category, t, cfg, maxS
 // state-makinesine SOKULMUYOR (SPIKER/LIBERO/manuel oyuncu içeriyor, DOUBLE'a uymuyor) — doğrudan
 // f.partner/f.opp1Invite/f.opp2Invite'a bağlı, submit'teki partnerInviteId/opp1InviteId/
 // opp2InviteId mekaniği HİÇ değişmiyor (bkz. CreateRivalModal submit).
-function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, t, editItem, onLongPressEmptySlot }) {
+function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, t, editItem, onLongPressEmptySlot, onEditTeamName }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const flip = () => {
@@ -8007,7 +8007,12 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
                         </View>
                         <View style={{ flexDirection:'row', gap:6 }}>
                             <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#a855f720' }}>
-                                <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>Takım 1</Text>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
+                                    <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{f.founderTeamName || 'Takım 1'}</Text>
+                                    <TouchableOpacity onPress={() => onEditTeamName({ side:'founder', value: f.founderTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                        <Text style={{ fontSize:9 }}>✎</Text>
+                                    </TouchableOpacity>
+                                </View>
                                 <View style={{ borderRadius:5, paddingHorizontal:3, paddingVertical:2, backgroundColor:'#1e293b', marginBottom:4 }}>
                                     <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{myUser?.fullName || myUser?.username} 🔒</Text>
                                 </View>
@@ -8015,7 +8020,12 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
                                 {renderSlot('partner', t.choosePartnerBtn)}
                             </View>
                             <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#f8717120' }}>
-                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>Takım 2</Text>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
+                                    <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{f.opponentTeamName || 'Takım 2'}</Text>
+                                    <TouchableOpacity onPress={() => onEditTeamName({ side:'opponent', value: f.opponentTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                        <Text style={{ fontSize:9 }}>✎</Text>
+                                    </TouchableOpacity>
+                                </View>
                                 <View style={{ marginBottom:3 }}><GenderRow label={t.opp1GenderLabel || 'Rakip 1'} field="opp1GenderReq" /></View>
                                 {renderSlot('opp1Invite', t.inviteSendBtn)}
                                 <View style={{ marginTop:5, marginBottom:3 }}><GenderRow label={t.opp2GenderLabel || 'Rakip 2'} field="opp2GenderReq" /></View>
@@ -9045,7 +9055,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 minRatingFemale: f.minRatingFemale !== '' ? f.minRatingFemale : null,
                 maxRatingFemale: f.maxRatingFemale !== '' ? f.maxRatingFemale : null,
                 ...(isVolleyball && { cancelPenaltyHours: f.cancelPenaltyHours !== '' ? f.cancelPenaltyHours : null }),
-                ...((isVolleyball || sub === 'airsoft') && { founderTeamName: f.founderTeamName.trim() || null, opponentTeamName: f.opponentTeamName.trim() || null }),
+                ...((isVolleyball || sub === 'airsoft' || f.matchType === 'DOUBLE') && { founderTeamName: f.founderTeamName.trim() || null, opponentTeamName: f.opponentTeamName.trim() || null }),
                 matchMode: f.matchMode || 'PRACTICE',
                 venueId: f.venueId || null,
                 venueCourtId: f.venueCourtId || null,
@@ -9238,8 +9248,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 maxRatingFemale: f.maxRatingFemale !== '' ? parseFloat(f.maxRatingFemale) : undefined,
                 cancelPenaltyHours: isVolleyball && f.cancelPenaltyHours !== '' ? parseInt(f.cancelPenaltyHours, 10) : undefined,
                 subCount: isVolleyball ? (f.subCount || 0) : undefined,
-                founderTeamName: (isVolleyball || sub === 'airsoft') && f.founderTeamName.trim() ? f.founderTeamName.trim() : undefined,
-                opponentTeamName: (isVolleyball || sub === 'airsoft') && f.opponentTeamName.trim() ? f.opponentTeamName.trim() : undefined,
+                founderTeamName: (isVolleyball || sub === 'airsoft' || f.matchType === 'DOUBLE') && f.founderTeamName.trim() ? f.founderTeamName.trim() : undefined,
+                opponentTeamName: (isVolleyball || sub === 'airsoft' || f.matchType === 'DOUBLE') && f.opponentTeamName.trim() ? f.opponentTeamName.trim() : undefined,
                 genderReq: (sub === 'tennis' || sub === 'padel') ? (f.genderReq || 'MIX') : undefined,
                 partnerGenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.partnerGenderReq : undefined,
                 opp1GenderReq: (sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' ? f.opp1GenderReq : undefined,
@@ -10938,6 +10948,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             f={f} set={set} myUser={myUser} myOwnRating={myOwnRating}
                                             cfg={cfg} sub={sub} category={category} s={s} t={t} editItem={editItem}
                                             onLongPressEmptySlot={() => setShowDoubleFriendsPicker(true)}
+                                            onEditTeamName={setTeamNameEdit}
                                         />
                                     )}
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:10 }}>
