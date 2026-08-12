@@ -551,6 +551,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
     const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2' — seçili slot
+    // Boş bir DOUBLE slotuna uzun basınca açılan çoklu-seç arkadaş listesi (bkz. SlotBox).
+    const [showDoubleFriendsPicker, setShowDoubleFriendsPicker] = useState(false);
     // Voleybol kadro kartındaki Yedek Sayısı seçici — ilan oluşturma formundaki subCount
     // ile aynı mantık, açık ilanda da kurucu ayarlayabiliyor (bkz. updateSubCount).
     const [showSubCountPicker, setShowSubCountPicker] = useState(false);
@@ -1098,6 +1100,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
 
+    // DOUBLE'da (2v2) kadro kartının arka yüzünde boş bir Partner/Rakip 1/Rakip 2 slotuna
+    // isim yazıp doğrudan davet göndermek için — inviteToTeamSlot'un slot-özel karşılığı
+    // (bkz. backend inviteToRival'daki isDoubleSlotInvite).
+    const inviteToDoubleSlot = (u, slot) => {
+        api.post(`/rivals/${item.id}/invite`, { userId: u.id, slot })
+            .then(({ data }) => {
+                if (Array.isArray(data?.request?.joinRequests)) setLocalJoinRequests(data.request.joinRequests);
+                onRefresh();
+            })
+            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+    };
+
     // Uygulamayı kullanmayan (kayıtsız) oyuncu — sadece isim, davet/bildirim gitmez. Cinsiyet
     // de gönderiliyor ki cinsiyet dağılımı kotası (requiredMaleCount) tutarlı sayabilsin.
     const addManualPlayerToTeam = (name, side, slotIndex, gender) => {
@@ -1472,6 +1486,20 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
                             // Slot kutusu: seçiliyse altın border, doluysa dokunulabilir
                             const SlotBox = ({ slot, gReqLabel, p, fallback, onRemove, locked }) => {
+                                // Boş forma + sahip + aktif takas yoksa: voleybolün Digimon kartındaki gibi
+                                // doğrudan formanın içinde arama/davet (kullanıcı isteği: "voleyboldeki
+                                // mantığı yap"). Dıştaki TouchableOpacity'nin İÇİNE gömülmez — TextInput'un
+                                // odaklanma/dokunma davranışıyla çakışır, bu yüzden erken ayrı render edilir.
+                                if (!p && !locked && isOwner && !swapSlot) {
+                                    return (
+                                        <View>
+                                            {gReqLabel && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:1 }}>{gReqLabel}</Text>}
+                                            <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t} placeholder={fallback}
+                                                onInvite={(u) => inviteToDoubleSlot(u, slot)}
+                                                onLongPress={() => setShowDoubleFriendsPicker(true)} />
+                                        </View>
+                                    );
+                                }
                                 const isSelected = swapSlot === slot;
                                 // Hedef slot boş da olabilir — o zaman oyuncu oraya taşınır (swap değil, move).
                                 const isTarget   = !!swapSlot && !locked && swapSlot !== slot;
@@ -1672,15 +1700,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', flex:1, textAlign:'center' }}>+</Text>
                                                 {genderLabel(partnerGenderReq) && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700' }}>{genderLabel(partnerGenderReq)}</Text>}
                                             </View>
-                                            {PartnerContent ? (
-                                                <SlotBox slot="partner" p={PartnerContent} fallback="Partner yok" gReqLabel={null} />
-                                            ) : pendingPartnerInvite ? (
+                                            {pendingPartnerInvite ? (
                                                 <View>
                                                     <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{pendingPartnerInvite.user?.fullName || pendingPartnerInvite.user?.username}</Text>
                                                     <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
                                                 </View>
                                             ) : (
-                                                <Text style={{ color: colors.textMuted, fontSize:9 }}>Partner yok</Text>
+                                                // SlotBox artık boşken de kendi içinde arama/davet alanını (ya da,
+                                                // sahip değilse/takas aktifse, eski statik metni) gösteriyor.
+                                                <SlotBox slot="partner" p={PartnerContent} fallback="Partner yok" gReqLabel={null} />
                                             )}
                                         </View>
                                         <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:5, marginBottom:6 }}>
@@ -1727,6 +1755,19 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             })}
                                         </View>
                                     )}
+                                    <FriendsMultiPickerModal
+                                        visible={showDoubleFriendsPicker}
+                                        onClose={() => setShowDoubleFriendsPicker(false)}
+                                        sub={sub} category={item.category} cfg={cfg} t={t}
+                                        maxSelect={['partner', 'opp1', 'opp2'].filter(k => !({ partner: PartnerContent, opp1: participants[0], opp2: participants[1] }[k])).length}
+                                        confirmLabel={(n) => t.friendsMultiPickerInviteBtn(n)}
+                                        onConfirm={(users) => {
+                                            const emptyKeys = ['partner', 'opp1', 'opp2'].filter(k => !({ partner: PartnerContent, opp1: participants[0], opp2: participants[1] }[k]));
+                                            Promise.all(users.map((u, i) => api.post(`/rivals/${item.id}/invite`, { userId: u.id, slot: emptyKeys[i] })))
+                                                .then(() => onRefresh())
+                                                .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+                                        }}
+                                    />
                                 </View>
                             );
                         })() : (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) ? (() => {
