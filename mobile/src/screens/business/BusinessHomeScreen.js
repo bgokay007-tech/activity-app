@@ -1560,21 +1560,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const [ccPickerKey, setCcPickerKey] = useState(null);
     const [ccSearch, setCcSearch] = useState('');
 
-    // ── Bakım günleri state ──────────────────────────────────────────────────
-    const [courtMaintenance, setCourtMaintenance] = useState(() => {
-        const r = {};
-        (venue.courts || []).forEach(c => {
-            r[c.id] = Array.isArray(c.maintenanceDates) ? c.maintenanceDates : [];
-        });
-        return r;
-    });
-    const [addingMaint, setAddingMaint]         = useState(null);
-    const [maintFromDate, setMaintFromDate]     = useState('');
-    const [maintToDate, setMaintToDate]         = useState('');
-    const [maintFromTime, setMaintFromTime]     = useState('');
-    const [maintToTime, setMaintToTime]         = useState('');
-    const [savingMaint, setSavingMaint]         = useState(false);
-
     // ── Yorumlar state ───────────────────────────────────────────────────────
     const [venueReviews, setVenueReviews]     = useState(null);
     const [reviewsLoaded, setReviewsLoaded]   = useState(false);
@@ -1864,15 +1849,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         finally { setSavingPayments(false); }
     };
 
-    const handleSaveMaintenance = async (courtId, newDates) => {
-        setSavingMaint(true);
-        try {
-            await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { maintenanceDates: newDates });
-            setCourtMaintenance(prev => ({ ...prev, [courtId]: newDates }));
-        } catch (e) { Alert.alert('Hata', 'Kaydedilemedi'); }
-        finally { setSavingMaint(false); }
-    };
-
     const handleUpdateCourtSlotType = async (courtId, type) => {
         if (courtSlotTypes[courtId] === type) return;
         setSavingSlot(true);
@@ -2018,29 +1994,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
             setCourtSurfaces(prev => ({ ...prev, ...upd }));
             setGlobalSurface(next);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
-    };
-
-    const handleGlobalAddMaintenance = async (item) => {
-        setSavingMaint(true);
-        try {
-            await Promise.all(sortedCourts.map(c => {
-                const existing = courtMaintenance[c.id] || [];
-                const updated = [...existing, item].sort((a, b) =>
-                    (a.fromDate || a.from || '').localeCompare(b.fromDate || b.from || '')
-                );
-                return api.patch(`/venues/${venue.id}/courts/${c.id}/settings`, { maintenanceDates: updated });
-            }));
-            setCourtMaintenance(prev => {
-                const next = { ...prev };
-                sortedCourts.forEach(c => {
-                    next[c.id] = [...(prev[c.id] || []), item].sort((a, b) =>
-                        (a.fromDate || a.from || '').localeCompare(b.fromDate || b.from || '')
-                    );
-                });
-                return next;
-            });
-        } catch (e) { Alert.alert('Hata', 'Kaydedilemedi'); }
-        finally { setSavingMaint(false); }
     };
 
     const handleAddPricingRule = async () => {
@@ -3142,6 +3095,12 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
             {activeTab === 'settings' && (
                 <View style={vc.panel}>
                     {(() => {
+                    {/* Zemin tipi seçeneği çok olan dallarda (tenis vb.) Alan Türü alt alta (tek sütun)
+                        gösterilip Zemin Tipi'ne daha fazla yer açılıyor; padel gibi tek zemin tipi olan
+                        dallarda ekstra yere gerek olmadığı için Alan Türü yan yana kalıyor (kullanıcı
+                        isteği: "padelde zemin tipi tek zaten sığıyordu, orda yan yana kalsın"). */}
+                    const manySurfaces = getSurfaceOptions(venue.branch).length > 2;
+
                     {/* Çalışma Saatleri + Gece Işıkları — hem "Tüm Kortlar" hem tek kort görünümünde
                         aynı sırada (Zemin Tipi/Alan Türü'nün hemen altında) gösterilebilsin diye tek
                         seferlik JSX olarak hazırlanıp aşağıda iki yerde de {workingHoursSection}
@@ -3149,9 +3108,18 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                     const workingHoursSection = (
                         <>
                     {/* ── Çalışma Saatleri ─────────────────────── */}
-                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 10 }}>
-                        ÇALIŞMA SAATLERİ
-                    </Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>
+                            ÇALIŞMA SAATLERİ
+                        </Text>
+                        {/* Bakım günleri yönetimi kaldırıldı, buton bilinçli olarak işlevsiz bırakıldı
+                            (kullanıcı isteği) — ileride yeniden etkinleştirilebilir diye duruyor. */}
+                        <TouchableOpacity disabled
+                            style={{ borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1,
+                                borderStyle: 'dashed', borderColor: '#ef444425', backgroundColor: '#ef444406', opacity: 0.5 }}>
+                            <Text style={{ color: '#fca5a5', fontSize: 11 }}>+ Bakım Dönemi Ekle</Text>
+                        </TouchableOpacity>
+                    </View>
 
                     {/* Gün seçici */}
                     <View style={{ flexDirection: 'row', gap: 5, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -3445,7 +3413,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 zemin tipi çok, Alan Türü'nü tek sütun yap, böylece zemin türüne daha fazla
                                 yer açılır, her satıra 3 bile sığabilir". */}
                             <View style={{ flexDirection: 'row', gap: 14, marginBottom: 4 }}>
-                                <View style={{ flex: 2 }}>
+                                <View style={{ flex: manySurfaces ? 2 : 1 }}>
                                     <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
                                         ZEMİN TİPİ
                                     </Text>
@@ -3478,13 +3446,13 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                     <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
                                         ALAN TÜRÜ
                                     </Text>
-                                    <View style={{ gap: 6 }}>
+                                    <View style={{ flexDirection: manySurfaces ? 'column' : 'row', gap: 6 }}>
                                         {[{ val: false, label: '🌤️ Açık' }, { val: true, label: '🏠 Kapalı' }].map(opt => {
                                             const isActive = globalIndoor === opt.val;
                                             return (
                                                 <TouchableOpacity key={String(opt.val)}
                                                     onPress={() => handleGlobalIndoor(opt.val)}
-                                                    style={{ paddingVertical: 8, borderRadius: 8, borderWidth: 1.5,
+                                                    style={{ flex: manySurfaces ? 0 : 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5,
                                                         borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
                                                         backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
                                                         alignItems: 'center' }}>
@@ -3503,117 +3471,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                             </Text>
 
                             {workingHoursSection}
-
-                            {/* ── Bakım Günleri (global) — Çalışma Saatleri'nin hemen altında ── */}
-                            <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
-                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
-                                BAKIM GÜNLERİ
-                            </Text>
-                            <Text style={{ color: '#555', fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
-                                Belirtilen tarihlerde tüm kortlar bakımda sayılır, rezervasyon yapılamaz.
-                            </Text>
-                            {addingMaint === '__global__' ? (
-                                <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 12, marginBottom: 6 }}>
-                                    <Text style={{ color: '#888', fontSize: 11, marginBottom: 6 }}>Tarih Aralığı (YYYY-AA-GG)</Text>
-                                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' }}>
-                                        <TextInput
-                                            style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
-                                                paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
-                                                fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
-                                            placeholder="2026-07-10"
-                                            placeholderTextColor="#444"
-                                            value={maintFromDate}
-                                            onChangeText={setMaintFromDate}
-                                            keyboardType="number-pad"
-                                            maxLength={10}
-                                        />
-                                        <Text style={{ color: '#555', fontSize: 16 }}>–</Text>
-                                        <TextInput
-                                            style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
-                                                paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
-                                                fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
-                                            placeholder="2026-07-15"
-                                            placeholderTextColor="#444"
-                                            value={maintToDate}
-                                            onChangeText={setMaintToDate}
-                                            keyboardType="number-pad"
-                                            maxLength={10}
-                                        />
-                                    </View>
-                                    <Text style={{ color: '#888', fontSize: 11, marginBottom: 6 }}>Saat Aralığı — İsteğe Bağlı (HH:MM)</Text>
-                                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' }}>
-                                        <TextInput
-                                            style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
-                                                paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
-                                                fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
-                                            placeholder="09:00"
-                                            placeholderTextColor="#444"
-                                            value={maintFromTime}
-                                            onChangeText={setMaintFromTime}
-                                            keyboardType="numbers-and-punctuation"
-                                            maxLength={5}
-                                        />
-                                        <Text style={{ color: '#555', fontSize: 16 }}>–</Text>
-                                        <TextInput
-                                            style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
-                                                paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
-                                                fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
-                                            placeholder="12:00"
-                                            placeholderTextColor="#444"
-                                            value={maintToTime}
-                                            onChangeText={setMaintToTime}
-                                            keyboardType="numbers-and-punctuation"
-                                            maxLength={5}
-                                        />
-                                    </View>
-                                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 8 }}>
-                                        Saat boş bırakılırsa tüm gün bakımda sayılır.
-                                    </Text>
-                                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                                        <TouchableOpacity onPress={() => {
-                                            setAddingMaint(null);
-                                            setMaintFromDate(''); setMaintToDate('');
-                                            setMaintFromTime(''); setMaintToTime('');
-                                        }}
-                                            style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#ffffff12', alignItems: 'center' }}>
-                                            <Text style={{ color: '#aaa', fontSize: 13 }}>Vazgeç</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            disabled={savingMaint}
-                                            onPress={() => {
-                                                const dateRe = /^\d{4}-\d{2}-\d{2}$/;
-                                                const timeRe = /^\d{2}:\d{2}$/;
-                                                if (!dateRe.test(maintFromDate) || !dateRe.test(maintToDate) || maintFromDate > maintToDate)
-                                                    return Alert.alert('Hata', 'YYYY-AA-GG formatında geçerli tarih aralığı girin.\nÖrnek: 2026-07-10 – 2026-07-15');
-                                                const hasTime = maintFromTime || maintToTime;
-                                                if (hasTime && (!timeRe.test(maintFromTime) || !timeRe.test(maintToTime) || maintFromTime >= maintToTime))
-                                                    return Alert.alert('Hata', 'Saat HH:MM formatında olmalı ve başlangıç < bitiş.');
-                                                const item = { fromDate: maintFromDate, toDate: maintToDate };
-                                                if (hasTime) { item.fromTime = maintFromTime; item.toTime = maintToTime; }
-                                                handleGlobalAddMaintenance(item);
-                                                setAddingMaint(null);
-                                                setMaintFromDate(''); setMaintToDate('');
-                                                setMaintFromTime(''); setMaintToTime('');
-                                            }}
-                                            style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#ef444430', alignItems: 'center' }}>
-                                            <Text style={{ color: '#fca5a5', fontWeight: '700', fontSize: 13 }}>
-                                                {savingMaint ? 'Kaydediliyor...' : 'Ekle'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                            ) : (
-                                <TouchableOpacity onPress={() => {
-                                    setAddingMaint('__global__');
-                                    setMaintFromDate(''); setMaintToDate('');
-                                    setMaintFromTime(''); setMaintToTime('');
-                                }}
-                                    style={{ borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1,
-                                        borderStyle: 'dashed', borderColor: '#ef444440',
-                                        backgroundColor: '#ef444408', marginBottom: 4 }}>
-                                    <Text style={{ color: '#fca5a5', fontSize: 12 }}>+ Tüm Kortlara Bakım Dönemi Ekle</Text>
-                                </TouchableOpacity>
-                            )}
 
                             <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 0.5 }}>
                                 REZERVASYON TİPİ
@@ -3675,6 +3532,45 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 })}
                             </View>
 
+                                        {/* ── Ödeme Yöntemleri (PRO) — EFT/IBAN'ın hemen üstünde ── */}
+                                        {isPro && (
+                                            <>
+                                                <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
+                                                <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                                                    ÖDEME YÖNTEMLERİ
+                                                </Text>
+                                                <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 16 }}>
+                                                    Hangi ödeme yöntemlerini kabul ediyorsunuz? Kullanıcılar yalnızca seçili yöntemlerle rezervasyon yapabilir.
+                                                </Text>
+                                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                                    {[
+                                                        { key: 'CASH',        label: '💵 Nakit / Kortta' },
+                                                        { key: 'EFT',         label: '🏦 EFT / Havale' },
+                                                        { key: 'ONLINE',      label: '🌐 Online Ödeme (Bakımda)', disabled: true },
+                                                        { key: 'CREDIT_CARD', label: '💳 Kortta Kredi Kartı' },
+                                                    ].map(m => {
+                                                        const isActive = localAcceptedPayments.includes(m.key);
+                                                        return (
+                                                            <TouchableOpacity key={m.key} disabled={savingPayments || m.disabled}
+                                                                onPress={() => handleTogglePayment(m.key)}
+                                                                style={{
+                                                                    paddingHorizontal: 12, paddingVertical: 8,
+                                                                    borderRadius: 8, borderWidth: 1.5,
+                                                                    borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
+                                                                    backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
+                                                                    opacity: m.disabled ? 0.5 : 1,
+                                                                }}>
+                                                                <Text style={{ color: isActive ? BIZ_LIGHT : '#888', fontSize: 13, fontWeight: isActive ? '700' : '400' }}>
+                                                                    {m.label}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </View>
+                                                {savingPayments && <ActivityIndicator color={BIZ_COLOR} size="small" style={{ marginTop: 8 }} />}
+                                            </>
+                                        )}
+
                                         <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
                                         <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
                                             EFT / IBAN BİLGİLERİ
@@ -3728,7 +3624,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                         da otomatik seçilmiş olsun") — kort sekmesinde farklı bir seçeneğe
                                         basılırsa o andan itibaren sadece bu kort için override oluşur. */}
                                     <View style={{ flexDirection: 'row', gap: 14, marginBottom: 4 }}>
-                                        <View style={{ flex: 2 }}>
+                                        <View style={{ flex: manySurfaces ? 2 : 1 }}>
                                             <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
                                                 ZEMİN TİPİ
                                             </Text>
@@ -3757,7 +3653,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                             <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
                                                 ALAN TÜRÜ
                                             </Text>
-                                            <View style={{ gap: 6 }}>
+                                            <View style={{ flexDirection: manySurfaces ? 'column' : 'row', gap: 6 }}>
                                                 {[{ val: false, label: '🌤️ Açık' }, { val: true, label: '🏠 Kapalı' }].map(opt => {
                                                     const courtIndoor = courtIndoors[court.id];
                                                     const effectiveIndoor = courtIndoor !== null && courtIndoor !== undefined ? courtIndoor : globalIndoor;
@@ -3765,7 +3661,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                                     return (
                                                         <TouchableOpacity key={String(opt.val)}
                                                             onPress={() => handleCourtIndoor(court.id, opt.val)}
-                                                            style={{ paddingVertical: 8, borderRadius: 8, borderWidth: 1.5,
+                                                            style={{ flex: manySurfaces ? 0 : 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5,
                                                                 borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
                                                                 backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
                                                                 alignItems: 'center' }}>
@@ -3784,140 +3680,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                     </Text>
 
                                     {workingHoursSection}
-
-                                    {/* ── Bakım Günleri (per-court) — Çalışma Saatleri'nin hemen altında ── */}
-                                    <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 14 }} />
-                                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
-                                        BAKIM GÜNLERİ
-                                    </Text>
-                                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
-                                        Belirtilen tarihlerde bu kort bakımda sayılır, rezervasyon yapılamaz.
-                                    </Text>
-                                    {(courtMaintenance[court.id] || []).map((m, idx) => {
-                                        const fd = m.fromDate || m.from;
-                                        const td = m.toDate   || m.to;
-                                        const hasTime = m.fromTime && m.toTime;
-                                        return (
-                                            <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6,
-                                                backgroundColor: '#ef444412', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7,
-                                                borderWidth: 1, borderColor: '#ef444430' }}>
-                                                <View style={{ flex: 1 }}>
-                                                    <Text style={{ color: '#fca5a5', fontSize: 13 }}>🔧 {fd} – {td}</Text>
-                                                    {hasTime && <Text style={{ color: '#f87171', fontSize: 12, marginTop: 2 }}>🕐 {m.fromTime} – {m.toTime}</Text>}
-                                                </View>
-                                                <TouchableOpacity onPress={() => {
-                                                    const updated = (courtMaintenance[court.id] || []).filter((_, i) => i !== idx);
-                                                    handleSaveMaintenance(court.id, updated);
-                                                }}>
-                                                    <Text style={{ color: '#ef4444', fontSize: 15, fontWeight: '700' }}>✕</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        );
-                                    })}
-                                    {addingMaint === court.id ? (
-                                        <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 12, marginBottom: 6 }}>
-                                            <Text style={{ color: '#888', fontSize: 11, marginBottom: 6 }}>Tarih Aralığı (YYYY-AA-GG)</Text>
-                                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' }}>
-                                                <TextInput
-                                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
-                                                        paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
-                                                        fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
-                                                    placeholder="2026-07-10"
-                                                    placeholderTextColor="#444"
-                                                    value={maintFromDate}
-                                                    onChangeText={setMaintFromDate}
-                                                    keyboardType="number-pad"
-                                                    maxLength={10}
-                                                />
-                                                <Text style={{ color: '#555', fontSize: 16 }}>–</Text>
-                                                <TextInput
-                                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
-                                                        paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
-                                                        fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
-                                                    placeholder="2026-07-15"
-                                                    placeholderTextColor="#444"
-                                                    value={maintToDate}
-                                                    onChangeText={setMaintToDate}
-                                                    keyboardType="number-pad"
-                                                    maxLength={10}
-                                                />
-                                            </View>
-                                            <Text style={{ color: '#888', fontSize: 11, marginBottom: 6 }}>Saat Aralığı — İsteğe Bağlı (HH:MM)</Text>
-                                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' }}>
-                                                <TextInput
-                                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
-                                                        paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
-                                                        fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
-                                                    placeholder="09:00"
-                                                    placeholderTextColor="#444"
-                                                    value={maintFromTime}
-                                                    onChangeText={setMaintFromTime}
-                                                    keyboardType="numbers-and-punctuation"
-                                                    maxLength={5}
-                                                />
-                                                <Text style={{ color: '#555', fontSize: 16 }}>–</Text>
-                                                <TextInput
-                                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
-                                                        paddingHorizontal: 10, paddingVertical: 7, color: '#fff',
-                                                        fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
-                                                    placeholder="12:00"
-                                                    placeholderTextColor="#444"
-                                                    value={maintToTime}
-                                                    onChangeText={setMaintToTime}
-                                                    keyboardType="numbers-and-punctuation"
-                                                    maxLength={5}
-                                                />
-                                            </View>
-                                            <Text style={{ color: '#555', fontSize: 11, marginBottom: 8 }}>
-                                                Saat boş bırakılırsa tüm gün bakımda sayılır.
-                                            </Text>
-                                            <View style={{ flexDirection: 'row', gap: 8 }}>
-                                                <TouchableOpacity onPress={() => {
-                                                    setAddingMaint(null);
-                                                    setMaintFromDate(''); setMaintToDate('');
-                                                    setMaintFromTime(''); setMaintToTime('');
-                                                }}
-                                                    style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#ffffff12', alignItems: 'center' }}>
-                                                    <Text style={{ color: '#aaa', fontSize: 13 }}>Vazgeç</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    disabled={savingMaint}
-                                                    onPress={() => {
-                                                        const dateRe = /^\d{4}-\d{2}-\d{2}$/;
-                                                        const timeRe = /^\d{2}:\d{2}$/;
-                                                        if (!dateRe.test(maintFromDate) || !dateRe.test(maintToDate) || maintFromDate > maintToDate)
-                                                            return Alert.alert('Hata', 'YYYY-AA-GG formatında geçerli tarih aralığı girin.\nÖrnek: 2026-07-10 – 2026-07-15');
-                                                        const hasTime = maintFromTime || maintToTime;
-                                                        if (hasTime && (!timeRe.test(maintFromTime) || !timeRe.test(maintToTime) || maintFromTime >= maintToTime))
-                                                            return Alert.alert('Hata', 'Saat HH:MM formatında olmalı ve başlangıç < bitiş.');
-                                                        const item = { fromDate: maintFromDate, toDate: maintToDate };
-                                                        if (hasTime) { item.fromTime = maintFromTime; item.toTime = maintToTime; }
-                                                        const updated = [...(courtMaintenance[court.id] || []), item]
-                                                            .sort((a, b) => (a.fromDate || a.from || '').localeCompare(b.fromDate || b.from || ''));
-                                                        handleSaveMaintenance(court.id, updated);
-                                                        setAddingMaint(null);
-                                                        setMaintFromDate(''); setMaintToDate('');
-                                                        setMaintFromTime(''); setMaintToTime('');
-                                                    }}
-                                                    style={{ flex: 1, padding: 9, borderRadius: 8, backgroundColor: '#ef444430', alignItems: 'center' }}>
-                                                    <Text style={{ color: '#fca5a5', fontWeight: '700', fontSize: 13 }}>
-                                                        {savingMaint ? 'Kaydediliyor...' : 'Ekle'}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-                                    ) : (
-                                        <TouchableOpacity onPress={() => {
-                                            setAddingMaint(court.id);
-                                            setMaintFromDate(''); setMaintToDate('');
-                                            setMaintFromTime(''); setMaintToTime('');
-                                        }}
-                                            style={{ borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1,
-                                                borderStyle: 'dashed', borderColor: '#ef444440',
-                                                backgroundColor: '#ef444408', marginBottom: 4 }}>
-                                            <Text style={{ color: '#fca5a5', fontSize: 12 }}>+ Bakım Dönemi Ekle</Text>
-                                        </TouchableOpacity>
-                                    )}
 
                                     {/* Rezervasyon tipi */}
                                     <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 0.5 }}>
@@ -4368,45 +4130,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                         </View>
                     )}
                     {savingReservationWindow && <ActivityIndicator color={BIZ_COLOR} size="small" />}
-
-                    {/* ── Ödeme Yöntemleri (PRO) ── */}
-                    {isPro && (
-                        <>
-                            <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
-                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
-                                ÖDEME YÖNTEMLERİ
-                            </Text>
-                            <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 16 }}>
-                                Hangi ödeme yöntemlerini kabul ediyorsunuz? Kullanıcılar yalnızca seçili yöntemlerle rezervasyon yapabilir.
-                            </Text>
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                                {[
-                                    { key: 'CASH',        label: '💵 Nakit / Kortta' },
-                                    { key: 'EFT',         label: '🏦 EFT / Havale' },
-                                    { key: 'ONLINE',      label: '🌐 Online Ödeme (Bakımda)', disabled: true },
-                                    { key: 'CREDIT_CARD', label: '💳 Kortta Kredi Kartı' },
-                                ].map(m => {
-                                    const isActive = localAcceptedPayments.includes(m.key);
-                                    return (
-                                        <TouchableOpacity key={m.key} disabled={savingPayments || m.disabled}
-                                            onPress={() => handleTogglePayment(m.key)}
-                                            style={{
-                                                paddingHorizontal: 12, paddingVertical: 8,
-                                                borderRadius: 8, borderWidth: 1.5,
-                                                borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
-                                                backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
-                                                opacity: m.disabled ? 0.5 : 1,
-                                            }}>
-                                            <Text style={{ color: isActive ? BIZ_LIGHT : '#888', fontSize: 13, fontWeight: isActive ? '700' : '400' }}>
-                                                {m.label}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-                            {savingPayments && <ActivityIndicator color={BIZ_COLOR} size="small" style={{ marginTop: 8 }} />}
-                        </>
-                    )}
                     </>)}
                 </View>
             )}
