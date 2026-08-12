@@ -3852,6 +3852,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     };
     const matchEnd = getMatchEnd(match);
     const scoreUnlocked = matchEnd ? new Date() >= matchEnd : false;
+    // Elo, DOUBLE'da (2v2) hangi oyuncunun hangi takımda olduğuna göre hesaplanıyor — atanmamış
+    // (havuzda kalmış, Takım Arkadaşı/Rakip 1/Rakip 2'ye yerleştirilmemiş) oyuncu varken skor
+    // girilmesine izin verilmiyor (kullanıcı isteği: "skor girdirme, takımlara atamaları olmadan").
+    const doubleNeedsAssignment = match.matchType === 'DOUBLE' && unassignedArr.length > 0;
 
     // Penalty window: < 5 hours before match start
     const getMatchStart = (m) => {
@@ -5201,8 +5205,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
                     {/* Maçı Başlat — maç saati gelince (skor kilidi açılmadan çok önce), kamera
                         kaydı ve/ya da saatten canlı skor takibi başlatılabilir. Kullanıcı isteğiyle
-                        sadece tenis/padel/voleybolde; sadece maça dahil olanlar başlatabilir. */}
-                    {isParticipant && !hasScore && matchStart && new Date() >= matchStart && ['tennis', 'padel', 'volleyball'].includes(match.subCategory) && (
+                        sadece tenis/padel/voleybolde; sadece maça dahil olanlar başlatabilir.
+                        !scoreUnlocked şart — üst sınır yoktu, maçın süresi (matchEnd) çoktan
+                        geçmiş "skor bekleyen" bir maçta bile buton hâlâ görünüyordu (kullanıcı raporu:
+                        "3:30 başlamış 60dk süre, biteli kesin, buton hâlâ duruyor"). */}
+                    {isParticipant && !hasScore && !scoreUnlocked && matchStart && new Date() >= matchStart && ['tennis', 'padel', 'volleyball'].includes(match.subCategory) && (
                         <TouchableOpacity
                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor: cfg.color+'20', borderRadius:12, borderWidth:1, borderColor: cfg.color+'60', paddingVertical:10, marginBottom:8 }}
                             onPress={() => setShowMatchStart(true)}>
@@ -5228,6 +5235,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {/* Lock message */}
                     {!hasScore && !scoreUnlocked && matchEnd && (
                         <Text style={sc.lockedTxt}>{t.matchNotStarted}</Text>
+                    )}
+                    {/* DOUBLE'da (tenis/padel 2v2) Elo, hangi oyuncunun hangi takımda olduğuna göre
+                        hesaplanıyor — atanmamış (havuzda kalmış) oyuncu varken skor girilirse Elo
+                        yanlış hesaplanır. Bu yüzden skor açılmadan önce herkesin Takım Arkadaşı/
+                        Rakip 1/Rakip 2'ye atanmış olması zorunlu (kullanıcı isteği). */}
+                    {!hasScore && scoreUnlocked && doubleNeedsAssignment && (
+                        <Text style={sc.lockedTxt}>{t.doubleAssignBeforeScore}</Text>
                     )}
 
                     {/* Mutual cancel banner */}
@@ -5267,11 +5281,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:8, marginBottom:20 }}>
                         {!hasScore && scoreUnlocked && (
                             <>
-                                <TouchableOpacity
-                                    style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', flex:1, alignItems:'center' }}
-                                    onPress={() => setShowScore(v => !v)}>
-                                    <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>{showScore ? '▲ Kapat' : t.enterScore}</Text>
-                                </TouchableOpacity>
+                                {!doubleNeedsAssignment && (
+                                    <TouchableOpacity
+                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', flex:1, alignItems:'center' }}
+                                        onPress={() => setShowScore(v => !v)}>
+                                        <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>{showScore ? '▲ Kapat' : t.enterScore}</Text>
+                                    </TouchableOpacity>
+                                )}
                                 {!(isVolleyball && abandonProposal) && (
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262640', backgroundColor:'#dc262615', flex:1, alignItems:'center' }}
