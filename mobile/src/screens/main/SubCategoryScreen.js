@@ -7969,9 +7969,11 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
         <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={placeholder}
             onPick={(u) => set(field, u)} onLongPress={onLongPressEmptySlot} />
     ) : null;
-    // myUser henüz yüklenmemişken {...null} boş ama "truthy" bir nesne üretip havuzda hayalet bir
-    // hücre olarak görünebilirdi — Boolean(myUser) kontrolü önce yapılıyor.
-    const pool = [myUser && { ...myUser, skillRating: myOwnRating }, f.partner, f.opp1Invite, f.opp2Invite].filter(Boolean);
+    // Voleybolün ilan oluşturma kartıyla BİREBİR AYNI davranış (kullanıcı isteği: "voleyboldeki
+    // gibi") — ön yüzde SADECE doldurulmuş slotlar değil, kilitli kurucu + 3 tane HER ZAMAN
+    // görünen, doğrudan yazılabilir forma (2./3./4. Oyuncu) birlikte gösterilir; boş bir formaya
+    // yazıp öneriden seçmek için arkaya geçmeye gerek yok. Arka yüz aynı 3 formayı Kurucu/Rakip
+    // Takım'a gruplayarak tekrar gösterir (zaten renderSlot ile böyleydi).
     return (
         <View style={{ marginBottom:10 }}>
             <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor:'#ffffff20', padding:10, transform:[{ perspective:800 }, { rotateY }] }}>
@@ -7984,18 +7986,22 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
                             </TouchableOpacity>
                         </View>
                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
-                            {pool.map((p, i) => (
-                                <View key={p.id || `m-${i}`} style={{ width:'48%' }}>
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
-                                        <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
-                                        <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{i + 1}. {p.fullName || p.username}</Text>
-                                        {p.skillRating != null && (
-                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
-                                        )}
-                                    </View>
+                            <View style={{ width:'32%' }}>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
+                                    <Avatar name={myUser?.username} avatar={myUser?.avatar} size={14} color={cfg.color} />
+                                    <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
+                                    {myOwnRating != null && (
+                                        <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(myOwnRating).toFixed(2)}★</Text>
+                                    )}
+                                </View>
+                            </View>
+                            {[['partner', t.teamSlotPh ? t.teamSlotPh(2) : '2. Oyuncu'], ['opp1Invite', t.teamSlotPh ? t.teamSlotPh(3) : '3. Oyuncu'], ['opp2Invite', t.teamSlotPh ? t.teamSlotPh(4) : '4. Oyuncu']].map(([field, ph]) => (
+                                <View key={field} style={{ width:'32%' }}>
+                                    {renderSlot(field, ph)}
                                 </View>
                             ))}
                         </View>
+                        <Text style={s.fieldHint}>{t.rosterFrontHint}</Text>
                     </>
                 ) : (
                     <>
