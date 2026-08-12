@@ -1492,11 +1492,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const [localPricingWindows, setLocalPricingWindows] = useState(
         () => Array.isArray(venue.pricingWindows) ? venue.pricingWindows : []
     );
-    const [courtPrices, setCourtPrices] = useState(() => {
-        const init = {};
-        (venue.courts || []).forEach(c => { init[c.id] = c.pricePerSlot != null ? String(c.pricePerSlot) : ''; });
-        return init;
-    });
     const [addingPriceRule, setAddingPriceRule] = useState(false);
     const [newRuleFrom, setNewRuleFrom] = useState('');
     const [newRuleTo, setNewRuleTo]     = useState('');
@@ -1948,17 +1943,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
             setSavedIbanHolder(null);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingIban(false); }
-    };
-
-    const handleSaveCourtPrice = async (courtId) => {
-        const raw = courtPrices[courtId];
-        const p = raw === '' ? null : parseInt(raw);
-        if (raw !== '' && (isNaN(p) || p < 0)) { Alert.alert('Hata', 'Geçerli bir fiyat giriniz'); return; }
-        setSavingPrice(true);
-        try {
-            await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { pricePerSlot: p });
-        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
-        finally { setSavingPrice(false); }
     };
 
     const handleGlobalApprovalMode = async (mode) => {
@@ -3826,36 +3810,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                                 </TouchableOpacity>
                                             );
                                         })}
-                                    </View>
-
-                                    {/* Kort başına fiyat override */}
-                                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginTop: 14, marginBottom: 4, letterSpacing: 0.5 }}>
-                                        KORT ÜCRETİ (OPSİYONEL)
-                                    </Text>
-                                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
-                                        Boş bırakırsanız tesis varsayılan fiyatı geçerli olur.
-                                    </Text>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                        <TextInput
-                                            style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
-                                                paddingHorizontal: 12, paddingVertical: 7, color: '#fff',
-                                                fontSize: 14, borderWidth: 1,
-                                                borderColor: courtPrices[court.id] !== '' ? BIZ_COLOR + '60' : '#ffffff15' }}
-                                            placeholder="Tesis varsayılanı"
-                                            placeholderTextColor="#444"
-                                            keyboardType="number-pad"
-                                            value={courtPrices[court.id] ?? ''}
-                                            onChangeText={v => setCourtPrices(prev => ({ ...prev, [court.id]: v }))}
-                                            returnKeyType="done"
-                                        />
-                                        <Text style={{ color: '#555', fontSize: 14 }}>₺</Text>
-                                        <TouchableOpacity disabled={savingPrice}
-                                            onPress={() => handleSaveCourtPrice(court.id)}
-                                            style={{ backgroundColor: BIZ_COLOR + '25', borderRadius: 8,
-                                                paddingHorizontal: 12, paddingVertical: 7,
-                                                borderWidth: 1, borderColor: BIZ_COLOR + '50' }}>
-                                            <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>Kaydet</Text>
-                                        </TouchableOpacity>
                                     </View>
 
                                 {/* Bakım Günleri */}
