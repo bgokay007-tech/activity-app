@@ -8732,10 +8732,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [teamNameEdit, setTeamNameEdit] = useState(null); // { side: 'founder'|'opponent', value } | null
     const [showEloWarning, setShowEloWarning] = useState(false);
     const [eloWarningDismissed, setEloWarningDismissed] = useState(false);
-    // Panel varsayılan kapalı — düzenlemede de format (Çiftli) chip'ine tıklanınca
-    // açılıp kapanabiliyor (format kilidi sadece matchType değişimini engelliyor,
-    // panelin kendisini değil).
-    const [showDoubleOptions, setShowDoubleOptions] = useState(false);
     // DoubleRosterCard'daki boş bir formaya uzun basınca açılan çoklu-seç arkadaş listesi —
     // seçilenler kalan boş partner/opp1/opp2 alanlarına sırayla yerel state'e yazılır (kullanıcı
     // isteği), ilan submit edilmeden davet gitmez (bkz. FriendsMultiPickerModal onConfirm).
@@ -9529,12 +9525,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map((fmt, fi, arr) => (
                                                         <TouchableOpacity key={fmt.id} onPress={() => {
                                                             setActivePopup(null);
-                                                            if (fmt.id === f.matchType) { if (fmt.id === 'DOUBLE') setShowDoubleOptions(v => !v); return; }
+                                                            // DOUBLE'ın kadro kartı artık ayrı bir popup değil, formun kendi akışında
+                                                            // (kort arama alanının altında) her zaman görünür — burada aynı formata
+                                                            // tekrar dokununca açılacak bir şey kalmadı, sadece dropdown kapanır.
+                                                            if (fmt.id === f.matchType) { return; }
                                                             if (editHasParticipants) {
                                                                 Alert.alert('Format Değiştirilemez', 'Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemez — önce katılımcıları çıkarabilirsin.');
                                                                 return;
                                                             }
-                                                            if (fmt.id === 'DOUBLE') setShowDoubleOptions(true);
                                                             if (fmt.id === 'SINGLE') setInviteTarget('singleOpp');
                                                             setF(p => ({
                                                                 ...p,
@@ -10781,6 +10779,34 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </View>
                             )}
 
+                            {/* DOUBLE (tenis/padel 2v2) kadro kartı — voleybolün kartıyla AYNI konumda:
+                                kort arama formunun hemen altında, satır akışının doğal bir parçası
+                                olarak (kullanıcı isteği: "dıgımon kart kort adı ara formunun altına
+                                gelicek"). Önceden ayrı bir popup/overlay içindeydi — cinsiyet seçimi
+                                de (DoubleRosterCard'ın arka yüzünde) kartı çevirmeden görünmediği için
+                                "kapatılmış" gibi hissettiriyordu; artık formun normal akışında. */}
+                            {f.matchType === 'DOUBLE' && (sub === 'tennis' || sub === 'padel') && (
+                                <View style={{ marginBottom:14 }}>
+                                    <DoubleRosterCard
+                                        f={f} set={set} myUser={myUser} myOwnRating={myOwnRating}
+                                        cfg={cfg} sub={sub} category={category} s={s} t={t} editItem={editItem}
+                                        onLongPressEmptySlot={() => setShowDoubleFriendsPicker(true)}
+                                        onEditTeamName={setTeamNameEdit}
+                                    />
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginTop:6 }}>
+                                        <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamFlexLabel}</Text>
+                                        <View style={{ flexDirection:'row', gap:3 }}>
+                                            {[{id:'FLEXIBLE',label:t.flexModeShortFlexible},{id:'STRICT',label:t.flexModeShortStrict}].map(opt => (
+                                                <TouchableOpacity key={opt.id} onPress={() => set('teamFlexibility', opt.id)}
+                                                    style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.teamFlexibility===opt.id && s.chipBtnActive]}>
+                                                    <Text style={[s.chipBtnText, { fontSize:11 }, f.teamFlexibility===opt.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{opt.label}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </View>
+                                </View>
+                            )}
+
                             {/* Kurucu/Rakip takım ismi düzenleme — kaydet, sadece f.founderTeamName/
                                 opponentTeamName'i günceller, API'ye submit'e kadar gitmez. */}
                             <Modal visible={!!teamNameEdit} animationType="fade" transparent onRequestClose={() => setTeamNameEdit(null)}>
@@ -10936,47 +10962,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                         </ScrollView>
                     </View>
                 </KeyboardAvoidingView>
-
-                {/* Çiftler ayarları (Partner/Rakip cinsiyeti+davet, Takım Değişikliği) — ayrı bir
-                    <Modal> değil, aynı sebep: iç içe Modal Android'de sorun çıkarabiliyor. Ana
-                    Modal içinde mutlak konumlu katman olarak render ediliyor. */}
-                {showDoubleOptions && f.matchType === 'DOUBLE' && (
-                    <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0 }}>
-                        <TouchableOpacity style={tg.overlay} activeOpacity={1} onPress={() => setShowDoubleOptions(false)}>
-                            <View style={tg.box} onStartShouldSetResponder={() => true}>
-                                <View style={tg.header}>
-                                    <Text style={tg.title}>👥 {t.doubleFormat}</Text>
-                                    <TouchableOpacity onPress={() => setShowDoubleOptions(false)}><Text style={tg.close}>✕</Text></TouchableOpacity>
-                                </View>
-                                <ScrollView showsVerticalScrollIndicator={false}>
-                                    {(sub === 'tennis' || sub === 'padel') && (
-                                        <DoubleRosterCard
-                                            f={f} set={set} myUser={myUser} myOwnRating={myOwnRating}
-                                            cfg={cfg} sub={sub} category={category} s={s} t={t} editItem={editItem}
-                                            onLongPressEmptySlot={() => setShowDoubleFriendsPicker(true)}
-                                            onEditTeamName={setTeamNameEdit}
-                                        />
-                                    )}
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:10 }}>
-                                        <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamFlexLabel}</Text>
-                                        <View style={{ flexDirection:'row', gap:3 }}>
-                                            {[{id:'FLEXIBLE',label:t.flexModeShortFlexible},{id:'STRICT',label:t.flexModeShortStrict}].map(opt => (
-                                                <TouchableOpacity key={opt.id} onPress={() => set('teamFlexibility', opt.id)}
-                                                    style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.teamFlexibility===opt.id && s.chipBtnActive]}>
-                                                    <Text style={[s.chipBtnText, { fontSize:11 }, f.teamFlexibility===opt.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{opt.label}</Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                    </View>
-                                    <TouchableOpacity onPress={() => setShowDoubleOptions(false)}
-                                        style={{ backgroundColor: cfg.color, borderRadius:10, paddingVertical:11, alignItems:'center' }}>
-                                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>{t.doubleOptionsContinueBtn}</Text>
-                                    </TouchableOpacity>
-                                </ScrollView>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
-                )}
 
                 <FriendsMultiPickerModal
                     visible={showDoubleFriendsPicker}
