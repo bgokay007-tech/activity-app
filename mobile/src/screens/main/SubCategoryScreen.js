@@ -7942,14 +7942,16 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
         { id:'MALE', label: noEmojiLocal(t.genderMale || '👨 Erkek') },
         { id:'FEMALE', label: noEmojiLocal(t.genderFemale || '👩 Kadın') },
     ];
+    // Etiket + 3 cinsiyet çipi (Mix/Erkek/Kadın) dar sütunda tek satıra sığmıyordu — kullanıcı
+    // isteğiyle etiket üstte, çipler altında ayrı bir satırda.
     const GenderRow = ({ label, field }) => (
-        <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-            <Text style={[s.fieldLabel, { marginBottom:0, fontSize:11 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{label}</Text>
+        <View>
+            <Text style={[s.fieldLabel, { marginBottom:2, fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{label}</Text>
             <View style={{ flexDirection:'row', gap:3 }}>
                 {GENDERS.map(g => (
                     <TouchableOpacity key={g.id} onPress={() => set(field, g.id)}
-                        style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:2 }, f[field] === g.id && s.chipBtnActive]}>
-                        <Text style={[s.chipBtnText, { fontSize:10 }, f[field] === g.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{g.label}</Text>
+                        style={[s.chipBtn, { flex:1, paddingHorizontal:2, paddingVertical:2 }, f[field] === g.id && s.chipBtnActive]}>
+                        <Text style={[s.chipBtnText, { fontSize:9 }, f[field] === g.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{g.label}</Text>
                     </TouchableOpacity>
                 ))}
             </View>
@@ -8036,6 +8038,19 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
                                 {renderSlot('opp1Invite', t.inviteSendBtn)}
                                 <View style={{ marginTop:5, marginBottom:3 }}><GenderRow label={t.opp2GenderLabel || 'Rakip 2'} field="opp2GenderReq" /></View>
                                 {renderSlot('opp2Invite', t.inviteSendBtn)}
+                            </View>
+                        </View>
+                        {/* Takım Değişikliği (esnek/sabit) — kullanıcı isteğiyle ayrı bir satır değil,
+                            kartın kendi içinde, en altta. */}
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginTop:8 }}>
+                            <Text style={[s.fieldLabel, { marginBottom:0, fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamFlexLabel}</Text>
+                            <View style={{ flexDirection:'row', gap:3 }}>
+                                {[{ id:'FLEXIBLE', label: t.flexModeShortFlexible }, { id:'STRICT', label: t.flexModeShortStrict }].map(opt => (
+                                    <TouchableOpacity key={opt.id} onPress={() => set('teamFlexibility', opt.id)}
+                                        style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:2 }, f.teamFlexibility === opt.id && s.chipBtnActive]}>
+                                        <Text style={[s.chipBtnText, { fontSize:10 }, f.teamFlexibility === opt.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{opt.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
                             </View>
                         </View>
                     </>
@@ -10793,17 +10808,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         onLongPressEmptySlot={() => setShowDoubleFriendsPicker(true)}
                                         onEditTeamName={setTeamNameEdit}
                                     />
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginTop:6 }}>
-                                        <Text style={[s.fieldLabel, { marginBottom:0 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.teamFlexLabel}</Text>
-                                        <View style={{ flexDirection:'row', gap:3 }}>
-                                            {[{id:'FLEXIBLE',label:t.flexModeShortFlexible},{id:'STRICT',label:t.flexModeShortStrict}].map(opt => (
-                                                <TouchableOpacity key={opt.id} onPress={() => set('teamFlexibility', opt.id)}
-                                                    style={[s.chipBtn, { paddingHorizontal:3, paddingVertical:3 }, f.teamFlexibility===opt.id && s.chipBtnActive]}>
-                                                    <Text style={[s.chipBtnText, { fontSize:11 }, f.teamFlexibility===opt.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{opt.label}</Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                    </View>
                                 </View>
                             )}
 
