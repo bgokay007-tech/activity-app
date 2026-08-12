@@ -10532,29 +10532,31 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </View>
                             )}
 
-                            {/* Açıklama */}
+                            {/* Açıklama + Bahis/Ödül — kullanıcı isteği: aynı satırı paylaşsınlar, Mesaj
+                                3'te 2'lik (flex:2), Bahis/Ödül kalan 3'te 1'lik (flex:1) kısmı alsın.
+                                Bahis/ödül eğlence amaçlı, maçı kazanana ne var? ("bizi yenene saha
+                                ücretsiz", "beni yenene dondurma" gibi) — sadece tenis/padel/voleybolde
+                                gösterilir, diğer dallarda Mesaj yine tek başına tam genişlik. */}
                             {!isMatchedEdit && !SIMPLIFIED_FEE_SUBS.has(sub) && (
-                                <>
-                                    <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.messageFieldLabel}</Text>
-                                    <TextInput style={[s.fieldInput, { height:80, textAlignVertical:'top' }]}
-                                        value={f.message} onChangeText={v => set('message', v)}
-                                        placeholder={t.messagePh}
-                                        placeholderTextColor={colors.textMuted} multiline />
-                                </>
-                            )}
-
-                            {/* Bahis/ödül — eğlence amaçlı, maçı kazanana ne var? (kullanıcı isteği:
-                                "bizi yenene saha ücretsiz", "beni yenene dondurma" gibi). Sadece
-                                tenis/padel/voleybolde, açık ilan kartında mesajın hemen altında gösterilir. */}
-                            {!isMatchedEdit && (isTennis || isPadel || isVolleyball) && (
-                                <>
-                                    <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.wagerLabel}</Text>
-                                    <TextInput style={s.fieldInput}
-                                        value={f.wager} onChangeText={v => set('wager', v)}
-                                        placeholder={t.wagerPh}
-                                        placeholderTextColor={colors.textMuted}
-                                        maxLength={120} />
-                                </>
+                                <View style={{ flexDirection: (isTennis || isPadel || isVolleyball) ? 'row' : 'column', gap: 8 }}>
+                                    <View style={(isTennis || isPadel || isVolleyball) ? { flex: 2 } : null}>
+                                        <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.messageFieldLabel}</Text>
+                                        <TextInput style={[s.fieldInput, { height:80, textAlignVertical:'top' }]}
+                                            value={f.message} onChangeText={v => set('message', v)}
+                                            placeholder={t.messagePh}
+                                            placeholderTextColor={colors.textMuted} multiline />
+                                    </View>
+                                    {(isTennis || isPadel || isVolleyball) && (
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.wagerLabel}</Text>
+                                            <TextInput style={[s.fieldInput, { height:80, textAlignVertical:'top' }]}
+                                                value={f.wager} onChangeText={v => set('wager', v)}
+                                                placeholder={t.wagerPh}
+                                                placeholderTextColor={colors.textMuted}
+                                                maxLength={120} multiline />
+                                        </View>
+                                    )}
+                                </View>
                             )}
 
                             {!isMatchedEdit && !SIMPLIFIED_FEE_SUBS.has(sub) && (category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub)) && (
