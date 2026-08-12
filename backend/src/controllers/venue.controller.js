@@ -94,12 +94,15 @@ function splitOvernight(windows) {
     return result.length > 0 ? result : [{ from: '00:00', to: '24:00' }];
 }
 
-// Bakım kaydı normalizer — eski { from, to } formatını ve yeni { fromDate, toDate, fromTime?, toTime? } formatını destekler
+// Bakım kaydı normalizer — eski { from, to } formatını ve yeni { fromDate, toDate, fromTime?, toTime?, reason? }
+// formatını destekler. reason: kullanıcıya gösterilecek serbest metin (ör. "Turnuva Etkinliği") — boşsa
+// "Bakım" varsayılan mesajı kullanılır.
 const normMaint = m => ({
     fromDate: m.fromDate || m.from || null,
     toDate:   m.toDate   || m.to   || null,
     fromTime: m.fromTime || null,
     toTime:   m.toTime   || null,
+    reason:   m.reason || null,
 });
 
 // openSlots format: { "0":[global şablon], "1":[Pzt override], "courtId_1":[Pzt+Kort override] }
@@ -513,13 +516,19 @@ export const getVenueSlots = async (req, res, next) => {
             return res.json({ type: 'NOT_YET_OPEN', opensAt: opensAt.toISOString(), message: 'Bu tarih için rezervasyonlar henüz açılmadı.' });
         }
 
-        // Bakım kontrolü
+        // Bakım kontrolü — reason varsa (ör. "Turnuva Etkinliği") mesaja/yanıta eklenir,
+        // yoksa varsayılan "Bakım" metni kullanılır.
         const maintDates = (Array.isArray(court?.maintenanceDates) ? court.maintenanceDates : []).map(normMaint);
-        const fullDayMaint = maintDates.some(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && !m.fromTime && !m.toTime);
-        if (fullDayMaint) return res.json({ type: 'MAINTENANCE', message: 'Bu kort seçilen tarihte bakım sürecinde. Rezervasyon yapılamaz.' });
-        const maintWindows = maintDates
-            .filter(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && m.fromTime && m.toTime)
-            .map(m => ({ s: toMins(m.fromTime), e: toMins(m.toTime) }));
+        const fullDayEntry = maintDates.find(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && !m.fromTime && !m.toTime);
+        if (fullDayEntry) {
+            const label = fullDayEntry.reason || 'Bakım';
+            return res.json({ type: 'MAINTENANCE', reason: fullDayEntry.reason || null,
+                message: `Bu kort seçilen tarihte "${label}" nedeniyle kapalı. Rezervasyon yapılamaz.` });
+        }
+        const partialEntries = maintDates
+            .filter(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && m.fromTime && m.toTime);
+        const maintWindows = partialEntries.map(m => ({ s: toMins(m.fromTime), e: toMins(m.toTime), reason: m.reason || null }));
+        const maintenanceReason = partialEntries.find(m => m.reason)?.reason || null;
 
         // Değiştir (reschedule) akışında: kullanıcı kendi rezervasyonunun saatlerini tekrar
         // görüp seçebilsin diye, o rezervasyon (sadece kendisine aitse) "dolu" listesinden
@@ -571,7 +580,7 @@ export const getVenueSlots = async (req, res, next) => {
             ? { ...slotsResult, slots: addSlotPrice(slotsResult.slots) }
             : { ...slotsResult, windows: addWindowPrice(slotsResult.windows) };
         const accepted = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
-        res.json(fixMidnightLabels({ ...resultWithPrice, acceptedPayments: accepted }));
+        res.json(fixMidnightLabels({ ...resultWithPrice, acceptedPayments: accepted, maintenanceReason }));
     } catch (error) { next(error); }
 };
 
@@ -616,8 +625,9 @@ export async function validateReservationSlot(venue, courtId, date, startTime, e
     // Tüm-gün bakım kontrolü
     const courtCheck = await prisma.venueCourt.findUnique({ where: { id: courtId } });
     const mDates = (Array.isArray(courtCheck?.maintenanceDates) ? courtCheck.maintenanceDates : []).map(normMaint);
-    if (mDates.some(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && !m.fromTime && !m.toTime))
-        return { status: 400, message: 'Bu kort seçilen tarihte bakımda. Rezervasyon yapılamaz.' };
+    const fullDayEntry = mDates.find(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && !m.fromTime && !m.toTime);
+    if (fullDayEntry)
+        return { status: 400, message: `Bu kort seçilen tarihte "${fullDayEntry.reason || 'Bakım'}" nedeniyle kapalı. Rezervasyon yapılamaz.` };
 
     if (paymentMethod === 'ONLINE')
         return { status: 400, message: 'Online ödeme şu anda bakımda, kullanılamıyor.' };
@@ -638,7 +648,7 @@ export async function validateReservationSlot(venue, courtId, date, startTime, e
         if (!m.fromTime || !m.toTime) continue;
         const ms = toMins(m.fromTime), me = toMins(m.toTime);
         if (overlaps(startMins, endMins, ms, me))
-            return { status: 400, message: `Bu kort ${m.fromTime}–${m.toTime} saatleri arası bakımda. Rezervasyon yapılamaz.` };
+            return { status: 400, message: `Bu kort ${m.fromTime}–${m.toTime} saatleri arası "${m.reason || 'Bakım'}" nedeniyle kapalı. Rezervasyon yapılamaz.` };
     }
 
     // Çakışma kontrolü

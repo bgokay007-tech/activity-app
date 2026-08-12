@@ -1526,7 +1526,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     // ── Konum state ───────────────────────────────────────────────────────────
     const [localLat, setLocalLat] = useState(venue.lat != null ? String(venue.lat) : '');
     const [localLng, setLocalLng] = useState(venue.lng != null ? String(venue.lng) : '');
-    const [savingLocation, setSavingLocation] = useState(false);
 
     // ── İletişim butonları state ──────────────────────────────────────────────
     const [localContactLinks, setLocalContactLinks] = useState(() => {
@@ -1559,6 +1558,22 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const [savingContactLinks, setSavingContactLinks] = useState(false);
     const [ccPickerKey, setCcPickerKey] = useState(null);
     const [ccSearch, setCcSearch] = useState('');
+
+    // ── Bakım / Etkinlik dönemi state ────────────────────────────────────────
+    const [courtMaintenance, setCourtMaintenance] = useState(() => {
+        const r = {};
+        (venue.courts || []).forEach(c => {
+            r[c.id] = Array.isArray(c.maintenanceDates) ? c.maintenanceDates : [];
+        });
+        return r;
+    });
+    const [maintModalTarget, setMaintModalTarget] = useState(null); // null | '__global__' | courtId
+    const [maintFromDate, setMaintFromDate]     = useState('');
+    const [maintToDate, setMaintToDate]         = useState('');
+    const [maintFromTime, setMaintFromTime]     = useState('');
+    const [maintToTime, setMaintToTime]         = useState('');
+    const [maintReason, setMaintReason]         = useState('');
+    const [savingMaint, setSavingMaint]         = useState(false);
 
     // ── Yorumlar state ───────────────────────────────────────────────────────
     const [venueReviews, setVenueReviews]     = useState(null);
@@ -1849,6 +1864,66 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         finally { setSavingPayments(false); }
     };
 
+    const handleSaveMaintenance = async (courtId, newDates) => {
+        setSavingMaint(true);
+        try {
+            await api.patch(`/venues/${venue.id}/courts/${courtId}/settings`, { maintenanceDates: newDates });
+            setCourtMaintenance(prev => ({ ...prev, [courtId]: newDates }));
+        } catch (e) { Alert.alert('Hata', 'Kaydedilemedi'); }
+        finally { setSavingMaint(false); }
+    };
+
+    const handleGlobalAddMaintenance = async (item) => {
+        setSavingMaint(true);
+        try {
+            await Promise.all(sortedCourts.map(c => {
+                const existing = courtMaintenance[c.id] || [];
+                const updated = [...existing, item].sort((a, b) =>
+                    (a.fromDate || '').localeCompare(b.fromDate || '')
+                );
+                return api.patch(`/venues/${venue.id}/courts/${c.id}/settings`, { maintenanceDates: updated });
+            }));
+            setCourtMaintenance(prev => {
+                const next = { ...prev };
+                sortedCourts.forEach(c => {
+                    next[c.id] = [...(prev[c.id] || []), item].sort((a, b) =>
+                        (a.fromDate || '').localeCompare(b.fromDate || '')
+                    );
+                });
+                return next;
+            });
+        } catch (e) { Alert.alert('Hata', 'Kaydedilemedi'); }
+        finally { setSavingMaint(false); }
+    };
+
+    // Modaldaki tarih/saat/sebep alanlarını doğrulayıp ekler; hedefe göre (global veya
+    // tek kort) doğru handler'a yönlendirir, sonra formu ve modalı kapatır.
+    const handleAddMaintenance = () => {
+        const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+        const timeRe = /^\d{2}:\d{2}$/;
+        if (!dateRe.test(maintFromDate) || !dateRe.test(maintToDate) || maintFromDate > maintToDate)
+            return Alert.alert('Hata', 'YYYY-AA-GG formatında geçerli tarih aralığı girin.\nÖrnek: 2026-07-10 – 2026-07-15');
+        const hasTime = maintFromTime || maintToTime;
+        if (hasTime && (!timeRe.test(maintFromTime) || !timeRe.test(maintToTime) || maintFromTime >= maintToTime))
+            return Alert.alert('Hata', 'Saat HH:MM formatında olmalı ve başlangıç < bitiş.');
+        const item = { fromDate: maintFromDate, toDate: maintToDate, reason: maintReason.trim() || null };
+        if (hasTime) { item.fromTime = maintFromTime; item.toTime = maintToTime; }
+        if (maintModalTarget === '__global__') {
+            handleGlobalAddMaintenance(item);
+        } else {
+            const updated = [...(courtMaintenance[maintModalTarget] || []), item]
+                .sort((a, b) => (a.fromDate || '').localeCompare(b.fromDate || ''));
+            handleSaveMaintenance(maintModalTarget, updated);
+        }
+        setMaintFromDate(''); setMaintToDate(''); setMaintFromTime(''); setMaintToTime(''); setMaintReason('');
+        setMaintModalTarget(null);
+    };
+
+    const handleDeleteMaintenance = (courtId, idx) => {
+        const updated = (courtMaintenance[courtId] || []).filter((_, i) => i !== idx);
+        handleSaveMaintenance(courtId, updated);
+    };
+
     const handleUpdateCourtSlotType = async (courtId, type) => {
         if (courtSlotTypes[courtId] === type) return;
         setSavingSlot(true);
@@ -2032,22 +2107,15 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         finally { setSavingPrice(false); }
     };
 
-    const handleSaveLocation = async () => {
+    // Konum, İletişim Butonları bölümünün içine alındığı için ikisi artık tek "Kaydet"
+    // ile birlikte kaydediliyor (kullanıcı isteği: "iki tane kaydet gereksiz").
+    const handleSaveContactLinks = async () => {
         const lat = localLat.trim() ? parseFloat(localLat.trim().replace(',', '.')) : null;
         const lng = localLng.trim() ? parseFloat(localLng.trim().replace(',', '.')) : null;
         if ((localLat.trim() && isNaN(lat)) || (localLng.trim() && isNaN(lng))) {
             Alert.alert('Hata', 'Geçerli bir koordinat girin (örn. 41.0082)');
             return;
         }
-        setSavingLocation(true);
-        try {
-            await api.patch(`/venues/${venue.id}/settings`, { lat, lng });
-            Alert.alert('✅ Kaydedildi', 'Konum bilgisi güncellendi.');
-        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
-        finally { setSavingLocation(false); }
-    };
-
-    const handleSaveContactLinks = async () => {
         setSavingContactLinks(true);
         try {
             const clean = {};
@@ -2056,8 +2124,8 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
             if (localContactLinks.telegram?.trim())  clean.telegram  = localContactLinks.telegram.trim();
             if (localContactLinks.instagram?.trim()) clean.instagram = localContactLinks.instagram.trim();
             if (localContactLinks.email?.trim())     clean.email     = localContactLinks.email.trim();
-            await api.patch(`/venues/${venue.id}/settings`, { contactLinks: clean });
-            Alert.alert('✅ Kaydedildi', 'İletişim butonları güncellendi.');
+            await api.patch(`/venues/${venue.id}/settings`, { lat, lng, contactLinks: clean });
+            Alert.alert('✅ Kaydedildi', 'Konum ve iletişim butonları güncellendi.');
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingContactLinks(false); }
     };
@@ -3112,12 +3180,10 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                         <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>
                             ÇALIŞMA SAATLERİ
                         </Text>
-                        {/* Bakım günleri yönetimi kaldırıldı, buton bilinçli olarak işlevsiz bırakıldı
-                            (kullanıcı isteği) — ileride yeniden etkinleştirilebilir diye duruyor. */}
-                        <TouchableOpacity disabled
+                        <TouchableOpacity onPress={() => setMaintModalTarget(selectedCourt || '__global__')}
                             style={{ borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1,
-                                borderStyle: 'dashed', borderColor: '#ef444425', backgroundColor: '#ef444406', opacity: 0.5 }}>
-                            <Text style={{ color: '#fca5a5', fontSize: 11 }}>+ Bakım Dönemi Ekle</Text>
+                                borderStyle: 'dashed', borderColor: '#ef444440', backgroundColor: '#ef444408' }}>
+                            <Text style={{ color: '#fca5a5', fontSize: 11 }}>+ Bakım/Etkinlik Dönemi Ekle</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -3995,15 +4061,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                             />
                         </View>
                     </View>
-                    <TouchableOpacity disabled={savingLocation}
-                        onPress={handleSaveLocation}
-                        style={{ backgroundColor: BIZ_COLOR + '20', borderRadius: 8,
-                            paddingHorizontal: 14, paddingVertical: 9,
-                            borderWidth: 1, borderColor: BIZ_COLOR + '40', alignSelf: 'flex-end', marginBottom: 14 }}>
-                        <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>
-                            {savingLocation ? 'Kaydediliyor...' : 'Kaydet'}
-                        </Text>
-                    </TouchableOpacity>
 
                     {[
                         { key: 'whatsapp',  label: 'WhatsApp',  placeholder: '5551234567', hasCC: true,  keyboardType: 'phone-pad' },
@@ -4226,6 +4283,162 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                             </View>
                         );
                     })()}
+                </View>
+            </Modal>
+
+            {/* Bakım / Etkinlik Dönemi Ekle */}
+            <Modal visible={maintModalTarget !== null} transparent animationType="slide"
+                android_keyboardInputMode="adjustNothing"
+                onRequestClose={() => { setMaintModalTarget(null); setMaintFromDate(''); setMaintToDate(''); setMaintFromTime(''); setMaintToTime(''); setMaintReason(''); }}>
+                <View style={{ flex: 1 }}>
+                    <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000088' }} activeOpacity={1}
+                        onPress={() => { setMaintModalTarget(null); setMaintFromDate(''); setMaintToDate(''); setMaintFromTime(''); setMaintToTime(''); setMaintReason(''); }} />
+                    <KeyboardAvoidingView behavior="padding" style={{ maxHeight: '85%', position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+                    <ScrollView style={{
+                        backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20 }}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={{ padding: 16, paddingBottom: Math.max(32, insets.bottom + 20) }}>
+                        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', marginBottom: 4 }}>
+                            🔧 Bakım / Etkinlik Dönemi Ekle
+                        </Text>
+                        <Text style={{ color: '#888', fontSize: 12, marginBottom: 14, lineHeight: 16 }}>
+                            Seçtiğiniz tarih (ve isteğe bağlı saat) aralığında {maintModalTarget === '__global__' ? 'tüm kortlar' : 'bu kort'} rezervasyona kapatılır.
+                        </Text>
+
+                        {/* Açık günler/saatler referansı — kullanıcı isteği: "bizim açık günlerimizi
+                            saatlerimizi gösteren [bir modal]" */}
+                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
+                            ÇALIŞMA SAATLERİNİZ
+                        </Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+                            {[1, 2, 3, 4, 5, 6, 7].map(d => {
+                                const dayKey = String(d);
+                                const key = maintModalTarget && maintModalTarget !== '__global__' ? `${maintModalTarget}_${dayKey}` : dayKey;
+                                const entry = localOpenSlots[key];
+                                const dayOnly = maintModalTarget && maintModalTarget !== '__global__' ? localOpenSlots[dayKey] : null;
+                                const globalDef = localOpenSlots['0'];
+                                const closed = Array.isArray(entry) && entry.length === 0;
+                                const windows = Array.isArray(entry) && entry.length > 0 ? entry
+                                    : (Array.isArray(dayOnly) && dayOnly.length > 0) ? dayOnly
+                                    : (Array.isArray(globalDef) && globalDef.length > 0) ? globalDef
+                                    : [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }];
+                                return (
+                                    <View key={d} style={{ backgroundColor: '#ffffff08', borderRadius: 8,
+                                        paddingHorizontal: 8, paddingVertical: 6, minWidth: 82 }}>
+                                        <Text style={{ color: '#888', fontSize: 10, fontWeight: '700' }}>{DAYS[d - 1]}</Text>
+                                        <Text style={{ color: closed ? '#ef4444' : '#4ade80', fontSize: 10, marginTop: 2 }}>
+                                            {closed ? 'Kapalı' : windows.map(w => `${w.from}-${w.to}`).join(', ')}
+                                        </Text>
+                                    </View>
+                                );
+                            })}
+                        </View>
+
+                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 0.5 }}>
+                            TARİH ARALIĞI (YYYY-AA-GG)
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14, alignItems: 'center' }}>
+                            <TextInput
+                                style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                    paddingHorizontal: 10, paddingVertical: 8, color: '#fff',
+                                    fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
+                                placeholder="2026-07-10" placeholderTextColor="#444"
+                                value={maintFromDate} onChangeText={setMaintFromDate}
+                                keyboardType="number-pad" maxLength={10} />
+                            <Text style={{ color: '#555', fontSize: 16 }}>–</Text>
+                            <TextInput
+                                style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                    paddingHorizontal: 10, paddingVertical: 8, color: '#fff',
+                                    fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
+                                placeholder="2026-07-15" placeholderTextColor="#444"
+                                value={maintToDate} onChangeText={setMaintToDate}
+                                keyboardType="number-pad" maxLength={10} />
+                        </View>
+
+                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 0.5 }}>
+                            SAAT ARALIĞI — İSTEĞE BAĞLI (HH:MM)
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                            <TextInput
+                                style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                    paddingHorizontal: 10, paddingVertical: 8, color: '#fff',
+                                    fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
+                                placeholder="09:00" placeholderTextColor="#444"
+                                value={maintFromTime} onChangeText={setMaintFromTime}
+                                keyboardType="numbers-and-punctuation" maxLength={5} />
+                            <Text style={{ color: '#555', fontSize: 16 }}>–</Text>
+                            <TextInput
+                                style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                    paddingHorizontal: 10, paddingVertical: 8, color: '#fff',
+                                    fontSize: 13, borderWidth: 1, borderColor: '#ffffff20' }}
+                                placeholder="12:00" placeholderTextColor="#444"
+                                value={maintToTime} onChangeText={setMaintToTime}
+                                keyboardType="numbers-and-punctuation" maxLength={5} />
+                        </View>
+                        <Text style={{ color: '#555', fontSize: 11, marginBottom: 14 }}>
+                            Saat boş bırakılırsa tüm gün kapatılır.
+                        </Text>
+
+                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 0.5 }}>
+                            SEBEP — İSTEĞE BAĞLI
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                            {['Bakım', 'Turnuva Etkinliği'].map(preset => (
+                                <TouchableOpacity key={preset} onPress={() => setMaintReason(preset)}
+                                    style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: 8, borderWidth: 1.5,
+                                        borderColor: maintReason === preset ? BIZ_COLOR + '80' : '#ffffff15',
+                                        backgroundColor: maintReason === preset ? BIZ_COLOR + '18' : 'transparent' }}>
+                                    <Text style={{ color: maintReason === preset ? BIZ_LIGHT : '#888', fontSize: 12, fontWeight: maintReason === preset ? '700' : '400' }}>
+                                        {preset}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                        <TextInput
+                            style={{ backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12,
+                                paddingVertical: 9, color: '#fff', fontSize: 13, borderWidth: 1,
+                                borderColor: maintReason ? BIZ_COLOR + '60' : '#ffffff15', marginBottom: 6 }}
+                            placeholder="ör. Turnuva Etkinliği" placeholderTextColor="#444"
+                            value={maintReason} onChangeText={setMaintReason} />
+                        <Text style={{ color: '#555', fontSize: 11, marginBottom: 16, lineHeight: 15 }}>
+                            Kullanıcılar bu tarih/saatlerde "{maintReason.trim() || 'Bakım'}" nedeniyle kapalı olduğunu görecek.
+                        </Text>
+
+                        <TouchableOpacity disabled={savingMaint} onPress={handleAddMaintenance}
+                            style={{ backgroundColor: BIZ_COLOR + '28', borderRadius: 8, paddingVertical: 11,
+                                alignItems: 'center', borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
+                            <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 14 }}>
+                                {savingMaint ? 'Kaydediliyor...' : 'Ekle'}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {maintModalTarget && maintModalTarget !== '__global__' && (courtMaintenance[maintModalTarget] || []).length > 0 && (
+                            <>
+                                <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 16 }} />
+                                <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
+                                    MEVCUT KAYITLAR
+                                </Text>
+                                {courtMaintenance[maintModalTarget].map((m, idx) => (
+                                    <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6,
+                                        backgroundColor: '#ef444412', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+                                        borderWidth: 1, borderColor: '#ef444430' }}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ color: '#fca5a5', fontSize: 13, fontWeight: '700' }}>
+                                                🔧 {m.reason || 'Bakım'}
+                                            </Text>
+                                            <Text style={{ color: '#f87171', fontSize: 11, marginTop: 2 }}>
+                                                {m.fromDate} – {m.toDate}{m.fromTime ? `  ·  ${m.fromTime}-${m.toTime}` : '  ·  Tüm gün'}
+                                            </Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => handleDeleteMaintenance(maintModalTarget, idx)}>
+                                            <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '700' }}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                            </>
+                        )}
+                    </ScrollView>
+                    </KeyboardAvoidingView>
                 </View>
             </Modal>
 

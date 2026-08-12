@@ -336,10 +336,10 @@ export default function CourtSlotsScreen({ route, navigation }) {
                         alignItems: 'center', gap: 10 }}>
                         <Text style={{ fontSize: 36 }}>🔧</Text>
                         <Text style={{ color: '#fca5a5', fontSize: 16, fontWeight: '900', textAlign: 'center' }}>
-                            Bakımda
+                            {slots?.reason || 'Bakımda'}
                         </Text>
                         <Text style={{ color: '#f87171', fontSize: 13, textAlign: 'center', lineHeight: 19 }}>
-                            {court.name} seçilen tarihte bakım sürecinde.{'\n'}Farklı bir tarih ya da kort seçin.
+                            {slots?.message || `${court.name} seçilen tarihte bakım sürecinde.\nFarklı bir tarih ya da kort seçin.`}
                         </Text>
                     </View>
                 )}
@@ -355,6 +355,17 @@ export default function CourtSlotsScreen({ route, navigation }) {
                         <Text style={{ color: '#fcd34d', fontSize: 13, textAlign: 'center', lineHeight: 19 }}>
                             Bu tarih için rezervasyonlar{'\n'}
                             {new Date(slots.opensAt).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })} tarihinde açılacak.
+                        </Text>
+                    </View>
+                )}
+
+                {!loading && slots && !isMaintenance && !isNotYetOpen && slots?.maintenanceReason && (
+                    <View style={{ marginHorizontal: 16, marginTop: 12, padding: 10, borderRadius: 10,
+                        backgroundColor: '#ef444412', borderWidth: 1, borderColor: '#ef444440',
+                        flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={{ fontSize: 16 }}>🔧</Text>
+                        <Text style={{ color: '#fca5a5', fontSize: 12, flex: 1 }}>
+                            Bugün bazı saatler "{slots.maintenanceReason}" nedeniyle kapatıldı.
                         </Text>
                     </View>
                 )}
