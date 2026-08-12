@@ -1496,7 +1496,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             {gReqLabel && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:1 }}>{gReqLabel}</Text>}
                                             <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t} placeholder={fallback}
                                                 onInvite={(u) => inviteToDoubleSlot(u, slot)}
-                                                onLongPress={() => setShowDoubleFriendsPicker(true)} />
+                                                onOpenPicker={() => setShowDoubleFriendsPicker(true)} />
                                         </View>
                                     );
                                 }
@@ -4672,7 +4672,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             sub={match.subCategory} category={match.category} cfg={cfg} t={t}
                                             placeholder={SLOT_LABEL[slot]}
                                             onInvite={(u) => onInviteDoubleSlot(u, slot)}
-                                            onLongPress={() => setShowDoubleFriendsPicker(true)}
+                                            onOpenPicker={() => setShowDoubleFriendsPicker(true)}
                                         />
                                     </View>
                                 );
@@ -7694,7 +7694,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
 // aynı mantık (kullanıcı isteği: "form a yazarak davet edicem açık ilandaki gibi"), sadece
 // burada ilan zaten var (açık ya da eşleşmiş) ve davet backend'e gidiyor (bkz. inviteToRival'daki
 // side parametresi), form state'ine değil.
-function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onLongPress, cfg, t, placeholder }) {
+function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onOpenPicker, cfg, t, placeholder }) {
     const [text, setText] = useState('');
     const [results, setResults] = useState([]);
     const [searching, setSearching] = useState(false);
@@ -7725,11 +7725,11 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onL
                     />
                     {searching && focused && <ActivityIndicator size="small" color={cfg.color} style={{ position:'absolute', right:5, top:3 }} />}
                 </View>
-                {/* Yazarak aramanın yanında, arkadaş listesinden ÇOKLU seçim için ayrı bir uzun-basma
-                    hedefi — TextInput'un kendi dokunma/imleç davranışıyla çakışmasın diye TeamSlotRow'daki
-                    avatar uzun-basma deseniyle aynı: ayrı, küçük bir dokunma alanı. */}
-                {onLongPress && (
-                    <TouchableOpacity onLongPress={onLongPress} delayLongPress={350} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                {/* Yazarak aramanın yanında, arkadaş listesinden ÇOKLU seçim için ayrı bir dokunma
+                    hedefi — TextInput'un kendi dokunma/imleç davranışıyla çakışmasın diye ayrı,
+                    küçük bir alan (ikon zaten görünür olduğu için tek dokunuş yeterli). */}
+                {onOpenPicker && (
+                    <TouchableOpacity onPress={onOpenPicker} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
                         <Text style={{ fontSize:13 }}>👥</Text>
                     </TouchableOpacity>
                 )}
@@ -7969,7 +7969,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
         </TouchableOpacity>
     ) : !editItem ? (
         <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={placeholder}
-            onPick={(u) => set(field, u)} onLongPress={onLongPressEmptySlot} />
+            onPick={(u) => set(field, u)} onOpenPicker={onLongPressEmptySlot} />
     ) : null;
     // Voleybolün ilan oluşturma kartıyla BİREBİR AYNI davranış (kullanıcı isteği: "voleyboldeki
     // gibi") — ön yüzde SADECE doldurulmuş slotlar değil, kilitli kurucu + 3 tane HER ZAMAN
