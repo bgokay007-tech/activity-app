@@ -882,6 +882,26 @@ const SURFACE_ICON = {
     CLAY: '🟤', HARD: '⬜', CARPET: '🟥', GRASS: '🟢', PARQUET: '🟫', SYNTHETIC: '🟩',
 };
 
+const POLICY_DEFS = [
+    { label: 'İPTAL POLİTİKASI', field: 'cancelHoursBefore',
+      desc: 'Kullanıcılar rezervasyondan kaç saat öncesine kadar iptal edebilsin?' },
+    { label: 'DEĞİŞİKLİK POLİTİKASI', field: 'rescheduleHoursBefore',
+      desc: 'Kullanıcılar rezervasyondan kaç saat öncesine kadar tarih/saat değiştirebilsin?' },
+];
+const POLICY_QUICK_OPTS = [
+    { val: null, label: 'Her Zaman' },
+    { val: 1,    label: '1 Saat' },
+    { val: 2,    label: '2 Saat' },
+    { val: 3,    label: '3 Saat' },
+    { val: 6,    label: '6 Saat' },
+    { val: 12,   label: '12 Saat' },
+    { val: 24,   label: '24 Saat' },
+    { val: 48,   label: '48 Saat' },
+    { val: 72,   label: '72 Saat' },
+    { val: -1,   label: 'Asla' },
+];
+const policyValueLabel = (v) => v === null || v === undefined ? 'Her Zaman' : v === -1 ? 'Asla' : `${v} Saat`;
+
 const SURFACE_OPTIONS_FULL = [
     { key: 'CLAY',      label: 'Toprak',     icon: '🟤' },
     { key: 'HARD',      label: 'Sert Zemin', icon: '⬜' },
@@ -1591,7 +1611,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const [selectedCourt, setSelectedCourt]   = useState(null); // null=tüm kortlar, string=courtId
     const [globalSlotType, setGlobalSlotType] = useState(venue.slotType || 'FULL_HOUR');
     const [globalSurface, setGlobalSurface]   = useState(null);
-    const [globalPrice, setGlobalPrice]       = useState(venue.pricePerSlot != null ? String(venue.pricePerSlot) : '');
 
     const [localOpenSlots, setLocalOpenSlots] = useState(() => {
         const os = venue.openSlots;
@@ -1616,6 +1635,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const [localReschedulePolicy, setLocalReschedulePolicy] = useState(venue.rescheduleHoursBefore ?? null);
     const [customPolicyHour,      setCustomPolicyHour]      = useState('');
     const [savingPolicy,          setSavingPolicy]          = useState(false);
+    const [policyModalField,      setPolicyModalField]      = useState(null); // null | 'cancelHoursBefore' | 'rescheduleHoursBefore'
     const [localAcceptedPayments, setLocalAcceptedPayments] = useState(
         Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT']
     );
@@ -1998,21 +2018,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
             setCourtSurfaces(prev => ({ ...prev, ...upd }));
             setGlobalSurface(next);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
-    };
-
-    const handleGlobalPrice = async () => {
-        const p = globalPrice === '' ? null : parseInt(globalPrice);
-        if (globalPrice !== '' && (isNaN(p) || p < 0)) { Alert.alert('Hata', 'Geçerli bir fiyat giriniz'); return; }
-        setSavingPrice(true);
-        try {
-            await Promise.all(sortedCourts.map(c =>
-                api.patch(`/venues/${venue.id}/courts/${c.id}/settings`, { pricePerSlot: p })
-            ));
-            const upd = {};
-            sortedCourts.forEach(c => { upd[c.id] = globalPrice; });
-            setCourtPrices(prev => ({ ...prev, ...upd }));
-        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
-        finally { setSavingPrice(false); }
     };
 
     const handleGlobalAddMaintenance = async (item) => {
@@ -3435,9 +3440,12 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                 Bu ayarlar tüm kortlara uygulanır.
                             </Text>
 
-                            {/* Zemin Tipi + Alan Türü — aynı satırda, kort seçicinin hemen altında */}
+                            {/* Zemin Tipi + Alan Türü — aynı satırda, kort seçicinin hemen altında.
+                                Alan Türü tek sütun (Açık üstte, Kapalı altta) — kullanıcı isteği: "tenis de
+                                zemin tipi çok, Alan Türü'nü tek sütun yap, böylece zemin türüne daha fazla
+                                yer açılır, her satıra 3 bile sığabilir". */}
                             <View style={{ flexDirection: 'row', gap: 14, marginBottom: 4 }}>
-                                <View style={{ flex: 1 }}>
+                                <View style={{ flex: 2 }}>
                                     <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
                                         ZEMİN TİPİ
                                     </Text>
@@ -3470,13 +3478,13 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                     <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
                                         ALAN TÜRÜ
                                     </Text>
-                                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <View style={{ gap: 6 }}>
                                         {[{ val: false, label: '🌤️ Açık' }, { val: true, label: '🏠 Kapalı' }].map(opt => {
                                             const isActive = globalIndoor === opt.val;
                                             return (
                                                 <TouchableOpacity key={String(opt.val)}
                                                     onPress={() => handleGlobalIndoor(opt.val)}
-                                                    style={{ flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5,
+                                                    style={{ paddingVertical: 8, borderRadius: 8, borderWidth: 1.5,
                                                         borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
                                                         backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
                                                         alignItems: 'center' }}>
@@ -3496,142 +3504,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
 
                             {workingHoursSection}
 
-                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 0.5 }}>
-                                REZERVASYON TİPİ
-                            </Text>
-                            {[
-                                { key: 'FULL_HOUR',    title: 'Tam Saatli',     desc: 'Saat başı 60 dk\n09:00–10:00 · 10:00–11:00' },
-                                { key: 'HALF_HOUR',    title: 'Buçuklu Saatli', desc: '30 dk geçmiş saatte başlar\n09:30–10:30 · 10:30–11:30' },
-                                { key: 'VAR_DURATION', title: 'Esnek Süre',     desc: 'Kullanıcı 60 / 90 / 120 dk seçer\nRezerasyonlar arka arkaya — boşluk yok' },
-                            ].map(opt => {
-                                const isActive = globalSlotType === opt.key;
-                                return (
-                                    <TouchableOpacity key={opt.key}
-                                        style={[vc.settingCard, isActive && vc.settingCardActive]}
-                                        onPress={() => handleGlobalSlotType(opt.key)}
-                                        disabled={savingSlot}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                                            <View style={[vc.radio, isActive && vc.radioActive]}>
-                                                {isActive && <View style={vc.radioDot} />}
-                                            </View>
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={{ color: isActive ? BIZ_LIGHT : '#ddd', fontWeight: '800', fontSize: 14 }}>
-                                                    {opt.title}
-                                                </Text>
-                                                <Text style={{ color: '#777', fontSize: 12, marginTop: 4, lineHeight: 17 }}>
-                                                    {opt.desc}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                    </TouchableOpacity>
-                                );
-                            })}
-
-                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginTop: 14, marginBottom: 4, letterSpacing: 0.5 }}>
-                                KORT ÜCRETİ
-                            </Text>
-                            <Text style={{ color: '#555', fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
-                                Tüm kortlara uygulanır.
-                            </Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                <TextInput
-                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8,
-                                        paddingHorizontal: 12, paddingVertical: 7, color: '#fff',
-                                        fontSize: 14, borderWidth: 1,
-                                        borderColor: globalPrice !== '' ? BIZ_COLOR + '60' : '#ffffff15' }}
-                                    placeholder="0"
-                                    placeholderTextColor="#444"
-                                    keyboardType="number-pad"
-                                    value={globalPrice}
-                                    onChangeText={setGlobalPrice}
-                                    returnKeyType="done"
-                                />
-                                <Text style={{ color: '#555', fontSize: 14 }}>₺</Text>
-                                <TouchableOpacity disabled={savingPrice}
-                                    onPress={handleGlobalPrice}
-                                    style={{ backgroundColor: BIZ_COLOR + '25', borderRadius: 8,
-                                        paddingHorizontal: 12, paddingVertical: 7,
-                                        borderWidth: 1, borderColor: BIZ_COLOR + '50' }}>
-                                    <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>Kaydet</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* ── Onay Sistemi (global) ── */}
-                            <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 16 }} />
-                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
-                                REZERVASYON ONAY SİSTEMİ
-                            </Text>
-                            <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 16 }}>
-                                Tüm kortlara uygulanır. Kort bazında özelleştirebilirsiniz.
-                            </Text>
-                            {[
-                                { key: 'FULL_AUTO',    title: 'Tümünü Otomatik Onayla', desc: 'Her ödeme türü anında onaylanır.' },
-                                { key: 'EFT_TIMED',    title: 'EFT → 1 Saat Bekle',    desc: 'EFT 1 saat onaylanmazsa otomatik onaylanır. Nakit/Online anında onaylanır.' },
-                                { key: 'PAYMENT_AUTO', title: 'Nakit/Online Otomatik',  desc: 'Nakit ve online ödemeler otomatik onaylanır. EFT manuel onay bekler.' },
-                                { key: 'MANUAL',       title: 'Manuel Onay',            desc: 'Tüm rezervasyonlar işletme onayı bekler.' },
-                            ].map(opt => {
-                                const isActive = globalApprovalMode === opt.key;
-                                return (
-                                    <TouchableOpacity key={opt.key}
-                                        style={[vc.settingCard, isActive && vc.settingCardActive]}
-                                        onPress={() => handleGlobalApprovalMode(opt.key)}
-                                        disabled={savingApproval}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                                            <View style={[vc.radio, isActive && vc.radioActive]}>
-                                                {isActive && <View style={vc.radioDot} />}
-                                            </View>
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={{ color: isActive ? BIZ_LIGHT : '#ddd', fontWeight: '800', fontSize: 13 }}>
-                                                    {opt.title}
-                                                </Text>
-                                                <Text style={{ color: '#777', fontSize: 11, marginTop: 3, lineHeight: 16 }}>
-                                                    {opt.desc}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                    </TouchableOpacity>
-                                );
-                            })}
-
-                                        <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
-                                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
-                                            EFT / IBAN BİLGİLERİ
-                                        </Text>
-                                        <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 15 }}>
-                                            Bu tesis için EFT ödemelerinde gösterilecek banka hesabı.
-                                        </Text>
-                                        {savedIban ? (
-                                            <View style={{ backgroundColor: '#22c55e10', borderRadius: 8, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: '#22c55e30' }}>
-                                                <Text style={{ color: '#86efac', fontSize: 12 }}>🏦 {savedIbanHolder || 'Hesap Sahibi'}</Text>
-                                                <Text style={{ color: '#fff', fontSize: 12, marginTop: 2 }} selectable>{savedIban}</Text>
-                                                <TouchableOpacity onPress={handleClearVenueIban} disabled={savingIban} style={{ marginTop: 8 }}>
-                                                    <Text style={{ color: '#f87171', fontSize: 11 }}>✕ IBAN Bilgisini Kaldır</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        ) : null}
-                                        <TextInput
-                                            style={{ backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: venueIbanHolder ? BIZ_COLOR + '60' : '#ffffff15', marginBottom: 6 }}
-                                            placeholder="Hesap Sahibi Adı"
-                                            placeholderTextColor="#444"
-                                            value={venueIbanHolder}
-                                            onChangeText={setVenueIbanHolder}
-                                        />
-                                        <TextInput
-                                            style={{ backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: venueIban ? BIZ_COLOR + '60' : '#ffffff15', marginBottom: 8 }}
-                                            placeholder="TR00 0000 0000 0000 0000 0000 00"
-                                            placeholderTextColor="#444"
-                                            value={venueIban}
-                                            onChangeText={setVenueIban}
-                                            autoCapitalize="characters"
-                                        />
-                                        <TouchableOpacity
-                                            onPress={handleSaveVenueIban}
-                                            disabled={savingIban}
-                                            style={{ backgroundColor: BIZ_COLOR + '25', borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: BIZ_COLOR + '50' }}>
-                                            {savingIban ? <ActivityIndicator size="small" color={BIZ_LIGHT} /> : <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>💾 IBAN Kaydet</Text>}
-                                        </TouchableOpacity>
-
-                            {/* ── Bakım Günleri (global) — en altta ── */}
+                            {/* ── Bakım Günleri (global) — Çalışma Saatleri'nin hemen altında ── */}
                             <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
                             <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
                                 BAKIM GÜNLERİ
@@ -3741,6 +3614,104 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                     <Text style={{ color: '#fca5a5', fontSize: 12 }}>+ Tüm Kortlara Bakım Dönemi Ekle</Text>
                                 </TouchableOpacity>
                             )}
+
+                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 0.5 }}>
+                                REZERVASYON TİPİ
+                            </Text>
+                            <View style={{ flexDirection: 'row', gap: 6 }}>
+                                {[
+                                    { key: 'FULL_HOUR',    title: 'Tam Saatli',     desc: 'Saat başı 60 dk' },
+                                    { key: 'HALF_HOUR',    title: 'Buçuklu Saatli', desc: '30 dk geçmiş başlar' },
+                                    { key: 'VAR_DURATION', title: 'Esnek Süre',     desc: '60/90/120 dk seçilir' },
+                                ].map(opt => {
+                                    const isActive = globalSlotType === opt.key;
+                                    return (
+                                        <TouchableOpacity key={opt.key}
+                                            style={[vc.settingCard, isActive && vc.settingCardActive]}
+                                            onPress={() => handleGlobalSlotType(opt.key)}
+                                            disabled={savingSlot}>
+                                            <Text style={{ color: isActive ? BIZ_LIGHT : '#ddd', fontWeight: '800', fontSize: 11 }}
+                                                numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                {isActive ? '✓ ' : ''}{opt.title}
+                                            </Text>
+                                            <Text style={{ color: '#777', fontSize: 9, marginTop: 3, lineHeight: 12 }}>
+                                                {opt.desc}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+
+                            {/* ── Onay Sistemi (global) ── */}
+                            <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 16 }} />
+                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                                REZERVASYON ONAY SİSTEMİ
+                            </Text>
+                            <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 16 }}>
+                                Tüm kortlara uygulanır. Kort bazında özelleştirebilirsiniz.
+                            </Text>
+                            <View style={{ flexDirection: 'row', gap: 6 }}>
+                                {[
+                                    { key: 'FULL_AUTO',    title: 'Tümü Otomatik',    desc: 'Her ödeme anında onaylanır' },
+                                    { key: 'EFT_TIMED',    title: 'EFT 1 Saat Bekle', desc: 'Nakit/Online anında' },
+                                    { key: 'PAYMENT_AUTO', title: 'Nakit/Online',     desc: 'EFT manuel onay bekler' },
+                                    { key: 'MANUAL',       title: 'Manuel Onay',      desc: 'Tümü onay bekler' },
+                                ].map(opt => {
+                                    const isActive = globalApprovalMode === opt.key;
+                                    return (
+                                        <TouchableOpacity key={opt.key}
+                                            style={[vc.settingCard, isActive && vc.settingCardActive]}
+                                            onPress={() => handleGlobalApprovalMode(opt.key)}
+                                            disabled={savingApproval}>
+                                            <Text style={{ color: isActive ? BIZ_LIGHT : '#ddd', fontWeight: '800', fontSize: 10 }}
+                                                numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                {isActive ? '✓ ' : ''}{opt.title}
+                                            </Text>
+                                            <Text style={{ color: '#777', fontSize: 9, marginTop: 3, lineHeight: 12 }} numberOfLines={2}>
+                                                {opt.desc}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+
+                                        <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
+                                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                                            EFT / IBAN BİLGİLERİ
+                                        </Text>
+                                        <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 15 }}>
+                                            Bu tesis için EFT ödemelerinde gösterilecek banka hesabı.
+                                        </Text>
+                                        {savedIban ? (
+                                            <View style={{ backgroundColor: '#22c55e10', borderRadius: 8, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: '#22c55e30' }}>
+                                                <Text style={{ color: '#86efac', fontSize: 12 }}>🏦 {savedIbanHolder || 'Hesap Sahibi'}</Text>
+                                                <Text style={{ color: '#fff', fontSize: 12, marginTop: 2 }} selectable>{savedIban}</Text>
+                                                <TouchableOpacity onPress={handleClearVenueIban} disabled={savingIban} style={{ marginTop: 8 }}>
+                                                    <Text style={{ color: '#f87171', fontSize: 11 }}>✕ IBAN Bilgisini Kaldır</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ) : null}
+                                        <TextInput
+                                            style={{ backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: venueIbanHolder ? BIZ_COLOR + '60' : '#ffffff15', marginBottom: 6 }}
+                                            placeholder="Hesap Sahibi Adı"
+                                            placeholderTextColor="#444"
+                                            value={venueIbanHolder}
+                                            onChangeText={setVenueIbanHolder}
+                                        />
+                                        <TextInput
+                                            style={{ backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: venueIban ? BIZ_COLOR + '60' : '#ffffff15', marginBottom: 8 }}
+                                            placeholder="TR00 0000 0000 0000 0000 0000 00"
+                                            placeholderTextColor="#444"
+                                            value={venueIban}
+                                            onChangeText={setVenueIban}
+                                            autoCapitalize="characters"
+                                        />
+                                        <TouchableOpacity
+                                            onPress={handleSaveVenueIban}
+                                            disabled={savingIban}
+                                            style={{ backgroundColor: BIZ_COLOR + '25', borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: BIZ_COLOR + '50' }}>
+                                            {savingIban ? <ActivityIndicator size="small" color={BIZ_LIGHT} /> : <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>💾 IBAN Kaydet</Text>}
+                                        </TouchableOpacity>
                         </>
                     ) : (
                         /* ── Kort özel ayarları ── */
@@ -3751,15 +3722,20 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                             const currentSurface = courtSurfaces[court.id] || null;
                             return (
                                 <View style={{ marginBottom: 28 }}>
-                                    {/* Zemin Tipi + Alan Türü — aynı satırda */}
+                                    {/* Zemin Tipi + Alan Türü — aynı satırda. Bu kort için özel bir seçim
+                                        yapılmadıysa (override yok), Tüm Kortlar'daki genel seçim burada da
+                                        SEÇİLİ görünür (kullanıcı isteği: "tüm de seçtiklerinde diğer kortlarda
+                                        da otomatik seçilmiş olsun") — kort sekmesinde farklı bir seçeneğe
+                                        basılırsa o andan itibaren sadece bu kort için override oluşur. */}
                                     <View style={{ flexDirection: 'row', gap: 14, marginBottom: 4 }}>
-                                        <View style={{ flex: 1 }}>
+                                        <View style={{ flex: 2 }}>
                                             <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
                                                 ZEMİN TİPİ
                                             </Text>
                                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                                                 {getSurfaceOptions(venue.branch).map(s => {
-                                                    const isActive = currentSurface === s.key || (!currentSurface && venue.branch === 'padel' && s.key === 'SYNTHETIC');
+                                                    const effectiveSurface = currentSurface || globalSurface || (venue.branch === 'padel' ? 'SYNTHETIC' : null);
+                                                    const isActive = effectiveSurface === s.key;
                                                     return (
                                                         <TouchableOpacity key={s.key}
                                                             onPress={() => handleUpdateCourtSurface(court.id, s.key)}
@@ -3776,29 +3752,24 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                                     );
                                                 })}
                                             </View>
-                                            {currentSurface && (
-                                                <Text style={{ color: '#555', fontSize: 11, marginTop: 6 }}>
-                                                    Seçili: {SURFACE_ICON[currentSurface]} {SURFACE_LABEL[currentSurface]}
-                                                </Text>
-                                            )}
                                         </View>
                                         <View style={{ flex: 1 }}>
                                             <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
                                                 ALAN TÜRÜ
                                             </Text>
-                                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                            <View style={{ gap: 6 }}>
                                                 {[{ val: false, label: '🌤️ Açık' }, { val: true, label: '🏠 Kapalı' }].map(opt => {
                                                     const courtIndoor = courtIndoors[court.id];
-                                                    const isActive = courtIndoor === opt.val;
-                                                    const isDefault = courtIndoor === null && globalIndoor === opt.val;
+                                                    const effectiveIndoor = courtIndoor !== null && courtIndoor !== undefined ? courtIndoor : globalIndoor;
+                                                    const isActive = effectiveIndoor === opt.val;
                                                     return (
                                                         <TouchableOpacity key={String(opt.val)}
                                                             onPress={() => handleCourtIndoor(court.id, opt.val)}
-                                                            style={{ flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5,
-                                                                borderColor: isActive ? BIZ_COLOR + '80' : isDefault ? '#ffffff25' : '#ffffff10',
-                                                                backgroundColor: isActive ? BIZ_COLOR + '18' : isDefault ? '#ffffff06' : 'transparent',
+                                                            style={{ paddingVertical: 8, borderRadius: 8, borderWidth: 1.5,
+                                                                borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
+                                                                backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
                                                                 alignItems: 'center' }}>
-                                                            <Text style={{ color: isActive ? BIZ_LIGHT : isDefault ? '#777' : '#555', fontSize: 13, fontWeight: isActive ? '700' : '400' }}
+                                                            <Text style={{ color: isActive ? BIZ_LIGHT : '#888', fontSize: 13, fontWeight: isActive ? '700' : '400' }}
                                                                 numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                 {opt.label}
                                                             </Text>
@@ -3814,73 +3785,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
 
                                     {workingHoursSection}
 
-                                    {/* Rezervasyon tipi */}
-                                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 0.5 }}>
-                                        REZERVASYON TİPİ
-                                    </Text>
-                                    {[
-                                        { key: 'FULL_HOUR',    title: 'Tam Saatli',     desc: 'Saat başı 60 dk\n09:00–10:00 · 10:00–11:00' },
-                                        { key: 'HALF_HOUR',    title: 'Buçuklu Saatli', desc: '30 dk geçmiş saatte başlar\n09:30–10:30 · 10:30–11:30' },
-                                        { key: 'VAR_DURATION', title: 'Esnek Süre',     desc: 'Kullanıcı 60 / 90 / 120 dk seçer\nRezerasyonlar arka arkaya — boşluk yok' },
-                                    ].map(opt => {
-                                        const isActive = currentType === opt.key;
-                                        return (
-                                            <TouchableOpacity key={opt.key}
-                                                style={[vc.settingCard, isActive && vc.settingCardActive]}
-                                                onPress={() => handleUpdateCourtSlotType(court.id, opt.key)}
-                                                disabled={savingSlot}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                                                    <View style={[vc.radio, isActive && vc.radioActive]}>
-                                                        {isActive && <View style={vc.radioDot} />}
-                                                    </View>
-                                                    <View style={{ flex: 1 }}>
-                                                        <Text style={{ color: isActive ? BIZ_LIGHT : '#ddd', fontWeight: '800', fontSize: 14 }}>
-                                                            {opt.title}
-                                                        </Text>
-                                                        <Text style={{ color: '#777', fontSize: 12, marginTop: 4, lineHeight: 17 }}>
-                                                            {opt.desc}
-                                                        </Text>
-                                                    </View>
-                                                </View>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-
-                                    {/* ── Onay Sistemi (per-court) ── */}
-                                    <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 14 }} />
-                                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
-                                        REZERVASYON ONAY SİSTEMİ
-                                    </Text>
-                                    {[
-                                        { key: 'FULL_AUTO',    title: 'Tümünü Otomatik', desc: 'Her ödeme anında onaylanır.' },
-                                        { key: 'EFT_TIMED',    title: 'EFT 1 Saat Bekle', desc: 'EFT 1 saat onaylanmazsa otomatik. Nakit/Online anında.' },
-                                        { key: 'PAYMENT_AUTO', title: 'Nakit/Online Otomatik', desc: 'EFT manuel onay bekler.' },
-                                        { key: 'MANUAL',       title: 'Manuel Onay',      desc: 'Tümü işletme onayı bekler.' },
-                                    ].map(opt => {
-                                        const isActive = (courtApprovalModes[court.id] || globalApprovalMode) === opt.key;
-                                        return (
-                                            <TouchableOpacity key={opt.key}
-                                                style={[vc.settingCard, isActive && vc.settingCardActive]}
-                                                onPress={() => handleCourtApprovalMode(court.id, opt.key)}
-                                                disabled={savingApproval}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-                                                    <View style={[vc.radio, isActive && vc.radioActive]}>
-                                                        {isActive && <View style={vc.radioDot} />}
-                                                    </View>
-                                                    <View style={{ flex: 1 }}>
-                                                        <Text style={{ color: isActive ? BIZ_LIGHT : '#ddd', fontWeight: '700', fontSize: 12 }}>
-                                                            {opt.title}
-                                                        </Text>
-                                                        <Text style={{ color: '#666', fontSize: 11, marginTop: 2, lineHeight: 15 }}>
-                                                            {opt.desc}
-                                                        </Text>
-                                                    </View>
-                                                </View>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-
-                                    {/* ── Bakım Günleri (per-court) — en altta ── */}
+                                    {/* ── Bakım Günleri (per-court) — Çalışma Saatleri'nin hemen altında ── */}
                                     <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 14 }} />
                                     <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
                                         BAKIM GÜNLERİ
@@ -4013,6 +3918,64 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                             <Text style={{ color: '#fca5a5', fontSize: 12 }}>+ Bakım Dönemi Ekle</Text>
                                         </TouchableOpacity>
                                     )}
+
+                                    {/* Rezervasyon tipi */}
+                                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 0.5 }}>
+                                        REZERVASYON TİPİ
+                                    </Text>
+                                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                                        {[
+                                            { key: 'FULL_HOUR',    title: 'Tam Saatli',     desc: 'Saat başı 60 dk' },
+                                            { key: 'HALF_HOUR',    title: 'Buçuklu Saatli', desc: '30 dk geçmiş başlar' },
+                                            { key: 'VAR_DURATION', title: 'Esnek Süre',     desc: '60/90/120 dk seçilir' },
+                                        ].map(opt => {
+                                            const isActive = currentType === opt.key;
+                                            return (
+                                                <TouchableOpacity key={opt.key}
+                                                    style={[vc.settingCard, isActive && vc.settingCardActive]}
+                                                    onPress={() => handleUpdateCourtSlotType(court.id, opt.key)}
+                                                    disabled={savingSlot}>
+                                                    <Text style={{ color: isActive ? BIZ_LIGHT : '#ddd', fontWeight: '800', fontSize: 11 }}
+                                                        numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                        {isActive ? '✓ ' : ''}{opt.title}
+                                                    </Text>
+                                                    <Text style={{ color: '#777', fontSize: 9, marginTop: 3, lineHeight: 12 }}>
+                                                        {opt.desc}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+
+                                    {/* ── Onay Sistemi (per-court) ── */}
+                                    <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 14 }} />
+                                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                                        REZERVASYON ONAY SİSTEMİ
+                                    </Text>
+                                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                                        {[
+                                            { key: 'FULL_AUTO',    title: 'Tümü Otomatik',    desc: 'Her ödeme anında' },
+                                            { key: 'EFT_TIMED',    title: 'EFT 1 Saat Bekle', desc: 'Nakit/Online anında' },
+                                            { key: 'PAYMENT_AUTO', title: 'Nakit/Online',     desc: 'EFT manuel bekler' },
+                                            { key: 'MANUAL',       title: 'Manuel Onay',      desc: 'Tümü onay bekler' },
+                                        ].map(opt => {
+                                            const isActive = (courtApprovalModes[court.id] || globalApprovalMode) === opt.key;
+                                            return (
+                                                <TouchableOpacity key={opt.key}
+                                                    style={[vc.settingCard, isActive && vc.settingCardActive]}
+                                                    onPress={() => handleCourtApprovalMode(court.id, opt.key)}
+                                                    disabled={savingApproval}>
+                                                    <Text style={{ color: isActive ? BIZ_LIGHT : '#ddd', fontWeight: '700', fontSize: 10 }}
+                                                        numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                        {isActive ? '✓ ' : ''}{opt.title}
+                                                    </Text>
+                                                    <Text style={{ color: '#666', fontSize: 9, marginTop: 2, lineHeight: 12 }} numberOfLines={2}>
+                                                        {opt.desc}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
 
                             </View>
                         );
@@ -4226,12 +4189,18 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                         onClose={() => setShowPriceToPicker(false)}
                     />
 
-                    {/* ── Konum ──── */}
+                    {/* ── İletişim Butonları (Konum da içinde) ──── */}
                     <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
                     <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
-                        KONUM
+                        İLETİŞİM BUTONLARI
                     </Text>
                     <Text style={{ color: '#555', fontSize: 11, marginBottom: 12, lineHeight: 15 }}>
+                        Kullanıcılar rezervasyon sırasında bu butonları görecek.
+                    </Text>
+
+                    {/* Konum — kullanıcı isteği: "konumu da iletişim butonlarının içine al" */}
+                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>Konum</Text>
+                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
                         Google Maps'te konumu bul → Konuma uzun bas → Enlem/Boylam kopyala
                     </Text>
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
@@ -4268,20 +4237,11 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                         onPress={handleSaveLocation}
                         style={{ backgroundColor: BIZ_COLOR + '20', borderRadius: 8,
                             paddingHorizontal: 14, paddingVertical: 9,
-                            borderWidth: 1, borderColor: BIZ_COLOR + '40', alignSelf: 'flex-end', marginBottom: 4 }}>
+                            borderWidth: 1, borderColor: BIZ_COLOR + '40', alignSelf: 'flex-end', marginBottom: 14 }}>
                         <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>
                             {savingLocation ? 'Kaydediliyor...' : 'Kaydet'}
                         </Text>
                     </TouchableOpacity>
-
-                    {/* ── İletişim Butonları ──── */}
-                    <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
-                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
-                        İLETİŞİM BUTONLARI
-                    </Text>
-                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 12, lineHeight: 15 }}>
-                        Kullanıcılar rezervasyon sırasında bu butonları görecek.
-                    </Text>
 
                     {[
                         { key: 'whatsapp',  label: 'WhatsApp',  placeholder: '5551234567', hasCC: true,  keyboardType: 'phone-pad' },
@@ -4328,87 +4288,30 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                         </Text>
                     </TouchableOpacity>
 
-                    {/* ── İptal & Değişiklik Politikası ──── */}
+                    {/* ── İptal & Değişiklik Politikası — aynı satırda, dokununca modal açılır ──── */}
                     <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
-                    {[
-                        { label: 'İPTAL POLİTİKASI', field: 'cancelHoursBefore',     current: localCancelPolicy,
-                          desc: 'Kullanıcılar rezervasyondan kaç saat öncesine kadar iptal edebilsin?' },
-                        { label: 'DEĞİŞİKLİK POLİTİKASI', field: 'rescheduleHoursBefore', current: localReschedulePolicy,
-                          desc: 'Kullanıcılar rezervasyondan kaç saat öncesine kadar tarih/saat değiştirebilsin?' },
-                    ].map(pol => {
-                        const quickOpts = [null, 1, 2, 3, 6, 12, 24, 48, 72, -1];
-                        const isCustom  = pol.current !== null && pol.current >= 0 && !quickOpts.includes(pol.current);
-                        return (
-                        <View key={pol.field} style={{ marginBottom: 20 }}>
-                            <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>{pol.label}</Text>
-                            <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 16 }}>{pol.desc}</Text>
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                                {[
-                                    { val: null, label: 'Her Zaman' },
-                                    { val: 1,    label: '1 Saat' },
-                                    { val: 2,    label: '2 Saat' },
-                                    { val: 3,    label: '3 Saat' },
-                                    { val: 6,    label: '6 Saat' },
-                                    { val: 12,   label: '12 Saat' },
-                                    { val: 24,   label: '24 Saat' },
-                                    { val: 48,   label: '48 Saat' },
-                                    { val: 72,   label: '72 Saat' },
-                                    { val: -1,   label: 'Asla' },
-                                ].map(opt => {
-                                    const isActive = pol.current === opt.val;
-                                    return (
-                                        <TouchableOpacity key={String(opt.val)} disabled={savingPolicy}
-                                            onPress={() => handleSavePolicy(pol.field, opt.val)}
-                                            style={{
-                                                paddingHorizontal: 11, paddingVertical: 7,
-                                                borderRadius: 8, borderWidth: 1.5,
-                                                borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
-                                                backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
-                                            }}>
-                                            <Text style={{ color: isActive ? BIZ_LIGHT : '#888', fontSize: 12, fontWeight: isActive ? '700' : '400' }}>
-                                                {opt.label}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-                            {/* Manuel saat girişi */}
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                <TextInput
-                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12,
-                                        paddingVertical: 7, color: '#fff', fontSize: 14, borderWidth: 1,
-                                        borderColor: isCustom ? BIZ_COLOR + '60' : '#ffffff15' }}
-                                    placeholder="Özel saat (ör: 36)"
-                                    placeholderTextColor="#444"
-                                    keyboardType="number-pad"
-                                    value={isCustom ? String(pol.current) : customPolicyHour}
-                                    onChangeText={setCustomPolicyHour}
-                                    returnKeyType="done"
-                                    onSubmitEditing={() => {
-                                        const h = parseInt(customPolicyHour);
-                                        if (!isNaN(h) && h > 0) { handleSavePolicy(pol.field, h); setCustomPolicyHour(''); }
-                                    }}
-                                />
-                                <TouchableOpacity disabled={savingPolicy}
-                                    onPress={() => {
-                                        const h = parseInt(customPolicyHour);
-                                        if (!isNaN(h) && h > 0) { handleSavePolicy(pol.field, h); setCustomPolicyHour(''); }
-                                        else Alert.alert('Hata', 'Geçerli bir saat sayısı girin');
-                                    }}
-                                    style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8,
-                                        backgroundColor: BIZ_COLOR + '28', borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
-                                    <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>Uygula</Text>
-                                </TouchableOpacity>
-                            </View>
-                            {isCustom && (
-                                <Text style={{ color: BIZ_COLOR + 'cc', fontSize: 11, marginTop: 5 }}>
-                                    ✓ Aktif: {pol.current} saat öncesine kadar
-                                </Text>
-                            )}
-                        </View>
-                        );
-                    })}
-                    {savingPolicy && <ActivityIndicator color={BIZ_COLOR} size="small" />}
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                        {POLICY_DEFS.map(pol => {
+                            const current = pol.field === 'cancelHoursBefore' ? localCancelPolicy : localReschedulePolicy;
+                            return (
+                                <View key={pol.field} style={{ flex: 1 }}>
+                                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}
+                                        numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                        {pol.label}
+                                    </Text>
+                                    <TouchableOpacity onPress={() => { setCustomPolicyHour(''); setPolicyModalField(pol.field); }}
+                                        style={{ backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9,
+                                            borderWidth: 1, borderColor: current !== undefined ? BIZ_COLOR + '40' : '#ffffff15' }}>
+                                        <Text style={{ color: BIZ_LIGHT, fontSize: 13, fontWeight: '700' }}
+                                            numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                            {policyValueLabel(current)}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            );
+                        })}
+                    </View>
+                    {savingPolicy && <ActivityIndicator color={BIZ_COLOR} size="small" style={{ marginTop: 8 }} />}
 
                     {/* ── Rezervasyon Açılış Süresi ──── */}
                     <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
@@ -4524,6 +4427,84 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                 venue={venue}
                 onClose={() => setAnalyticsOpen(false)}
             />
+
+            {/* İptal / Değişiklik Politikası — hızlı seçenekler veya manuel saat girişi */}
+            <Modal visible={policyModalField !== null} transparent animationType="slide"
+                onRequestClose={() => { setPolicyModalField(null); setCustomPolicyHour(''); }}>
+                <View style={{ flex: 1 }}>
+                    <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000088' }} activeOpacity={1}
+                        onPress={() => { setPolicyModalField(null); setCustomPolicyHour(''); }} />
+                    {(() => {
+                        const pol = POLICY_DEFS.find(p => p.field === policyModalField);
+                        if (!pol) return null;
+                        const current  = pol.field === 'cancelHoursBefore' ? localCancelPolicy : localReschedulePolicy;
+                        const isCustom = current !== null && current >= 0 && !POLICY_QUICK_OPTS.some(o => o.val === current);
+                        const apply = (value) => { handleSavePolicy(pol.field, value); setPolicyModalField(null); setCustomPolicyHour(''); };
+                        return (
+                            <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
+                                backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+                                paddingTop: 16, paddingHorizontal: 16, paddingBottom: 24 }}>
+                                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', marginBottom: 6 }}>
+                                    {pol.label}
+                                </Text>
+                                <Text style={{ color: '#888', fontSize: 12, marginBottom: 14, lineHeight: 16 }}>
+                                    {pol.desc}
+                                </Text>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                                    {POLICY_QUICK_OPTS.map(opt => {
+                                        const isActive = current === opt.val;
+                                        return (
+                                            <TouchableOpacity key={String(opt.val)} disabled={savingPolicy}
+                                                onPress={() => apply(opt.val)}
+                                                style={{
+                                                    paddingHorizontal: 11, paddingVertical: 7,
+                                                    borderRadius: 8, borderWidth: 1.5,
+                                                    borderColor: isActive ? BIZ_COLOR + '80' : '#ffffff15',
+                                                    backgroundColor: isActive ? BIZ_COLOR + '18' : 'transparent',
+                                                }}>
+                                                <Text style={{ color: isActive ? BIZ_LIGHT : '#888', fontSize: 12, fontWeight: isActive ? '700' : '400' }}>
+                                                    {opt.label}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                                <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
+                                    MANUEL SAAT GİRİŞİ
+                                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    <TextInput
+                                        style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12,
+                                            paddingVertical: 9, color: '#fff', fontSize: 14, borderWidth: 1,
+                                            borderColor: isCustom ? BIZ_COLOR + '60' : '#ffffff15' }}
+                                        placeholder="Özel saat (ör: 36)"
+                                        placeholderTextColor="#444"
+                                        keyboardType="number-pad"
+                                        value={isCustom && customPolicyHour === '' ? String(current) : customPolicyHour}
+                                        onChangeText={setCustomPolicyHour}
+                                        returnKeyType="done"
+                                        autoFocus={isCustom}
+                                        onSubmitEditing={() => {
+                                            const h = parseInt(customPolicyHour);
+                                            if (!isNaN(h) && h > 0) apply(h);
+                                        }}
+                                    />
+                                    <TouchableOpacity disabled={savingPolicy}
+                                        onPress={() => {
+                                            const h = parseInt(customPolicyHour);
+                                            if (!isNaN(h) && h > 0) apply(h);
+                                            else Alert.alert('Hata', 'Geçerli bir saat sayısı girin');
+                                        }}
+                                        style={{ paddingHorizontal: 16, paddingVertical: 9, borderRadius: 8,
+                                            backgroundColor: BIZ_COLOR + '28', borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
+                                        <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>Uygula</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        );
+                    })()}
+                </View>
+            </Modal>
 
             {/* Ülke kodu seçici */}
             <Modal visible={ccPickerKey !== null} transparent animationType="slide" onRequestClose={() => setCcPickerKey(null)}>
@@ -5015,11 +4996,8 @@ const vc = StyleSheet.create({
     resMeta:         { color: colors.textMuted, fontSize: 11, marginTop: 2 },
     resCancelBtn:    { backgroundColor: '#ef444415', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: '#ef444440' },
     resCancelTxt:    { color: '#f87171', fontSize: 12, fontWeight: '700' },
-    settingCard:     { backgroundColor: '#ffffff07', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1.5, borderColor: '#ffffff12' },
+    settingCard:     { flex: 1, backgroundColor: '#ffffff07', borderRadius: 10, padding: 8, borderWidth: 1.5, borderColor: '#ffffff12' },
     settingCardActive: { borderColor: BIZ_COLOR + '70', backgroundColor: BIZ_COLOR + '10' },
-    radio:           { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#555', marginTop: 1, alignItems: 'center', justifyContent: 'center' },
-    radioActive:     { borderColor: BIZ_COLOR },
-    radioDot:        { width: 10, height: 10, borderRadius: 5, backgroundColor: BIZ_COLOR },
 });
 
 const va = StyleSheet.create({
