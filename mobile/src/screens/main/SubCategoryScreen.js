@@ -7939,7 +7939,9 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
     // Cinsiyet kısıtlaması artık kartın İÇİNDE seçilmiyor — 2v2 seçilince açılan ayrı bir modalda
     // (showDoubleGenderModal, bkz. CreateRivalModal) belirleniyor, eskisi gibi. Kart sadece seçileni
     // forma etiketinin yanında salt-okunur ♂/♀ olarak gösterir.
-    const genderTagLocal = (req) => req === 'MALE' ? ' ♂' : req === 'FEMALE' ? ' ♀' : '';
+    // ♂/♀ sembolü herkes tarafından anlaşılmayabilir (kullanıcı isteği) — açık metin kullanılıyor.
+    const stripEmojiLocal = (str) => (str || '').replace(/^\S+\s+/, '');
+    const genderTagLocal = (req) => req === 'MALE' ? ` (${stripEmojiLocal(t.genderMale) || 'Erkek'})` : req === 'FEMALE' ? ` (${stripEmojiLocal(t.genderFemale) || 'Kadın'})` : '';
     // Dolu forma → isim + ✕; boş forma (düzenleme DIŞINDayken — backend invite ID'lerini
     // düzenlemede kabul etmiyor) → arama/davet alanı.
     const renderSlot = (field, placeholder) => f[field] ? (
@@ -9464,13 +9466,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 kort/gün/saat değiştirilebilir. */}
                             {!isMatchedEdit && (!isTeamSport ? (
                                 <>
-                                    {/* Mod + Format — tek satır, içeriğe göre boyutlanır (flex:1 yok — sağa boşluk kalırsa kalsın, aralarında boşluk olmasın) —
-                                        kort/tesis kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) anlamsız, tamamen gizlenir. */}
+                                    {/* Mod + Format + Cinsiyet Kısıtlaması + Derece + Kilit — tek satır. Kullanıcı
+                                        isteği: Cinsiyet Kısıtlaması eklenince satır alt satıra kayıyordu — voleybolün
+                                        Antrenman/Rekabetçi chip'lerindeki gibi wrap kapalı + her buton flex:1 (birlikte
+                                        küçülür) + metin adjustsFontSizeToFit, asla kaymaz. Kort/tesis kavramı olmayan
+                                        dallarda (SIMPLIFIED_FEE_SUBS) anlamsız, tamamen gizlenir. */}
                                     {!SIMPLIFIED_FEE_SUBS.has(sub) && (
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1, marginBottom:8 }}>
-                                        <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'mode' ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
+                                    <View style={{ flexDirection:'row', flexWrap:'nowrap', gap:1, marginBottom:8 }}>
+                                        <View style={[s.triBtn, { flex:1, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'mode' ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
                                             <TouchableOpacity onPress={() => toggleActivePopup('mode')}>
-                                                <Text style={[s.triValue, { fontSize:11 }, !f.matchMode && s.triPlaceholder]} numberOfLines={1}>
+                                                <Text style={[s.triValue, { fontSize:11 }, !f.matchMode && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                                                     {f.matchMode ? noEmoji(f.matchMode === 'BOTH' ? t.bothMode : f.matchMode === 'COMPETITIVE' ? t.competitiveMode : t.practiceMode) : `${t.modLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                 </Text>
                                             </TouchableOpacity>
@@ -9515,9 +9520,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </View>
                                             )}
                                         </View>
-                                        <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'format' ? 51 : 1 }, f.matchType && s.triBtnFilled]}>
+                                        <View style={[s.triBtn, { flex:1, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'format' ? 51 : 1 }, f.matchType && s.triBtnFilled]}>
                                             <TouchableOpacity onPress={() => toggleActivePopup('format')}>
-                                                <Text style={[s.triValue, { fontSize:11 }, !f.matchType && s.triPlaceholder]} numberOfLines={1}>
+                                                <Text style={[s.triValue, { fontSize:11 }, !f.matchType && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                                                     {f.matchType ? (f.matchType === 'DOUBLE' ? t.doubleFormat : t.singleFormat) : `${t.formatLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                 </Text>
                                             </TouchableOpacity>
@@ -9559,10 +9564,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             önce (SINGLE'da tek oyuncunun cinsiyeti burada seçilince Derece de o cinsiyete
                                             göre ayarlanıyor; DOUBLE'da modal açan bir buton, bkz. showDoubleGenderModal). */}
                                         {(sub === 'tennis' || sub === 'padel') && f.matchType === 'SINGLE' && (
-                                            <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6, position:'relative', zIndex: activePopup === 'genderReq' ? 51 : 1 }, f.genderReq && f.genderReq !== 'MIX' && s.triBtnFilled]}>
+                                            <View style={[s.triBtn, { flex:1, height:30, justifyContent:'center', paddingHorizontal:6, position:'relative', zIndex: activePopup === 'genderReq' ? 51 : 1 }, f.genderReq && f.genderReq !== 'MIX' && s.triBtnFilled]}>
                                                 <TouchableOpacity onPress={() => toggleActivePopup('genderReq')}>
-                                                    <Text style={[s.triValue, { fontSize:11 }, !f.genderReq && s.triPlaceholder]} numberOfLines={1}>
-                                                        {f.genderReq ? noEmoji(f.genderReq === 'MALE' ? t.genderMale : f.genderReq === 'FEMALE' ? t.genderFemale : (t.genderMix || 'Mix')) : `${t.genderReqLabel} ${t.courtSurfaceSelectPlaceholder}`}
+                                                    <Text style={[s.triValue, { fontSize:11 }, !f.genderReq && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                        {f.genderReq ? noEmoji(f.genderReq === 'MALE' ? t.genderMale : f.genderReq === 'FEMALE' ? t.genderFemale : (t.genderMix || 'Mix')) : t.genderReqShortLabel}
                                                     </Text>
                                                 </TouchableOpacity>
                                                 {activePopup === 'genderReq' && (
@@ -9592,17 +9597,17 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         {(sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' && (
                                             <TouchableOpacity
                                                 onPress={() => setShowDoubleGenderModal(true)}
-                                                style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6 }, (f.partnerGenderReq !== 'MIX' || f.opp1GenderReq !== 'MIX' || f.opp2GenderReq !== 'MIX') && s.triBtnFilled]}>
-                                                <Text style={[s.triValue, { fontSize:11 }]} numberOfLines={1}>{t.genderReqLabel}</Text>
+                                                style={[s.triBtn, { flex:1, height:30, justifyContent:'center', paddingHorizontal:6 }, (f.partnerGenderReq !== 'MIX' || f.opp1GenderReq !== 'MIX' || f.opp2GenderReq !== 'MIX') && s.triBtnFilled]}>
+                                                <Text style={[s.triValue, { fontSize:11 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.genderReqShortLabel}</Text>
                                             </TouchableOpacity>
                                         )}
                                         <TouchableOpacity
-                                            style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6 }, ((f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]}
+                                            style={[s.triBtn, { flex:1, height:30, justifyContent:'center', paddingHorizontal:6 }, ((f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]}
                                             onPress={() => setShowRatingRange(true)}>
-                                            <Text style={[s.triValue, { fontSize:11 }, ((f.ratingGenderSplit ? !(f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : !(f.minRating || f.maxRating)) && s.triPlaceholder)]} numberOfLines={1}>
+                                            <Text style={[s.triValue, { fontSize:11 }, ((f.ratingGenderSplit ? !(f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : !(f.minRating || f.maxRating)) && s.triPlaceholder)]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                                                 {f.ratingGenderSplit
                                                     ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '5'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '5'}`
-                                                    : ((!f.minRating && !f.maxRating) ? `${t.ratingLimitLabel} ${t.courtSurfaceSelectPlaceholder}` : `${f.minRating || '0'}–${f.maxRating || '5'}`)}
+                                                    : ((!f.minRating && !f.maxRating) ? t.ratingLimitLabel : `${f.minRating || '0'}–${f.maxRating || '5'}`)}
                                             </Text>
                                         </TouchableOpacity>
                                         {/* Davete İzin Ver (kilit) — kullanıcı isteğiyle satırın en sağında. Voleybolde
