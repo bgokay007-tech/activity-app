@@ -7937,7 +7937,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
     };
     const rotateY = flipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
     // Cinsiyet kısıtlaması artık kartın İÇİNDE seçilmiyor — 2v2 seçilince açılan ayrı bir modalda
-    // (showDoubleGenderModal, bkz. CreateRivalModal) belirleniyor, eskisi gibi. Kart sadece seçileni
+    // (showGenderReqModal, bkz. CreateRivalModal) belirleniyor, eskisi gibi. Kart sadece seçileni
     // forma etiketinin yanında salt-okunur ♂/♀ olarak gösterir.
     // ♂/♀ sembolü herkes tarafından anlaşılmayabilir (kullanıcı isteği) — açık metin kullanılıyor.
     const stripEmojiLocal = (str) => (str || '').replace(/^\S+\s+/, '');
@@ -8670,10 +8670,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [searching, setSearching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [showRatingRange, setShowRatingRange] = useState(false);
-    // DOUBLE (2v2) cinsiyet kısıtlaması artık kadro kartının İÇİNDE değil, eskisi gibi ayrı bir
-    // modal — 2v2 seçilince otomatik açılıyor (bkz. format seçim onPress'i), kart sadece seçilen
-    // kısıtlamayı forma etiketlerinde (♂/♀) gösteriyor (kullanıcı isteği).
-    const [showDoubleGenderModal, setShowDoubleGenderModal] = useState(false);
+    // Cinsiyet Kısıtlaması artık satırda ayrı bir buton DEĞİL — hem SINGLE (1v1) hem DOUBLE
+    // (2v2) için Format açılır listesinde o seçeneğe dokununca (ilk seçimde de, zaten seçiliyken
+    // tekrar dokununca da) bu modal açılıyor, değiştirmek isteyen buradan değiştiriyor
+    // (kullanıcı isteği: "form olarak çıkmasın, 2v2 içine gömülü olsun... 1v1'de de öyle olsun").
+    const [showGenderReqModal, setShowGenderReqModal] = useState(false);
     // Kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) İl/İlçe alanları kayıtlı
     // il/ilçe veritabanına (aynı /cities uç noktası, turnuva formundaki gibi) karşı
     // öneri veriyor — elle yazıp admin onayına düşen sadece Mekan Adı.
@@ -9531,16 +9532,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map((fmt, fi, arr) => (
                                                         <TouchableOpacity key={fmt.id} onPress={() => {
                                                             setActivePopup(null);
-                                                            // DOUBLE'ın kadro kartı artık ayrı bir popup değil, formun kendi akışında
-                                                            // (kort arama alanının altında) her zaman görünür — burada aynı formata
-                                                            // tekrar dokununca açılacak bir şey kalmadı, sadece dropdown kapanır.
-                                                            if (fmt.id === f.matchType) { return; }
+                                                            // Cinsiyet Kısıtlaması Format'ın içine gömülü — zaten seçili olan formata
+                                                            // tekrar dokununca (değiştirmek isteyen) modal yeniden açılır, kadro
+                                                            // kartı/diğer alanlar olduğu gibi kalır (kullanıcı isteği).
+                                                            if (fmt.id === f.matchType) { setShowGenderReqModal(true); return; }
                                                             if (editHasParticipants) {
                                                                 Alert.alert('Format Değiştirilemez', 'Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemez — önce katılımcıları çıkarabilirsin.');
                                                                 return;
                                                             }
                                                             if (fmt.id === 'SINGLE') setInviteTarget('singleOpp');
-                                                            if (fmt.id === 'DOUBLE') setShowDoubleGenderModal(true);
+                                                            setShowGenderReqModal(true);
                                                             setF(p => ({
                                                                 ...p,
                                                                 matchType: fmt.id,
@@ -9560,47 +9561,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </View>
                                             )}
                                         </View>
-                                        {/* Cinsiyet Kısıtlaması — kullanıcı isteğiyle Format'ın HEMEN sağında, Derece'den
-                                            önce (SINGLE'da tek oyuncunun cinsiyeti burada seçilince Derece de o cinsiyete
-                                            göre ayarlanıyor; DOUBLE'da modal açan bir buton, bkz. showDoubleGenderModal). */}
-                                        {(sub === 'tennis' || sub === 'padel') && f.matchType === 'SINGLE' && (
-                                            <View style={[s.triBtn, { flex:1, height:30, justifyContent:'center', paddingHorizontal:6, position:'relative', zIndex: activePopup === 'genderReq' ? 51 : 1 }, f.genderReq && f.genderReq !== 'MIX' && s.triBtnFilled]}>
-                                                <TouchableOpacity onPress={() => toggleActivePopup('genderReq')}>
-                                                    <Text style={[s.triValue, { fontSize:11 }, !f.genderReq && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                        {f.genderReq ? noEmoji(f.genderReq === 'MALE' ? t.genderMale : f.genderReq === 'FEMALE' ? t.genderFemale : (t.genderMix || 'Mix')) : t.genderReqShortLabel}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                                {activePopup === 'genderReq' && (
-                                                    <View style={{ position:'absolute', top:'100%', left:0, minWidth:120, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, overflow:'hidden' }}>
-                                                        {[
-                                                            { id:'MIX', label: noEmoji(t.genderMix || '🤝 Mix') },
-                                                            { id:'MALE', label: noEmoji(t.genderMale || '👨 Erkek') },
-                                                            { id:'FEMALE', label: noEmoji(t.genderFemale || '👩 Kadın') },
-                                                        ].map((g, gi, arr) => (
-                                                            <TouchableOpacity key={g.id} onPress={() => {
-                                                                set('genderReq', g.id);
-                                                                // Tekil cinsiyet (Erkek/Kadın) seçilince artık iki ayrı (erkek+kadın)
-                                                                // derece aralığı tutmanın anlamı kalmıyor — Derece modalı direkt o
-                                                                // cinsiyetin aralığını gösterecek (kullanıcı isteği).
-                                                                if (g.id !== 'MIX') set('ratingGenderSplit', false);
-                                                                setActivePopup(null);
-                                                            }}
-                                                                style={{ paddingVertical:7, paddingHorizontal:10, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth: gi < arr.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
-                                                                <Text style={{ color: f.genderReq===g.id ? '#fff' : colors.textSecondary, fontSize:12, fontWeight: f.genderReq===g.id ? '800' : '600' }} numberOfLines={1}>{g.label}</Text>
-                                                                {f.genderReq===g.id && <Text style={{ color: colors.purple, fontSize:12, marginLeft:6 }}>✓</Text>}
-                                                            </TouchableOpacity>
-                                                        ))}
-                                                    </View>
-                                                )}
-                                            </View>
-                                        )}
-                                        {(sub === 'tennis' || sub === 'padel') && f.matchType === 'DOUBLE' && (
-                                            <TouchableOpacity
-                                                onPress={() => setShowDoubleGenderModal(true)}
-                                                style={[s.triBtn, { flex:1, height:30, justifyContent:'center', paddingHorizontal:6 }, (f.partnerGenderReq !== 'MIX' || f.opp1GenderReq !== 'MIX' || f.opp2GenderReq !== 'MIX') && s.triBtnFilled]}>
-                                                <Text style={[s.triValue, { fontSize:11 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.genderReqShortLabel}</Text>
-                                            </TouchableOpacity>
-                                        )}
                                         <TouchableOpacity
                                             style={[s.triBtn, { flex:1, height:30, justifyContent:'center', paddingHorizontal:6 }, ((f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]}
                                             onPress={() => setShowRatingRange(true)}>
@@ -10992,25 +10952,27 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     }}
                 />
 
-                {/* DOUBLE (2v2) cinsiyet kısıtlaması — eskisi gibi ayrı bir modal (kullanıcı isteği:
-                    "2v2 seçince cinsiyet kısıtlaması modal penceresi açılsın"), 2v2 seçilince otomatik
-                    açılıyor (bkz. format seçim onPress'i) ve Format'ın yanındaki buttondan tekrar
-                    açılabiliyor. Seçilenler kadro kartında (DoubleRosterCard) forma etiketlerinde
-                    ♂/♀ olarak salt-okunur gösteriliyor. */}
-                {showDoubleGenderModal && (
-                    <Modal visible transparent animationType="fade" onRequestClose={() => setShowDoubleGenderModal(false)}>
+                {/* Cinsiyet Kısıtlaması — hem SINGLE (1v1, tek satır: genderReq) hem DOUBLE (2v2, üç
+                    satır: partner/opp1/opp2GenderReq) için AYNI modal, Format açılır listesinden
+                    açılıyor (bkz. format seçim onPress'i) — form olarak satırda ayrı bir buton
+                    değil, Format'ın içine gömülü (kullanıcı isteği). DOUBLE'da seçilenler kadro
+                    kartında (DoubleRosterCard) forma etiketlerinde metin olarak gösteriliyor. */}
+                {showGenderReqModal && (
+                    <Modal visible transparent animationType="fade" onRequestClose={() => setShowGenderReqModal(false)}>
                         <View style={tg.overlay}>
                             <View style={tg.box}>
                                 <View style={tg.header}>
                                     <Text style={tg.title}>{t.genderReqLabel}</Text>
-                                    <TouchableOpacity onPress={() => setShowDoubleGenderModal(false)}><Text style={tg.close}>✕</Text></TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setShowGenderReqModal(false)}><Text style={tg.close}>✕</Text></TouchableOpacity>
                                 </View>
                                 <ScrollView showsVerticalScrollIndicator={false}>
-                                    {[
+                                    {(f.matchType === 'DOUBLE' ? [
                                         { field:'partnerGenderReq', label: t.partnerGenderLabel || 'Takım Arkadaşı Cinsiyeti' },
                                         { field:'opp1GenderReq', label: t.opp1GenderLabel || 'Rakip 1 Cinsiyeti' },
                                         { field:'opp2GenderReq', label: t.opp2GenderLabel || 'Rakip 2 Cinsiyeti' },
-                                    ].map(row => (
+                                    ] : [
+                                        { field:'genderReq', label: t.genderReqLabel },
+                                    ]).map(row => (
                                         <View key={row.field} style={{ marginBottom:14 }}>
                                             <Text style={[s.fieldLabel, { marginBottom:6 }]}>{row.label}</Text>
                                             <View style={{ flexDirection:'row', gap:6 }}>
@@ -11019,7 +10981,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     { id:'MALE', label: noEmoji(t.genderMale || '👨 Erkek') },
                                                     { id:'FEMALE', label: noEmoji(t.genderFemale || '👩 Kadın') },
                                                 ].map(g => (
-                                                    <TouchableOpacity key={g.id} onPress={() => set(row.field, g.id)}
+                                                    <TouchableOpacity key={g.id} onPress={() => {
+                                                        set(row.field, g.id);
+                                                        // SINGLE'da tekil cinsiyet seçilince ayrı erkek/kadın derece aralığı
+                                                        // tutmanın anlamı kalmıyor — Derece modalı direkt o cinsiyetin
+                                                        // aralığını gösterecek (kullanıcı isteği).
+                                                        if (row.field === 'genderReq' && g.id !== 'MIX') set('ratingGenderSplit', false);
+                                                    }}
                                                         style={[s.chip, { flex:1 }, f[row.field] === g.id && { backgroundColor: cfg.color+'30', borderColor: cfg.color }]}>
                                                         <Text style={[s.chipText, f[row.field] === g.id && { color: cfg.color, fontWeight:'800' }]} numberOfLines={1}>{g.label}</Text>
                                                     </TouchableOpacity>
@@ -11028,7 +10996,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         </View>
                                     ))}
                                 </ScrollView>
-                                <TouchableOpacity onPress={() => setShowDoubleGenderModal(false)}
+                                <TouchableOpacity onPress={() => setShowGenderReqModal(false)}
                                     style={{ backgroundColor: cfg.color, borderRadius:10, paddingVertical:11, alignItems:'center' }}>
                                     <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || 'Onayla'}</Text>
                                 </TouchableOpacity>
