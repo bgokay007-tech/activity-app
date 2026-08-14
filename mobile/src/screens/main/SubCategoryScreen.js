@@ -6745,7 +6745,7 @@ function isPastSlot(dateStr, timeStr) {
     return new Date(`${dateStr}T${timeStr}:00`).getTime() < Date.now();
 }
 
-function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservationId, onClose, onBooked }) {
+function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservationId, initialDate, initialStartTime, initialEndTime, onClose, onBooked }) {
     const insets = useSafeAreaInsets();
     const t = useT();
     const todayStr = () => {
@@ -6788,9 +6788,20 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     const [varDurMap,   setVarDurMap]   = useState({});
 
     // Tesis verisi yükle
+    // "Değiştir" ile tekrar açıldığında önceki seçilen tarih/kort/saat gridde hazır işaretli
+    // gelsin diye (kullanıcı isteği: "sıfırdan seçmek yerine direkt tıklayarak bırakmam
+    // lazım") — bu ref, tek bir açılışta initialStartTime'ı yalnızca BİR KEZ uygulamak için;
+    // kullanıcı sonradan elle başka bir tarih/saat seçerse tekrar üzerine yazılmasın.
+    const initialAppliedRef = useRef(false);
+    // selDate kullanıcı tarafından mı yoksa initialDate'ten mi geldiğini ayırt eder —
+    // aşağıdaki otomatik ön-seçim sadece ilk (initial) tarihte çalışsın, kullanıcı elle
+    // başka bir tarihe geçtiğinde bir daha initialStartTime'ı üzerine yazmasın diye.
+    const selDateWasChangedManually = useRef(false);
+    useEffect(() => { if (visible) selDateWasChangedManually.current = false; }, [visible]);
     useEffect(() => {
         if (!visible || !venueId) return;
-        setVenue(null); setCourtsSlots({}); setSelSlot(null); setSelDate(todayStr()); setBooked(false);
+        setVenue(null); setCourtsSlots({}); setSelSlot(null); setSelDate(initialDate || todayStr()); setBooked(false);
+        initialAppliedRef.current = false;
         setLoadingV(true);
         api.get(`/venues/${venueId}`)
             .then(r => {
@@ -6823,6 +6834,23 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
             const next = {};
             results.forEach(({ id, data }) => { next[id] = { loading: false, data }; });
             setCourtsSlots(next);
+            // Önceki seçimi (initialCourtId/initialStartTime/initialEndTime) bu grid verisinde
+            // bulup otomatik işaretle — sadece açılıştan sonraki İLK slot yüklemesinde (aynı
+            // tarih), kullanıcı elle başka bir tarihe geçerse bir daha uygulanmaz.
+            if (!initialAppliedRef.current && initialCourtId && initialStartTime && !selDateWasChangedManually.current) {
+                initialAppliedRef.current = true;
+                const courtData = next[initialCourtId]?.data;
+                if (courtData) {
+                    if (courtData.type === 'FLEXIBLE') {
+                        const startSlot = { start: initialStartTime, end: initialEndTime || initialStartTime };
+                        setSelSlot({ courtId: initialCourtId, slot: startSlot, rangeEnd: startSlot, flexDur: initialEndTime ? (toM(initialEndTime) - toM(initialStartTime)) : 60 });
+                    } else if (Array.isArray(courtData.slots)) {
+                        const startS = courtData.slots.find(s => s.start === initialStartTime);
+                        const endS = initialEndTime ? courtData.slots.find(s => s.end === initialEndTime) : startS;
+                        if (startS && endS) setSelSlot({ courtId: initialCourtId, slot: startS, rangeEnd: endS, flexDur: startS.durationMins || 60 });
+                    }
+                }
+            }
         });
     }, [venue, selDate, excludeReservationId]);
 
@@ -7282,7 +7310,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                         const yStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                                         const isSel = selDate === yStr;
                                         return (
-                                            <TouchableOpacity key={yStr} onPress={() => setSelDate(yStr)}
+                                            <TouchableOpacity key={yStr} onPress={() => { selDateWasChangedManually.current = true; setSelDate(yStr); }}
                                                 style={[vb.dateChip, isSel && vb.dateChipSel]}>
                                                 <Text style={[vb.dateChipDay, isSel && vb.dateChipDaySel]}>
                                                     {d.toLocaleDateString('tr-TR', { weekday:'short' })}
@@ -8940,7 +8968,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // singleOppInvite) sırayla yerel state'e yazılır, ilan submit edilmeden davet gitmez
     // (bkz. FriendsMultiPickerModal onConfirm).
     const [showFriendsPicker, setShowFriendsPicker] = useState(false);
-    const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null });
+    const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null, initialDate: null, initialStartTime: null, initialEndTime: null });
     const [myUnlistedRes, setMyUnlistedRes] = useState([]);
     // "Değiştir"e basılınca kort alanları hemen temizlenir ama eski rezervasyon
     // burada saklanıp SİLİNMEZ — kullanıcı yeni seçim yapmadan vazgeçerse (✕/geri)
@@ -9160,10 +9188,19 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             },
             oldReservationId,
         };
+        // Kullanıcı isteği: "Değiştir"e basınca sıfırdan başlamak yerine, önceden seçtiği
+        // tarih/kort/saat aralığı gridde hazır işaretli gelsin — sadece bırakmak (veya
+        // gerçekten değiştirmek) istiyorsa dokunsun. Bu yüzden f.selectedCourt/matchDate/
+        // matchTime/reservationEndTime NULL'lanmadan önce burada yakalanıp VenueBookingModal'a
+        // initialDate/initialStartTime/initialEndTime olarak aktarılıyor.
+        const initialDate = f.matchDate ? `${f.matchDate.getFullYear()}-${String(f.matchDate.getMonth()+1).padStart(2,'0')}-${String(f.matchDate.getDate()).padStart(2,'0')}` : null;
         setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueReservationId: null, venueCourtId: null }));
         // Eski rezervasyon burada henüz iptal edilmiyor (bkz. pendingCourtChangeRef notu) —
         // excludeReservationId ile "dolu" hesabından hariç tutulup gridde boş görünür.
-        if (vid) setVenueBooking({ visible: true, venueId: vid, initialCourtId: null, excludeReservationId: oldReservationId });
+        if (vid) setVenueBooking({
+            visible: true, venueId: vid, initialCourtId: f.venueCourtId || null, excludeReservationId: oldReservationId,
+            initialDate, initialStartTime: f.matchTime || null, initialEndTime: f.reservationEndTime || null,
+        });
     };
 
     // Düzenleme modunda çağrılır (submit() içinden) — yeni ilan OLUŞTURMAZ, mevcut ilanı
@@ -11359,8 +11396,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             venueId={venueBooking.venueId}
             initialCourtId={venueBooking.initialCourtId}
             excludeReservationId={venueBooking.excludeReservationId}
+            initialDate={venueBooking.initialDate}
+            initialStartTime={venueBooking.initialStartTime}
+            initialEndTime={venueBooking.initialEndTime}
             onClose={() => {
-                setVenueBooking({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null });
+                setVenueBooking({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null, initialDate: null, initialStartTime: null, initialEndTime: null });
                 // Yeni bir kort/saat seçilmeden kapatıldıysa (venueCourtId hâlâ boş) —
                 // "Değiştir"den önceki kort bilgisini geri getir, eski rezervasyona dokunulmaz.
                 if (pendingCourtChangeRef.current && !f.venueCourtId) {
