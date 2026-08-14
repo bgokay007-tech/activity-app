@@ -2864,7 +2864,12 @@ export const respondToJoin = async (req, res, next) => {
                 }
             }
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
-            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar };
+            // gender de snapshot'a eklendi — DOUBLE'da "Atanmamış" listesindeki atama
+            // butonlarının cinsiyete uymayan slotları hiç göstermemesi için (bkz. mobil
+            // openSlotOptions/genderFitsSlot) — önceden bu bilgi hiç taşınmıyordu, bu yüzden
+            // örn. erkek bir oyuncuya kadın-kısıtlı bir slot seçenek olarak sunulup "zaten dolu"
+            // gibi alakasız bir hatayla reddediliyordu (asıl sebep cinsiyetti, doluluk değildi).
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
             // DOUBLE'da (tenis/padel) senderTeam zaten tek partnerle sınırlı ve boştan
             // başlıyordu — ekleme=değiştirme, davranış değişmiyor. Voleybolde ise kurucu
             // takıma birden fazla kişi davet edilebildiği için mevcut diziye EKLENİR,
@@ -2905,7 +2910,12 @@ export const respondToJoin = async (req, res, next) => {
                 return res.status(400).json({ message: 'Rakip Takımı zaten dolu.' });
             }
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
-            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar };
+            // gender de snapshot'a eklendi — DOUBLE'da "Atanmamış" listesindeki atama
+            // butonlarının cinsiyete uymayan slotları hiç göstermemesi için (bkz. mobil
+            // openSlotOptions/genderFitsSlot) — önceden bu bilgi hiç taşınmıyordu, bu yüzden
+            // örn. erkek bir oyuncuya kadın-kısıtlı bir slot seçenek olarak sunulup "zaten dolu"
+            // gibi alakasız bir hatayla reddediliyordu (asıl sebep cinsiyetti, doluluk değildi).
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
             // Davet kadro kartında belirli bir forma yazıldıysa (slotIndex) tam o pozisyona
             // yerleşir, dizinin sonuna değil.
             const updatedParticipantsArr = setAtSlot(existingParticipants, joinReq.slotIndex, joinerData);
@@ -2963,7 +2973,12 @@ export const respondToJoin = async (req, res, next) => {
                 }
             }
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
-            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar };
+            // gender de snapshot'a eklendi — DOUBLE'da "Atanmamış" listesindeki atama
+            // butonlarının cinsiyete uymayan slotları hiç göstermemesi için (bkz. mobil
+            // openSlotOptions/genderFitsSlot) — önceden bu bilgi hiç taşınmıyordu, bu yüzden
+            // örn. erkek bir oyuncuya kadın-kısıtlı bir slot seçenek olarak sunulup "zaten dolu"
+            // gibi alakasız bir hatayla reddediliyordu (asıl sebep cinsiyetti, doluluk değildi).
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
             existingParticipants[idx] = joinerData;
             const isFull = 1
                 + (Array.isArray(joinReq.rival.senderTeam) ? joinReq.rival.senderTeam.filter(p => p?.id).length : 0)
@@ -2991,7 +3006,12 @@ export const respondToJoin = async (req, res, next) => {
         // Yedek daveti kabul: substitutePlayers'a ekle
         if (joinReq.isSubstituteInvite) {
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
-            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar };
+            // gender de snapshot'a eklendi — DOUBLE'da "Atanmamış" listesindeki atama
+            // butonlarının cinsiyete uymayan slotları hiç göstermemesi için (bkz. mobil
+            // openSlotOptions/genderFitsSlot) — önceden bu bilgi hiç taşınmıyordu, bu yüzden
+            // örn. erkek bir oyuncuya kadın-kısıtlı bir slot seçenek olarak sunulup "zaten dolu"
+            // gibi alakasız bir hatayla reddediliyordu (asıl sebep cinsiyetti, doluluk değildi).
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
             const existingSubs = Array.isArray(joinReq.rival.substitutePlayers) ? joinReq.rival.substitutePlayers : [];
             const updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },
@@ -3028,7 +3048,12 @@ export const respondToJoin = async (req, res, next) => {
         // ilan sahibi ilerde Yaklaşan Maçlar kartından Kurucu/Rakip'e elle atar.
         if (joinReq.isUnassignedInvite) {
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
-            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar };
+            // gender de snapshot'a eklendi — DOUBLE'da "Atanmamış" listesindeki atama
+            // butonlarının cinsiyete uymayan slotları hiç göstermemesi için (bkz. mobil
+            // openSlotOptions/genderFitsSlot) — önceden bu bilgi hiç taşınmıyordu, bu yüzden
+            // örn. erkek bir oyuncuya kadın-kısıtlı bir slot seçenek olarak sunulup "zaten dolu"
+            // gibi alakasız bir hatayla reddediliyordu (asıl sebep cinsiyetti, doluluk değildi).
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
             const existingUnassigned = Array.isArray(joinReq.rival.unassignedPlayers) ? joinReq.rival.unassignedPlayers : [];
             const updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },

@@ -157,6 +157,15 @@ function getConfig(sub) {
     return SUB_CONFIG[sub] || { ...SUB_CONFIG.default, name: sub.charAt(0).toUpperCase()+sub.slice(1) };
 }
 
+// DOUBLE (tenis/padel 2v2) "Atanmamış" listesindeki atama butonları — bir slotun cinsiyet
+// kısıtlaması varsa ve adayın cinsiyeti uymuyorsa hiç seçenek olarak gösterilmesin diye
+// (kullanıcı raporu: erkek bir oyuncuya kadın-kısıtlı bir slot seçenek olarak sunuluyordu,
+// backend'de doluluk kontrolü cinsiyet kontrolünden ÖNCE çalıştığı için de slot boşken bile
+// dolu değilse "zaten dolu" gibi alakasız bir hatayla reddediliyordu).
+function genderFitsSlot(personGender, slotGenderReq) {
+    return !slotGenderReq || slotGenderReq === 'MIX' || personGender === 'OTHER' || personGender === slotGenderReq;
+}
+
 const FEE_METHOD_LABEL = { CASH: 'Nakit', EFT: 'EFT', ONLINE: 'Online', CREDIT_CARD: 'Kredi Kartı' };
 // Kort ücreti ödeme yöntemine göre farklıysa (ör. kredi kartı komisyonu) bilgi amaçlı kırılım
 // listesi üretir — sadece nakit dışı gerçek bir fark varsa gösterilir, yoksa boş dizi döner.
@@ -1739,9 +1748,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         {unassignedDoubleSlots.map(p => {
                                             const isMe = p.id === myId;
                                             const openSlotOptions = [
-                                                !PartnerContent && !pendingPartnerInvite && { key:'partner', label: t.founderTeamLabel || 'Takım Arkadaşı' },
-                                                !participants[0]?.id && { key:'opp1', label: t.opp1Label || 'Rakip 1' },
-                                                !participants[1]?.id && { key:'opp2', label: t.opp2Label || 'Rakip 2' },
+                                                !PartnerContent && !pendingPartnerInvite && genderFitsSlot(p.gender, partnerGenderReq) && { key:'partner', label: t.founderTeamLabel || 'Takım Arkadaşı' },
+                                                !participants[0]?.id && genderFitsSlot(p.gender, opp1GenderReq) && { key:'opp1', label: t.opp1Label || 'Rakip 1' },
+                                                !participants[1]?.id && genderFitsSlot(p.gender, opp2GenderReq) && { key:'opp2', label: t.opp2Label || 'Rakip 2' },
                                             ].filter(Boolean);
                                             return (
                                                 <View key={p.id} style={[cardBox, { width:'100%' }]}>
@@ -1842,9 +1851,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             {unassignedDoubleSlots.map(p => {
                                                 const isMe = p.id === myId;
                                                 const openSlotOptions = [
-                                                    !PartnerContent && !pendingPartnerInvite && { key:'partner', label: t.founderTeamLabel || 'Takım Arkadaşı' },
-                                                    !participants[0]?.id && { key:'opp1', label: t.opp1Label || 'Rakip 1' },
-                                                    !participants[1]?.id && { key:'opp2', label: t.opp2Label || 'Rakip 2' },
+                                                    !PartnerContent && !pendingPartnerInvite && genderFitsSlot(p.gender, partnerGenderReq) && { key:'partner', label: t.founderTeamLabel || 'Takım Arkadaşı' },
+                                                    !participants[0]?.id && genderFitsSlot(p.gender, opp1GenderReq) && { key:'opp1', label: t.opp1Label || 'Rakip 1' },
+                                                    !participants[1]?.id && genderFitsSlot(p.gender, opp2GenderReq) && { key:'opp2', label: t.opp2Label || 'Rakip 2' },
                                                 ].filter(Boolean);
                                                 return (
                                                     <View key={p.id} style={{ backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:4 }}>
@@ -4908,9 +4917,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                     {unassignedArr.map(p => {
                                                         const isMe = p.id === myId;
                                                         const openSlotOptions = [
-                                                            !partner && { key:'partner', label: SLOT_LABEL.partner },
-                                                            !opp1 && { key:'opp1', label: SLOT_LABEL.opp1 },
-                                                            !opp2 && { key:'opp2', label: SLOT_LABEL.opp2 },
+                                                            !partner && genderFitsSlot(p.gender, match.partnerGenderReq) && { key:'partner', label: SLOT_LABEL.partner },
+                                                            !opp1 && genderFitsSlot(p.gender, match.opp1GenderReq) && { key:'opp1', label: SLOT_LABEL.opp1 },
+                                                            !opp2 && genderFitsSlot(p.gender, match.opp2GenderReq) && { key:'opp2', label: SLOT_LABEL.opp2 },
                                                         ].filter(Boolean);
                                                         return (
                                                             <View key={p.id} style={{ backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:4 }}>
