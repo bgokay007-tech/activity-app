@@ -1423,7 +1423,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     <View style={det.section}>
                         <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                             <Text style={det.sectionTitle}>
-                                👥 {t.players || 'Oyuncular'} {isRefereeAd && item.linkedRival
+                                {/* DOUBLE (tenis/padel 2v2) dıgımon kartın ön yüzünde diğer kadro
+                                    kartlarıyla (CreateRivalModal/UpcomingCard) tutarlı olsun diye
+                                    "Oyuncular" yerine "Katılan Oyuncular" (kullanıcı isteği). */}
+                                👥 {item.matchType === 'DOUBLE' ? t.rosterPoolLabel : (t.players || 'Oyuncular')} {isRefereeAd && item.linkedRival
                                     ? `(${linkedSenderSideCount + linkedFilled} / ${linkedTotalCapacity})`
                                     : `(${senderSideCount + filled + (item.matchType === 'DOUBLE' ? 0 : (oppManualNames.length + unassignedSlots.length))} / ${totalCapacity})`}
                             </Text>
@@ -1643,6 +1646,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             const teamSlots = allTeamSlots.filter(sl => sl.p?.id);
                             const acceptedOthers = teamSlots.map(sl => sl.p);
                             const unassignedDoubleSlots = unassignedArr.filter(p => p?.id);
+                            // Kullanıcı isteği: ön yüzde artık sabit slot sırası (partner/opp1/opp2)
+                            // yerine gerçekten katılmış (dolu) formalar önce, boş/bekleyen formalar
+                            // sonra gösteriliyor — her slotun farklı cinsiyet kısıtlaması olduğunda
+                            // sabit sıra "cinsiyete göre sıralanmış" gibi yanıltıcı görünüyordu.
+                            const orderedTeamSlots = [...teamSlots, ...allTeamSlots.filter(sl => !sl.p?.id)];
 
                             if (!showTeamCards) {
                                 // Kullanıcı isteğiyle ön yüzde her satıra 2 oyuncu sığıyor (önceden tek
@@ -1660,7 +1668,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </View>
                                             </TouchableOpacity>
                                         </View>
-                                        {allTeamSlots.map((sl, i) => {
+                                        {orderedTeamSlots.map((sl, i) => {
                                             if (sl.p?.id) {
                                                 return (
                                                     <View key={sl.key} style={cardBox}>
@@ -1798,13 +1806,19 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             />
                                         </View>
                                     </View>
-                                    {/* Takım Değişikliği kilitliyse ve bu ekrana bir slot davetinden geldiyse
-                                        (highlightSlot.doubleSlot) davet edilen kişi pozisyonun değişmeyeceğini
-                                        de görsün (kullanıcı isteği). */}
-                                    {highlightSlot?.doubleSlot && item.teamFlexibility === 'STRICT' && (
+                                    {/* Takım Değişikliği bilgisi — kullanıcı isteği: açık ilan detayının arka
+                                        yüzünde de (ilan oluşturma/Yaklaşan Maçlar'daki gibi) bu bilgi sürekli
+                                        görünsün, sadece bir slot davetinden gelindiğinde değil. Davetten
+                                        gelindiyse (highlightSlot.doubleSlot) ve kilitliyse ayrıca kırmızı
+                                        yanıp söner — davet edilen kişi pozisyonun değişmeyeceğini fark etsin. */}
+                                    {highlightSlot?.doubleSlot && item.teamFlexibility === 'STRICT' ? (
                                         <Animated.View style={{ opacity: highlightPulse, backgroundColor:'#ef444418', borderRadius:6, padding:5, marginTop:6, alignItems:'center' }}>
                                             <Text style={{ color:'#ef4444', fontSize:10, fontWeight:'800' }}>🔒 Takım değişikliği kapalı — bu pozisyonda kalacaksınız</Text>
                                         </Animated.View>
+                                    ) : (
+                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', textAlign:'center', marginTop:6 }}>
+                                            {item.teamFlexibility === 'STRICT' ? '🔒' : '☑️'} {t.teamFlexLabel}: {item.teamFlexibility === 'STRICT' ? t.flexModeShortStrict : t.flexModeShortFlexible}
+                                        </Text>
                                     )}
                                     {unassignedDoubleSlots.length > 0 && (
                                         <View style={{ marginTop:8 }}>
