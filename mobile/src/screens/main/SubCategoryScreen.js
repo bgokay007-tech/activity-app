@@ -11333,12 +11333,17 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     değil, Format'ın içine gömülü (kullanıcı isteği). DOUBLE'da seçilenler kadro
                     kartında (DoubleRosterCard) forma etiketlerinde metin olarak gösteriliyor. */}
                 {showGenderReqModal && (
-                    <Modal visible transparent animationType="fade" onRequestClose={() => setShowGenderReqModal(false)}>
+                    // Kullanıcı raporu: bu modal kapanınca (✕ ya da Onayla) Kişi Başı Ücret alanında
+                    // klavye açılmadan yanıp sönen bir imleç kalıyordu — format seçilirkenki blur
+                    // çok ERKEN çalışıyordu, asıl odak sızıntısı bu modal KAPANIRKEN oluyormuş.
+                    // android_keyboardInputMode="adjustNothing" (bkz. references/ekran-guvenli-alan.md)
+                    // + her iki kapatma yolunda da elle blur ediliyor.
+                    <Modal visible transparent animationType="fade" onRequestClose={() => { courtFeeInputRef.current?.blur(); setShowGenderReqModal(false); }} android_keyboardInputMode="adjustNothing">
                         <View style={tg.overlay}>
                             <View style={tg.box}>
                                 <View style={tg.header}>
                                     <Text style={tg.title}>{t.genderReqLabel}</Text>
-                                    <TouchableOpacity onPress={() => setShowGenderReqModal(false)}><Text style={tg.close}>✕</Text></TouchableOpacity>
+                                    <TouchableOpacity onPress={() => { courtFeeInputRef.current?.blur(); setShowGenderReqModal(false); }}><Text style={tg.close}>✕</Text></TouchableOpacity>
                                 </View>
                                 <ScrollView showsVerticalScrollIndicator={false}>
                                     {(f.matchType === 'DOUBLE' ? [
@@ -11371,7 +11376,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         </View>
                                     ))}
                                 </ScrollView>
-                                <TouchableOpacity onPress={() => setShowGenderReqModal(false)}
+                                <TouchableOpacity onPress={() => { courtFeeInputRef.current?.blur(); setShowGenderReqModal(false); }}
                                     style={{ backgroundColor: cfg.color, borderRadius:10, paddingVertical:11, alignItems:'center' }}>
                                     <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || 'Onayla'}</Text>
                                 </TouchableOpacity>
