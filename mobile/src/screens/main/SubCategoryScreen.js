@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback, useRef } from 'react';
+﻿import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
     View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
@@ -15752,7 +15752,14 @@ export default function SubCategoryScreen({ route, navigation }) {
     // highlightSlot prop'u ve navigateFromNotif/NotificationsScreen'deki inviteSide/
     // inviteSlotIndex param'ları. inviteDoubleSlot ('partner'|'opp1'|'opp2') DOUBLE (tenis/padel
     // 2v2) forma davetleri için — takım sporlarındaki side+slotIndex ile aynı mantık, farklı şekil.
-    const [autoHighlightSlot] = useState(() => ((inviteSide || inviteDoubleSlot) ? { side: inviteSide, slotIndex: inviteSlotIndex ?? null, doubleSlot: inviteDoubleSlot ?? null } : null));
+    // useState DEĞİL useMemo — react-navigation'ın navigate() (push değil) bu ekran zaten
+    // stack'teyse aynı örneği YENİDEN KULLANIP sadece route.params'ı güncelliyor; useState'in
+    // ilk mount'ta donan initializer'ı bu durumda hiç yeniden çalışmıyordu, bu yüzden uygulama
+    // arka plandayken/ekran zaten açıkken gelen bildirimde vurgu asla görünmüyordu (kullanıcı
+    // raporu: "hala bildirime tıklayınca hangi slota davet edildiğini göremiyor").
+    const autoHighlightSlot = useMemo(() => (
+        (inviteSide || inviteDoubleSlot) ? { side: inviteSide, slotIndex: inviteSlotIndex ?? null, doubleSlot: inviteDoubleSlot ?? null } : null
+    ), [inviteSide, inviteSlotIndex, inviteDoubleSlot]);
 
     const [rivals, setRivals] = useState([]);
     const [playerWanted, setPlayerWanted] = useState([]);
