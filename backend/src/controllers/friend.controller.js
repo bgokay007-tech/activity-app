@@ -4,7 +4,9 @@ import { emitToUser } from '../config/socket.js';
 import { getRelation, canAccess } from '../utils/privacy.js';
 
 const FRIEND_SELECT = {
-    id: true, username: true, fullName: true, avatar: true, isPublic: true,
+    // gender eklendi: DOUBLE kadro kartında (Arkadaşlarım listesinden çoklu seçim) cinsiyet
+    // kısıtlı bir formaya yanlış cinsiyette biri seçilirse anında uyarı verebilmek için.
+    id: true, username: true, fullName: true, avatar: true, isPublic: true, gender: true,
 };
 
 export const sendRequest = async (req, res, next) => {

@@ -1803,12 +1803,12 @@ export const createRivalRequest = async (req, res, next) => {
                     partnerInviteId, 'MATCH_INVITE',
                     `🤝 ${subCategoryTR(request.subCategory)} Partner Daveti`,
                     `@${me?.username || 'Biri'} sizi çiftler maçında partner olmaya davet etti.${strictNote}`,
-                    { category: request.category, subCategory: request.subCategory, rivalId: request.id }
+                    { category: request.category, subCategory: request.subCategory, rivalId: request.id, inviteDoubleSlot: 'partner' }
                 ).catch(() => {});
                 emitToUser(partnerInviteId, 'notification', {
                     type: 'MATCH_INVITE', title: `🤝 ${subCategoryTR(request.subCategory)} Partner Daveti`,
                     body: `@${me?.username || 'Biri'} sizi çiftler maçında partner olmaya davet etti.${strictNote}`,
-                    data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
+                    data: { category: request.category, subCategory: request.subCategory, rivalId: request.id, inviteDoubleSlot: 'partner' },
                 });
             }).catch(() => {});
         }
@@ -1843,12 +1843,12 @@ export const createRivalRequest = async (req, res, next) => {
                     oppInviteId, 'MATCH_INVITE',
                     `🎾 ${oppSlotLabel} Daveti`,
                     `@${me?.username || 'Biri'} sizi ${oppSlotLabel} olmaya davet etti.${strictNote}`,
-                    { category: request.category, subCategory: request.subCategory, rivalId: request.id }
+                    { category: request.category, subCategory: request.subCategory, rivalId: request.id, inviteDoubleSlot: oppSlot }
                 ).catch(() => {});
                 emitToUser(oppInviteId, 'notification', {
                     type: 'MATCH_INVITE', title: `🎾 ${oppSlotLabel} Daveti`,
                     body: `@${me?.username || 'Biri'} sizi ${oppSlotLabel} olmaya davet etti.${strictNote}`,
-                    data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
+                    data: { category: request.category, subCategory: request.subCategory, rivalId: request.id, inviteDoubleSlot: oppSlot },
                 });
             }).catch(() => {});
         }
@@ -2775,8 +2775,9 @@ export const inviteToRival = async (req, res, next) => {
                 category: rival.category, subCategory: rival.subCategory, rivalId: rival.id, ...(isRefereeAd && { refereeAd: true }),
                 // Bildirime tıklayınca kadro kartının arka yüzü hangi slotu vurgulayarak
                 // açılsın diye (bkz. mobil navigateFromNotif) — sadece doğrudan slota
-                // davet edildiyse (isTeamSlotInvite) anlamlı.
+                // davet edildiyse (isTeamSlotInvite/isDoubleSlotInvite) anlamlı.
                 ...(isTeamSlotInvite && { inviteSide: side, inviteSlotIndex: Number.isInteger(slotIndex) ? slotIndex : null }),
+                ...(isDoubleSlotInvite && { inviteDoubleSlot: slot }),
             }
         ).catch(() => {});
 

@@ -185,6 +185,10 @@ export default function NotificationsScreen({ navigation }) {
                 // Kadro kartındaki bir slota doğrudan davet edildiyse (bkz. inviteToRival),
                 // ilan detayı açılınca kartın arka yüzü o slotu vurgulayarak açılsın diye.
                 ...(data.inviteSide && { inviteSide: data.inviteSide, inviteSlotIndex: data.inviteSlotIndex ?? null }),
+                // DOUBLE (2v2 tenis/padel) forma daveti — partner/opp1/opp2 (bkz. createRivalRequest/
+                // inviteToRival'daki inviteDoubleSlot), kadro kartında hangi formanın kırmızı yanıp
+                // söneceğini belirler (bkz. RivalDetailModal highlightSlot.doubleSlot).
+                ...(data.inviteDoubleSlot && { inviteDoubleSlot: data.inviteDoubleSlot }),
             });
         };
         const goToEquipmentListing = () => {
