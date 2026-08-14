@@ -1775,6 +1775,24 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const [showPriceFromPicker, setShowPriceFromPicker] = useState(false);
     const [showPriceToPicker, setShowPriceToPicker]     = useState(false);
 
+    // ── Kampanyalar state ────────────────────────────────────────────────────
+    // Sadakat kampanyası: "ayda X saat rezervasyon yapana Y saat bedava".
+    const [loyaltyEnabled, setLoyaltyEnabled] = useState(!!venue.loyaltyCampaign?.enabled);
+    const [loyaltyThreshold, setLoyaltyThreshold] = useState(venue.loyaltyCampaign?.thresholdHours ? String(venue.loyaltyCampaign.thresholdHours) : '');
+    const [loyaltyReward, setLoyaltyReward] = useState(venue.loyaltyCampaign?.rewardHours ? String(venue.loyaltyCampaign.rewardHours) : '');
+    const [savingLoyalty, setSavingLoyalty] = useState(false);
+    // İndirim kampanyaları: "şu saatler arası %şu indirim" — birden fazla eklenebilir.
+    const [localDiscountCampaigns, setLocalDiscountCampaigns] = useState(
+        () => Array.isArray(venue.discountCampaigns) ? venue.discountCampaigns : []
+    );
+    const [addingDiscount, setAddingDiscount] = useState(false);
+    const [newDiscFrom, setNewDiscFrom] = useState('');
+    const [newDiscTo, setNewDiscTo] = useState('');
+    const [newDiscPercent, setNewDiscPercent] = useState('');
+    const [showDiscFromPicker, setShowDiscFromPicker] = useState(false);
+    const [showDiscToPicker, setShowDiscToPicker] = useState(false);
+    const [savingDiscount, setSavingDiscount] = useState(false);
+
     // ── Konum state ───────────────────────────────────────────────────────────
     const [localLat, setLocalLat] = useState(venue.lat != null ? String(venue.lat) : '');
     const [localLng, setLocalLng] = useState(venue.lng != null ? String(venue.lng) : '');
@@ -2293,6 +2311,48 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         finally { setSavingPrice(false); }
     };
 
+    const handleSaveLoyalty = async () => {
+        const threshold = parseInt(loyaltyThreshold);
+        const reward = parseInt(loyaltyReward);
+        if (loyaltyEnabled && (isNaN(threshold) || threshold < 1 || isNaN(reward) || reward < 1)) {
+            Alert.alert('Hata', 'Saat sayılarını pozitif tam sayı olarak girin');
+            return;
+        }
+        setSavingLoyalty(true);
+        try {
+            const loyaltyCampaign = { enabled: loyaltyEnabled, thresholdHours: threshold || null, rewardHours: reward || null };
+            await api.patch(`/venues/${venue.id}/settings`, { loyaltyCampaign });
+            Alert.alert('✅ Kaydedildi', 'Sadakat kampanyası güncellendi.');
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingLoyalty(false); }
+    };
+
+    const handleAddDiscount = async () => {
+        if (!newDiscFrom || !newDiscTo) { Alert.alert('Hata', 'Saat aralığı seçin'); return; }
+        const percent = parseInt(newDiscPercent);
+        if (isNaN(percent) || percent < 1 || percent > 100) { Alert.alert('Hata', 'İndirim %1-100 arası olmalı'); return; }
+        const campaign = { id: `${Date.now()}`, fromTime: newDiscFrom, toTime: newDiscTo, percent };
+        const next = [...localDiscountCampaigns, campaign];
+        setSavingDiscount(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { discountCampaigns: next });
+            setLocalDiscountCampaigns(next);
+            setAddingDiscount(false);
+            setNewDiscFrom(''); setNewDiscTo(''); setNewDiscPercent('');
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingDiscount(false); }
+    };
+
+    const handleDeleteDiscount = async (idx) => {
+        const next = localDiscountCampaigns.filter((_, i) => i !== idx);
+        setSavingDiscount(true);
+        try {
+            await api.patch(`/venues/${venue.id}/settings`, { discountCampaigns: next });
+            setLocalDiscountCampaigns(next);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
+        finally { setSavingDiscount(false); }
+    };
+
     // Konum, İletişim Butonları bölümünün içine alındığı için ikisi artık tek "Kaydet"
     // ile birlikte kaydediliyor (kullanıcı isteği: "iki tane kaydet gereksiz").
     const handleSaveContactLinks = async () => {
@@ -2504,6 +2564,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
         isApproved ? { key: 'blocks',       label: '🚫 Engel' } : null,
         isApproved && isPro ? { key: 'menu',   label: '📋 Menü' }   : null,
         isApproved && isPro ? { key: 'orders',   label: '🛒 Sipariş' } : null,
+        isApproved && isPro ? { key: 'campaigns', label: '🎁 Kampanyalar' } : null,
         isApproved          ? { key: 'settings', label: '⚙️ Ayarlar' } : null,
     ].filter(Boolean);
 
@@ -3345,6 +3406,142 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                 </View>
                 );
             })()}
+
+            {activeTab === 'campaigns' && (
+                <View style={vc.panel}>
+                    {/* Sadakat Kampanyası */}
+                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                        🎁 SADAKAT KAMPANYASI
+                    </Text>
+                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 12, lineHeight: 15 }}>
+                        Bir kullanıcı bu ay belirlediğiniz saat kadar rezervasyon yaparsa, hesabına bedava
+                        rezervasyon saati tanımlanır. Kullanıcı bir sonraki rezervasyonunda "🎁 Hediye" ödeme
+                        seçeneğinden bunu kullanabilir.
+                    </Text>
+                    <TouchableOpacity onPress={() => setLoyaltyEnabled(v => !v)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                        <View style={{ width: 40, height: 24, borderRadius: 12,
+                            backgroundColor: loyaltyEnabled ? BIZ_COLOR + '50' : '#ffffff15',
+                            borderWidth: 1, borderColor: loyaltyEnabled ? BIZ_COLOR : '#ffffff20',
+                            justifyContent: 'center', padding: 2 }}>
+                            <View style={{ width: 18, height: 18, borderRadius: 9,
+                                backgroundColor: loyaltyEnabled ? BIZ_LIGHT : '#666',
+                                alignSelf: loyaltyEnabled ? 'flex-end' : 'flex-start' }} />
+                        </View>
+                        <Text style={{ color: loyaltyEnabled ? BIZ_LIGHT : '#888', fontWeight: '700', fontSize: 13 }}>
+                            {loyaltyEnabled ? 'Aktif' : 'Kapalı'}
+                        </Text>
+                    </TouchableOpacity>
+                    {loyaltyEnabled && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                            <Text style={{ color: '#aaa', fontSize: 13 }}>Ayda</Text>
+                            <TextInput style={{ width: 56, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                    paddingHorizontal: 10, paddingVertical: 7, color: '#fff', fontSize: 14,
+                                    textAlign: 'center', borderWidth: 1, borderColor: loyaltyThreshold ? BIZ_COLOR + '60' : '#ffffff15' }}
+                                placeholder="10" placeholderTextColor="#444" keyboardType="number-pad"
+                                value={loyaltyThreshold} onChangeText={v => setLoyaltyThreshold(v.replace(/[^0-9]/g, ''))} />
+                            <Text style={{ color: '#aaa', fontSize: 13 }}>saat rezervasyon yapana</Text>
+                            <TextInput style={{ width: 56, backgroundColor: '#ffffff0a', borderRadius: 8,
+                                    paddingHorizontal: 10, paddingVertical: 7, color: '#fff', fontSize: 14,
+                                    textAlign: 'center', borderWidth: 1, borderColor: loyaltyReward ? BIZ_COLOR + '60' : '#ffffff15' }}
+                                placeholder="1" placeholderTextColor="#444" keyboardType="number-pad"
+                                value={loyaltyReward} onChangeText={v => setLoyaltyReward(v.replace(/[^0-9]/g, ''))} />
+                            <Text style={{ color: '#aaa', fontSize: 13 }}>saat bedava.</Text>
+                        </View>
+                    )}
+                    <TouchableOpacity disabled={savingLoyalty} onPress={handleSaveLoyalty}
+                        style={{ backgroundColor: BIZ_COLOR + '28', borderRadius: 8, paddingVertical: 10,
+                            alignItems: 'center', borderWidth: 1, borderColor: BIZ_COLOR + '44', marginBottom: 8 }}>
+                        {savingLoyalty
+                            ? <ActivityIndicator size="small" color={BIZ_COLOR} />
+                            : <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>Kaydet</Text>}
+                    </TouchableOpacity>
+
+                    <View style={{ height: 1, backgroundColor: '#ffffff10', marginVertical: 20 }} />
+
+                    {/* İndirim Kampanyaları */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>
+                            ⏰ SAAT ARALIĞI İNDİRİMİ
+                        </Text>
+                        {!addingDiscount && (
+                            <TouchableOpacity onPress={() => setAddingDiscount(true)}
+                                style={{ backgroundColor: BIZ_COLOR + '20', borderRadius: 6, paddingHorizontal: 10,
+                                    paddingVertical: 4, borderWidth: 1, borderColor: BIZ_COLOR + '40' }}>
+                                <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 12 }}>+ Ekle</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 10, lineHeight: 15 }}>
+                        Belirlediğiniz saat aralığında kort ücretine otomatik indirim uygulanır.
+                    </Text>
+
+                    {localDiscountCampaigns.length === 0 && !addingDiscount && (
+                        <Text style={{ color: '#444', fontSize: 12, marginBottom: 10 }}>Henüz indirim kampanyası yok.</Text>
+                    )}
+
+                    {localDiscountCampaigns.map((c, idx) => (
+                        <View key={c.id || idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                            backgroundColor: '#ffffff08', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9,
+                            marginBottom: 6, borderWidth: 1, borderColor: '#ffffff12' }}>
+                            <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>
+                                {c.fromTime} – {c.toTime} · %{c.percent} indirim
+                            </Text>
+                            <TouchableOpacity disabled={savingDiscount} onPress={() => handleDeleteDiscount(idx)} style={{ padding: 4 }}>
+                                <Text style={{ color: '#cc4444', fontSize: 16 }}>🗑</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ))}
+
+                    {addingDiscount && (
+                        <View style={{ backgroundColor: '#ffffff08', borderRadius: 10, padding: 12, marginBottom: 10,
+                            borderWidth: 1, borderColor: BIZ_COLOR + '30' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                <TouchableOpacity onPress={() => setShowDiscFromPicker(true)}
+                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12,
+                                        paddingVertical: 9, borderWidth: 1, borderColor: newDiscFrom ? BIZ_COLOR + '60' : '#ffffff15',
+                                        alignItems: 'center' }}>
+                                    <Text style={{ color: newDiscFrom ? BIZ_LIGHT : '#444', fontWeight: '700' }}>{newDiscFrom || 'Başlangıç'}</Text>
+                                </TouchableOpacity>
+                                <Text style={{ color: '#444' }}>–</Text>
+                                <TouchableOpacity onPress={() => setShowDiscToPicker(true)}
+                                    style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12,
+                                        paddingVertical: 9, borderWidth: 1, borderColor: newDiscTo ? BIZ_COLOR + '60' : '#ffffff15',
+                                        alignItems: 'center' }}>
+                                    <Text style={{ color: newDiscTo ? BIZ_LIGHT : '#444', fontWeight: '700' }}>{newDiscTo || 'Bitiş'}</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                <TextInput style={{ flex: 1, backgroundColor: '#ffffff0a', borderRadius: 8, paddingHorizontal: 12,
+                                        paddingVertical: 7, color: '#fff', fontSize: 14, borderWidth: 1,
+                                        borderColor: newDiscPercent !== '' ? BIZ_COLOR + '60' : '#ffffff15' }}
+                                    placeholder="İndirim" placeholderTextColor="#444" keyboardType="number-pad"
+                                    value={newDiscPercent} onChangeText={v => setNewDiscPercent(v.replace(/[^0-9]/g, ''))} />
+                                <Text style={{ color: '#555', fontSize: 14 }}>%</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                <TouchableOpacity disabled={savingDiscount} onPress={handleAddDiscount}
+                                    style={{ flex: 1, backgroundColor: BIZ_COLOR + '30', borderRadius: 8, paddingVertical: 10,
+                                        alignItems: 'center', borderWidth: 1, borderColor: BIZ_COLOR + '60' }}>
+                                    {savingDiscount
+                                        ? <ActivityIndicator size="small" color={BIZ_COLOR} />
+                                        : <Text style={{ color: BIZ_LIGHT, fontWeight: '700' }}>Kaydet</Text>}
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => { setAddingDiscount(false); setNewDiscFrom(''); setNewDiscTo(''); setNewDiscPercent(''); }}
+                                    style={{ flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: 'center',
+                                        borderWidth: 1, borderColor: '#ffffff15' }}>
+                                    <Text style={{ color: '#666', fontWeight: '700' }}>İptal</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+
+                    <TimePickerModal visible={showDiscFromPicker} value={newDiscFrom || ''} step={30}
+                        onSelect={t => { setNewDiscFrom(t); setShowDiscFromPicker(false); }} onClose={() => setShowDiscFromPicker(false)} />
+                    <TimePickerModal visible={showDiscToPicker} value={newDiscTo || ''} step={30}
+                        onSelect={t => { setNewDiscTo(t); setShowDiscToPicker(false); }} onClose={() => setShowDiscToPicker(false)} />
+                </View>
+            )}
 
             {activeTab === 'settings' && (
                 <View style={vc.panel}>

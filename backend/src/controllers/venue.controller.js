@@ -55,9 +55,78 @@ export function computeReservationStatus(court, venue, paymentMethod) {
     const effectiveMode = court?.approvalMode || venue?.approvalMode || 'FULL_AUTO';
     const pm = paymentMethod || 'CASH';
     if (effectiveMode === 'FULL_AUTO') return 'CONFIRMED';
-    if (effectiveMode === 'EFT_TIMED') return pm === 'EFT' ? 'PENDING' : 'CONFIRMED';
-    if (effectiveMode === 'PAYMENT_AUTO') return ['CASH', 'ONLINE', 'CREDIT_CARD'].includes(pm) ? 'CONFIRMED' : 'PENDING';
+    // GIFT (sadakat kredisiyle) ödemede para hareketi yok, işletmecinin tahsilat teyidine
+    // gerek yok — bu yüzden EFT_TIMED/PAYMENT_AUTO'da CASH/ONLINE/CREDIT_CARD gibi otomatik
+    // onaylanır. MANUAL modda diğer tüm yöntemler gibi yine işletmeci onayı bekler.
+    if (effectiveMode === 'EFT_TIMED') return (pm === 'EFT') ? 'PENDING' : 'CONFIRMED';
+    if (effectiveMode === 'PAYMENT_AUTO') return ['CASH', 'ONLINE', 'CREDIT_CARD', 'GIFT'].includes(pm) ? 'CONFIRMED' : 'PENDING';
     return 'PENDING'; // MANUAL
+}
+
+// ─── Sadakat kampanyası (loyaltyCampaign) ───────────────────────────────────────
+// İşletmeci "ayda X saat rezervasyon yapana Y saat bedava" kuralı belirler. Bir rezervasyon
+// CONFIRMED olduğunda (hangi yoldan olursa olsun — otomatik onay, işletmeci onayı, saat
+// değişikliği sonrası otomatik onay, geçmiş CASH'in otomatik onayı) bu fonksiyon çağrılır:
+// kullanıcının bu tesisteki BU AY (Europe/Istanbul) toplam CONFIRMED rezervasyon dakikasını
+// hesaplar, eşiği geçtiyse VE bu ay için ödül daha önce verilmediyse (lastGrantedPeriod)
+// rewardHours'ı freeMinutes'e ekler. Ay içinde eşik birden fazla kez aşılsa bile ödül o ay
+// için sadece BİR KEZ verilir (aksi halde saat saat tekrar tetiklenip sınırsız kredi üretirdi).
+async function grantLoyaltyCreditIfEligible(venueId, userId) {
+    if (!userId) return;
+    try {
+        const venue = await prisma.businessVenue.findUnique({ where: { id: venueId }, select: { loyaltyCampaign: true } });
+        const camp = venue?.loyaltyCampaign;
+        if (!camp?.enabled || !camp.thresholdHours || !camp.rewardHours) return;
+
+        const { dateStr: todayStr } = nowIstanbul();
+        const periodKey = todayStr.slice(0, 7); // "2026-08"
+        const monthStart = `${periodKey}-01`;
+
+        const existing = await prisma.venueLoyaltyCredit.findUnique({ where: { venueId_userId: { venueId, userId } } });
+        if (existing?.lastGrantedPeriod === periodKey) return; // bu ay zaten verildi
+
+        const monthReservations = await prisma.courtReservation.findMany({
+            where: { venueId, userId, status: 'CONFIRMED', date: { gte: monthStart } },
+            select: { date: true, startTime: true, endTime: true },
+        });
+        const monthMinutes = monthReservations
+            .filter(r => r.date.slice(0, 7) === periodKey)
+            .reduce((sum, r) => {
+                const s = toMins(r.startTime);
+                const e = toMins(r.endTime) <= s ? toMins(r.endTime) + 1440 : toMins(r.endTime);
+                return sum + (e - s);
+            }, 0);
+
+        if (monthMinutes < camp.thresholdHours * 60) return;
+
+        await prisma.venueLoyaltyCredit.upsert({
+            where: { venueId_userId: { venueId, userId } },
+            update: { freeMinutes: { increment: camp.rewardHours * 60 }, lastGrantedPeriod: periodKey },
+            create: { venueId, userId, freeMinutes: camp.rewardHours * 60, lastGrantedPeriod: periodKey },
+        });
+        createNotification(userId, 'RESERVATION', '🎁 Sadakat Ödülü Kazandınız!',
+            `Bu ay ${camp.thresholdHours} saat rezervasyon eşiğini geçtiniz — ${camp.rewardHours} saat bedava rezervasyon kredisi hesabınıza tanımlandı. Rezervasyon yaparken "Hediye" ödeme seçeneğinden kullanabilirsiniz.`,
+            { venueId }
+        ).catch(() => {});
+        emitToUser(userId, 'notification', {});
+    } catch (e) { /* sadakat kontrolü rezervasyon akışını asla bloklamamalı */ }
+}
+
+// GIFT (sadakat kredisiyle) ödenmiş bir rezervasyon iptal/reddedilirse harcanan bedava dakika
+// kullanıcının kredisine geri eklenir — aksi halde iptal edilen rezervasyonlar sessizce kredi
+// kaybına yol açardı.
+async function refundGiftMinutes(reservation) {
+    if (reservation?.paymentMethod !== 'GIFT' || !reservation.userId) return;
+    try {
+        const s = toMins(reservation.startTime);
+        const e = toMins(reservation.endTime) <= s ? toMins(reservation.endTime) + 1440 : toMins(reservation.endTime);
+        const minutes = e - s;
+        await prisma.venueLoyaltyCredit.upsert({
+            where: { venueId_userId: { venueId: reservation.venueId, userId: reservation.userId } },
+            update: { freeMinutes: { increment: minutes } },
+            create: { venueId: reservation.venueId, userId: reservation.userId, freeMinutes: minutes },
+        });
+    } catch (e) { /* iade başarısız olsa da iptal akışı engellenmemeli */ }
 }
 
 async function autoConfirmPastCash(venueId) {
@@ -74,6 +143,7 @@ async function autoConfirmPastCash(venueId) {
             where: { id: { in: toConfirm.map(r => r.id) } },
             data: { status: 'CONFIRMED' },
         });
+        for (const r of toConfirm) grantLoyaltyCreditIfEligible(venueId, r.userId).catch(() => {});
     }
 }
 
@@ -196,6 +266,21 @@ function resolvePriceRule(venue, court, startTime) {
     return { basePrice, paymentDeltas };
 }
 
+// Saat aralığı indirim kampanyaları — işletmeci "şu saatler arası %şu kadar indirim" belirler.
+// venue.discountCampaigns: [{ id, fromTime, toTime, percent }]. Birden fazla kampanya aynı ana
+// denk gelirse en yüksek indirim uygulanır (kullanıcı için en avantajlı, çakışma belirsizliğini
+// önler). İndirim SADECE kort ücretine (basePrice/paymentDeltas) uygulanır, lightsFee (gece ışık
+// ek ücreti) ayrı bir operasyonel maliyet olduğu için indirime dahil edilmez.
+function resolveDiscountPercent(venue, startMins) {
+    const dc = Array.isArray(venue.discountCampaigns) ? venue.discountCampaigns : [];
+    let best = 0;
+    for (const c of dc) {
+        if (!c.fromTime || !c.toTime || !c.percent) continue;
+        if (inPriceWindow(startMins, c.fromTime, c.toTime)) best = Math.max(best, c.percent);
+    }
+    return best;
+}
+
 // Bir [rangeStartMins, rangeEndMins) aralığını, işletmecinin pricingWindows'ta belirlediği
 // (slot ızgarasıyla hizalı olmak zorunda olmayan — ör. gün batımına göre 20:30) fiyat
 // sınırlarına göre alt parçalara böler. Her parça kendi resolvePriceRule sonucunu taşır —
@@ -217,6 +302,16 @@ function splitPriceSegments(venue, court, rangeStartMins, rangeEndMins) {
         const lf = toMins(court.lightsFrom);
         if (lf > rangeStartMins && lf < rangeEndMins) points.add(lf);
     }
+    // İndirim kampanyası sınırları da aynı mantıkla eklenir — ör. rezervasyon 19:00-21:00,
+    // kampanya 18:00-20:00 arası %20 ise, 20:00 sınır noktası olmadan tüm 2 saate indirim
+    // uygulanır ya da hiç uygulanmaz; oysa sadece 19:00-20:00 kısmı indirimli olmalı.
+    const dc = Array.isArray(venue.discountCampaigns) ? venue.discountCampaigns : [];
+    for (const c of dc) {
+        if (!c.fromTime || !c.toTime) continue;
+        for (const raw of [toMins(c.fromTime), toMins(c.toTime)]) {
+            if (raw > rangeStartMins && raw < rangeEndMins) points.add(raw);
+        }
+    }
     const sorted = [...points].sort((a, b) => a - b);
     const segments = [];
     for (let i = 0; i < sorted.length - 1; i++) {
@@ -228,14 +323,15 @@ function splitPriceSegments(venue, court, rangeStartMins, rangeEndMins) {
         // saat başı ek ücret (lightsFee) uygulanır.
         const lightsOn = court?.lightsFrom != null && segStart >= toMins(court.lightsFrom);
         const lightsFee = lightsOn ? (court.lightsFee || 0) : 0;
-        segments.push({ startMins: segStart, endMins: segEnd, basePrice, paymentDeltas, lightsFee });
+        const discountPercent = resolveDiscountPercent(venue, segStart);
+        segments.push({ startMins: segStart, endMins: segEnd, basePrice, paymentDeltas, lightsFee, discountPercent });
     }
     return segments;
 }
 
 function getSlotPrice(venue, court, startTime, durationMins = 60) {
     const segs = splitPriceSegments(venue, court, toMins(startTime), toMins(startTime) + durationMins);
-    const total = segs.reduce((sum, seg) => sum + (seg.basePrice + seg.lightsFee) * ((seg.endMins - seg.startMins) / 60), 0);
+    const total = segs.reduce((sum, seg) => sum + (seg.basePrice * (1 - seg.discountPercent / 100) + seg.lightsFee) * ((seg.endMins - seg.startMins) / 60), 0);
     return Math.round(total);
 }
 
@@ -251,7 +347,7 @@ function resolveMethodRate(basePricePerHour, paymentDeltas, method) {
 // Tek bir ödeme yöntemi için, fiyat sınırlarına bölünerek hesaplanmış nihai tutar.
 function getMethodPrice(venue, court, startTime, durationMins, method) {
     const segs = splitPriceSegments(venue, court, toMins(startTime), toMins(startTime) + durationMins);
-    const total = segs.reduce((sum, seg) => sum + (resolveMethodRate(seg.basePrice, seg.paymentDeltas, method) + seg.lightsFee) * ((seg.endMins - seg.startMins) / 60), 0);
+    const total = segs.reduce((sum, seg) => sum + (resolveMethodRate(seg.basePrice, seg.paymentDeltas, method) * (1 - seg.discountPercent / 100) + seg.lightsFee) * ((seg.endMins - seg.startMins) / 60), 0);
     return Math.round(total);
 }
 
@@ -570,9 +666,10 @@ export const getVenueSlots = async (req, res, next) => {
             const endMins = s.durationMins != null ? startMins + s.durationMins : toMins(s.end);
             const segs = splitPriceSegments(venue, court, startMins, endMins);
             const priceSegments = segs.map(seg => {
+                const mult = 1 - seg.discountPercent / 100;
                 const pricePerHourByMethod = {};
-                for (const m of PAYMENT_METHODS) pricePerHourByMethod[m] = resolveMethodRate(seg.basePrice, seg.paymentDeltas, m);
-                return { from: toTime(seg.startMins), to: toTime(seg.endMins), pricePerHour: seg.basePrice, pricePerHourByMethod };
+                for (const m of PAYMENT_METHODS) pricePerHourByMethod[m] = Math.round(resolveMethodRate(seg.basePrice, seg.paymentDeltas, m) * mult);
+                return { from: toTime(seg.startMins), to: toTime(seg.endMins), pricePerHour: Math.round(seg.basePrice * mult), pricePerHourByMethod };
             });
             return { ...s, pricePerHour: basePrice, pricePerHourByMethod: buildPriceByMethod(venue, court, s.start, 60), priceSegments };
         });
@@ -580,7 +677,14 @@ export const getVenueSlots = async (req, res, next) => {
             ? { ...slotsResult, slots: addSlotPrice(slotsResult.slots) }
             : { ...slotsResult, windows: addWindowPrice(slotsResult.windows) };
         const accepted = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
-        res.json(fixMidnightLabels({ ...resultWithPrice, acceptedPayments: accepted, maintenanceReason }));
+        // Kullanıcının bu tesisteki sadakat kredisi (varsa) — mobil taraf yeterli dakika varsa
+        // ödeme yöntemleri arasına "🎁 Hediye" seçeneğini otomatik ekler.
+        let myLoyaltyFreeMinutes = 0;
+        if (req.userId) {
+            const credit = await prisma.venueLoyaltyCredit.findUnique({ where: { venueId_userId: { venueId: id, userId: req.userId } } });
+            myLoyaltyFreeMinutes = credit?.freeMinutes || 0;
+        }
+        res.json(fixMidnightLabels({ ...resultWithPrice, acceptedPayments: accepted, maintenanceReason, myLoyaltyFreeMinutes }));
     } catch (error) { next(error); }
 };
 
@@ -621,7 +725,7 @@ export const updateCourtSettings = async (req, res, next) => {
 // Bakım/çakışma/boşluk kontrolleri — hem kullanıcı rezervasyonunda (makeReservation) hem de
 // işletmecinin manuel (telefonla gelen) rezervasyonunda (createManualReservation) ortak.
 // Sorun yoksa null, varsa { status, message } döner.
-export async function validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod) {
+export async function validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod, userId = null) {
     // Tüm-gün bakım kontrolü
     const courtCheck = await prisma.venueCourt.findUnique({ where: { id: courtId } });
     const mDates = (Array.isArray(courtCheck?.maintenanceDates) ? courtCheck.maintenanceDates : []).map(normMaint);
@@ -632,15 +736,26 @@ export async function validateReservationSlot(venue, courtId, date, startTime, e
     if (paymentMethod === 'ONLINE')
         return { status: 400, message: 'Online ödeme şu anda bakımda, kullanılamıyor.' };
 
-    const accepted = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
-    if (paymentMethod && !accepted.includes(paymentMethod))
-        return { status: 400, message: 'Bu tesis seçilen ödeme yöntemini kabul etmiyor' };
-
     const startMins = toMins(startTime);
     // Gece yarısını geçen rezervasyon (ör. 23:00–01:00): endTime sayıca startTime'dan
     // küçük/eşit çıkar — bu durumda ertesi güne taştığı kabul edilip +1440 ile normalize edilir.
     const endMins = toMins(endTime) <= startMins ? toMins(endTime) + 1440 : toMins(endTime);
     if (endMins - startMins < 60) return { status: 400, message: 'Minimum rezervasyon süresi 1 saattir' };
+
+    // GIFT (sadakat kampanyası kredisi) işletmecinin seçtiği "kabul edilen ödeme yöntemleri"
+    // listesinde YER ALMAZ — otomatik olarak, sadece kullanıcının o tesiste yeterli bedava
+    // dakikası varsa kullanılabilir bir seçenektir, bu yüzden accepted-payments kontrolünden muaf.
+    if (paymentMethod === 'GIFT') {
+        if (!userId) return { status: 400, message: 'Hediye ödemesi için giriş yapmalısınız' };
+        const durationMins = endMins - startMins;
+        const credit = await prisma.venueLoyaltyCredit.findUnique({ where: { venueId_userId: { venueId: venue.id, userId } } });
+        if (!credit || credit.freeMinutes < durationMins)
+            return { status: 400, message: 'Yeterli hediye (bedava rezervasyon) süreniz yok.' };
+    } else {
+        const accepted = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
+        if (paymentMethod && !accepted.includes(paymentMethod))
+            return { status: 400, message: 'Bu tesis seçilen ödeme yöntemini kabul etmiyor' };
+    }
 
     // Saat aralığı bakım kontrolü
     for (const m of mDates) {
@@ -755,7 +870,7 @@ export const makeReservation = async (req, res, next) => {
             return res.status(403).json({ message: `Bu tarih için rezervasyonlar henüz açılmadı. Açılış: ${opensAt.toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}` });
         }
 
-        const slotErr = await validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod);
+        const slotErr = await validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod, req.userId);
         if (slotErr) return res.status(slotErr.status).json({ message: slotErr.message });
 
         const courtForApproval = await prisma.venueCourt.findUnique({ where: { id: courtId } });
@@ -767,9 +882,22 @@ export const makeReservation = async (req, res, next) => {
                     paymentMethod: pm, notes: notes || null, status: initialStatus },
         });
 
+        // GIFT ile ödendiyse, validateReservationSlot'ta yeterliliği zaten doğrulanmış bedava
+        // dakika burada düşülür (slot durumu ne olursa olsun — PENDING'ken bile saat bloklanmış
+        // sayılır; iptal/red olursa refundGiftMinutes ile geri iade edilir).
+        if (pm === 'GIFT') {
+            const s = toMins(startTime);
+            const e = toMins(endTime) <= s ? toMins(endTime) + 1440 : toMins(endTime);
+            await prisma.venueLoyaltyCredit.update({
+                where: { venueId_userId: { venueId: id, userId: req.userId } },
+                data: { freeMinutes: { decrement: e - s } },
+            }).catch(() => {});
+        }
+        if (initialStatus === 'CONFIRMED') grantLoyaltyCreditIfEligible(id, req.userId).catch(() => {});
+
         const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
         const court = await prisma.venueCourt.findUnique({ where: { id: courtId } });
-        const pmLabel = { CASH: 'Kortta Öde', EFT: 'EFT/Havale', CREDIT_CARD: 'Kortta Kredi Kartı', ONLINE: 'Online' }[pm] || pm;
+        const pmLabel = { CASH: 'Kortta Öde', EFT: 'EFT/Havale', CREDIT_CARD: 'Kortta Kredi Kartı', ONLINE: 'Online', GIFT: '🎁 Hediye (Ücretsiz)' }[pm] || pm;
 
         if (initialStatus === 'CONFIRMED') {
             // İşletmeye bilgi bildirimi
@@ -843,7 +971,7 @@ export const getVenueReservations = async (req, res, next) => {
 export const updateVenueSettings = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, contactLinks, lat, lng, approvalMode, courtIndoorDefault, businessIban, businessIbanHolder, reservationOpenDaysBefore, reservationOpenTime } = req.body;
+        const { slotType, pricePerSlot, openSlots, cancelHoursBefore, rescheduleHoursBefore, acceptedPayments, pricingWindows, discountCampaigns, loyaltyCampaign, contactLinks, lat, lng, approvalMode, courtIndoorDefault, businessIban, businessIbanHolder, reservationOpenDaysBefore, reservationOpenTime } = req.body;
         const VALID_TYPES    = ['FULL_HOUR', 'HALF_HOUR', 'VAR_DURATION'];
         const VALID_PAY      = ['CASH', 'EFT', 'CREDIT_CARD']; // ONLINE şu anda bakımda, kabul edilen yöntemlere eklenemez
         // Fiyat farkı (paymentDeltas) girişinde ONLINE'a da izin verilir — online ödeme
@@ -871,6 +999,31 @@ export const updateVenueSettings = async (req, res, next) => {
                 if (check.error) return res.status(check.status).json({ message: check.error });
             }
         }
+        // Kampanyalar (indirim + sadakat) — Pro/Premium özelliği, pricingWindows'taki paymentDeltas
+        // ile aynı gate mantığı (assertProVenueOwner).
+        const TIME_RE = /^\d{2}:\d{2}$/;
+        if (discountCampaigns !== undefined) {
+            if (!Array.isArray(discountCampaigns))
+                return res.status(400).json({ message: 'Geçersiz indirim kampanyası' });
+            const invalid = discountCampaigns.some(c =>
+                !TIME_RE.test(c.fromTime) || !TIME_RE.test(c.toTime) ||
+                !Number.isInteger(c.percent) || c.percent < 1 || c.percent > 100
+            );
+            if (invalid) return res.status(400).json({ message: 'Geçersiz indirim kampanyası — saat HH:MM, indirim %1-100 arası olmalı' });
+            if (discountCampaigns.length > 0) {
+                const check = await assertProVenueOwner(id, req.userId, 'İndirim kampanyası');
+                if (check.error) return res.status(check.status).json({ message: check.error });
+            }
+        }
+        if (loyaltyCampaign !== undefined && loyaltyCampaign !== null) {
+            const { enabled, thresholdHours, rewardHours } = loyaltyCampaign;
+            if (enabled && (!Number.isInteger(thresholdHours) || thresholdHours < 1 || !Number.isInteger(rewardHours) || rewardHours < 1))
+                return res.status(400).json({ message: 'Geçersiz sadakat kampanyası — saat sayıları pozitif tam sayı olmalı' });
+            if (enabled) {
+                const check = await assertProVenueOwner(id, req.userId, 'Sadakat kampanyası');
+                if (check.error) return res.status(check.status).json({ message: check.error });
+            }
+        }
         if (approvalMode !== undefined && !VALID_APPROVAL.includes(approvalMode))
             return res.status(400).json({ message: 'Geçersiz onay modu' });
         if (reservationOpenDaysBefore !== undefined && reservationOpenDaysBefore !== null && !VALID_OPEN_DAYS_BEFORE.includes(parseInt(reservationOpenDaysBefore)))
@@ -887,6 +1040,8 @@ export const updateVenueSettings = async (req, res, next) => {
         if (openSlots !== undefined)             data.openSlots            = openSlots;
         if (acceptedPayments !== undefined)      data.acceptedPayments     = acceptedPayments;
         if (pricingWindows !== undefined)        data.pricingWindows       = pricingWindows;
+        if (discountCampaigns !== undefined)     data.discountCampaigns    = discountCampaigns;
+        if (loyaltyCampaign !== undefined)       data.loyaltyCampaign      = loyaltyCampaign;
         if (contactLinks !== undefined)          data.contactLinks         = contactLinks;
         if (lat !== undefined)                   data.lat                  = lat !== null ? parseFloat(lat) : null;
         if (lng !== undefined)                   data.lng                  = lng !== null ? parseFloat(lng) : null;
@@ -1181,6 +1336,7 @@ export const cancelReservation = async (req, res, next) => {
             include: { venue: true },
         });
         if (!res_) return res.status(404).json({ message: 'Rezervasyon bulunamadı' });
+        if (res_.status === 'CANCELLED') return res.status(400).json({ message: 'Rezervasyon zaten iptal edilmiş' });
         const isOwner      = res_.userId === req.userId;
         const isVenueOwner = res_.venue?.userId === req.userId;
         if (!isOwner && !isVenueOwner) return res.status(403).json({ message: 'Yetkisiz' });
@@ -1198,6 +1354,7 @@ export const cancelReservation = async (req, res, next) => {
         }
 
         await prisma.courtReservation.update({ where: { id: resId }, data: { status: 'CANCELLED' } });
+        refundGiftMinutes(res_).catch(() => {});
         res.json({ message: 'İptal edildi' });
     } catch (error) { next(error); }
 };
@@ -1278,6 +1435,7 @@ export const updateReservationStatus = async (req, res, next) => {
         if (action === 'no_payment') {
             // Ödeme alınmadı — iptal et + admini bildir
             const updated = await prisma.courtReservation.update({ where: { id: resId }, data: { status: 'CANCELLED', noShow: true } });
+            refundGiftMinutes(res_).catch(() => {});
             res.json({ reservation: updated });
             const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
             for (const admin of admins) {
@@ -1296,6 +1454,7 @@ export const updateReservationStatus = async (req, res, next) => {
 
         if (action === 'reject') {
             const updated = await prisma.courtReservation.update({ where: { id: resId }, data: { status: 'CANCELLED' } });
+            refundGiftMinutes(res_).catch(() => {});
             res.json({ reservation: updated });
             createNotification(customerId, 'RESERVATION',
                 '❌ Rezervasyon Reddedildi',
@@ -1311,6 +1470,8 @@ export const updateReservationStatus = async (req, res, next) => {
             : { status: 'CANCELLED', noShow: true };
         const updated = await prisma.courtReservation.update({ where: { id: resId }, data });
         res.json({ reservation: updated });
+        if (action === 'confirm') grantLoyaltyCreditIfEligible(res_.venueId, res_.userId).catch(() => {});
+        else refundGiftMinutes(res_).catch(() => {});
 
         if (action === 'confirm') {
             createNotification(customerId, 'RESERVATION',
@@ -1416,6 +1577,7 @@ export const rescheduleReservation = async (req, res, next) => {
                 { reservationId: resId, category: 'SPORTS', subCategory: res_.venue.branch }
             ).catch(() => {});
             emitToUser(res_.userId, 'reservationUpdate', { reservationId: resId, status: 'CONFIRMED' });
+            if (res_.status !== 'CONFIRMED') grantLoyaltyCreditIfEligible(res_.venueId, res_.userId).catch(() => {});
         }
 
         // Bu rezervasyondan oluşturulmuş bir ilan varsa (bkz. venueReservationId), ilanın
@@ -1507,6 +1669,7 @@ export const approveCancelRequest = async (req, res, next) => {
             where: { id: resId },
             data: { status: 'CANCELLED', cancelRequested: false },
         });
+        refundGiftMinutes(r).catch(() => {});
 
         await createNotification(r.userId, 'RESERVATION',
             '✅ İptal Talebiniz Onaylandı',

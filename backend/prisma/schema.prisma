@@ -145,6 +145,7 @@ model User {
   instagramPrivacy   String  @default("PUBLIC")
   instagramSelected  Json    @default("[]")
   courtReservations     CourtReservation[]
+  venueLoyaltyCredits   VenueLoyaltyCredit[]
   venueBlocks           VenueBlock[]       @relation("BlockedUser")
   venueOrders           VenueOrder[]
   venueBillItems        VenueBillItem[]
@@ -1490,6 +1491,8 @@ model BusinessVenue {
   businessIban          String?                            // EFT ödemeler için IBAN (tesis bazında)
   businessIbanHolder    String?                            // IBAN hesap sahibi adı
   pricingWindows        Json?                              // [{from,to,price,courtId?,paymentDeltas?}] saat aralığı fiyatları — paymentDeltas: {CASH,EFT,ONLINE,CREDIT_CARD} → o kuralın fiyatına eklenen sabit TL farkı (PRO+)
+  discountCampaigns     Json?                              // [{id,fromTime,toTime,percent}] saat aralığı indirim kampanyaları — "şu saatler arası %şu indirim"
+  loyaltyCampaign       Json?                              // {enabled,thresholdHours,rewardHours} — "ayda X saat rezervasyon yapana Y saat bedava"
   contactLinks          Json?                              // {whatsapp?,telegram?,instagram?,email?,phone?}
   reservationOpenDaysBefore Int?                           // null=sınırsız (her zaman açık); 3|5|7|10|14 = rezervasyon o tarihten N gün önce açılır
   reservationOpenTime       String?                        // HH:MM, açılış saati (null=00:00)
@@ -1509,6 +1512,26 @@ model BusinessVenue {
   bills        VenueBill[]
   reviews      VenueReview[]
   reviewAppeals ReviewAppeal[]
+  loyaltyCredits VenueLoyaltyCredit[]
+}
+
+// Sadakat kampanyası kredisi — bir kullanıcının bir tesiste biriktirdiği/kazandığı bedava
+// rezervasyon dakikası. Rezervasyon onaylandıkça (bkz. grantLoyaltyCreditIfEligible)
+// lastGrantedPeriod ile aynı ay içinde tekrar ödül verilmesi engellenir; freeMinutes ise
+// harcanana kadar aya bağlı kalmadan birikir.
+model VenueLoyaltyCredit {
+  id                String   @id @default(uuid())
+  venueId           String
+  userId            String
+  freeMinutes       Int      @default(0)
+  lastGrantedPeriod String?  // "2026-08"
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  venue BusinessVenue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, userId])
 }
 
 model VenueCourt {

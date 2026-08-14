@@ -76,10 +76,20 @@ function SlotBubble({ slot, selected, onPress, dateStr }) {
     );
 }
 
-function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirming, rescheduleMode }) {
+function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirming, rescheduleMode, myLoyaltyFreeMinutes = 0 }) {
     const [payment, setPayment] = useState('CASH');
 
     if (!slot) return null;
+    // Hediye (sadakat kredisi) ödemesi: sadece kullanıcının bu tesiste seçilen sürenin TAMAMINI
+    // karşılayacak kadar bedava dakikası varsa seçenek olarak gösterilir — işletmecinin kabul
+    // ettiği ödeme yöntemleri listesinden bağımsız, otomatik sunulur (bkz. backend validateReservationSlot).
+    const slotDurationMins = (() => {
+        if (!slot.start || !slot.end) return 60;
+        const s = toM(slot.start), e = toM(slot.end) <= toM(slot.start) ? toM(slot.end) + 1440 : toM(slot.end);
+        return e - s;
+    })();
+    const giftAvailable = !rescheduleMode && myLoyaltyFreeMinutes >= slotDurationMins;
+
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={cm.overlay}>
@@ -92,7 +102,7 @@ function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirm
                             { label: 'Tesis', value: venue.name },
                             { label: 'Kort', value: court.name },
                             { label: 'Saat', value: `${slot.start} – ${slot.end}` },
-                            ...(rescheduleMode ? [] : [{ label: 'Ücret', value: (() => { const p = slot?.priceByMethod?.[payment] ?? slot?.price ?? venue.pricePerSlot; return p > 0 ? `${p}₺` : 'Ücretsiz'; })() }]),
+                            ...(rescheduleMode ? [] : [{ label: 'Ücret', value: payment === 'GIFT' ? '🎁 Ücretsiz (Hediye)' : (() => { const p = slot?.priceByMethod?.[payment] ?? slot?.price ?? venue.pricePerSlot; return p > 0 ? `${p}₺` : 'Ücretsiz'; })() }]),
                         ].map(row => (
                             <View key={row.label} style={cm.infoRow}>
                                 <Text style={cm.infoLabel}>{row.label}</Text>
@@ -104,11 +114,12 @@ function ConfirmModal({ visible, slot, venue, court, onConfirm, onClose, confirm
                     {!rescheduleMode && (<>
                         <Text style={cm.payLabel}>Ödeme Yöntemi</Text>
                         {[
+                            ...(giftAvailable ? [{ key: 'GIFT', label: '🎁 Hediye (Ücretsiz)' }] : []),
                             { key: 'CASH', label: '💵 Kort Başında Nakit' },
                             { key: 'EFT', label: '🏦 EFT / Havale' },
                             { key: 'CREDIT_CARD', label: '💳 Kort Başında Kredi Kartı' },
                             { key: 'ONLINE', label: '🌐 Online Ödeme', disabled: true },
-                        ].filter(opt => opt.key === 'CASH' || opt.disabled || (Array.isArray(venue.acceptedPayments) && venue.acceptedPayments.includes(opt.key))).map(opt => (
+                        ].filter(opt => opt.key === 'GIFT' || opt.key === 'CASH' || opt.disabled || (Array.isArray(venue.acceptedPayments) && venue.acceptedPayments.includes(opt.key))).map(opt => (
                             <TouchableOpacity
                                 key={opt.key}
                                 style={[cm.payOpt, payment === opt.key && cm.payOptActive, opt.disabled && cm.payOptDisabled]}
@@ -480,6 +491,7 @@ export default function CourtSlotsScreen({ route, navigation }) {
                 onClose={() => { setModal(false); setPicked(null); }}
                 confirming={confirming}
                 rescheduleMode={rescheduleMode}
+                myLoyaltyFreeMinutes={slots?.myLoyaltyFreeMinutes || 0}
             />
         </View>
     );
