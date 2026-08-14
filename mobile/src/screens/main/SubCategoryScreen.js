@@ -1269,7 +1269,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
     return (
         <>
-        <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+        {/* android_keyboardInputMode="adjustNothing" — Android'de bu Modal, uygulama genelindeki
+            softwareKeyboardLayoutMode:"pan" ayarıyla birlikte kendi kendine de yeniden boyutlanıyordu
+            (varsayılan adjustResize), bu da klavye açılınca kadro kartındaki arama önerisinin
+            (TeamSlotInviteField) hemen kapanmasına/ilk dokunuşun boşa gitmesine ve altta Yorum
+            yaz/Gönder çubuğunun gereksiz yukarı kayıp boş siyah alan bırakmasına sebep oluyordu
+            (kullanıcı raporu) — bkz. references/ekran-guvenli-alan.md. */}
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={{ flex:1, backgroundColor: colors.bg }}>
                 {/* Header */}
                 <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:5, paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(14), borderBottomWidth:1, borderBottomColor: colors.border }}>
@@ -1782,8 +1788,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', flex:1, textAlign:'center' }}>+</Text>
                                                 {genderLabel(opp2GenderReq) && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700' }}>{genderLabel(opp2GenderReq)}</Text>}
                                             </View>
+                                            {/* gReqLabel=null: cinsiyet etiketi zaten hemen üstündeki "+" satırında
+                                                gösteriliyor (bkz. yukarıdaki genderLabel(opp2GenderReq)) — burada da
+                                                geçilirse "♀ Kadın" iki kez üst üste yazılıyordu (kullanıcı raporu). */}
                                             <SlotBox slot="opp2" p={participants[1]} fallback="Henüz katılan yok"
-                                                gReqLabel={genderLabel(opp2GenderReq)} gReqValue={opp2GenderReq}
+                                                gReqLabel={null} gReqValue={opp2GenderReq}
                                                 highlighted={highlightSlot?.doubleSlot === 'opp2'}
                                                 onRemove={isOwner && participants[1] ? () => removeRivalParticipant(participants[1].id, participants[1].username) : null}
                                             />
