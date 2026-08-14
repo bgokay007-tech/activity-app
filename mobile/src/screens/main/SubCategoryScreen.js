@@ -7971,8 +7971,11 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
                                 <Text style={{ fontSize:15 }}>🔄</Text>
                             </TouchableOpacity>
                         </View>
-                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
-                            <View style={{ width:'32%' }}>
+                        {/* 2v2 seçildiğinde her satırda 2 forma — kullanıcı isteği: "her satırda iki
+                            form olarak yap" (önceden 32% genişlikle 3'ü bir satıra sığıyor, 4. tek
+                            başına alt satıra taşıyordu). */}
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4 }}>
+                            <View style={{ width:'48%' }}>
                                 <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
                                     <Avatar name={myUser?.username} avatar={myUser?.avatar} size={14} color={cfg.color} />
                                     <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
@@ -7982,7 +7985,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
                                 </View>
                             </View>
                             {[['partner', t.teamSlotPh ? t.teamSlotPh(2) : '2. Oyuncu'], ['opp1Invite', t.teamSlotPh ? t.teamSlotPh(3) : '3. Oyuncu'], ['opp2Invite', t.teamSlotPh ? t.teamSlotPh(4) : '4. Oyuncu']].map(([field, ph]) => (
-                                <View key={field} style={{ width:'32%' }}>
+                                <View key={field} style={{ width:'48%' }}>
                                     {renderSlot(field, ph)}
                                 </View>
                             ))}
