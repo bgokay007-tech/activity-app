@@ -1780,7 +1780,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                             <Text style={[det.playerSub, { color:'#fbbf24' }]} numberOfLines={1}>Atanmamış — takım seçilmedi</Text>
                                                         </View>
                                                     </TouchableOpacity>
-                                                    {(isOwner || isMe) && openSlotOptions.length > 0 && (
+                                                    {/* openSlotOptions boşsa (kalan hiçbir slot cinsiyete uymuyorsa) bile
+                                                        ilan sahibi için her zaman bir Çıkar seçeneği gösterilir — aksi
+                                                        halde bu kişi kalıcı olarak sıkışıp kalıyordu (kullanıcı raporu). */}
+                                                    {(isOwner || isMe) && (openSlotOptions.length > 0 || isOwner) && (
                                                         <View style={{ flexDirection:'row', gap:4, marginTop:4, flexWrap:'wrap' }}>
                                                             {openSlotOptions.map(opt => (
                                                                 <TouchableOpacity key={opt.key} onPress={() => assignDoubleSlot(p.id, opt.key)}
@@ -1788,6 +1791,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                                     <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{opt.label}</Text>
                                                                 </TouchableOpacity>
                                                             ))}
+                                                            {isOwner && (
+                                                                <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)}
+                                                                    style={{ flex:1, paddingVertical:3, borderRadius:5, backgroundColor:'#dc262612', borderWidth:1, borderColor:'#dc262630', alignItems:'center' }}>
+                                                                    <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>Çıkar</Text>
+                                                                </TouchableOpacity>
+                                                            )}
                                                         </View>
                                                     )}
                                                 </View>
@@ -1877,7 +1886,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 return (
                                                     <View key={p.id} style={{ backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:4 }}>
                                                         <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
-                                                        {(isOwner || isMe) && openSlotOptions.length > 0 && (
+                                        {(isOwner || isMe) && (openSlotOptions.length > 0 || isOwner) && (
                                                             <View style={{ flexDirection:'row', gap:4, marginTop:3 }}>
                                                                 {openSlotOptions.map(opt => (
                                                                     <TouchableOpacity key={opt.key} onPress={() => assignDoubleSlot(p.id, opt.key)}
@@ -1885,6 +1894,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                                         <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{opt.label}</Text>
                                                                     </TouchableOpacity>
                                                                 ))}
+                                                                {isOwner && (
+                                                                    <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)}
+                                                                        style={{ flex:1, paddingVertical:3, borderRadius:5, backgroundColor:'#dc262612', borderWidth:1, borderColor:'#dc262630', alignItems:'center' }}>
+                                                                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>Çıkar</Text>
+                                                                    </TouchableOpacity>
+                                                                )}
                                                             </View>
                                                         )}
                                                     </View>
@@ -4841,7 +4856,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         // Ön yüz havuzu — kurucu kilitli ilk forma + partner/rakip1/rakip2, voleyboldeki
                         // TeamAssignCard'ın ön yüzüyle AYNI görsel dil (numaralı forma, atanmamışlar
                         // kırmızı yanıp söner).
-                        const doublePool = [{ ...match.sender, skillRating: match.senderSkillRating }, partner, opp1, opp2].filter(p => p && (p.id || p.manualName));
+                        // unassignedArr eklendi — kabul edilmiş ama henüz bir slota (partner/opp1/opp2)
+                        // yerleşmemiş oyuncular önceden ön yüz havuzunda hiç görünmüyordu, sadece arka
+                        // yüzdeki "Atanmamış" listesinde vardı (kullanıcı raporu: "katılan oyuncular
+                        // gözükmesi lazım gözükmüyor"). Kırmızı yanıp sönen unassignedKeys işareti zaten
+                        // aşağıdaki map'te hazırdı, sadece diziye hiç eklenmiyordu.
+                        const doublePool = [{ ...match.sender, skillRating: match.senderSkillRating }, partner, opp1, opp2, ...unassignedArr].filter(p => p && (p.id || p.manualName));
                         const unassignedKeys = new Set(unassignedArr.map(p => p.id));
                         const rotateY = doubleFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
                         return (
@@ -4940,10 +4960,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                             !opp1 && genderFitsSlot(p.gender, match.opp1GenderReq) && { key:'opp1', label: SLOT_LABEL.opp1 },
                                                             !opp2 && genderFitsSlot(p.gender, match.opp2GenderReq) && { key:'opp2', label: SLOT_LABEL.opp2 },
                                                         ].filter(Boolean);
-                                                        return (
+                                        return (
                                                             <View key={p.id} style={{ backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:4 }}>
                                                                 <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(p)}</Text>
-                                                                {(isOwner || isMe) && openSlotOptions.length > 0 && (
+                                                                {/* Cinsiyet kısıtlaması yüzünden kalan hiçbir boş slota uymayan biri (ör.
+                                                                    tek boş slot kadın-kısıtlıyken erkek bir oyuncu) openSlotOptions boş
+                                                                    kalıp kalıcı olarak burada sıkışıp kalıyordu, ne atanabiliyordu ne
+                                                                    çıkarılabiliyordu (kullanıcı raporu) — ilan sahibi için her zaman bir
+                                                                    Çıkar seçeneği de gösteriliyor. */}
+                                                                {(isOwner || isMe) && (openSlotOptions.length > 0 || isOwner) && (
                                                                     <View style={{ flexDirection:'row', gap:4, marginTop:3 }}>
                                                                         {openSlotOptions.map(opt => (
                                                                             <TouchableOpacity key={opt.key} onPress={() => assignDoubleSlot(p.id, opt.key)}
@@ -4951,6 +4976,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                                                 <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{opt.label}</Text>
                                                                             </TouchableOpacity>
                                                                         ))}
+                                                                        {isOwner && (
+                                                                            <TouchableOpacity onPress={() => removePlayer(p.id, playerDisplayName(p))}
+                                                                                style={{ flex:1, paddingVertical:3, borderRadius:5, backgroundColor:'#dc262612', borderWidth:1, borderColor:'#dc262630', alignItems:'center' }}>
+                                                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>Çıkar</Text>
+                                                                            </TouchableOpacity>
+                                                                        )}
                                                                     </View>
                                                                 )}
                                                             </View>

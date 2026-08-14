@@ -4952,9 +4952,15 @@ export const removeRivalParticipant = async (req, res, next) => {
 
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
         const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+        const unassignedArr = Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : [];
         const inParticipants = participants.some(p => p?.id === userId);
         const inSenderTeam  = senderTeamArr.some(p => p.id === userId);
-        if (!inParticipants && !inSenderTeam) return res.status(404).json({ message: 'Bu kullanıcı katılımcı listesinde değil' });
+        // Atanmamış havuzunda (henüz hiçbir slota yerleşmemiş) biri de çıkarılabilmeli —
+        // DOUBLE'da cinsiyet kısıtlaması yüzünden kalan tek boş slota hiç uymayan biri
+        // (ör. erkek kalan tek boş slot kadın-kısıtlıysa) kalıcı olarak Atanmamış'ta sıkışıp
+        // kalıyordu, ne owner atayabiliyordu ne de çıkarabiliyordu (kullanıcı raporu).
+        const inUnassigned = unassignedArr.some(p => p?.id === userId);
+        if (!inParticipants && !inSenderTeam && !inUnassigned) return res.status(404).json({ message: 'Bu kullanıcı katılımcı listesinde değil' });
 
         const removeIds = [userId];
         // DOUBLE maçlarda participants[0]=Rakip 1, participants[1]=Rakip 2 sabit konumludur
@@ -4963,6 +4969,7 @@ export const removeRivalParticipant = async (req, res, next) => {
         // sebep oluyordu. Konumu null ile boşaltıp diziyi olduğu gibi bırakıyoruz.
         const updatedParticipants = inParticipants ? participants.map(p => (removeIds.includes(p?.id) ? null : p)) : participants;
         const updatedSenderTeam   = inSenderTeam  ? senderTeamArr.filter(p => !removeIds.includes(p.id)) : senderTeamArr;
+        const updatedUnassigned  = inUnassigned  ? unassignedArr.filter(p => p?.id !== userId) : unassignedArr;
 
         const wasMatched = rival.status === 'MATCHED';
 
@@ -4994,6 +5001,7 @@ export const removeRivalParticipant = async (req, res, next) => {
             data: {
                 participants: finalParticipants,
                 senderTeam: finalSenderTeam,
+                unassignedPlayers: updatedUnassigned,
                 ...(promotedSub && { substitutePlayers: remainingSubs }),
                 status: staysMatched ? 'MATCHED' : 'OPEN',
                 receiverId: staysMatched ? rival.receiverId : null,
