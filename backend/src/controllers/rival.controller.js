@@ -557,7 +557,10 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
     const pg = gUser?.gender;
     // Cinsiyeti belirtilmemiş kullanıcı MIX olmayan (cinsiyete özel) slotlara uymaz —
     // sadece MIX slotlar veya kendi cinsiyetiyle eşleşen slotlar için uygun sayılır.
-    const fits = (gReq) => pg === 'OTHER' || !gReq || gReq === 'MIX' || pg === gReq;
+    // İkinci parametre verilmezse (mevcut çağrılar) varsayılan olarak bu başvurunun kendi
+    // cinsiyetine (pg) bakar — aşağıdaki havuz uygunluk kontrolü farklı kişiler için de
+    // kullanabilsin diye parametrik hale getirildi.
+    const fits = (gReq, gender = pg) => gender === 'OTHER' || !gReq || gReq === 'MIX' || gender === gReq;
 
     const opp1Filled = !!(participants[0] && participants[0].id);
     const opp2Filled = !!(participants[1] && participants[1].id);
@@ -598,10 +601,39 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
     }
 
     if (openSlots.length === 0) return { error: 'Tüm slotlar dolu.' };
-    const fitsAny = openSlots.some(s => fits(s.req));
-    if (!fitsAny) {
+
+    // BUG (kullanıcı raporu): "3 kadın kabul ettim ama takım arkadaşım kadın, rakip 1 kadın,
+    // rakip 2 erkek olacak şekilde ayarlanmıştı" — eskiden burada SADECE bu başvuranın kendi
+    // başına açık slotlardan BİRİNE uyup uymadığına bakılıyordu (fitsAny). Atanmamış havuzuna
+    // düşen kişiler henüz hiçbir named slotu "dolu" yapmadığı için (partnerFilled/opp1Filled/
+    // opp2Filled hesabı sadece GERÇEKTEN yerleşmiş kişilere bakar), aynı cinsiyetten art arda
+    // 3 kişi kabul edilebiliyordu — üçüncü kabulden sonra erkek gerektiren slot için havuzda
+    // uygun kimse kalmıyordu ama bunu yakalayan bir kontrol yoktu. Artık havuzda ZATEN bekleyen
+    // herkesin cinsiyeti de bu başvuranla BİRLİKTE, açık slotlara (basit backtracking ile) tam
+    // olarak yerleştirilebiliyor mu diye kontrol ediliyor — mümkün değilse kabul reddedilir.
+    const existingUnassigned = (Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []).filter(p => p?.id);
+    const existingGenders = existingUnassigned.length > 0
+        ? await prisma.user.findMany({ where: { id: { in: existingUnassigned.map(p => p.id) } }, select: { id: true, gender: true } })
+        : [];
+    const genderById = Object.fromEntries(existingGenders.map(u => [u.id, u.gender]));
+    const poolGenders = [...existingUnassigned.map(p => genderById[p.id]), pg];
+
+    const canAssignAll = (genders, slots) => {
+        if (genders.length === 0) return true;
+        if (genders.length > slots.length) return false;
+        const [g, ...restGenders] = genders;
+        for (let i = 0; i < slots.length; i++) {
+            if (fits(slots[i].req, g)) {
+                const restSlots = [...slots.slice(0, i), ...slots.slice(i + 1)];
+                if (canAssignAll(restGenders, restSlots)) return true;
+            }
+        }
+        return false;
+    };
+
+    if (!canAssignAll(poolGenders, openSlots)) {
         const details = openSlots.map(s => s.req !== 'MIX' ? `${s.label}: ${s.req === 'MALE' ? 'erkek' : 'kadın'}` : null).filter(Boolean).join(', ');
-        return { error: `Bu oyuncu ilanın cinsiyet gereksinimlerini karşılamıyor.${details ? ` (${details})` : ''}` };
+        return { error: `Bu oyuncuyu kabul edersen, atanmamış havuzundaki bekleyen oyuncularla birlikte kalan slotların cinsiyet gereksinimini karşılamak imkansız hale geliyor.${details ? ` (${details})` : ''}` };
     }
     // Katılımcı/senderTeam'e hiç dokunulmaz — sadece unassignedPlayers'a eklenir.
     return { updatedParticipants: participants, updatedUnassignedPlayers: [...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []), joinerEntry] };
