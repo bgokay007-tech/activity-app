@@ -1294,7 +1294,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 </View>
 
                 {/* Scrollable content */}
-                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom:5 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {/* maintainVisibleContentPosition: demo başvuru/yeni katılım gibi anlık güncellemeler
+                    görünür alanın ÜSTÜNDEKİ içeriğin (İstekler listesi, kadro kartı vb.) boyutunu
+                    değiştirince, kullanıcı hâlâ aynı yeri okurken ekran alakasız bir yere kayıyordu
+                    (kullanıcı raporu: "yukarı kayıyor ne alaka") — bu prop kaydırma konumunu korur. */}
+                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom:5 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }}>
 
                     {/* Kurucu (sol) + Tarih/Saat/Kort/Fiyat (sağ, küçük) — tek satırda */}
                     <View style={{ flexDirection:'row', alignItems:'flex-start', gap:moderateScale(8), marginBottom:item.message ? 8 : 12, paddingBottom:9, borderBottomWidth:1, borderBottomColor: colors.border }}>

@@ -2838,6 +2838,20 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                     <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>@{order.user?.username}</Text>
                                     <Text style={{ color: ORDER_COLORS[order.status], fontSize: 12, fontWeight: '600' }}>{ORDER_LABELS[order.status]}</Text>
                                 </View>
+                                {/* Hangi maç/kort/saat için sipariş verildiği — kullanıcı isteği:
+                                    "hangi maç için hangi oyuncu verdiğini göremiyor". */}
+                                {order.activity && (
+                                    <Text style={{ color: '#60a5fa', fontSize: 11, marginBottom: 3 }}>
+                                        🎾 {order.activity.courtName || 'Kort'}
+                                        {order.activity.matchDate ? ` · ${new Date(order.activity.matchDate).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}` : ''}
+                                        {order.activity.matchTime ? ` ${order.activity.matchTime}` : ''}
+                                    </Text>
+                                )}
+                                {order.notes && (
+                                    <Text style={{ color: '#fbbf24', fontSize: 12, marginBottom: 4, fontStyle: 'italic' }}>
+                                        📝 {order.notes}
+                                    </Text>
+                                )}
                                 {order.items?.map((it, i) => (
                                     <Text key={i} style={{ color: '#aaa', fontSize: 12 }}>
                                         {it.quantity}× {it.menuItem?.name} — {it.unitPrice * it.quantity}₺

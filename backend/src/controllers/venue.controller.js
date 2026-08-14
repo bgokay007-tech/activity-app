@@ -2094,7 +2094,7 @@ export const placeOrder = async (req, res, next) => {
         // eşleşmenin tamamlanmış olması şart değil, sadece geçerli bir rezervasyon/ilan yeterli.
         const venueMatches = await prisma.activityRequest.findMany({
             where: { venueId: id, status: { in: ['OPEN', 'MATCHED', 'COMPLETED'] } },
-            select: { senderId: true, receiverId: true, participants: true, senderTeam: true, venueReservationId: true },
+            select: { id: true, senderId: true, receiverId: true, participants: true, senderTeam: true, venueReservationId: true },
         });
         const myMatch = venueMatches.find(m => {
             if (m.senderId === req.userId || m.receiverId === req.userId) return true;
@@ -2153,6 +2153,7 @@ export const placeOrder = async (req, res, next) => {
             data: {
                 venueId: id, userId: req.userId,
                 totalPrice, notes: notes || null,
+                activityId: myMatch.id || null,
                 items: {
                     create: items.flatMap(i => {
                         const mi = menuItems.find(m => m.id === i.menuItemId);
@@ -2187,7 +2188,19 @@ export const getVenueOrders = async (req, res, next) => {
             },
             orderBy: { createdAt: 'desc' },
         });
-        res.json(orders);
+        // Sipariş verildiği andaki maç/ilan bilgisi (kort, tarih/saat) — activityId FK olmadığı
+        // için (ActivityRequest silinmiş olabilir) tek seferde toplu sorgu + manuel eşleştirme.
+        // Kullanıcı isteği: "hangi maç için hangi oyuncu verdiğini göremiyor".
+        const activityIds = [...new Set(orders.map(o => o.activityId).filter(Boolean))];
+        const activities = activityIds.length > 0
+            ? await prisma.activityRequest.findMany({
+                where: { id: { in: activityIds } },
+                select: { id: true, courtName: true, matchDate: true, matchTime: true, category: true, subCategory: true },
+            })
+            : [];
+        const activityById = Object.fromEntries(activities.map(a => [a.id, a]));
+        const ordersWithActivity = orders.map(o => ({ ...o, activity: o.activityId ? (activityById[o.activityId] || null) : null }));
+        res.json(ordersWithActivity);
     } catch (error) { next(error); }
 };
 

@@ -1617,6 +1617,9 @@ model VenueOrder {
   status     String   @default("PENDING") // PENDING | CONFIRMED | READY | CANCELLED
   totalPrice Int      @default(0)
   notes      String?
+  activityId String?  // sipariş verildiği anda kullanıcının bu tesisteki maçı/ilanı (ActivityRequest.id)
+                       // — FK değil (ActivityRequest silinirse sipariş geçmişi bozulmasın diye), işletmeci
+                       // "hangi maç/oyuncu" görsün diye Sipariş sekmesinde manuel join ile gösterilir.
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

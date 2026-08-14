@@ -312,7 +312,6 @@ export const seedRivalDemoJoin = async (req, res, next) => {
             where: { username: { in: DEMO_RIVAL_PLAYERS.map(d => d.username) } },
             select: { id: true, username: true },
         });
-        const usernameToId = Object.fromEntries(existingDemoUsers.map(u => [u.username, u.id]));
 
         // Bu ilana herhangi bir statüde başvurusu olan demo oyuncuları hariç tut (REJECTED dahil — unique constraint)
         const alreadyApplied = new Set();
@@ -336,7 +335,14 @@ export const seedRivalDemoJoin = async (req, res, next) => {
         fullPool = fullPool.sort(() => Math.random() - 0.5);
 
         for (const demo of fullPool.slice(0, 10)) {
-            const userId = usernameToId[demo.username] || (await ensureDemoRivalPlayer(demo, rival.subCategory)).id;
+            // DİKKAT: usernameToId varsa bile ensureDemoRivalPlayer HER ZAMAN çağrılmalı — bu
+            // havuz tenis VE padel arasında paylaşılıyor (aynı 40 kimlik), ama UserInterest
+            // SADECE bu subCategory için ayrıca upsert ediliyor. Kullanıcı önceden tenis için
+            // oluşturulmuşsa usernameToId dolu geliyordu ve bu satır tamamen atlanıyordu, yani
+            // padel UserInterest'i hiç açılmıyordu — sendJoinRequest içindeki
+            // requireActiveInterest o zaman "önce Aktivitelerim'e eklemelisin" hatası veriyordu
+            // (kullanıcı raporu: bazen çalışıyor bazen "saçma" bir hata çıkıyor).
+            const userId = (await ensureDemoRivalPlayer(demo, rival.subCategory)).id;
             const { status } = await invokeControllerAs(sendJoinRequest, {
                 userId,
                 params: { id: rivalId },
