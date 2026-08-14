@@ -1563,6 +1563,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         ) : item.matchType === 'DOUBLE' ? (() => {
                             const allJoinReqs = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
                             const pendingPartnerInvite = allJoinReqs.find(jr => jr.isPartnerInvite && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING');
+                            // Kullanıcı isteği: ilan oluştururken/sonradan gönderilen genel (slota
+                            // bağlı olmayan) davetler henüz kabul edilmediyse bir forma işgal
+                            // etmesin — "Davet Gönderildi, Onay Bekleniyor" olarak ayrı gösterilir;
+                            // belki kişi hiç kabul etmez, boş yere yer ayrılmasın (bkz. isUnassignedInvite).
+                            const pendingGenericInvites = allJoinReqs.filter(jr => jr.initiatedBy === 'OWNER' && jr.status === 'PENDING' && jr.isUnassignedInvite);
 
                             // Slot kutusu: seçiliyse altın border, doluysa dokunulabilir
                             const SlotBox = ({ slot, gReqLabel, gReqValue, p, fallback, onRemove, locked, highlighted }) => {
@@ -1761,6 +1766,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </View>
                                             </View>
                                         )}
+                                        {pendingGenericInvites.map(jr => (
+                                            <View key={jr.id} style={[cardBox, { opacity:0.75 }]}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                                    <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(28)} color={cfg.color} />
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={det.playerName} numberOfLines={1}>{jr.user?.fullName || jr.user?.username}</Text>
+                                                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1}>⏳ Davet Gönderildi</Text>
+                                                    </View>
+                                                </View>
+                                            </View>
+                                        ))}
                                         {/* Atanmamış — kabul edilmiş ama henüz Takım Arkadaşı/Rakip1/Rakip2'ye
                                             yerleşmemiş oyuncular. İlan sahibi HERKESİ, oyuncunun kendisi de
                                             SADECE kendini atayabilir. */}
@@ -1802,7 +1818,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </View>
                                             );
                                         })}
-                                        {acceptedOthers.length === 0 && !pendingPartnerInvite && unassignedDoubleSlots.length === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
+                                        {acceptedOthers.length === 0 && !pendingPartnerInvite && unassignedDoubleSlots.length === 0 && pendingGenericInvites.length === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
                                     </View>
                                 );
                             }
@@ -7897,7 +7913,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
 // aynı mantık (kullanıcı isteği: "form a yazarak davet edicem açık ilandaki gibi"), sadece
 // burada ilan zaten var (açık ya da eşleşmiş) ve davet backend'e gidiyor (bkz. inviteToRival'daki
 // side parametresi), form state'ine değil.
-function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onOpenPicker, cfg, t, placeholder, genderReq }) {
+function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onOpenPicker, cfg, t, placeholder, genderReq, genderFitsCheck }) {
     const [text, setText] = useState('');
     const [results, setResults] = useState([]);
     const [searching, setSearching] = useState(false);
@@ -7947,8 +7963,12 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                                 // zaten aynı kontrolü yapıyor ama ilan OLUŞTURMA formunda (onPick)
                                 // submit'e kadar backend hiç devreye girmiyor, kullanıcı yanlış
                                 // cinsiyette birini seçtiğini ancak Derece ekranında fark ediyordu.
-                                if (genderReq && genderReq !== 'MIX' && u.gender !== 'OTHER' && u.gender !== genderReq) {
-                                    Alert.alert(t.genderMismatchTitle, t.genderMismatchMsg(genderReq));
+                                // genderFitsCheck: DOUBLE'da artık kadro kartındaki formalar belirli
+                                // bir slota bağlı değil (genel "atanmamış" davet) — sabit tek bir
+                                // genderReq yerine, adayın ÜÇ slottan EN AZ birine uyup uymadığı
+                                // kontrol edilir (bkz. DoubleRosterCard).
+                                if (genderFitsCheck ? !genderFitsCheck(u.gender) : (genderReq && genderReq !== 'MIX' && u.gender !== 'OTHER' && u.gender !== genderReq)) {
+                                    Alert.alert(t.genderMismatchTitle, genderFitsCheck ? t.genderMismatchAnyMsg : t.genderMismatchMsg(genderReq));
                                     return;
                                 }
                                 setText(''); setResults([]); setFocused(false);
@@ -8233,15 +8253,16 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
         });
     };
     const rotateY = flipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
-    // Cinsiyet kısıtlaması artık kartın İÇİNDE seçilmiyor — 2v2 seçilince açılan ayrı bir modalda
-    // (showGenderReqModal, bkz. CreateRivalModal) belirleniyor, eskisi gibi. Kart sadece seçileni
-    // forma etiketinin yanında salt-okunur ♂/♀ olarak gösterir.
-    // ♂/♀ sembolü herkes tarafından anlaşılmayabilir (kullanıcı isteği) — açık metin kullanılıyor.
-    const stripEmojiLocal = (str) => (str || '').replace(/^\S+\s+/, '');
-    const genderTagLocal = (req) => req === 'MALE' ? ` (${stripEmojiLocal(t.genderMale) || 'Erkek'})` : req === 'FEMALE' ? ` (${stripEmojiLocal(t.genderFemale) || 'Kadın'})` : '';
+    // Kullanıcı isteği: kadro kartından davet edilen kişiler artık belirli bir slota (Takım
+    // Arkadaşı/Rakip1/Rakip2) "yerleşmiş" gibi gösterilmiyor — henüz kabul etmediler, hangi
+    // slota gideceği kabul ettikten sonra belli olur (bkz. submit'teki unassignedInviteIds).
+    // Bu yüzden tek bir sabit genderReq yerine, adayın üç slottan EN AZ birine uyup uymadığı
+    // kontrol edilir.
+    const fitsAnyGenderSlot = (gender) => [f.partnerGenderReq, f.opp1GenderReq, f.opp2GenderReq]
+        .some(req => !req || req === 'MIX' || gender === 'OTHER' || gender === req);
     // Dolu forma → isim + ✕; boş forma (düzenleme DIŞINDayken — backend invite ID'lerini
     // düzenlemede kabul etmiyor) → arama/davet alanı.
-    const renderSlot = (field, placeholder, genderReq) => f[field] ? (
+    const renderSlot = (field, placeholder) => f[field] ? (
         <TouchableOpacity onPress={() => set(field, null)}
             style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:5, paddingVertical:4 }}>
             <Avatar name={f[field].username} avatar={f[field].avatar} size={16} color={cfg.color} />
@@ -8250,7 +8271,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
         </TouchableOpacity>
     ) : !editItem ? (
         <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={placeholder}
-            genderReq={genderReq}
+            genderFitsCheck={fitsAnyGenderSlot}
             onPick={(u) => set(field, u)} onOpenPicker={onLongPressEmptySlot} />
     ) : null;
     // Voleybolün ilan oluşturma kartıyla BİREBİR AYNI davranış (kullanıcı isteği: "voleyboldeki
@@ -8282,9 +8303,9 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
                                     )}
                                 </View>
                             </View>
-                            {[['partner', t.teamSlotPh ? t.teamSlotPh(2) : '2. Oyuncu', f.partnerGenderReq], ['opp1Invite', t.teamSlotPh ? t.teamSlotPh(3) : '3. Oyuncu', f.opp1GenderReq], ['opp2Invite', t.teamSlotPh ? t.teamSlotPh(4) : '4. Oyuncu', f.opp2GenderReq]].map(([field, ph, genderReq]) => (
+                            {[['partner', t.teamSlotPh ? t.teamSlotPh(2) : '2. Oyuncu'], ['opp1Invite', t.teamSlotPh ? t.teamSlotPh(3) : '3. Oyuncu'], ['opp2Invite', t.teamSlotPh ? t.teamSlotPh(4) : '4. Oyuncu']].map(([field, ph]) => (
                                 <View key={field} style={{ width:'48%' }}>
-                                    {renderSlot(field, ph, genderReq)}
+                                    {renderSlot(field, ph)}
                                 </View>
                             ))}
                         </View>
@@ -8298,33 +8319,26 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
                                 <Text style={{ fontSize:14 }}>🔄</Text>
                             </TouchableOpacity>
                         </View>
-                        <View style={{ flexDirection:'row', gap:6 }}>
-                            <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#a855f720' }}>
-                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
-                                    <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{f.founderTeamName || 'Takım 1'}</Text>
-                                    <TouchableOpacity onPress={() => onEditTeamName({ side:'founder', value: f.founderTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                                        <Text style={{ fontSize:9 }}>✎</Text>
-                                    </TouchableOpacity>
-                                </View>
-                                <View style={{ borderRadius:5, paddingHorizontal:3, paddingVertical:2, backgroundColor:'#1e293b', marginBottom:4 }}>
-                                    <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{myUser?.fullName || myUser?.username} 🔒</Text>
-                                </View>
-                                <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>{(t.partnerGenderLabel || 'Takım Arkadaşı')}{genderTagLocal(f.partnerGenderReq)}</Text>
-                                {renderSlot('partner', t.choosePartnerBtn, f.partnerGenderReq)}
+                        {/* Kullanıcı isteği: davet edilen kişiler henüz kabul etmediği için burada
+                            belirli bir Takım 1/Takım 2 slotuna "yerleşmiş" gibi gösterilmiyor —
+                            takım isimleri hâlâ önceden ayarlanabilir (skor ekranında kullanılacak)
+                            ama kim hangi takımda oynayacağı davetler kabul edildikten sonra belli
+                            olur (bkz. RivalDetailModal'daki kadro kartı). */}
+                        <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                            <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#a855f720', flexDirection:'row', alignItems:'center', gap:3 }}>
+                                <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{f.founderTeamName || 'Takım 1'}</Text>
+                                <TouchableOpacity onPress={() => onEditTeamName({ side:'founder', value: f.founderTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                    <Text style={{ fontSize:9 }}>✎</Text>
+                                </TouchableOpacity>
                             </View>
-                            <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#f8717120' }}>
-                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
-                                    <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{f.opponentTeamName || 'Takım 2'}</Text>
-                                    <TouchableOpacity onPress={() => onEditTeamName({ side:'opponent', value: f.opponentTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                                        <Text style={{ fontSize:9 }}>✎</Text>
-                                    </TouchableOpacity>
-                                </View>
-                                <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>{(t.opp1GenderLabel || 'Rakip 1')}{genderTagLocal(f.opp1GenderReq)}</Text>
-                                {renderSlot('opp1Invite', t.inviteSendBtn, f.opp1GenderReq)}
-                                <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700', marginTop:5, marginBottom:2 }} numberOfLines={1}>{(t.opp2GenderLabel || 'Rakip 2')}{genderTagLocal(f.opp2GenderReq)}</Text>
-                                {renderSlot('opp2Invite', t.inviteSendBtn, f.opp2GenderReq)}
+                            <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#f8717120', flexDirection:'row', alignItems:'center', gap:3 }}>
+                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{f.opponentTeamName || 'Takım 2'}</Text>
+                                <TouchableOpacity onPress={() => onEditTeamName({ side:'opponent', value: f.opponentTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                    <Text style={{ fontSize:9 }}>✎</Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
+                        <Text style={s.fieldHint}>{t.rosterTeamAssignAfterAcceptHint}</Text>
                         {/* Takım Değişikliği (esnek/sabit) — kullanıcı isteğiyle ayrı bir satır değil,
                             kartın kendi içinde, en altta. */}
                         <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginTop:8 }}>
@@ -9576,15 +9590,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 minGenderReq: (isVolleyball || sub === 'airsoft') && f.minGenderReq ? f.minGenderReq : undefined,
                 minGenderCount: (isVolleyball || sub === 'airsoft') && f.minGenderCount != null ? f.minGenderCount : undefined,
                 winsNeeded: sub === 'airsoft' && f.winsNeeded != null ? f.winsNeeded : undefined,
-                partnerInviteId: !isTeamSport && f.matchType === 'DOUBLE' && f.partner
-                    ? f.partner.id
-                    : undefined,
-                opp1InviteId: !isTeamSport && f.matchType === 'DOUBLE' && f.opp1Invite
-                    ? f.opp1Invite.id
-                    : undefined,
-                opp2InviteId: !isTeamSport && f.matchType === 'DOUBLE' && f.opp2Invite
-                    ? f.opp2Invite.id
-                    : undefined,
+                // Kullanıcı isteği: ilan oluştururken kadro kartından (ön yüz) davet edilen
+                // kişiler artık DOĞRUDAN Takım Arkadaşı/Rakip1/Rakip2 slotuna "yerleşmiş" gibi
+                // gösterilmiyor/gönderilmiyor — henüz kabul etmediler, hangi slota gideceği
+                // kabul ettikten sonra belli olur (bkz. aşağıdaki unassignedInviteIds ve
+                // backend respondToJoin'deki isUnassignedInvite dalı). Slota özel davet artık
+                // sadece ilan OLUŞTUKTAN SONRA (RivalDetailModal/UpcomingCard'daki kadro
+                // kartından) mümkün.
+                partnerInviteId: undefined,
+                opp1InviteId: undefined,
+                opp2InviteId: undefined,
                 venueId:            f.venueId       || undefined,
                 venueCourtId:       f.venueCourtId   || undefined,
                 venueReservationId,
@@ -9621,9 +9636,15 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 substituteManualNames: undefined,
                 // Hangi takımda oynayacağı henüz belli olmayan (side:null) dolu slotlar —
                 // ilan oluştururken herkesi atamak artık zorunlu değil (kullanıcı isteği).
+                // DOUBLE (tenis/padel): kadro kartından seçilen 3 aday da (Partner/Rakip1/Rakip2
+                // formaları — artık slota özel değil, bkz. yukarıdaki partnerInviteId notu) aynı
+                // genel "atanmamış davet" akışına giriyor — kabul ederlerse Atanmamış havuzuna
+                // düşerler, hangi slota gideceğine ilan sahibi (ya da kendileri) sonradan karar verir.
                 unassignedInviteIds: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'user' && !s.side).map(s => s.userId)
-                    : undefined,
+                    : (!isTeamSport && f.matchType === 'DOUBLE' && (sub === 'tennis' || sub === 'padel'))
+                        ? [f.partner, f.opp1Invite, f.opp2Invite].filter(Boolean).map(u => u.id)
+                        : undefined,
                 unassignedManualNames: undefined,
             });
             // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
