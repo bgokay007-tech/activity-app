@@ -1796,15 +1796,18 @@ export const createRivalRequest = async (req, res, next) => {
                     emitToUser(partnerInviteId, 'rivalUpdate', updatedRival);
                 }
                 const me = request.sender;
+                // Takım Değişikliği kapalıysa (STRICT) davet edilen kişi, hangi pozisyona
+                // yerleştiğini AYRICA görüp bunun değişmeyeceğini bilsin (kullanıcı isteği).
+                const strictNote = teamFlexibility === 'STRICT' ? ' Takım değişikliği kapalı, bu pozisyonda kalacaksınız.' : '';
                 createNotification(
                     partnerInviteId, 'MATCH_INVITE',
                     `🤝 ${subCategoryTR(request.subCategory)} Partner Daveti`,
-                    `@${me?.username || 'Biri'} sizi çiftler maçında partner olmaya davet etti.`,
+                    `@${me?.username || 'Biri'} sizi çiftler maçında partner olmaya davet etti.${strictNote}`,
                     { category: request.category, subCategory: request.subCategory, rivalId: request.id }
                 ).catch(() => {});
                 emitToUser(partnerInviteId, 'notification', {
                     type: 'MATCH_INVITE', title: `🤝 ${subCategoryTR(request.subCategory)} Partner Daveti`,
-                    body: `@${me?.username || 'Biri'} sizi çiftler maçında partner olmaya davet etti.`,
+                    body: `@${me?.username || 'Biri'} sizi çiftler maçında partner olmaya davet etti.${strictNote}`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });
             }).catch(() => {});
@@ -1831,15 +1834,20 @@ export const createRivalRequest = async (req, res, next) => {
                     emitToUser(oppInviteId, 'rivalUpdate', updatedRival);
                 }
                 const me = request.sender;
+                // Hangi slottan (Rakip 1/Rakip 2) davet edildiği başlık+metinde AÇIKÇA belirtiliyor
+                // (kullanıcı isteği: "hangi slottan davet edildiyse öyle bildirim gitsin") — Takım
+                // Değişikliği kapalıysa (STRICT) bu pozisyonun değişmeyeceği de ayrıca ekleniyor.
+                const oppSlotLabel = oppSlot === 'opp1' ? 'Rakip 1' : 'Rakip 2';
+                const strictNote = teamFlexibility === 'STRICT' ? ' Takım değişikliği kapalı, bu pozisyonda kalacaksınız.' : '';
                 createNotification(
                     oppInviteId, 'MATCH_INVITE',
-                    `🎾 ${subCategoryTR(request.subCategory)} Maç Daveti`,
-                    `@${me?.username || 'Biri'} sizi bir maça davet etti.`,
+                    `🎾 ${oppSlotLabel} Daveti`,
+                    `@${me?.username || 'Biri'} sizi ${oppSlotLabel} olmaya davet etti.${strictNote}`,
                     { category: request.category, subCategory: request.subCategory, rivalId: request.id }
                 ).catch(() => {});
                 emitToUser(oppInviteId, 'notification', {
-                    type: 'MATCH_INVITE', title: `🎾 ${subCategoryTR(request.subCategory)} Maç Daveti`,
-                    body: `@${me?.username || 'Biri'} sizi bir maça davet etti.`,
+                    type: 'MATCH_INVITE', title: `🎾 ${oppSlotLabel} Daveti`,
+                    body: `@${me?.username || 'Biri'} sizi ${oppSlotLabel} olmaya davet etti.${strictNote}`,
                     data: { category: request.category, subCategory: request.subCategory, rivalId: request.id },
                 });
             }).catch(() => {});
@@ -2750,6 +2758,9 @@ export const inviteToRival = async (req, res, next) => {
         const isRefereeAd = Array.isArray(rival.positions) && rival.positions.includes('REFEREE');
         const teamInviteEmoji = rival.subCategory === 'airsoft' ? '🪖' : '🏐';
         const doubleSlotLabel = slot === 'partner' ? 'Takım Arkadaşı' : slot === 'opp1' ? 'Rakip 1' : 'Rakip 2';
+        // Takım Değişikliği kapalıysa (STRICT) davet edilen kişi bu pozisyonun değişmeyeceğini de
+        // görsün (kullanıcı isteği).
+        const doubleStrictNote = isDoubleSlotInvite && rival.teamFlexibility === 'STRICT' ? ' Takım değişikliği kapalı, bu pozisyonda kalacaksınız.' : '';
         createNotification(
             userId, 'MATCH_INVITE',
             isRefereeAd ? '🟨 Hakemlik Daveti'
@@ -2758,7 +2769,7 @@ export const inviteToRival = async (req, res, next) => {
                 : `🎾 ${subCategoryTR(rival.subCategory)} Maç Daveti`,
             isRefereeAd ? `@${me?.username} sizi maçında hakemlik yapmaya davet etti.`
                 : isTeamSlotInvite ? `@${me?.username} sizi ${side === 'my' ? 'Kurucu Takım' : 'Rakip Takım'}'a davet etti.`
-                : isDoubleSlotInvite ? `@${me?.username} sizi ${doubleSlotLabel} olmaya davet etti.`
+                : isDoubleSlotInvite ? `@${me?.username} sizi ${doubleSlotLabel} olmaya davet etti.${doubleStrictNote}`
                 : `@${me?.username} sizi bir maça davet etti.`,
             {
                 category: rival.category, subCategory: rival.subCategory, rivalId: rival.id, ...(isRefereeAd && { refereeAd: true }),

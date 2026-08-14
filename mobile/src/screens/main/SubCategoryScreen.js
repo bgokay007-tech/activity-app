@@ -7919,6 +7919,82 @@ function FriendsMultiPickerModal({ visible, onClose, sub, category, t, cfg, maxS
     );
 }
 
+// SINGLE (tenis/padel 1v1) ilan OLUŞTURMA formundaki kadro kartı — eskiden "Rakip Davet Et"
+// butonuyla açılan ayrı bir arama penceresi vardı, kullanıcı isteğiyle DOUBLE'daki Digimon kart
+// mantığına uyarlandı: ön yüz "Katılan Oyuncular" (1 satır, 2 forma — kurucu kilitli + rakip
+// yazılabilir), arka yüz aynı 2 forma Kurucu/Rakip etiketiyle. Doğrudan f.singleOppInvite'a
+// bağlı, submit'teki mekanik (POST /invite, ilan oluştuktan hemen sonra) hiç değişmiyor.
+function SingleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, t, editItem, onLongPressEmptySlot }) {
+    const flipAnim = useRef(new Animated.Value(0)).current;
+    const [isBack, setIsBack] = useState(false);
+    const flip = () => {
+        Animated.timing(flipAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(() => {
+            setIsBack(b => !b);
+            Animated.timing(flipAnim, { toValue: isBack ? 0 : 1, duration: 150, useNativeDriver: true }).start();
+        });
+    };
+    const rotateY = flipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
+    const selfCell = (
+        <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
+            <Avatar name={myUser?.username} avatar={myUser?.avatar} size={14} color={cfg.color} />
+            <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
+            {myOwnRating != null && (
+                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(myOwnRating).toFixed(2)}★</Text>
+            )}
+        </View>
+    );
+    const oppSlot = f.singleOppInvite ? (
+        <TouchableOpacity onPress={() => set('singleOppInvite', null)}
+            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:5, paddingVertical:4 }}>
+            <Avatar name={f.singleOppInvite.username} avatar={f.singleOppInvite.avatar} size={16} color={cfg.color} />
+            <Text style={{ color:'#fff', fontSize:10, flex:1, fontWeight:'700' }} numberOfLines={1}>{f.singleOppInvite.fullName || f.singleOppInvite.username}</Text>
+            <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
+        </TouchableOpacity>
+    ) : !editItem ? (
+        <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={t.inviteOpponentTitle || t.opponentTeamShortLabel || 'Rakip'}
+            onPick={(u) => set('singleOppInvite', u)} onOpenPicker={onLongPressEmptySlot} />
+    ) : null;
+    return (
+        <View style={{ marginBottom:10 }}>
+            <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor:'#ffffff20', padding:10, transform:[{ perspective:800 }, { rotateY }] }}>
+                {!isBack ? (
+                    <>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.rosterPoolLabel}</Text>
+                            <TouchableOpacity onPress={flip} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                <Text style={{ fontSize:15 }}>🔄</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={{ flexDirection:'row', gap:6 }}>
+                            <View style={{ flex:1 }}>{selfCell}</View>
+                            <View style={{ flex:1 }}>{oppSlot}</View>
+                        </View>
+                    </>
+                ) : (
+                    <>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>👤</Text>
+                            <TouchableOpacity onPress={flip} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                <Text style={{ fontSize:14 }}>🔄</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={{ flexDirection:'row', gap:6 }}>
+                            <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#a855f720' }}>
+                                <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{t.founderTeamShortLabel || 'Kurucu'}</Text>
+                                {selfCell}
+                            </View>
+                            <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#f8717120' }}>
+                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{t.opponentTeamShortLabel || 'Rakip'}</Text>
+                                {oppSlot}
+                            </View>
+                        </View>
+                    </>
+                )}
+            </Animated.View>
+        </View>
+    );
+}
+
 // DOUBLE (tenis/padel 2v2) ilan OLUŞTURMA formundaki kadro kartı — voleybol/airsoft'un Digimon
 // kartıyla AYNI görsel dil: ön yüz katılan/seçilenlerin havuzu, arka yüz Takım 1 (kurucu+partner)
 // | Takım 2 (rakip1+rakip2) sütunları, boş formaya yazıp öneriden tıklayınca (ya da uzun basıp
@@ -8739,10 +8815,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [teamNameEdit, setTeamNameEdit] = useState(null); // { side: 'founder'|'opponent', value } | null
     const [showEloWarning, setShowEloWarning] = useState(false);
     const [eloWarningDismissed, setEloWarningDismissed] = useState(false);
-    // DoubleRosterCard'daki boş bir formaya uzun basınca açılan çoklu-seç arkadaş listesi —
-    // seçilenler kalan boş partner/opp1/opp2 alanlarına sırayla yerel state'e yazılır (kullanıcı
-    // isteği), ilan submit edilmeden davet gitmez (bkz. FriendsMultiPickerModal onConfirm).
-    const [showDoubleFriendsPicker, setShowDoubleFriendsPicker] = useState(false);
+    // DoubleRosterCard/SingleRosterCard'daki boş bir formaya uzun basınca açılan çoklu-seç
+    // arkadaş listesi — seçilenler kalan boş alanlara (DOUBLE: partner/opp1/opp2, SINGLE:
+    // singleOppInvite) sırayla yerel state'e yazılır, ilan submit edilmeden davet gitmez
+    // (bkz. FriendsMultiPickerModal onConfirm).
+    const [showFriendsPicker, setShowFriendsPicker] = useState(false);
     const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null });
     const [myUnlistedRes, setMyUnlistedRes] = useState([]);
     // "Değiştir"e basılınca kort alanları hemen temizlenir ama eski rezervasyon
@@ -9543,7 +9620,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 Alert.alert('Format Değiştirilemez', 'Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemez — önce katılımcıları çıkarabilirsin.');
                                                                 return;
                                                             }
-                                                            if (fmt.id === 'SINGLE') setInviteTarget('singleOpp');
                                                             setShowGenderReqModal(true);
                                                             setF(p => ({
                                                                 ...p,
@@ -9607,14 +9683,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <Text style={{ fontSize:14 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
                                         </TouchableOpacity>
                                     </View>
-                                    )}
-                                    {!isTeamSport && f.matchType === 'SINGLE' && f.singleOppInvite && (
-                                        <TouchableOpacity onPress={() => set('singleOppInvite', null)}
-                                            style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:3, backgroundColor: cfg.color+'15', borderRadius:10, borderWidth:1, borderColor: cfg.color+'40', paddingHorizontal:8, paddingVertical:5, marginBottom:8 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteSendBtn}:</Text>
-                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{f.singleOppInvite.fullName || f.singleOppInvite.username}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
-                                        </TouchableOpacity>
                                     )}
                                     {(() => {
                                         // SINGLE'da cinsiyet zaten tekil (Erkek/Kadın) seçildiyse VEYA DOUBLE'da
@@ -10801,8 +10869,21 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     <DoubleRosterCard
                                         f={f} set={set} myUser={myUser} myOwnRating={myOwnRating}
                                         cfg={cfg} sub={sub} category={category} s={s} t={t} editItem={editItem}
-                                        onLongPressEmptySlot={() => setShowDoubleFriendsPicker(true)}
+                                        onLongPressEmptySlot={() => setShowFriendsPicker(true)}
                                         onEditTeamName={setTeamNameEdit}
+                                    />
+                                </View>
+                            )}
+                            {/* SINGLE (1v1) kadro kartı — "Rakip Davet Et" akışı yerine DOUBLE'daki gibi
+                                Digimon kart: ön yüz "Katılan Oyuncular" (1 satır, 2 forma — kurucu kilitli
+                                + rakip yazılabilir), arka yüz Kurucu/Rakip etiketli aynı 2 forma (kullanıcı
+                                isteği: "aynı mantık 1v1'e göre uyarla"). */}
+                            {f.matchType === 'SINGLE' && !isTeamSport && (sub === 'tennis' || sub === 'padel') && (
+                                <View style={{ marginBottom:14 }}>
+                                    <SingleRosterCard
+                                        f={f} set={set} myUser={myUser} myOwnRating={myOwnRating}
+                                        cfg={cfg} sub={sub} category={category} t={t} editItem={editItem}
+                                        onLongPressEmptySlot={() => setShowFriendsPicker(true)}
                                     />
                                 </View>
                             )}
@@ -10964,14 +11045,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 </KeyboardAvoidingView>
 
                 <FriendsMultiPickerModal
-                    visible={showDoubleFriendsPicker}
-                    onClose={() => setShowDoubleFriendsPicker(false)}
+                    visible={showFriendsPicker}
+                    onClose={() => setShowFriendsPicker(false)}
                     sub={sub} category={category} cfg={cfg} t={t}
-                    maxSelect={['partner', 'opp1Invite', 'opp2Invite'].filter(k => !f[k]).length}
+                    maxSelect={f.matchType === 'DOUBLE'
+                        ? ['partner', 'opp1Invite', 'opp2Invite'].filter(k => !f[k]).length
+                        : (f.singleOppInvite ? 0 : 1)}
                     confirmLabel={(n) => t.friendsMultiPickerAddBtn(n)}
                     onConfirm={(users) => {
-                        const emptyKeys = ['partner', 'opp1Invite', 'opp2Invite'].filter(k => !f[k]);
-                        users.forEach((u, i) => { if (emptyKeys[i]) set(emptyKeys[i], u); });
+                        if (f.matchType === 'DOUBLE') {
+                            const emptyKeys = ['partner', 'opp1Invite', 'opp2Invite'].filter(k => !f[k]);
+                            users.forEach((u, i) => { if (emptyKeys[i]) set(emptyKeys[i], u); });
+                        } else if (users[0]) {
+                            set('singleOppInvite', users[0]);
+                        }
                     }}
                 />
 
