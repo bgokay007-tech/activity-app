@@ -59,6 +59,12 @@ function navigateFromNotif(data) {
                 // Kadro kartındaki bir slota doğrudan davet edildiyse (bkz. inviteToRival),
                 // ilan detayı açılınca kartın arka yüzü o slotu vurgulayarak açılsın diye.
                 ...(data.inviteSide && { inviteSide: data.inviteSide, inviteSlotIndex: data.inviteSlotIndex ?? null }),
+                // DOUBLE (2v2 tenis/padel) forma daveti — NotificationsScreen'deki (uygulama içi
+                // bildirim listesi) aynı alanla AYNI mantık, burada gerçek OS bildirim tıklaması
+                // (bildirim tepsisinden) için — bu ikisi AYRI kod yolları, biri unutulunca
+                // "bildirime tıklayınca kart görünmüyor" hatası sadece OS bildiriminde ortaya
+                // çıkıyordu (kullanıcı raporu).
+                ...(data.inviteDoubleSlot && { inviteDoubleSlot: data.inviteDoubleSlot }),
             },
         });
     }
