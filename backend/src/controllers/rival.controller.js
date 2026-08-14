@@ -93,7 +93,7 @@ async function applyCompetitivePoints(request, winnerUserId) {
     } else {
         winnerIds = [winnerUserId];
         loserIds  = [{ id: request.senderId }, ...participants]
-            .filter(p => p.id !== winnerUserId)
+            .filter(p => p?.id && p.id !== winnerUserId)
             .map(p => p.id);
     }
 
@@ -3764,7 +3764,7 @@ export const getUpcomingMatches = async (req, res, next) => {
         }
         for (const m of scheduleExpired) {
             const parts = Array.isArray(m.participants) ? m.participants : [];
-            const allIds = [m.senderId, ...parts.map(p => p.id)];
+            const allIds = [m.senderId, ...parts.filter(p => p?.id).map(p => p.id)];
             for (const uid of allIds) {
                 createNotification(uid, 'MATCH_EXPIRED',
                     '⏰ Maç Silindi',
@@ -3875,7 +3875,7 @@ export const addMatchComment = async (req, res, next) => {
 
         // Notify owner + participants (except commenter)
         const parts = Array.isArray(match.participants) ? match.participants : [];
-        const allIds = [...new Set([match.senderId, ...parts.map(p => p.id)])].filter(uid => uid !== req.userId);
+        const allIds = [...new Set([match.senderId, ...parts.filter(p => p?.id).map(p => p.id)])].filter(uid => uid !== req.userId);
         const commenterUsername = comment.user?.username || 'Biri';
         for (const uid of allIds) {
             emitToUser(uid, 'newComment', { rivalId: id, comment });
@@ -3900,8 +3900,8 @@ export const deleteMatchComment = async (req, res, next) => {
         const myId = req.userId;
         const parts = Array.isArray(comment.rival?.participants) ? comment.rival.participants : [];
         const isAuthor = comment.userId === myId;
-        const iAmParticipant = comment.rival?.senderId === myId || parts.some(p => p.id === myId);
-        const commenterIsParticipant = comment.rival?.senderId === comment.userId || parts.some(p => p.id === comment.userId);
+        const iAmParticipant = comment.rival?.senderId === myId || parts.some(p => p?.id === myId);
+        const commenterIsParticipant = comment.rival?.senderId === comment.userId || parts.some(p => p?.id === comment.userId);
         // Own comment: always deletable.
         // Outsider's comment: deletable by any match participant.
         // Participant's comment: only deletable by themselves.
@@ -4200,10 +4200,12 @@ export async function runScoreConfirmation(request) {
     });
 
     // Snapshot ratings BEFORE ELO changes
+    // participants/senderTeam DOUBLE'da setAtSlot ile boş slotlara null bırakılarak
+    // dolduruluyor — p.id null üzerinde patlamasın diye önce filtrele.
     const allPlayerIds = [
         request.senderId,
-        ...participants.map(p => p.id),
-        ...senderTeamArr.map(m => m.id),
+        ...participants.filter(p => p?.id).map(p => p.id),
+        ...senderTeamArr.filter(m => m?.id).map(m => m.id),
     ];
     const [interestsBefore, playersInfo] = await Promise.all([
         prisma.userInterest.findMany({
@@ -4256,7 +4258,7 @@ export async function runScoreConfirmation(request) {
     });
 
     // Emit to all players so their screens update in real-time
-    const allPlayerIds2 = [...new Set([request.senderId, ...participants.map(p => p.id)])];
+    const allPlayerIds2 = [...new Set([request.senderId, ...participants.filter(p => p?.id).map(p => p.id)])];
     for (const uid of allPlayerIds2) emitToUser(uid, 'rivalUpdate', updated);
 
     // Akran doğrulama: rekabetçi voleybol maçı onaylandığında roster'daki herkese
@@ -4286,8 +4288,8 @@ export const confirmScore = async (req, res, next) => {
         const participants = Array.isArray(request.participants) ? request.participants : [];
         const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
 
-        const teamA = new Set([request.senderId, ...senderTeamArr.map(m => m.id)]);
-        const teamB = new Set(participants.map(p => p.id));
+        const teamA = new Set([request.senderId, ...senderTeamArr.filter(m => m?.id).map(m => m.id)]);
+        const teamB = new Set(participants.filter(p => p?.id).map(p => p.id));
 
         const confirmerInA = teamA.has(req.userId);
         const confirmerInB = teamB.has(req.userId);
@@ -4342,7 +4344,7 @@ export const extendScoreDeadline = async (req, res, next) => {
             data: { completedAt: newCompletedAt },
         });
 
-        const allIds = [...new Set([request.senderId, ...participants.map(p => p.id)])];
+        const allIds = [...new Set([request.senderId, ...participants.filter(p => p?.id).map(p => p.id)])];
         for (const uid of allIds) emitToUser(uid, 'rivalUpdate', updated);
 
         res.json({ message: `✓ Deadline extended by ${hours} hours.`, completedAt: newCompletedAt });
@@ -4376,7 +4378,7 @@ export const disputeScore = async (req, res, next) => {
 
         // Notify both players about admin report option
         const participants = Array.isArray(request.participants) ? request.participants : [];
-        const allPlayers = [{ id: request.senderId }, ...participants].filter(p => p.id !== req.userId);
+        const allPlayers = [{ id: request.senderId }, ...participants].filter(p => p?.id && p.id !== req.userId);
         for (const p of allPlayers) emitToUser(p.id, 'rivalUpdate', updated);
         emitToUser(req.userId, 'rivalUpdate', updated);
 
@@ -4400,7 +4402,7 @@ export const reportDispute = async (req, res, next) => {
         if (!request) return res.status(404).json({ message: 'Not found' });
 
         const participants = Array.isArray(request.participants) ? request.participants : [];
-        const allIds = [request.senderId, ...participants.map(p => p.id)];
+        const allIds = [request.senderId, ...participants.filter(p => p?.id).map(p => p.id)];
 
         res.json({ message: 'Report filed. An admin will review.' });
 
@@ -4548,7 +4550,7 @@ export const getCompletedMatches = async (req, res, next) => {
         const result = all.filter(r => {
             if (r.senderId === myId || r.receiverId === myId) return true;
             const parts = Array.isArray(r.participants) ? r.participants : [];
-            return parts.some(p => p.id === myId);
+            return parts.some(p => p?.id === myId);
         });
         res.json(result);
     } catch (error) { next(error); }
@@ -4574,7 +4576,7 @@ export const getArchivedMatchesBySport = async (req, res, next) => {
         const result = all.filter(r => {
             if (r.senderId === myId || r.receiverId === myId) return true;
             const parts = Array.isArray(r.participants) ? r.participants : [];
-            return parts.some(p => p.id === myId);
+            return parts.some(p => p?.id === myId);
         });
         res.json(result);
     } catch (error) { next(error); }
@@ -4986,7 +4988,7 @@ export const removeRivalParticipant = async (req, res, next) => {
         const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
         const unassignedArr = Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : [];
         const inParticipants = participants.some(p => p?.id === userId);
-        const inSenderTeam  = senderTeamArr.some(p => p.id === userId);
+        const inSenderTeam  = senderTeamArr.some(p => p?.id === userId);
         // Atanmamış havuzunda (henüz hiçbir slota yerleşmemiş) biri de çıkarılabilmeli —
         // DOUBLE'da cinsiyet kısıtlaması yüzünden kalan tek boş slota hiç uymayan biri
         // (ör. erkek kalan tek boş slot kadın-kısıtlıysa) kalıcı olarak Atanmamış'ta sıkışıp
@@ -5000,7 +5002,7 @@ export const removeRivalParticipant = async (req, res, next) => {
         // kalan oyuncuyu index 0'a kaydırıp onu yanlışlıkla Rakip 1 gibi göstermeye/okumaya
         // sebep oluyordu. Konumu null ile boşaltıp diziyi olduğu gibi bırakıyoruz.
         const updatedParticipants = inParticipants ? participants.map(p => (removeIds.includes(p?.id) ? null : p)) : participants;
-        const updatedSenderTeam   = inSenderTeam  ? senderTeamArr.filter(p => !removeIds.includes(p.id)) : senderTeamArr;
+        const updatedSenderTeam   = inSenderTeam  ? senderTeamArr.filter(p => !removeIds.includes(p?.id)) : senderTeamArr;
         const updatedUnassigned  = inUnassigned  ? unassignedArr.filter(p => p?.id !== userId) : unassignedArr;
 
         const wasMatched = rival.status === 'MATCHED';
@@ -5130,7 +5132,10 @@ export const cancelMatch = async (req, res, next) => {
         const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId) || senderTeamIds.includes(req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
-        const allPlayerIds = [request.senderId, ...senderTeamIds, ...participants.map(p => p.id)];
+        // participants/senderTeam DOUBLE'da setAtSlot ile boş slotlara null bırakılarak
+        // dolduruluyor (bkz. setAtSlot) — p.id null üzerinde patlıyordu, "Cannot read
+        // properties of null (reading 'id')" hatasıyla iptal işlemi çöküyordu.
+        const allPlayerIds = [request.senderId, ...senderTeamIds, ...participants.filter(p => p?.id).map(p => p.id)];
         const otherPlayerIds = allPlayerIds.filter(uid => uid !== req.userId);
 
         // Ceza penceresi: diğer dallarda sabit 5 saat/-0.20 puan. Voleybolde ise genel
@@ -5300,7 +5305,7 @@ export const getMyUpcomingMatches = async (req, res, next) => {
             await prisma.activityRequest.deleteMany({ where: { id: { in: schedExpired.map(m => m.id) } } });
             for (const m of schedExpired) {
                 const parts = Array.isArray(m.participants) ? m.participants : [];
-                const allIds = [...new Set([m.senderId, ...parts.map(p => p.id)])];
+                const allIds = [...new Set([m.senderId, ...parts.filter(p => p?.id).map(p => p.id)])];
                 for (const uid of allIds) {
                     emitToUser(uid, 'rivalDeleted', { rivalId: m.id, subCategory: m.subCategory });
                     createNotification(
@@ -5327,7 +5332,7 @@ export const getMyUpcomingMatches = async (req, res, next) => {
         try {
             const allUserIds = [...new Set([
                 ...mine.map(m => m.senderId),
-                ...mine.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).map(p => p.id)),
+                ...mine.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).map(p => p?.id)),
                 ...mine.flatMap(m => (Array.isArray(m.senderTeam) ? m.senderTeam : []).map(p => p?.id)),
             ].filter(Boolean))];
             const interests = allUserIds.length > 0
@@ -5377,7 +5382,7 @@ export const proposeSchedule = async (req, res, next) => {
         if (!match.flexibleSchedule) return res.status(400).json({ message: 'Bu maç esnek programlı değil' });
 
         const parts = Array.isArray(match.participants) ? match.participants : [];
-        const isInvolved = match.senderId === req.userId || parts.some(p => p.id === req.userId);
+        const isInvolved = match.senderId === req.userId || parts.some(p => p?.id === req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
         if (match.schedulingDeadline && new Date() > new Date(match.schedulingDeadline)) {
@@ -5392,7 +5397,7 @@ export const proposeSchedule = async (req, res, next) => {
 
         // Notify the other player(s)
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
-        const otherIds = [match.senderId, ...parts.map(p => p.id)].filter(uid => uid !== req.userId);
+        const otherIds = [match.senderId, ...parts.filter(p => p?.id).map(p => p.id)].filter(uid => uid !== req.userId);
         for (const uid of otherIds) {
             emitToUser(uid, 'rivalUpdate', updated);
             createNotification(uid, 'MATCH_CONFIRMED',
@@ -5418,7 +5423,7 @@ export const acceptSchedule = async (req, res, next) => {
         if (proposal.userId === req.userId) return res.status(400).json({ message: 'Kendi önerinizi kabul edemezsiniz' });
 
         const parts = Array.isArray(match.participants) ? match.participants : [];
-        const isInvolved = match.senderId === req.userId || parts.some(p => p.id === req.userId);
+        const isInvolved = match.senderId === req.userId || parts.some(p => p?.id === req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
         const matchDateObj = new Date(proposal.date);
@@ -5436,7 +5441,7 @@ export const acceptSchedule = async (req, res, next) => {
 
         // Notify proposer
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
-        const allIds = [match.senderId, ...parts.map(p => p.id)];
+        const allIds = [match.senderId, ...parts.filter(p => p?.id).map(p => p.id)];
         for (const uid of allIds) {
             emitToUser(uid, 'rivalUpdate', updated);
             if (uid !== req.userId) {
@@ -5466,7 +5471,7 @@ export const getMyMatchHistory = async (req, res, next) => {
         const myId = req.userId;
         const mine = all.filter(r => {
             if (r.senderId === myId || r.receiverId === myId) return true;
-            return (Array.isArray(r.participants) ? r.participants : []).some(p => p.id === myId);
+            return (Array.isArray(r.participants) ? r.participants : []).some(p => p?.id === myId);
         });
         res.json(mine);
     } catch (error) { next(error); }
