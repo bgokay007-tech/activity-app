@@ -6930,37 +6930,15 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
         setBooked(true);
     };
 
-    // Slot seçimi (yapılandırılmış gridde dokunma, esnek/özel süre penceresinde "Rezerve
-    // Et") zaten kullanıcının kesin kararıdır — ayrıca "Bu Saati Seç" gibi bir onay
-    // butonuna gerek yok. Seçim bir süre değişmeden durursa otomatik onaylanır; art arda
-    // saat ekleme gibi ardışık dokunuşlara zaman tanımak için kısa bir gecikme var.
-    useEffect(() => {
-        if (!selSlot || booked || validatingSlot) return;
-        const courtData = courtsSlots[selSlot.courtId]?.data;
-        const isFlexible = courtData?.type === 'FLEXIBLE';
-        const isVarDur = courtData?.type === 'VAR_DURATION';
-        // Yapılandırılmış (FULL_HOUR/HALF_HOUR/NINETY_MIN) gridde minimum rezervasyon
-        // süresi 60 dk — HALF_HOUR gibi tiplerde tek bir kutucuk (30 dk) tek başına
-        // geçersiz, kullanıcı bitişik ikinci bir kutucuğa dokunana kadar otomatik
-        // onaylamayı bekletmemiz gerekiyor (aksi halde backend "min 60 dk" hatası verir).
-        if (!isFlexible && !isVarDur) {
-            const rangeSlots = getSlotRange(courtData, selSlot.slot.start, (selSlot.rangeEnd || selSlot.slot).start);
-            const totalMins = rangeSlots
-                ? toM(rangeSlots[rangeSlots.length - 1].end) - toM(rangeSlots[0].start)
-                : 0;
-            if (totalMins < 60) return;
-        }
-        // 600ms çok kısaydı — kullanıcı ilk kutucuğa dokunup (tek başına zaten geçerli, min
-        // 60dk şartını karşılıyor) ikinci bitişik kutucuğa dokunmadan ÖNCE bu süre dolup
-        // otomatik onay tek saatlik (yanlış) seçimle geçiyordu; ikinci saat eklendiğinde özet
-        // ekranda doğru görünse de (3500₺/2 saat) `booked` zaten true olduğu için bu efekt
-        // bir daha çalışmıyor, CreateRivalModal'a hâlâ ilk (1 saatlik) rezervasyon gitmiş
-        // oluyordu — kullanıcı raporu: "1+1 rezerve ettim, kişi başı ücret yanlış hesaplandı".
-        const timer = setTimeout(() => { confirmBooking(); }, 1500);
-        return () => clearTimeout(timer);
-        // payMethod değişince de (ör. EFT'ye geçince) sayaç sıfırlanır — kullanıcı ödeme
-        // yöntemini seçerken erkenden yanlış (varsayılan) yöntemle onaylanmasın.
-    }, [selSlot?.courtId, selSlot?.slot?.start, selSlot?.rangeEnd?.start, selSlot?.flexDur, booked, payMethod]);
+    // Eskiden burada bir saat sonra (600ms/1500ms) OTOMATİK onaylayan bir zamanlayıcı vardı —
+    // kullanıcı isteğiyle tamamen kaldırıldı: "rezervasyonu ilanı oluştur dedikten sonra
+    // onaylaması lazım, mantık ilanı oluşturasıya kadar beklemede tutup en son ilanı oluştur
+    // diyince onaylaması". Zamanlayıcı, kullanıcı ardışık ikinci saat kutucuğuna dokunmadan
+    // önce dolup tek saatlik (yanlış) seçimi onaylayabiliyordu (kullanıcı raporu: "kişi başı
+    // ücret yanlış hesaplandı"). Artık seçim sadece kullanıcı aşağıdaki "Bu Saati Onayla"
+    // butonuna dokununca (bkz. confirmBooking çağrısı JSX'te) CreateRivalModal'a aktarılıyor;
+    // o ana kadar tarih/saat/kutucuk sayısı serbestçe değiştirilebilir. Gerçek kort bloğu zaten
+    // daha da geç, "İlan Oluştur"a basılınca oluşuyordu (bkz. submit()), bu değişmedi.
 
     const slotTypeLabel = (type) => {
         if (type === 'FULL_HOUR')   return { label: 'Tam Saat',   color: '#22d3ee', bg: '#083344' };
@@ -7336,6 +7314,13 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                     ? rangeSlots.reduce((sum, s) => sum + priceForSlot(s), 0)
                                     : (selSlot.slot.priceByMethod?.[payMethod] != null ? selSlot.slot.priceByMethod[payMethod]
                                         : applyPayDelta(selSlot.slot.price != null ? selSlot.slot.price : venue?.pricePerSlot));
+                                // HALF_HOUR gibi tiplerde tek bir kutucuk (30dk) tek başına geçersiz —
+                                // kullanıcı bitişik ikinci kutucuğa dokunup 60dk'ya tamamlayana kadar
+                                // Onayla butonu devre dışı (backend zaten "min 60 dk" hatası veriyordu).
+                                const totalMins = rangeSlots
+                                    ? toM(rangeSlots[rangeSlots.length - 1].end) - toM(rangeSlots[0].start)
+                                    : 60;
+                                const canConfirm = !isStructured || totalMins >= 60;
                                 return (
                                     <ScrollView style={vb.body} showsVerticalScrollIndicator={false}>
                                         <View style={[vb.selSummary, { flexDirection:'row', alignItems:'center' }]}>
@@ -7392,12 +7377,25 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                 )}
                                             </View>
                                         )}
-                                        {validatingSlot && (
-                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, justifyContent:'center', marginTop:6 }}>
-                                                <ActivityIndicator color="#22c55e" size="small" />
-                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>Seçiliyor...</Text>
-                                            </View>
-                                        )}
+                                        {/* Kullanıcı isteği: seçim otomatik onaylanmasın — tarih/saat/kutucuk
+                                            sayısını serbestçe değiştirebilsin, sadece bu butona basınca
+                                            (confirmBooking) seçim CreateRivalModal'a aktarılsın. Gerçek kort
+                                            bloğu zaten daha geç, "İlan Oluştur"a basılınca oluşuyor. */}
+                                        <TouchableOpacity
+                                            onPress={confirmBooking}
+                                            disabled={!canConfirm || validatingSlot}
+                                            style={{ backgroundColor: canConfirm ? '#16a34a' : '#374151', borderRadius:10, paddingVertical:11, alignItems:'center', marginTop:8, opacity: validatingSlot ? 0.7 : 1 }}>
+                                            {validatingSlot ? (
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                                    <ActivityIndicator color="#fff" size="small" />
+                                                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>Kontrol ediliyor...</Text>
+                                                </View>
+                                            ) : (
+                                                <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>
+                                                    {canConfirm ? '✓ Bu Saati Onayla' : `Devam etmek için en az 60dk seçin`}
+                                                </Text>
+                                            )}
+                                        </TouchableOpacity>
                                         <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
                                             Kort, ilanı oluşturduğunuzda rezerve edilir.
                                         </Text>
