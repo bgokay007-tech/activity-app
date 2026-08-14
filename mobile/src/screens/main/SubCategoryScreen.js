@@ -555,6 +555,9 @@ const det = StyleSheet.create({
 
 function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin, highlightSlot = null }) {
     const insets = useSafeAreaInsets();
+    // DOUBLE kadro kartında boş bir formaya dokunarak doğrudan o slota başvurabilmek için
+    // (bkz. SlotBox) — kendi cinsiyetimiz slotun gereksinimine uymuyorsa buton hiç gösterilmez.
+    const myGender = useSelector(s => s.auth.user?.gender);
     const [localParticipants, setLocalParticipants] = useState(null);
     // "Atanmamış" havuzu için ayrı local override — önceden yoktu, bu yüzden kabul edilen bir
     // oyuncu atanmamışa düştüğünde (voleybol bireysel kabul, DOUBLE) kartta anında görünmüyor,
@@ -1590,6 +1593,22 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 genderReq={gReqValue}
                                                 onInvite={(u) => inviteToDoubleSlot(u, slot)}
                                                 onOpenPicker={() => setShowDoubleFriendsPicker(true)} />
+                                        </View>
+                                    );
+                                }
+                                // Boş forma + ben sahibi değilim + henüz başvurmadım/katılmadım + cinsiyetim
+                                // bu slota uyuyor: kullanıcı isteği — "ilana başvurucak kişi direk slot
+                                // seçerekde başvurabilir takım kısmından" — kadro kartındaki bu formaya
+                                // dokunarak doğrudan O SLOTA başvurabilsin (bkz. backend sendJoinRequest'teki
+                                // requestedSlot artık FLEXIBLE ilanlarda da opsiyonel olarak kabul ediliyor).
+                                if (!p && !locked && !isOwner && !isParticipant && mySentReq == null && item.status === 'OPEN' && genderFitsSlot(myGender, gReqValue)) {
+                                    return (
+                                        <View>
+                                            {gReqLabel && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:1 }}>{gReqLabel}</Text>}
+                                            <TouchableOpacity onPress={() => handleJoin(slot)}
+                                                style={{ borderWidth:1, borderStyle:'dashed', borderColor: cfg.color+'70', borderRadius:8, paddingVertical:6, alignItems:'center', backgroundColor: cfg.color+'10' }}>
+                                                <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }} numberOfLines={1}>{t.applyForSlotBtn}</Text>
+                                            </TouchableOpacity>
                                         </View>
                                     );
                                 }
@@ -7328,7 +7347,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                             <View style={vb.dateStrip}>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false}
                                     style={{ flex:1 }}
-                                    contentContainerStyle={{ paddingHorizontal:3, paddingVertical:3, gap:3, alignItems:'center' }}>
+                                    contentContainerStyle={{ paddingHorizontal:3, paddingVertical:1, gap:1, alignItems:'center' }}>
                                     {Array.from({length:14}, (_,i) => {
                                         const d = new Date();
                                         d.setDate(d.getDate() + i);
@@ -7353,7 +7372,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                             </View>
 
                             {/* Legend */}
-                            <View style={[vb.legend, { paddingHorizontal:3, marginBottom:3 }]}>
+                            <View style={[vb.legend, { paddingHorizontal:3, marginBottom:1 }]}>
                                 <View style={vb.legendItem}>
                                     <View style={[vb.legendDot, { backgroundColor:'#16a34a' }]} />
                                     <Text style={vb.legendTxt}>Boş</Text>
@@ -7386,10 +7405,13 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                 // Arka arkaya dokunularak genişletilmiş aralık (bkz. tapGridSlot).
                                 const rangeSlots = isStructured ? getSlotRange(courtData, selSlot.slot.start, (selSlot.rangeEnd || selSlot.slot).start) : null;
                                 const summaryEnd   = rangeSlots ? rangeSlots[rangeSlots.length - 1].end : selSlot.slot.end;
-                                const summaryPrice = rangeSlots
-                                    ? rangeSlots.reduce((sum, s) => sum + priceForSlot(s), 0)
-                                    : (selSlot.slot.priceByMethod?.[payMethod] != null ? selSlot.slot.priceByMethod[payMethod]
-                                        : applyPayDelta(selSlot.slot.price != null ? selSlot.slot.price : venue?.pricePerSlot));
+                                // Kullanıcı isteği: tek bir "💰 4800₺ (3 saat)" özet satırı yerine,
+                                // her ödeme yöntemi kendi fiyatını kendi butonunun altında göstersin
+                                // (yöntemler farklı fiyatlanabiliyor, bkz. paymentPriceDeltas).
+                                const priceForMethod = (method) => rangeSlots
+                                    ? rangeSlots.reduce((sum, s) => sum + priceForSlot(s, method), 0)
+                                    : (selSlot.slot.priceByMethod?.[method] != null ? selSlot.slot.priceByMethod[method]
+                                        : applyPayDelta(selSlot.slot.price != null ? selSlot.slot.price : venue?.pricePerSlot, method));
                                 // HALF_HOUR gibi tiplerde tek bir kutucuk (30dk) tek başına geçersiz —
                                 // kullanıcı bitişik ikinci kutucuğa dokunup 60dk'ya tamamlayana kadar
                                 // Onayla butonu devre dışı (backend zaten "min 60 dk" hatası veriyordu).
@@ -7399,27 +7421,15 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                 const canConfirm = !isStructured || totalMins >= 60;
                                 return (
                                     <ScrollView style={vb.body} showsVerticalScrollIndicator={false}>
-                                        <View style={[vb.selSummary, { flexDirection:'row', alignItems:'center' }]}>
-                                            <View style={{ flex:1 }}>
-                                                <Text style={vb.selSummaryTxt}>
-                                                    ✅ {selCourt?.name} · {selSlot.slot.start}{summaryEnd ? ` – ${summaryEnd}` : ''}
-                                                </Text>
-                                                {summaryPrice > 0 && (
-                                                    <Text style={vb.selSummaryPrice}>
-                                                        💰 {summaryPrice}₺{rangeSlots && rangeSlots.length > 1 ? ` (${rangeSlots.length} saat)` : ''}
-                                                    </Text>
-                                                )}
-                                                {isStructured && (
-                                                    <Text style={{ color: '#666', fontSize: 10, marginTop: 3 }}>
-                                                        Art arda saat eklemek için gridden bitişik kutucuklara dokunun
-                                                    </Text>
-                                                )}
-                                            </View>
+                                        <View style={[vb.selSummary, { flexDirection:'row', alignItems:'center', paddingVertical:2 }]}>
+                                            <Text style={[vb.selSummaryTxt, { flex:1, textAlign:'left' }]} numberOfLines={1}>
+                                                ✅ {selCourt?.name} · {selSlot.slot.start}{summaryEnd ? ` – ${summaryEnd}` : ''}
+                                            </Text>
                                             <TouchableOpacity
                                                 onPress={() => setSelSlot(null)}
-                                                style={{ paddingHorizontal:10, paddingVertical:6, marginLeft:8 }}
+                                                style={{ paddingHorizontal:8, marginLeft:8 }}
                                                 hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
-                                                <Text style={{ color:'#888', fontSize:18 }}>↩</Text>
+                                                <Text style={{ color:'#888', fontSize:16 }}>↩</Text>
                                             </TouchableOpacity>
                                         </View>
                                         <Text style={vb.sectionLabel}>Ödeme Yöntemi</Text>
@@ -7430,14 +7440,22 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                     return acc.includes(m);
                                                 }
                                                 return true; // CASH, EFT ve ONLINE (bakımda) her zaman göster
-                                            }).map(([m, label]) => (
-                                                <TouchableOpacity key={m}
-                                                    disabled={m === 'ONLINE'}
-                                                    style={[vb.payBtn, payMethod===m && vb.payBtnSel, m === 'ONLINE' && { opacity:0.5 }]}
-                                                    onPress={() => m !== 'ONLINE' && setPayMethod(m)}>
-                                                    <Text style={[vb.payBtnTxt, payMethod===m && vb.payBtnTxtSel]}>{label}</Text>
-                                                </TouchableOpacity>
-                                            ))}
+                                            }).map(([m, label]) => {
+                                                const mPrice = priceForMethod(m);
+                                                return (
+                                                    <TouchableOpacity key={m}
+                                                        disabled={m === 'ONLINE'}
+                                                        style={[vb.payBtn, payMethod===m && vb.payBtnSel, m === 'ONLINE' && { opacity:0.5 }]}
+                                                        onPress={() => m !== 'ONLINE' && setPayMethod(m)}>
+                                                        <Text style={[vb.payBtnTxt, payMethod===m && vb.payBtnTxtSel]}>{label}</Text>
+                                                        {mPrice > 0 && (
+                                                            <Text style={[vb.payBtnPrice, payMethod===m && vb.payBtnPriceSel]}>
+                                                                {mPrice}₺{rangeSlots && rangeSlots.length > 1 ? ` (${rangeSlots.length}s)` : ''}
+                                                            </Text>
+                                                        )}
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
                                         </View>
                                         {payMethod === 'EFT' && (
                                             <View style={vb.ibanBox}>
@@ -7509,7 +7527,7 @@ const vb = StyleSheet.create({
     tabTxt:       { color:'#888', fontSize:13, fontWeight:'600' },
     tabTxtActive: { color:'#c084fc', fontWeight:'700' },
 
-    dateStrip:        { minHeight:88, borderBottomWidth:1, borderBottomColor:'#ffffff10' },
+    dateStrip:        { minHeight:70, borderBottomWidth:1, borderBottomColor:'#ffffff10' },
     dateChip:         { alignItems:'center', paddingVertical:3, paddingHorizontal:3, borderRadius:10, backgroundColor:'#ffffff08', borderWidth:1, borderColor:'#ffffff12', minWidth:50 },
     dateChipSel:      { backgroundColor:'#16a34a30', borderColor:'#22c55e' },
     dateChipDay:      { color:'#888', fontSize:9, fontWeight:'700', textTransform:'uppercase' },
@@ -7521,7 +7539,7 @@ const vb = StyleSheet.create({
 
     body:         { padding:3, maxHeight:260 },
 
-    legend:       { flexDirection:'row', gap:3, marginBottom:3 },
+    legend:       { flexDirection:'row', gap:3, marginBottom:1 },
     legendItem:   { flexDirection:'row', alignItems:'center', gap:3 },
     legendDot:    { width:11, height:11, borderRadius:6 },
     legendTxt:    { color:'#888', fontSize:12 },
@@ -7534,7 +7552,6 @@ const vb = StyleSheet.create({
     slotT:        { color:'#4ade80', fontSize:12, fontWeight:'700' },
     slotTakenT:   { color:'#ef4444' },
     colSlotPrice: { color:'#86efac', fontSize:11, fontWeight:'700', marginTop:2 },
-    selSummaryPrice: { color:'#4ade80', fontSize:12, fontWeight:'700', marginTop:3 },
 
     sectionLabel: { color:'#888', fontSize:11, fontWeight:'700', marginBottom:3, letterSpacing:0.5, textTransform:'uppercase' },
     takenRow:     { color:'#ef4444', fontSize:13, marginBottom:3 },
@@ -7548,11 +7565,13 @@ const vb = StyleSheet.create({
     durTxt:       { color:'#aaa', fontSize:13, fontWeight:'600' },
     durTxtSel:    { color:'#22c55e' },
     emptyTxt:     { color:'#555', textAlign:'center', marginTop:24, fontSize:13 },
-    payRow:       { flexDirection:'row', gap:3, marginBottom:3 },
+    payRow:       { flexDirection:'row', gap:1, marginBottom:1 },
     payBtn:       { flex:1, padding:3, borderRadius:8, borderWidth:1, borderColor:'#ffffff18', backgroundColor:'#ffffff06', alignItems:'center' },
     payBtnSel:    { borderColor:'#22c55e', backgroundColor:'#16a34a25' },
-    payBtnTxt:    { color:'#888', fontSize:13, fontWeight:'600' },
+    payBtnTxt:    { color:'#888', fontSize:11, fontWeight:'600', textAlign:'center' },
     payBtnTxtSel: { color:'#22c55e' },
+    payBtnPrice:    { color:'#4ade80', fontSize:11, fontWeight:'800', marginTop:2 },
+    payBtnPriceSel: { color:'#22c55e' },
     ibanBox:      { backgroundColor:'#ffffff08', borderRadius:8, padding:3, marginBottom:3 },
     ibanRow:      { color:'#888', fontSize:12, marginBottom:3 },
     ibanVal:      { color:'#fff', fontWeight:'600' },
@@ -7562,14 +7581,14 @@ const vb = StyleSheet.create({
     continueBtnTxt: { color:'#fff', fontSize:15, fontWeight:'700' },
 
     // Çok sütunlu kort görünümü
-    courtsRow:    { flexDirection:'row', alignItems:'stretch', paddingHorizontal:3, paddingVertical:3, gap:3 },
+    courtsRow:    { flexDirection:'row', alignItems:'stretch', paddingHorizontal:3, paddingVertical:1, gap:1 },
     courtCol:     { backgroundColor:'#ffffff08', borderRadius:10, padding:3, borderWidth:1, borderColor:'#ffffff12' },
     courtColTitle:{ color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center', marginBottom:3, letterSpacing:0.3 },
     lightsRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, marginBottom:3 },
     courtColLight:{ color:'#fbbf24', fontSize:10 },
     lightsInfoBtn:{ width:15, height:15, borderRadius:8, backgroundColor:'#fbbf2430', borderWidth:1, borderColor:'#fbbf2460', alignItems:'center', justifyContent:'center' },
     lightsInfoTxt:{ color:'#fbbf24', fontSize:9, fontWeight:'800', lineHeight:13 },
-    colSlot:      { borderRadius:4, paddingTop:3, paddingBottom:3, paddingLeft:3, paddingRight:3, marginBottom:3, alignItems:'center', borderWidth:1 },
+    colSlot:      { borderRadius:4, paddingTop:3, paddingBottom:3, paddingLeft:3, paddingRight:3, marginBottom:1, alignItems:'center', borderWidth:1 },
     colSlotFree:  { backgroundColor:'#14532d', borderColor:'#16a34a' },
     colSlotTaken: { backgroundColor:'#5c0a0a', borderColor:'#ef4444', borderWidth:1.5 },
     colSlotPast:  { backgroundColor:'#27272a', borderColor:'#3f3f46', opacity:0.6 },

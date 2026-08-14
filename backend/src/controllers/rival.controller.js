@@ -573,8 +573,11 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
     // Takım Değiştirilemez (STRICT): başvuru sırasında seçilen slotla (veya taraf) sınırlı
     // kalır — owner, başvuranı seçtiğinin dışına atayamaz (takas özelliği zaten kapalı).
     // STRICT'te oyuncu zaten belirli bir slotu seçerek başvurduğu için atanmamış havuzuna
-    // düşmüyor, doğrudan o slota yerleşiyor (eski davranış aynen korunuyor).
-    if (rival.teamFlexibility === 'STRICT' && joinReq.requestedSlot) {
+    // düşmüyor, doğrudan o slota yerleşiyor (eski davranış aynen korunuyor). FLEXIBLE'da da
+    // artık aynı şekilde çalışıyor (kullanıcı isteği: "kullanıcıların olmak istedikleri slota
+    // göre yerleştir") — tek fark, FLEXIBLE'da bu seçim ZORUNLU değildi (bkz. sendJoinRequest),
+    // seçilmediyse joinReq.requestedSlot zaten null olur ve aşağıdaki eski "Atanmamış" yoluna düşer.
+    if (joinReq.requestedSlot) {
         openSlots = joinReq.requestedSlot === 'opponent'
             ? openSlots.filter(s => s.key === 'opp1' || s.key === 'opp2')
             : openSlots.filter(s => s.key === joinReq.requestedSlot);
@@ -2425,14 +2428,23 @@ export const sendJoinRequest = async (req, res, next) => {
             if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
         }
 
-        // Çiftler + Takım Değiştirilemez (STRICT): takas özelliği kapalı olduğu için başvuran
-        // en baştan hangi tarafa (kurucu takımı / rakip takımı) katılmak istediğini seçmek
-        // zorunda — sonradan "Takımları Düzenle" ile düzeltilemez.
+        // Çiftler: Takım Değiştirilemez (STRICT) ilanlarda başvuran en baştan hangi tarafa
+        // (kurucu takımı / rakip takımı) katılmak istediğini seçmek ZORUNDA — sonradan "Takımları
+        // Düzenle" ile düzeltilemez. Esnek (FLEXIBLE) ilanlarda ise seçim ZORUNLU değil (eski
+        // davranış — boş bırakılırsa "Atanmamış" havuzuna düşer, owner ya da oyuncunun kendisi
+        // sonradan assignDoubleSlot ile yerleştirir) ama kullanıcı isteğiyle artık başvuru
+        // sırasında da doğrudan bir slot seçilebiliyor (kadro kartındaki boş bir formaya
+        // dokunarak — bkz. mobil RivalDetailModal SlotBox'taki yeni "Bu Slota Başvur").
         let requestedSlot = null;
-        if (request.matchType === 'DOUBLE' && request.teamFlexibility === 'STRICT' && !partnerId) {
+        const isStrictDouble = request.matchType === 'DOUBLE' && request.teamFlexibility === 'STRICT';
+        // STRICT'te seçim ZORUNLU (eski davranış — takas kapalı olduğu için baştan seçilmezse
+        // sonradan asla düzeltilemez). FLEXIBLE'da ise SADECE gönderildiyse işlenir, boş
+        // bırakılırsa eski "Atanmamış" akışına düşer (aşağıdaki requestedSlot===null yolu).
+        if (request.matchType === 'DOUBLE' && !partnerId && (isStrictDouble || req.body.requestedSlot)) {
             requestedSlot = req.body.requestedSlot;
-            if (!['partner', 'opp1', 'opp2', 'opponent'].includes(requestedSlot)) {
-                return res.status(400).json({ message: 'Bu maçta takım değiştirilemiyor — lütfen hangi slota katılmak istediğinizi seçin.' });
+            const validChoices = isStrictDouble ? ['partner', 'opp1', 'opp2', 'opponent'] : ['partner', 'opp1', 'opp2'];
+            if (!validChoices.includes(requestedSlot)) {
+                return res.status(400).json({ message: isStrictDouble ? 'Bu maçta takım değiştirilemiyor — lütfen hangi slota katılmak istediğinizi seçin.' : 'Geçersiz slot seçimi.' });
             }
             const joinerU = await prisma.user.findUnique({ where: { id: req.userId }, select: { gender: true } });
             const jg = joinerU?.gender;
