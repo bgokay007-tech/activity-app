@@ -166,6 +166,15 @@ function genderFitsSlot(personGender, slotGenderReq) {
     return !slotGenderReq || slotGenderReq === 'MIX' || personGender === 'OTHER' || personGender === slotGenderReq;
 }
 
+// Gelen maç isteklerinde derece puanının sağında kısa cinsiyet kodu — kullanıcı isteği: TR'de
+// (K)/(E), EN'de (W)/(M). Tenis/padel/voleybol'un tümünde aynı — matchType/subCategory'den
+// bağımsız, tek yerden kullanılıyor (bkz. İstekler bölümü).
+function reqGenderParen(gender, lang) {
+    if (gender === 'FEMALE') return lang === 'tr' ? ' (K)' : ' (W)';
+    if (gender === 'MALE') return lang === 'tr' ? ' (E)' : ' (M)';
+    return '';
+}
+
 const FEE_METHOD_LABEL = { CASH: 'Nakit', EFT: 'EFT', ONLINE: 'Online', CREDIT_CARD: 'Kredi Kartı' };
 // Kort ücreti ödeme yöntemine göre farklıysa (ör. kredi kartı komisyonu) bilgi amaçlı kırılım
 // listesi üretir — sadece nakit dışı gerçek bir fark varsa gösterilir, yoksa boş dizi döner.
@@ -1194,7 +1203,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         const Half = ({ jr }) => (
             <View>
                 <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{nameOf(jr)}</Text>
-                <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{jr?.user?.username}{ratingOf(jr) != null ? `  ${starEmoji(Number(ratingOf(jr)))} ${Number(ratingOf(jr)).toFixed(2)}` : ''}</Text>
+                <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{jr?.user?.username}{ratingOf(jr) != null ? `  ${starEmoji(Number(ratingOf(jr)))} ${Number(ratingOf(jr)).toFixed(2)}` : ''}{reqGenderParen(jr?.user?.gender, t.lang)}</Text>
                 {jr?.createdAt && <Text style={{ color: colors.textMuted, fontSize:8 }} numberOfLines={1}>🕐 {reqTimeAgo(jr.createdAt)}</Text>}
             </View>
         );
@@ -2194,7 +2203,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <View style={{ flex:1 }}>
                                             <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
                                             <Text style={det.playerSub}>
-                                                {jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}
+                                                {jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}{reqGenderParen(jr.user?.gender, t.lang)}
                                             </Text>
                                             <Text style={{ color: cfg.color, fontSize:moderateScale(10), fontWeight:'700', marginTop:1 }} numberOfLines={1}>
                                                 → {slotLabel(jr.requestedSlot)}
@@ -2246,7 +2255,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                                 <View style={{ flex:1 }}>
                                                     <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
-                                                    <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
+                                                    <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}{reqGenderParen(jr.user?.gender, t.lang)}</Text>
                                                 </View>
                                                 {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
                                                     <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
@@ -2304,7 +2313,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     ) : (
                                         <View style={{ flex:1 }}>
                                             <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
-                                            <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
+                                            <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}{reqGenderParen(jr.user?.gender, t.lang)}</Text>
                                             {jr.requestedSlot && (
                                                 <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'700', marginTop:1 }}>
                                                     🎯 {jr.requestedSlot === 'partner' ? t.founderTeamLabel : jr.requestedSlot === 'opp1' ? t.opp1Label : jr.requestedSlot === 'opp2' ? t.opp2Label : t.joinAsOpponentBtn}
