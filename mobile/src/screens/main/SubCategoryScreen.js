@@ -1563,11 +1563,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         ) : item.matchType === 'DOUBLE' ? (() => {
                             const allJoinReqs = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
                             const pendingPartnerInvite = allJoinReqs.find(jr => jr.isPartnerInvite && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING');
-                            // Kullanıcı isteği: ilan oluştururken/sonradan gönderilen genel (slota
-                            // bağlı olmayan) davetler henüz kabul edilmediyse bir forma işgal
-                            // etmesin — "Davet Gönderildi, Onay Bekleniyor" olarak ayrı gösterilir;
-                            // belki kişi hiç kabul etmez, boş yere yer ayrılmasın (bkz. isUnassignedInvite).
-                            const pendingGenericInvites = allJoinReqs.filter(jr => jr.initiatedBy === 'OWNER' && jr.status === 'PENDING' && jr.isUnassignedInvite);
 
                             // Slot kutusu: seçiliyse altın border, doluysa dokunulabilir
                             const SlotBox = ({ slot, gReqLabel, gReqValue, p, fallback, onRemove, locked, highlighted }) => {
@@ -1766,17 +1761,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </View>
                                             </View>
                                         )}
-                                        {pendingGenericInvites.map(jr => (
-                                            <View key={jr.id} style={[cardBox, { opacity:0.75 }]}>
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                                                    <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(28)} color={cfg.color} />
-                                                    <View style={{ flex:1 }}>
-                                                        <Text style={det.playerName} numberOfLines={1}>{jr.user?.fullName || jr.user?.username}</Text>
-                                                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1}>⏳ Davet Gönderildi</Text>
-                                                    </View>
-                                                </View>
-                                            </View>
-                                        ))}
+                                        {/* Bekleyen genel davetler burada TEKRAR gösterilmiyor — "📨 Gönderilen
+                                            Davetler" bölümü zaten bunu listeliyor (kullanıcı isteği: kart içinde
+                                            tekrar "Davet Gönderildi" yazmasın). */}
                                         {/* Atanmamış — kabul edilmiş ama henüz Takım Arkadaşı/Rakip1/Rakip2'ye
                                             yerleşmemiş oyuncular. İlan sahibi HERKESİ, oyuncunun kendisi de
                                             SADECE kendini atayabilir. */}
@@ -1818,7 +1805,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </View>
                                             );
                                         })}
-                                        {acceptedOthers.length === 0 && !pendingPartnerInvite && unassignedDoubleSlots.length === 0 && pendingGenericInvites.length === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
+                                        {acceptedOthers.length === 0 && !pendingPartnerInvite && unassignedDoubleSlots.length === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
                                     </View>
                                 );
                             }
