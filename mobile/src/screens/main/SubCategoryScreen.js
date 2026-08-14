@@ -9868,15 +9868,17 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 Alert.alert('Format Değiştirilemez', 'Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemez — önce katılımcıları çıkarabilirsin.');
                                                                 return;
                                                             }
+                                                            // Kullanıcı isteği: format seçilince kişi başı ücret otomatik
+                                                            // hesaplanıp yazılmasın — bu, kullanıcının dikkatini formu kendi
+                                                            // sırasıyla doldurmaktan o alana yönlendiriyordu ("odaklanma ile
+                                                            // yönlendirme yapmasın"). Kort seçildiyse toplam fiyat zaten kort
+                                                            // seçim ekranında gösteriliyor, kullanıcı kişi başı ücreti isterse
+                                                            // kendi girer.
                                                             setShowGenderReqModal(true);
                                                             setF(p => ({
                                                                 ...p,
                                                                 matchType: fmt.id,
                                                                 partner: fmt.id === 'DOUBLE' ? p.partner : null,
-                                                                courtFeePerPerson: p.selectedCourt?.totalPrice > 0
-                                                                    ? String(Math.round(p.selectedCourt.totalPrice / (fmt.id === 'DOUBLE' ? 4 : 2)))
-                                                                    : p.courtFeePerPerson,
-                                                                courtFeePerPersonByMethod: divideFeeByMethod(p.selectedCourt?.totalPriceByMethod, fmt.id === 'DOUBLE' ? 4 : 2),
                                                             }));
                                                         }}
                                                             disabled={editHasParticipants}
