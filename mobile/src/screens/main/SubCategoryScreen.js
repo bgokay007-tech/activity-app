@@ -7346,7 +7346,6 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                             {/* Tarih Seçici — 14 günlük yatay strip */}
                             <View style={vb.dateStrip}>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                    style={{ flex:1 }}
                                     contentContainerStyle={{ paddingHorizontal:3, paddingVertical:1, gap:1, alignItems:'center' }}>
                                     {Array.from({length:14}, (_,i) => {
                                         const d = new Date();
@@ -7527,7 +7526,7 @@ const vb = StyleSheet.create({
     tabTxt:       { color:'#888', fontSize:13, fontWeight:'600' },
     tabTxtActive: { color:'#c084fc', fontWeight:'700' },
 
-    dateStrip:        { minHeight:70, borderBottomWidth:1, borderBottomColor:'#ffffff10' },
+    dateStrip:        { borderBottomWidth:1, borderBottomColor:'#ffffff10' },
     dateChip:         { alignItems:'center', paddingVertical:3, paddingHorizontal:3, borderRadius:10, backgroundColor:'#ffffff08', borderWidth:1, borderColor:'#ffffff12', minWidth:50 },
     dateChipSel:      { backgroundColor:'#16a34a30', borderColor:'#22c55e' },
     dateChipDay:      { color:'#888', fontSize:9, fontWeight:'700', textTransform:'uppercase' },
