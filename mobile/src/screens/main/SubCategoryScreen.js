@@ -1302,32 +1302,68 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 {item.sender?.interests?.[0]?.assessmentCompleted && (
                                     <Text style={{ color:'#facc15', fontSize:moderateScale(11), fontWeight:'800' }}>{Number(item.sender.interests[0].skillRating).toFixed(2)} ★</Text>
                                 )}
-                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginTop:3 }}>
+                                {/* Kullanıcı isteği: kart'ta (RivalCard) zaten gösterilen tüm bilgiler
+                                    (takım büyüklüğü, cinsiyet kısıtlaması, derece aralığı, iptal cezası,
+                                    kort/salon rezerve durumu) detay ekranında da alt alta görünsün —
+                                    öncesinde bunların çoğu sadece kartta vardı, detayda eksikti. */}
+                                <View style={{ flexDirection:'row', marginTop:3 }}>
                                     <View style={[s.modeBadge, { backgroundColor:cfg.color+'20', borderColor:cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(2) }]}>
                                         <Text style={[s.modeBadgeText, { color:cfg.color, fontSize: moderateScale(9) }]}>
                                             {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
                                         </Text>
                                     </View>
-                                    {item.genderReq && item.genderReq !== 'MIX' && (
+                                </View>
+                                {item.genderReq && item.genderReq !== 'MIX' && (
+                                    <View style={{ flexDirection:'row', marginTop:3 }}>
                                         <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }}>
                                             <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(9), fontWeight:'800' }}>
                                                 {item.genderReq === 'MALE' ? '👨' : '👩'}
                                             </Text>
                                         </View>
-                                    )}
-                                    {item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX') && (() => {
-                                        const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
-                                        const allSame = item.opp1GenderReq === item.opp2GenderReq && item.opp2GenderReq === item.partnerGenderReq;
-                                        const label = allSame && item.opp1GenderReq !== 'MIX'
-                                            ? gL(item.opp1GenderReq)
-                                            : `${gL(item.partnerGenderReq)}+${gL(item.opp1GenderReq)}+${gL(item.opp2GenderReq)}`;
-                                        return (
+                                    </View>
+                                )}
+                                {item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX') && (() => {
+                                    const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
+                                    const allSame = item.opp1GenderReq === item.opp2GenderReq && item.opp2GenderReq === item.partnerGenderReq;
+                                    const label = allSame && item.opp1GenderReq !== 'MIX'
+                                        ? gL(item.opp1GenderReq)
+                                        : `${gL(item.partnerGenderReq)}+${gL(item.opp1GenderReq)}+${gL(item.opp2GenderReq)}`;
+                                    return (
+                                        <View style={{ flexDirection:'row', marginTop:3 }}>
                                             <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }}>
                                                 <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }}>{label}</Text>
                                             </View>
-                                        );
-                                    })()}
-                                </View>
+                                        </View>
+                                    );
+                                })()}
+                                {item.subCategory === 'volleyball' && item.teamSize > 1 && hasGenderCountInfo(item) && (
+                                    <Text style={{ color:'#a855f7', fontSize:moderateScale(10), fontWeight:'700', marginTop:3 }}>
+                                        {genderCountDisplayLabel(item)}
+                                    </Text>
+                                )}
+                                {(() => {
+                                    const hasRatingRange = item.ratingGenderSplit
+                                        ? (item.minRatingMale != null || item.maxRatingMale != null || item.minRatingFemale != null || item.maxRatingFemale != null)
+                                        : (item.minRating != null || item.maxRating != null);
+                                    if (!hasRatingRange) return null;
+                                    return (
+                                        <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700', marginTop:3 }}>
+                                            {item.ratingGenderSplit
+                                                ? `⭐ 👨${item.minRatingMale ?? 0}-${item.maxRatingMale ?? 5}  👩${item.minRatingFemale ?? 0}-${item.maxRatingFemale ?? 5}`
+                                                : `⭐ ${item.minRating ?? '0'}–${item.maxRating ?? '5'}`}
+                                        </Text>
+                                    );
+                                })()}
+                                {item.subCategory === 'volleyball' && item.cancelPenaltyHours != null && (
+                                    <Text style={{ color:'#f87171', fontSize:moderateScale(10), fontWeight:'700', marginTop:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                        {t.cancelPenaltyBadge(item.cancelPenaltyHours)}
+                                    </Text>
+                                )}
+                                <Text style={{ fontSize:moderateScale(10), fontWeight:'700', marginTop:3, color: item.isCourtReserved ? '#4ade80' : '#f87171' }} numberOfLines={1}>
+                                    {item.isCourtReserved
+                                        ? `${sub === 'volleyball' ? '' : '✅ '}${sub === 'volleyball' ? t.volleyballHallReservedLabel : t.courtReservedLabel}`
+                                        : `${sub === 'volleyball' ? '' : '❌ '}${t.courtNotReserved}`}
+                                </Text>
                             </View>
                         </View>
 
