@@ -159,13 +159,18 @@ function getConfig(sub) {
 
 const FEE_METHOD_LABEL = { CASH: 'Nakit', EFT: 'EFT', ONLINE: 'Online', CREDIT_CARD: 'Kredi Kartı' };
 // Kort ücreti ödeme yöntemine göre farklıysa (ör. kredi kartı komisyonu) bilgi amaçlı kırılım
-// metni üretir — sadece nakit dışı gerçek bir fark varsa gösterilir, yoksa null döner ve
-// var olan tek satırlık "💰 X₺/kişi" gösterimi kalabalıklaşmaz.
-function feeByMethodHint(byMethod) {
-    if (!byMethod || typeof byMethod !== 'object') return null;
+// listesi üretir — sadece nakit dışı gerçek bir fark varsa gösterilir, yoksa boş dizi döner.
+function feeByMethodEntries(byMethod) {
+    if (!byMethod || typeof byMethod !== 'object') return [];
     const entries = Object.entries(byMethod).filter(([, v]) => v > 0);
-    if (entries.length < 2) return null;
-    if (new Set(entries.map(([, v]) => v)).size < 2) return null;
+    if (entries.length < 2) return [];
+    if (new Set(entries.map(([, v]) => v)).size < 2) return [];
+    return entries;
+}
+// Tek satırlık " · " ile ayrılmış özet — dar kolonlarda (ör. RivalCard, UpcomingCard) kullanılıyor.
+function feeByMethodHint(byMethod) {
+    const entries = feeByMethodEntries(byMethod);
+    if (entries.length === 0) return null;
     return entries.map(([k, v]) => `${FEE_METHOD_LABEL[k] || k}: ${v}₺`).join(' · ');
 }
 
@@ -1401,10 +1406,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     💰 {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''}/{t.perPerson}
                                 </Text>
                             )}
-                            {!!feeByMethodHint(item.courtFeePerPersonByMethod) && (
-                                <Text style={{ color:'#86efac', fontSize:moderateScale(9) }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                                    {feeByMethodHint(item.courtFeePerPersonByMethod)}
-                                </Text>
+                            {/* Kullanıcı isteği: tek satırda " · " ile ayrılmış hali (EFT/Nakit/Online/Kredi
+                                Kartı) dar kolona sığmıyordu — her yöntem kendi satırında, hepsi aynı sol
+                                kenardan başlayarak alt alta listeleniyor. */}
+                            {feeByMethodEntries(item.courtFeePerPersonByMethod).length > 0 && (
+                                <View>
+                                    {feeByMethodEntries(item.courtFeePerPersonByMethod).map(([k, v]) => (
+                                        <Text key={k} style={{ color:'#86efac', fontSize:moderateScale(9) }} numberOfLines={1}>
+                                            {FEE_METHOD_LABEL[k] || k}: {v}₺
+                                        </Text>
+                                    ))}
+                                </View>
                             )}
                             {item.level && (
                                 <Text style={[s.levelBadge, { borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(2), fontSize: moderateScale(9) }]} numberOfLines={1}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>
