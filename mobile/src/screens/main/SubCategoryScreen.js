@@ -9561,15 +9561,25 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </View>
                                             )}
                                         </View>
-                                        <TouchableOpacity
-                                            style={[s.triBtn, { flex:1, height:30, justifyContent:'center', paddingHorizontal:6 }, ((f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]}
-                                            onPress={() => setShowRatingRange(true)}>
-                                            <Text style={[s.triValue, { fontSize:11 }, ((f.ratingGenderSplit ? !(f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : !(f.minRating || f.maxRating)) && s.triPlaceholder)]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                {f.ratingGenderSplit
-                                                    ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '5'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '5'}`
-                                                    : ((!f.minRating && !f.maxRating) ? t.ratingLimitLabel : `${f.minRating || '0'}–${f.maxRating || '5'}`)}
-                                            </Text>
-                                        </TouchableOpacity>
+                                        {(() => {
+                                            // DOUBLE'da Partner/Rakip1/Rakip2 cinsiyetlerinin üçü de aynıysa (ör. 4 kişi
+                                            // de erkek) özet de tek aralık göstermeli — modaldakiyle (aşağıda) TUTARLI
+                                            // kalsın diye aynı koşul burada da tekrarlanıyor.
+                                            const isUniformGenderDouble = f.matchType === 'DOUBLE' && f.partnerGenderReq && f.partnerGenderReq !== 'MIX'
+                                                && f.partnerGenderReq === f.opp1GenderReq && f.opp1GenderReq === f.opp2GenderReq;
+                                            const showSplit = f.ratingGenderSplit && !(f.matchType === 'SINGLE' && f.genderReq && f.genderReq !== 'MIX') && !isUniformGenderDouble;
+                                            return (
+                                                <TouchableOpacity
+                                                    style={[s.triBtn, { flex:1, height:30, justifyContent:'center', paddingHorizontal:6 }, ((showSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]}
+                                                    onPress={() => setShowRatingRange(true)}>
+                                                    <Text style={[s.triValue, { fontSize:11 }, ((showSplit ? !(f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : !(f.minRating || f.maxRating)) && s.triPlaceholder)]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                                                        {showSplit
+                                                            ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '5'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '5'}`
+                                                            : ((!f.minRating && !f.maxRating) ? t.ratingLimitLabel : `${f.minRating || '0'}–${f.maxRating || '5'}`)}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })()}
                                         {/* Davete İzin Ver (kilit) — kullanıcı isteğiyle satırın en sağında. Voleybolde
                                             zaten vardı, submit payload'ı tenis/padel/airsoft için de bu alanı
                                             gönderiyordu (bkz. participantsCanInvite) ama o sporlarda değiştirecek bir
@@ -9603,30 +9613,40 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <Text style={{ color: colors.textMuted, fontSize:12 }}>✕</Text>
                                         </TouchableOpacity>
                                     )}
-                                    <RatingRangeModal
-                                        visible={showRatingRange}
-                                        // SINGLE'da cinsiyet zaten tekil (Erkek/Kadın) seçildiyse ayrı erkek/kadın
-                                        // aralığı tutmanın anlamı yok — direkt o cinsiyetin aralığı gösterilir,
-                                        // ayırma seçeneği (onToggleGenderSplit) hiç sunulmaz (kullanıcı isteği).
-                                        title={f.matchType === 'SINGLE' && f.genderReq === 'MALE' ? `${t.ratingLimitLabel} (${t.genderMale ? noEmoji(t.genderMale) : 'Erkek'})`
-                                            : f.matchType === 'SINGLE' && f.genderReq === 'FEMALE' ? `${t.ratingLimitLabel} (${t.genderFemale ? noEmoji(t.genderFemale) : 'Kadın'})`
-                                            : undefined}
-                                        minValue={f.minRating}
-                                        maxValue={f.maxRating}
-                                        onSelectMin={(v) => set('minRating', v)}
-                                        onSelectMax={(v) => set('maxRating', v)}
-                                        onClose={() => setShowRatingRange(false)}
-                                        genderSplit={f.matchType === 'SINGLE' && f.genderReq && f.genderReq !== 'MIX' ? false : f.ratingGenderSplit}
-                                        onToggleGenderSplit={f.matchType === 'SINGLE' && f.genderReq && f.genderReq !== 'MIX' ? undefined : (v) => set('ratingGenderSplit', v)}
-                                        maleMin={f.minRatingMale} maleMax={f.maxRatingMale}
-                                        onSelectMaleMin={(v) => set('minRatingMale', v)}
-                                        onSelectMaleMax={(v) => set('maxRatingMale', v)}
-                                        femaleMin={f.minRatingFemale} femaleMax={f.maxRatingFemale}
-                                        onSelectFemaleMin={(v) => set('minRatingFemale', v)}
-                                        onSelectFemaleMax={(v) => set('maxRatingFemale', v)}
-                                        ownRating={myOwnRating}
-                                        ownGender={myUser?.gender}
-                                    />
+                                    {(() => {
+                                        // SINGLE'da cinsiyet zaten tekil (Erkek/Kadın) seçildiyse VEYA DOUBLE'da
+                                        // Partner/Rakip1/Rakip2 cinsiyetlerinin ÜÇÜ DE aynı tek cinsiyetse (ör. "4
+                                        // kişi de erkek") ayrı erkek/kadın aralığı tutmanın anlamı yok — direkt o
+                                        // cinsiyetin aralığı gösterilir, ayırma seçeneği hiç sunulmaz (kullanıcı
+                                        // isteği: "1v1'de sıkıntı yok, 2v2'de açık var" — DOUBLE'a da uygulandı).
+                                        const isUniformGenderDouble = f.matchType === 'DOUBLE' && f.partnerGenderReq && f.partnerGenderReq !== 'MIX'
+                                            && f.partnerGenderReq === f.opp1GenderReq && f.opp1GenderReq === f.opp2GenderReq;
+                                        const forceSingleRange = (f.matchType === 'SINGLE' && f.genderReq && f.genderReq !== 'MIX') || isUniformGenderDouble;
+                                        const uniformGenderLabel = f.matchType === 'SINGLE' ? f.genderReq : (isUniformGenderDouble ? f.partnerGenderReq : null);
+                                        return (
+                                            <RatingRangeModal
+                                                visible={showRatingRange}
+                                                title={uniformGenderLabel === 'MALE' ? `${t.ratingLimitLabel} (${t.genderMale ? noEmoji(t.genderMale) : 'Erkek'})`
+                                                    : uniformGenderLabel === 'FEMALE' ? `${t.ratingLimitLabel} (${t.genderFemale ? noEmoji(t.genderFemale) : 'Kadın'})`
+                                                    : undefined}
+                                                minValue={f.minRating}
+                                                maxValue={f.maxRating}
+                                                onSelectMin={(v) => set('minRating', v)}
+                                                onSelectMax={(v) => set('maxRating', v)}
+                                                onClose={() => setShowRatingRange(false)}
+                                                genderSplit={forceSingleRange ? false : f.ratingGenderSplit}
+                                                onToggleGenderSplit={forceSingleRange ? undefined : (v) => set('ratingGenderSplit', v)}
+                                                maleMin={f.minRatingMale} maleMax={f.maxRatingMale}
+                                                onSelectMaleMin={(v) => set('minRatingMale', v)}
+                                                onSelectMaleMax={(v) => set('maxRatingMale', v)}
+                                                femaleMin={f.minRatingFemale} femaleMax={f.maxRatingFemale}
+                                                onSelectFemaleMin={(v) => set('minRatingFemale', v)}
+                                                onSelectFemaleMax={(v) => set('maxRatingFemale', v)}
+                                                ownRating={myOwnRating}
+                                                ownGender={myUser?.gender}
+                                            />
+                                        );
+                                    })()}
                                     {(sub === 'tennis' || sub === 'padel') && f.flexibleSchedule && (
                                         <Text style={s.modeHint}>{t.multiSelectHint}</Text>
                                     )}
