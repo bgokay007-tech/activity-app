@@ -8639,6 +8639,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const isMatchedEdit = !!editItem && editItem.status === 'MATCHED';
 
     const isTennis = sub === 'tennis';
+    // Format (1v1/2v2) seçilince Kişi Başı Ücret alanında (klavye açılmadan) yanıp sönen bir
+    // imleç beliriyordu — kullanıcı raporu: bu alan altta yatan gerçek bir davranışla değil,
+    // Format açılır listesinin (position:absolute) tam bu alanın üzerine binip kapanırken aynı
+    // dokunuşun altındaki TextInput'a "sızması"yla oluşuyordu. Kesin çözüm: format seçilince bu
+    // referansı elle blur et — kullanıcı formu kendi sırasıyla dolduruyor, buraya odak çekilmesin.
+    const courtFeeInputRef = useRef(null);
     const INIT = {
         matchType: (isTennis || isPadel) ? null : 'SINGLE', teamSize: isFootball ? 5 : (isVolleyball || sub === 'airsoft') ? null : 1,
         matchMode: (isTennis || isPadel || isVolleyball) ? null : 'PRACTICE', teamFlexibility: 'FLEXIBLE', flexibleSchedule: false,
@@ -9860,6 +9866,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map((fmt, fi, arr) => (
                                                         <TouchableOpacity key={fmt.id} onPress={() => {
                                                             setActivePopup(null);
+                                                            // Format açılır listesi kapanırken altındaki Kişi Başı Ücret
+                                                            // alanına aynı dokunuşun sızıp orayı odaklanmış (yanıp sönen
+                                                            // imleçli) bırakması ihtimaline karşı elle blur ediliyor
+                                                            // (kullanıcı isteği: "odak noktasını oraya çekmene gerek yok").
+                                                            courtFeeInputRef.current?.blur();
                                                             // Cinsiyet Kısıtlaması Format'ın içine gömülü — zaten seçili olan formata
                                                             // tekrar dokununca (değiştirmek isteyen) modal yeniden açılır, kadro
                                                             // kartı/diğer alanlar olduğu gibi kalır (kullanıcı isteği).
@@ -10258,6 +10269,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <View style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }]}>
                                                 <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.courtFeeShortLabel}</Text>
                                                 <TextInput
+                                                    ref={courtFeeInputRef}
                                                     style={[s.triValue, { padding:0, minWidth:34, textAlign:'center' }]}
                                                     value={f.courtFeePerPerson}
                                                     onChangeText={v => set('courtFeePerPerson', v.replace(/[^0-9]/g, ''))}
