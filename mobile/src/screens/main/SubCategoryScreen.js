@@ -6950,7 +6950,13 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                 : 0;
             if (totalMins < 60) return;
         }
-        const timer = setTimeout(() => { confirmBooking(); }, 600);
+        // 600ms çok kısaydı — kullanıcı ilk kutucuğa dokunup (tek başına zaten geçerli, min
+        // 60dk şartını karşılıyor) ikinci bitişik kutucuğa dokunmadan ÖNCE bu süre dolup
+        // otomatik onay tek saatlik (yanlış) seçimle geçiyordu; ikinci saat eklendiğinde özet
+        // ekranda doğru görünse de (3500₺/2 saat) `booked` zaten true olduğu için bu efekt
+        // bir daha çalışmıyor, CreateRivalModal'a hâlâ ilk (1 saatlik) rezervasyon gitmiş
+        // oluyordu — kullanıcı raporu: "1+1 rezerve ettim, kişi başı ücret yanlış hesaplandı".
+        const timer = setTimeout(() => { confirmBooking(); }, 1500);
         return () => clearTimeout(timer);
         // payMethod değişince de (ör. EFT'ye geçince) sayaç sıfırlanır — kullanıcı ödeme
         // yöntemini seçerken erkenden yanlış (varsayılan) yöntemle onaylanmasın.
