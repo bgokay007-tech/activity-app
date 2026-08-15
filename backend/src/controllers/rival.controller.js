@@ -2121,7 +2121,7 @@ export const getRivalRequests = async (req, res, next) => {
         const now = new Date();
         const expiryCandidates = await prisma.activityRequest.findMany({
             where: { status: 'OPEN', matchDate: { lte: now }, matchTime: { not: null } },
-            select: { id: true, senderId: true, subCategory: true, matchDate: true, matchTime: true },
+            select: { id: true, senderId: true, category: true, subCategory: true, matchDate: true, matchTime: true },
         });
         const expired = expiryCandidates.filter(r => {
             if (!r.matchTime || !r.matchDate) return false;
@@ -2139,7 +2139,7 @@ export const getRivalRequests = async (req, res, next) => {
                     'MATCH_EXPIRED',
                     '⏰ İlanınız Kaldırıldı',
                     `${subCategoryTR(e.subCategory)} ilanınız için yeterli oyuncu bulunamadı ve maç saati geldiği için otomatik kaldırıldı.`,
-                    {},
+                    { category: e.category, subCategory: e.subCategory },
                 ).catch(() => {});
             }
         }
