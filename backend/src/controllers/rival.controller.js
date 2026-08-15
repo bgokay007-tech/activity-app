@@ -12,7 +12,7 @@ import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisP
 // hesabına özel yerel bir kontrole eklendi.
 const usesTennisEloTable = (subCategory) => TENNIS_PADEL_SUBCATEGORIES.includes(subCategory) || subCategory === 'volleyball';
 import { PEER_REVIEW_SUBCATEGORIES } from '../utils/peerReview.js';
-import { computeReservationStatus, overlaps, toMins, isPastDateTime, PRO_PACKAGES } from './venue.controller.js';
+import { computeReservationStatus, overlaps, toMins, isPastDateTime, PRO_PACKAGES, refundGiftMinutes } from './venue.controller.js';
 import { RATING_REQUIRED_SUBCATEGORIES } from '../config/assessments.js';
 import { sanitizeExtraServices } from '../utils/extraServices.js';
 import { subCategoryTR } from '../utils/subCategoryLabels.js';
@@ -5110,6 +5110,45 @@ export const removeRivalParticipant = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Pro/Premium işletmeden alınan gerçek bir kort rezervasyonuna bağlı tenis/padel maçı iptal
+// edilirken tesisin kendi iptal politikasına (cancelHoursBefore) bakılır: politika dahilindeyse
+// rezervasyon da otomatik iptal edilir, değilse rezervasyona dokunulmaz ve kullanıcıya işletmeyle
+// iletişime geçmesi gerektiği ayrıca bildirilir — aksi halde maç iptal olup rezervasyon sessizce
+// elde kalır, kullanıcı bundan habersiz kort ücreti/no-show riskiyle karşılaşabilirdi. Pro altı
+// işletmelerde bu davranış yok — kullanıcı isteği yalnızca Pro ve üstü paketleri kapsıyor.
+async function cancelLinkedVenueReservation(request) {
+    if (!request.venueReservationId || !TENNIS_PADEL_SUBCATEGORIES.includes(request.subCategory)) return null;
+    const reservation = await prisma.courtReservation.findUnique({
+        where: { id: request.venueReservationId },
+        include: { venue: true },
+    });
+    if (!reservation || reservation.status === 'CANCELLED') return null;
+
+    const sub = await prisma.businessSubscription.findFirst({
+        where: { userId: reservation.venue.userId, status: 'ACTIVE', endDate: { gt: new Date() } },
+    });
+    if (!sub || !PRO_PACKAGES.includes(sub.packageType)) return null;
+
+    const cb = reservation.venue.cancelHoursBefore;
+    let withinPolicy = true;
+    if (cb !== null && cb !== undefined) {
+        if (cb < 0) {
+            withinPolicy = false;
+        } else {
+            const resDate = new Date(`${reservation.date}T${reservation.startTime}:00`);
+            withinPolicy = (resDate - new Date()) / 3600000 >= cb;
+        }
+    }
+
+    if (withinPolicy) {
+        await prisma.courtReservation.update({ where: { id: reservation.id }, data: { status: 'CANCELLED' } });
+        refundGiftMinutes(reservation).catch(() => {});
+        emitToUser(reservation.venue.userId, 'notification', {});
+        return { compliant: true, venueName: reservation.venue.name };
+    }
+    return { compliant: false, venueName: reservation.venue.name };
+}
+
 export const cancelMatch = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -5162,7 +5201,13 @@ export const cancelMatch = async (req, res, next) => {
 
             if (bothAgreed) {
                 await prisma.activityRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
-                res.json({ cancelled: true, mutual: true });
+                const venueOutcome = await cancelLinkedVenueReservation(request);
+                res.json({
+                    cancelled: true, mutual: true,
+                    venuePolicyWarning: (venueOutcome && !venueOutcome.compliant)
+                        ? `Maçınız iptal edilmiştir. Ancak ${venueOutcome.venueName} işletmesinden aldığınız rezervasyon, işletmenin değiştirme/iptal politikalarına uymadığı için otomatik iptal edilmedi. Lütfen işletme ile iletişime geçin.`
+                        : undefined,
+                });
                 for (const uid of allPlayerIds) emitToUser(uid, 'rivalDeleted', { rivalId: id, subCategory: request.subCategory });
                 for (const uid of allPlayerIds) {
                     createNotification(uid, 'MATCH_CANCELLED',
@@ -5189,11 +5234,13 @@ export const cancelMatch = async (req, res, next) => {
 
         // Regular (unilateral) cancel
         const isCreatorSide = request.senderId === req.userId || senderTeamIds.includes(req.userId);
+        let venueOutcome = null;
 
         if (isCreatorSide) {
             // The listing's own side is cancelling — the post itself is no longer valid.
             await prisma.activityRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
             prisma.activityRequest.updateMany({ where: { linkedRivalId: id, status: 'OPEN' }, data: { status: 'CANCELLED' } }).catch(() => {});
+            venueOutcome = await cancelLinkedVenueReservation(request);
             for (const uid of allPlayerIds) emitToUser(uid, 'rivalDeleted', { rivalId: id, subCategory: request.subCategory });
         } else {
             // A joining-side participant is cancelling — drop the whole joining side
@@ -5271,7 +5318,12 @@ export const cancelMatch = async (req, res, next) => {
             }
         }
 
-        res.json({ cancelled: true, reopened: !isCreatorSide, penaltyApplied: withinPenaltyWindow, penaltyAmount: withinPenaltyWindow ? penaltyAmount : undefined });
+        res.json({
+            cancelled: true, reopened: !isCreatorSide, penaltyApplied: withinPenaltyWindow, penaltyAmount: withinPenaltyWindow ? penaltyAmount : undefined,
+            venuePolicyWarning: (venueOutcome && !venueOutcome.compliant)
+                ? `Maçınız iptal edilmiştir. Ancak ${venueOutcome.venueName} işletmesinden aldığınız rezervasyon, işletmenin değiştirme/iptal politikalarına uymadığı için otomatik iptal edilmedi. Lütfen işletme ile iletişime geçin.`
+                : undefined,
+        });
 
         const senderName = request.sender?.username || 'Rakip';
         for (const uid of otherPlayerIds) {

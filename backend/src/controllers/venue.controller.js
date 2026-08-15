@@ -115,7 +115,7 @@ async function grantLoyaltyCreditIfEligible(venueId, userId) {
 // GIFT (sadakat kredisiyle) ödenmiş bir rezervasyon iptal/reddedilirse harcanan bedava dakika
 // kullanıcının kredisine geri eklenir — aksi halde iptal edilen rezervasyonlar sessizce kredi
 // kaybına yol açardı.
-async function refundGiftMinutes(reservation) {
+export async function refundGiftMinutes(reservation) {
     if (reservation?.paymentMethod !== 'GIFT' || !reservation.userId) return;
     try {
         const s = toMins(reservation.startTime);
@@ -1647,7 +1647,12 @@ export const requestCancelReservation = async (req, res, next) => {
             ? `${r.date} ${r.startTime}–${r.endTime} rezervasyonu için saat değişikliği talep edildi.`
             : `${r.date} ${r.startTime}–${r.endTime} rezervasyonu için iptal talebi gönderildi.`;
 
-        await createNotification(r.venue.userId, 'RESERVATION', notifTitle, notifBody, { reservationId: resId, category: 'SPORTS', subCategory: r.venue.branch }).catch(() => {});
+        // venueId eksikti — mobil taraf (navigateFromNotif) bildirimde venueId yoksa hangi
+        // tesise gideceğini bilemeyip TÜM tesis kartlarını birden açmaya çalışıyordu; birden
+        // fazla dalda (ör. tenis + padel) tesisi olan işletmelerde ekranda ilk sırada hangi
+        // tesis render olduysa (rastgele/oluşturulma sırasına göre) o görünüyordu — kullanıcı
+        // raporu: "padel rezervasyonu için gelen bildirim tenisteki kortlara yönlendirdi".
+        await createNotification(r.venue.userId, 'RESERVATION', notifTitle, notifBody, { reservationId: resId, category: 'SPORTS', subCategory: r.venue.branch, venueId: r.venue.id }).catch(() => {});
         emitToUser(r.venue.userId, 'notification', {});
 
         res.json({ ok: true });

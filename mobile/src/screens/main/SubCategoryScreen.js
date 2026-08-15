@@ -4328,8 +4328,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const doCancel = async () => {
         setCancelling(true);
         try {
-            await api.patch(`/rivals/${match.id}/cancel-match`, { mutual: false });
-            Alert.alert('', t.cancelMatchSuccess);
+            const { data } = await api.patch(`/rivals/${match.id}/cancel-match`, { mutual: false });
+            // Pro/Premium işletmeden alınan rezervasyon, işletmenin iptal politikasına
+            // uymadığı için otomatik iptal edilemediyse backend bunu ayrıca bildiriyor —
+            // kullanıcı maçın iptal olduğunu sanıp rezervasyonu unutmasın diye ayrı bir uyarı.
+            if (data?.venuePolicyWarning) Alert.alert('', data.venuePolicyWarning);
+            else Alert.alert('', t.cancelMatchSuccess);
             onRefresh();
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.cancelMatchFailed); }
         finally { setCancelling(false); }
@@ -4433,7 +4437,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         try {
             const res = await api.patch(`/rivals/${match.id}/cancel-match`, { mutual: true });
             if (res.data?.cancelled) {
-                Alert.alert('', t.cancelMatchSuccess);
+                Alert.alert('', res.data?.venuePolicyWarning || t.cancelMatchSuccess);
                 onRefresh();
             } else {
                 Alert.alert('', t.mutualCancelSentMsg);
