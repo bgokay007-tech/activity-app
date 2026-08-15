@@ -3715,6 +3715,7 @@ function TeamSlot({ slot, player, color, label, disabled, isSelected, isTarget, 
 // Maç saati gelince "Maçı Başlat" ile açılan seçim ekranı — kamera kaydı ve/ya da saatten
 // canlı skor takibi arasında seçim yapılır (kullanıcı isteği: ikisi de olabilir, biri de).
 function MatchStartModal({ visible, onClose, onStart, t }) {
+    const insets = useSafeAreaInsets();
     const [wantCamera, setWantCamera] = useState(false);
     const [wantWatch, setWantWatch] = useState(false);
     useEffect(() => {
@@ -3736,7 +3737,7 @@ function MatchStartModal({ visible, onClose, onStart, t }) {
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={opt.overlay}>
-                <View style={opt.box}>
+                <View style={[opt.box, { paddingBottom: insets.bottom + 16 }]}>
                     <View style={opt.header}>
                         <Text style={opt.title}>{t.matchStartModalTitle}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
@@ -5967,10 +5968,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 // ─── Option Picker Modal (Time / Duration) ────────────────────────────────────
 
 function OptionPickerModal({ visible, title, options, value, onSelect, onClose }) {
+    const insets = useSafeAreaInsets();
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={opt.overlay}>
-                <View style={opt.box}>
+                <View style={[opt.box, { paddingBottom: insets.bottom + 16 }]}>
                     <View style={opt.header}>
                         <Text style={opt.title}>{title}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
@@ -5995,7 +5997,10 @@ function OptionPickerModal({ visible, title, options, value, onSelect, onClose }
 
 const opt = StyleSheet.create({
     overlay:      { flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' },
-    box:          { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37 },
+    // Kullanıcı raporu: "alttaki butonlar telefonun dokunmatik butonlarıyla üst üste
+    // gelebiliyor, her telefon modeline göre önlem al" — sabit paddingBottom yerine her
+    // kullanım kendi bileşeninde insets.bottom ile override ediyor, burası sadece taban değer.
+    box:          { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:16 },
     header:       { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 },
     title:        { color:'#fff', fontSize:16, fontWeight:'900' },
     close:        { color: colors.textMuted, fontSize:22 },
@@ -6010,10 +6015,11 @@ const opt = StyleSheet.create({
 // (kullanıcı raporu: "atanmamışa taşı yok"). 4 aksiyona kadar (Vazgeç, Çıkar, Karşı Takıma
 // Taşı, Atanmamışa Taşı) güvenle sığması için Alert yerine bu basit bottom-sheet kullanılıyor.
 function SlotActionSheet({ visible, title, actions, onClose }) {
+    const insets = useSafeAreaInsets();
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <TouchableOpacity style={opt.overlay} activeOpacity={1} onPress={onClose}>
-                <TouchableOpacity activeOpacity={1} style={opt.box} onPress={() => {}}>
+                <TouchableOpacity activeOpacity={1} style={[opt.box, { paddingBottom: insets.bottom + 16 }]} onPress={() => {}}>
                     <View style={opt.header}>
                         <Text style={opt.title} numberOfLines={1}>{title}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
@@ -6084,10 +6090,11 @@ function GenderCountModal({ visible, total, value, onSelect, onClose, t }) {
         setMinCount(value?.mode === 'MIN' && value.minGenderCount != null ? value.minGenderCount : 1);
     }, [visible, value, total]);
     const female = total - male;
+    const insets = useSafeAreaInsets();
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={opt.overlay}>
-                <View style={opt.box}>
+                <View style={[opt.box, { paddingBottom: insets.bottom + 16 }]}>
                     <View style={opt.header}>
                         <Text style={opt.title}>{t.genderCountLabel}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
@@ -6177,6 +6184,7 @@ function GenderCountModal({ visible, total, value, onSelect, onClose, t }) {
 // Airsoft: Kişi Başı Ücret artık Ücretli/Ücretsiz sekmesi yerine tek, sabit bir alan —
 // dokununca bu modal açılır, ya Ücretsiz seçilir ya manuel tutar girilip Uygula'ya basılır.
 function FeeModal({ visible, value, onSelectFree, onConfirmPrice, onClose, t }) {
+    const insets = useSafeAreaInsets();
     const [priceInput, setPriceInput] = useState(value || '');
     useEffect(() => {
         if (visible) setPriceInput(value || '');
@@ -6185,7 +6193,7 @@ function FeeModal({ visible, value, onSelectFree, onConfirmPrice, onClose, t }) 
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={opt.overlay}>
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
-                    <View style={opt.box}>
+                    <View style={[opt.box, { paddingBottom: insets.bottom + 16 }]}>
                         <View style={opt.header}>
                             <Text style={opt.title}>{t.courtFeeShortLabel}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
@@ -6219,6 +6227,7 @@ function FeeModal({ visible, value, onSelectFree, onConfirmPrice, onClose, t }) 
 // kullanıcı isteğiyle 25v25 gibi büyük savaşlar da kurulabilsin diye. 99 üstü sınırlanıyor,
 // aksi halde 2n-1 kişilik kadro kartı (TeamSlotRow listesi) render performansını bozar.
 function TeamSizeModal({ visible, value, onConfirm, onClose, t }) {
+    const insets = useSafeAreaInsets();
     const [input, setInput] = useState(value ? String(value) : '');
     useEffect(() => {
         if (visible) setInput(value ? String(value) : '');
@@ -6229,7 +6238,7 @@ function TeamSizeModal({ visible, value, onConfirm, onClose, t }) {
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={opt.overlay}>
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
-                    <View style={opt.box}>
+                    <View style={[opt.box, { paddingBottom: insets.bottom + 16 }]}>
                         <View style={opt.header}>
                             <Text style={opt.title}>{t.teamSizeLabel}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
@@ -6430,7 +6439,12 @@ function TeamJoinRequestModal({ visible, onClose, rival, sub, category, cfg, nav
 // aşağıdaki RatingPickerModal tarafından hâlâ kullanılıyor, o yüzden kalıyor.
 const tg = StyleSheet.create({
     overlay:        { flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' },
-    box:            { height:'75%', backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:13, paddingTop:17, paddingBottom:37 },
+    // paddingBottom sabit bir sayı DEĞİL — kullanıcı raporu: "alttaki butonlar telefonun
+    // dokunmatik butonlarıyla üst üste gelebiliyor, her telefon modeline göre önlem al".
+    // Her tg.box kullanımı artık kendi bileşeninde insets.bottom ile bunu override ediyor
+    // (bkz. CreateRivalModal/TeamJoinRequestModal/RatingPickerModal/RatingRangeModal) — burada
+    // sadece insets olmadan render edilirse diye makul bir taban değer kalıyor.
+    box:            { height:'75%', backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:13, paddingTop:17, paddingBottom:16 },
     header:         { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 },
     title:          { color:'#fff', fontSize:16, fontWeight:'900' },
     close:          { color: colors.textMuted, fontSize:22 },
@@ -10563,7 +10577,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     onRequestClose={() => set('showDurationPicker', false)} android_keyboardInputMode="adjustNothing">
                                     <View style={tg.overlay}>
                                         <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
-                                            <View style={[tg.box, { height:'55%' }]}>
+                                            <View style={[tg.box, { height:'55%', paddingBottom: insets.bottom + 16 }]}>
                                                 <View style={tg.header}>
                                                     <Text style={tg.title}>{t.selectDuration}</Text>
                                                     <TouchableOpacity onPress={() => set('showDurationPicker', false)}><Text style={tg.close}>✕</Text></TouchableOpacity>
@@ -11530,7 +11544,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     // + her iki kapatma yolunda da elle blur ediliyor.
                     <Modal visible transparent animationType="fade" onRequestClose={() => { courtFeeInputRef.current?.blur(); setShowGenderReqModal(false); }} android_keyboardInputMode="adjustNothing">
                         <View style={tg.overlay}>
-                            <View style={tg.box}>
+                            <View style={[tg.box, { paddingBottom: insets.bottom + 16 }]}>
                                 <View style={tg.header}>
                                     <Text style={tg.title}>{t.genderReqLabel}</Text>
                                     <TouchableOpacity onPress={() => { courtFeeInputRef.current?.blur(); setShowGenderReqModal(false); }}><Text style={tg.close}>✕</Text></TouchableOpacity>
