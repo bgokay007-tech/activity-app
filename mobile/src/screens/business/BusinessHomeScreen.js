@@ -2023,7 +2023,11 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     };
 
     const loadCancelRequests = async () => {
-        try { const { data } = await api.get('/venues/reservations/cancel-requests'); setCancelRequests(data || []); }
+        // Eskiden venueId'siz genel uca gidiyordu — birden fazla dalda tesisi olan işletme
+        // sahipleri, bir tesisin iptal talebini DİĞER tesisin kartında da görüyordu
+        // (kullanıcı raporu). Artık loadReservations ile aynı şekilde bu karta ait tek
+        // tesise (venue.id) scope'lanıyor.
+        try { const { data } = await api.get(`/venues/${venue.id}/reservations/cancel-requests`); setCancelRequests(data || []); }
         catch {}
     };
 

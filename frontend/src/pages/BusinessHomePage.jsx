@@ -188,10 +188,10 @@ function ReservationsTab({ venueId }) {
         setLoading(true);
         Promise.all([
             api.get(`/venues/${venueId}/reservations`),
-            api.get('/venues/reservations/cancel-requests'),
+            api.get(`/venues/${venueId}/reservations/cancel-requests`),
         ]).then(([resR, crR]) => {
             setReservations(resR.data || []);
-            setCancelRequests((crR.data || []).filter(r => r.venueId === venueId));
+            setCancelRequests(crR.data || []);
         }).catch(() => {}).finally(() => setLoading(false));
     }, [venueId]);
 

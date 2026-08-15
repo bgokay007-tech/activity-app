@@ -1749,15 +1749,18 @@ export const rejectCancelRequest = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Eskiden hiçbir venueId almadan işletme sahibinin SAHİP OLDUĞU TÜM tesislerdeki iptal
+// taleplerini tek listede döndürüyordu — birden fazla daldan (ör. tenis + padel) tesisi
+// olan işletmelerde, bir dalın iptal talebi diğer dalın tesis kartında da görünüyordu
+// (kullanıcı raporu: "padel'dan gelen iptal talebi tenis tesisinin taleplerine de düştü").
+// Artık :id ile tek bir tesise scope'lanıyor, sahiplik doğrulanıyor.
 export const getCancelRequests = async (req, res, next) => {
     try {
-        const venues = await prisma.businessVenue.findMany({
-            where: { userId: req.userId },
-            select: { id: true },
-        });
-        const venueIds = venues.map(v => v.id);
+        const { id } = req.params;
+        const venue = await prisma.businessVenue.findUnique({ where: { id }, select: { userId: true } });
+        if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
         const requests = await prisma.courtReservation.findMany({
-            where: { venueId: { in: venueIds }, cancelRequested: true, status: { not: 'CANCELLED' } },
+            where: { venueId: id, cancelRequested: true, status: { not: 'CANCELLED' } },
             include: {
                 venue: { select: { name: true } },
                 court: { select: { name: true } },
