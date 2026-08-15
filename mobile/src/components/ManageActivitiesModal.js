@@ -161,17 +161,21 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                             <TouchableOpacity onPress={onClose}><Text style={s.close}>✕</Text></TouchableOpacity>
                         </View>
 
-                        {/* Category tabs */}
+                        {/* Category tabs — kullanıcı isteği: her sekmede o kategoride kaç aktif
+                            (gizli olmayan) branş eklendiğini parantez içinde sayaç olarak göster. */}
                         <View style={s.tabRow}>
-                            {CATEGORY_TABS.map(tab => (
+                            {CATEGORY_TABS.map(tab => {
+                                const count = localInterests.filter(i => i.category === tab.id && !i.hidden).length;
+                                return (
                                 <TouchableOpacity
                                     key={tab.id}
                                     style={[s.tab, activeTab === tab.id && { backgroundColor: tab.color }]}
                                     onPress={() => setActiveTab(tab.id)}
                                 >
-                                    <Text style={[s.tabText, activeTab === tab.id && { color: '#fff' }]}>{tab.label}</Text>
+                                    <Text style={[s.tabText, activeTab === tab.id && { color: '#fff' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{tab.label} ({count})</Text>
                                 </TouchableOpacity>
-                            ))}
+                                );
+                            })}
                         </View>
 
                         {/* Sub-category list */}
