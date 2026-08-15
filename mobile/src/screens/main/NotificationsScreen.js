@@ -285,7 +285,13 @@ export default function NotificationsScreen({ navigation }) {
             goToSub('tournaments');
         } else if (type === 'RESERVATION' || type === 'RESERVATION_UPDATE' || type === 'VENUE_ORDER' || type === 'PAYMENT_ALERT') {
             if (isBusiness) {
-                navigation.navigate('BusinessApp', { openReservations: true });
+                // navigateFromNotif (navigation/index.js) ile aynı mantık — venueId varsa
+                // sadece o tesisin takvimi açılır, yoksa (eski bildirimler) tüm kartlar
+                // açılmayı dener. Bu ekran bildirim listesinden dokununca kullanılan AYRI
+                // bir yol olduğu için venueId eskiden buraya hiç aktarılmıyordu — birden
+                // fazla dalda tesisi olan işletmeler her zaman ilk tesisin takvimine
+                // düşüyordu (kullanıcı raporu: "padel iptal talebi tenis kortlarını açtı").
+                navigation.navigate('BusinessApp', { openReservations: true, venueId: data.venueId || null });
             } else {
                 navigation.navigate('HomeTab', { screen: 'MyReservations' });
             }
