@@ -3684,31 +3684,23 @@ function TeamSlot({ slot, player, color, label, disabled, isSelected, isTarget, 
         );
     }
 
+    // Kullanıcı isteği: "yaklaşan maçlara geçince davet et iconu gitmesi lazım, sonuçta
+    // oyuncular tamamlandı" — dolu bir formanın sağındaki takas (↕) ikonu/dokunması kaldırıldı,
+    // roster tamamlanınca artık pozisyon değişikliğine gerek yok (Çıkar hâlâ ayrıca mevcut).
     return (
-        <TouchableOpacity
-            disabled={disabled}
-            activeOpacity={0.7}
-            onPress={() => onTap(slot)}
+        <View
             style={{
                 marginBottom:4, borderRadius:8, paddingHorizontal:5, paddingVertical:3, borderWidth:1,
-                borderColor: isSelected ? '#f59e0b' : isTarget ? '#4ade80' : '#ffffff15',
-                backgroundColor: isSelected ? '#f59e0b18' : isTarget ? '#4ade8015' : '#1e293b',
+                borderColor:'#ffffff15', backgroundColor:'#1e293b',
             }}
         >
-            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-                <View style={{ flex:1, minWidth:0 }}>
-                    {/* Etiket burada değil, kutunun üstündeki ortak satırda (İlan Sahibi/
-                        takım ismi ile birlikte) tek sefer gösteriliyor — önceden burada da
-                        ayrıca gösterildiği için "Katılımcı 1 Katılımcı 1" gibi çift yazıyordu. */}
-                    <Text style={{ color, fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                        {senderAlias(player)}
-                    </Text>
-                </View>
-                <Text style={{ color: isSelected ? '#f59e0b' : colors.textMuted, fontSize:10 }}>
-                    {isSelected ? '✓ seçildi' : isTarget ? '↔ taşı' : '↕'}
-                </Text>
-            </View>
-        </TouchableOpacity>
+            {/* Etiket burada değil, kutunun üstündeki ortak satırda (İlan Sahibi/
+                takım ismi ile birlikte) tek sefer gösteriliyor — önceden burada da
+                ayrıca gösterildiği için "Katılımcı 1 Katılımcı 1" gibi çift yazıyordu. */}
+            <Text style={{ color, fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                {senderAlias(player)}
+            </Text>
+        </View>
     );
 }
 
