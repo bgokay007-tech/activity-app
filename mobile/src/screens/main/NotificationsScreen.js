@@ -291,7 +291,9 @@ export default function NotificationsScreen({ navigation }) {
                 // bir yol olduğu için venueId eskiden buraya hiç aktarılmıyordu — birden
                 // fazla dalda tesisi olan işletmeler her zaman ilk tesisin takvimine
                 // düşüyordu (kullanıcı raporu: "padel iptal talebi tenis kortlarını açtı").
-                navigation.navigate('BusinessApp', { openReservations: true, venueId: data.venueId || null });
+                // reservationId varsa (ör. iptal talebi) takvimde o saat kutucuğu yanıp
+                // söner ve dokununca doğrudan Onayla/Reddet sorulur (kullanıcı isteği).
+                navigation.navigate('BusinessApp', { openReservations: true, venueId: data.venueId || null, highlightReservationId: data.reservationId || null, highlightDate: data.date || null });
             } else {
                 navigation.navigate('HomeTab', { screen: 'MyReservations' });
             }

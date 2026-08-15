@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     StatusBar, Platform, Alert, ActivityIndicator, Modal, Image,
-    TextInput, Switch, FlatList, BackHandler, KeyboardAvoidingView,
+    TextInput, Switch, FlatList, BackHandler, KeyboardAvoidingView, Animated,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1056,7 +1056,7 @@ function ManualReservationModal({ visible, venueId, court, date, initialStart, i
     );
 }
 
-function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpenBill }) {
+function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpenBill, highlightReservationId = null, highlightDate = null, onApproveCancel, onRejectCancel }) {
     const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const [selDate, setSelDate]   = useState(() => toDateStr(new Date()));
     const [schedule, setSchedule] = useState(null);
@@ -1064,6 +1064,26 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
     const [refreshTick, setRefreshTick] = useState(0);
     const [manualModal, setManualModal] = useState({ visible: false, court: null, startTime: '', endTime: '' });
     const [actionSlot, setActionSlot] = useState(null); // { slot, court } | null
+    // İptal talebi bildiriminden gelince ilgili saat kutucuğu yanıp sönsün diye (kullanıcı
+    // isteği) — sadece bu modal açıldığında BİR KEZ tetiklenir, kullanıcı elle başka bir
+    // tarihe geçerse bir daha üzerine yazılmaz (Değiştir'deki initialAppliedRef ile aynı mantık).
+    const highlightAppliedRef = useRef(false);
+    const highlightPulse = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+        if (!visible) { highlightAppliedRef.current = false; return; }
+        if (highlightAppliedRef.current) return;
+        highlightAppliedRef.current = true;
+        if (highlightDate) setSelDate(highlightDate);
+    }, [visible, highlightDate]);
+    useEffect(() => {
+        if (!visible || !highlightReservationId) return;
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(highlightPulse, { toValue: 0.35, duration: 500, useNativeDriver: true }),
+            Animated.timing(highlightPulse, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [visible, highlightReservationId]);
 
     const shiftDate = (n) => {
         const d = new Date(selDate + 'T12:00:00');
@@ -1092,6 +1112,21 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
 
     const handleSlotPress = (slot, court) => {
         if (!slot.reservationId) return;
+        // Bekleyen bir iptal talebi varsa (kullanıcı isteği: bildirimden gelen saat yanıp
+        // sönsün, dokununca direkt Onayla/Reddet sorulsun) — bu, normal onay/adisyon
+        // akışlarından ÖNCE kontrol edilir, hangi durumda olursa olsun önceliklidir.
+        if (slot.cancelRequested) {
+            Alert.alert(
+                '📋 İptal Talebi',
+                `${slot.user?.fullName || slot.user?.username || slot.manualName || 'Müşteri'} bu rezervasyon için iptal talebinde bulundu.`,
+                [
+                    { text: 'Vazgeç', style: 'cancel' },
+                    { text: 'Reddet', style: 'destructive', onPress: () => onRejectCancel?.(slot.reservationId) },
+                    { text: 'Onayla', onPress: () => onApproveCancel?.(slot.reservationId) },
+                ]
+            );
+            return;
+        }
         // Onay bekleyenler her zaman küçük menüden onaylanır/reddedilir.
         // Onaylı rezervasyonlarda (Pro tesis) doğrudan tam ekran Adisyon sayfası açılır.
         if (slot.status !== 'PENDING' && isPro) { doOpenBill(slot, court); return; }
@@ -1255,16 +1290,24 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                                                     const isPending = st === 'PENDING' && slot.reservationId;
                                                     const isConfirmedUnpaid = st === 'CONFIRMED' && slot.reservationId && !isPaid;
                                                     const isConfirmedPaid = st === 'CONFIRMED' && slot.reservationId && isPaid;
-                                                    const isTappable = isPending || isConfirmedUnpaid || isFree || (isPro && isConfirmedPaid);
+                                                    // Bekleyen bir iptal talebi varsa (kullanıcı isteği) — hangi durumda olursa
+                                                    // olsun (onaylı+ödenmiş dahil) her zaman dokunulabilir ve turuncu vurgulanır.
+                                                    const isCancelRequested = !!slot.cancelRequested;
+                                                    const isTappable = isCancelRequested || isPending || isConfirmedUnpaid || isFree || (isPro && isConfirmedPaid);
+                                                    const isHighlighted = isCancelRequested && slot.reservationId && slot.reservationId === highlightReservationId;
+                                                    const cellColor = isCancelRequested ? '#f59e0b' : color;
+                                                    const cellBg = isCancelRequested ? '#f59e0b18' : bg;
+                                                    const Wrapper = isHighlighted ? Animated.View : View;
                                                     return (
-                                                        <TouchableOpacity key={si}
-                                                            onPress={() => { if (isFree) openManualBooking(court, slot); else if (isTappable) handleSlotPress(slot, court); }}
+                                                        <Wrapper key={si} style={isHighlighted ? { opacity: highlightPulse } : undefined}>
+                                                        <TouchableOpacity
+                                                            onPress={() => { if (isCancelRequested) handleSlotPress(slot, court); else if (isFree) openManualBooking(court, slot); else if (isTappable) handleSlotPress(slot, court); }}
                                                             activeOpacity={isTappable ? 0.7 : 1}
                                                             style={{
-                                                                backgroundColor: bg,
+                                                                backgroundColor: cellBg,
                                                                 borderRadius: 8, padding: 7, marginBottom: 5,
-                                                                borderWidth: isTappable ? 1.5 : 1,
-                                                                borderColor: isTappable ? color : color + '55',
+                                                                borderWidth: isCancelRequested ? 2 : (isTappable ? 1.5 : 1),
+                                                                borderColor: isTappable ? cellColor : cellColor + '55',
                                                                 minHeight: 48,
                                                                 overflow: 'hidden',
                                                             }}>
@@ -1320,7 +1363,13 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                                                                     {isPastFree ? 'Geçmiş saat' : '+ Manuel Ekle'}
                                                                 </Text>
                                                             )}
+                                                            {isCancelRequested && (
+                                                                <Text style={{ color: '#f59e0b', fontSize: 9, marginTop: 2, fontWeight: '800' }}>
+                                                                    📋 İptal Talebi →
+                                                                </Text>
+                                                            )}
                                                         </TouchableOpacity>
+                                                        </Wrapper>
                                                     );
                                                 })}
                                             </View>
@@ -1667,7 +1716,7 @@ const MENU_CATS = [
 const ORDER_COLORS = { PENDING:'#eab308', CONFIRMED:'#3b82f6', READY:'#22c55e', CANCELLED:'#ef4444' };
 const ORDER_LABELS = { PENDING:'⏳ Bekliyor', CONFIRMED:'✅ Onaylandı', READY:'🟢 Hazır', CANCELLED:'❌ İptal' };
 
-function VenueCard({ venue, sub, onDelete, navigation, openReservations = false }) {
+function VenueCard({ venue, sub, onDelete, navigation, openReservations = false, highlightReservationId = null, highlightDate = null }) {
     const insets = useSafeAreaInsets();
     const isApproved = venue.status === 'APPROVED';
     const isPro     = sub && ['PRO', 'PREMIUM'].includes(sub.packageType);
@@ -4623,6 +4672,10 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                 visible={scheduleOpen}
                 venue={venue}
                 isPro={isPro}
+                highlightReservationId={highlightReservationId}
+                highlightDate={highlightDate}
+                onApproveCancel={handleApproveCancelRequest}
+                onRejectCancel={handleRejectCancelRequest}
                 onClose={() => setScheduleOpen(false)}
                 onUserPress={(user) => {
                     setScheduleOpen(false);
@@ -4995,8 +5048,14 @@ export default function BusinessHomeScreen({ navigation, route }) {
                             // yoksa (venueId yok) eski davranış korunur — tüm kartlar açılmayı dener.
                             const shouldOpen = route?.params?.openReservations === true
                                 && (!route?.params?.venueId || route.params.venueId === v.id);
+                            // İptal talebi bildiriminden geldiyse (reservationId taşıyorsa) takvimde
+                            // o saat kutucuğu yanıp sönsün diye (kullanıcı isteği) — sadece bu karta
+                            // aktarılır, aynı isteğin diğer tesis kartlarına sızmaması için shouldOpen
+                            // ile aynı venueId eşleşmesine bağlı.
+                            const highlightReservationId = shouldOpen ? (route?.params?.highlightReservationId || null) : null;
+                            const highlightDate = shouldOpen ? (route?.params?.highlightDate || null) : null;
                             return (
-                                <VenueCard key={v.id} venue={v} sub={sub} navigation={navigation} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} openReservations={shouldOpen} />
+                                <VenueCard key={v.id} venue={v} sub={sub} navigation={navigation} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} openReservations={shouldOpen} highlightReservationId={highlightReservationId} highlightDate={highlightDate} />
                             );
                         })
                     )}

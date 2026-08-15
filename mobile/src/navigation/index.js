@@ -42,7 +42,9 @@ function navigateFromNotif(data) {
     } else if (type === 'RESERVATION' || type === 'RESERVATION_UPDATE' || type === 'VENUE_ORDER' || type === 'PAYMENT_ALERT') {
         // venueId varsa (ör. VENUE_ORDER) sadece o tesisin takvimi açılır — yoksa (ör. bazı
         // RESERVATION bildirimleri) eski davranış korunur, tüm tesis kartları açılmayı dener.
-        navigationRef.navigate('BusinessApp', { openReservations: true, venueId: data.venueId || null });
+        // reservationId varsa (ör. iptal talebi) takvimde o saat kutucuğu yanıp söner ve
+        // dokununca doğrudan Onayla/Reddet sorulur (kullanıcı isteği).
+        navigationRef.navigate('BusinessApp', { openReservations: true, venueId: data.venueId || null, highlightReservationId: data.reservationId || null, highlightDate: data.date || null });
     } else if (type === 'VENUE_REQUEST') {
         navigationRef.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'venues' } });
     } else if (type === 'SUBSCRIPTION_REQUEST' || type === 'SUBSCRIPTION_RECEIPT') {

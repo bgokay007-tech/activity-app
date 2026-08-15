@@ -1117,7 +1117,7 @@ export const getOwnerSchedule = async (req, res, next) => {
                     for (let t = open; t + 60 <= close; t += 60) {
                         if (close - (t + 60) > 0 && close - (t + 60) < 60) continue;
                         const rs = findRes(court.id, t, t + 60);
-                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 60, rs[0]?.paymentMethod || 'CASH') });
+                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, cancelRequested: rs[0]?.cancelRequested || false, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 60, rs[0]?.paymentMethod || 'CASH') });
                     }
                 } else if (effectiveSlotType === 'HALF_HOUR') {
                     let start = open;
@@ -1129,13 +1129,13 @@ export const getOwnerSchedule = async (req, res, next) => {
                         const midnight = endT > 1440;
                         if (!midnight) { const rem = effectiveClose - endT; if (rem > 0 && rem < 60) continue; }
                         const rs = findRes(court.id, t, midnight ? 1470 : endT);
-                        slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 60, rs[0]?.paymentMethod || 'CASH') });
+                        slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, cancelRequested: rs[0]?.cancelRequested || false, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 60, rs[0]?.paymentMethod || 'CASH') });
                     }
                 } else if (effectiveSlotType === 'NINETY_MIN') {
                     for (let t = open; t + 90 <= close; t += 120) {
                         if (close - (t + 90) > 0 && close - (t + 90) < 90) continue;
                         const rs = findRes(court.id, t, t + 90);
-                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 90, rs[0]?.paymentMethod || 'CASH') });
+                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, cancelRequested: rs[0]?.cancelRequested || false, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 90, rs[0]?.paymentMethod || 'CASH') });
                     }
                 } else {
                     // VAR_DURATION: gerçek rezervasyon bloklarını ve boş pencereleri göster (saatlik grid değil)
@@ -1146,7 +1146,7 @@ export const getOwnerSchedule = async (req, res, next) => {
                     let cur = open;
                     for (const { s, e, r } of courtRes) {
                         if (s > cur) slots.push({ start: toTime(cur), end: toTime(s), status: 'FREE', user: null, reservationId: null, paymentMethod: null, past: isPastMin(cur), price: 0 });
-                        slots.push({ start: toTime(Math.max(s, open)), end: toTime(Math.min(e, close)), status: r.status, user: r.user, manualName: r.manualName || null, reservationId: r.id, paymentMethod: r.paymentMethod, paymentConfirmStatus: r.paymentConfirmStatus, price: null });
+                        slots.push({ start: toTime(Math.max(s, open)), end: toTime(Math.min(e, close)), status: r.status, user: r.user, manualName: r.manualName || null, reservationId: r.id, cancelRequested: r.cancelRequested || false, paymentMethod: r.paymentMethod, paymentConfirmStatus: r.paymentConfirmStatus, price: null });
                         cur = Math.max(cur, e);
                     }
                     if (cur < close) slots.push({ start: toTime(cur), end: toTime(close), status: 'FREE', user: null, reservationId: null, paymentMethod: null, past: isPastMin(cur), price: 0 });
@@ -1665,7 +1665,9 @@ export const requestCancelReservation = async (req, res, next) => {
         // fazla dalda (ör. tenis + padel) tesisi olan işletmelerde ekranda ilk sırada hangi
         // tesis render olduysa (rastgele/oluşturulma sırasına göre) o görünüyordu — kullanıcı
         // raporu: "padel rezervasyonu için gelen bildirim tenisteki kortlara yönlendirdi".
-        await createNotification(r.venue.userId, 'RESERVATION', notifTitle, notifBody, { reservationId: resId, category: 'SPORTS', subCategory: r.venue.branch, venueId: r.venue.id }).catch(() => {});
+        // date de eklendi — mobil takvim bugünden değil, rezervasyonun asıl tarihinden
+        // açılıp o saat kutucuğunu yanıp söndürebilsin diye (kullanıcı isteği).
+        await createNotification(r.venue.userId, 'RESERVATION', notifTitle, notifBody, { reservationId: resId, category: 'SPORTS', subCategory: r.venue.branch, venueId: r.venue.id, date: r.date }).catch(() => {});
         emitToUser(r.venue.userId, 'notification', {});
 
         res.json({ ok: true });
