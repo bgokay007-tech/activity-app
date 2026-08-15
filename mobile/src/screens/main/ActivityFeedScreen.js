@@ -585,7 +585,7 @@ function LocationInput({ placeholder, value, onChange, type, province, compact }
     const showApprovalBtn = type === 'district' && searched && suggestions.length === 0 && value.length >= 2 && !submitted;
 
     return (
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, zIndex: 20 }}>
             <TextInput
                 style={[s.filterInput, compact && s.filterInputCompact]}
                 placeholder={placeholder}
@@ -595,23 +595,31 @@ function LocationInput({ placeholder, value, onChange, type, province, compact }
                 autoCorrect={false}
                 autoCapitalize="none"
             />
-            {suggestions.map(sg => (
-                <TouchableOpacity key={sg} style={s.suggItem}
-                    onPress={() => { onChange(sg); setSuggestions([]); setSearched(false); }} activeOpacity={0.8}>
-                    <Text style={s.suggText}>📍 {sg}</Text>
-                </TouchableOpacity>
-            ))}
-            {showApprovalBtn && (
-                <TouchableOpacity style={s.approvalBtn} onPress={sendApproval} disabled={submitting} activeOpacity={0.8}>
-                    <Text style={s.approvalText}>
-                        {submitting ? '⏳ Gönderiliyor…' : `📨 "${value}" için onay gönder`}
-                    </Text>
-                </TouchableOpacity>
-            )}
-            {submitted && (
-                <View style={s.approvalSent}>
-                    <Text style={s.approvalSentText}>✅ Gönderildi — admin onaylayınca listeye eklenir.</Text>
-                </View>
+            {/* Öneri listesi normal akışa (flex row içinde) girip satırdaki İlçe/Tarih/Saat
+                kutularını da aynı yüksekliğe zorluyordu (kullanıcı raporu: "iki harf yazınca
+                çok kötü kayma oluyor") — artık girdinin ALTINA konumlanan (position:absolute)
+                bir katman olarak açılıyor, satır yüksekliğini etkilemiyor. */}
+            {(suggestions.length > 0 || showApprovalBtn || submitted) && (
+                <ScrollView style={s.suggDropdown} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                    {suggestions.map(sg => (
+                        <TouchableOpacity key={sg} style={s.suggItem}
+                            onPress={() => { onChange(sg); setSuggestions([]); setSearched(false); }} activeOpacity={0.8}>
+                            <Text style={s.suggText} numberOfLines={1}>📍 {sg}</Text>
+                        </TouchableOpacity>
+                    ))}
+                    {showApprovalBtn && (
+                        <TouchableOpacity style={s.approvalBtn} onPress={sendApproval} disabled={submitting} activeOpacity={0.8}>
+                            <Text style={s.approvalText} numberOfLines={2}>
+                                {submitting ? '⏳ Gönderiliyor…' : `📨 "${value}" için onay gönder`}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                    {submitted && (
+                        <View style={s.approvalSent}>
+                            <Text style={s.approvalSentText} numberOfLines={2}>✅ Gönderildi — admin onaylayınca listeye eklenir.</Text>
+                        </View>
+                    )}
+                </ScrollView>
             )}
         </View>
     );
@@ -1411,6 +1419,7 @@ const s = StyleSheet.create({
     chipEmoji: { fontSize: 12 },
     chipText:  { color: colors.textSecondary, fontSize: 10, fontWeight: '700' },
 
+    suggDropdown:    { position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30, elevation: 8, maxHeight: 220 },
     suggItem:        { paddingHorizontal: 12, paddingVertical: 9, marginTop: 3, backgroundColor: colors.surface2, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
     suggText:        { color: '#fff', fontSize: 13 },
     approvalBtn:     { marginTop: 4, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.purple + '22', borderRadius: 8, borderWidth: 1, borderColor: colors.purple },
