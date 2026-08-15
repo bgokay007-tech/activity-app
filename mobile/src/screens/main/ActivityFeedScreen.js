@@ -604,7 +604,7 @@ function LocationInput({ placeholder, value, onChange, type, province, compact }
                     {suggestions.map(sg => (
                         <TouchableOpacity key={sg} style={s.suggItem}
                             onPress={() => { onChange(sg); setSuggestions([]); setSearched(false); }} activeOpacity={0.8}>
-                            <Text style={s.suggText} numberOfLines={1}>📍 {sg}</Text>
+                            <Text style={s.suggText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{sg}</Text>
                         </TouchableOpacity>
                     ))}
                     {showApprovalBtn && (
