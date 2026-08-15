@@ -81,6 +81,10 @@ model User {
   businessAddress        String?
   lateCancelCount        Int      @default(0)
   tournamentBanRemaining Int      @default(0)
+  // Pro/Premium işletmelerin REDDETTİĞİ politika-dışı iptal/değişiklik talebi sayısı (kalıcı,
+  // tüm Pro/Premium tesisler toplamı) — 5'i geçince Pro/Premium tesislerde yeni rezervasyon/ilan
+  // oluşturma engellenir (bkz. venue.controller.js assertNotVenuePolicyBlocked).
+  venuePolicyRejectionCount Int   @default(0)
   pushToken              String?
   rivalJoinReqs    RivalJoinRequest[]
   notifications    Notification[]

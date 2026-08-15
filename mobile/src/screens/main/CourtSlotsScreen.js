@@ -3,11 +3,69 @@ import {
     View, Text, TouchableOpacity, ScrollView, FlatList,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Modal, Linking,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import { computeVarDurationPrice } from '../../utils/priceProration';
+import useT from '../../hooks/useT';
 
 function pad(n) { return String(n).padStart(2, '0'); }
+
+const VENUE_POLICY_WARNING_DISMISSED_KEY = 'venue_policy_warning_dismissed';
+
+// Pro/Premium bir tesiste saat seçince bir kez gösterilen bilgilendirme — "Bir daha gösterme"
+// işaretlenip onaylanırsa AsyncStorage'a yazılır, bir daha açılmaz (aynı EloWarningModal deseni,
+// bkz. SubCategoryScreen.js).
+function VenuePolicyWarningModal({ visible, onClose, onDismissForever }) {
+    const t = useT();
+    const [checked, setChecked] = useState(false);
+    useEffect(() => { if (visible) setChecked(false); }, [visible]);
+
+    const handleCheckboxPress = () => {
+        if (checked) { setChecked(false); return; }
+        Alert.alert(t.eloConfirmTitle, t.eloConfirmMsg, [
+            { text: t.eloConfirmNo, style: 'cancel' },
+            { text: t.eloConfirmYes, style: 'destructive', onPress: async () => {
+                setChecked(true);
+                await AsyncStorage.setItem(VENUE_POLICY_WARNING_DISMISSED_KEY, '1');
+                onDismissForever?.();
+                onClose();
+            }},
+        ]);
+    };
+
+    return (
+        <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+            <TouchableOpacity style={vp.overlay} activeOpacity={1} onPress={onClose}>
+                <View style={vp.box} onStartShouldSetResponder={() => true}>
+                    <View style={vp.header}>
+                        <Text style={vp.title}>{t.venuePolicyWarningTitle}</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={vp.close}>✕</Text></TouchableOpacity>
+                    </View>
+                    <Text style={vp.body}>{t.venuePolicyWarningBody}</Text>
+                    <TouchableOpacity onPress={handleCheckboxPress} style={vp.checkRow}>
+                        <View style={[vp.checkbox, checked && vp.checkboxChecked]}>
+                            {checked && <Text style={{ color: '#fff', fontSize: 10 }}>✓</Text>}
+                        </View>
+                        <Text style={vp.checkLabel}>{t.eloDontShowAgain}</Text>
+                    </TouchableOpacity>
+                </View>
+            </TouchableOpacity>
+        </Modal>
+    );
+}
+const vp = StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: '#000000cc', justifyContent: 'center', alignItems: 'center', padding: 24 },
+    box:     { backgroundColor: colors.surface, borderRadius: 16, padding: 17, width: '100%', maxWidth: 340 },
+    header:  { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10, gap: 8 },
+    title:   { color: '#fff', fontSize: 15, fontWeight: '900', flex: 1 },
+    close:   { color: colors.textMuted, fontSize: 20 },
+    body:    { color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
+    checkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 },
+    checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+    checkboxChecked: { backgroundColor: colors.purple, borderColor: colors.purple },
+    checkLabel: { color: colors.textSecondary, fontSize: 12 },
+});
 
 const SURFACE_LABEL = { CLAY: 'Toprak', HARD: 'Sert Zemin', CARPET: 'Halı Saha', GRASS: 'Çim', PARQUET: 'Parke', SYNTHETIC: 'Sentetik' };
 
@@ -168,6 +226,12 @@ export default function CourtSlotsScreen({ route, navigation }) {
     const [confirming, setConf]   = useState(false);
     const [varStartTime, setVarStartTime] = useState(null);
     const [varWindow, setVarWindow] = useState(null);
+    const [showPolicyWarning, setShowPolicyWarning] = useState(false);
+    const [policyWarningDismissed, setPolicyWarningDismissed] = useState(false);
+
+    useEffect(() => {
+        AsyncStorage.getItem(VENUE_POLICY_WARNING_DISMISSED_KEY).then(v => { if (v) setPolicyWarningDismissed(true); });
+    }, []);
 
     const fetchSlots = useCallback(async (date) => {
         setLoading(true);
@@ -191,6 +255,9 @@ export default function CourtSlotsScreen({ route, navigation }) {
             return;
         }
         setPicked(slot);
+        // Pro/Premium bir tesiste, "bir daha gösterme" işaretlenene kadar önce politika
+        // uyarısı gösterilir — kullanıcı isteği: saati seçtiğinde bu bilgiyi görsün.
+        if (slots?.isProVenue && !policyWarningDismissed) { setShowPolicyWarning(true); return; }
         setModal(true);
     };
 
@@ -492,6 +559,12 @@ export default function CourtSlotsScreen({ route, navigation }) {
                 confirming={confirming}
                 rescheduleMode={rescheduleMode}
                 myLoyaltyFreeMinutes={slots?.myLoyaltyFreeMinutes || 0}
+            />
+
+            <VenuePolicyWarningModal
+                visible={showPolicyWarning}
+                onClose={() => { setShowPolicyWarning(false); setModal(true); }}
+                onDismissForever={() => setPolicyWarningDismissed(true)}
             />
         </View>
     );

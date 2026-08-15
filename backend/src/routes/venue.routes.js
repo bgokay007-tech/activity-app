@@ -11,7 +11,7 @@ import {
     blockUser, unblockUser, getBlockedUsers,
     addMenuItem, updateMenuItem, deleteMenuItem, getVenueMenu,
     placeOrder, getVenueOrders, getUserOrders, updateOrderStatus,
-    requestCancelReservation, approveCancelRequest, getCancelRequests,
+    requestCancelReservation, approveCancelRequest, rejectCancelRequest, getCancelRequests,
     getOrCreateBill, addBillItem, updateBillItem, removeBillItem, markBillPaid, getVenueBills,
 } from '../controllers/venue.controller.js';
 import {
@@ -65,6 +65,7 @@ router.patch('/reservations/:resId/status',          updateReservationStatus);
 router.patch('/reservations/:resId/reschedule',      rescheduleReservation);
 router.post('/reservations/:resId/cancel-request',   requestCancelReservation);
 router.post('/reservations/:resId/cancel-approve',   approveCancelRequest);
+router.post('/reservations/:resId/cancel-reject',    rejectCancelRequest);
 router.get('/reservations/cancel-requests',          getCancelRequests);
 router.get('/:id/menu',                  getVenueMenu);
 router.post('/:id/orders',               placeOrder);

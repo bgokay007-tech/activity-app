@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import colors from '../../theme/colors';
 import api from '../../services/api';
+import useT from '../../hooks/useT';
 
 const DAYS_TR = ['', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 const SLOT_LABEL = { FULL_HOUR: 'Tam Saatler', HALF_HOUR: 'Buçuklu Saatler', NINETY_MIN: '90 Dakika', FLEXIBLE: 'Serbest', VAR_DURATION: 'Esnek Saat' };
@@ -157,6 +158,7 @@ function ReviewModal({ visible, venue, myReviews, onClose, onSaved }) {
 }
 
 export default function VenueDetailScreen({ route, navigation }) {
+    const t = useT();
     const { venue, rescheduleResId } = route.params;
     const [selectedCourt, setSelected] = useState(null);
     const [reviews, setReviews]         = useState(null); // null = loading
@@ -267,6 +269,15 @@ export default function VenueDetailScreen({ route, navigation }) {
                         <Text style={s.infoLabel}>Rezervasyon</Text>
                         <Text style={[s.infoValue, { textAlign: 'right', flex: 1 }]}>{courtSlotLabels(venue)}</Text>
                     </View>
+                    {(venue.cancelHoursBefore !== undefined || venue.rescheduleHoursBefore !== undefined) && (
+                        <View style={[s.infoRow, { alignItems: 'flex-start' }]}>
+                            <Text style={s.infoLabel}>Değiştirme{'\n'}/İptal</Text>
+                            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                                <Text style={[s.infoValue, { color: '#60a5fa', textAlign: 'right' }]}>{t.venueCancelPolicyInfo(venue.cancelHoursBefore)}</Text>
+                                <Text style={[s.infoValue, { color: '#60a5fa', textAlign: 'right', marginTop: 2 }]}>{t.venueReschedulePolicyInfo(venue.rescheduleHoursBefore)}</Text>
+                            </View>
+                        </View>
+                    )}
                     {venue.reservationOpenDaysBefore != null && (
                         <View style={s.infoRow}>
                             <Text style={s.infoLabel}>Rezervasyon{'\n'}Açılışı</Text>

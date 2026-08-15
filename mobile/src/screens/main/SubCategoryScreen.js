@@ -7391,6 +7391,16 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                 );
                             })()}
 
+                            {/* Değiştirme/iptal politikası bilgisi */}
+                            {(venue.cancelHoursBefore !== undefined || venue.rescheduleHoursBefore !== undefined) && (
+                                <View style={{ paddingHorizontal:3, paddingBottom:3 }}>
+                                    <View style={{ backgroundColor:'#3b82f618', borderRadius:7, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#3b82f640' }}>
+                                        <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>{t.venueCancelPolicyInfo(venue.cancelHoursBefore)}</Text>
+                                        <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700', marginTop:2 }}>{t.venueReschedulePolicyInfo(venue.rescheduleHoursBefore)}</Text>
+                                    </View>
+                                </View>
+                            )}
+
                             {/* Rezervasyon açılış penceresi bilgisi */}
                             {venue.reservationOpenDaysBefore != null && (
                                 <View style={{ paddingHorizontal:3, paddingBottom:3 }}>

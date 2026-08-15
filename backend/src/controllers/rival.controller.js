@@ -12,7 +12,7 @@ import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisP
 // hesabına özel yerel bir kontrole eklendi.
 const usesTennisEloTable = (subCategory) => TENNIS_PADEL_SUBCATEGORIES.includes(subCategory) || subCategory === 'volleyball';
 import { PEER_REVIEW_SUBCATEGORIES } from '../utils/peerReview.js';
-import { computeReservationStatus, overlaps, toMins, isPastDateTime, PRO_PACKAGES, refundGiftMinutes } from './venue.controller.js';
+import { computeReservationStatus, overlaps, toMins, isPastDateTime, PRO_PACKAGES, refundGiftMinutes, assertNotVenuePolicyBlocked } from './venue.controller.js';
 import { RATING_REQUIRED_SUBCATEGORIES } from '../config/assessments.js';
 import { sanitizeExtraServices } from '../utils/extraServices.js';
 import { subCategoryTR } from '../utils/subCategoryLabels.js';
@@ -1354,6 +1354,13 @@ async function updateMatchedRivalCourt(req, res, rival) {
             if (!sub || !PRO_PACKAGES.includes(sub.packageType)) {
                 return res.status(403).json({ message: 'Bu tesis Pro veya Premium pakete sahip olmadığı için kort değişikliği bu ilan üzerinden yapılamaz. Mevcut rezervasyonu iptal edip yeniden ilan oluşturabilirsiniz.' });
             }
+        }
+
+        // Farklı işletmeye taşınmak yeni bir rezervasyon oluşturmak demek — hedef Pro/Premium
+        // ise, reddedilen politika-dışı talep sayısı sınırı aşan kullanıcı burada da engellenir.
+        if (crossVenue) {
+            const policyBlock = await assertNotVenuePolicyBlocked(targetVenue, rival.senderId);
+            if (policyBlock) return res.status(policyBlock.status).json({ message: policyBlock.message });
         }
 
         // İptal/değişiklik saat penceresi: farklı işletmeye geçiş = eski rezervasyonun iptali

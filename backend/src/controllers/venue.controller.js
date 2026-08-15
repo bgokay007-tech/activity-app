@@ -684,7 +684,17 @@ export const getVenueSlots = async (req, res, next) => {
             const credit = await prisma.venueLoyaltyCredit.findUnique({ where: { venueId_userId: { venueId: id, userId: req.userId } } });
             myLoyaltyFreeMinutes = credit?.freeMinutes || 0;
         }
-        res.json(fixMidnightLabels({ ...resultWithPrice, acceptedPayments: accepted, maintenanceReason, myLoyaltyFreeMinutes }));
+        // isProVenue: mobil taraf saat seçince Pro/Premium değiştirme/iptal politikası
+        // uyarısını göstersin diye (bkz. CourtSlotsScreen VenuePolicyWarningModal).
+        const proSub = await prisma.businessSubscription.findFirst({
+            where: { userId: venue.userId, status: 'ACTIVE', endDate: { gt: new Date() } },
+        });
+        res.json(fixMidnightLabels({
+            ...resultWithPrice, acceptedPayments: accepted, maintenanceReason, myLoyaltyFreeMinutes,
+            isProVenue: !!proSub && PRO_PACKAGES.includes(proSub.packageType),
+            cancelHoursBefore: venue.cancelHoursBefore,
+            rescheduleHoursBefore: venue.rescheduleHoursBefore,
+        }));
     } catch (error) { next(error); }
 };
 
@@ -860,6 +870,9 @@ export const makeReservation = async (req, res, next) => {
             where: { venueId_userId: { venueId: id, userId: req.userId } },
         });
         if (isBlocked) return res.status(403).json({ message: 'Bu tesiste rezervasyon yapamazsınız' });
+
+        const policyBlock = await assertNotVenuePolicyBlocked(venue, req.userId);
+        if (policyBlock) return res.status(policyBlock.status).json({ message: policyBlock.message });
 
         if (!date || !startTime || !endTime) return res.status(400).json({ message: 'Tarih, başlangıç ve bitiş saati zorunludur' });
         if (isPastDateTime(date, startTime)) return res.status(400).json({ message: 'Geçmiş bir tarih/saate rezervasyon yapılamaz' });
@@ -1688,6 +1701,54 @@ export const approveCancelRequest = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// İşletme, politika dışı bir iptal/değişiklik talebini reddedebilir — rezervasyon aynen
+// devam eder. Pro/Premium bir tesisin reddettiği talepler kullanıcının hesabında kalıcı
+// olarak sayılır (bkz. assertNotVenuePolicyBlocked): toplamda 5'i geçince Pro/Premium
+// tesislerde yeni rezervasyon/ilan oluşturması engellenir — kullanıcı isteği: politika-dışı
+// talepleri sürekli reddedilen kullanıcıların bu davranışı suistimal etmesini caydırmak.
+export const rejectCancelRequest = async (req, res, next) => {
+    try {
+        const { resId } = req.params;
+        const r = await prisma.courtReservation.findUnique({ where: { id: resId }, include: { venue: true } });
+        if (!r) return res.status(404).json({ message: 'Rezervasyon bulunamadı' });
+
+        const isOwner = r.venue.userId === req.userId;
+        const isAdmin = req.isAdmin;
+        if (!isOwner && !isAdmin) return res.status(403).json({ message: 'Yetkisiz' });
+        if (!r.cancelRequested) return res.status(400).json({ message: 'Bekleyen bir talep yok' });
+
+        await prisma.courtReservation.update({
+            where: { id: resId },
+            data: { cancelRequested: false, cancelRequestNote: null },
+        });
+
+        let newCount = null;
+        if (r.userId) {
+            const sub = await prisma.businessSubscription.findFirst({
+                where: { userId: r.venue.userId, status: 'ACTIVE', endDate: { gt: new Date() } },
+            });
+            if (sub && PRO_PACKAGES.includes(sub.packageType)) {
+                const updatedUser = await prisma.user.update({
+                    where: { id: r.userId },
+                    data: { venuePolicyRejectionCount: { increment: 1 } },
+                    select: { venuePolicyRejectionCount: true },
+                });
+                newCount = updatedUser.venuePolicyRejectionCount;
+            }
+
+            await createNotification(r.userId, 'RESERVATION',
+                '❌ İptal/Değişiklik Talebiniz Reddedildi',
+                `${r.date} ${r.startTime}–${r.endTime} rezervasyonu için gönderdiğiniz iptal/değişiklik talebi işletme tarafından reddedildi, rezervasyon aynen devam ediyor.${newCount != null && newCount > 5 ? ' Pro/Premium işletmelerde bu tür reddedilen talep sayınız sınırı aştığı için artık bu tesislerde yeni rezervasyon/ilan oluşturamazsınız.' : ''}`,
+                { reservationId: resId, category: 'SPORTS', subCategory: r.venue.branch }
+            ).catch(() => {});
+            emitToUser(r.userId, 'notification', {});
+            emitToUser(r.userId, 'reservationUpdate', { reservationId: resId, status: r.status });
+        }
+
+        res.json({ ok: true });
+    } catch (error) { next(error); }
+};
+
 export const getCancelRequests = async (req, res, next) => {
     try {
         const venues = await prisma.businessVenue.findMany({
@@ -1991,6 +2052,22 @@ export const getBlockedUsers = async (req, res, next) => {
 // ─── Menü Yönetimi ────────────────────────────────────────────────────────────
 
 export const PRO_PACKAGES = ['PRO', 'PREMIUM'];
+
+// Pro/Premium bir tesiste, kullanıcının kalıcı venuePolicyRejectionCount'u 5'i geçtiyse yeni
+// rezervasyon/ilan oluşturmasını engeller — bkz. rejectCancelRequest (sayaç burada artar).
+// Pro altı tesislerde bu kısıtlama hiç uygulanmaz (kullanıcı isteği: sadece Pro ve üstü).
+export async function assertNotVenuePolicyBlocked(venue, userId) {
+    if (!userId) return null;
+    const sub = await prisma.businessSubscription.findFirst({
+        where: { userId: venue.userId, status: 'ACTIVE', endDate: { gt: new Date() } },
+    });
+    if (!sub || !PRO_PACKAGES.includes(sub.packageType)) return null;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { venuePolicyRejectionCount: true } });
+    if ((user?.venuePolicyRejectionCount || 0) > 5) {
+        return { status: 403, message: 'Pro/Premium işletmelerde değiştirme/iptal politikasına uymayan taleplerinizin işletmeler tarafından reddedilme sayısı 5\'i geçtiği için Pro/Premium tesislerde yeni rezervasyon/ilan oluşturamazsınız.' };
+    }
+    return null;
+}
 
 const assertProVenueOwner = async (venueId, userId, featureLabel = 'Menü özelliği') => {
     const venue = await prisma.businessVenue.findUnique({ where: { id: venueId } });

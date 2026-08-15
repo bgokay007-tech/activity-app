@@ -1710,6 +1710,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
     const [resLoaded, setResLoaded]         = useState(false);
     const [cancelRequests, setCancelRequests] = useState([]);
     const [approvingCancel, setApprovingCancel] = useState(null);
+    const [rejectingCancel, setRejectingCancel] = useState(null);
     const [resFilter, setResFilter]         = useState('today'); // today | week | all
     const [scheduleOpen, setScheduleOpen]     = useState(false);
     const [analyticsOpen, setAnalyticsOpen]   = useState(false);
@@ -2035,6 +2036,18 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
             Alert.alert('Hata', 'İptal talebi onaylanamadı.');
         } finally {
             setApprovingCancel(null);
+        }
+    };
+
+    const handleRejectCancelRequest = async (resId) => {
+        setRejectingCancel(resId);
+        try {
+            await api.post(`/venues/reservations/${resId}/cancel-reject`);
+            setCancelRequests(prev => prev.filter(r => r.id !== resId));
+        } catch (e) {
+            Alert.alert('Hata', e?.response?.data?.message || 'Talep reddedilemedi.');
+        } finally {
+            setRejectingCancel(null);
         }
     };
 
@@ -3276,23 +3289,37 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false 
                                             <Text style={[vc.resMeta, { color: '#f59e0b', marginTop: 3 }]}>Not: {noteText}</Text>
                                         ) : null}
                                     </View>
-                                    {isReschedule ? (
-                                        <Text style={{ color: '#60a5fa', fontSize: 11, textAlign: 'center', paddingVertical: 3 }}>
+                                    {isReschedule && (
+                                        <Text style={{ color: '#60a5fa', fontSize: 11, textAlign: 'center', paddingVertical: 3, marginBottom: 6 }}>
                                             Kullanıcıyla iletişime geçerek yeni saat belirleyin
                                         </Text>
-                                    ) : (
-                                        <TouchableOpacity
-                                            style={{ backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
-                                            disabled={approvingCancel === r.id}
-                                            onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.username} kişisinin iptal talebi onaylansın mı? Rezervasyon iptal edilecek.`, [
-                                                { text: 'Vazgeç', style: 'cancel' },
-                                                { text: 'Onayla', onPress: () => handleApproveCancelRequest(r.id) },
-                                            ])}>
-                                            {approvingCancel === r.id
-                                                ? <ActivityIndicator size="small" color="#22c55e" />
-                                                : <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ İptali Onayla</Text>}
-                                        </TouchableOpacity>
                                     )}
+                                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                                        {!isReschedule && (
+                                            <TouchableOpacity
+                                                style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
+                                                disabled={approvingCancel === r.id || rejectingCancel === r.id}
+                                                onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.username} kişisinin iptal talebi onaylansın mı? Rezervasyon iptal edilecek.`, [
+                                                    { text: 'Vazgeç', style: 'cancel' },
+                                                    { text: 'Onayla', onPress: () => handleApproveCancelRequest(r.id) },
+                                                ])}>
+                                                {approvingCancel === r.id
+                                                    ? <ActivityIndicator size="small" color="#22c55e" />
+                                                    : <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ İptali Onayla</Text>}
+                                            </TouchableOpacity>
+                                        )}
+                                        <TouchableOpacity
+                                            style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
+                                            disabled={approvingCancel === r.id || rejectingCancel === r.id}
+                                            onPress={() => Alert.alert('Talebi Reddet', `${r.user?.username} kişisinin talebi reddedilsin mi? Rezervasyon aynen devam eder.`, [
+                                                { text: 'Vazgeç', style: 'cancel' },
+                                                { text: 'Reddet', style: 'destructive', onPress: () => handleRejectCancelRequest(r.id) },
+                                            ])}>
+                                            {rejectingCancel === r.id
+                                                ? <ActivityIndicator size="small" color="#f87171" />
+                                                : <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '700' }}>❌ Reddet</Text>}
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
                                 );
                             })}
