@@ -1056,7 +1056,7 @@ function ManualReservationModal({ visible, venueId, court, date, initialStart, i
     );
 }
 
-function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpenBill, highlightReservationId = null, highlightDate = null, onApproveCancel, onRejectCancel }) {
+function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpenBill, highlightReservationId = null, highlightDate = null, externalRefreshTick = 0, onApproveCancel, onRejectCancel }) {
     const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const [selDate, setSelDate]   = useState(() => toDateStr(new Date()));
     const [schedule, setSchedule] = useState(null);
@@ -1181,7 +1181,7 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
             .then(r => setSchedule(r.data))
             .catch(() => setSchedule(null))
             .finally(() => setLoading(false));
-    }, [visible, venue?.id, selDate, refreshTick]);
+    }, [visible, venue?.id, selDate, refreshTick, externalRefreshTick]);
 
     const courts = [...(schedule?.courts || [])].sort((a, b) => {
         const nA = parseInt(a.courtName?.match(/\d+/)?.[0] ?? '', 10);
@@ -1723,6 +1723,13 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     const isPremium = sub && sub.packageType === 'PREMIUM';
     const [activeTab, setActiveTab] = useState('info');
     const [deleting, setDeleting]   = useState(false);
+    // Rezervasyon takviminde bir iptal talebi onaylanınca/reddedilince takvim anında
+    // güncellensin diye (kullanıcı isteği) — VenueScheduleModal'ın kendi refreshTick'i
+    // sadece kendi içindeki aksiyonlarla artıyordu, buradan (üst bileşenden) tetiklenen
+    // onay/red bunu hiç bilmiyordu. Ardışık saatlerde aynı rezervasyona ait iki hücre
+    // varsa, ilkini onaylayınca takvim yenilenmeden ikinci hücreye dokununca "zaten iptal
+    // edilmiş" hatası alınıyordu (kullanıcı raporu).
+    const [scheduleRefreshTick, setScheduleRefreshTick] = useState(0);
 
     const [blocks, setBlocks]             = useState([]);
     const [blockQ, setBlockQ]             = useState('');
@@ -2085,6 +2092,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         try {
             await api.post(`/venues/reservations/${resId}/cancel-approve`);
             setCancelRequests(prev => prev.filter(r => r.id !== resId));
+            setScheduleRefreshTick(t => t + 1);
         } catch (e) {
             Alert.alert('Hata', 'İptal talebi onaylanamadı.');
         } finally {
@@ -2097,6 +2105,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         try {
             await api.post(`/venues/reservations/${resId}/cancel-reject`);
             setCancelRequests(prev => prev.filter(r => r.id !== resId));
+            setScheduleRefreshTick(t => t + 1);
         } catch (e) {
             Alert.alert('Hata', e?.response?.data?.message || 'Talep reddedilemedi.');
         } finally {
@@ -4674,6 +4683,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 isPro={isPro}
                 highlightReservationId={highlightReservationId}
                 highlightDate={highlightDate}
+                externalRefreshTick={scheduleRefreshTick}
                 onApproveCancel={handleApproveCancelRequest}
                 onRejectCancel={handleRejectCancelRequest}
                 onClose={() => setScheduleOpen(false)}
