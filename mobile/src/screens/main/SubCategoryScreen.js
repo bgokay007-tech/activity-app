@@ -3106,7 +3106,15 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         Alert.alert(t.cancelConfirmTitle, t.cancelConfirmMsg, [
             { text: t.no },
             { text: t.yes, style: 'destructive', onPress: async () => {
-                try { await api.patch(`/rivals/${item.id}/cancel`, {}); onRefresh(); }
+                try {
+                    const { data } = await api.patch(`/rivals/${item.id}/cancel`, {});
+                    // Bağlı bir kort rezervasyonu vardı ama işletmenin iptal/değişiklik
+                    // politikasına uymadığı için otomatik iptal edilmediyse uyar (cancelMatch'teki
+                    // aynı uyarı — kullanıcı isteği: "ilanı iptal ettiğimde rezervasyon da iptal
+                    // olucaktı, uymuyorsa işletmeye talep gönderildi diye uyarı gelecekti").
+                    if (data?.venuePolicyWarning) Alert.alert('', data.venuePolicyWarning);
+                    onRefresh();
+                }
                 catch(e) {
                     if (e?.response) Alert.alert(t.error, e.response.data?.message || t.deleteFailed);
                     else onRefresh(); // network drop — server likely cancelled it

@@ -4607,7 +4607,20 @@ export const cancelRequest = async (req, res, next) => {
         // Bağlı "Hakem Arıyorum" ilanı varsa (henüz hakem kabul edilmemişse) onu da iptal et
         prisma.activityRequest.updateMany({ where: { linkedRivalId: id, status: 'OPEN' }, data: { status: 'CANCELLED' } }).catch(() => {});
 
-        res.json({ message: 'Cancelled' });
+        // Henüz eşleşmemiş (OPEN) bir ilan olsa bile Pro/Premium işletmeden gerçek bir kort
+        // rezervasyonu alınmış olabilir (venueReservationId) — cancelMatch'teki (MATCHED
+        // maç iptali) ile AYNI mantık burada da uygulanmalı, aksi halde ilan silinip
+        // rezervasyon sessizce elde kalıyordu (kullanıcı raporu: "maçı iptal ettiğimde
+        // rezervasyon da iptal olucaktı, politikaya uymuyorsa işletmeye talep gönderildi
+        // diye uyarı gelecekti" — bu OPEN ilan iptalinde hiç çalışmıyordu).
+        const venueOutcome = await cancelLinkedVenueReservation(request);
+
+        res.json({
+            message: 'Cancelled',
+            venuePolicyWarning: (venueOutcome && !venueOutcome.compliant)
+                ? `İlanınız iptal edilmiştir. Ancak ${venueOutcome.venueName} işletmesinden aldığınız rezervasyon, işletmenin değiştirme/iptal politikalarına uymadığı için otomatik iptal edilmedi — işletmeye sizin adınıza bir iptal talebi gönderildi, onayı bekleniyor.`
+                : undefined,
+        });
 
         // Real-time: remove from all users' screens instantly
         broadcast('rivalDeleted', { rivalId: id, subCategory: request.subCategory });
@@ -5153,6 +5166,22 @@ async function cancelLinkedVenueReservation(request) {
         emitToUser(reservation.venue.userId, 'notification', {});
         return { compliant: true, venueName: reservation.venue.name };
     }
+
+    // Politika dışında kalınca rezervasyonu sessizce olduğu gibi bırakmak yerine —
+    // requestCancelReservation'daki (kullanıcının elle "İptal Talebi Gönder" ile yaptığı)
+    // AYNI akış otomatik tetiklenir: rezervasyon cancelRequested=true işaretlenir, işletmeye
+    // gerçek bir bildirim gider (Yaklaşan Maçlar takviminde saat yanıp söner, Onayla/Reddet
+    // sorulur — bkz. requestCancelReservation). Kullanıcı isteği: "iptal için işletmeye talep
+    // gönderildi diye uyarı gelecekti" — önceden sadece "işletmeyle iletişime geçin" deniyordu,
+    // gerçekten bir talep oluşturulmuyordu.
+    if (!reservation.cancelRequested) {
+        await prisma.courtReservation.update({ where: { id: reservation.id }, data: { cancelRequested: true, cancelRequestNote: 'AUTO' } });
+        createNotification(reservation.venue.userId, 'RESERVATION', '📋 İptal Talebi',
+            `${reservation.date} ${reservation.startTime}–${reservation.endTime} rezervasyonu için iptal talebi gönderildi (bağlı maç iptal edildi).`,
+            { reservationId: reservation.id, category: 'SPORTS', subCategory: reservation.venue.branch, venueId: reservation.venue.id, date: reservation.date }
+        ).catch(() => {});
+        emitToUser(reservation.venue.userId, 'notification', {});
+    }
     return { compliant: false, venueName: reservation.venue.name };
 }
 
@@ -5212,7 +5241,7 @@ export const cancelMatch = async (req, res, next) => {
                 res.json({
                     cancelled: true, mutual: true,
                     venuePolicyWarning: (venueOutcome && !venueOutcome.compliant)
-                        ? `Maçınız iptal edilmiştir. Ancak ${venueOutcome.venueName} işletmesinden aldığınız rezervasyon, işletmenin değiştirme/iptal politikalarına uymadığı için otomatik iptal edilmedi. Lütfen işletme ile iletişime geçin.`
+                        ? `Maçınız iptal edilmiştir. Ancak ${venueOutcome.venueName} işletmesinden aldığınız rezervasyon, işletmenin değiştirme/iptal politikalarına uymadığı için otomatik iptal edilmedi — işletmeye sizin adınıza bir iptal talebi gönderildi, onayı bekleniyor.`
                         : undefined,
                 });
                 for (const uid of allPlayerIds) emitToUser(uid, 'rivalDeleted', { rivalId: id, subCategory: request.subCategory });
@@ -5328,7 +5357,7 @@ export const cancelMatch = async (req, res, next) => {
         res.json({
             cancelled: true, reopened: !isCreatorSide, penaltyApplied: withinPenaltyWindow, penaltyAmount: withinPenaltyWindow ? penaltyAmount : undefined,
             venuePolicyWarning: (venueOutcome && !venueOutcome.compliant)
-                ? `Maçınız iptal edilmiştir. Ancak ${venueOutcome.venueName} işletmesinden aldığınız rezervasyon, işletmenin değiştirme/iptal politikalarına uymadığı için otomatik iptal edilmedi. Lütfen işletme ile iletişime geçin.`
+                ? `Maçınız iptal edilmiştir. Ancak ${venueOutcome.venueName} işletmesinden aldığınız rezervasyon, işletmenin değiştirme/iptal politikalarına uymadığı için otomatik iptal edilmedi — işletmeye sizin adınıza bir iptal talebi gönderildi, onayı bekleniyor.`
                 : undefined,
         });
 
