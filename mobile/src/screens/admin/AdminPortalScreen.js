@@ -7,11 +7,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../services/api';
 import colors from '../../theme/colors';
+import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 
 const TABS = [
     { key: 'dashboard',        label: '📊 Dashboard' },
     { key: 'users',            label: '👥 Kullanıcılar' },
-    { key: 'courts',           label: '🏟️ Kortlar' },
+    { key: 'courts',           label: '🏟️ Kort/Tesis/Salon' },
     { key: 'disputes',         label: '⚠️ Anlaşmazlık' },
     { key: 'posts',            label: '📝 Gönderiler' },
     { key: 'venues',           label: '🏗️ Tesis' },
@@ -58,24 +59,27 @@ function SearchBar({ value, onChangeText, placeholder }) {
     );
 }
 
+// Kullanıcı raporu: yatay FlatList ile bu sekme çipleri ilk açılışta kayık/üst üste
+// görünüyordu, birine dokununca kendine geliyordu — sabit, kısa bir liste için
+// virtualization gereksiz zaten, ScrollView+map bu glitch'i hiç yaşamıyor.
 function FilterRow({ options, active, onChange }) {
     return (
-        <FlatList
+        <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            data={options}
-            keyExtractor={o => o.key}
             style={{ maxHeight: 46 }}
             contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}
-            renderItem={({ item: o }) => (
+        >
+            {options.map(o => (
                 <TouchableOpacity
+                    key={o.key}
                     style={[s.filterBtn, active === o.key && s.filterBtnActive]}
                     onPress={() => onChange(o.key)}
                 >
                     <Text style={[s.filterBtnText, active === o.key && s.filterBtnTextActive]}>{o.label}</Text>
                 </TouchableOpacity>
-            )}
-        />
+            ))}
+        </ScrollView>
     );
 }
 
@@ -255,9 +259,12 @@ function CourtsTab() {
     // dal filtresi — sabit bir dal listesi tutmak yerine veride gerçekten var olan
     // dalları (ve sayılarını) gösterir, yeni bir dal eklendiğinde otomatik çıkar.
     const sportCounts = courts.reduce((acc, c) => { const s = c.sport || '—'; acc[s] = (acc[s] || 0) + 1; return acc; }, {});
+    // Kullanıcı raporu: burada dal ismi (c.sport) İngilizce ham veritabanı değeri ("tennis"
+    // vb.) olarak gösteriliyordu, admin panelinin geri kalanı Türkçe olduğu halde — bu panel
+    // dil ayarından bağımsız her zaman Türkçe (bkz. dosyanın geri kalanı, i18n hiç kullanmıyor).
     const sportOptions = [
         { key: 'all', label: `Tümü (${courts.length})` },
-        ...Object.keys(sportCounts).sort((a, b) => sportCounts[b] - sportCounts[a]).map(s => ({ key: s, label: `${s} (${sportCounts[s]})` })),
+        ...Object.keys(sportCounts).sort((a, b) => sportCounts[b] - sportCounts[a]).map(s => ({ key: s, label: `${getSubCategoryLabel(s)} (${sportCounts[s]})` })),
     ];
 
     const filtered = courts.filter(c =>
@@ -1307,17 +1314,21 @@ export default function AdminPortalScreen({ navigation, route }) {
                 <Text style={s.headerTitle}>🛡️ Admin Paneli</Text>
             </View>
 
-            {/* Tab Bar */}
-            <FlatList
+            {/* Tab Bar — kullanıcı raporu: FlatList ile ilk açılışta sekmeler kayık/üst üste
+                görünüyordu, bir sekmeye dokununca kendine geliyordu (yatay FlatList'in ilk
+                ölçümde content boyutunu hatalı hesaplaması — sabit, kısa bir liste olduğu için
+                virtualization'a hiç ihtiyaç yok). Sabit sayıda öğe için ScrollView+map daha
+                güvenilir, bu glitch hiç oluşmuyor. */}
+            <ScrollView
                 ref={tabScrollRef}
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                data={TABS}
-                keyExtractor={tab => tab.key}
                 style={s.tabBar}
                 contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 8, gap: 6, alignItems: 'center' }}
-                renderItem={({ item: tab }) => (
+            >
+                {TABS.map(tab => (
                     <TouchableOpacity
+                        key={tab.key}
                         style={[s.tabBtn, activeTab === tab.key && s.tabBtnActive]}
                         onPress={() => setActiveTab(tab.key)}
                     >
@@ -1325,8 +1336,8 @@ export default function AdminPortalScreen({ navigation, route }) {
                             {tab.label}
                         </Text>
                     </TouchableOpacity>
-                )}
-            />
+                ))}
+            </ScrollView>
 
             {/* Content */}
             <View style={{ flex: 1 }}>

@@ -6895,6 +6895,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     const [validatingSlot, setValidatingSlot] = useState(false);
     const [varStartMap, setVarStartMap] = useState({});
     const [varDurMap,   setVarDurMap]   = useState({});
+    // Kullanıcı isteği: fiyat/politika/rezervasyon açılışı gibi bilgiler artık saat seçim
+    // ekranının üstünde sabit yer kaplamıyor — "Önemli" butonuna basınca ayrı bir modalde
+    // toplu gösteriliyor, kapatınca (geri) aynı takvim ekranına dönülüyor.
+    const [showVenueInfo, setShowVenueInfo] = useState(false);
 
     // Tesis verisi yükle
     // "Değiştir" ile tekrar açıldığında önceki seçilen tarih/kort/saat gridde hazır işaretli
@@ -7360,6 +7364,15 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                 </>
                             );
                         })()}
+                        {/* Kullanıcı isteği: fiyat/politika/rezervasyon açılışı gibi bilgiler artık
+                            burada değil, "Önemli" butonuyla açılan ayrı bir modalde toplu gösteriliyor
+                            — saat seçim ızgarasına daha çok yer kalsın diye. */}
+                        {venue && (
+                            <TouchableOpacity onPress={() => setShowVenueInfo(true)}
+                                style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'#f59e0b1f', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b60' }}>
+                                <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>{t.venueInfoBtn}</Text>
+                            </TouchableOpacity>
+                        )}
                         <TouchableOpacity onPress={onClose} style={[vb.closeBtn, { marginLeft:'auto' }]}>
                             <Text style={vb.closeX}>✕</Text>
                         </TouchableOpacity>
@@ -7369,60 +7382,6 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
 
                     {!loadingV && venue && (
                         <View style={{ flex:1 }}>
-                            {/* Fiyat bilgisi */}
-                            {(() => {
-                                const pw = Array.isArray(venue.pricingWindows) ? venue.pricingWindows : [];
-                                const base = venue.pricePerSlot;
-                                if (pw.length === 0 && !(base > 0)) return null;
-                                return (
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingHorizontal:3, paddingTop:3, paddingBottom:3 }}>
-                                        {base > 0 && pw.length === 0 && (
-                                            <View style={{ backgroundColor:'#9333ea18', borderRadius:7, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#9333ea40' }}>
-                                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>💰 {base}₺/slot</Text>
-                                            </View>
-                                        )}
-                                        {pw.map((rule, i) => {
-                                            const cName = rule.courtId ? (venue.courts||[]).find(c=>c.id===rule.courtId)?.name : null;
-                                            return (
-                                                <View key={i} style={{ backgroundColor:'#9333ea18', borderRadius:7, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#9333ea40' }}>
-                                                    <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>
-                                                        💰 {rule.from}–{rule.to}: {rule.price > 0 ? `${rule.price}₺` : 'Ücretsiz'}{cName ? ` · ${cName}` : ''}
-                                                    </Text>
-                                                </View>
-                                            );
-                                        })}
-                                    </View>
-                                );
-                            })()}
-
-                            {/* Değiştirme/iptal politikası bilgisi */}
-                            {(venue.cancelHoursBefore !== undefined || venue.rescheduleHoursBefore !== undefined) && (
-                                <View style={{ paddingHorizontal:3, paddingBottom:3 }}>
-                                    <View style={{ backgroundColor:'#3b82f618', borderRadius:7, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#3b82f640' }}>
-                                        {venue.cancelHoursBefore === venue.rescheduleHoursBefore ? (
-                                            <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>{t.venueCancelReschedulePolicyInfo(venue.cancelHoursBefore)}</Text>
-                                        ) : (
-                                            <>
-                                                <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>{t.venueCancelPolicyInfo(venue.cancelHoursBefore)}</Text>
-                                                <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700', marginTop:2 }}>{t.venueReschedulePolicyInfo(venue.rescheduleHoursBefore)}</Text>
-                                            </>
-                                        )}
-                                    </View>
-                                </View>
-                            )}
-
-                            {/* Rezervasyon açılış penceresi bilgisi */}
-                            {venue.reservationOpenDaysBefore != null && (
-                                <View style={{ paddingHorizontal:3, paddingBottom:3 }}>
-                                    <View style={{ backgroundColor:'#f59e0b18', borderRadius:7, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#f59e0b40' }}>
-                                        <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>
-                                            {venue.reservationOpenTime
-                                                ? t.reservationOpenWindowInfoTime(venue.reservationOpenDaysBefore, venue.reservationOpenTime)
-                                                : t.reservationOpenWindowInfo(venue.reservationOpenDaysBefore)}
-                                        </Text>
-                                    </View>
-                                </View>
-                            )}
 
                             {/* Tarih Seçici — 14 günlük yatay strip */}
                             <View style={vb.dateStrip}>
@@ -7585,6 +7544,134 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                             )}
                         </View>
                     )}
+                </View>
+            </View>
+        </Modal>
+
+        {/* "Önemli" — çalışma saatleri/randevu tipi/aydınlatma/fiyat/iptal-değişiklik politikası/
+            rezervasyon açılışı/kampanyalar tek modalde toplu; kapatınca aynı takvim ekranına
+            (saat seçimine) geri dönülür (kullanıcı isteği). */}
+        <Modal visible={showVenueInfo} animationType="slide" transparent onRequestClose={() => setShowVenueInfo(false)}>
+            <View style={{ flex:1, backgroundColor:'#000000a0', justifyContent:'flex-end' }}>
+                <View style={{ backgroundColor:'#12121e', borderTopLeftRadius:18, borderTopRightRadius:18, maxHeight:'85%' }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', padding:14, borderBottomWidth:1, borderBottomColor:'#ffffff12' }}>
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.venueInfoModalTitle}</Text>
+                        <TouchableOpacity onPress={() => setShowVenueInfo(false)} style={[vb.closeBtn]}>
+                            <Text style={vb.closeX}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <ScrollView style={{ padding:14 }} showsVerticalScrollIndicator={false}>
+                        {venue && (() => {
+                            const DAYS_TR = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+                            const openDays = Array.isArray(venue.openDays) ? venue.openDays : [1,2,3,4,5,6,7];
+                            const pw = Array.isArray(venue.pricingWindows) ? venue.pricingWindows : [];
+                            const base = venue.pricePerSlot;
+                            const discountCampaigns = Array.isArray(venue.discountCampaigns) ? venue.discountCampaigns : [];
+                            const loyalty = venue.loyaltyCampaign && typeof venue.loyaltyCampaign === 'object' ? venue.loyaltyCampaign : null;
+                            const courtsWithLights = (venue.courts || []).filter(c => c.lightsFrom);
+                            const Section = ({ label, color = '#fff', children }) => (
+                                <View style={{ marginBottom:16 }}>
+                                    <Text style={{ color, fontSize:12, fontWeight:'800', marginBottom:6, textTransform:'uppercase', letterSpacing:0.4 }}>{label}</Text>
+                                    {children}
+                                </View>
+                            );
+                            return (
+                                <>
+                                    <Section label={t.venueWorkingHoursLabel} color="#60a5fa">
+                                        <Text style={{ color:'#e5e7eb', fontSize:13 }}>🕐 {venue.openTime}–{venue.closeTime}</Text>
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginTop:6 }}>
+                                            {DAYS_TR.map((d, i) => {
+                                                const active = openDays.includes(i + 1);
+                                                return (
+                                                    <View key={d} style={{ paddingHorizontal:8, paddingVertical:3, borderRadius:6, backgroundColor: active ? '#3b82f625' : '#ffffff08', borderWidth:1, borderColor: active ? '#3b82f660' : '#ffffff15' }}>
+                                                        <Text style={{ color: active ? '#93c5fd' : '#666', fontSize:11, fontWeight:'700' }}>{d}</Text>
+                                                    </View>
+                                                );
+                                            })}
+                                        </View>
+                                    </Section>
+
+                                    <Section label={t.venueSlotTypeLabel} color="#a3e635">
+                                        <Text style={{ color:'#e5e7eb', fontSize:13 }}>{slotTypeLabel(venue.slotType)?.label || venue.slotType}</Text>
+                                        {(venue.courts || []).filter(c => c.slotType && c.slotType !== venue.slotType).map(c => (
+                                            <Text key={c.id} style={{ color:'#a3e635', fontSize:11, marginTop:3 }}>
+                                                • {c.name}: {slotTypeLabel(c.slotType)?.label || c.slotType}
+                                            </Text>
+                                        ))}
+                                    </Section>
+
+                                    {courtsWithLights.length > 0 && (
+                                        <Section label={t.venueLightingLabel} color="#fbbf24">
+                                            {courtsWithLights.map(c => (
+                                                <Text key={c.id} style={{ color:'#e5e7eb', fontSize:13, marginBottom:2 }}>
+                                                    💡 {t.venueLightingInfo(c.name, c.lightsFrom, c.lightsFee || 0)}
+                                                </Text>
+                                            ))}
+                                        </Section>
+                                    )}
+
+                                    {(pw.length > 0 || base > 0) && (
+                                        <Section label={t.venuePriceInfoLabel} color="#c084fc">
+                                            {base > 0 && pw.length === 0 && (
+                                                <Text style={{ color:'#e5e7eb', fontSize:13 }}>💰 {base}₺/slot</Text>
+                                            )}
+                                            {pw.map((rule, i) => {
+                                                const cName = rule.courtId ? (venue.courts||[]).find(c=>c.id===rule.courtId)?.name : null;
+                                                return (
+                                                    <Text key={i} style={{ color:'#e5e7eb', fontSize:13, marginBottom:2 }}>
+                                                        💰 {rule.from}–{rule.to}: {rule.price > 0 ? `${rule.price}₺` : 'Ücretsiz'}{cName ? ` · ${cName}` : ''}
+                                                    </Text>
+                                                );
+                                            })}
+                                        </Section>
+                                    )}
+
+                                    {(venue.cancelHoursBefore !== undefined || venue.rescheduleHoursBefore !== undefined) && (
+                                        <Section label={t.venuePolicyLabel} color="#60a5fa">
+                                            {venue.cancelHoursBefore === venue.rescheduleHoursBefore ? (
+                                                <Text style={{ color:'#e5e7eb', fontSize:13 }}>{t.venueCancelReschedulePolicyInfo(venue.cancelHoursBefore)}</Text>
+                                            ) : (
+                                                <>
+                                                    <Text style={{ color:'#e5e7eb', fontSize:13 }}>{t.venueCancelPolicyInfo(venue.cancelHoursBefore)}</Text>
+                                                    <Text style={{ color:'#e5e7eb', fontSize:13, marginTop:2 }}>{t.venueReschedulePolicyInfo(venue.rescheduleHoursBefore)}</Text>
+                                                </>
+                                            )}
+                                        </Section>
+                                    )}
+
+                                    {venue.reservationOpenDaysBefore != null && (
+                                        <Section label={t.venueReservationWindowLabel} color="#fbbf24">
+                                            <Text style={{ color:'#e5e7eb', fontSize:13 }}>
+                                                {venue.reservationOpenTime
+                                                    ? t.reservationOpenWindowInfoTime(venue.reservationOpenDaysBefore, venue.reservationOpenTime)
+                                                    : t.reservationOpenWindowInfo(venue.reservationOpenDaysBefore)}
+                                            </Text>
+                                        </Section>
+                                    )}
+
+                                    <Section label={t.venueCampaignsLabel} color="#4ade80">
+                                        {discountCampaigns.length === 0 && !loyalty?.enabled ? (
+                                            <Text style={{ color:'#888', fontSize:13 }}>{t.venueNoCampaigns}</Text>
+                                        ) : (
+                                            <>
+                                                {discountCampaigns.map((c, i) => (
+                                                    <Text key={i} style={{ color:'#e5e7eb', fontSize:13, marginBottom:2 }}>
+                                                        🎉 {t.venueDiscountCampaignInfo(c.fromTime, c.toTime, c.percent)}
+                                                    </Text>
+                                                ))}
+                                                {loyalty?.enabled && (
+                                                    <Text style={{ color:'#e5e7eb', fontSize:13 }}>
+                                                        🎁 {t.venueLoyaltyCampaignInfo(loyalty.thresholdHours, loyalty.rewardHours)}
+                                                    </Text>
+                                                )}
+                                            </>
+                                        )}
+                                    </Section>
+                                </>
+                            );
+                        })()}
+                        <View style={{ height:20 }} />
+                    </ScrollView>
                 </View>
             </View>
         </Modal>
