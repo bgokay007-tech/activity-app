@@ -3298,16 +3298,20 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {item.isCourtReserved ? `${isVolleyball ? '' : '✅ '}${isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}` : `${isVolleyball ? '' : '❌ '}${t.courtNotReserved}`}
                 </Text>
-                {item.courtFeePerPerson > 0 && (
-                    <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#4ade80' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                        {isVolleyball ? '' : '💰 '}{item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
-                    </Text>
-                )}
-                {!!feeByMethodHint(item.courtFeePerPersonByMethod) && (
-                    <Text style={{ fontSize:moderateScale(10), marginBottom:3, color:'#86efac' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                        {feeByMethodHint(item.courtFeePerPersonByMethod)}
-                    </Text>
-                )}
+                {item.courtFeePerPerson > 0 && (() => {
+                    // Kullanıcı isteği: kart üzerinde tüm ödeme yöntemlerinin ayrı bir satırda
+                    // dökümü yerine (o detayda zaten var), sadece kredi kartı fiyatı aynı satıra
+                    // eklensin — kart için iki fiyat (nakit + kredi kartı) yeterli, detayda hepsi
+                    // görünmeye devam ediyor (bkz. RivalDetailModal'daki feeByMethodEntries).
+                    const ccPrice = item.courtFeePerPersonByMethod?.CREDIT_CARD;
+                    const showCc = ccPrice > 0 && ccPrice !== item.courtFeePerPerson;
+                    return (
+                        <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#4ade80' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                            {isVolleyball ? '' : '💰 '}{item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
+                            {showCc && ` · 💳 ${ccPrice}₺`}
+                        </Text>
+                    );
+                })()}
 
                 {item.venueId && isRivalParticipant && (
                     <TouchableOpacity onPress={() => setOrderVenueId(item.venueId)} style={{ marginBottom:3 }}>
