@@ -6264,6 +6264,7 @@ function TeamSizeModal({ visible, value, onConfirm, onClose, t }) {
 // başvurusu". Kurucu (kendisi) her zaman ilk slot, salt okunur (CreateRivalModal'daki roster
 // kartıyla aynı kural). Backend sendJoinRequest bu diziyi ayrıca doğrulayıp zenginleştiriyor.
 function TeamJoinRequestModal({ visible, onClose, rival, sub, category, cfg, navigation, onSent, t }) {
+    const insets = useSafeAreaInsets();
     const myUser = useSelector(st => st.auth.user);
     const teamSize = rival?.teamSize || 1;
     const subCount = rival?.substituteCount || 0;
@@ -6386,7 +6387,7 @@ function TeamJoinRequestModal({ visible, onClose, rival, sub, category, cfg, nav
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={tg.overlay}>
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
-                    <View style={[tg.box, { height:'80%' }]}>
+                    <View style={[tg.box, { height:'80%', paddingBottom: insets.bottom + 16 }]}>
                         <View style={tg.header}>
                             <Text style={tg.title}>{t.teamJoinModalTitle}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={tg.close}>✕</Text></TouchableOpacity>
@@ -6440,12 +6441,13 @@ const tg = StyleSheet.create({
 });
 
 function RatingPickerModal({ visible, title, value, onSelect, onClose }) {
+    const insets = useSafeAreaInsets();
     // Gerçek derece skalası 0.00–5.00 (bkz. RatingRangeModal'daki aynı düzeltme).
     const ratings = ['', '0.0','0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0'];
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={tg.overlay}>
-                <View style={tg.box}>
+                <View style={[tg.box, { paddingBottom: insets.bottom + 16 }]}>
                     <View style={tg.header}>
                         <Text style={tg.title}>{title}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={tg.close}>✕</Text></TouchableOpacity>
@@ -6503,6 +6505,7 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
     ownRating = null, ownGender = null, // ilan sahibinin kendi derece puanı/cinsiyeti — kendi puanına uymayan bir aralık seçemesin diye (backend'de submit'te de aynı kontrol var, bkz. createRivalRequest)
 }) {
     const t = useT();
+    const insets = useSafeAreaInsets();
     // Gerçek derece skalası 0.00–5.00 (bkz. schema.prisma skillRating) — burada yanlışlıkla
     // 10.0'a kadar gidiyordu ve en düşük seçenek "0.5"ten başlıyordu (gerçek "0" yoktu).
     // Bu yüzden bir kullanıcı "kısıtlamayı kaldırayım" diye min'i en düşük seçenek olan
@@ -6546,7 +6549,7 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={tg.overlay}>
-                <View style={[tg.box, { height: genderSplit ? '80%' : '55%' }]}>
+                <View style={[tg.box, { height: genderSplit ? '80%' : '55%', paddingBottom: insets.bottom + 16 }]}>
                     <View style={tg.header}>
                         <Text style={tg.title}>{title || t.ratingLimitLabel}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={tg.close}>✕</Text></TouchableOpacity>
@@ -10488,7 +10491,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             )}
                             <Modal visible={showCancelPenaltyModal} animationType="slide" transparent onRequestClose={() => setShowCancelPenaltyModal(false)}>
                                 <View style={tg.overlay}>
-                                    <View style={[tg.box, { height:'70%' }]}>
+                                    <View style={[tg.box, { height:'70%', paddingBottom: insets.bottom + 16 }]}>
                                         <View style={tg.header}>
                                             <Text style={tg.title}>{t.cancelPenaltyHoursLabel}</Text>
                                             <TouchableOpacity onPress={() => setShowCancelPenaltyModal(false)}><Text style={tg.close}>✕</Text></TouchableOpacity>
@@ -11306,7 +11309,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 de (DoubleRosterCard'ın arka yüzünde) kartı çevirmeden görünmediği için
                                 "kapatılmış" gibi hissettiriyordu; artık formun normal akışında. */}
                             {f.matchType === 'DOUBLE' && (sub === 'tennis' || sub === 'padel') && (
-                                <View style={{ marginBottom:14 }}>
+                                // zIndex/elevation: arka yüzdeki Takım 1/Takım 2 formalarından açılan
+                                // isim önerisi (TeamSlotInviteField) altındaki Mesaj/Ödül bölümünün
+                                // ARKASINDA kalıyordu (kullanıcı raporu, ekran görüntüsüyle doğrulandı)
+                                // — zIndex sadece AYNI ebeveynin doğrudan kardeşleri arasında çalışıyor,
+                                // formanın kendi zIndex'i (50) birkaç seviye derindeki bu kartın DIŞINDAKİ
+                                // Mesaj/Ödül'ü geçemiyordu. Kartın kendisine (Mesaj/Ödül ile doğrudan
+                                // kardeş olan bu View'a) yüksek bir zIndex vermek soruna kökten çözüm.
+                                <View style={{ marginBottom:14, zIndex:30, elevation:30 }}>
                                     <DoubleRosterCard
                                         f={f} set={set} myUser={myUser} myOwnRating={myOwnRating}
                                         cfg={cfg} sub={sub} category={category} s={s} t={t} editItem={editItem}
@@ -11320,7 +11330,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 + rakip yazılabilir), arka yüz Kurucu/Rakip etiketli aynı 2 forma (kullanıcı
                                 isteği: "aynı mantık 1v1'e göre uyarla"). */}
                             {f.matchType === 'SINGLE' && !isTeamSport && (sub === 'tennis' || sub === 'padel') && (
-                                <View style={{ marginBottom:14 }}>
+                                // Aynı zIndex/elevation düzeltmesi — bkz. yukarıdaki DoubleRosterCard notu.
+                                <View style={{ marginBottom:14, zIndex:30, elevation:30 }}>
                                     <SingleRosterCard
                                         f={f} set={set} myUser={myUser} myOwnRating={myOwnRating}
                                         cfg={cfg} sub={sub} category={category} t={t} editItem={editItem}
