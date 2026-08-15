@@ -1242,7 +1242,11 @@ function notifyRosterChange(activity, { title, body, excludeUserId }) {
     const participantIds = Array.isArray(activity.participants) ? activity.participants.map(p => p?.id).filter(Boolean) : [];
     const senderTeamIds = Array.isArray(activity.senderTeam) ? activity.senderTeam.map(p => p?.id).filter(Boolean) : [];
     const subIds = Array.isArray(activity.substitutePlayers) ? activity.substitutePlayers.map(p => p?.id).filter(Boolean) : [];
-    const recipients = new Set([...participantIds, ...senderTeamIds, ...subIds]);
+    // DOUBLE'da kabul edilip henüz bir slota atanmamış oyuncular (bkz. unassignedPlayers) —
+    // önceden burada hiç sayılmıyordu, kadro değişiklik bildirimi (ör. birinin çıkarılması)
+    // onlara hiç gitmiyordu (kullanıcı raporu).
+    const unassignedIds = Array.isArray(activity.unassignedPlayers) ? activity.unassignedPlayers.map(p => p?.id).filter(Boolean) : [];
+    const recipients = new Set([...participantIds, ...senderTeamIds, ...subIds, ...unassignedIds]);
     for (const uid of (Array.isArray(excludeUserId) ? excludeUserId : [excludeUserId])) {
         if (uid) recipients.delete(uid);
     }
@@ -5163,6 +5167,14 @@ async function cancelLinkedVenueReservation(request) {
     if (withinPolicy) {
         await prisma.courtReservation.update({ where: { id: reservation.id }, data: { status: 'CANCELLED' } });
         refundGiftMinutes(reservation).catch(() => {});
+        // Kullanıcı raporu: politika içinde (erken) iptalde kort sahibine GERÇEK bir bildirim
+        // hiç gitmiyordu — sadece boş bir socket event'i ({}) atılıyordu, createNotification
+        // hiç çağrılmıyordu. Politika DIŞI (aşağıdaki) dalda zaten doğru yapılıyordu, bu dal
+        // unutulmuştu.
+        createNotification(reservation.venue.userId, 'RESERVATION_UPDATE', '❌ Rezervasyon İptal Edildi',
+            `${reservation.date} ${reservation.startTime}–${reservation.endTime} rezervasyonu, bağlı maç iptal edildiği için iptal edildi.`,
+            { reservationId: reservation.id, category: 'SPORTS', subCategory: reservation.venue.branch, venueId: reservation.venue.id, date: reservation.date }
+        ).catch(() => {});
         emitToUser(reservation.venue.userId, 'notification', {});
         return { compliant: true, venueName: reservation.venue.name };
     }
@@ -5204,13 +5216,19 @@ export const cancelMatch = async (req, res, next) => {
         const participants = Array.isArray(request.participants) ? request.participants : [];
         const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
         const senderTeamIds = senderTeamArr.filter(p => p?.id).map(p => p.id);
-        const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId) || senderTeamIds.includes(req.userId);
+        // DOUBLE'da kabul edilen ama henüz bir slota (Takım Arkadaşı/Rakip1/Rakip2) atanmamış
+        // oyuncular unassignedPlayers'da tutulur (bkz. isUnassignedInvite akışı) — bunlar
+        // participants/senderTeam'de HİÇ görünmez. Önceden burada hiç sayılmıyorlardı, bu
+        // yüzden maç dolu olduğu hâlde Atanmamış'ta bekleyen biri iptal bildirimi ALMIYORDU
+        // (kullanıcı raporu) ve kendisi de iptal edemiyordu (isInvolved false çıkıyordu).
+        const unassignedIds = (Array.isArray(request.unassignedPlayers) ? request.unassignedPlayers : []).filter(p => p?.id).map(p => p.id);
+        const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId) || senderTeamIds.includes(req.userId) || unassignedIds.includes(req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
         // participants/senderTeam DOUBLE'da setAtSlot ile boş slotlara null bırakılarak
         // dolduruluyor (bkz. setAtSlot) — p.id null üzerinde patlıyordu, "Cannot read
         // properties of null (reading 'id')" hatasıyla iptal işlemi çöküyordu.
-        const allPlayerIds = [request.senderId, ...senderTeamIds, ...participants.filter(p => p?.id).map(p => p.id)];
+        const allPlayerIds = [request.senderId, ...senderTeamIds, ...participants.filter(p => p?.id).map(p => p.id), ...unassignedIds];
         const otherPlayerIds = allPlayerIds.filter(uid => uid !== req.userId);
 
         // Ceza penceresi: diğer dallarda sabit 5 saat/-0.20 puan. Voleybolde ise genel
