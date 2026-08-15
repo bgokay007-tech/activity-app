@@ -1583,10 +1583,22 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     return (
                                         <View>
                                             {gReqLabel && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:1 }}>{gReqLabel}</Text>}
-                                            <Animated.View style={{ flexDirection:'row', alignItems:'center', gap:3, borderWidth:2, borderColor:'#ef4444', borderRadius:8, padding:4, opacity: highlightPulse }}>
-                                                <Text style={{ fontSize:12 }}>👉</Text>
-                                                <Text style={{ color:'#ef4444', fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={2}>{t.youAreInvitedHere}</Text>
-                                            </Animated.View>
+                                            {/* Kullanıcı isteği: "buraya davet edildiniz" kısmına dokununca kabul/reddet
+                                                seçenekleri çıksın — önceden sadece görsel bir uyarıydı, dokunulamıyordu. */}
+                                            <TouchableOpacity
+                                                activeOpacity={0.75}
+                                                disabled={!myInvite}
+                                                onPress={() => Alert.alert(t.youAreInvitedHere, '', [
+                                                    { text: 'Vazgeç', style: 'cancel' },
+                                                    { text: t.inviteRejectBtn, style: 'destructive', onPress: () => rejectLocal(myInvite.id) },
+                                                    { text: t.inviteAcceptBtn, onPress: () => acceptLocal(myInvite.id) },
+                                                ])}
+                                            >
+                                                <Animated.View style={{ flexDirection:'row', alignItems:'center', gap:3, borderWidth:2, borderColor:'#ef4444', borderRadius:8, padding:4, opacity: highlightPulse }}>
+                                                    <Text style={{ fontSize:12 }}>👉</Text>
+                                                    <Text style={{ color:'#ef4444', fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={2}>{t.youAreInvitedHere}</Text>
+                                                </Animated.View>
+                                            </TouchableOpacity>
                                         </View>
                                     );
                                 }
@@ -7395,8 +7407,14 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                             {(venue.cancelHoursBefore !== undefined || venue.rescheduleHoursBefore !== undefined) && (
                                 <View style={{ paddingHorizontal:3, paddingBottom:3 }}>
                                     <View style={{ backgroundColor:'#3b82f618', borderRadius:7, paddingHorizontal:6, paddingVertical:5, borderWidth:1, borderColor:'#3b82f640' }}>
-                                        <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>{t.venueCancelPolicyInfo(venue.cancelHoursBefore)}</Text>
-                                        <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700', marginTop:2 }}>{t.venueReschedulePolicyInfo(venue.rescheduleHoursBefore)}</Text>
+                                        {venue.cancelHoursBefore === venue.rescheduleHoursBefore ? (
+                                            <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>{t.venueCancelReschedulePolicyInfo(venue.cancelHoursBefore)}</Text>
+                                        ) : (
+                                            <>
+                                                <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>{t.venueCancelPolicyInfo(venue.cancelHoursBefore)}</Text>
+                                                <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700', marginTop:2 }}>{t.venueReschedulePolicyInfo(venue.rescheduleHoursBefore)}</Text>
+                                            </>
+                                        )}
                                     </View>
                                 </View>
                             )}
@@ -7468,7 +7486,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                             {!selSlot && !booked && (
                                 <Text style={[vb.emptyTxt, { textAlign:'center', paddingVertical:3 }]}>Yukarıdan bir saat seçin</Text>
                             )}
-                            {selSlot && (() => {
+                            {selSlot && !booked && (() => {
                                 const courtData = courtsSlots[selSlot.courtId]?.data;
                                 const isStructured = courtData?.type === 'FULL_HOUR' || courtData?.type === 'HALF_HOUR' || courtData?.type === 'NINETY_MIN';
                                 const selCourt = venue.courts?.find(c => c.id === selSlot.courtId);
@@ -8453,22 +8471,13 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
         loop.start();
         return () => loop.stop();
     }, [unassignedKeys.size]);
-    // Açık ilan detayındaki (RivalDetailModal) promptAssignTeam/promptSlotAction ile AYNI
-    // mantık — isme dokununca hangi takıma atanacağı sorulur, dolu bir slotta "Değiştir/Çıkar"
-    // ile Çıkar/Atanmamışa Taşı seçilir (kullanıcı isteği: "aynı mantık"). Dolu bir takım
-    // seçeneklerde hiç ÇIKMAZ (kullanıcı isteği) — backend zaten reddediyordu ama seçilebilir
-    // görünmesi kafa karıştırıyordu (bkz. assignPlayerToSide'daki kapasite kontrolü).
+    // Dolu bir takım "X Takıma Ata" seçeneklerinde hiç ÇIKMAZ (kullanıcı isteği) — backend
+    // zaten reddediyordu ama seçilebilir görünmesi kafa karıştırıyordu (bkz. assignPlayerToSide'daki
+    // kapasite kontrolü).
     const founderFilledCount = founderPlayers.filter(p => p && (p.id || p.manualName)).length;
     const oppFilledCount = oppPlayers.filter(p => p && (p.id || p.manualName)).length;
     const founderFull = founderFilledCount >= teamSize;
     const oppFull = oppFilledCount >= teamSize;
-    const promptAssignTeam = (p) => {
-        const name = p.id ? senderAlias(p) : p.manualName;
-        const buttons = [{ text: 'Vazgeç', style: 'cancel' }];
-        if (!founderFull) buttons.push({ text: founderTeamName || t.founderTeamShortLabel, onPress: () => onAssign(p.id, 'my', p.id ? undefined : p.manualName) });
-        if (!oppFull) buttons.push({ text: opponentTeamName || t.opponentTeamShortLabel, onPress: () => onAssign(p.id, 'opp', p.id ? undefined : p.manualName) });
-        Alert.alert(name, buttons.length > 1 ? 'Hangi takıma atansın?' : 'İki takım da dolu — önce birinden yer açman gerekiyor.', buttons);
-    };
     // side: bu kişinin ŞU AN hangi takımda olduğu ('my'|'opp') — kullanıcı isteği: "karşıya
     // taşımak istiyorsa karşı rakibin ismi neyse x takıma taşı seçeneği olsun, boşluk varsa".
     // Alert.alert DEĞİL SlotActionSheet kullanılıyor — Android'de Alert 3 buton sınırına
@@ -8646,22 +8655,36 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                             {renderColumn(founderPlayers, founderTeamName || t.founderTeamShortLabel, '#a855f7', canEditFounderName, onEditFounderName, 'my', teamSize, true)}
                             {renderColumn(oppPlayers, opponentTeamName || t.opponentTeamShortLabel, '#f87171', canEditOppName, onEditOppName, 'opp', teamSize, false, legacyOppManualNames)}
                         </View>
-                        {/* Atanmamış — açık ilan detayındaki (RivalDetailModal) ile AYNI mantık: isme
-                            dokununca hangi takıma (gerçek isimleriyle) atanacağı sorulur, atanınca
-                            listeden otomatik kalkar (kullaıcı isteği: "aynı mantık"). */}
+                        {/* Atanmamış — kullanıcı isteği: isme dokunup Alert açmak yerine, satırın
+                            içinde doğrudan "X Takıma Ata" / "Y Takıma Ata" (Çıkar'ın solunda) butonları —
+                            hangisine dokunulursa direkt o takıma atanır, dolu takım için buton hiç çıkmaz. */}
                         {isOwner && unassigned.length > 0 && (
                             <View style={{ marginTop:8, paddingTop:8, borderTopWidth:1, borderTopColor: colors.border }}>
                                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:4 }}>{t.unassignedLabel} ({unassigned.length})</Text>
-                                {/* Kullanıcı isteği: satır başına 3 isim — tek sütun dikey liste yerine ızgara. */}
-                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
-                                    {unassigned.map((p, i) => (
-                                        <TouchableOpacity key={p.id || `m-${i}`} onPress={() => promptAssignTeam(p)}
-                                            style={{ width:'32%', flexDirection:'row', alignItems:'center', gap:3, paddingVertical:4 }}>
-                                            {p.id ? <Avatar name={p.username} avatar={p.avatar} size={14} color="#a855f7" /> : <Text style={{ fontSize:11 }}>👤</Text>}
-                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1}>{p.id ? senderAlias(p) : p.manualName}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
+                                {unassigned.map((p, i) => (
+                                    <View key={p.id || `m-${i}`} style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:5, paddingHorizontal:6, marginBottom:4 }}>
+                                        {p.id ? <Avatar name={p.username} avatar={p.avatar} size={14} color="#a855f7" /> : <Text style={{ fontSize:11 }}>👤</Text>}
+                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', flex:1, minWidth:0 }} numberOfLines={1}>{p.id ? senderAlias(p) : p.manualName}</Text>
+                                        {!founderFull && (
+                                            <TouchableOpacity onPress={() => onAssign(p.id, 'my', p.id ? undefined : p.manualName)}
+                                                style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor:'#a855f720', borderWidth:1, borderColor:'#a855f750' }}>
+                                                <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{(founderTeamName || t.founderTeamShortLabel)}'e Ata</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        {!oppFull && (
+                                            <TouchableOpacity onPress={() => onAssign(p.id, 'opp', p.id ? undefined : p.manualName)}
+                                                style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor:'#f8717120', borderWidth:1, borderColor:'#f8717150' }}>
+                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{(opponentTeamName || t.opponentTeamShortLabel)}'ye Ata</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        {p.id && onRemovePlayer && (
+                                            <TouchableOpacity onPress={() => onRemovePlayer(p.id)}
+                                                style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor:'#dc262612', borderWidth:1, borderColor:'#dc262630' }}>
+                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>Çıkar</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                ))}
                             </View>
                         )}
                     </>

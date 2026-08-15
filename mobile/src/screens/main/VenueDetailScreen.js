@@ -273,8 +273,14 @@ export default function VenueDetailScreen({ route, navigation }) {
                         <View style={[s.infoRow, { alignItems: 'flex-start' }]}>
                             <Text style={s.infoLabel}>Değiştirme{'\n'}/İptal</Text>
                             <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                                <Text style={[s.infoValue, { color: '#60a5fa', textAlign: 'right' }]}>{t.venueCancelPolicyInfo(venue.cancelHoursBefore)}</Text>
-                                <Text style={[s.infoValue, { color: '#60a5fa', textAlign: 'right', marginTop: 2 }]}>{t.venueReschedulePolicyInfo(venue.rescheduleHoursBefore)}</Text>
+                                {venue.cancelHoursBefore === venue.rescheduleHoursBefore ? (
+                                    <Text style={[s.infoValue, { color: '#60a5fa', textAlign: 'right' }]}>{t.venueCancelReschedulePolicyInfo(venue.cancelHoursBefore)}</Text>
+                                ) : (
+                                    <>
+                                        <Text style={[s.infoValue, { color: '#60a5fa', textAlign: 'right' }]}>{t.venueCancelPolicyInfo(venue.cancelHoursBefore)}</Text>
+                                        <Text style={[s.infoValue, { color: '#60a5fa', textAlign: 'right', marginTop: 2 }]}>{t.venueReschedulePolicyInfo(venue.rescheduleHoursBefore)}</Text>
+                                    </>
+                                )}
                             </View>
                         </View>
                     )}
