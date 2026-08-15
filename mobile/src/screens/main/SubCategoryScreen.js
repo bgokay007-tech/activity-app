@@ -7118,32 +7118,15 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
         const cData = cs?.data;
         const isStructured = cData && (cData.type === 'FULL_HOUR' || cData.type === 'HALF_HOUR' || cData.type === 'NINETY_MIN');
         const isWindow = cData && (cData.type === 'FLEXIBLE' || cData.type === 'VAR_DURATION');
-        const typeInfo = cData ? slotTypeLabel(cData.type) : null;
 
         const colWidth = isWindow ? 140 : isStructured ? 110 : 130;
         return (
             <View key={court.id} style={[vb.courtCol, { width: colWidth, height: '100%' }]}>
                 <Text style={vb.courtColTitle}>{court.name}</Text>
-                {typeInfo && (
-                    <View style={{ alignSelf:'center', backgroundColor: typeInfo.bg, borderRadius:5, paddingHorizontal:3, paddingVertical:3, marginBottom:3, borderWidth:1, borderColor: typeInfo.color+'60' }}>
-                        <Text style={{ color: typeInfo.color, fontSize:9, fontWeight:'800', letterSpacing:0.3 }}>{typeInfo.label}</Text>
-                    </View>
-                )}
-                {(() => {
-                    const effIndoor = court.indoor ?? venue?.courtIndoorDefault ?? false;
-                    return (
-                        <Text style={{ color: colors.textMuted, fontSize:9, textAlign:'center', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                            {court.surface ? `⬜ ${getSurface(t, court.surface)}  ·  ` : ''}{effIndoor ? t.indoor : t.outdoor}
-                        </Text>
-                    );
-                })()}
-                {court.lightsFrom && (
-                    <TouchableOpacity style={vb.lightsRow} activeOpacity={0.7}
-                        onPress={() => Alert.alert('💡 Gece Işıkları', `Bu kortta gece ışıkları ${court.lightsFrom} itibarıyla açılır.\nGündüz saatlerinde ışık olmayabilir.`)}>
-                        <Text style={vb.courtColLight}>💡 {court.lightsFrom}</Text>
-                        <View style={vb.lightsInfoBtn}><Text style={vb.lightsInfoTxt}>i</Text></View>
-                    </TouchableOpacity>
-                )}
+                {/* Randevu tipi/zemin/açık-kapalı/aydınlatma bilgisi artık burada değil, üstteki
+                    "Önemli" butonuyla açılan modalde (kullanıcı isteği: "kort sütunlarında ...
+                    yazmasına gerek yok, onlar artık bilgilerde yazmalı") — saat ızgarasına daha
+                    çok yer kalsın diye kolon başlığı sadeleştirildi. */}
                 {cs?.loading && <ActivityIndicator color="#22c55e" style={{ marginTop:3 }} size="small" />}
                 {!cs?.loading && !cData && <Text style={vb.colEmpty}>Bilgi yok</Text>}
 
@@ -7532,7 +7515,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                         <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
                                             Kort, ilanı oluşturduğunuzda rezerve edilir.
                                         </Text>
-                                        <View style={{ height: 24 }} />
+                                        <View style={{ height: 6 }} />
                                     </ScrollView>
                                 );
                             })()}
@@ -7591,13 +7574,21 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                         </View>
                                     </Section>
 
+                                    {/* Kullanıcı isteği: "kort 1 esnek saat zemin tipi kort 2 ... sırayla doğru
+                                        bilgiler yazmalı" — venue varsayılanına göre fark listelemek yerine HER
+                                        kort kendi randevu tipi + zemin + açık/kapalı bilgisiyle sırayla listelenir
+                                        (gridde gösterilen aynı sıralamayla). */}
                                     <Section label={t.venueSlotTypeLabel} color="#a3e635">
-                                        <Text style={{ color:'#e5e7eb', fontSize:13 }}>{slotTypeLabel(venue.slotType)?.label || venue.slotType}</Text>
-                                        {(venue.courts || []).filter(c => c.slotType && c.slotType !== venue.slotType).map(c => (
-                                            <Text key={c.id} style={{ color:'#a3e635', fontSize:11, marginTop:3 }}>
-                                                • {c.name}: {slotTypeLabel(c.slotType)?.label || c.slotType}
-                                            </Text>
-                                        ))}
+                                        {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => {
+                                            const effIndoor = c.indoor ?? venue.courtIndoorDefault ?? false;
+                                            const type = slotTypeLabel(c.slotType || venue.slotType)?.label || c.slotType || venue.slotType;
+                                            return (
+                                                <Text key={c.id} style={{ color:'#e5e7eb', fontSize:13, marginBottom:4 }}>
+                                                    <Text style={{ color:'#a3e635', fontWeight:'800' }}>{c.name}: </Text>
+                                                    {type}{c.surface ? ` · ⬜ ${getSurface(t, c.surface)}` : ''} · {effIndoor ? t.indoor : t.outdoor}
+                                                </Text>
+                                            );
+                                        })}
                                     </Section>
 
                                     {courtsWithLights.length > 0 && (
@@ -7751,10 +7742,6 @@ const vb = StyleSheet.create({
     courtsRow:    { flexDirection:'row', alignItems:'stretch', paddingHorizontal:3, paddingVertical:1, gap:1 },
     courtCol:     { backgroundColor:'#ffffff08', borderRadius:10, padding:3, borderWidth:1, borderColor:'#ffffff12' },
     courtColTitle:{ color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center', marginBottom:3, letterSpacing:0.3 },
-    lightsRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, marginBottom:3 },
-    courtColLight:{ color:'#fbbf24', fontSize:10 },
-    lightsInfoBtn:{ width:15, height:15, borderRadius:8, backgroundColor:'#fbbf2430', borderWidth:1, borderColor:'#fbbf2460', alignItems:'center', justifyContent:'center' },
-    lightsInfoTxt:{ color:'#fbbf24', fontSize:9, fontWeight:'800', lineHeight:13 },
     colSlot:      { borderRadius:4, paddingTop:3, paddingBottom:3, paddingLeft:3, paddingRight:3, marginBottom:1, alignItems:'center', borderWidth:1 },
     colSlotFree:  { backgroundColor:'#14532d', borderColor:'#16a34a' },
     colSlotTaken: { backgroundColor:'#5c0a0a', borderColor:'#ef4444', borderWidth:1.5 },
