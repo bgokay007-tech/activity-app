@@ -94,7 +94,13 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
         setLoadingId(key);
         try {
             await api.patch(`/interests/${interestId}/hide`);
-            const updated = localInterests.filter(i => i.id !== interestId);
+            // ÖNEMLİ: gizlenen branş listeden TAMAMEN kaldırılmıyor artık, sadece hidden:true
+            // işaretleniyor — önceden burada .filter() ile diziden komple siliniyordu, bu
+            // yüzden gizlenen bir branş (ör. puanlı oyunlar okey/batak, gerçekten silinemediği
+            // için buraya düşüyor) "hiç eklenmemiş" ile birebir aynı görünüyordu, kullanıcı
+            // "nereye gitti" diye şaşırıyordu ve geri getirmenin tek yolu (tekrar "Ekle") hiç
+            // belli değildi (kullanıcı raporu).
+            const updated = localInterests.map(i => i.id === interestId ? { ...i, hidden: true } : i);
             setLocalInterests(updated);
             onInterestsChange?.(updated);
         } catch (e) { console.error(e); }
@@ -177,10 +183,16 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                             ) : (
                                 [...(activeCat.subCategories || [])]
                                 .sort((a, b) => {
-                                    const aAdded = !!addedMap[`${activeTab}__${a.id}`];
-                                    const bAdded = !!addedMap[`${activeTab}__${b.id}`];
-                                    if (aAdded && !bAdded) return -1;
-                                    if (!aAdded && bAdded) return 1;
+                                    // Sıra: aktif eklenmiş > gizli > hiç eklenmemiş — gizliler artık
+                                    // listede kalıyor (bkz. doHide), en üstte aktiflerle karışmasın diye
+                                    // ayrı bir katman.
+                                    const rank = (id) => {
+                                        const e = addedMap[`${activeTab}__${id}`];
+                                        if (!e) return 2;
+                                        return e.hidden ? 1 : 0;
+                                    };
+                                    const rA = rank(a.id), rB = rank(b.id);
+                                    if (rA !== rB) return rA - rB;
                                     return getSubCategoryLabel(a.id, lang).localeCompare(getSubCategoryLabel(b.id, lang));
                                 })
                                 .map(sub => {
@@ -189,7 +201,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                     const isLoading = loadingId === key;
 
                                     return (
-                                        <View key={sub.id} style={s.subRow}>
+                                        <View key={sub.id} style={[s.subRow, existing?.hidden && { opacity: 0.55 }]}>
                                             {SUB_IMAGES[sub.id] ? (
                                                 <Image source={SUB_IMAGES[sub.id]} style={s.subEmojiImage} resizeMode="contain" />
                                             ) : (
@@ -197,7 +209,12 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                             )}
                                             <View style={{ flex: 1 }}>
                                                 <Text style={s.subName}>{getSubCategoryLabel(sub.id, lang)}</Text>
-                                                {existing?.assessmentCompleted && (
+                                                {/* Gizli branşlar burada artık listeden KAYBOLMUYOR — dokunarak geri
+                                                    getirilebilsin diye "Gizli" etiketiyle görünür kalıyor (kullanıcı
+                                                    raporu: "nereye gittiler", eskiden hiç eklenmemiş gibi görünüyordu). */}
+                                                {existing?.hidden ? (
+                                                    <Text style={[s.subRating, { color: colors.textMuted }]}>{t.hiddenLabel || 'Gizli'}</Text>
+                                                ) : existing?.assessmentCompleted && (
                                                     <Text style={[s.subRating, { color: activeColor }]}>
                                                         {Number(existing.skillRating).toFixed(2)} ★
                                                     </Text>
@@ -205,6 +222,13 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                             </View>
                                             {isLoading ? (
                                                 <ActivityIndicator size="small" color={activeColor} />
+                                            ) : existing?.hidden ? (
+                                                <TouchableOpacity
+                                                    style={[s.addBtn, { backgroundColor: activeColor }]}
+                                                    onPress={() => handleAdd(activeTab, sub.id)}
+                                                >
+                                                    <Text style={s.addBtnText}>{t.showBtn || 'Göster'}</Text>
+                                                </TouchableOpacity>
                                             ) : existing ? (
                                                 <View style={s.addedBtns}>
                                                     {((existing.wins || 0) + (existing.losses || 0)) < 3 && (
