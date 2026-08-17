@@ -3935,6 +3935,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [showMatchLive, setShowMatchLive] = useState(false);
     const [matchLiveOptions, setMatchLiveOptions] = useState({ wantCamera: false, wantWatch: false });
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
+    // Atanmamış listesindeki "Takımlara Ata" — kullanıcı isteği: tek bir buton, dokununca
+    // hangi slotların (Katılımcı 1/2/3, hangisi hâlâ boşsa ve cinsiyete uyuyorsa) uygun
+    // olduğunu gösteren bir seçim penceresi açılsın, hangisine dokunulursa oraya atansın.
+    // Alert.alert DEĞİL SlotActionSheet — Android'de Alert 3 buton sınırına takılıp
+    // 4. seçeneği (3 slot + Vazgeç) sessizce düşürüyordu (bu dosyada başka yerde de
+    // aynı sebeple SlotActionSheet kullanılıyor).
+    const [slotAssignTarget, setSlotAssignTarget] = useState(null); // { player, options } | null
     // Çiftler (DOUBLE) kadro kartı artık voleyboldeki (TeamAssignCard) gibi çevrilebilir:
     // ön yüz numaralı forma havuzu, arka yüz Kurucu/Rakip sütunları (kullanıcı isteği:
     // "tenisdeki kartın stilini de voleyboldeki gibi forma olarak yap, daha anlaşılır oluyor").
@@ -5043,30 +5050,29 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                     <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800', marginBottom:4 }}>Atanmamış</Text>
                                                     {unassignedArr.map(p => {
                                                         const isMe = p.id === myId;
-                                                        const canTeam1 = !partner && genderFitsSlot(p.gender, match.partnerGenderReq);
-                                                        const team2Slot = [
-                                                            !opp1 && genderFitsSlot(p.gender, match.opp1GenderReq) && 'opp1',
-                                                            !opp2 && genderFitsSlot(p.gender, match.opp2GenderReq) && 'opp2',
-                                                        ].find(Boolean);
-                                                        const team1Label = match.founderTeamName || t.founderTeamShortLabel || 'Takım 1';
-                                                        const team2Label = match.opponentTeamName || t.opponentTeamShortLabel || 'Takım 2';
+                                                        const openSlotOptions = [
+                                                            !partner && genderFitsSlot(p.gender, match.partnerGenderReq) && { key:'partner', label: SLOT_LABEL.partner },
+                                                            !opp1 && genderFitsSlot(p.gender, match.opp1GenderReq) && { key:'opp1', label: SLOT_LABEL.opp1 },
+                                                            !opp2 && genderFitsSlot(p.gender, match.opp2GenderReq) && { key:'opp2', label: SLOT_LABEL.opp2 },
+                                                        ].filter(Boolean);
                                         return (
                                                             <View key={p.id} style={{ backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:4, flexDirection:'row', alignItems:'center', gap:4 }}>
                                                                 <Text style={{ color:'#fff', fontSize:11, fontWeight:'700', flex:1, minWidth:0 }} numberOfLines={1}>{playerDisplayName(p)}</Text>
-                                                                {/* Cinsiyet kısıtlaması yüzünden kalan hiçbir boş slota uymayan biri (ör.
-                                                                    tek boş slot kadın-kısıtlıyken erkek bir oyuncu) olabilir — ilan
-                                                                    sahibi için her zaman bir Çıkar seçeneği de gösteriliyor, aksi halde
-                                                                    bu kişi kalıcı olarak sıkışıp kalıyordu (kullanıcı raporu). */}
-                                                                {(isOwner || isMe) && canTeam1 && (
-                                                                    <TouchableOpacity onPress={() => assignDoubleSlot(p.id, 'partner')}
+                                                                {/* "Takımlara Ata" — kullanıcı isteği: tek bir buton, dokununca hangi
+                                                                    slotlar (Katılımcı 1/2/3) hâlâ boşsa (ve cinsiyete uyuyorsa) onları
+                                                                    listeleyen bir pencere açılsın, hangisine dokunulursa oraya atansın.
+                                                                    Cinsiyet kısıtlaması yüzünden kalan hiçbir slota uymayan biri olabilir
+                                                                    (ör. tek boş slot kadın-kısıtlıyken erkek bir oyuncu) — o durumda bu
+                                                                    buton hiç gösterilmez ama Çıkar her zaman kalır, aksi halde bu kişi
+                                                                    kalıcı olarak sıkışıp kalıyordu (kullanıcı raporu). */}
+                                                                {(isOwner || isMe) && openSlotOptions.length > 0 && (
+                                                                    <TouchableOpacity
+                                                                        onPress={() => setSlotAssignTarget({
+                                                                            player: p,
+                                                                            options: openSlotOptions.map(opt => ({ label: `${opt.label}'e Ata`, onPress: () => assignDoubleSlot(p.id, opt.key) })),
+                                                                        })}
                                                                         style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                                        <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{team1Label}'e Ata</Text>
-                                                                    </TouchableOpacity>
-                                                                )}
-                                                                {(isOwner || isMe) && team2Slot && (
-                                                                    <TouchableOpacity onPress={() => assignDoubleSlot(p.id, team2Slot)}
-                                                                        style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                                        <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{team2Label}'ye Ata</Text>
+                                                                        <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>Takımlara Ata</Text>
                                                                     </TouchableOpacity>
                                                                 )}
                                                                 {isOwner && (
@@ -5096,6 +5102,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             .then(() => onRefresh())
                                             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                                     }}
+                                />
+                                <SlotActionSheet
+                                    visible={!!slotAssignTarget}
+                                    title={slotAssignTarget ? playerDisplayName(slotAssignTarget.player) : ''}
+                                    actions={slotAssignTarget?.options || []}
+                                    onClose={() => setSlotAssignTarget(null)}
                                 />
                             </View>
                         );
