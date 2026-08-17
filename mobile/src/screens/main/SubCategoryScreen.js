@@ -1839,10 +1839,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <View key={p.id} style={[cardBox, { width:'100%', flexDirection:'row', alignItems:'center', gap:4 }]}>
                                                     <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6, flex:1, minWidth:0 }} onPress={() => navigation.push('Profile', { userId: p.id })}>
                                                         <Avatar name={p.username} avatar={p.avatar} size={moderateScale(28)} color={cfg.color} />
-                                                        <View style={{ flex:1, minWidth:0 }}>
-                                                            <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(p)}</Text>
-                                                            <Text style={[det.playerSub, { color:'#fbbf24' }]} numberOfLines={1}>Atanmamış</Text>
-                                                        </View>
+                                                        {/* Kullanıcı isteği: takıma atanana kadar yanıp sönme devam etsin — voleybol/airsoft'un
+                                                            aynı listesindeki unassignedBlink (yukarıda zaten unassignedSlots.length'e göre
+                                                            döngüde) burada da (DOUBLE'da) aynen kullanılıyor, önceden sadece statik sarı
+                                                            "Atanmamış" yazısıydı. */}
+                                                        <Animated.View style={{ flex:1, minWidth:0, opacity: unassignedBlink }}>
+                                                            <Text style={[det.playerName, { color:'#ef4444' }]} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                                            <Text style={[det.playerSub, { color:'#ef4444', fontWeight:'800' }]} numberOfLines={1}>Atanmamış</Text>
+                                                        </Animated.View>
                                                     </TouchableOpacity>
                                                     {(isOwner || isMe) && canTeam1 && (
                                                         <TouchableOpacity onPress={() => assignDoubleSlot(p.id, 'partner')}

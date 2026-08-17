@@ -253,6 +253,18 @@ const SENDER_SELECT = {
     id: true, username: true, fullName: true, avatar: true, city: true, gender: true,
 };
 
+// unassignedPlayers Json snapshot'ında bazı eski kayıtlarda gender hiç yazılmamıştı (respondToJoin/
+// confirmLateJoin'deki joinerEntry gender taşımıyordu) — DOUBLE'da cinsiyet kısıtlı slotlara
+// "Takımlara Ata" seçeneği bu yüzden hiç çıkmıyordu (mobil taraf genderFitsSlot(undefined, 'FEMALE')
+// hep false dönüyordu). Yazma tarafı düzeltildi ama zaten var olan bozuk kayıtları okurken canlı
+// DB'den tamamlıyoruz — var olan (doğru) bir gender asla ezilmez.
+async function fillMissingUnassignedGenders(unassignedArrays) {
+    const missingIds = [...new Set(unassignedArrays.flatMap(arr => (Array.isArray(arr) ? arr : []).filter(p => p?.id && !p.gender).map(p => p.id)))];
+    if (missingIds.length === 0) return {};
+    const rows = await prisma.user.findMany({ where: { id: { in: missingIds } }, select: { id: true, gender: true } });
+    return Object.fromEntries(rows.map(u => [u.id, u.gender]));
+}
+
 // Bir maç MATCHED'ten OPEN'a dönünce (katılımcı çıkarıldı/ayrıldı), o ilana daha önce
 // bekleyen istek göndermiş herkese haber verilir — belki artık uygun değillerdir ve
 // isteklerini geri çekmek isterler, ya da tam tersi, artık kabul edilme şansları var.
@@ -805,6 +817,8 @@ export const getRivalById = async (req, res, next) => {
             ? { ...p, skillRating: teamInterests.find(i => i.userId === p.id)?.skillRating ?? null }
             : p);
         const senderInterest = teamInterests.find(i => i.userId === rival.senderId);
+        const unassignedGenderById = await fillMissingUnassignedGenders([rival.unassignedPlayers]);
+        const withGender = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id ? { ...p, gender: p.gender ?? unassignedGenderById[p.id] ?? null } : p);
 
         res.json({
             ...rival,
@@ -812,6 +826,7 @@ export const getRivalById = async (req, res, next) => {
             senderTeam: withTeamRating(rival.senderTeam),
             participants: withTeamRating(rival.participants),
             substitutePlayers: withTeamRating(rival.substitutePlayers),
+            unassignedPlayers: withGender(rival.unassignedPlayers),
         });
     } catch (error) { next(error); }
 };
@@ -2252,12 +2267,15 @@ export const getRivalRequests = async (req, res, next) => {
         const withTeamRating = (arr, subCategory) => (Array.isArray(arr) ? arr : []).map(p => p?.id
             ? { ...p, skillRating: teamInterests.find(i => i.userId === p.id && i.subCategory === subCategory)?.skillRating ?? null }
             : p);
+        const unassignedGenderById = await fillMissingUnassignedGenders(requests.map(r => r.unassignedPlayers));
+        const withGender = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id ? { ...p, gender: p.gender ?? unassignedGenderById[p.id] ?? null } : p);
 
         res.json(requests.map(r => ({
             ...r,
             senderTeam: withTeamRating(r.senderTeam, r.subCategory),
             participants: withTeamRating(r.participants, r.subCategory),
             substitutePlayers: withTeamRating(r.substitutePlayers, r.subCategory),
+            unassignedPlayers: withGender(r.unassignedPlayers),
             _myJoinStatus: myJoinMap[r.id]?.status || null,
             _myJoinRequestId: myJoinMap[r.id]?.id || null,
             _myJoinCounterPrice: myJoinMap[r.id]?.counterPrice || null,
@@ -3171,7 +3189,10 @@ export const respondToJoin = async (req, res, next) => {
         });
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
         const countFilled = (arr) => arr.filter(p => p && p.id).length;
-        const joinerEntry = { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null };
+        // gender EKSİKTİ — atanmamış havuzuna (unassignedPlayers) düşen bu kayıt cinsiyet
+        // bilgisi taşımayınca, DOUBLE'da cinsiyet kısıtlı slotlara "Takımlara Ata" seçeneği
+        // hiç çıkmıyordu (genderFitsSlot(undefined, 'FEMALE') hep false dönüyordu).
+        const joinerEntry = { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null, gender: u.gender };
 
         let updatedParticipants;
         let assignedToPartner = false;
@@ -3607,7 +3628,8 @@ export const confirmLateJoin = async (req, res, next) => {
         });
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
         const countFilled = (arr) => arr.filter(p => p && p.id).length;
-        const joinerEntry = { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null };
+        // gender EKSİKTİ — bkz. respondToJoin'deki aynı isim ve gerekçeli düzeltme.
+        const joinerEntry = { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null, gender: u.gender };
 
         let updatedParticipants;
         let assignedToPartner = false;
@@ -3803,6 +3825,7 @@ export const getUpcomingMatches = async (req, res, next) => {
                     select: { userId: true, subCategory: true, skillRating: true, alias: true },
                 })
                 : [];
+            const unassignedGenderById = await fillMissingUnassignedGenders(active.map(m => m.unassignedPlayers));
 
                 // Check existing no-show reports by this user
             const activeIds = active.map(m => m.id);
@@ -3839,6 +3862,7 @@ export const getUpcomingMatches = async (req, res, next) => {
                     skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
                     alias: p.alias || interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.alias || null,
                 }) : p),
+                unassignedPlayers: (Array.isArray(m.unassignedPlayers) ? m.unassignedPlayers : []).map(p => p?.id ? ({ ...p, gender: p.gender ?? unassignedGenderById[p.id] ?? null }) : p),
                 _myNoShowPending: myNoShowSet.has(m.id),
                 commentCount: commentCountMap[m.id] ?? 0,
             }));
