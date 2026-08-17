@@ -69,6 +69,7 @@ export default function CinemaHomeScreen({ navigation }) {
     const [pickingTimeTo, setPickingTimeTo] = useState(false);
     const [showGenreModal, setShowGenreModal] = useState(false);
     const [movies, setMovies] = useState([]);
+    const [movieSource, setMovieSource] = useState(null); // 'biletinial' | 'tmdb' | null
     const [cinemaListUrl, setCinemaListUrl] = useState(null);
     const [loading, setLoading] = useState(false);
     const [loaded, setLoaded] = useState(false);
@@ -85,6 +86,7 @@ export default function CinemaHomeScreen({ navigation }) {
             if (dt) params.dateTo = fmtDate(dt);
             const { data } = await api.get('/movies/now-playing', { params: Object.keys(params).length ? params : undefined });
             setMovies(data.movies || []);
+            setMovieSource(data.source || null);
             setCinemaListUrl(data.cinemaListUrl || null);
         } catch (e) {
             Alert.alert(t.error || 'Hata', e?.response?.data?.message || t.cinemaLoadError || 'Filmler yüklenemedi.');
@@ -171,13 +173,20 @@ export default function CinemaHomeScreen({ navigation }) {
                             placeholder={t.cinemaCityPh || 'Şehir'}
                             style={{ flex: 1 }}
                         />
-                        <TouchableOpacity style={s.compactBtn} onPress={() => setShowDateModal(true)}>
-                            <Text style={s.compactBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {dateFrom || dateTo
-                                    ? `📅 ${dateFrom ? fmtDate(dateFrom) : '…'} – ${dateTo ? fmtDate(dateTo) : '…'}`
-                                    : (t.cinemaDateBtnPh || '📅 Tarih')}
-                            </Text>
-                        </TouchableOpacity>
+                        {/* Şehir seçilince liste artık biletinial'daki gerçek şehir listesinden
+                            geliyor — bu kaynak tarih/tür filtrelemeyi desteklemiyor, o yüzden
+                            hiçbir şey yapmayan butonlar göstermek yerine sadece şehir yokken
+                            (ulusal TMDB listesi) gösteriliyor (kullanıcı raporu: film sayısı
+                            biletinial'daki gerçek listeyle tutmuyordu). */}
+                        {!(city && movieSource === 'biletinial') && (
+                            <TouchableOpacity style={s.compactBtn} onPress={() => setShowDateModal(true)}>
+                                <Text style={s.compactBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    {dateFrom || dateTo
+                                        ? `📅 ${dateFrom ? fmtDate(dateFrom) : '…'} – ${dateTo ? fmtDate(dateTo) : '…'}`
+                                        : (t.cinemaDateBtnPh || '📅 Tarih')}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
                         <TouchableOpacity style={s.compactBtn} onPress={() => setShowTimeModal(true)}>
                             <Text style={s.compactBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 {timeFrom || timeTo
@@ -185,15 +194,21 @@ export default function CinemaHomeScreen({ navigation }) {
                                     : (t.cinemaTimeBtnPh || '🕐 Saat')}
                             </Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={s.compactBtn} onPress={() => setShowGenreModal(true)}>
-                            <Text style={s.compactBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {selectedGenres.length > 0
-                                    ? `🎭 ${selectedGenres.length}`
-                                    : (t.cinemaGenreBtnPh || '🎭 Tür')}
-                            </Text>
-                        </TouchableOpacity>
+                        {!(city && movieSource === 'biletinial') && (
+                            <TouchableOpacity style={s.compactBtn} onPress={() => setShowGenreModal(true)}>
+                                <Text style={s.compactBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    {selectedGenres.length > 0
+                                        ? `🎭 ${selectedGenres.length}`
+                                        : (t.cinemaGenreBtnPh || '🎭 Tür')}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
-                    <Text style={s.citySubText}>{t.cinemaCitySubtext || 'Şehir, film listesini değil sadece "Bilet Al" linkinin gideceği sinema sayfasını belirler.'}</Text>
+                    <Text style={s.citySubText}>
+                        {city && movieSource === 'biletinial'
+                            ? (t.cinemaCitySubtextAccurate ? t.cinemaCitySubtextAccurate(city) : `"${city}" sinemalarında şu anda gerçekten gösterimde olan filmler gösteriliyor.`)
+                            : (t.cinemaCitySubtext || 'Şehir seçilmediğinde ulusal vizyon listesi gösterilir.')}
+                    </Text>
 
                     <Modal visible={showDateModal} transparent animationType="fade" onRequestClose={() => setShowDateModal(false)}>
                         <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setShowDateModal(false)}>

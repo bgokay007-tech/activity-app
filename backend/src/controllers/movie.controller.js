@@ -16,6 +16,60 @@ function citySlug(city) {
         .replace(/^-+|-+$/g, '');
 }
 
+// biletinial.com/tr-tr/sinema/{şehir-slug} sayfası, ilgili şehirde GERÇEKTEN vizyonda olan
+// filmleri sunucu tarafında (SSR) render ediyor — JS/API çağrısına gerek yok, düz HTML'den
+// güvenle çıkarılabiliyor. Sayfa hem SEO için application/ld+json (@type: ItemList) içinde
+// film adı+linkini, hem de <li> kart bloklarında afiş/puan/yorum sayısını barındırıyor.
+// Kullanıcı raporu: TMDB'nin ulusal vizyon listesi (20 film) ile biletinial'daki gerçek şehir
+// listesi (13 film) tutmuyordu — TMDB'de Türkiye'de şehir bazlı gösterim verisi hiç yok.
+async function scrapeBiletinialCityMovies(city) {
+    const slug = citySlug(city);
+    const response = await fetch(`https://biletinial.com/tr-tr/sinema/${slug}`, { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) return null;
+    const html = await response.text();
+
+    const ldMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+    if (!ldMatch) return [];
+    let ld;
+    try { ld = JSON.parse(ldMatch[1]); } catch { return []; }
+    if (ld['@type'] !== 'ItemList' || !Array.isArray(ld.itemListElement)) return [];
+
+    const titleBySlug = {};
+    for (const item of ld.itemListElement) {
+        const filmSlug = (item.url || '').split('/').pop();
+        if (filmSlug) titleBySlug[filmSlug] = item.name;
+    }
+
+    // Her film kartı ayrı bir <li class="..."> ile başlıyor — bunları sınır olarak
+    // kullanmak, tek büyük bir regex'in (afiş/puan arasındaki değişken boşluk yüzünden)
+    // bazı kartları atlamasından çok daha güvenilir.
+    const starts = [];
+    const liRe = /<li class="[^"]*">/g;
+    let m;
+    while ((m = liRe.exec(html))) starts.push(m.index);
+    starts.push(html.length);
+
+    const movies = [];
+    for (let i = 0; i < starts.length - 1; i++) {
+        const chunk = html.slice(starts[i], starts[i + 1]);
+        const linkM = chunk.match(/href="\/tr-tr\/sinema\/([a-z0-9-]+)" title="[^"]*" data-slider-group="Categories-Cinema-Liste"/);
+        if (!linkM) continue;
+        const filmSlug = linkM[1];
+        const posterM = chunk.match(/<img src="(https:\/\/[^"]+\/Uploads\/Films\/[^"]+)"/);
+        const ratingM = chunk.match(/alt="Puan"\s*\/>([\d,]+)<\/strong>\s*<span>\(([\d]+) Yorum\)/);
+        movies.push({
+            id: filmSlug,
+            title: titleBySlug[filmSlug] || filmSlug,
+            posterUrl: posterM ? posterM[1] : null,
+            rating: ratingM ? parseFloat(ratingM[1].replace(',', '.')) : null,
+            reviewCount: ratingM ? parseInt(ratingM[2], 10) : 0,
+            releaseDate: null,
+            ticketUrl: `https://biletinial.com/tr-tr/sinema/${filmSlug}`,
+        });
+    }
+    return movies;
+}
+
 function normalizeMovie(m, ticketUrl) {
     return {
         id: String(m.id),
@@ -52,10 +106,29 @@ export const getMovieGenres = async (req, res, next) => {
 // boylece birden fazla tur ayni anda secilebilir.
 export const getNowPlayingMovies = async (req, res, next) => {
     try {
+        const { city, page, genre, dateFrom, dateTo } = req.query;
+
+        // Şehir seçiliyse önce biletinial'daki GERÇEK, o şehirde gösterimde olan filmler
+        // denenir — tarih/tür filtreleri bu listede uygulanamaz (kaynak onları desteklemiyor),
+        // mobil taraf city modunda o filtreleri zaten gizliyor. Scrape başarısız/boş dönerse
+        // (tesis/şehir Biletinial'da yoksa) aşağıdaki TMDB ulusal listesine düşülür.
+        if (city) {
+            try {
+                const scraped = await scrapeBiletinialCityMovies(city);
+                if (scraped && scraped.length > 0) {
+                    return res.json({
+                        movies: scraped,
+                        totalPages: 1,
+                        cinemaListUrl: `https://biletinial.com/tr-tr/sinema/${citySlug(city)}`,
+                        source: 'biletinial',
+                    });
+                }
+            } catch (e) { /* scrape başarısız — TMDB ulusal listesine düş */ }
+        }
+
         const apiKey = process.env.TMDB_API_KEY;
         if (!apiKey) return res.status(503).json({ message: 'Sinema listesi şu anda yapılandırılmamış' });
 
-        const { city, page, genre, dateFrom, dateTo } = req.query;
         const genreIds = genre ? String(genre).split(',').map(g => g.trim()).filter(Boolean) : [];
 
         const fmt = (d) => d.toISOString().slice(0, 10);
@@ -81,7 +154,7 @@ export const getNowPlayingMovies = async (req, res, next) => {
 
         const ticketUrl = `https://biletinial.com/tr-tr/sinema/${citySlug(city)}`;
         const movies = (data.results || []).map(m => normalizeMovie(m, ticketUrl));
-        res.json({ movies, totalPages: data.total_pages || 1, cinemaListUrl: ticketUrl });
+        res.json({ movies, totalPages: data.total_pages || 1, cinemaListUrl: ticketUrl, source: 'tmdb' });
     } catch (e) { next(e); }
 };
 
