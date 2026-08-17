@@ -1756,6 +1756,23 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 );
                                             }
                                             if (sl.key === 'partner' && pendingPartnerInvite) return null; // ayrıca aşağıda gösteriliyor
+                                            // Kullanıcı isteği: ön yüzdeki boş formalardan da arka yüzdeki
+                                            // (SlotBox) gibi doğrudan isim yazıp davet edilebilsin — sadece
+                                            // gösterim/atama değil.
+                                            if (isOwner && !swapSlot) {
+                                                return (
+                                                    <View key={sl.key} style={cardBox}>
+                                                        <Text style={[det.playerSub, { color: colors.textMuted, marginBottom:2 }]} numberOfLines={1}>
+                                                            {t.cardParticipantLabel(i + 1)}
+                                                            {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
+                                                        </Text>
+                                                        <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t} placeholder="Davet et"
+                                                            genderReq={sl.gReq}
+                                                            onInvite={(u) => inviteToDoubleSlot(u, sl.key)}
+                                                            onOpenPicker={() => setShowDoubleFriendsPicker(true)} />
+                                                    </View>
+                                                );
+                                            }
                                             return (
                                                 <View key={sl.key} style={[cardBox, { opacity:0.55, flexDirection:'row', alignItems:'center', gap:6 }]}>
                                                     <View style={{ width:moderateScale(28), height:moderateScale(28), borderRadius:moderateScale(14), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
@@ -2782,6 +2799,67 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>
+
+                {/* Oyuncu Davet Et — arama paneli. Ayrı bir <Modal> DEĞİL: bu View zaten
+                    dış Modal'ın (yukarıdaki, visible={visible}) içinde — Android'de iç içe
+                    Modal, klavye açılınca pencerenin çökmesine yol açıyordu (kullanıcı
+                    raporu: "klavye formu kapatıyor ne yazdığımı göremiyorum"). Bunun yerine
+                    aynı Modal'ın içinde mutlak konumlu tam ekran katman olarak render
+                    ediliyor (bkz. showPartnerSearch / ekran-guvenli-alan.md). */}
+                {inviteModalVisible && (
+                    <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0 }}>
+                        <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
+                            <TouchableOpacity style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }} activeOpacity={1}
+                                onPress={() => { setInviteModalVisible(false); setInviteQuery(''); setInviteResults([]); setInviteForReferee(false); }}>
+                                <View onStartShouldSetResponder={() => true}
+                                    style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
+                                        <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{inviteForReferee ? noEmojiStr(t.inviteRefereeBtn) : t.inviteBtn}</Text>
+                                        <TouchableOpacity onPress={() => { setInviteModalVisible(false); setInviteQuery(''); setInviteResults([]); setInviteForReferee(false); }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:moderateScale(20) }}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <TextInput
+                                        style={[s.fieldInput, { fontSize: moderateScale(14), borderRadius: moderateScale(12), paddingHorizontal: moderateScale(14), paddingVertical: moderateScale(12) }]}
+                                        value={inviteQuery}
+                                        onChangeText={setInviteQuery}
+                                        placeholder={t.inviteSearchPh}
+                                        placeholderTextColor={colors.textMuted}
+                                        autoFocus
+                                    />
+                                    {inviteSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
+                                    <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
+                                        {inviteResults.map(u => (
+                                            <View key={u.id} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
+                                                <Avatar name={u.username} avatar={u.avatar} size={moderateScale(36)} color={cfg.color} />
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={{ color:'#fff', fontWeight:'700', fontSize:moderateScale(13) }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
+                                                        {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                                    </Text>
+                                                </View>
+                                                {invitedUserIds.has(u.id) ? (
+                                                    <Text style={{ color:'#4ade80', fontSize:moderateScale(12), fontWeight:'700' }}>✓ Davet Gönderildi</Text>
+                                                ) : (
+                                                    <TouchableOpacity
+                                                        style={[s.joinBtn, { paddingHorizontal:moderateScale(14), paddingVertical:moderateScale(7), borderRadius: moderateScale(10) }, invitingUserId === u.id && { opacity:0.6 }]}
+                                                        onPress={() => handleInvite(u)}
+                                                        disabled={invitingUserId === u.id}
+                                                    >
+                                                        <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{invitingUserId === u.id ? '...' : t.inviteSendBtn}</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        ))}
+                                        {!inviteSearching && inviteQuery.trim().length >= 2 && inviteResults.length === 0 && (
+                                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:moderateScale(13) }}>{t.inviteNoResults}</Text>
+                                        )}
+                                    </ScrollView>
+                                </View>
+                            </TouchableOpacity>
+                        </KeyboardAvoidingView>
+                    </View>
+                )}
             </View>
         </Modal>
 
@@ -2847,58 +2925,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
         {/* Kadro kartında "Değiştir/Çıkar" — bkz. promptSlotAction/SlotActionSheet */}
         <SlotActionSheet {...slotActionSheetProps} onClose={() => setSlotActionTarget(null)} />
-
-        {/* Oyuncu Davet Et — arama modali */}
-        <Modal visible={inviteModalVisible} animationType="slide" transparent onRequestClose={() => setInviteModalVisible(false)}>
-            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'}>
-                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
-                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                            <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{inviteForReferee ? noEmojiStr(t.inviteRefereeBtn) : t.inviteBtn}</Text>
-                            <TouchableOpacity onPress={() => { setInviteModalVisible(false); setInviteQuery(''); setInviteResults([]); setInviteForReferee(false); }}>
-                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(20) }}>✕</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <TextInput
-                            style={[s.fieldInput, { fontSize: moderateScale(14), borderRadius: moderateScale(12), paddingHorizontal: moderateScale(14), paddingVertical: moderateScale(12) }]}
-                            value={inviteQuery}
-                            onChangeText={setInviteQuery}
-                            placeholder={t.inviteSearchPh}
-                            placeholderTextColor={colors.textMuted}
-                            autoFocus
-                        />
-                        {inviteSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
-                        <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
-                            {inviteResults.map(u => (
-                                <View key={u.id} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
-                                    <Avatar name={u.username} avatar={u.avatar} size={moderateScale(36)} color={cfg.color} />
-                                    <View style={{ flex:1 }}>
-                                        <Text style={{ color:'#fff', fontWeight:'700', fontSize:moderateScale(13) }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
-                                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
-                                            {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
-                                        </Text>
-                                    </View>
-                                    {invitedUserIds.has(u.id) ? (
-                                        <Text style={{ color:'#4ade80', fontSize:moderateScale(12), fontWeight:'700' }}>✓ Davet Gönderildi</Text>
-                                    ) : (
-                                        <TouchableOpacity
-                                            style={[s.joinBtn, { paddingHorizontal:moderateScale(14), paddingVertical:moderateScale(7), borderRadius: moderateScale(10) }, invitingUserId === u.id && { opacity:0.6 }]}
-                                            onPress={() => handleInvite(u)}
-                                            disabled={invitingUserId === u.id}
-                                        >
-                                            <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{invitingUserId === u.id ? '...' : t.inviteSendBtn}</Text>
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                            ))}
-                            {!inviteSearching && inviteQuery.trim().length >= 2 && inviteResults.length === 0 && (
-                                <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:16, fontSize:moderateScale(13) }}>{t.inviteNoResults}</Text>
-                            )}
-                        </ScrollView>
-                    </View>
-                </KeyboardAvoidingView>
-            </View>
-        </Modal>
 
         {/* Çiftler: partner davet picker — bireysel başvuranlar arasından seç */}
         <Modal visible={showJoinInvitePicker} animationType="fade" transparent onRequestClose={() => setShowJoinInvitePicker(false)}>
@@ -8113,16 +8139,13 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                                 // state'e yazılır, davet ancak ilan submit edilince gider — o anda
                                 // zaten bir onay diyaloğuna gerek yok (bkz. DoubleRosterCard).
                                 if (onPick) { onPick(u); return; }
-                                // Kullanıcı isteğiyle tıklayınca direkt gönderilmiyor — önce onay
-                                // isteniyor (yanlışlıkla yanlış kişiye davet gitmesin diye).
-                                Alert.alert(
-                                    'Davet Gönder',
-                                    `${u.fullName || u.username} kişisine davet gönderilsin mi?`,
-                                    [
-                                        { text: 'Vazgeç', style: 'cancel' },
-                                        { text: 'Davet Gönder', onPress: () => onInvite(u) },
-                                    ]
-                                );
+                                // Kullanıcı isteği: açık ilan detayındaki kadro kartından davet
+                                // ederken de ilan OLUŞTURMA formundaki gibi (onPick) tek dokunuşla
+                                // gönderilsin — ayrı bir "Davet Gönder" onay diyaloğu "işlevsiz
+                                // görünüyor" hissi veriyordu (isim seçilince görünürde hiçbir şey
+                                // olmuyordu, ikinci bir native Alert'e kadar). Cinsiyet uyuşmuyorsa
+                                // zaten yukarıda uyarıyla engellendi, ekstra bir onaya gerek yok.
+                                onInvite(u);
                             }}
                             style={{ paddingVertical:5, paddingHorizontal:6, flexDirection:'row', alignItems:'center', gap:4, borderBottomWidth:1, borderBottomColor: colors.border+'60' }}>
                             <Avatar name={u.username} avatar={u.avatar} size={16} color={cfg.color} />
