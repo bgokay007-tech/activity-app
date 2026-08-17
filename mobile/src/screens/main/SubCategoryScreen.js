@@ -562,7 +562,7 @@ const det = StyleSheet.create({
     chatBtnTxt:   { fontSize:moderateScale(13) },
 });
 
-function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin, highlightSlot = null }) {
+function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin, highlightSlot: highlightSlotFromNotif = null }) {
     const insets = useSafeAreaInsets();
     // DOUBLE kadro kartında boş bir formaya dokunarak doğrudan o slota başvurabilmek için
     // (bkz. SlotBox) — kendi cinsiyetimiz slotun gereksinimine uymuyorsa buton hiç gösterilmez.
@@ -575,6 +575,24 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [localUnassigned, setLocalUnassigned] = useState(null);
     const [localSenderTeam, setLocalSenderTeam] = useState(null); // partner slotu — swap-positions sonrası anında güncellensin diye
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
+    // Kullanıcı isteği: "bildirime tıklayınca ne oluyorsa maça tıklayıp detay açılınca da
+    // aynısı olsun" — highlightSlotFromNotif SADECE bildirimden gelindiyse dolu (navigasyon
+    // parametreleri). Burada AYRICA ilanın kendi joinRequests verisinden benim bekleyen
+    // (PENDING, ilan sahibi tarafından başlatılmış) bir slot davetim var mı diye bakılıyor —
+    // varsa, ilana nereden girilmiş olursa olsun (liste, arama, doğrudan dokunuş...) aynı
+    // vurgu/çevirme dizisi tetiklenir. Tenis/padel (DOUBLE) VE voleybol/airsoft (takım slotu)
+    // için ortak — isPartnerInvite iki türde de kullanılıyor, matchType'a göre ayrıştırılıyor.
+    const myPendingSlotInvite = (localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []))
+        .find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING' && (jr.isPartnerInvite || jr.isOppTeamInvite || jr.requestedSlot));
+    // useMemo: aşağıdaki highlightPulse animasyon efekti highlightSlot'u dependency olarak
+    // kullanıyor — her render'da yeni bir {} referansı üretilirse (myPendingSlotInvite aynı
+    // kalsa bile) animasyon loop'u gereksiz yere durup yeniden başlıyor, yanıp sönme kekeliyordu.
+    const derivedHighlightSlot = useMemo(() => (myPendingSlotInvite ? (
+        item.matchType === 'DOUBLE'
+            ? { doubleSlot: myPendingSlotInvite.isPartnerInvite ? 'partner' : myPendingSlotInvite.requestedSlot }
+            : { side: myPendingSlotInvite.isPartnerInvite ? 'my' : 'opp', slotIndex: Number.isInteger(myPendingSlotInvite.slotIndex) ? myPendingSlotInvite.slotIndex : null }
+    ) : null), [myPendingSlotInvite?.isPartnerInvite, myPendingSlotInvite?.isOppTeamInvite, myPendingSlotInvite?.requestedSlot, myPendingSlotInvite?.slotIndex, item.matchType]);
+    const highlightSlot = useMemo(() => highlightSlotFromNotif || derivedHighlightSlot, [highlightSlotFromNotif, derivedHighlightSlot]);
     const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2' — seçili slot
     // Boş bir DOUBLE slotuna uzun basınca açılan çoklu-seç arkadaş listesi (bkz. SlotBox).
