@@ -286,6 +286,52 @@ function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
 }
 
 // ── Dal seçim modalı ──
+// ── Kategori seçim modalı — kullanıcı isteği: forma dokununca açılır, 1 veya daha
+// fazla kategori seçilip "Onayla" ile kapanır, seçilenler formun içinde yazılı görünür. ──
+function CatsModal({ visible, categories, selCats, onApply, onClose }) {
+    const [tmp, setTmp] = useState(selCats);
+    useEffect(() => { if (visible) setTmp(selCats); }, [visible]);
+
+    const toggle = (key) => setTmp(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+
+    return (
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+            <View style={m.overlay}>
+                <View style={[m.sheet, { height: undefined }]}>
+                    <View style={m.handle} />
+                    <Text style={m.title}>🏷 Kategori Seç</Text>
+                    <View style={m.subGrid}>
+                        {categories.map(cat => {
+                            const active = tmp.includes(cat.key);
+                            return (
+                                <TouchableOpacity
+                                    key={cat.key}
+                                    style={[m.subChip, active && { backgroundColor: cat.color + '28', borderColor: cat.color }]}
+                                    onPress={() => toggle(cat.key)}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={m.subChipEmoji}>{cat.emoji}</Text>
+                                    <Text style={[m.subChipText, active && { color: cat.color }]}>{cat.label}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                    <View style={m.btnRow}>
+                        <TouchableOpacity style={m.clearBtn} onPress={() => { setTmp([]); onApply([]); }} activeOpacity={0.8}>
+                            <Text style={m.clearBtnText}>Temizle</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={m.applyBtn} onPress={() => onApply(tmp)} activeOpacity={0.8}>
+                            <Text style={m.applyBtnText}>
+                                Onayla{tmp.length > 0 ? ` (${tmp.length})` : ''}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) {
     const [tmp, setTmp] = useState(selSubs);
     useEffect(() => { if (visible) setTmp(selSubs); }, [visible]);
@@ -767,6 +813,7 @@ export default function ActivityFeedScreen({ navigation }) {
     const [showDateModal, setShowDateModal] = useState(false);
     const [showTimeModal, setShowTimeModal] = useState(false);
     const [showSubsModal, setShowSubsModal] = useState(false);
+    const [showCatsModal, setShowCatsModal] = useState(false);
     const [showAlertModal, setShowAlertModal] = useState(false);
     const [alertEnabled, setAlertEnabled] = useState(false);
 
@@ -893,15 +940,15 @@ export default function ActivityFeedScreen({ navigation }) {
     }));
     const categories = [...allCats, ...dynamicCats];
 
-    const toggleCat = (key) => {
-        setSelCats(prev => {
-            const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
-            if (!next.includes(key)) {
-                const catSubs = (categories.find(c => c.key === key)?.subs || []).map(s => s.key);
-                setSelSubs(p => p.filter(s => !catSubs.includes(s)));
-            }
-            return next;
-        });
+    // Kategori seçimi artık CatsModal'da tek seferde onaylanıyor (Dallar ile aynı desen) —
+    // kaldırılan bir kategoriye ait daha önce seçili dallar da (eski toggleCat'teki gibi) düşer.
+    const applyCats = (cats) => {
+        setSelCats(cats);
+        if (cats.length > 0) {
+            const allowedSubKeys = new Set(categories.filter(c => cats.includes(c.key)).flatMap(c => (c.subs || []).map(s => s.key)));
+            setSelSubs(prev => prev.filter(s => allowedSubKeys.has(s)));
+        }
+        setShowCatsModal(false);
     };
     const toggleSub = (key) => setSelSubs(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
 
@@ -1088,21 +1135,18 @@ export default function ActivityFeedScreen({ navigation }) {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Kategoriler */}
+                    {/* Kategoriler — kullanıcı isteği: yatay çip listesi yerine tek form,
+                        dokununca aşağı doğru açılıp Onayla ile kapanıyor (Dallar ile aynı deseni). */}
                     <Text style={s.sectionLabel}>🏷 Kategori</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow} nestedScrollEnabled>
-                        {categories.map(cat => {
-                            const active = selCats.includes(cat.key);
-                            return (
-                                <TouchableOpacity key={cat.key}
-                                    style={[s.chip, active && { backgroundColor: cat.color + '28', borderColor: cat.color }]}
-                                    onPress={() => toggleCat(cat.key)} activeOpacity={0.8}>
-                                    <Text style={s.chipEmoji}>{cat.emoji}</Text>
-                                    <Text style={[s.chipText, active && { color: cat.color }]}>{cat.label}</Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </ScrollView>
+                    <TouchableOpacity
+                        style={[s.pickerField, selCats.length > 0 && s.pickerFieldActive]}
+                        onPress={() => setShowCatsModal(true)}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={[s.pickerFieldText, selCats.length > 0 && { color: colors.purpleLight }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                            {selCats.length > 0 ? selCats.map(k => categories.find(c => c.key === k)?.label || k).join(', ') : 'Kategori seç…'}
+                        </Text>
+                    </TouchableOpacity>
 
                     {/* Dal seçici — form alanı */}
                     <Text style={s.sectionLabel}>⚡ Dallar</Text>
@@ -1178,6 +1222,15 @@ export default function ActivityFeedScreen({ navigation }) {
                 timeFrom={timeFrom} timeTo={timeTo}
                 onApply={(f, t) => { setTimeFrom(f); setTimeTo(t); setShowTimeModal(false); }}
                 onClose={() => setShowTimeModal(false)}
+            />
+
+            {/* Kategori seçim modalı */}
+            <CatsModal
+                visible={showCatsModal}
+                categories={categories}
+                selCats={selCats}
+                onApply={applyCats}
+                onClose={() => setShowCatsModal(false)}
             />
 
             {/* Dal seçim modalı */}
@@ -1416,11 +1469,6 @@ const s = StyleSheet.create({
     pickerFieldActive: { borderColor: colors.purple, backgroundColor: colors.purple + '12' },
     pickerFieldText:   { color: colors.textMuted, fontSize: 9, textAlign: 'center' },
     pickerArrow:       { color: colors.textMuted, fontSize: 14 },
-
-    chipRow:   { gap: 3, paddingVertical: 3 },
-    chip:      { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 3, paddingVertical: 3, borderRadius: 20, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
-    chipEmoji: { fontSize: 12 },
-    chipText:  { color: colors.textSecondary, fontSize: 10, fontWeight: '700' },
 
     suggDropdown:    { position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30, elevation: 8, maxHeight: 220 },
     suggItem:        { paddingHorizontal: 12, paddingVertical: 9, marginTop: 3, backgroundColor: colors.surface2, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
