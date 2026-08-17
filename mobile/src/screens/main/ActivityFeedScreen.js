@@ -1046,11 +1046,6 @@ export default function ActivityFeedScreen({ navigation }) {
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
                 <RainbowLogo text={logoText} style={{ fontSize: 22, fontWeight: '900', letterSpacing: 2 }} />
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    {hasFilter && (
-                        <TouchableOpacity onPress={clearAll} style={s.clearBtn} activeOpacity={0.8}>
-                            <Text style={s.clearBtnText}>✕ Temizle</Text>
-                        </TouchableOpacity>
-                    )}
                     <TouchableOpacity onPress={openActivityMap} style={am.bellBtn} activeOpacity={0.8}>
                         <Text style={am.bellBtnText}>🗺️</Text>
                     </TouchableOpacity>
@@ -1068,8 +1063,16 @@ export default function ActivityFeedScreen({ navigation }) {
                 {/* ── Filtre paneli ── */}
                 <View style={s.filterPanel}>
 
-                    {/* Konum + Tarih/Saat — tek satırda dört kutu */}
-                    <Text style={s.sectionLabel}>📍 Konum · 📅 Tarih · 🕐 Saat</Text>
+                    {/* Konum + Tarih/Saat — tek satırda dört kutu. Kullanıcı isteği: "Temizle"
+                        artık üstteki logo/destek satırından taşmıyor, bu satıra taşındı. */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text style={s.sectionLabel}>📍 Konum · 📅 Tarih · 🕐 Saat</Text>
+                        {hasFilter && (
+                            <TouchableOpacity onPress={clearAll} style={s.clearBtn} activeOpacity={0.8}>
+                                <Text style={s.clearBtnText}>✕ Temizle</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                     <View style={s.filterRow}>
                         <LocationInput placeholder="İl" value={city} onChange={setCity} type="city" compact />
                         <LocationInput placeholder="İlçe" value={district} onChange={setDistrict} type="district" province={city} compact />
@@ -1403,15 +1406,15 @@ const s = StyleSheet.create({
         paddingHorizontal: 8, paddingVertical: 5, color: '#fff', fontSize: 12,
         borderWidth: 1, borderColor: colors.border,
     },
-    filterInputCompact: { paddingHorizontal: 6, paddingVertical: 6, fontSize: 11 },
+    filterInputCompact: { paddingHorizontal: 5, paddingVertical: 3, fontSize: 10 },
 
     pickerField: {
         flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 4, paddingVertical: 6,
+        backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 3, paddingVertical: 3,
         borderWidth: 1, borderColor: colors.border,
     },
     pickerFieldActive: { borderColor: colors.purple, backgroundColor: colors.purple + '12' },
-    pickerFieldText:   { color: colors.textMuted, fontSize: 10, textAlign: 'center' },
+    pickerFieldText:   { color: colors.textMuted, fontSize: 9, textAlign: 'center' },
     pickerArrow:       { color: colors.textMuted, fontSize: 14 },
 
     chipRow:   { gap: 3, paddingVertical: 3 },
