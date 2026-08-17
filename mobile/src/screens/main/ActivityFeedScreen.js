@@ -1110,16 +1110,16 @@ export default function ActivityFeedScreen({ navigation }) {
                 {/* ── Filtre paneli ── */}
                 <View style={s.filterPanel}>
 
-                    {/* Konum + Tarih/Saat — tek satırda dört kutu. Kullanıcı isteği: "Temizle"
-                        artık üstteki logo/destek satırından taşmıyor, bu satıra taşındı. */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Text style={s.sectionLabel}>📍 Konum · 📅 Tarih · 🕐 Saat</Text>
-                        {hasFilter && (
+                    {/* Konum + Tarih/Saat — tek satırda dört kutu. Kullanıcı isteği: başlıklar
+                        gereksiz (formlar zaten placeholder ile ne olduğunu gösteriyor) — kaldırıldı,
+                        "Temizle" kendi satırında sağa yaslı kaldı. */}
+                    {hasFilter && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
                             <TouchableOpacity onPress={clearAll} style={s.clearBtn} activeOpacity={0.8}>
                                 <Text style={s.clearBtnText}>✕ Temizle</Text>
                             </TouchableOpacity>
-                        )}
-                    </View>
+                        </View>
+                    )}
                     <View style={s.filterRow}>
                         <LocationInput placeholder="İl" value={city} onChange={setCity} type="city" compact />
                         <LocationInput placeholder="İlçe" value={district} onChange={setDistrict} type="district" province={city} compact />
@@ -1137,7 +1137,6 @@ export default function ActivityFeedScreen({ navigation }) {
 
                     {/* Kategoriler — kullanıcı isteği: yatay çip listesi yerine tek form,
                         dokununca aşağı doğru açılıp Onayla ile kapanıyor (Dallar ile aynı deseni). */}
-                    <Text style={s.sectionLabel}>🏷 Kategori</Text>
                     <TouchableOpacity
                         style={[s.pickerField, selCats.length > 0 && s.pickerFieldActive]}
                         onPress={() => setShowCatsModal(true)}
@@ -1149,7 +1148,6 @@ export default function ActivityFeedScreen({ navigation }) {
                     </TouchableOpacity>
 
                     {/* Dal seçici — form alanı */}
-                    <Text style={s.sectionLabel}>⚡ Dallar</Text>
                     <TouchableOpacity
                         style={[s.pickerField, selSubs.length > 0 && s.pickerFieldActive]}
                         onPress={() => setShowSubsModal(true)}
@@ -1452,7 +1450,6 @@ const s = StyleSheet.create({
         backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.border,
         paddingHorizontal: 3, paddingTop: 3, paddingBottom: 3, gap: 3,
     },
-    sectionLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '700' },
     filterRow:    { flexDirection: 'row', gap: 3 },
     filterInput:  {
         flex: 1, backgroundColor: colors.surface2, borderRadius: 8,
