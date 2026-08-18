@@ -4116,6 +4116,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [showMatchStart, setShowMatchStart] = useState(false);
     const [showMatchLive, setShowMatchLive] = useState(false);
     const [matchLiveOptions, setMatchLiveOptions] = useState({ wantCamera: false, wantWatch: false });
+    // Kullanıcı isteği: "maç skoru girerken media paylaş da olsun, o maç üzerinden paylaşılan
+    // medialar o spor dalının mediasına düşsün" — skor girişiyle birlikte/yanında galeriden
+    // foto/video seçip o sporun Medya sekmesine, maça bağlı (rivalId) olarak paylaşılabiliyor.
+    const [sharingMedia, setSharingMedia] = useState(false);
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
     // Atanmamış listesindeki "Takımlara Ata" — kullanıcı isteği: tek bir buton, dokununca
     // hangi slotların (Katılımcı 1/2/3, hangisi hâlâ boşsa ve cinsiyete uyuyorsa) uygun
@@ -4469,6 +4473,34 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             onRefresh();
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.sendFailed); }
         finally { setSubmitting(false); }
+    };
+
+    // Kullanıcı isteği: skor girişiyle birlikte maçtan foto/video paylaşılabilsin — o sporun
+    // Medya sekmesine (category/subCategory) düşer, rivalId ile bu maça bağlanır (tam ekran
+    // görünümde altında maç detayı/skoru gösterilebiliyor, bkz. MediaFullScreen).
+    const shareMatchMedia = async () => {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) return Alert.alert('', 'Galeri izni gerekli');
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.85 });
+        if (result.canceled) return;
+        const asset = result.assets[0];
+        setSharingMedia(true);
+        try {
+            const isVideo = asset.type === 'video' || asset.uri.includes('.mp4') || asset.uri.includes('.mov');
+            const form = new FormData();
+            form.append('file', { uri: asset.uri, name: isVideo ? 'media.mp4' : 'media.jpg', type: isVideo ? 'video/mp4' : 'image/jpeg' });
+            const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+            await api.post('/posts', {
+                category: match.category, subCategory: match.subCategory,
+                type: 'POST', content: '', rivalId: match.id,
+                ...(isVideo ? { videoUrl: uploadData.url } : { imageUrl: uploadData.url }),
+            });
+            Alert.alert('', 'Medya paylaşıldı ✓');
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.sendFailed);
+        } finally {
+            setSharingMedia(false);
+        }
     };
 
     const confirmScore = async () => {
@@ -16507,7 +16539,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId, inviteSide, inviteSlotIndex, inviteDoubleSlot, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
             openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor,
-            openEquipmentId, initialCoachSubTab, openCoachId } = route.params;
+            openEquipmentId, initialCoachSubTab, openCoachId, initialArchiveSubTab, openArchiveTournamentId } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
@@ -16730,7 +16762,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveCity, setArchiveCity] = useState('');
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
-    const [archiveSubTab, setArchiveSubTab] = useState('rivals');
+    const [archiveSubTab, setArchiveSubTab] = useState(initialArchiveSubTab === 'tournaments' ? 'tournaments' : 'rivals');
     const [archiveDetailMatch, setArchiveDetailMatch] = useState(null);
     const [peerReviewRivalId, setPeerReviewRivalId] = useState(null);
     const [tournSubTab, setTournSubTab] = useState(['open','inprogress'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
@@ -16746,6 +16778,15 @@ export default function SubCategoryScreen({ route, navigation }) {
             setTournSubTab(route.params.initialTournSubTab);
         }
     }, [route.params?.initialTournSubTab]);
+
+    // "🏆 Turnuva Tamamlandı" bildirimine tıklayınca — kullanıcı raporu: eskiden Turnuvalar
+    // sekmesine (Açık İlanlar/Devam Eden) gidiyordu ama tamamlanmış turnuvalar orada hiç
+    // gösterilmiyor, sadece Arşiv > Turnuvalar alt-sekmesinde listeleniyor.
+    useEffect(() => {
+        if (route.params?.initialArchiveSubTab === 'tournaments') {
+            setArchiveSubTab('tournaments');
+        }
+    }, [route.params?.initialArchiveSubTab]);
     const [archiveTournaments, setArchiveTournaments] = useState([]);
     const [loadingArchiveTournaments, setLoadingArchiveTournaments] = useState(false);
     // Arşiv > Ekipmanlar (satılmış ilanlar) ve Hakemlik (hakemlik yapılan tamamlanmış maçlar)
@@ -16988,6 +17029,15 @@ export default function SubCategoryScreen({ route, navigation }) {
             setTournSubTab((target.status === 'OPEN' || target.status === 'POLL') ? 'open' : 'inprogress');
         }
     }, [openMatchTournamentId, tournaments]);
+
+    // "Turnuva Tamamlandı" bildirimine tıklanınca — Arşiv > Turnuvalar listesi yüklenince
+    // (bkz. loadArchiveTournaments) ilgili turnuvanın detay modalı doğrudan açılır, kullanıcı
+    // listede arayıp kendi bulmak zorunda kalmaz.
+    useEffect(() => {
+        if (!openArchiveTournamentId || archiveTournaments.length === 0) return;
+        const target = archiveTournaments.find(tn => tn.id === openArchiveTournamentId);
+        if (target) setSelectedArchiveTournament(target);
+    }, [openArchiveTournamentId, archiveTournaments]);
 
     // Comments modal — lifted out of UpcomingCard so it renders outside ScrollView
     const [commentMatch, setCommentMatch] = useState(null);
@@ -21818,6 +21868,26 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 if (fromEnd === 2) return 'Çeyrek Final';
                                 return `Playoff - Tur ${round}`;
                             };
+                            // Kullanıcı isteği: puan tablosunun yanında "İlk 4'e Girenler" gösterilsin —
+                            // final maçının galibi/mağlubu 1./2., yarı final maçlarının mağlupları
+                            // (ikisi de) ortak 3. olarak listelenir. Playoff yoksa (sadece grup) veya
+                            // final henüz sonuçlanmamışsa hiç gösterilmez.
+                            const archiveTopFour = (() => {
+                                if (playoffMs.length === 0) return [];
+                                const finalM = playoffMs.find(m => m.round === playoffMaxRound && m.status === 'COMPLETED' && m.winnerId);
+                                if (!finalM) return [];
+                                const champion = finalM.winnerId === finalM.p1Id ? { id: finalM.p1Id, name: finalM.p1Name } : { id: finalM.p2Id, name: finalM.p2Name };
+                                const runnerUp = finalM.winnerId === finalM.p1Id ? { id: finalM.p2Id, name: finalM.p2Name } : { id: finalM.p1Id, name: finalM.p1Name };
+                                const semiLosers = playoffMs
+                                    .filter(m => m.round === playoffMaxRound - 1 && m.status === 'COMPLETED' && m.winnerId)
+                                    .map(m => m.winnerId === m.p1Id ? { id: m.p2Id, name: m.p2Name } : { id: m.p1Id, name: m.p1Name })
+                                    .filter(p => p.id);
+                                return [
+                                    { place: '🥇', ...champion },
+                                    { place: '🥈', ...runnerUp },
+                                    ...semiLosers.map(p => ({ place: '🥉', ...p })),
+                                ];
+                            })();
                             return (
                                 <>
                                     <View style={[s.modalHeader, { paddingHorizontal:21 }]}>
@@ -21924,6 +21994,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 : archiveStandings.length === 0
                                                     ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>Henüz maç sonucu yok</Text>
                                                     : <View>
+                                                        {archiveTopFour.length > 0 && (
+                                                            <View style={{ backgroundColor:'#a855f712', borderRadius:10, borderWidth:1, borderColor:'#a855f740', padding:9, marginBottom:12 }}>
+                                                                <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800', marginBottom:6 }}>🏅 İlk 4'e Girenler</Text>
+                                                                {archiveTopFour.map((p, i) => (
+                                                                    <Text key={p.id || i} style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>
+                                                                        {p.place} {p.name}
+                                                                    </Text>
+                                                                ))}
+                                                            </View>
+                                                        )}
                                                         <View style={{ flexDirection:'row', paddingVertical:1, borderBottomWidth:1, borderBottomColor:colors.border, marginBottom:2 }}>
                                                             <Text style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>Oyuncu</Text>
                                                             {['O','G','B','M','Av','P'].map(h => (

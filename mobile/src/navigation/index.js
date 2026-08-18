@@ -51,7 +51,13 @@ function navigateFromNotif(data) {
         navigationRef.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'subscriptions' } });
     } else if (data.category && data.subCategory) {
         let initialTab = 'rivals';
-        if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') initialTab = 'tournaments';
+        // Tamamlanmış turnuvalar Turnuvalar sekmesinde (Açık İlanlar/Devam Eden) hiç
+        // gösterilmiyor, sadece Arşiv > Turnuvalar alt-sekmesinde yaşıyor — bu kontrol diğer
+        // TOURNAMENT* tiplerinden ÖNCE gelmeli, aksi halde aşağıdaki genel startsWith('TOURNAMENT')
+        // kolu devreye girip yanlışlıkla Turnuvalar sekmesine (Açık İlanlar) götürüyordu
+        // (kullanıcı raporu, aynı hata NotificationsScreen'deki uygulama-içi listede de vardı).
+        if (type === 'TOURNAMENT_COMPLETED') initialTab = 'archive';
+        else if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') initialTab = 'tournaments';
         else if (type === 'MATCH_CONFIRMED') initialTab = 'rivals';
         else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED') initialTab = 'archive';
         navigationRef.navigate('HomeTab', {
@@ -67,6 +73,7 @@ function navigateFromNotif(data) {
                 // "bildirime tıklayınca kart görünmüyor" hatası sadece OS bildiriminde ortaya
                 // çıkıyordu (kullanıcı raporu).
                 ...(data.inviteDoubleSlot && { inviteDoubleSlot: data.inviteDoubleSlot }),
+                ...(type === 'TOURNAMENT_COMPLETED' && { initialArchiveSubTab: 'tournaments', openArchiveTournamentId: data.tournamentId || null }),
             },
         });
     }

@@ -167,7 +167,7 @@ export default function NotificationsScreen({ navigation }) {
         markRead(item.id);
         const data = item.data || {};
         const type = item.type;
-        const goToSub = (tab = 'rivals', tournSubTab = null, openChatTournamentId = null) => {
+        const goToSub = (tab = 'rivals', tournSubTab = null, openChatTournamentId = null, archiveTournamentId = null) => {
             if (!data.category || !data.subCategory) return;
             // Eski bir sunucu hatası yüzünden bazı geçmiş bildirimlerde category küçük harfle
             // kaydedilmiş olabilir (ör. "sports") — kategori her yerde büyük harfle
@@ -189,6 +189,11 @@ export default function NotificationsScreen({ navigation }) {
                 // inviteToRival'daki inviteDoubleSlot), kadro kartında hangi formanın kırmızı yanıp
                 // söneceğini belirler (bkz. RivalDetailModal highlightSlot.doubleSlot).
                 ...(data.inviteDoubleSlot && { inviteDoubleSlot: data.inviteDoubleSlot }),
+                // Tamamlanmış turnuvalar Turnuvalar sekmesinde (Açık İlanlar/Devam Eden) hiç
+                // gösterilmiyor, sadece Arşiv > Turnuvalar alt-sekmesinde yaşıyor (bkz.
+                // kullanıcı raporu: "Turnuva Tamamlandı" bildirimi yanlışlıkla Açık İlanlar'a
+                // götürüyordu — çünkü initialTournSubTab='completed' hiç desteklenmiyordu).
+                ...(archiveTournamentId && { initialArchiveSubTab: 'tournaments', openArchiveTournamentId: archiveTournamentId }),
             });
         };
         const goToEquipmentListing = () => {
@@ -269,7 +274,7 @@ export default function NotificationsScreen({ navigation }) {
         } else if (type === 'TOURNAMENT_STARTED' || type === 'TOURNAMENT_EXTRA_ROUND') {
             goToSub('tournaments', 'inprogress');
         } else if (type === 'TOURNAMENT_COMPLETED') {
-            goToSub('tournaments', 'completed');
+            goToSub('archive', null, null, data.tournamentId || null);
         } else if (type === 'TOURNAMENT_CHAT_MESSAGE') {
             goToSub('tournaments', null, data.tournamentId || null);
         } else if (type === 'TOURNAMENT_MATCH_DEADLINE_WARNING' || type === 'TOURNAMENT_MATCH_AUTO_DRAW') {
