@@ -17239,6 +17239,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [rivalPrefill, setRivalPrefill] = useState(null);
     const [upcomingExpanded, setUpcomingExpanded] = useState(true);
     const [upcomingSubsExpanded, setUpcomingSubsExpanded] = useState(true);
+    const [playingExpanded, setPlayingExpanded] = useState(true);
     const [openRivalsExpanded, setOpenRivalsExpanded] = useState(true);
     const [showCreatePW, setShowCreatePW] = useState(false);
     const [showCreateTournament, setShowCreateTournament] = useState(false);
@@ -18584,16 +18585,26 @@ export default function SubCategoryScreen({ route, navigation }) {
     // aktif filtrelerden BAĞIMSIZ olarak her zaman listede kalır.
     const filteredRivals = rivals.filter(r => r.id === highlightRivalId || applyFilter(r)).slice().sort((a, b) => rivalTimeKey(a) - rivalTimeKey(b));
 
-    // Maç saati geçmiş MATCHED maçları yaklaşan listesinden çıkar, skor bekleniyor olarak göster
-    const matchHasEnded = (m) => {
+    // Maç saati gelmiş MATCHED maçları yaklaşan listesinden çıkar — ama süresi (duration) henüz
+    // dolmadıysa direkt skor bekleyen'e değil, ara "Oynanan Maçlar" grubuna düşer. Süre bilgisi
+    // yoksa (ör. esnek maçlar) diğer yerlerdeki (scoreUnlocked, matchEnd) hesaplamayla tutarlı
+    // olması için aynı 90 dk varsayılanı kullanılıyor.
+    const matchHasStarted = (m) => {
         if (!m.matchDate || !m.matchTime) return false;
         const [h, min] = m.matchTime.split(':').map(Number);
         const d = new Date(m.matchDate);
         d.setHours(h, min, 0, 0);
         return new Date() >= new Date(d.getTime() + 60 * 1000); // maç başladıktan 1 dk sonra
     };
+    const matchHasEnded = (m) => {
+        if (!m.matchDate || !m.matchTime) return false;
+        const [h, min] = m.matchTime.split(':').map(Number);
+        const d = new Date(m.matchDate);
+        d.setHours(h, min, 0, 0);
+        return new Date() >= new Date(d.getTime() + (m.duration || 90) * 60 * 1000); // maç süresi bitince
+    };
     const allFiltered = matchedUpcoming.filter(m => m.id === highlightRivalId || applyFilter(m));
-    const filteredMatchedUpcoming = allFiltered.filter(m => !matchHasEnded(m));
+    const filteredMatchedUpcoming = allFiltered.filter(m => !matchHasStarted(m));
     // Yedek kadrosu (substituteCount) belirtilmiş ama henüz dolmamış Yaklaşan Maçlar ayrı bir
     // başlıkta ("Yedek Kadro Aranan Yaklaşan Maçlar") gösterilir — kullanıcı isteği: hâlâ
     // Yaklaşan Maçlar'da kalsın ama yedek arandığı ayrıca belli olsun.
@@ -18605,6 +18616,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
     const upcomingNeedingSubs = filteredMatchedUpcoming.filter(matchNeedsSubs);
     const upcomingSubsFull = filteredMatchedUpcoming.filter(m => !matchNeedsSubs(m));
+    // Oynanan Maçlar — maç saati gelmiş ama süresi henüz dolmamış maçlar (kullanıcı isteği:
+    // maç saati geçer geçmez direkt "Skor Bekleyen"e düşmesin, önce burada görünsün).
+    const playingMatches = allFiltered.filter(m => matchHasStarted(m) && !matchHasEnded(m));
     const clientEndedMatches = allFiltered.filter(m => matchHasEnded(m));
     // Birleştir: sunucudan gelen + client-side biten (id çakışmasını önle)
     const pendingScoreIds = new Set(pendingScore.map(m => m.id));
@@ -19213,6 +19227,30 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {upcomingExpanded && (
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                             {upcomingSubsFull.map(m => (
+                                                <View key={m.id} style={{ width:'48.5%' }}>
+                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
+                                </>
+                            )}
+
+                            {/* Oynanan Maçlar — maç saati gelmiş ama süresi henüz dolmamış maçlar */}
+                            {playingMatches.length > 0 && (
+                                <>
+                                    <TouchableOpacity
+                                        onPress={() => setPlayingExpanded(v => !v)}
+                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: playingExpanded ? 8 : 4 }}
+                                    >
+                                        <Text style={[s.sectionTitle, { color: '#22c55e' }]}>{t.playingMatchesTitle} ({playingMatches.length})</Text>
+                                        <Text style={{ color: colors.textSecondary, fontSize:18, fontWeight:'700', marginTop:-4 }}>
+                                            {playingExpanded ? '▼' : '›'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    {playingExpanded && (
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                            {playingMatches.map(m => (
                                                 <View key={m.id} style={{ width:'48.5%' }}>
                                                     <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
                                                 </View>
