@@ -6027,8 +6027,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </View>
                     )}
 
-                    {/* Action buttons */}
-                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:8, marginBottom:20 }}>
+                    {/* Action buttons — kullanıcı raporu: butonlar (İptal/Gelmedi/Medya Paylaş vb.)
+                        ekranın büyük bölümünü kaplayan uzun dikey çubuklara dönüşüyordu. Sebep:
+                        flex:1 olan bazı butonlarla (Skor Gir, Skor Giremiyorum) aynı satıra
+                        (flexWrap:'wrap') düşen diğer butonlar, alignItems için bir varsayılan
+                        belirtilmediğinde React Native'in DEFAULT davranışı olan 'stretch' yüzünden
+                        o satırdaki en yüksek elemana göre dikey olarak geriliyordu — satır yüksekliği
+                        büyüdükçe TÜM butonlar orantısız uzuyordu. alignItems:'flex-start' bunu
+                        kökten engelliyor, her buton kendi doğal (içeriğine göre) yüksekliğinde kalır. */}
+                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:8, marginBottom:20, alignItems:'flex-start' }}>
                         {!hasScore && scoreUnlocked && (
                             <>
                                 {!doubleNeedsAssignment && (
