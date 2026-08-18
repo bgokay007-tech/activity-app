@@ -7809,6 +7809,13 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                     {children}
                                 </View>
                             );
+                            // Pro+ özelliği: aynı saat aralığı kuralında ödeme yöntemine göre farklı
+                            // fiyat (paymentDeltas) olabilir — önceden bu modalde sadece taban fiyat
+                            // gösteriliyordu, EFT/kredi kartı/online fiyat farkları hiç görünmüyordu
+                            // (kullanıcı raporu). CASH ayrıca listelenmiyor — o zaten taban fiyat.
+                            const PAYMENT_METHOD_ORDER = ['EFT', 'CREDIT_CARD', 'ONLINE'];
+                            const PAYMENT_METHOD_EMOJI = { EFT: '🏦', CREDIT_CARD: '💳', ONLINE: '🌐' };
+                            const acceptedPayments = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : [];
                             return (
                                 <>
                                     <Section label={t.venueWorkingHoursLabel} color="#60a5fa">
@@ -7825,21 +7832,25 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                         </View>
                                     </Section>
 
-                                    {/* Kullanıcı isteği: "kort 1 esnek saat zemin tipi kort 2 ... sırayla doğru
-                                        bilgiler yazmalı" — venue varsayılanına göre fark listelemek yerine HER
-                                        kort kendi randevu tipi + zemin + açık/kapalı bilgisiyle sırayla listelenir
-                                        (gridde gösterilen aynı sıralamayla). */}
-                                    <Section label={t.venueSlotTypeLabel} color="#a3e635">
-                                        {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => {
-                                            const effIndoor = c.indoor ?? venue.courtIndoorDefault ?? false;
-                                            const type = slotTypeLabel(c.slotType || venue.slotType)?.label || c.slotType || venue.slotType;
-                                            return (
-                                                <Text key={c.id} style={{ color:'#e5e7eb', fontSize:13, marginBottom:4 }}>
-                                                    <Text style={{ color:'#a3e635', fontWeight:'800' }}>{c.name}: </Text>
-                                                    {type}{c.surface ? ` · ⬜ ${getSurface(t, c.surface)}` : ''} · {effIndoor ? t.indoor : t.outdoor}
-                                                </Text>
-                                            );
-                                        })}
+                                    {/* Kullanıcı isteği: kampanyalar bilgisi kortlar bilgisinin YERİNE (üste),
+                                        kortlar bilgisi en aşağıya alındı — kampanyalar daha görünür olsun diye. */}
+                                    <Section label={t.venueCampaignsLabel} color="#4ade80">
+                                        {discountCampaigns.length === 0 && !loyalty?.enabled ? (
+                                            <Text style={{ color:'#888', fontSize:13 }}>{t.venueNoCampaigns}</Text>
+                                        ) : (
+                                            <>
+                                                {discountCampaigns.map((c, i) => (
+                                                    <Text key={i} style={{ color:'#e5e7eb', fontSize:13, marginBottom:2 }}>
+                                                        🎉 {t.venueDiscountCampaignInfo(c.fromTime, c.toTime, c.percent)}
+                                                    </Text>
+                                                ))}
+                                                {loyalty?.enabled && (
+                                                    <Text style={{ color:'#e5e7eb', fontSize:13 }}>
+                                                        🎁 {t.venueLoyaltyCampaignInfo(loyalty.thresholdHours, loyalty.rewardHours)}
+                                                    </Text>
+                                                )}
+                                            </>
+                                        )}
                                     </Section>
 
                                     {courtsWithLights.length > 0 && (
@@ -7859,10 +7870,21 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                             )}
                                             {pw.map((rule, i) => {
                                                 const cName = rule.courtId ? (venue.courts||[]).find(c=>c.id===rule.courtId)?.name : null;
+                                                const deltas = rule.paymentDeltas && typeof rule.paymentDeltas === 'object' ? rule.paymentDeltas : null;
+                                                const methodRows = deltas
+                                                    ? PAYMENT_METHOD_ORDER.filter(m => deltas[m] != null && (m !== 'CREDIT_CARD' || acceptedPayments.includes('CREDIT_CARD')))
+                                                    : [];
                                                 return (
-                                                    <Text key={i} style={{ color:'#e5e7eb', fontSize:13, marginBottom:2 }}>
-                                                        💰 {rule.from}–{rule.to}: {rule.price > 0 ? `${rule.price}₺` : 'Ücretsiz'}{cName ? ` · ${cName}` : ''}
-                                                    </Text>
+                                                    <View key={i} style={{ marginBottom:6 }}>
+                                                        <Text style={{ color:'#e5e7eb', fontSize:13 }}>
+                                                            💰 {rule.from}–{rule.to}: {rule.price > 0 ? `${rule.price}₺` : 'Ücretsiz'}{cName ? ` · ${cName}` : ''}
+                                                        </Text>
+                                                        {methodRows.length > 0 && (
+                                                            <Text style={{ color:'#9ca3af', fontSize:11.5, marginTop:2 }}>
+                                                                {methodRows.map(m => `${PAYMENT_METHOD_EMOJI[m]} ${FEE_METHOD_LABEL[m]}: ${deltas[m]}₺`).join('   ')}
+                                                            </Text>
+                                                        )}
+                                                    </View>
                                                 );
                                             })}
                                         </Section>
@@ -7891,23 +7913,22 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                         </Section>
                                     )}
 
-                                    <Section label={t.venueCampaignsLabel} color="#4ade80">
-                                        {discountCampaigns.length === 0 && !loyalty?.enabled ? (
-                                            <Text style={{ color:'#888', fontSize:13 }}>{t.venueNoCampaigns}</Text>
-                                        ) : (
-                                            <>
-                                                {discountCampaigns.map((c, i) => (
-                                                    <Text key={i} style={{ color:'#e5e7eb', fontSize:13, marginBottom:2 }}>
-                                                        🎉 {t.venueDiscountCampaignInfo(c.fromTime, c.toTime, c.percent)}
-                                                    </Text>
-                                                ))}
-                                                {loyalty?.enabled && (
-                                                    <Text style={{ color:'#e5e7eb', fontSize:13 }}>
-                                                        🎁 {t.venueLoyaltyCampaignInfo(loyalty.thresholdHours, loyalty.rewardHours)}
-                                                    </Text>
-                                                )}
-                                            </>
-                                        )}
+                                    {/* Kullanıcı isteği: "kort 1 esnek saat zemin tipi kort 2 ... sırayla doğru
+                                        bilgiler yazmalı" — venue varsayılanına göre fark listelemek yerine HER
+                                        kort kendi randevu tipi + zemin + açık/kapalı bilgisiyle sırayla listelenir
+                                        (gridde gösterilen aynı sıralamayla). Kullanıcı isteği: bu bölüm artık
+                                        modalin EN ALTINDA, kampanyalar bilgisi onun yerine (yukarı) alındı. */}
+                                    <Section label={t.venueSlotTypeLabel} color="#a3e635">
+                                        {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => {
+                                            const effIndoor = c.indoor ?? venue.courtIndoorDefault ?? false;
+                                            const type = slotTypeLabel(c.slotType || venue.slotType)?.label || c.slotType || venue.slotType;
+                                            return (
+                                                <Text key={c.id} style={{ color:'#e5e7eb', fontSize:13, marginBottom:4 }}>
+                                                    <Text style={{ color:'#a3e635', fontWeight:'800' }}>{c.name}: </Text>
+                                                    {type}{c.surface ? ` · ⬜ ${getSurface(t, c.surface)}` : ''} · {effIndoor ? t.indoor : t.outdoor}
+                                                </Text>
+                                            );
+                                        })}
                                     </Section>
                                 </>
                             );
