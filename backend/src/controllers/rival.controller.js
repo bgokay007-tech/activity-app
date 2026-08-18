@@ -1164,8 +1164,12 @@ export const updateRivalRequest = async (req, res, next) => {
         // değiştirilebilir — aksi halde participants/senderTeam dizisinin şekli
         // (kim hangi slotta) uyumsuz kalır. teamFlexibility ise katılımcı dizisinin
         // şeklini etkilemez (sadece takas izni), o yüzden her zaman değiştirilebilir.
+        // unassignedPlayers'daki (henüz bir slota yerleşmemiş ama zaten kabul edilmiş)
+        // kişiler de sayılır — kullanıcı raporu: onlar sayılmayınca hem format kilidi hem
+        // aşağıdaki "kabul edilenleri yeniden onaya çek" temizliği hiç tetiklenmiyordu.
         const hasParticipants = (Array.isArray(rival.participants) && rival.participants.length > 0)
-            || (Array.isArray(rival.senderTeam) && rival.senderTeam.length > 0);
+            || (Array.isArray(rival.senderTeam) && rival.senderTeam.length > 0)
+            || (Array.isArray(rival.unassignedPlayers) && rival.unassignedPlayers.length > 0);
         const matchTypeRequested = matchType !== undefined && matchType.toUpperCase() !== rival.matchType;
         const matchTypeLocked = matchTypeRequested && hasParticipants;
         const applyMatchType = matchTypeRequested && !hasParticipants;
@@ -1248,13 +1252,24 @@ export const updateRivalRequest = async (req, res, next) => {
                 const clearedSenderTeam = Array.isArray(updated.senderTeam)
                     ? updated.senderTeam.filter(p => !(p?.id && acceptedIds.includes(p.id)))
                     : updated.senderTeam;
+                // BUG (kullanıcı raporu, tenis DOUBLE): bu temizlik SADECE participants/senderTeam'i
+                // temizliyordu — atanmamış havuzundaki (unassignedPlayers) kabul edilmiş kişiler
+                // JoinRequest'i AWAITING_JOINER_CONFIRM'e çekilse de dizide kalıyordu. Bu "hayalet"
+                // kayıt sonradan hem doluluk sayımını (teamFilledCount/isFull — maç yanlışlıkla
+                // MATCHED'e geçip Yaklaşan Maçlar'a düşüyordu) hem cinsiyet uygunluk kontrolünü
+                // (resolveDoubleAcceptance'daki canAssignAll) bozuyordu. Artık unassignedPlayers'tan
+                // da aynı şekilde temizleniyor — kişi yukarıdaki döngüde zaten aynı "İlan Güncellendi"
+                // bildirimini alıyor, confirmLateJoin ile isterse yeniden onaylayabiliyor.
+                const clearedUnassigned = Array.isArray(updated.unassignedPlayers)
+                    ? updated.unassignedPlayers.filter(p => !(p?.id && acceptedIds.includes(p.id)))
+                    : updated.unassignedPlayers;
                 await prisma.rivalJoinRequest.updateMany({
                     where: { id: { in: acceptedJoinReqs.map(jr => jr.id) } },
                     data: { status: 'AWAITING_JOINER_CONFIRM' },
                 });
                 finalUpdated = await prisma.activityRequest.update({
                     where: { id },
-                    data: { participants: clearedParticipants, senderTeam: clearedSenderTeam, reopenedAt: new Date() },
+                    data: { participants: clearedParticipants, senderTeam: clearedSenderTeam, unassignedPlayers: clearedUnassigned, reopenedAt: new Date() },
                     include: {
                         sender: { select: SENDER_SELECT },
                         joinRequests: {
