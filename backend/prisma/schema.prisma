@@ -804,7 +804,7 @@ model ActivityRequest {
   opp1GenderReq    String  @default("MIX")  // doubles: opponent 1 gender requirement
   opp2GenderReq    String  @default("MIX")  // doubles: opponent 2 gender requirement
   requiredMaleCount Int?                   // voleybol takım ilanı: havuzun (2*teamSize kişi) kaç kişisi erkek olmalı — null = kısıtlama yok. Kadın sayısı 2*teamSize - requiredMaleCount olarak hesaplanır, takım büyüklüğü değişirse buna göre yeniden değerlendirilir.
-  genderCountMode  String?                 // 'EXACT' (requiredMaleCount, yukarıdaki eski davranış) | 'MIN' (aşağıdaki minGenderReq/minGenderCount) | null = kısıtlama yok
+  genderCountMode  String?                 // 'EXACT' (requiredMaleCount, yukarıdaki eski davranış) | 'MIN' (havuzun tamamında minGenderReq/minGenderCount) | 'MIN_PER_TEAM' (her iki takımda AYRI AYRI aynı alanlar) | null = kısıtlama yok
   minGenderReq     String?                 // 'MIN' modda: 'MALE' | 'FEMALE' — hangi cinsiyetten minimum isteniyor
   minGenderCount   Int?                    // 'MIN' modda: en az kaç kişi — kalan slotların cinsiyeti serbest (kullanıcı isteği: "2 kesin kız lazım, kalanı fark etmez")
   winsNeeded       Int?                    // örn. airsoft: kaç raunt/oyun kazanınca maç biter — null = belirtilmemiş

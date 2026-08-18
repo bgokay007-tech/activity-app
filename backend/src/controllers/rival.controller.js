@@ -483,43 +483,39 @@ async function checkTeamGenderQuota(rival, mainMembers) {
 }
 
 // Takım başına minimum (MIN_PER_TEAM): checkGenderCountQuota'nın pool-wide kontrolünün aksine,
-// SADECE tek bir tarafın (side: 'my'=Kurucu, 'opp'=Rakip) mevcut+yeni oyuncuyla hâlâ minimumu
-// karşılayıp karşılayamayacağına bakar — kadro kartındaki taraf ATAMA anında (assignPlayerToSide,
-// swapTeamPlayers, addManualTeamPlayer, doğrudan-slot davet kabulü) çağrılır. Voleybol/airsoft'ta
-// bireysel kabul HER ZAMAN önce atanmamış havuzuna girip (bkz. checkGenderCountQuota'nın çağrıldığı
-// yer) hangi tarafa gideceği SONRADAN seçildiği için, "takım başına" kısıtlaması accept anında değil
-// burada, gerçek taraf ataması anında uygulanabiliyor.
-// nextSenderTeam/nextParticipants: bu oyuncu HENÜZ eklenmeden ÖNCEKİ (push'tan önceki) diziler.
-async function checkPerTeamGenderQuota(rival, side, newJoinerGender, nextSenderTeam, nextParticipants) {
+// SADECE tek bir tarafın (side: 'my'=Kurucu, 'opp'=Rakip) NİHAİ (bu işlemden SONRAKİ) kadrosuyla
+// minimum hâlâ karşılanabilir mi diye bakar — kadro kartındaki taraf ATAMA/DEĞİŞTİRME anında
+// (assignPlayerToSide, swapTeamPlayers, addManualTeamPlayer, doğrudan-slot davet kabulü) çağrılır.
+// Voleybol/airsoft'ta bireysel kabul HER ZAMAN önce atanmamış havuzuna girip (bkz.
+// checkGenderCountQuota'nın çağrıldığı yer) hangi tarafa gideceği SONRADAN seçildiği için,
+// "takım başına" kısıtlaması accept anında değil burada, gerçek taraf ataması anında uygulanır.
+// sideArrFinal: bu işlemden SONRA o tarafta olacak TÜM oyuncular (yeni/taşınan dahil).
+async function perTeamGenderFeasible(rival, side, sideArrFinal) {
     if (rival.genderCountMode !== 'MIN_PER_TEAM') return null;
     if (!['volleyball', 'airsoft'].includes(rival.subCategory) || (rival.teamSize || 1) <= 1) return null;
     if (!rival.minGenderCount || !['MALE', 'FEMALE'].includes(rival.minGenderReq)) return null;
     if (side !== 'my' && side !== 'opp') return null; // atanmamışa dönüş/null taraf kontrol dışı
-    if (newJoinerGender === 'OTHER') return null;
-    if (!newJoinerGender) {
-        return 'Bu ilanda takım başına cinsiyet minimumu var, cinsiyet bilgisi girilmemiş oyuncular bir tarafa atanamıyor.';
-    }
 
     const teamSizeN = rival.teamSize || 1;
     const hasSlot = (p) => p && (p.id || p.manualName);
-    const sideArr = side === 'my' ? nextSenderTeam : nextParticipants;
-    const filledSide = sideArr.filter(hasSlot);
-    let currentGenderCount = filledSide.filter(p => p.gender === rival.minGenderReq).length;
-    let currentSideFilled = filledSide.length;
+    const filled = sideArrFinal.filter(hasSlot);
+    if (filled.some(p => !p.gender || p.gender === 'OTHER')) {
+        return 'Bu ilanda takım başına cinsiyet minimumu var, cinsiyet bilgisi girilmemiş oyuncular bir tarafa atanamıyor.';
+    }
+    let genderCount = filled.filter(p => p.gender === rival.minGenderReq).length;
+    let filledCount = filled.length;
     if (side === 'my') {
         // Kurucu senderTeam dizisinin İÇİNDE değil, ayrı sabit bir slot — kendi cinsiyeti de sayılmalı.
-        currentSideFilled += 1;
+        filledCount += 1;
         const founder = await prisma.user.findUnique({ where: { id: rival.senderId }, select: { gender: true } });
-        if (founder?.gender === rival.minGenderReq) currentGenderCount += 1;
+        if (founder?.gender === rival.minGenderReq) genderCount += 1;
     }
-    const newSideFilled = currentSideFilled + 1;
-    const newGenderCount = currentGenderCount + (newJoinerGender === rival.minGenderReq ? 1 : 0);
-    const remainingAfter = teamSizeN - newSideFilled;
-    const neededMore = Math.max(0, rival.minGenderCount - newGenderCount);
-    if (neededMore > remainingAfter) {
+    const emptySlots = teamSizeN - filledCount;
+    const neededMore = Math.max(0, rival.minGenderCount - genderCount);
+    if (neededMore > emptySlots) {
         const label = rival.minGenderReq === 'MALE' ? 'erkek' : 'kadın';
         const sideLabel = side === 'my' ? (rival.founderTeamName || 'Kurucu Takım') : (rival.opponentTeamName || 'Rakip Takım');
-        return `${sideLabel}'da en az ${rival.minGenderCount} ${label} olması gerekiyor — bu atama bu minimumu imkansız hale getiriyor.`;
+        return `${sideLabel}'da en az ${rival.minGenderCount} ${label} olması gerekiyor — bu işlem bu minimumu imkansız hale getiriyor.`;
     }
     return null;
 }
@@ -3053,7 +3049,6 @@ export const respondToJoin = async (req, res, next) => {
                     }
                 }
             }
-            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
             // gender de snapshot'a eklendi — DOUBLE'da "Atanmamış" listesindeki atama
             // butonlarının cinsiyete uymayan slotları hiç göstermemesi için (bkz. mobil
             // openSlotOptions/genderFitsSlot) — önceden bu bilgi hiç taşınmıyordu, bu yüzden
@@ -3067,9 +3062,16 @@ export const respondToJoin = async (req, res, next) => {
             // dizinin sonuna değil tam o pozisyona yerleşir — önceden hep sona ekleniyordu, bu
             // da "6. forma yazdım ama 1. sıraya gitti" şikayetine yol açıyordu.
             const existingSenderTeam = Array.isArray(joinReq.rival.senderTeam) ? joinReq.rival.senderTeam : [];
+            const updatedSenderTeamArr = setAtFounderSlot(existingSenderTeam, joinReq.slotIndex, joinerData);
+            // Takım başına min. cinsiyet kontrolü — join request'i ACCEPTED işaretlemeden ÖNCE
+            // yapılır, aksi halde reddedilince "kabul edildi ama kadroya hiç eklenmedi" gibi
+            // tutarsız bir ara duruma düşülüyordu.
+            const perTeamGenderError = await perTeamGenderFeasible(joinReq.rival, 'my', updatedSenderTeamArr);
+            if (perTeamGenderError) return res.status(400).json({ message: perTeamGenderError });
+            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
             const updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },
-                data: { senderTeam: setAtFounderSlot(existingSenderTeam, joinReq.slotIndex, joinerData) },
+                data: { senderTeam: updatedSenderTeamArr },
                 include: {
                     sender: { select: SENDER_SELECT },
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
@@ -3099,7 +3101,6 @@ export const respondToJoin = async (req, res, next) => {
                 emitToUser(joinReq.userId, 'joinRejected', { rivalId: joinReq.rivalId });
                 return res.status(400).json({ message: 'Rakip Takımı zaten dolu.' });
             }
-            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
             // gender de snapshot'a eklendi — DOUBLE'da "Atanmamış" listesindeki atama
             // butonlarının cinsiyete uymayan slotları hiç göstermemesi için (bkz. mobil
             // openSlotOptions/genderFitsSlot) — önceden bu bilgi hiç taşınmıyordu, bu yüzden
@@ -3109,6 +3110,12 @@ export const respondToJoin = async (req, res, next) => {
             // Davet kadro kartında belirli bir forma yazıldıysa (slotIndex) tam o pozisyona
             // yerleşir, dizinin sonuna değil.
             const updatedParticipantsArr = setAtSlot(existingParticipants, joinReq.slotIndex, joinerData);
+            // Takım başına min. cinsiyet kontrolü — join request'i ACCEPTED işaretlemeden ÖNCE
+            // yapılır, aksi halde reddedilince "kabul edildi ama kadroya hiç eklenmedi" gibi
+            // tutarsız bir ara duruma düşülüyordu.
+            const perTeamGenderError = await perTeamGenderFeasible(joinReq.rival, 'opp', updatedParticipantsArr);
+            if (perTeamGenderError) return res.status(400).json({ message: perTeamGenderError });
+            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
             const isFullNow = teamSizeN > 1
                 ? teamFilledCount(joinReq.rival, { participants: updatedParticipantsArr }) >= totalPlayerCount(joinReq.rival)
                 : false;
@@ -3358,6 +3365,12 @@ export const respondToJoin = async (req, res, next) => {
                 } else {
                     updatedParticipants = joiningTeam;
                 }
+                // Tam takım tek seferde Rakip Takımı'na (participants) yazıldığı için, takım
+                // başına min. cinsiyet kısıtlaması varsa burada da (assignPlayerToSide'daki
+                // tekil atamayla aynı şekilde) kontrol edilir — aksi halde bu akış onu tamamen
+                // atlıyordu.
+                const teamGenderErr = await perTeamGenderFeasible(rival, 'opp', updatedParticipants);
+                if (teamGenderErr) return res.status(400).json({ message: teamGenderErr });
             } else {
                 updatedParticipants = [...participants, joinerEntry];
             }
@@ -3794,6 +3807,11 @@ export const confirmLateJoin = async (req, res, next) => {
                 } else {
                     updatedParticipants = joiningTeam;
                 }
+                // Bkz. respondToJoin'deki aynı gerekçeli kontrol — tam takım tek seferde
+                // participants'a yazıldığı için takım başına min. cinsiyet kısıtlaması burada da
+                // uygulanmalı.
+                const teamGenderErr = await perTeamGenderFeasible(rival, 'opp', updatedParticipants);
+                if (teamGenderErr) return res.status(400).json({ message: teamGenderErr });
             } else {
                 updatedParticipants = [...participants, joinerEntry];
             }
@@ -4885,8 +4903,11 @@ export const assignPlayerToSide = async (req, res, next) => {
         if (side === 'opp' && nextParticipants.length >= teamSizeN) {
             return res.status(400).json({ message: `Rakip Takımı zaten dolu (${teamSizeN} kişilik kontenjan).` });
         }
-        const perTeamGenderError = await checkPerTeamGenderQuota(rival, side, player.gender, nextSenderTeam, nextParticipants);
-        if (perTeamGenderError) return res.status(400).json({ message: perTeamGenderError });
+        if (side === 'my' || side === 'opp') {
+            const sideArrFinal = [...(side === 'my' ? nextSenderTeam : nextParticipants), player];
+            const perTeamGenderError = await perTeamGenderFeasible(rival, side, sideArrFinal);
+            if (perTeamGenderError) return res.status(400).json({ message: perTeamGenderError });
+        }
         if (side === 'my') nextSenderTeam.push(player);
         else if (side === 'opp') nextParticipants.push(player);
         else nextUnassigned.push(player);
@@ -5036,6 +5057,13 @@ export const swapTeamPlayers = async (req, res, next) => {
         if (moverSide === 'my') { senderTeam[moverInSender] = target; participants[targetInParts] = mover; }
         else { participants[moverInParts] = target; senderTeam[targetInSender] = mover; }
 
+        // Takas iki tarafın da cinsiyet bileşimini değiştirebilir (dolulukları aynı kalsa bile) —
+        // her iki taraf da MIN_PER_TEAM minimumunu SONRAKİ hâliyle hâlâ karşılıyor mu diye kontrol edilir.
+        const moverSideErr = await perTeamGenderFeasible(rival, moverSide, moverSide === 'my' ? senderTeam : participants);
+        if (moverSideErr) return res.status(400).json({ message: moverSideErr });
+        const targetSideErr = await perTeamGenderFeasible(rival, targetSide, targetSide === 'my' ? senderTeam : participants);
+        if (targetSideErr) return res.status(400).json({ message: targetSideErr });
+
         const updated = await prisma.activityRequest.update({
             where: { id },
             data: { senderTeam, participants },
@@ -5122,6 +5150,9 @@ export const addManualTeamPlayer = async (req, res, next) => {
             }
             data = { participants: setAtSlot(participants, slotIndex, { manualName: trimmed, gender }) };
         }
+
+        const perTeamGenderError = await perTeamGenderFeasible(rival, side, side === 'my' ? data.senderTeam : data.participants);
+        if (perTeamGenderError) return res.status(400).json({ message: perTeamGenderError });
 
         const isFullNow = teamFilledCount(rival, {
             senderTeam: data.senderTeam ?? senderTeam,
