@@ -2211,7 +2211,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             const poolEmptyCount = Math.max(0, (2 * teamSizeN - 1) - mySlots.length - oppSlots.length - unassignedSlots.length);
 
                             return (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor: cfg.color+'40', padding:10 }}>
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor: cfg.color+'40', padding:1 }}>
                                     {!showTeamCards ? (
                                         <>
                                             <Text style={[s.fieldLabel, { marginBottom:6 }]}>{t.rosterPoolLabel}</Text>
