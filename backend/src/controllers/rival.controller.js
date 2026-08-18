@@ -4851,25 +4851,48 @@ export const setParticipantPosition = async (req, res, next) => {
             return res.status(400).json({ message: 'Bu işlem sadece voleybolda yapılabilir' });
         }
 
-        const senderTeam = Array.isArray(rival.senderTeam) ? [...rival.senderTeam] : [];
-        const participants = Array.isArray(rival.participants) ? [...rival.participants] : [];
-        const substitutePlayers = Array.isArray(rival.substitutePlayers) ? [...rival.substitutePlayers] : [];
-        const applyPosition = (arr) => {
-            const idx = arr.findIndex(p => p?.id === userId);
-            if (idx === -1) return false;
-            if (position) arr[idx] = { ...arr[idx], position };
-            else { const { position: _drop, ...rest } = arr[idx]; arr[idx] = rest; }
-            return true;
-        };
-        const found = applyPosition(senderTeam) || applyPosition(participants) || applyPosition(substitutePlayers);
-        if (!found) return res.status(404).json({ message: 'Oyuncu bu ilanda bulunamadı' });
+        let updated;
+        // Kurucu (ilan sahibi) senderTeam/participants dizilerinin İÇİNDE değil — kendi
+        // ilişkisinde (sender) tutulduğu için ayrı bir founderPosition alanına yazılır
+        // (kullanıcı isteği: "ilanı oluşturan kişi kendine pozisyon atayamıyor onu da çöz").
+        if (userId === rival.senderId) {
+            updated = await prisma.activityRequest.update({
+                where: { id },
+                data: { founderPosition: position || null },
+                include: { sender: { select: SENDER_SELECT } },
+            });
+        } else {
+            const senderTeam = Array.isArray(rival.senderTeam) ? [...rival.senderTeam] : [];
+            const participants = Array.isArray(rival.participants) ? [...rival.participants] : [];
+            const substitutePlayers = Array.isArray(rival.substitutePlayers) ? [...rival.substitutePlayers] : [];
+            const applyPosition = (arr) => {
+                const idx = arr.findIndex(p => p?.id === userId);
+                if (idx === -1) return false;
+                if (position) arr[idx] = { ...arr[idx], position };
+                else { const { position: _drop, ...rest } = arr[idx]; arr[idx] = rest; }
+                return true;
+            };
+            const found = applyPosition(senderTeam) || applyPosition(participants) || applyPosition(substitutePlayers);
+            if (!found) return res.status(404).json({ message: 'Oyuncu bu ilanda bulunamadı' });
 
-        const updated = await prisma.activityRequest.update({
-            where: { id },
-            data: { senderTeam, participants, substitutePlayers },
-            include: { sender: { select: SENDER_SELECT } },
-        });
+            updated = await prisma.activityRequest.update({
+                where: { id },
+                data: { senderTeam, participants, substitutePlayers },
+                include: { sender: { select: SENDER_SELECT } },
+            });
+        }
+
         broadcast('rivalUpdate', updated);
+        // Kullanıcı isteği: pozisyonu (ya da takımı) değişen kişiye her değişimde bildirim
+        // gitsin — takım değişikliğindeki (ROSTER_CHANGED, bkz. assignPlayerToSide) ile aynı
+        // tür/deep-link, kendi kendine atayınca (kurucu) tekrar bildirim gitmez.
+        if (userId !== req.userId) {
+            const posLabel = position === 'SPIKER' ? 'Smaçör' : position === 'LIBERO' ? 'Libero' : position === 'SETTER' ? 'Pasör' : null;
+            createNotification(userId, 'ROSTER_CHANGED', '🔄 Kadro Değişti',
+                posLabel ? `${posLabel} pozisyonuna atandın.` : 'Pozisyon ataman kaldırıldı.',
+                { rivalId: id, category: updated.category, subCategory: updated.subCategory }
+            ).catch(() => {});
+        }
         res.json(updated);
     } catch (error) { next(error); }
 };

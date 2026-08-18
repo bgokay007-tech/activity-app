@@ -1100,9 +1100,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             // Kullanıcı isteği: "sadece isme tıklarlarsa pozisyona ata ve profiline git
             // seçenekleri çıksın" — pozisyon ataması sadece ilan sahibi + voleybolda.
             if (isOwner && sub === 'volleyball' && p.id) {
-                nameActions.push({ label: `🏐 ${t.positionPickerTitle || 'Pozisyona Ata'}`, onPress: () => setSlotActionTarget({ p, side, mode: 'position' }) });
+                nameActions.push({ label: `🏐 ${t.positionAssignBtn}`, onPress: () => setSlotActionTarget({ p, side, mode: 'position' }) });
             }
-            if (p.id) nameActions.push({ label: `👤 ${t.goToProfileBtn || 'Profiline Git'}`, onPress: () => navigation.push('Profile', { userId: p.id }) });
+            if (p.id) nameActions.push({ label: `👤 ${t.goToProfileBtn}`, onPress: () => navigation.push('Profile', { userId: p.id }) });
             return { visible: true, title: name, actions: nameActions };
         }
         if (mode === 'position') {
@@ -2264,7 +2264,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </>
                                     ) : (
                                         <View style={{ flexDirection:'row', gap:6 }}>
-                                            <TeamColBack label={`👑 ${item.founderTeamName || t.myTeamLabel}`} color={cfg.color} peoplePositional={[item.sender, ...senderTeamArr]} total={teamSizeN} allowRemove={isOwner}
+                                            <TeamColBack label={`👑 ${item.founderTeamName || t.myTeamLabel}`} color={cfg.color} peoplePositional={[{ ...item.sender, position: item.founderPosition }, ...senderTeamArr]} total={teamSizeN} allowRemove={isOwner}
                                                 side="my" onEditName={() => setTeamNameEdit({ side:'founder', value: item.founderTeamName || '' })} />
                                             <TeamColBack label={`⚔️ ${item.opponentTeamName || t.oppTeamLabel}`} color="#f87171" peoplePositional={participants} legacyManualExtra={oppManualNames.map(n => ({ manualName: n }))} total={teamSizeN} allowRemove={isOwner}
                                                 side="opp" onEditName={() => setTeamNameEdit({ side:'opponent', value: item.opponentTeamName || '' })} />
@@ -8779,9 +8779,9 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
         // gidebilir.
         if (mode === 'nameMenu') {
             if (isOwner && isVolleyball && p.id && onSetPosition) {
-                actions.push({ label: `🏐 ${t.positionPickerTitle || 'Pozisyona Ata'}`, onPress: () => setSlotActionTarget({ p, side, mode: 'position' }) });
+                actions.push({ label: `🏐 ${t.positionAssignBtn}`, onPress: () => setSlotActionTarget({ p, side, mode: 'position' }) });
             }
-            if (p.id) actions.push({ label: `👤 ${t.goToProfileBtn || 'Profiline Git'}`, onPress: () => navigation.push('Profile', { userId: p.id }) });
+            if (p.id) actions.push({ label: `👤 ${t.goToProfileBtn}`, onPress: () => navigation.push('Profile', { userId: p.id }) });
             return { visible: true, title: name, actions };
         }
         if (mode === 'position') {

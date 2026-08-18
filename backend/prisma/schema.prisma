@@ -762,6 +762,7 @@ model ActivityRequest {
   substitutePlayers Json       @default("[]")     // voleybol: yedek oyuncular — senderTeam ile aynı şekil (gerçek kullanıcı veya {manualName}), taraf bağımsız
   substituteCount Int          @default(0)        // voleybol: ilan sahibinin istediği yedek KONTENJANI (create formundaki subCount ile aynı) — substitutePlayers doluluğundan bağımsız, açık ilanda da değiştirilebilir
   unassignedPlayers Json       @default("[]")     // voleybol: açık ilana katılıp henüz Kurucu/Rakip'e atanmamış oyuncular — ilan sahibi Yaklaşan Maçlar kartından elle atar (bkz. assignPlayerToSide)
+  founderPosition String?                         // voleybol: ilan sahibinin (kurucu) kendi Libero/Pasör/Smaçör pozisyonu — kurucu senderTeam/participants dizilerinde değil, sender ilişkisinde tutulduğu için ayrı alan (bkz. setParticipantPosition)
   oppTeamManualNames Json      @default("[]")     // team sports: opponent-side names typed in for players without an app account (display-only, ["Ahmet Yılmaz", ...])
   positions       Json         @default("[]")     // e.g. ['REFEREE'] | ['REFEREE_OFFER'] | ['GOALKEEPER']
   extraServices   Json         @default("[]")     // [{id,type,name,price,artistListingId?}] — DJ/Sanatçı/Mangal Partisi vb. ek hizmetler (tenis/padel/voleybol)
