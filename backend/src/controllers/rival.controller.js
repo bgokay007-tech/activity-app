@@ -963,7 +963,7 @@ export const getCountsBySubCategory = async (req, res, next) => {
             OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
         };
 
-        const [rivalRows, tournRows] = await Promise.all([
+        const [rivalRows, tournRows, subsNeededRows] = await Promise.all([
             prisma.activityRequest.groupBy({
                 by: ['subCategory'],
                 where,
@@ -974,11 +974,26 @@ export const getCountsBySubCategory = async (req, res, next) => {
                 where: { status: 'OPEN', ...catWhere },
                 _count: { id: true },
             }),
+            // Voleybolde yedek kadrosu dolmamış Yaklaşan Maçlar (status MATCHED) — kullanıcı
+            // isteği: SubCategoryScreen'deki "Açık İlanlar" sayacına zaten dahil ediliyordu,
+            // ama üst seviyedeki "Voleybol (N)" dal sayacı hâlâ OPEN olmayan bu ilanları hiç
+            // saymıyordu.
+            prisma.activityRequest.findMany({
+                where: { status: 'MATCHED', subCategory: 'volleyball', substituteCount: { gt: 0 }, ...catWhere },
+                select: { substituteCount: true, substitutePlayers: true },
+            }),
         ]);
 
         const counts = {};
         rivalRows.forEach(r => { counts[r.subCategory] = r._count.id; });
         tournRows.forEach(r => { counts[r.subCategory] = (counts[r.subCategory] || 0) + r._count.id; });
+        const subsNeededCount = subsNeededRows.filter(r => {
+            const filled = (Array.isArray(r.substitutePlayers) ? r.substitutePlayers : []).filter(p => p?.id).length;
+            return filled < (r.substituteCount || 0);
+        }).length;
+        // Kullanıcı isteği: yedek kadro aranan maç açık bir ilan sayılmadığı için tam
+        // değil, "buçuk" (0.5) olarak sayılır — ör. 4 açık ilan + 1 yedek aranan maç → 4.5.
+        if (subsNeededCount > 0) counts.volleyball = (counts.volleyball || 0) + subsNeededCount * 0.5;
         res.json(counts);
     } catch (error) { next(error); }
 };
