@@ -623,6 +623,7 @@ const en = {
 
     // SubCategory — archive / score
     enterScore: 'Enter Score',
+    enterScoreAndShareMedia: 'Enter Score & Share Media',
     sendScore: 'Send Score',
     sending: 'Sending...',
     confirmScoreBtn: 'Confirm Score',
@@ -2046,6 +2047,7 @@ const tr = {
 
     // SubCategory — archive / score
     enterScore: 'Skor Gir',
+    enterScoreAndShareMedia: 'Skor Gir ve Medya Paylaş',
     sendScore: 'Skoru Gönder',
     sending: 'Gönderiliyor...',
     confirmScoreBtn: 'Skoru Onayla',

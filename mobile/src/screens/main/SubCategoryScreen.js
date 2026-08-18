@@ -4192,6 +4192,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // medialar o spor dalının mediasına düşsün" — skor girişiyle birlikte/yanında galeriden
     // foto/video seçip o sporun Medya sekmesine, maça bağlı (rivalId) olarak paylaşılabiliyor.
     const [sharingMedia, setSharingMedia] = useState(false);
+    // Kullanıcı isteği: "Skor Gir" ve "Skor Gir ve Medya Paylaş" diye İKİ ayrı buton olsun —
+    // ikisi de AYNI skor formunu açar, sadece bu bayrak hangisine basıldığını hatırlar. Skor
+    // başarıyla gönderilince (bkz. submitScore) bayrak true ise galeri seçici otomatik açılır.
+    const [pendingMediaAfterScore, setPendingMediaAfterScore] = useState(false);
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
     // Atanmamış listesindeki "Takımlara Ata" — kullanıcı isteği: tek bir buton, dokununca
     // hangi slotların (Katılımcı 1/2/3, hangisi hâlâ boşsa ve cinsiyete uyuyorsa) uygun
@@ -4543,31 +4547,66 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             setShowScore(false);
             setSets([{ my: '', opp: '' }]);
             onRefresh();
+            // Kullanıcı isteği: "Skor Gir ve Medya Paylaş" ile açıldıysa, skor başarıyla
+            // gönderildikten hemen sonra galeri seçici otomatik açılır (bkz. pendingMediaAfterScore).
+            if (pendingMediaAfterScore) {
+                setPendingMediaAfterScore(false);
+                shareMatchMedia();
+            }
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.sendFailed); }
         finally { setSubmitting(false); }
     };
 
+    // Galeriden resim/video seçip yükler, {url, isVideo} döner — hem "Medya Paylaş" hem "Sanal
+    // Alem'de de Paylaş" (bkz. shareToSanalAlem) AYNI yükleme adımını paylaşıyor, ikinci
+    // paylaşımda medya TEKRAR seçtirilmiyor/yüklenmiyor.
+    const pickAndUploadMedia = async () => {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return null; }
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.85 });
+        if (result.canceled) return null;
+        const asset = result.assets[0];
+        const isVideo = asset.type === 'video' || asset.uri.includes('.mp4') || asset.uri.includes('.mov');
+        const form = new FormData();
+        form.append('file', { uri: asset.uri, name: isVideo ? 'media.mp4' : 'media.jpg', type: isVideo ? 'video/mp4' : 'image/jpeg' });
+        const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+        return { url: uploadData.url, isVideo };
+    };
+
+    // Kullanıcı isteği: aynı medyayı Sanal Alem'e (Sosyal > Sanal Alem) de düşürebilme — kimin
+    // görebileceği, kullanıcının kendi profil ayarındaki postsPrivacy'ye göre backend'de zaten
+    // uygulanıyor (bkz. post.controller.js), burada ekstra bir gizlilik mantığı gerekmiyor.
+    const shareToSanalAlem = async (media) => {
+        try {
+            await api.post('/posts', {
+                category: 'SOCIAL', subCategory: 'sanal_alem',
+                type: 'POST', content: '',
+                ...(media.isVideo ? { videoUrl: media.url } : { imageUrl: media.url }),
+            });
+            Alert.alert('', "Sanal Alem'de paylaşıldı ✓");
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.sendFailed);
+        }
+    };
+
     // Kullanıcı isteği: skor girişiyle birlikte maçtan foto/video paylaşılabilsin — o sporun
     // Medya sekmesine (category/subCategory) düşer, rivalId ile bu maça bağlanır (tam ekran
-    // görünümde altında maç detayı/skoru gösterilebiliyor, bkz. MediaFullScreen).
+    // görünümde altında maç detayı/skoru gösterilebiliyor, bkz. MediaFullScreen). Paylaşım
+    // başarılı olunca aynı medyayı tekrar seçtirmeden Sanal Alem'de de paylaşma seçeneği sunulur.
     const shareMatchMedia = async () => {
-        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) return Alert.alert('', 'Galeri izni gerekli');
-        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.85 });
-        if (result.canceled) return;
-        const asset = result.assets[0];
         setSharingMedia(true);
         try {
-            const isVideo = asset.type === 'video' || asset.uri.includes('.mp4') || asset.uri.includes('.mov');
-            const form = new FormData();
-            form.append('file', { uri: asset.uri, name: isVideo ? 'media.mp4' : 'media.jpg', type: isVideo ? 'video/mp4' : 'image/jpeg' });
-            const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+            const media = await pickAndUploadMedia();
+            if (!media) return;
             await api.post('/posts', {
                 category: match.category, subCategory: match.subCategory,
                 type: 'POST', content: '', rivalId: match.id,
-                ...(isVideo ? { videoUrl: uploadData.url } : { imageUrl: uploadData.url }),
+                ...(media.isVideo ? { videoUrl: media.url } : { imageUrl: media.url }),
             });
-            Alert.alert('', 'Medya paylaşıldı ✓');
+            Alert.alert('', 'Medya paylaşıldı ✓', [
+                { text: 'Tamam' },
+                { text: "🌐 Sanal Alem'de de Paylaş", onPress: () => shareToSanalAlem(media) },
+            ]);
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.sendFailed);
         } finally {
@@ -6029,32 +6068,45 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
                     {/* Action buttons — kullanıcı raporu: butonlar (İptal/Gelmedi/Medya Paylaş vb.)
                         ekranın büyük bölümünü kaplayan uzun dikey çubuklara dönüşüyordu. Sebep:
-                        flex:1 olan bazı butonlarla (Skor Gir, Skor Giremiyorum) aynı satıra
-                        (flexWrap:'wrap') düşen diğer butonlar, alignItems için bir varsayılan
-                        belirtilmediğinde React Native'in DEFAULT davranışı olan 'stretch' yüzünden
-                        o satırdaki en yüksek elemana göre dikey olarak geriliyordu — satır yüksekliği
-                        büyüdükçe TÜM butonlar orantısız uzuyordu. alignItems:'flex-start' bunu
-                        kökten engelliyor, her buton kendi doğal (içeriğine göre) yüksekliğinde kalır. */}
+                        flex:1 olan butonlarla (Skor Gir, Skor Giremiyorum, Adisyon) aynı satıra
+                        (flexWrap:'wrap') düşen diğer butonlar, RN'in flexWrap+flex:1 kombinasyonunda
+                        satır çapraz-ekseni (yükseklik) yanlış hesaplanıyordu — alignItems:'flex-start'
+                        tek başına yetmedi (kullanıcı raporu, ekran görüntüsüyle doğrulandı: sadece
+                        flex:1 olan butonlar hâlâ bozuktu). Kökten çözüm: bu satırdaki HİÇBİR butonda
+                        artık flex:1 yok, hepsi İptal/Gelmedi gibi kendi içeriğine göre boyutlanıyor. */}
                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:8, marginBottom:20, alignItems:'flex-start' }}>
                         {!hasScore && scoreUnlocked && (
                             <>
+                                {/* Kullanıcı isteği: "Skor Gir" ve "Skor Gir ve Medya Paylaş" diye İKİ
+                                    ayrı buton — ikisi de aynı skor formunu açar (bkz. pendingMediaAfterScore),
+                                    ilkinde sadece skor gönderilir, ikincisinde skor gönderilir gönderilmez
+                                    galeri seçici otomatik açılıp o sporun Medya sekmesine paylaşılır. */}
                                 {!doubleNeedsAssignment && (
-                                    <TouchableOpacity
-                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', flex:1, alignItems:'center' }}
-                                        onPress={() => setShowScore(v => !v)}>
-                                        <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>{showScore ? '▲ Kapat' : t.enterScore}</Text>
-                                    </TouchableOpacity>
+                                    <>
+                                        <TouchableOpacity
+                                            style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', alignItems:'center' }}
+                                            onPress={() => { setPendingMediaAfterScore(false); setShowScore(v => !v); }}>
+                                            <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>{showScore ? '▲ Kapat' : t.enterScore}</Text>
+                                        </TouchableOpacity>
+                                        {!showScore && (
+                                            <TouchableOpacity
+                                                style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#0ea5e950', backgroundColor:'#0ea5e918', alignItems:'center' }}
+                                                onPress={() => { setPendingMediaAfterScore(true); setShowScore(true); }}>
+                                                <Text style={{ color:'#38bdf8', fontSize:13, fontWeight:'700' }}>📷 {t.enterScoreAndShareMedia}</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </>
                                 )}
                                 {!(isVolleyball && abandonProposal) && (
                                     <TouchableOpacity
-                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262640', backgroundColor:'#dc262615', flex:1, alignItems:'center' }}
+                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262640', backgroundColor:'#dc262615', alignItems:'center' }}
                                         onPress={() => setShowCantScore(true)}>
                                         <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>{t.cantScoreBtn}</Text>
                                     </TouchableOpacity>
                                 )}
                                 {match.venueId && (
                                     <TouchableOpacity
-                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#7c3aed50', backgroundColor:'#7c3aed18', flex:1, alignItems:'center' }}
+                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#7c3aed50', backgroundColor:'#7c3aed18', alignItems:'center' }}
                                         onPress={openBillView}>
                                         <Text style={{ color:'#a78bfa', fontSize:13, fontWeight:'700' }}>Adisyon</Text>
                                     </TouchableOpacity>
