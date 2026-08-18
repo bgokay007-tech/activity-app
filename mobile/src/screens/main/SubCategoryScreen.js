@@ -16921,6 +16921,20 @@ export default function SubCategoryScreen({ route, navigation }) {
     }, [mediaViewIdx, mediaPosts, rivalSummaryCache]);
     const [mediaLiked, setMediaLiked] = useState({});
     const [mediaLikeCounts, setMediaLikeCounts] = useState({});
+    // Kalbe uzun basınca beğenenler listesi — kullanıcı isteği: "beğenenleri görebilmesi için
+    // kalbe uzun basılı tutsun". Medya feed kartı VE tam ekran görüntüleyici AYNI paylaşılan
+    // state/modalı kullanıyor (bkz. openLikersModal, aşağıdaki Modal render'ı).
+    const [likersModal, setLikersModal] = useState(null); // { postId, list, loading } | null
+    const openLikersModal = async (postId) => {
+        setLikersModal({ postId, list: [], loading: true });
+        try {
+            const { data } = await api.get(`/posts/${postId}/likes`);
+            setLikersModal({ postId, list: Array.isArray(data) ? data : [], loading: false });
+        } catch (e) {
+            setLikersModal({ postId, list: [], loading: false });
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        }
+    };
     const [mediaShowComments, setMediaShowComments] = useState(false);
     const [mediaComments, setMediaComments] = useState([]);
     const [mediaCommentText, setMediaCommentText] = useState('');
@@ -21058,8 +21072,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             </TouchableOpacity>
                                                             {/* Aksiyon satırı */}
                                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 9, paddingTop: 7, paddingBottom: 3 }}>
-                                                                <TouchableOpacity onPress={toggleLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                                                                    <Text style={{ color: isLiked ? '#f43f5e' : colors.textMuted, fontSize: 22 }}>♥</Text>
+                                                                <TouchableOpacity onPress={toggleLike} onLongPress={() => openLikersModal(post.id)} delayLongPress={350} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                                                    <Text style={{ color: isLiked ? '#f43f5e' : colors.textMuted, fontSize: 22 }}>{isLiked ? '♥' : '♡'}</Text>
                                                                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{likeCount}</Text>
                                                                 </TouchableOpacity>
                                                                 <TouchableOpacity onPress={() => setMediaViewIdx(actualIdx)} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
@@ -22405,8 +22419,8 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                                 {/* Like + Comment bar */}
                                 <View style={{ flexDirection: 'row', gap: 3, marginTop: 14 }}>
-                                    <TouchableOpacity onPress={toggleMediaLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                                        <Text style={{ color: isLiked ? '#f43f5e' : '#ffffff80', fontSize: 22 }}>♥</Text>
+                                    <TouchableOpacity onPress={toggleMediaLike} onLongPress={() => openLikersModal(mp.id)} delayLongPress={350} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                        <Text style={{ color: isLiked ? '#f43f5e' : '#ffffff80', fontSize: 22 }}>{isLiked ? '♥' : '♡'}</Text>
                                         <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{likeCount}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={openMediaComments} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
@@ -22463,6 +22477,38 @@ export default function SubCategoryScreen({ route, navigation }) {
         </View>
         <TennisSpotlightModal visible={showSpotlight} onClose={() => setShowSpotlight(false)} cfg={cfg} sub={sub} />
         <RatingInfoModal visible={showRatingInfo} onClose={() => setShowRatingInfo(false)} cfg={cfg} sub={sub} />
+
+        {/* Kalbe uzun basınca beğenenler listesi (bkz. openLikersModal) — medya feed kartı ve
+            tam ekran görüntüleyici paylaşıyor. Görünürlük backend'de zaten kullanıcının
+            likesCommentsPrivacy ayarına göre uygulanıyor (bkz. getPostLikes). */}
+        <Modal visible={!!likersModal} animationType="slide" transparent onRequestClose={() => setLikersModal(null)}>
+            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
+                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, maxHeight:'70%', paddingBottom: insets.bottom + 10 }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', padding:16, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', flex:1 }}>♥ Beğenenler</Text>
+                        <TouchableOpacity onPress={() => setLikersModal(null)}><Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text></TouchableOpacity>
+                    </View>
+                    {likersModal?.loading ? (
+                        <ActivityIndicator color={cfg.color} style={{ marginVertical:24 }} />
+                    ) : (likersModal?.list.length || 0) === 0 ? (
+                        <Text style={{ color: colors.textMuted, textAlign:'center', marginVertical:24 }}>Henüz kimse beğenmedi</Text>
+                    ) : (
+                        <ScrollView contentContainerStyle={{ paddingHorizontal:16, paddingTop:6 }}>
+                            {likersModal.list.map(like => (
+                                <TouchableOpacity key={like.id} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:8 }}
+                                    onPress={() => { setLikersModal(null); like.user?.id && navigation.push('Profile', { userId: like.user.id }); }}>
+                                    <Avatar name={like.user?.username} avatar={like.user?.avatar} size={38} color={cfg.color} />
+                                    <View style={{ flex:1, minWidth:0 }}>
+                                        <Text style={{ color:'#fff', fontWeight:'700', fontSize:14 }} numberOfLines={1}>{like.user?.fullName || like.user?.username}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:12 }} numberOfLines={1}>{like.user?.username}</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    )}
+                </View>
+            </View>
+        </Modal>
         </>
     );
 }
