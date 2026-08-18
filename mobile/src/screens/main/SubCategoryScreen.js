@@ -1553,7 +1553,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     ilanlarda diğer kadro kartlarıyla (CreateRivalModal/UpcomingCard)
                                     tutarlı olsun diye "Oyuncular" yerine "Katılan Oyuncular"
                                     (kullanıcı isteği: voleybolda da aynı etiket kullanılsın). */}
-                                👥 {(item.matchType === 'DOUBLE' || (item.teamSize || 1) > 1) ? t.rosterPoolLabel : (t.players || 'Oyuncular')} {isRefereeAd && item.linkedRival
+                                👥 {(item.matchType === 'DOUBLE' || item.matchType === 'SINGLE' || (item.teamSize || 1) > 1) ? t.rosterPoolLabel : (t.players || 'Oyuncular')} {isRefereeAd && item.linkedRival
                                     ? `(${linkedSenderSideCount + linkedFilled} / ${linkedTotalCapacity})`
                                     : `(${senderSideCount + filled + (item.matchType === 'DOUBLE' ? 0 : (oppManualNames.length + unassignedSlots.length))} / ${totalCapacity})`}
                             </Text>
@@ -1578,11 +1578,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     )}
                                 </TouchableOpacity>
                             )}
-                            {/* Takım sporlarında (voleybol) kadro kartı — ilan oluşturma ekranındaki
-                                aynı çevirmeli kart: ön yüz 3'lü grid havuz + yedekler, arka yüz Kurucu/
-                                Rakip Takımı (teamSize'lık sabit sütunlar). Aynı showTeamCards/cardRotateY
+                            {/* Takım sporlarında (voleybol) VE tekler (SINGLE, 1v1) kadro kartı — ilan
+                                oluşturma ekranındaki aynı çevirmeli kart: takım sporunda ön yüz 3'lü grid
+                                havuz + yedekler/arka yüz Kurucu/Rakip Takımı, teklerde ön yüz "Katılan
+                                Oyuncular" (2 kişi)/arka yüz Kurucu/Rakip. Kullanıcı raporu: "1v1 açık
+                                ilanlarda da yaklaşan maçlarda da dıgımon kart yok" — SINGLE bu koşuldan
+                                (senderTeamArr/teamSize sadece takım sporlarında dolu olur) hariç
+                                tutuluyordu, hiç flip butonu çıkmıyordu. Aynı showTeamCards/cardRotateY
                                 state'i (DOUBLE'da kullanılanla aynı) burada da ön/arka geçişi için kullanılıyor. */}
-                            {item.matchType !== 'DOUBLE' && !isRefereeAd && (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) && (
+                            {item.matchType !== 'DOUBLE' && !isRefereeAd && (item.matchType === 'SINGLE' || senderTeamArr.length > 0 || (item.teamSize || 1) > 1) && (
                                 <TouchableOpacity onPress={() => { cancelHighlightSequence(); toggleTeamCards(!showTeamCards); }} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20', position:'relative' }}>
                                     <Text style={{ color: cfg.color, fontSize:13, fontWeight:'700' }}>🔄</Text>
                                     {/* Otomatik çevirme dizisi bitip önde kalınca, arkada bir davet vurgusu
@@ -2323,7 +2327,73 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     )}
                                 </View>
                             );
-                        })() : (
+                        })() : item.matchType === 'SINGLE' ? (
+                            // Tekler (1v1) — kullanıcı raporu: "açık ilanlarda da yaklaşan maçlarda da
+                            // dıgımon kart yok, olması lazımdı". DOUBLE/takım sporlarıyla AYNI görsel dil:
+                            // ön yüz "Katılan Oyuncular" (dolu olanlar, numaralı), arka yüz Kurucu/Rakip
+                            // etiketli 2 kutu. Davet/başvuru mekanizması DEĞİŞMEDİ — SINGLE'da zaten alttaki
+                            // genel "Katıl" butonu (handleJoin) çalışıyordu, burada sadece görünüm eklendi.
+                            !showTeamCards ? (
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
+                                    {[item.sender, ...(participants[0]?.id ? [participants[0]] : [])].filter(p => p?.id).map((p, i) => (
+                                        <TouchableOpacity key={p.id || i} style={{ width:'48%', flexDirection:'row', alignItems:'center', gap:6, backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:6, paddingHorizontal:8 }}
+                                            onPress={() => p.id && navigation.push('Profile', { userId: p.id })}>
+                                            <Avatar name={p.username} avatar={p.avatar} size={moderateScale(28)} color={cfg.color} />
+                                            <View style={{ flex:1, minWidth:0 }}>
+                                                <Text style={det.playerName} numberOfLines={1}>{i + 1}. {playerDisplayName(p)}</Text>
+                                                <Text style={det.playerSub} numberOfLines={1}>{p.username}</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            ) : (
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
+                                    <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:6 }}>
+                                        <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })}>
+                                            <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(28)} color={cfg.color} />
+                                            <View style={{ flex:1 }}>
+                                                <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(item.sender)}</Text>
+                                                <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:6 }}>
+                                        {participants[0]?.id ? (
+                                            <>
+                                                <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => navigation.push('Profile', { userId: participants[0].id })}>
+                                                    <Avatar name={participants[0].username} avatar={participants[0].avatar} size={moderateScale(28)} color={cfg.color} />
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(participants[0])}</Text>
+                                                        <Text style={det.playerSub} numberOfLines={1}>
+                                                            {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? '(Erkek) ' : '(Kadın) '}</Text>}
+                                                            {participants[0].username}
+                                                        </Text>
+                                                    </View>
+                                                </TouchableOpacity>
+                                                {isOwner && (
+                                                    <TouchableOpacity onPress={() => removeRivalParticipant(participants[0].id, participants[0].username)} style={{ marginTop:3, alignSelf:'flex-end' }}>
+                                                        <Text style={{ color:'#f87171', fontSize:moderateScale(10), fontWeight:'700' }}>Çıkar</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, opacity:0.55 }}>
+                                                <View style={{ width:moderateScale(28), height:moderateScale(28), borderRadius:moderateScale(14), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
+                                                    <Text style={{ color: colors.textMuted, fontSize:13 }}>?</Text>
+                                                </View>
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={[det.playerSub, { color: colors.textMuted }]} numberOfLines={1}>
+                                                        {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? '(Erkek) ' : '(Kadın) '}</Text>}
+                                                        {t.opponentTeamShortLabel || 'Rakip'}
+                                                    </Text>
+                                                    <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>Bekleniyor</Text>
+                                                </View>
+                                            </View>
+                                        )}
+                                    </View>
+                                </View>
+                            )
+                        ) : (
                             <>
                                 <View style={det.playerRow}>
                                     <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
@@ -5532,12 +5602,87 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         />
                     )}
 
-                    {/* Non-DOUBLE: owner remove — takım sporlarında (kadro kartı olan maçlarda,
-                        hasTeamRoster) bu ayrı liste artık gösterilmiyor: kadro kartındaki
+                    {/* Tekler (SINGLE, 1v1) — kullanıcı raporu: "yaklaşan maçlara geçince de dıgımon
+                        kart yok, olması lazımdı". DOUBLE'ın doublePool/flip kartıyla AYNI görsel dil
+                        (doubleCardBack/flipDoubleCard/doubleFlipAnim paylaşılıyor — aynı anda sadece
+                        biri render olduğu için ayrı state gerekmiyor): ön yüz "Katılan Oyuncular" (2
+                        kişi), arka yüz Kurucu/Rakip etiketli 2 kutu. Eşleşmiş (MATCHED) bir maçta her
+                        iki taraf da zaten dolu olduğu için davet alanı yok, sadece görünüm + Çıkar. */}
+                    {match.matchType === 'SINGLE' && (() => {
+                        const opp = participantsArr[0] || null;
+                        const rotateY = doubleFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
+                        return (
+                            <View style={{ marginBottom:12 }}>
+                                <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor:'#ffffff20', padding:10, transform:[{ perspective:800 }, { rotateY }] }}>
+                                    {!doubleCardBack ? (
+                                        <>
+                                            <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.rosterPoolLabel}</Text>
+                                                <TouchableOpacity onPress={flipDoubleCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                    <Text style={{ fontSize:15 }}>🔄</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
+                                                {[{ ...match.sender, skillRating: match.senderSkillRating }, opp].filter(p => p?.id).map((p, i) => (
+                                                    <View key={p.id || `s-${i}`} style={{ width:'48%' }}>
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
+                                                            <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
+                                                            <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{i + 1}. {senderAlias(p)}</Text>
+                                                            {p.skillRating != null && (
+                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
+                                                            )}
+                                                        </View>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>👤</Text>
+                                                <TouchableOpacity onPress={flipDoubleCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                    <Text style={{ fontSize:14 }}>🔄</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                            <View style={{ flexDirection:'row', gap:6 }}>
+                                                <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#a855f720' }}>
+                                                    <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{t.founderTeamShortLabel || 'Kurucu'}</Text>
+                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
+                                                        <Avatar name={match.sender?.username} avatar={match.sender?.avatar} size={14} color={cfg.color} />
+                                                        <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{senderAlias(match.sender)}</Text>
+                                                    </View>
+                                                </View>
+                                                <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#f8717120' }}>
+                                                    <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{t.opponentTeamShortLabel || 'Rakip'}</Text>
+                                                    {opp ? (
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
+                                                            <Avatar name={opp.username} avatar={opp.avatar} size={14} color={cfg.color} />
+                                                            <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{senderAlias(opp)}</Text>
+                                                        </View>
+                                                    ) : (
+                                                        <Text style={{ color: colors.textMuted, fontSize:10 }}>—</Text>
+                                                    )}
+                                                    {isOwner && opp && (
+                                                        <TouchableOpacity onPress={() => removePlayer(opp.id, senderAlias(opp))}
+                                                            style={{ marginTop:2, paddingVertical:0, alignItems:'center', backgroundColor:'#dc262612', borderRadius:6, borderWidth:1, borderColor:'#dc262630' }}>
+                                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
+                                            </View>
+                                        </>
+                                    )}
+                                </Animated.View>
+                            </View>
+                        );
+                    })()}
+
+                    {/* Non-DOUBLE, non-SINGLE: owner remove — takım sporlarında (kadro kartı olan
+                        maçlarda, hasTeamRoster) bu ayrı liste artık gösterilmiyor: kadro kartındaki
                         "Değiştir/Çıkar" ZATEN aynı işlevi (Çıkar/Atanmamışa Taşı) görüyor, bu ikinci
                         liste sadece GERÇEK katılımcıları (manuel oyuncuları değil) gösterdiği için
                         kart altında eksik/yanıltıcı "2 oyuncu" gibi bir liste olarak kalıyordu. */}
-                    {isOwner && match.matchType !== 'DOUBLE' && !hasTeamRoster && participantsArr.length > 0 && (
+                    {isOwner && match.matchType !== 'DOUBLE' && match.matchType !== 'SINGLE' && !hasTeamRoster && participantsArr.length > 0 && (
                         <View style={{ marginBottom:12, gap:3 }}>
                             {participantsArr.map(p => (
                                 <View key={p.id} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:7, paddingVertical:3 }}>
