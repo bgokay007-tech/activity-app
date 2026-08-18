@@ -18645,7 +18645,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                             </TouchableOpacity>
                             {openRivalsExpanded && (
                                 filteredRivals.length === 0
-                                    ? <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />
+                                    // Kullanıcı raporu: sayaç yedek kadro aranan maçları da saydığı için
+                                    // "(1)" gösterip altında "ilan yok" demek çelişkiliydi — bu durumda
+                                    // gerçek boş mesajı yerine aşağıdaki bölüme yönlendiren bir not gösterilir.
+                                    ? (sub === 'volleyball' && upcomingNeedingSubs.length > 0
+                                        ? <EmptyState emoji="🔄" text={t.emptyRivalsButNeedSubs} />
+                                        : <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />)
                                     : (
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                             {filteredRivals.map(item => (
