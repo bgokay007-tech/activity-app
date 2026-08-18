@@ -624,6 +624,7 @@ const en = {
     // SubCategory — archive / score
     enterScore: 'Enter Score',
     enterScoreAndShareMedia: 'Enter Score & Share Media',
+    hideMatchInfoInMediaLabel: "Don't show match info in media",
     sendScore: 'Send Score',
     sending: 'Sending...',
     confirmScoreBtn: 'Confirm Score',
@@ -2049,6 +2050,7 @@ const tr = {
     // SubCategory — archive / score
     enterScore: 'Skor Gir',
     enterScoreAndShareMedia: 'Skor Gir ve Medya Paylaş',
+    hideMatchInfoInMediaLabel: 'Medyada maç bilgileri gösterilmesin',
     sendScore: 'Skoru Gönder',
     sending: 'Gönderiliyor...',
     confirmScoreBtn: 'Skoru Onayla',

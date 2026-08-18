@@ -4196,6 +4196,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // ikisi de AYNI skor formunu açar, sadece bu bayrak hangisine basıldığını hatırlar. Skor
     // başarıyla gönderilince (bkz. submitScore) bayrak true ise galeri seçici otomatik açılır.
     const [pendingMediaAfterScore, setPendingMediaAfterScore] = useState(false);
+    // Kullanıcı isteği: "Skor Gir ve Medya Paylaş"ta skor/maç bilgilerinin medyada
+    // gözükmesini istemeyebilir — açıkken paylaşılan medya rivalId'siz gönderilir, tam ekran
+    // görünümde altında maç özeti (rakip/tarih/skor) hiç gösterilmez, sadece foto/video kalır.
+    const [hideMatchInfoInMedia, setHideMatchInfoInMedia] = useState(false);
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
     // Atanmamış listesindeki "Takımlara Ata" — kullanıcı isteği: tek bir buton, dokununca
     // hangi slotların (Katılımcı 1/2/3, hangisi hâlâ boşsa ve cinsiyete uyuyorsa) uygun
@@ -4551,7 +4555,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             // gönderildikten hemen sonra galeri seçici otomatik açılır (bkz. pendingMediaAfterScore).
             if (pendingMediaAfterScore) {
                 setPendingMediaAfterScore(false);
-                shareMatchMedia();
+                shareMatchMedia(hideMatchInfoInMedia);
+                setHideMatchInfoInMedia(false);
             }
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.sendFailed); }
         finally { setSubmitting(false); }
@@ -4593,14 +4598,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // Medya sekmesine (category/subCategory) düşer, rivalId ile bu maça bağlanır (tam ekran
     // görünümde altında maç detayı/skoru gösterilebiliyor, bkz. MediaFullScreen). Paylaşım
     // başarılı olunca aynı medyayı tekrar seçtirmeden Sanal Alem'de de paylaşma seçeneği sunulur.
-    const shareMatchMedia = async () => {
+    const shareMatchMedia = async (hideMatchInfo = false) => {
         setSharingMedia(true);
         try {
             const media = await pickAndUploadMedia();
             if (!media) return;
             await api.post('/posts', {
                 category: match.category, subCategory: match.subCategory,
-                type: 'POST', content: '', rivalId: match.id,
+                type: 'POST', content: '', ...(hideMatchInfo ? {} : { rivalId: match.id }),
                 ...(media.isVideo ? { videoUrl: media.url } : { imageUrl: media.url }),
             });
             Alert.alert('', 'Medya paylaşıldı ✓', [
@@ -5983,6 +5988,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     </View>
                                 </>
                             )}
+                            {pendingMediaAfterScore && (
+                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:12, paddingHorizontal:2 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:13, flex:1, marginRight:8 }}>{t.hideMatchInfoInMediaLabel}</Text>
+                                    <Switch value={hideMatchInfoInMedia} onValueChange={setHideMatchInfoInMedia} trackColor={{ true: '#0ea5e9' }} />
+                                </View>
+                            )}
                             <TouchableOpacity
                                 style={[s.joinBtn, { marginTop:10 }, submitting && { opacity:0.6 }]}
                                 onPress={submitScore}
@@ -6085,7 +6096,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     <>
                                         <TouchableOpacity
                                             style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', alignItems:'center' }}
-                                            onPress={() => { setPendingMediaAfterScore(false); setShowScore(v => !v); }}>
+                                            onPress={() => { setPendingMediaAfterScore(false); setHideMatchInfoInMedia(false); setShowScore(v => !v); }}>
                                             <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>{showScore ? '▲ Kapat' : t.enterScore}</Text>
                                         </TouchableOpacity>
                                         {!showScore && (
