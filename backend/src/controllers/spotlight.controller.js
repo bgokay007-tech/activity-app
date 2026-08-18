@@ -165,7 +165,8 @@ export const getDailySpotlight = async (req, res, next) => {
     try {
         const { subCategory = 'tennis' } = req.query;
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { city: true } });
-        const mostWins = subCategory === 'padel' ? getYesterdayMostWinsTeam : getYesterdayMostWins;
+        // Kullanıcı isteği: badminton, padel gibi çiftler branşı — aynı takım bazlı galibiyet mantığı.
+        const mostWins = (subCategory === 'padel' || subCategory === 'badminton') ? getYesterdayMostWinsTeam : getYesterdayMostWins;
 
         const [internationalTournament, nationalTournament, localTournament] = await Promise.all([
             getYesterdayTournamentTop3(subCategory, 'ULUSLARARASI'),

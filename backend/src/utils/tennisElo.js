@@ -16,7 +16,10 @@ const TABLE = [
     { max: Infinity, dominant: { lowWin: 2.00, lowLose: 0.005, highWin: 0.005, highLose: 2.00 }, competitive: { lowWin: 1.80,   lowLose: 0.008,  highWin: 0.008,  highLose: 1.80   } },
 ];
 
-export const TENNIS_PADEL_SUBCATEGORIES = ['tennis', 'padel'];
+// Kullanıcı isteği: badminton, padel'in maç/kadro/puanlama mantığının birebir aynısını
+// kullanıyor — bu listeye eklenmesi ELO tablosu, turnuva puanlama ve kort rezervasyon
+// iptal senkronizasyonu gibi bu listeyi okuyan TÜM yerlere otomatik olarak yansıyor.
+export const TENNIS_PADEL_SUBCATEGORIES = ['tennis', 'padel', 'badminton'];
 
 // Winner-games-ratio threshold separating "dominant" from "competitive" for tennis/padel,
 // calibrated from the source table's own examples (6-3 ⇒ competitive at 66.7%, 6-2 ⇒
