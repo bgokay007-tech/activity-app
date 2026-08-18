@@ -1104,6 +1104,20 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // mode: undefined/'manage' (Çıkar/Değiştir butonu), 'nameMenu' (isme dokununca: Pozisyona
     // Ata/Profiline Git), 'position' (nameMenu'den "Pozisyona Ata" seçilince açılan alt menü).
     const promptSlotAction = (p, side, mode) => setSlotActionTarget({ p, side, mode });
+    // Kullanıcı raporu: "davet et" penceresini (👥 ikonu) açıp telefonun geri tuşuyla ilan
+    // detayından çıkınca (Modal kapanır ama bileşen unmount OLMAZ, bkz. RivalCard'daki
+    // koşullu render) tekrar aynı ilana girince pencere hâlâ açık görünüyordu — bu bileşenin
+    // state'i visible=false/true arasında hep KORUNUYOR, sıfırlanmıyordu. Modal her
+    // kapandığında (geri tuşu dahil, çünkü onRequestClose de aynı visible=false'a çıkıyor)
+    // açık kalmış olabilecek TÜM ikincil pencere/aksiyon state'leri burada sıfırlanır.
+    useEffect(() => {
+        if (visible) return;
+        setShowDoubleFriendsPicker(false);
+        setDoubleInviteFromSlot(null);
+        setSwapSlot(null);
+        setTeamNameEdit(null);
+        setSlotActionTarget(null);
+    }, [visible]);
     const slotActionSheetProps = (() => {
         if (!slotActionTarget) return { visible: false, title: '', actions: [] };
         const { p, side, mode } = slotActionTarget;
@@ -1430,12 +1444,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     // önceden sadece 3 slotun (partner/rakip1/rakip2) kısıtlaması
                                     // gösteriliyordu, kurucunun kendisi hiç yoktu. Bu yüzden "hepsi aynı"
                                     // durumunda tek sembole sıkıştırma da kaldırıldı — kurucu her zaman
-                                    // ayrı bir sembol olarak sayılır.
-                                    const label = `${gL(item.sender?.gender)}+${gL(item.partnerGenderReq)}+${gL(item.opp1GenderReq)}+${gL(item.opp2GenderReq)}`;
+                                    // ayrı bir sembol olarak sayılır. "+" ayırıcılar kaldırıldı (kullanıcı
+                                    // ekran görüntüsü: 4 sembol + 3 "+" dar sol sütuna sığmayıp rozet 2
+                                    // satıra bölünüyor, üstteki bilgiler kayıyormuş gibi görünüyordu) —
+                                    // RivalCard'daki (liste kartı) aynı rozetle TUTARLI, o zaten "+" kullanmıyor.
+                                    const label = `${gL(item.sender?.gender)}${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`;
                                     return (
                                         <View style={{ flexDirection:'row', marginTop:3 }}>
                                             <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }}>
-                                                <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }}>{label}</Text>
+                                                <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }} numberOfLines={1}>{label}</Text>
                                             </View>
                                         </View>
                                     );
@@ -3463,13 +3480,16 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                             )}
                             {hasDoubleGenderReq && (() => {
                                 const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
-                                const allSame = item.opp1GenderReq === item.opp2GenderReq && item.opp2GenderReq === item.partnerGenderReq;
-                                const label = allSame && item.opp1GenderReq !== 'MIX'
-                                    ? gL(item.opp1GenderReq)
-                                    : `${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`;
+                                // Kullanıcı isteği: detay ekranındaki gibi burada da ilanı açan kişinin
+                                // (kurucu) GERÇEK cinsiyeti dahil edildi — 2v2'de 4 kişi olduğu için 4
+                                // emoji gösterilmesi lazım, önceden sadece 3 slotun kısıtlaması
+                                // gösteriliyordu (bkz. RivalDetailModal'daki aynı isim ve gerekçeli
+                                // düzeltme, orada "hepsi aynı" tek-sembol kısayolu da aynı sebeple
+                                // kaldırıldı).
+                                const label = `${gL(item.sender?.gender)}${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`;
                                 return (
                                     <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
-                                        <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }}>{label}</Text>
+                                        <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }} numberOfLines={1}>{label}</Text>
                                     </View>
                                 );
                             })()}
@@ -4948,13 +4968,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                         {match.matchType === 'DOUBLE' && (match.partnerGenderReq !== 'MIX' || match.opp1GenderReq !== 'MIX' || match.opp2GenderReq !== 'MIX') && (() => {
                             const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
-                            const allSame = match.opp1GenderReq === match.opp2GenderReq && match.opp2GenderReq === match.partnerGenderReq;
-                            const label = allSame && match.opp1GenderReq !== 'MIX'
-                                ? gL(match.opp1GenderReq)
-                                : `${gL(match.partnerGenderReq)}+${gL(match.opp1GenderReq)}+${gL(match.opp2GenderReq)}`;
+                            // Kullanıcı isteği: ilanı açan kişinin (kurucu) GERÇEK cinsiyeti de eklendi
+                            // (bkz. RivalDetailModal/RivalCard'daki aynı isim ve gerekçeli düzeltme) —
+                            // "+" ayırıcılar ve "hepsi aynı" tek-sembol kısayolu da aynı sebeple
+                            // kaldırıldı (dar rozet 2 satıra bölünüp üstteki bilgileri kaydırıyordu).
+                            const label = `${gL(match.sender?.gender)}${gL(match.partnerGenderReq)}${gL(match.opp1GenderReq)}${gL(match.opp2GenderReq)}`;
                             return (
                                 <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius:8, paddingHorizontal:6, paddingVertical:2 }}>
-                                    <Text style={{ color:'#a855f7', fontSize:11, fontWeight:'800' }}>{label}</Text>
+                                    <Text style={{ color:'#a855f7', fontSize:11, fontWeight:'800' }} numberOfLines={1}>{label}</Text>
                                 </View>
                             );
                         })()}
