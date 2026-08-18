@@ -245,7 +245,7 @@ const en = {
     ratingRangeViolationMsg: name => `${name}'s rating is outside the range you set.`,
     searchingLabel: 'Searching...', noRegisteredUserFound: 'No registered user found',
     manualPlayerAssumePrompt: 'Assume this player exists — pick a gender:',
-    genderMaleShort: 'M', genderFemaleShort: 'F',
+    genderMaleShort: 'M', genderFemaleShort: 'W',
     manualPlayerGenderMissingAlert: name => `Please pick a gender for "${name}" before creating the listing.`,
     competitiveNoManualPlayers: 'Competitive matches need Elo ratings, so only registered users can be added here.',
     competitiveManualPlayerBlockAlert: name => `"${name}" is not a registered user. Competitive matches require Elo ratings for everyone — pick a registered user or switch the match to Practice mode.`,

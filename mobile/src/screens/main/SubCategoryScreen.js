@@ -2045,36 +2045,49 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 // (interests[0].skillRating), diğer oyuncular ise senderTeam/participants
                                 // Json snapshot'ından (backend'in eklediği düz p.skillRating) — ikisini de kapsa.
                                 const cellRating = p.skillRating ?? p.interests?.[0]?.skillRating;
+                                // Cinsiyet — isim/soyisimden sonra kısa parantez (kullanıcı isteği: TR'de
+                                // (E)/(K), EN'de (M)/(W)).
+                                const genderParen = p.id && (p.gender === 'MALE' || p.gender === 'FEMALE')
+                                    ? ` (${p.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})` : '';
+                                const posLabel = sub === 'volleyball' && p.position
+                                    ? (p.position === 'SPIKER' ? t.positionSpiker : p.position === 'LIBERO' ? t.positionLibero : t.positionSetter) : '';
+                                // Kullanıcı isteği: pozisyon + Çıkar/Değiştir aynı satırda isimle
+                                // sıkışıyordu — takım sütununda (allowRemove'lu bağlamda) artık ismin
+                                // biraz sağından başlayan ikinci bir satırda gösteriliyor. Ön yüz
+                                // havuzunda (allowRemove yok) pozisyon eskisi gibi isimle aynı satırda.
                                 return (
-                                    <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                        <TouchableOpacity disabled={!p.id} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} style={{ flexDirection:'row', alignItems:'center', gap:2, flex:1, minWidth:0 }}>
-                                            {p.id
-                                                ? <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
-                                                : <View style={{ width:14, height:14 }} />}
-                                            <Animated.View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', opacity: unassignedWarning ? unassignedBlink : 0.8, minHeight:0 }]}>
-                                                <Text style={{ color: unassignedWarning ? '#ef4444' : '#fff', fontSize:10, fontWeight: unassignedWarning ? '800' : '400' }} numberOfLines={1}>
-                                                    {p.id ? playerDisplayName(p) : p.manualName}
-                                                    {/* Voleybol: ekstra pozisyon etiketi (Libero/Pasör/Smaçör) — kullanıcı isteği:
-                                                        isim ile derece puanı arasında parantez içinde göster. */}
-                                                    {sub === 'volleyball' && p.position && (
-                                                        <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({p.position === 'SPIKER' ? t.positionSpiker : p.position === 'LIBERO' ? t.positionLibero : t.positionSetter})</Text>
-                                                    )}
-                                                </Text>
-                                            </Animated.View>
-                                        </TouchableOpacity>
-                                        {/* Kullanıcı isteği: "kadro kartta oyuncuların yanında derece puanları
-                                            sağlarında yazsın" — rekabetçi maçlarda takım gücünü görebilmek için. */}
-                                        {p.id && cellRating != null && (
-                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:3 }} numberOfLines={1}>{Number(cellRating).toFixed(2)}★</Text>
-                                        )}
-                                        {/* Kullanıcı isteği: "Çıkar" yazısı hangi oyuncuya ait olduğu belirsizdi
-                                            (isim altında, sıkışık) — artık aynı satırda SAĞDA, adla birebir
-                                            hizalı. Dokununca küçük bir pencerede Çıkar / Atanmamışa Taşı sorulur
-                                            (bkz. promptSlotAction). */}
-                                        {isOwner && !isFounder && allowRemove && (
-                                            <TouchableOpacity onPress={() => promptSlotAction(p, side)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
-                                                <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700', textDecorationLine:'underline' }} numberOfLines={1}>Çıkar/Değiştir</Text>
+                                    <View>
+                                        <View style={{ flexDirection:'row', alignItems:'center' }}>
+                                            <TouchableOpacity disabled={!p.id} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} style={{ flexDirection:'row', alignItems:'center', gap:2, flex:1, minWidth:0 }}>
+                                                {p.id
+                                                    ? <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
+                                                    : <View style={{ width:14, height:14 }} />}
+                                                <Animated.View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', opacity: unassignedWarning ? unassignedBlink : 0.8, minHeight:0 }]}>
+                                                    <Text style={{ color: unassignedWarning ? '#ef4444' : '#fff', fontSize:10, fontWeight: unassignedWarning ? '800' : '400' }} numberOfLines={1}>
+                                                        {p.id ? playerDisplayName(p) : p.manualName}
+                                                        {!!genderParen && <Text style={{ color: colors.textMuted, fontWeight:'400' }}>{genderParen}</Text>}
+                                                        {!allowRemove && !!posLabel && <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({posLabel})</Text>}
+                                                    </Text>
+                                                </Animated.View>
                                             </TouchableOpacity>
+                                            {/* Kullanıcı isteği: "kadro kartta oyuncuların yanında derece puanları
+                                                sağlarında yazsın" — rekabetçi maçlarda takım gücünü görebilmek için. */}
+                                            {p.id && cellRating != null && (
+                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:3 }} numberOfLines={1}>{Number(cellRating).toFixed(2)}★</Text>
+                                            )}
+                                        </View>
+                                        {allowRemove && (!!posLabel || (isOwner && !isFounder)) && (
+                                            <View style={{ flexDirection:'row', alignItems:'center', paddingLeft:16, marginTop:1 }}>
+                                                <Text style={{ color: colors.textMuted, fontSize:9, flex:1 }} numberOfLines={1}>{posLabel ? `🏐 ${posLabel}` : ''}</Text>
+                                                {/* Kullanıcı isteği: "Çıkar" yazısı hangi oyuncuya ait olduğu belirsizdi
+                                                    (isim altında, sıkışık) — artık ayrı bir satırda SAĞDA. Dokununca
+                                                    küçük bir pencerede Çıkar / Atanmamışa Taşı sorulur (bkz. promptSlotAction). */}
+                                                {isOwner && !isFounder && (
+                                                    <TouchableOpacity onPress={() => promptSlotAction(p, side)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700', textDecorationLine:'underline' }} numberOfLines={1}>Çıkar/Değiştir</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
                                         )}
                                     </View>
                                 );
@@ -8789,25 +8802,36 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                     const p = players[i];
                     const locked = lockFirst && i === 0;
                     if (p) {
+                        // Kullanıcı isteği: pozisyon + Değiştir/Çıkar aynı satırda isim/dereceyle
+                        // sıkışıyordu — artık isim/derece üstte, pozisyon (varsa) + Değiştir/Çıkar
+                        // altta, ismin biraz sağından başlayan ikinci bir satırda.
+                        const posLabel = isVolleyball && p.position ? (p.position === 'SPIKER' ? t.positionSpiker : p.position === 'LIBERO' ? t.positionLibero : t.positionSetter) : '';
                         return (
-                            <View key={p.id || i} style={{ flexDirection:'row', alignItems:'center', marginBottom:2 }}>
-                                <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>
-                                    {i + 1}. {p.id ? senderAlias(p) : p.manualName}{locked ? ' 🔒' : ''}
-                                    {/* Voleybol: ekstra pozisyon etiketi (Libero/Pasör/Smaçör) — kullanıcı
-                                        isteği: isim ile derece puanı arasında parantez içinde göster. */}
-                                    {isVolleyball && p.position && (
-                                        <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({p.position === 'SPIKER' ? t.positionSpiker : p.position === 'LIBERO' ? t.positionLibero : t.positionSetter})</Text>
+                            <View key={p.id || i} style={{ marginBottom:4 }}>
+                                <View style={{ flexDirection:'row', alignItems:'center' }}>
+                                    <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>
+                                        {i + 1}. {p.id ? senderAlias(p) : p.manualName}{locked ? ' 🔒' : ''}
+                                        {/* Cinsiyet — isim/soyisimden sonra kısa parantez (kullanıcı isteği: TR'de
+                                            (E)/(K), EN'de (M)/(W)). */}
+                                        {p.id && (p.gender === 'MALE' || p.gender === 'FEMALE') && (
+                                            <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({p.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})</Text>
+                                        )}
+                                    </Text>
+                                    {p.id && p.skillRating != null && (
+                                        <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
                                     )}
-                                </Text>
-                                {p.id && p.skillRating != null && (
-                                    <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginRight:3 }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
-                                )}
-                                {/* Kullanıcı isteği: açık ilan detayındaki ("Çıkar/Değiştir") ile aynı mantık —
-                                    isme dokunup direkt atanmamışa atmak yerine, sağda bir menü açılır. */}
-                                {isOwner && !locked && (
-                                    <TouchableOpacity onPress={() => promptSlotAction(p, targetSide)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700', textDecorationLine:'underline' }} numberOfLines={1}>Değiştir/Çıkar</Text>
-                                    </TouchableOpacity>
+                                </View>
+                                {(!!posLabel || (isOwner && !locked)) && (
+                                    <View style={{ flexDirection:'row', alignItems:'center', paddingLeft:12, marginTop:1 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:9, flex:1 }} numberOfLines={1}>{posLabel ? `🏐 ${posLabel}` : ''}</Text>
+                                        {/* Kullanıcı isteği: açık ilan detayındaki ("Çıkar/Değiştir") ile aynı mantık —
+                                            isme dokunup direkt atanmamışa atmak yerine, sağda bir menü açılır. */}
+                                        {isOwner && !locked && (
+                                            <TouchableOpacity onPress={() => promptSlotAction(p, targetSide)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
+                                                <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700', textDecorationLine:'underline' }} numberOfLines={1}>Değiştir/Çıkar</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
                                 )}
                             </View>
                         );
