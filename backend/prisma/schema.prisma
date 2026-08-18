@@ -629,6 +629,9 @@ model Post {
   musicStartTime Float?                         // trim start in seconds
   musicEndTime   Float?                         // trim end in seconds
   location       String?                        // optional location tag
+  rivalId        String?                        // maç skor girişinden "Medya Paylaş" ile paylaşılan medya —
+                                                  // ilişkili ActivityRequest'in id'si (tam ekran görünümde maç
+                                                  // detayı gösterebilmek için, bkz. rival.controller.js/getRivalById)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 

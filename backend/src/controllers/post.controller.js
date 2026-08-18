@@ -13,7 +13,7 @@ const POST_INCLUDE = (userId) => ({
 
 export const createPost = async (req, res, next) => {
     try {
-        const { category, subCategory, content, imageUrl, videoUrl, type = 'POST', targets, location, musicStartTime, musicEndTime } = req.body;
+        const { category, subCategory, content, imageUrl, videoUrl, type = 'POST', targets, location, musicStartTime, musicEndTime, rivalId } = req.body;
 
         // targets: [{category, subCategory}, ...] — multi-branch support
         // primary category/subCategory comes from the first target if not provided
@@ -21,6 +21,23 @@ export const createPost = async (req, res, next) => {
         const primarySubCategory = subCategory || targets?.[0]?.subCategory;
 
         const { muteVideo = false, musicUrl, musicName, musicArtist, musicCoverUrl } = req.body;
+
+        // Maç skor girişinden "Medya Paylaş" ile bağlanan medya — sadece maça gerçekten
+        // dahil olan biri (kurucu/takım arkadaşı/rakip) kendi maçını etiketleyebilir,
+        // rastgele bir rivalId'yi paylaşımına iliştiremez.
+        let verifiedRivalId = null;
+        if (rivalId) {
+            const rival = await prisma.activityRequest.findUnique({
+                where: { id: rivalId },
+                select: { senderId: true, participants: true, senderTeam: true },
+            });
+            const isInvolved = rival && (
+                rival.senderId === req.userId
+                || (Array.isArray(rival.participants) && rival.participants.some(p => p?.id === req.userId))
+                || (Array.isArray(rival.senderTeam) && rival.senderTeam.some(p => p?.id === req.userId))
+            );
+            if (isInvolved) verifiedRivalId = rivalId;
+        }
 
         const post = await prisma.post.create({
             data: {
@@ -41,6 +58,7 @@ export const createPost = async (req, res, next) => {
                 ...(musicStartTime != null && { musicStartTime: Number(musicStartTime) }),
                 ...(musicEndTime   != null && { musicEndTime:   Number(musicEndTime) }),
                 ...(type === 'STORY' && { expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) }),
+                ...(verifiedRivalId && { rivalId: verifiedRivalId }),
             },
             include: {
                 user: { select: { id: true, username: true, fullName: true, avatar: true } },

@@ -5956,6 +5956,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <Text style={{ color:'#fb923c', fontSize:13, fontWeight:'700' }}>🚫 Gelmedi</Text>
                             </TouchableOpacity>
                         )}
+                        {/* Kullanıcı isteği: "maç skoru girerken media paylaş da olsun" — maç bittikten
+                            sonra (skor girilmiş olsun olmasın) o maçtan foto/video paylaşılabilsin,
+                            o sporun Medya sekmesine düşsün. */}
+                        {isParticipant && matchEnded && ['tennis', 'padel', 'volleyball'].includes(match.subCategory) && (
+                            <TouchableOpacity
+                                style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#0ea5e950', backgroundColor:'#0ea5e918', alignItems:'center', opacity: sharingMedia ? 0.6 : 1 }}
+                                onPress={shareMatchMedia} disabled={sharingMedia}>
+                                <Text style={{ color:'#38bdf8', fontSize:13, fontWeight:'700' }}>{sharingMedia ? t.sending : '📷 Medya Paylaş'}</Text>
+                            </TouchableOpacity>
+                        )}
                         {match._myNoShowPending && (
                             <View style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#f9731630', backgroundColor:'#f9731610', alignItems:'center' }}>
                                 <Text style={{ color:'#fb923c', fontSize:13 }}>⏳ Bildirildi</Text>
@@ -16672,6 +16682,22 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [mediaStories, setMediaStories] = useState([]);
     const [storyViewer, setStoryViewer] = useState({ visible: false, userIdx: 0, storyIdx: 0 });
     const [mediaViewIdx, setMediaViewIdx] = useState(null);
+    // Kullanıcı isteği: skor girişinden bir maça bağlı (rivalId) paylaşılan medyaya tam ekranda
+    // dokununca altında o maçın detayı (skor/takımlar) gösterilsin — postId bazında cache'lenir,
+    // aynı maça bağlı birden fazla medyada tekrar tekrar istek atılmasın.
+    const [rivalSummaryCache, setRivalSummaryCache] = useState({});
+    const [loadingRivalSummary, setLoadingRivalSummary] = useState(false);
+    useEffect(() => {
+        if (mediaViewIdx === null) return;
+        const mp = mediaPosts[mediaViewIdx];
+        const rid = mp?.rivalId;
+        if (!rid || rivalSummaryCache[rid]) return;
+        setLoadingRivalSummary(true);
+        api.get(`/rivals/${rid}`)
+            .then(({ data }) => setRivalSummaryCache(prev => ({ ...prev, [rid]: data })))
+            .catch(() => setRivalSummaryCache(prev => ({ ...prev, [rid]: null })))
+            .finally(() => setLoadingRivalSummary(false));
+    }, [mediaViewIdx, mediaPosts, rivalSummaryCache]);
     const [mediaLiked, setMediaLiked] = useState({});
     const [mediaLikeCounts, setMediaLikeCounts] = useState({});
     const [mediaShowComments, setMediaShowComments] = useState(false);
@@ -22079,6 +22105,35 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <Text style={{ color: '#ffffff90', fontSize: 12, fontWeight: '700', marginTop: 8 }}>
                                     {mp.user?.username} · {getSubCategoryLabel(mp.subCategory, t.lang)}
                                 </Text>
+
+                                {/* Kullanıcı isteği: bu medya bir maç skor girişinden paylaşıldıysa
+                                    (rivalId) altında o maçın detayı gösterilsin. */}
+                                {mp.rivalId && (() => {
+                                    const rv = rivalSummaryCache[mp.rivalId];
+                                    if (rv === undefined) {
+                                        return loadingRivalSummary ? <ActivityIndicator color="#fff" style={{ marginTop: 8 }} /> : null;
+                                    }
+                                    if (!rv) return null;
+                                    const oppName = rv.matchType === 'DOUBLE' || (rv.teamSize || 1) > 1
+                                        ? `${rv.founderTeamName || t.myTeamLabel || 'Kurucu'} — ${rv.opponentTeamName || t.oppTeamLabel || 'Rakip'}`
+                                        : `${playerDisplayName(rv.sender)} — ${rv.participants?.[0] ? playerDisplayName(rv.participants[0]) : (t.opponentLabel || 'Rakip')}`;
+                                    const scoreText = Array.isArray(rv.score?.sets) && rv.score.sets.length > 0
+                                        ? rv.score.sets.map(st => `${st.sender}-${st.opponent}`).join(', ')
+                                        : null;
+                                    return (
+                                        <View style={{ marginTop: 10, backgroundColor: '#ffffff10', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9, alignItems: 'center', maxWidth: '85%' }}>
+                                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }} numberOfLines={1}>🎾 {oppName}</Text>
+                                            {rv.matchDate && (
+                                                <Text style={{ color: '#ffffff80', fontSize: 11, marginTop: 2 }}>
+                                                    📅 {new Date(rv.matchDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}{rv.matchTime ? ` ${rv.matchTime}` : ''}
+                                                </Text>
+                                            )}
+                                            {scoreText && (
+                                                <Text style={{ color: '#facc15', fontSize: 13, fontWeight: '800', marginTop: 4 }}>🏆 {scoreText}</Text>
+                                            )}
+                                        </View>
+                                    );
+                                })()}
 
                                 {/* Like + Comment bar */}
                                 <View style={{ flexDirection: 'row', gap: 3, marginTop: 14 }}>
