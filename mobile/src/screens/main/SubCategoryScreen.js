@@ -21882,8 +21882,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 });
                             })();
                             const hasGroup = archiveModalMatches.some(m => m.phase === 'GROUP');
-                            const tabs = ['details', 'matches', ...(hasGroup ? ['standings'] : [])];
-                            const tabLabel = { details:'Detaylar', matches:'Maçlar', standings:'Puan Tablosu' };
                             const playoffMs = archiveModalMatches.filter(m => m.phase === 'PLAYOFF');
                             const playoffMaxRound = playoffMs.length ? Math.max(...playoffMs.map(m => m.round)) : 0;
                             const getRoundLabel = (round, phase) => {
@@ -21894,10 +21892,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 if (fromEnd === 2) return 'Çeyrek Final';
                                 return `Playoff - Tur ${round}`;
                             };
-                            // Kullanıcı isteği: puan tablosunun yanında "İlk 4'e Girenler" gösterilsin —
-                            // final maçının galibi/mağlubu 1./2., yarı final maçlarının mağlupları
-                            // (ikisi de) ortak 3. olarak listelenir. Playoff yoksa (sadece grup) veya
-                            // final henüz sonuçlanmamışsa hiç gösterilmez.
+                            // Kullanıcı isteği: Puan Tablosu'nun sağında ayrı bir sekme olarak "İlk
+                            // 4'e Girenler" — final maçının galibi/mağlubu 1./2., yarı final
+                            // maçlarının mağlupları (ikisi de) ortak 3. olarak listelenir. Playoff
+                            // yoksa (sadece grup) veya final henüz sonuçlanmamışsa sekme hiç çıkmaz.
                             const archiveTopFour = (() => {
                                 if (playoffMs.length === 0) return [];
                                 const finalM = playoffMs.find(m => m.round === playoffMaxRound && m.status === 'COMPLETED' && m.winnerId);
@@ -21914,6 +21912,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     ...semiLosers.map(p => ({ place: '🥉', ...p })),
                                 ];
                             })();
+                            const tabs = ['details', 'matches', ...(hasGroup ? ['standings'] : []), ...(archiveTopFour.length > 0 ? ['topfour'] : [])];
+                            const tabLabel = { details:'Detaylar', matches:'Maçlar', standings:'Puan Tablosu', topfour: "İlk 4'e Girenler" };
                             return (
                                 <>
                                     <View style={[s.modalHeader, { paddingHorizontal:21 }]}>
@@ -22020,16 +22020,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 : archiveStandings.length === 0
                                                     ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>Henüz maç sonucu yok</Text>
                                                     : <View>
-                                                        {archiveTopFour.length > 0 && (
-                                                            <View style={{ backgroundColor:'#a855f712', borderRadius:10, borderWidth:1, borderColor:'#a855f740', padding:9, marginBottom:12 }}>
-                                                                <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800', marginBottom:6 }}>🏅 İlk 4'e Girenler</Text>
-                                                                {archiveTopFour.map((p, i) => (
-                                                                    <Text key={p.id || i} style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>
-                                                                        {p.place} {p.name}
-                                                                    </Text>
-                                                                ))}
-                                                            </View>
-                                                        )}
                                                         <View style={{ flexDirection:'row', paddingVertical:1, borderBottomWidth:1, borderBottomColor:colors.border, marginBottom:2 }}>
                                                             <Text style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>Oyuncu</Text>
                                                             {['O','G','B','M','Av','P'].map(h => (
@@ -22045,6 +22035,25 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             </View>
                                                         ))}
                                                     </View>
+                                        )}
+                                        {archiveModalTab === 'topfour' && (
+                                            <View>
+                                                {/* Kullanıcı isteği: sekmenin başında, "İlk 4"ün ne anlama geldiğini
+                                                    açıklayan bilgi notu — playoff'a kalıp çeyrek final/yarı final/
+                                                    final oynayan takımlar oldukları belirtilsin. */}
+                                                <View style={{ flexDirection:'row', gap:6, backgroundColor:'#60a5fa15', borderRadius:8, borderWidth:1, borderColor:'#60a5fa40', padding:9, marginBottom:12 }}>
+                                                    <Text style={{ fontSize:13 }}>ℹ️</Text>
+                                                    <Text style={{ color:'#93c5fd', fontSize:11.5, flex:1, lineHeight:16 }}>
+                                                        Playoff'a kalıp çeyrek final, yarı final ve final oynayan takımlardır.
+                                                    </Text>
+                                                </View>
+                                                {archiveTopFour.map((p, i) => (
+                                                    <View key={p.id || i} style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#a855f712', borderRadius:10, borderWidth:1, borderColor:'#a855f740', padding:9, marginBottom:6 }}>
+                                                        <Text style={{ fontSize:18 }}>{p.place}</Text>
+                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1 }} numberOfLines={1}>{p.name}</Text>
+                                                    </View>
+                                                ))}
+                                            </View>
                                         )}
                                     </ScrollView>
                                 </>
