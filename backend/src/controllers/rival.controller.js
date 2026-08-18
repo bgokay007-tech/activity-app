@@ -291,6 +291,35 @@ async function notifyPendingRequestersOfReopen(rivalId, category, subCategory, e
     } catch { /* bildirim gönderimi ilana geri açılma işlemini engellemesin */ }
 }
 
+// Bir davet kabul edilip maç/kadro dolunca, henüz yanıt vermemiş DİĞER davetlilere (aynı
+// ilana ait, ilan sahibinin gönderdiği, hâlâ PENDING olan başka davetler) haber verilir —
+// eskiden bu kişiler kabul/red butonuna dokunana kadar hiçbir şey öğrenmiyordu, dokununca da
+// "zaten dolu" gibi geç kalmış bir hatayla karşılaşıyordu (kullanıcı raporu). Tenis/padel/
+// voleybol farketmeksizin, PENDING davet kaydı olan her yerde (partner/rakip1/rakip2/pool/
+// takım daveti) aynı şekilde çalışır — matchType'a özel bir dal gerekmiyor.
+async function notifyOtherPendingOwnerInvitesOfFull(rivalId, category, subCategory, excludeUserIds = []) {
+    try {
+        const pending = await prisma.rivalJoinRequest.findMany({
+            where: { rivalId, initiatedBy: 'OWNER', status: 'PENDING', userId: { notIn: excludeUserIds } },
+            select: { id: true, userId: true },
+        });
+        if (pending.length === 0) return;
+        await prisma.rivalJoinRequest.updateMany({ where: { id: { in: pending.map(p => p.id) } }, data: { status: 'REJECTED' } });
+        const uniqueUserIds = [...new Set(pending.map(p => p.userId))];
+        for (const uid of uniqueUserIds) {
+            emitToUser(uid, 'joinRejected', { rivalId });
+            createNotification(
+                uid,
+                'MATCH_INVITE_EXPIRED',
+                '😕 Kadro Dolmuş',
+                `Davet edildiğiniz ${subCategoryTR(subCategory)} maçının kadrosu, siz daveti yanıtlamadan önce doldu.`,
+                { rivalId, category, subCategory }
+            ).catch(() => {});
+            emitToUser(uid, 'notification', {});
+        }
+    } catch { /* bildirim gönderimi kabul işlemini engellemesin */ }
+}
+
 // DOUBLE: 2 — taraflar artık eşleşmiş çift olarak katılıyor (senderTeam/joiningTeam),
 // tek bir takım katılımı maçı tamamlar (3 ayrı bireysel katılımcı değil). Ancak partner
 // sistemi gelmeden önce oluşturulmuş eski ilanlarda kurucunun senderTeam'i boştur —
@@ -3014,6 +3043,7 @@ export const respondToJoin = async (req, res, next) => {
                 `${joinReq.user.username} Rakip Takım'a katılmayı kabul etti.${isFullNow ? ' Maç doldu!' : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
+            if (isFullNow) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId]);
             return res.json({ message: 'Rakip Takım daveti kabul edildi.', request: updatedRival, matched: isFullNow });
         }
 
@@ -3073,6 +3103,7 @@ export const respondToJoin = async (req, res, next) => {
                 `${joinReq.user.username} ${joinReq.requestedSlot === 'opp1' ? 'Rakip 1' : 'Rakip 2'} olarak katılmayı kabul etti.${isFull ? ' Maç doldu!' : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
+            if (isFull) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId]);
             return res.json({ message: 'Davet kabul edildi.', request: updatedRival, matched: isFull });
         }
 
@@ -3370,6 +3401,7 @@ export const respondToJoin = async (req, res, next) => {
             const currentSenderTeam = Array.isArray(updated.senderTeam) ? updated.senderTeam : [];
             currentSenderTeam.filter(p => p?.id && p.id !== u.id && p.id !== rival.senderId)
                 .forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
+            notifyOtherPendingOwnerInvitesOfFull(rival.id, rival.category, rival.subCategory, [u.id, ...(Array.isArray(joiningTeam) ? joiningTeam.filter(m => m?.id).map(m => m.id) : [])]);
         }
 
         res.json({
@@ -3727,7 +3759,10 @@ export const confirmLateJoin = async (req, res, next) => {
         emitToUser(rival.senderId, 'rivalUpdate', updated);
         emitToUser(u.id, 'joinAccepted', { rivalId: rival.id, matched: isFull });
         if (partnerJoinReqToAccept) emitToUser(partnerJoinReqToAccept.userId, 'joinAccepted', { rivalId: rival.id, matched: isFull });
-        if (isFull) updatedParticipants.forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
+        if (isFull) {
+            updatedParticipants.forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
+            notifyOtherPendingOwnerInvitesOfFull(rival.id, rival.category, rival.subCategory, [u.id, ...(Array.isArray(joiningTeam) ? joiningTeam.filter(m => m?.id).map(m => m.id) : [])]);
+        }
         // Voleybol takım başvurusu: kadrodaki (ana+yedek) tüm gerçek kullanıcılar bilgilendirilir.
         if (updatedSubstitutePlayers !== null || (isTeamJoin && joiningTeam.length > 1)) {
             joiningTeam.filter(m => m?.id && m.id !== u.id).forEach(m => {
@@ -4955,6 +4990,7 @@ export const addManualTeamPlayer = async (req, res, next) => {
             title: '🔄 Kadro Değişti',
             body: `${trimmed} ${sideLabel}'a eklendi.`,
         });
+        if (isFullNow) notifyOtherPendingOwnerInvitesOfFull(id, updated.category, updated.subCategory);
 
         res.json(updated);
     } catch (error) { next(error); }
