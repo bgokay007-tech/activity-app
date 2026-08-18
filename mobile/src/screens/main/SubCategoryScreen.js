@@ -597,6 +597,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2' — seçili slot
     // Boş bir DOUBLE slotuna uzun basınca açılan çoklu-seç arkadaş listesi (bkz. SlotBox).
     const [showDoubleFriendsPicker, setShowDoubleFriendsPicker] = useState(false);
+    // HANGİ boş slotun ikonundan açıldığı — kullanıcı raporu: "2./3./4. oyuncu formundan davet
+    // ediyorum, hep 'kadın kabul ediyor' hatası veriyor". Sebep: picker'daki ilk seçim HER ZAMAN
+    // sabit ['partner','opp1','opp2'] sırasındaki İLK boş slotun (genelde partner) cinsiyet
+    // kuralına göre kontrol ediliyordu — kullanıcı hangi kutunun ikonuna dokunduğuna bakılmadan.
+    // Artık tıklanan slot sıranın BAŞINA alınıyor, ilk seçim her zaman GERÇEKTEN tıklanan slotun
+    // kuralına göre kontrol ediliyor (bkz. aşağıdaki FriendsMultiPickerModal emptyKeys).
+    const [doubleInviteFromSlot, setDoubleInviteFromSlot] = useState(null);
     // Voleybol kadro kartındaki Yedek Sayısı seçici — ilan oluşturma formundaki subCount
     // ile aynı mantık, açık ilanda da kurucu ayarlayabiliyor (bkz. updateSubCount).
     const [showSubCountPicker, setShowSubCountPicker] = useState(false);
@@ -1080,12 +1087,32 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // taşımak istiyorsa karşı rakibin ismi neyse x takıma taşı seçeneği olsun, boşluk varsa".
     // Alert.alert DEĞİL SlotActionSheet kullanılıyor — Android'de Alert 3 buton sınırına
     // takılıp 4. butonu (genelde "Atanmamışa Taşı") sessizce düşürüyordu (kullanıcı raporu).
-    const [slotActionTarget, setSlotActionTarget] = useState(null); // { p, side } | null
-    const promptSlotAction = (p, side) => setSlotActionTarget({ p, side });
+    const [slotActionTarget, setSlotActionTarget] = useState(null); // { p, side, mode } | null
+    // mode: undefined/'manage' (Çıkar/Değiştir butonu), 'nameMenu' (isme dokununca: Pozisyona
+    // Ata/Profiline Git), 'position' (nameMenu'den "Pozisyona Ata" seçilince açılan alt menü).
+    const promptSlotAction = (p, side, mode) => setSlotActionTarget({ p, side, mode });
     const slotActionSheetProps = (() => {
         if (!slotActionTarget) return { visible: false, title: '', actions: [] };
-        const { p, side } = slotActionTarget;
+        const { p, side, mode } = slotActionTarget;
         const name = p.id ? playerDisplayName(p) : p.manualName;
+        if (mode === 'nameMenu') {
+            const nameActions = [];
+            // Kullanıcı isteği: "sadece isme tıklarlarsa pozisyona ata ve profiline git
+            // seçenekleri çıksın" — pozisyon ataması sadece ilan sahibi + voleybolda.
+            if (isOwner && sub === 'volleyball' && p.id) {
+                nameActions.push({ label: `🏐 ${t.positionPickerTitle || 'Pozisyona Ata'}`, onPress: () => setSlotActionTarget({ p, side, mode: 'position' }) });
+            }
+            if (p.id) nameActions.push({ label: `👤 ${t.goToProfileBtn || 'Profiline Git'}`, onPress: () => navigation.push('Profile', { userId: p.id }) });
+            return { visible: true, title: name, actions: nameActions };
+        }
+        if (mode === 'position') {
+            const posActions = [];
+            if (p.position !== 'SPIKER') posActions.push({ label: `🏐 ${t.positionSpiker}`, onPress: () => setParticipantPositionApi(p.id, 'SPIKER') });
+            if (p.position !== 'LIBERO') posActions.push({ label: `🙌 ${t.positionLibero}`, onPress: () => setParticipantPositionApi(p.id, 'LIBERO') });
+            if (p.position !== 'SETTER') posActions.push({ label: `🎯 ${t.positionSetter}`, onPress: () => setParticipantPositionApi(p.id, 'SETTER') });
+            if (p.position) posActions.push({ label: t.positionClearOption, onPress: () => setParticipantPositionApi(p.id, null) });
+            return { visible: true, title: name, actions: posActions };
+        }
         const oppositeSide = side === 'my' ? 'opp' : 'my';
         const oppositeFull = oppositeSide === 'my' ? founderFullForAssign : oppFullForAssign;
         const oppositeLabel = oppositeSide === 'my' ? (item.founderTeamName || t.myTeamLabel) : (item.opponentTeamName || t.oppTeamLabel);
@@ -1104,14 +1131,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             }
         }
         actions.push({ label: 'Atanmamışa Taşı', onPress: () => (p.id ? assignUnassignedToSide(p.id, null) : assignManualToSide(p.manualName, null)) });
-        // Voleybol: takım slotuna yerleşmiş oyuncuya ekstra pozisyon etiketi (kullanıcı isteği:
-        // "Libero/Pasör/Smaçör olarak ata") — aynı menüde, zaten seçili pozisyon tekrar listelenmez.
-        if (sub === 'volleyball' && p.id) {
-            if (p.position !== 'SPIKER') actions.push({ label: `🏐 ${t.positionSpiker}`, onPress: () => setParticipantPositionApi(p.id, 'SPIKER') });
-            if (p.position !== 'LIBERO') actions.push({ label: `🙌 ${t.positionLibero}`, onPress: () => setParticipantPositionApi(p.id, 'LIBERO') });
-            if (p.position !== 'SETTER') actions.push({ label: `🎯 ${t.positionSetter}`, onPress: () => setParticipantPositionApi(p.id, 'SETTER') });
-            if (p.position) actions.push({ label: t.positionClearOption, onPress: () => setParticipantPositionApi(p.id, null) });
-        }
         if (p.id) actions.push({ label: 'Çıkar', destructive: true, onPress: () => removeRivalParticipant(p.id, p.username) });
         return { visible: true, title: name, actions };
     })();
@@ -1652,7 +1671,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t} placeholder={fallback}
                                                 genderReq={gReqValue}
                                                 onInvite={(u) => inviteToDoubleSlot(u, slot)}
-                                                onOpenPicker={() => setShowDoubleFriendsPicker(true)} />
+                                                onOpenPicker={() => { setDoubleInviteFromSlot(slot); setShowDoubleFriendsPicker(true); }} />
                                         </View>
                                     );
                                 }
@@ -1808,7 +1827,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t} placeholder="Davet et"
                                                             genderReq={sl.gReq}
                                                             onInvite={(u) => inviteToDoubleSlot(u, sl.key)}
-                                                            onOpenPicker={() => setShowDoubleFriendsPicker(true)} />
+                                                            onOpenPicker={() => { setDoubleInviteFromSlot(sl.key); setShowDoubleFriendsPicker(true); }} />
                                                     </View>
                                                 );
                                             }
@@ -2002,20 +2021,34 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             })}
                                         </View>
                                     )}
-                                    <FriendsMultiPickerModal
-                                        visible={showDoubleFriendsPicker}
-                                        onClose={() => setShowDoubleFriendsPicker(false)}
-                                        sub={sub} category={item.category} cfg={cfg} t={t}
-                                        maxSelect={['partner', 'opp1', 'opp2'].filter(k => !({ partner: PartnerContent, opp1: participants[0], opp2: participants[1] }[k])).length}
-                                        slotGenderReqs={['partner', 'opp1', 'opp2'].filter(k => !({ partner: PartnerContent, opp1: participants[0], opp2: participants[1] }[k])).map(k => ({ partner: partnerGenderReq, opp1: opp1GenderReq, opp2: opp2GenderReq }[k]))}
-                                        confirmLabel={(n) => t.friendsMultiPickerInviteBtn(n)}
-                                        onConfirm={(users) => {
-                                            const emptyKeys = ['partner', 'opp1', 'opp2'].filter(k => !({ partner: PartnerContent, opp1: participants[0], opp2: participants[1] }[k]));
-                                            Promise.all(users.map((u, i) => api.post(`/rivals/${item.id}/invite`, { userId: u.id, slot: emptyKeys[i] })))
-                                                .then(() => onRefresh())
-                                                .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
-                                        }}
-                                    />
+                                    {(() => {
+                                        // Kullanıcı hangi boş kutunun 👥 ikonuna dokunduysa (bkz. doubleInviteFromSlot),
+                                        // o slot listenin BAŞINA alınır — picker'daki İLK seçim her zaman GERÇEKTEN
+                                        // tıklanan slotun cinsiyet kuralına göre kontrol edilir. Önceden sıra her
+                                        // zaman sabit partner→opp1→opp2 idi, tıklanan kutu ne olursa olsun ilk seçim
+                                        // partner'ın (genelde farklı cinsiyet) kuralına göre kontrol ediliyordu —
+                                        // "2./3./4. oyuncu formundan davet ediyorum, hep kadın kabul ediyor" hatası
+                                        // buradan geliyordu (kullanıcı raporu).
+                                        const rawEmptyKeys = ['partner', 'opp1', 'opp2'].filter(k => !({ partner: PartnerContent, opp1: participants[0], opp2: participants[1] }[k]));
+                                        const emptyKeys = doubleInviteFromSlot && rawEmptyKeys.includes(doubleInviteFromSlot)
+                                            ? [doubleInviteFromSlot, ...rawEmptyKeys.filter(k => k !== doubleInviteFromSlot)]
+                                            : rawEmptyKeys;
+                                        return (
+                                            <FriendsMultiPickerModal
+                                                visible={showDoubleFriendsPicker}
+                                                onClose={() => { setShowDoubleFriendsPicker(false); setDoubleInviteFromSlot(null); }}
+                                                sub={sub} category={item.category} cfg={cfg} t={t}
+                                                maxSelect={emptyKeys.length}
+                                                slotGenderReqs={emptyKeys.map(k => ({ partner: partnerGenderReq, opp1: opp1GenderReq, opp2: opp2GenderReq }[k]))}
+                                                confirmLabel={(n) => t.friendsMultiPickerInviteBtn(n)}
+                                                onConfirm={(users) => {
+                                                    Promise.all(users.map((u, i) => api.post(`/rivals/${item.id}/invite`, { userId: u.id, slot: emptyKeys[i] })))
+                                                        .then(() => onRefresh())
+                                                        .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+                                                }}
+                                            />
+                                        );
+                                    })()}
                                 </View>
                             );
                         })() : (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) ? (() => {
@@ -2058,7 +2091,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 return (
                                     <View>
                                         <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                            <TouchableOpacity disabled={!p.id} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} style={{ flexDirection:'row', alignItems:'center', gap:2, flex:1, minWidth:0 }}>
+                                            {/* Kullanıcı isteği: isme dokununca artık direkt profile gitmiyor —
+                                                ilan sahibi + voleybolda "Pozisyona Ata"/"Profiline Git" seçenekleri
+                                                çıkıyor (kurucu dahil — "kendine pozisyon atayamıyor" şikayeti
+                                                buradan çözülüyor). Diğer herkes için direkt profile gider. */}
+                                            <TouchableOpacity disabled={!p.id} onPress={() => {
+                                                if (isOwner && sub === 'volleyball') promptSlotAction(p, side, 'nameMenu');
+                                                else if (p.id) navigation.push('Profile', { userId: p.id });
+                                            }} style={{ flexDirection:'row', alignItems:'center', gap:2, flex:1, minWidth:0 }}>
                                                 {p.id
                                                     ? <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
                                                     : <View style={{ width:14, height:14 }} />}
@@ -2933,9 +2973,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         </Modal>
 
         {/* Hakemlik İçin Başvur — fiyat teklifi / mesaj / CV */}
-        <Modal visible={refereeApplyVisible} animationType="slide" transparent onRequestClose={() => setRefereeApplyVisible(false)}>
+        <Modal visible={refereeApplyVisible} animationType="slide" transparent onRequestClose={() => setRefereeApplyVisible(false)} android_keyboardInputMode="adjustNothing">
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'}>
+                <KeyboardAvoidingView behavior="padding">
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37 }}>
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
                             <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{t.refereeApplyBtn}</Text>
@@ -3608,9 +3648,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         )}
 
         {/* Hakemlik İçin Başvur — maç detayına girmeden, kart üzerinden doğrudan */}
-        <Modal visible={refereeApplyVisible} animationType="slide" transparent onRequestClose={() => setRefereeApplyVisible(false)}>
+        <Modal visible={refereeApplyVisible} animationType="slide" transparent onRequestClose={() => setRefereeApplyVisible(false)} android_keyboardInputMode="adjustNothing">
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'}>
+                <KeyboardAvoidingView behavior="padding">
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37 }}>
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
                             <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>{t.refereeApplyBtn}</Text>
@@ -4012,9 +4052,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [teamNameModal, setTeamNameModal] = useState(null); // { side: 'founder'|'opponent', value } | null
     const [savingTeamName, setSavingTeamName] = useState(false);
     // Boş bir formaya uzun basınca açılan çoklu-seç arkadaş listesi (bkz. mkSlot) — sadece
-    // DOUBLE'da kullanılıyor, tek bir paylaşılan pencere yeterli (hangi slottan açıldığı önemli
-    // değil, kalan boş slotlara seçim sırasıyla eşleniyor).
+    // DOUBLE'da kullanılıyor.
     const [showDoubleFriendsPicker, setShowDoubleFriendsPicker] = useState(false);
+    // HANGİ boş slotun ikonundan açıldığı — bkz. RivalDetailModal'daki aynı isim ve gerekçeli
+    // düzeltme: eskiden ilk seçim her zaman sabit partner→opp1→opp2 sırasındaki İLK boş slotun
+    // cinsiyet kuralına göre kontrol ediliyordu, tıklanan kutu ne olursa olsun ("2./3./4. oyuncu
+    // formundan davet ediyorum, hep kadın kabul ediyor" hatası). Artık tıklanan slot sıranın
+    // BAŞINA alınıyor.
+    const [doubleInviteFromSlot, setDoubleInviteFromSlot] = useState(null);
     const [sets, setSets] = useState([{ my: '', opp: '' }]);
     const [submitting, setSubmitting] = useState(false);
     const [showCantScore, setShowCantScore] = useState(false);
@@ -4973,7 +5018,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             placeholder={SLOT_LABEL[slot]}
                                             genderReq={slotGReq[slot]}
                                             onInvite={(u) => onInviteDoubleSlot(u, slot)}
-                                            onOpenPicker={() => setShowDoubleFriendsPicker(true)}
+                                            onOpenPicker={() => { setDoubleInviteFromSlot(slot); setShowDoubleFriendsPicker(true); }}
                                         />
                                     </View>
                                 );
@@ -5140,20 +5185,30 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         </>
                                     )}
                                 </Animated.View>
-                                <FriendsMultiPickerModal
-                                    visible={showDoubleFriendsPicker}
-                                    onClose={() => setShowDoubleFriendsPicker(false)}
-                                    sub={match.subCategory} category={match.category} cfg={cfg} t={t}
-                                    maxSelect={['partner', 'opp1', 'opp2'].filter(k => !({ partner, opp1, opp2 }[k])).length}
-                                    slotGenderReqs={['partner', 'opp1', 'opp2'].filter(k => !({ partner, opp1, opp2 }[k])).map(k => ({ partner: match.partnerGenderReq, opp1: match.opp1GenderReq, opp2: match.opp2GenderReq }[k]))}
-                                    confirmLabel={(n) => t.friendsMultiPickerInviteBtn(n)}
-                                    onConfirm={(users) => {
-                                        const emptyKeys = ['partner', 'opp1', 'opp2'].filter(k => !({ partner, opp1, opp2 }[k]));
-                                        Promise.all(users.map((u, i) => api.post(`/rivals/${match.id}/invite`, { userId: u.id, slot: emptyKeys[i] })))
-                                            .then(() => onRefresh())
-                                            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
-                                    }}
-                                />
+                                {(() => {
+                                    // Bkz. RivalDetailModal'daki aynı isim ve gerekçeli düzeltme — tıklanan
+                                    // slot sıranın BAŞINA alınıyor ki picker'daki ilk seçim GERÇEKTEN
+                                    // tıklanan slotun cinsiyet kuralına göre kontrol edilsin.
+                                    const rawEmptyKeys = ['partner', 'opp1', 'opp2'].filter(k => !({ partner, opp1, opp2 }[k]));
+                                    const emptyKeys = doubleInviteFromSlot && rawEmptyKeys.includes(doubleInviteFromSlot)
+                                        ? [doubleInviteFromSlot, ...rawEmptyKeys.filter(k => k !== doubleInviteFromSlot)]
+                                        : rawEmptyKeys;
+                                    return (
+                                        <FriendsMultiPickerModal
+                                            visible={showDoubleFriendsPicker}
+                                            onClose={() => { setShowDoubleFriendsPicker(false); setDoubleInviteFromSlot(null); }}
+                                            sub={match.subCategory} category={match.category} cfg={cfg} t={t}
+                                            maxSelect={emptyKeys.length}
+                                            slotGenderReqs={emptyKeys.map(k => ({ partner: match.partnerGenderReq, opp1: match.opp1GenderReq, opp2: match.opp2GenderReq }[k]))}
+                                            confirmLabel={(n) => t.friendsMultiPickerInviteBtn(n)}
+                                            onConfirm={(users) => {
+                                                Promise.all(users.map((u, i) => api.post(`/rivals/${match.id}/invite`, { userId: u.id, slot: emptyKeys[i] })))
+                                                    .then(() => onRefresh())
+                                                    .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+                                            }}
+                                        />
+                                    );
+                                })()}
                                 <SlotActionSheet
                                     visible={!!slotAssignTarget}
                                     title={slotAssignTarget ? playerDisplayName(slotAssignTarget.player) : ''}
@@ -5173,7 +5228,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             isVolleyball={isVolleyball}
                             sub={match.subCategory}
                             category={match.category}
-                            founderPlayers={[{ ...match.sender, skillRating: match.senderSkillRating }, ...(Array.isArray(match.senderTeam) ? match.senderTeam : [])]}
+                            founderPlayers={[{ ...match.sender, skillRating: match.senderSkillRating, position: match.founderPosition }, ...(Array.isArray(match.senderTeam) ? match.senderTeam : [])]}
                             oppPlayers={Array.isArray(match.participants) ? match.participants : []}
                             legacyOppManualNames={(Array.isArray(match.oppTeamManualNames) ? match.oppTeamManualNames : []).map(n => ({ manualName: n }))}
                             matchMode={match.matchMode}
@@ -6003,9 +6058,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             </Modal>
 
             {/* ── No-Show Report Modal ── */}
-            <Modal visible={showNoShow} animationType="slide" transparent onRequestClose={() => setShowNoShow(false)}>
+            <Modal visible={showNoShow} animationType="slide" transparent onRequestClose={() => setShowNoShow(false)} android_keyboardInputMode="adjustNothing">
                 <View style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
-                    <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':'height'}>
+                    <KeyboardAvoidingView behavior="padding">
                         <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, padding:17, paddingBottom:33 }}>
                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
                                 <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🚫 Gelmeme Bildirimi</Text>
@@ -8360,8 +8415,12 @@ function FriendsMultiPickerModal({ visible, onClose, sub, category, t, cfg, maxS
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
-            <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={{ flex:1, backgroundColor:'#00000080' }}>
+                {/* behavior="height" bu projede yasak (bkz. references/ekran-guvenli-alan.md) —
+                    Android zaten app.json'daki softwareKeyboardLayoutMode:"pan" ile pencereyi
+                    kendisi kaydırıyor, "height" üstüne binince klavye açılınca alt sheet klavyenin
+                    ARKASINDA kalıyordu (kullanıcı raporu: "arama yapıyorum, ne yazdığımı göremiyorum"). */}
+                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:20, maxHeight:'80%' }}>
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:10 }}>
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.friendsMultiPickerTitle}</Text>
@@ -8558,7 +8617,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
     ) : !editItem ? (
         <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={placeholder}
             genderReq={genderReq}
-            onPick={(u) => set(field, u)} onOpenPicker={onLongPressEmptySlot} />
+            onPick={(u) => set(field, u)} onOpenPicker={() => onLongPressEmptySlot(field)} />
     ) : null;
     // Voleybolün ilan oluşturma kartıyla BİREBİR AYNI davranış (kullanıcı isteği: "voleyboldeki
     // gibi") — ön yüzde SADECE doldurulmuş slotlar değil, kilitli kurucu + 3 tane HER ZAMAN
@@ -8666,6 +8725,9 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
 // diye kopyalandı — sadece veri kaynağı farklı (burada zaten kabul edilmiş gerçek
 // katılımcılar, formdaki gibi serbest metinle aranan boş slotlar değil).
 function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], substituteCount = 0, isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onSwap, onRemovePlayer, onSetPosition, onInviteSlot, onAddManualSlot, matchMode, legacyOppManualNames = [], t, emoji = '🏐' }) {
+    // Kullanıcı isteği: isme dokununca artık Profiline Git yanında Pozisyona Ata seçeneği de
+    // çıksın — bu kart daha önce navigation'a hiç erişemiyordu (prop olarak geçilmiyordu).
+    const navigation = useNavigation();
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const flip = () => {
@@ -8703,13 +8765,32 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
     // taşımak istiyorsa karşı rakibin ismi neyse x takıma taşı seçeneği olsun, boşluk varsa".
     // Alert.alert DEĞİL SlotActionSheet kullanılıyor — Android'de Alert 3 buton sınırına
     // takılıp 4. butonu (genelde "Atanmamışa Taşı") sessizce düşürüyordu (kullanıcı raporu).
-    const [slotActionTarget, setSlotActionTarget] = useState(null); // { p, side } | null — side null: henüz atanmamış
-    const promptSlotAction = (p, side) => setSlotActionTarget({ p, side });
+    const [slotActionTarget, setSlotActionTarget] = useState(null); // { p, side, mode } | null — side null: henüz atanmamış
+    // mode: undefined/'manage' (Değiştir/Çıkar butonu), 'nameMenu' (isme dokununca: Pozisyona
+    // Ata/Profiline Git), 'position' (nameMenu'den "Pozisyona Ata" seçilince açılan alt menü).
+    const promptSlotAction = (p, side, mode) => setSlotActionTarget({ p, side, mode });
     const slotActionSheetProps = (() => {
         if (!slotActionTarget) return { visible: false, title: '', actions: [] };
-        const { p, side } = slotActionTarget;
+        const { p, side, mode } = slotActionTarget;
         const name = p.id ? senderAlias(p) : p.manualName;
         const actions = [];
+        // Kullanıcı isteği: "sadece isme tıklarlarsa pozisyona ata ve profiline git seçenekleri
+        // çıksın" — pozisyon ataması sadece ilan sahibi + voleybolda görünür, herkes profiline
+        // gidebilir.
+        if (mode === 'nameMenu') {
+            if (isOwner && isVolleyball && p.id && onSetPosition) {
+                actions.push({ label: `🏐 ${t.positionPickerTitle || 'Pozisyona Ata'}`, onPress: () => setSlotActionTarget({ p, side, mode: 'position' }) });
+            }
+            if (p.id) actions.push({ label: `👤 ${t.goToProfileBtn || 'Profiline Git'}`, onPress: () => navigation.push('Profile', { userId: p.id }) });
+            return { visible: true, title: name, actions };
+        }
+        if (mode === 'position') {
+            if (p.position !== 'SPIKER') actions.push({ label: `🏐 ${t.positionSpiker}`, onPress: () => onSetPosition(p.id, 'SPIKER') });
+            if (p.position !== 'LIBERO') actions.push({ label: `🙌 ${t.positionLibero}`, onPress: () => onSetPosition(p.id, 'LIBERO') });
+            if (p.position !== 'SETTER') actions.push({ label: `🎯 ${t.positionSetter}`, onPress: () => onSetPosition(p.id, 'SETTER') });
+            if (p.position) actions.push({ label: t.positionClearOption, onPress: () => onSetPosition(p.id, null) });
+            return { visible: true, title: name, actions };
+        }
         if (side == null) {
             // Atanmamış oyuncu — kullanıcı isteği: "Kurucu Takıma Ata"/"Rakip Takıma Ata" iki
             // ayrı buton yerine tek "Takıma Ata" dokunuşuyla açılan bu seçenek listesi (isim
@@ -8732,15 +8813,6 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                 }
             }
             actions.push({ label: 'Atanmamışa Taşı', onPress: () => onAssign(p.id, null, p.id ? undefined : p.manualName) });
-            // Voleybol: takım slotuna yerleşmiş oyuncuya ekstra pozisyon etiketi (kullanıcı
-            // isteği: "Libero/Pasör/Smaçör olarak ata") — aynı menüde, zaten seçili olan
-            // pozisyon tekrar listelenmez.
-            if (isVolleyball && p.id && onSetPosition) {
-                if (p.position !== 'SPIKER') actions.push({ label: `🏐 ${t.positionSpiker}`, onPress: () => onSetPosition(p.id, 'SPIKER') });
-                if (p.position !== 'LIBERO') actions.push({ label: `🙌 ${t.positionLibero}`, onPress: () => onSetPosition(p.id, 'LIBERO') });
-                if (p.position !== 'SETTER') actions.push({ label: `🎯 ${t.positionSetter}`, onPress: () => onSetPosition(p.id, 'SETTER') });
-                if (p.position) actions.push({ label: t.positionClearOption, onPress: () => onSetPosition(p.id, null) });
-            }
         }
         if (p.id && onRemovePlayer) actions.push({ label: 'Çıkar', destructive: true, onPress: () => onRemovePlayer(p.id) });
         return { visible: true, title: name, actions };
@@ -8809,14 +8881,24 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                         return (
                             <View key={p.id || i} style={{ marginBottom:4 }}>
                                 <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                    <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>
-                                        {i + 1}. {p.id ? senderAlias(p) : p.manualName}{locked ? ' 🔒' : ''}
-                                        {/* Cinsiyet — isim/soyisimden sonra kısa parantez (kullanıcı isteği: TR'de
-                                            (E)/(K), EN'de (M)/(W)). */}
-                                        {p.id && (p.gender === 'MALE' || p.gender === 'FEMALE') && (
-                                            <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({p.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})</Text>
-                                        )}
-                                    </Text>
+                                    {/* Kullanıcı isteği: isme dokununca artık direkt profile gitmiyor —
+                                        ilan sahibi + voleybolda "Pozisyona Ata"/"Profiline Git" seçenekleri
+                                        çıkıyor (kurucu/kilitli satır dahil — "kendine pozisyon atayamıyor"
+                                        şikayeti buradan çözülüyor). Diğer herkes için direkt profile gider. */}
+                                    <TouchableOpacity disabled={!p.id} style={{ flex:1 }}
+                                        onPress={() => {
+                                            if (isOwner && isVolleyball && onSetPosition) promptSlotAction(p, targetSide, 'nameMenu');
+                                            else if (p.id) navigation.push('Profile', { userId: p.id });
+                                        }}>
+                                        <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>
+                                            {i + 1}. {p.id ? senderAlias(p) : p.manualName}{locked ? ' 🔒' : ''}
+                                            {/* Cinsiyet — isim/soyisimden sonra kısa parantez (kullanıcı isteği: TR'de
+                                                (E)/(K), EN'de (M)/(W)). */}
+                                            {p.id && (p.gender === 'MALE' || p.gender === 'FEMALE') && (
+                                                <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({p.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})</Text>
+                                            )}
+                                        </Text>
+                                    </TouchableOpacity>
                                     {p.id && p.skillRating != null && (
                                         <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
                                     )}
@@ -9406,6 +9488,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // SINGLE'da ise hepsi birden f.singleOppInvites dizisine yazılır; ilan submit edilmeden
     // davet gitmez (bkz. FriendsMultiPickerModal onConfirm).
     const [showFriendsPicker, setShowFriendsPicker] = useState(false);
+    // HANGİ boş DOUBLE slotunun (partner/opp1Invite/opp2Invite) ikonundan açıldığı — bkz.
+    // RivalDetailModal/UpcomingCard'daki aynı isim ve gerekçeli düzeltme: eskiden picker'daki
+    // ilk seçim her zaman sabit sıradaki İLK boş slotun cinsiyet kuralına göre kontrol
+    // ediliyordu, tıklanan kutu ne olursa olsun.
+    const [doubleInviteFromSlotCreate, setDoubleInviteFromSlotCreate] = useState(null);
     const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null, initialDate: null, initialStartTime: null, initialEndTime: null });
     const [myUnlistedRes, setMyUnlistedRes] = useState([]);
     // "Değiştir"e basılınca kort alanları hemen temizlenir ama eski rezervasyon
@@ -11502,7 +11589,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     <DoubleRosterCard
                                         f={f} set={set} myUser={myUser} myOwnRating={myOwnRating}
                                         cfg={cfg} sub={sub} category={category} s={s} t={t} editItem={editItem}
-                                        onLongPressEmptySlot={() => setShowFriendsPicker(true)}
+                                        onLongPressEmptySlot={(slotKey) => { setDoubleInviteFromSlotCreate(slotKey || null); setShowFriendsPicker(true); }}
                                         onEditTeamName={setTeamNameEdit}
                                     />
                                 </View>
@@ -11678,29 +11765,40 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     </View>
                 </KeyboardAvoidingView>
 
-                <FriendsMultiPickerModal
-                    visible={showFriendsPicker}
-                    onClose={() => setShowFriendsPicker(false)}
-                    sub={sub} category={category} cfg={cfg} t={t}
-                    maxSelect={f.matchType === 'DOUBLE'
-                        ? ['partner', 'opp1Invite', 'opp2Invite'].filter(k => !f[k]).length
-                        // Tekler: formda yazıp seçmek TEK kişiyle sınırlı kalır, ama bu ikondan
-                        // açılan pencerede kullanıcı isteğiyle "dilediği kadar" davet edebilsin —
-                        // spam'i önlemek için makul bir üst sınır (15) konuldu, gerçek bir kısıt değil.
-                        : (Array.isArray(f.singleOppInvites) && f.singleOppInvites.length > 0 ? 0 : SINGLE_OPP_INVITE_MAX)}
-                    slotGenderReqs={f.matchType === 'DOUBLE'
-                        ? ['partner', 'opp1Invite', 'opp2Invite'].filter(k => !f[k]).map(k => ({ partner: f.partnerGenderReq, opp1Invite: f.opp1GenderReq, opp2Invite: f.opp2GenderReq }[k]))
-                        : Array.from({ length: SINGLE_OPP_INVITE_MAX }, () => f.genderReq)}
-                    confirmLabel={(n) => t.friendsMultiPickerAddBtn(n)}
-                    onConfirm={(users) => {
-                        if (f.matchType === 'DOUBLE') {
-                            const emptyKeys = ['partner', 'opp1Invite', 'opp2Invite'].filter(k => !f[k]);
-                            users.forEach((u, i) => { if (emptyKeys[i]) set(emptyKeys[i], u); });
-                        } else if (users.length > 0) {
-                            set('singleOppInvites', users);
-                        }
-                    }}
-                />
+                {(() => {
+                    // Kullanıcı hangi boş DOUBLE slotunun ikonuna dokunduysa (bkz. doubleInviteFromSlotCreate),
+                    // o slot listenin BAŞINA alınır — picker'daki İLK seçim her zaman GERÇEKTEN tıklanan
+                    // slotun cinsiyet kuralına göre kontrol edilir. Bkz. RivalDetailModal/UpcomingCard'daki
+                    // aynı isim ve gerekçeli düzeltme.
+                    const rawEmptyKeys = ['partner', 'opp1Invite', 'opp2Invite'].filter(k => !f[k]);
+                    const doubleEmptyKeys = doubleInviteFromSlotCreate && rawEmptyKeys.includes(doubleInviteFromSlotCreate)
+                        ? [doubleInviteFromSlotCreate, ...rawEmptyKeys.filter(k => k !== doubleInviteFromSlotCreate)]
+                        : rawEmptyKeys;
+                    return (
+                        <FriendsMultiPickerModal
+                            visible={showFriendsPicker}
+                            onClose={() => { setShowFriendsPicker(false); setDoubleInviteFromSlotCreate(null); }}
+                            sub={sub} category={category} cfg={cfg} t={t}
+                            maxSelect={f.matchType === 'DOUBLE'
+                                ? doubleEmptyKeys.length
+                                // Tekler: formda yazıp seçmek TEK kişiyle sınırlı kalır, ama bu ikondan
+                                // açılan pencerede kullanıcı isteğiyle "dilediği kadar" davet edebilsin —
+                                // spam'i önlemek için makul bir üst sınır (15) konuldu, gerçek bir kısıt değil.
+                                : (Array.isArray(f.singleOppInvites) && f.singleOppInvites.length > 0 ? 0 : SINGLE_OPP_INVITE_MAX)}
+                            slotGenderReqs={f.matchType === 'DOUBLE'
+                                ? doubleEmptyKeys.map(k => ({ partner: f.partnerGenderReq, opp1Invite: f.opp1GenderReq, opp2Invite: f.opp2GenderReq }[k]))
+                                : Array.from({ length: SINGLE_OPP_INVITE_MAX }, () => f.genderReq)}
+                            confirmLabel={(n) => t.friendsMultiPickerAddBtn(n)}
+                            onConfirm={(users) => {
+                                if (f.matchType === 'DOUBLE') {
+                                    users.forEach((u, i) => { if (doubleEmptyKeys[i]) set(doubleEmptyKeys[i], u); });
+                                } else if (users.length > 0) {
+                                    set('singleOppInvites', users);
+                                }
+                            }}
+                        />
+                    );
+                })()}
 
                 {/* Cinsiyet Kısıtlaması — hem SINGLE (1v1, tek satır: genderReq) hem DOUBLE (2v2, üç
                     satır: partner/opp1/opp2GenderReq) için AYNI modal, Format açılır listesinden
@@ -11768,7 +11866,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     bağımlı değil, güvenilir bir şekilde tam ekran boyutunu alıyor. */}
                 {showPartnerSearch && (
                     <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0 }}>
-                        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex:1 }}>
+                        <KeyboardAvoidingView behavior="padding" style={{ flex:1 }}>
                             <TouchableOpacity style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }} activeOpacity={1}
                                 onPress={() => { setInviteTarget(null); setRefereeInviteForm(null); }}>
                                 <View onStartShouldSetResponder={() => true}
@@ -11952,9 +12050,9 @@ function CreatePlayerWantedModal({ visible, onClose, category, sub, onCreated })
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={s.modalOverlay}>
-                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'} style={{ flex:1, justifyContent:'flex-end' }}>
+                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>{sub === 'volleyball' ? t.createOpponentWantedTitle : t.createPlayerWantedTitle}</Text>
@@ -12061,9 +12159,9 @@ function CreateRefereeMatchModal({ visible, onClose, category, sub, onCreated })
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={s.modalOverlay}>
-                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'} style={{ flex:1, justifyContent:'flex-end' }}>
+                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>{t.createRefereeMatchBtn}</Text>
@@ -13835,9 +13933,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             </Modal>
 
             {/* Full Edit Modal */}
-            <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
+            <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)} android_keyboardInputMode="adjustNothing">
                 <View style={[s.modalOverlay, { justifyContent:'flex-end' }]}>
-                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width:'100%' }}>
+                    <KeyboardAvoidingView behavior="padding" style={{ width:'100%' }}>
                         <View style={[s.modalBox, { maxHeight:'92%' }]}>
                             <View style={s.modalHeader}>
                                 <Text style={s.modalTitle}>Turnuvayı Düzenle</Text>
@@ -14078,9 +14176,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             </Modal>
 
             {/* 24h Late Cancel Reason Modal */}
-            <Modal visible={showCancelModal} animationType="slide" transparent onRequestClose={() => setShowCancelModal(false)}>
+            <Modal visible={showCancelModal} animationType="slide" transparent onRequestClose={() => setShowCancelModal(false)} android_keyboardInputMode="adjustNothing">
                 <View style={[s.modalOverlay, { justifyContent:'flex-end' }]}>
-                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                    <KeyboardAvoidingView behavior="padding">
                         <View style={[s.modalBox, { maxHeight:'75%' }]}>
                             <View style={s.modalHeader}>
                                 <Text style={s.modalTitle}>⚠️ Geç İptal Talebi</Text>
@@ -14448,9 +14546,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </ScrollView>
 
                         {/* Reject reason modal (nested) */}
-                        <Modal visible={!!rejectTarget} animationType="fade" transparent onRequestClose={() => setRejectTarget(null)}>
+                        <Modal visible={!!rejectTarget} animationType="fade" transparent onRequestClose={() => setRejectTarget(null)} android_keyboardInputMode="adjustNothing">
                             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'center', alignItems:'center', padding:21 }}>
-                                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width:'100%' }}>
+                                <KeyboardAvoidingView behavior="padding" style={{ width:'100%' }}>
                                     <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:17, borderWidth:1, borderColor:'#dc262650' }}>
                                         <Text style={{ color:'#f87171', fontSize:15, fontWeight:'800', marginBottom:4 }}>❌ Başvuruyu Reddet</Text>
                                         <Text style={{ color:'#94a3b8', fontSize:12, marginBottom:14 }}>{rejectTarget?.name} adlı oyuncunun başvurusu reddedilecek.</Text>
@@ -14506,9 +14604,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             </Modal>
 
             {/* Turnuva grup sohbeti — sahip + AS/yedek onaylanmış katılımcılar */}
-            <Modal visible={showChatModal} animationType="slide" transparent onRequestClose={() => setShowChatModal(false)}>
+            <Modal visible={showChatModal} animationType="slide" transparent onRequestClose={() => setShowChatModal(false)} android_keyboardInputMode="adjustNothing">
                 <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                    <KeyboardAvoidingView behavior="padding">
                         <View style={{ backgroundColor:'#0f172a', borderTopLeftRadius:20, borderTopRightRadius:20, padding:13, height:520 }}>
                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                                 <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>💬 Turnuva Sohbeti</Text>
@@ -14588,9 +14686,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         </View>
 
         {/* Çiftler Rekabetçi — partner arama modali */}
-        <Modal visible={showPartnerSearch} animationType="slide" transparent onRequestClose={() => setShowPartnerSearch(false)}>
+        <Modal visible={showPartnerSearch} animationType="slide" transparent onRequestClose={() => setShowPartnerSearch(false)} android_keyboardInputMode="adjustNothing">
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding':'height'}>
+                <KeyboardAvoidingView behavior="padding">
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.tournPartnerChoose || 'Partner Seç'}</Text>
@@ -16644,6 +16742,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showCreateRival, setShowCreateRival] = useState(false);
     const [rivalPrefill, setRivalPrefill] = useState(null);
     const [upcomingExpanded, setUpcomingExpanded] = useState(true);
+    const [upcomingSubsExpanded, setUpcomingSubsExpanded] = useState(true);
     const [openRivalsExpanded, setOpenRivalsExpanded] = useState(true);
     const [showCreatePW, setShowCreatePW] = useState(false);
     const [showCreateTournament, setShowCreateTournament] = useState(false);
@@ -17984,6 +18083,17 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
     const allFiltered = matchedUpcoming.filter(applyFilter);
     const filteredMatchedUpcoming = allFiltered.filter(m => !matchHasEnded(m));
+    // Yedek kadrosu (substituteCount) belirtilmiş ama henüz dolmamış Yaklaşan Maçlar ayrı bir
+    // başlıkta ("Yedek Kadro Aranan Yaklaşan Maçlar") gösterilir — kullanıcı isteği: hâlâ
+    // Yaklaşan Maçlar'da kalsın ama yedek arandığı ayrıca belli olsun.
+    const matchNeedsSubs = (m) => {
+        const need = m.substituteCount || 0;
+        if (need <= 0) return false;
+        const filled = (Array.isArray(m.substitutePlayers) ? m.substitutePlayers : []).filter(p => p?.id || p?.manualName).length;
+        return filled < need;
+    };
+    const upcomingNeedingSubs = filteredMatchedUpcoming.filter(matchNeedsSubs);
+    const upcomingSubsFull = filteredMatchedUpcoming.filter(m => !matchNeedsSubs(m));
     const clientEndedMatches = allFiltered.filter(m => matchHasEnded(m));
     // Birleştir: sunucudan gelen + client-side biten (id çakışmasını önle)
     const pendingScoreIds = new Set(pendingScore.map(m => m.id));
@@ -18528,7 +18638,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 onPress={() => setOpenRivalsExpanded(v => !v)}
                                 style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: openRivalsExpanded ? 2 : 1 }}
                             >
-                                <Text style={[s.sectionTitle, { marginTop:0, marginBottom:0 }]}>{t.openRivalsTitle} ({filteredRivals.length})</Text>
+                                <Text style={[s.sectionTitle, { marginTop:0, marginBottom:0 }]}>{t.openRivalsTitle} ({filteredRivals.length + (sub === 'volleyball' ? upcomingNeedingSubs.length : 0)})</Text>
                                 <Text style={{ color: colors.textSecondary, fontSize:18, fontWeight:'700', marginTop:-4 }}>
                                     {openRivalsExpanded ? '▼' : '›'}
                                 </Text>
@@ -18545,21 +18655,48 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     )
                             )}
 
+                            {/* Yedek Kadro Aranan Yaklaşan Maçlar — kullanıcı isteği: yedek kontenjanı
+                                (substituteCount) belirtilmiş ama henüz dolmamış maçlar hâlâ Yaklaşan
+                                Maçlar'da kalır, ama ayrı bir başlıkta gruplanır ki yedek aranan
+                                maçlar gözden kaçmasın. */}
+                            {upcomingNeedingSubs.length > 0 && (
+                                <>
+                                    <TouchableOpacity
+                                        onPress={() => setUpcomingSubsExpanded(v => !v)}
+                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: upcomingSubsExpanded ? 8 : 4 }}
+                                    >
+                                        <Text style={s.sectionTitle}>{t.upcomingMatchesNeedSubsTitle} ({upcomingNeedingSubs.length})</Text>
+                                        <Text style={{ color: colors.textSecondary, fontSize:18, fontWeight:'700', marginTop:-4 }}>
+                                            {upcomingSubsExpanded ? '▼' : '›'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    {upcomingSubsExpanded && (
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                            {upcomingNeedingSubs.map(m => (
+                                                <View key={m.id} style={{ width:'48.5%' }}>
+                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
+                                </>
+                            )}
+
                             {/* Yaklaşan Maçlar — tüm ilanların altında, filtreye tabi */}
-                            {filteredMatchedUpcoming.length > 0 && (
+                            {upcomingSubsFull.length > 0 && (
                                 <>
                                     <TouchableOpacity
                                         onPress={() => setUpcomingExpanded(v => !v)}
                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: upcomingExpanded ? 8 : 4 }}
                                     >
-                                        <Text style={s.sectionTitle}>{t.upcomingMatchesTitle} ({filteredMatchedUpcoming.length})</Text>
+                                        <Text style={s.sectionTitle}>{t.upcomingMatchesTitle} ({upcomingSubsFull.length})</Text>
                                         <Text style={{ color: colors.textSecondary, fontSize:18, fontWeight:'700', marginTop:-4 }}>
                                             {upcomingExpanded ? '▼' : '›'}
                                         </Text>
                                     </TouchableOpacity>
                                     {upcomingExpanded && (
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
-                                            {filteredMatchedUpcoming.map(m => (
+                                            {upcomingSubsFull.map(m => (
                                                 <View key={m.id} style={{ width:'48.5%' }}>
                                                     <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
                                                 </View>
