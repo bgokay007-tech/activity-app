@@ -740,7 +740,16 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
         ? await prisma.user.findMany({ where: { id: { in: existingUnassigned.map(p => p.id) } }, select: { id: true, gender: true } })
         : [];
     const genderById = Object.fromEntries(existingGenders.map(u => [u.id, u.gender]));
-    const poolGenders = [...existingUnassigned.map(p => genderById[p.id]), pg];
+    // BUG (kullanıcı raporu): ilan sahibi cinsiyet kısıtlamasını SONRADAN değiştirince
+    // (ör. tüm slotlar kadına çevrildi), havuzda önceden kabul edilmiş ve artık HİÇBİR açık
+    // slota uymayan biri (ör. erkek) kalıcı olarak sıkışıp kalabiliyordu — bu, bu kişinin
+    // kendi sorunuydu ve yeni bir başvuruyu kabul etmekle ilgisi yok. Eskiden bu kişi de
+    // "hepsi yerleştirilebilmeli" kontrolüne dahil ediliyordu, bu yüzden kendisi hiçbir slota
+    // uymadığı için kontrol HER ZAMAN başarısız oluyor, artık kimse kabul edilemiyordu. Zaten
+    // hiçbir açık slota uymayan (sıkışmış) havuz üyeleri bu kontrolden hariç tutulur — onların
+    // durumu bu kabul işleminden bağımsız, zaten sorunlu.
+    const placeableUnassigned = existingUnassigned.filter(p => openSlots.some(s => fits(s.req, genderById[p.id])));
+    const poolGenders = [...placeableUnassigned.map(p => genderById[p.id]), pg];
 
     const canAssignAll = (genders, slots) => {
         if (genders.length === 0) return true;
