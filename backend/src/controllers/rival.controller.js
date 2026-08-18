@@ -482,6 +482,48 @@ async function checkTeamGenderQuota(rival, mainMembers) {
     return null;
 }
 
+// Takım başına minimum (MIN_PER_TEAM): checkGenderCountQuota'nın pool-wide kontrolünün aksine,
+// SADECE tek bir tarafın (side: 'my'=Kurucu, 'opp'=Rakip) mevcut+yeni oyuncuyla hâlâ minimumu
+// karşılayıp karşılayamayacağına bakar — kadro kartındaki taraf ATAMA anında (assignPlayerToSide,
+// swapTeamPlayers, addManualTeamPlayer, doğrudan-slot davet kabulü) çağrılır. Voleybol/airsoft'ta
+// bireysel kabul HER ZAMAN önce atanmamış havuzuna girip (bkz. checkGenderCountQuota'nın çağrıldığı
+// yer) hangi tarafa gideceği SONRADAN seçildiği için, "takım başına" kısıtlaması accept anında değil
+// burada, gerçek taraf ataması anında uygulanabiliyor.
+// nextSenderTeam/nextParticipants: bu oyuncu HENÜZ eklenmeden ÖNCEKİ (push'tan önceki) diziler.
+async function checkPerTeamGenderQuota(rival, side, newJoinerGender, nextSenderTeam, nextParticipants) {
+    if (rival.genderCountMode !== 'MIN_PER_TEAM') return null;
+    if (!['volleyball', 'airsoft'].includes(rival.subCategory) || (rival.teamSize || 1) <= 1) return null;
+    if (!rival.minGenderCount || !['MALE', 'FEMALE'].includes(rival.minGenderReq)) return null;
+    if (side !== 'my' && side !== 'opp') return null; // atanmamışa dönüş/null taraf kontrol dışı
+    if (newJoinerGender === 'OTHER') return null;
+    if (!newJoinerGender) {
+        return 'Bu ilanda takım başına cinsiyet minimumu var, cinsiyet bilgisi girilmemiş oyuncular bir tarafa atanamıyor.';
+    }
+
+    const teamSizeN = rival.teamSize || 1;
+    const hasSlot = (p) => p && (p.id || p.manualName);
+    const sideArr = side === 'my' ? nextSenderTeam : nextParticipants;
+    const filledSide = sideArr.filter(hasSlot);
+    let currentGenderCount = filledSide.filter(p => p.gender === rival.minGenderReq).length;
+    let currentSideFilled = filledSide.length;
+    if (side === 'my') {
+        // Kurucu senderTeam dizisinin İÇİNDE değil, ayrı sabit bir slot — kendi cinsiyeti de sayılmalı.
+        currentSideFilled += 1;
+        const founder = await prisma.user.findUnique({ where: { id: rival.senderId }, select: { gender: true } });
+        if (founder?.gender === rival.minGenderReq) currentGenderCount += 1;
+    }
+    const newSideFilled = currentSideFilled + 1;
+    const newGenderCount = currentGenderCount + (newJoinerGender === rival.minGenderReq ? 1 : 0);
+    const remainingAfter = teamSizeN - newSideFilled;
+    const neededMore = Math.max(0, rival.minGenderCount - newGenderCount);
+    if (neededMore > remainingAfter) {
+        const label = rival.minGenderReq === 'MALE' ? 'erkek' : 'kadın';
+        const sideLabel = side === 'my' ? (rival.founderTeamName || 'Kurucu Takım') : (rival.opponentTeamName || 'Rakip Takım');
+        return `${sideLabel}'da en az ${rival.minGenderCount} ${label} olması gerekiyor — bu atama bu minimumu imkansız hale getiriyor.`;
+    }
+    return null;
+}
+
 // joiningTeam (istemciden [{userId?, manualName?, gender?, isSubstitute?}]) sunucu tarafında
 // doğrulanıp zenginleştirilir — istemcinin gönderdiği username/skillRating gibi bilgilere
 // güvenilmez, DB'den taze çekilir (kayıtlı olmayan/manuel oyuncular hariç). Hata varsa
@@ -1018,15 +1060,17 @@ export const updateRivalRequest = async (req, res, next) => {
                 teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes, cancelPenaltyHours, subCount,
                 founderTeamName, opponentTeamName } = req.body;
 
-        // Cinsiyet dağılımı iki moddan biri: 'EXACT' (requiredMaleCount, eski davranış) ya da
-        // 'MIN' (minGenderReq/minGenderCount — sadece bir cinsiyetten en az kaç kişi gerektiği,
-        // kalanı serbest). genderCountMode değişiyorsa diğer moda ait alan temizlenir, ikisi
-        // birden dolu kalıp tutarsız bir duruma düşmesin diye.
+        // Cinsiyet dağılımı üç moddan biri: 'EXACT' (requiredMaleCount, eski davranış), 'MIN'
+        // (minGenderReq/minGenderCount — sadece bir cinsiyetten havuzun TAMAMINDA en az kaç kişi
+        // gerektiği, kalanı serbest) ya da 'MIN_PER_TEAM' (aynı minGenderReq/minGenderCount ama
+        // HER İKİ takımda AYRI AYRI aranır — kullanıcı isteği: "takım başına minimum kadın
+        // sayısı"). genderCountMode değişiyorsa diğer moda ait alan temizlenir, ikisi birden
+        // dolu kalıp tutarsız bir duruma düşmesin diye.
         if (genderCountMode !== undefined) {
-            if (genderCountMode !== null && !['EXACT', 'MIN'].includes(genderCountMode)) {
+            if (genderCountMode !== null && !['EXACT', 'MIN', 'MIN_PER_TEAM'].includes(genderCountMode)) {
                 return res.status(400).json({ message: 'Geçersiz cinsiyet dağılımı modu' });
             }
-            if (genderCountMode === 'MIN' && !['MALE', 'FEMALE'].includes(minGenderReq)) {
+            if (['MIN', 'MIN_PER_TEAM'].includes(genderCountMode) && !['MALE', 'FEMALE'].includes(minGenderReq)) {
                 return res.status(400).json({ message: 'Minimum cinsiyet dağılımı için cinsiyet seçimi gerekli' });
             }
         }
@@ -1108,8 +1152,8 @@ export const updateRivalRequest = async (req, res, next) => {
                 ...(genderCountMode !== undefined && {
                     genderCountMode,
                     requiredMaleCount: genderCountMode === 'EXACT' && requiredMaleCount !== null && requiredMaleCount !== '' ? parseInt(requiredMaleCount, 10) : null,
-                    minGenderReq: genderCountMode === 'MIN' ? minGenderReq : null,
-                    minGenderCount: genderCountMode === 'MIN' && minGenderCount !== null && minGenderCount !== '' ? parseInt(minGenderCount, 10) : null,
+                    minGenderReq: ['MIN', 'MIN_PER_TEAM'].includes(genderCountMode) ? minGenderReq : null,
+                    minGenderCount: ['MIN', 'MIN_PER_TEAM'].includes(genderCountMode) && minGenderCount !== null && minGenderCount !== '' ? parseInt(minGenderCount, 10) : null,
                 }),
                 ...(winsNeeded !== undefined && { winsNeeded: winsNeeded !== null && winsNeeded !== '' ? parseInt(winsNeeded, 10) : null }),
                 ...(cancelPenaltyHours !== undefined && { cancelPenaltyHours: cancelPenaltyHours !== null && cancelPenaltyHours !== '' ? parseInt(cancelPenaltyHours, 10) : null }),
@@ -1680,6 +1724,27 @@ export const createRivalRequest = async (req, res, next) => {
             if (otherGenderManual > totalSlots - mgc) {
                 return res.status(400).json({ message: `Cinsiyet dağılımı: manuel eklediğiniz oyuncular minimum kontenjanı (${mgc}) imkansız kılıyor.` });
             }
+        } else if (genderCountMode === 'MIN_PER_TEAM') {
+            // Takım başına minimum: aynı "en az N kişi" mantığı ama pool (2*teamSize) yerine
+            // HER İKİ taraf (Kurucu/Rakip) AYRI AYRI en az minGenderCount kadar minGenderReq
+            // cinsiyetinden oyuncu içermeli (kullanıcı isteği: "takım başına minimum kadın sayısı").
+            if (!['MALE', 'FEMALE'].includes(minGenderReq)) {
+                return res.status(400).json({ message: 'Minimum cinsiyet dağılımı için cinsiyet seçimi gerekli' });
+            }
+            const teamSizeN = Number(teamSize) || 1;
+            const mgc = parseInt(minGenderCount, 10);
+            if (Number.isNaN(mgc) || mgc < 1 || mgc > teamSizeN) {
+                return res.status(400).json({ message: 'Geçersiz minimum oyuncu sayısı' });
+            }
+            // Kurucu kendisi zaten 1 sabit slot tuttuğu için senderTeam kapasitesi (teamSizeN-1).
+            const otherGenderFounder = cleanFounderManual.filter(n => n.gender && n.gender !== minGenderReq).length;
+            if (otherGenderFounder > (teamSizeN - 1) - mgc) {
+                return res.status(400).json({ message: `Cinsiyet dağılımı: Kurucu Takımı'na manuel eklediğiniz oyuncular takım başına minimum kontenjanı (${mgc}) imkansız kılıyor.` });
+            }
+            const otherGenderOpp = cleanOppManual.filter(n => n.gender && n.gender !== minGenderReq).length;
+            if (otherGenderOpp > teamSizeN - mgc) {
+                return res.status(400).json({ message: `Cinsiyet dağılımı: Rakip Takımı'na manuel eklediğiniz oyuncular takım başına minimum kontenjanı (${mgc}) imkansız kılıyor.` });
+            }
         }
 
         if (!flexibleSchedule && matchDate && matchTime) {
@@ -1798,6 +1863,8 @@ export const createRivalRequest = async (req, res, next) => {
                     && { genderCountMode: 'EXACT', requiredMaleCount: parseInt(requiredMaleCount, 10) }),
                 ...(genderCountMode === 'MIN' && minGenderCount !== undefined && minGenderCount !== null && minGenderCount !== ''
                     && { genderCountMode: 'MIN', minGenderReq, minGenderCount: parseInt(minGenderCount, 10) }),
+                ...(genderCountMode === 'MIN_PER_TEAM' && minGenderCount !== undefined && minGenderCount !== null && minGenderCount !== ''
+                    && { genderCountMode: 'MIN_PER_TEAM', minGenderReq, minGenderCount: parseInt(minGenderCount, 10) }),
                 ...(winsNeeded !== undefined && winsNeeded !== null && winsNeeded !== ''
                     && { winsNeeded: parseInt(winsNeeded, 10) }),
                 status: 'OPEN',
@@ -4818,6 +4885,8 @@ export const assignPlayerToSide = async (req, res, next) => {
         if (side === 'opp' && nextParticipants.length >= teamSizeN) {
             return res.status(400).json({ message: `Rakip Takımı zaten dolu (${teamSizeN} kişilik kontenjan).` });
         }
+        const perTeamGenderError = await checkPerTeamGenderQuota(rival, side, player.gender, nextSenderTeam, nextParticipants);
+        if (perTeamGenderError) return res.status(400).json({ message: perTeamGenderError });
         if (side === 'my') nextSenderTeam.push(player);
         else if (side === 'opp') nextParticipants.push(player);
         else nextUnassigned.push(player);
