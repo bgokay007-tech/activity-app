@@ -66,6 +66,7 @@ export default function BusinessRegisterScreen({ navigation }) {
         city: '',
         businessAddress: '',
         password: '',
+        gender: '',
     });
 
     const [workDialCode, setWorkDialCode] = useState(DIAL_CODES[0]);
@@ -121,6 +122,10 @@ export default function BusinessRegisterScreen({ navigation }) {
         if (!form.taxNumber.trim()) return Alert.alert(t.missingField, t.bizMissingTaxNo);
         if (!form.username.trim()) return Alert.alert(t.missingField, t.bizMissingUsername);
         if (!form.email.trim()) return Alert.alert(t.missingField, t.bizMissingEmail);
+        // Kullanıcı isteği: işletme hesapları da uygulamaya oyuncu olarak geçince (maça
+        // katılmak isteyince) cinsiyet uymadığı için katılamıyordu — işletme kaydında hiç
+        // cinsiyet sorulmuyordu. Bireysel kayıttaki (RegisterScreen) gibi zorunlu hale getirildi.
+        if (!form.gender) return Alert.alert(t.missingField, t.gender);
         if (!passwordValid) return Alert.alert(t.error, t.passwordRules);
         if (!agreed) return Alert.alert(t.missingField, t.bizMissingAgree);
         if (!captchaOk) return Alert.alert(t.missingField, t.bizMissingCaptcha);
@@ -159,6 +164,7 @@ export default function BusinessRegisterScreen({ navigation }) {
                 email: form.email.trim(),
                 phone: fullMobilePhone || fullWorkPhone || undefined,
                 city: form.city || undefined,
+                gender: form.gender || undefined,
                 isBusiness: true,
                 businessName: form.businessName.trim(),
                 taxNumber: form.taxNumber.trim(),
@@ -249,6 +255,20 @@ export default function BusinessRegisterScreen({ navigation }) {
                     <Text style={s.label}>{t.bizAuthFullName}</Text>
                     <TextInput style={s.input} value={form.fullName} onChangeText={v => set('fullName', v)}
                         placeholder={t.bizAuthFullNamePh} placeholderTextColor={colors.textMuted} />
+
+                    {/* Cinsiyet — kullanıcı isteği: işletme hesabı sahibi oyuncu olarak bir maça
+                        katılmak isteyince cinsiyet bilgisi olmadığı için cinsiyet kısıtlı ilanlara
+                        katılamıyordu (bireysel kayıtta zaten zorunlu, işletmede eksikti). */}
+                    <Text style={s.label}>{t.gender}</Text>
+                    <View style={s.genderRow}>
+                        {[['MALE', t.male], ['FEMALE', t.female], ['OTHER', t.otherGender]].map(([val, lbl]) => (
+                            <TouchableOpacity key={val}
+                                style={[s.genderBtn, form.gender === val && s.genderBtnActive]}
+                                onPress={() => set('gender', val)}>
+                                <Text style={[s.genderText, form.gender === val && s.genderTextActive]}>{lbl}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
 
                     {/* İşletme Adı */}
                     <Text style={s.label}>{t.bizNameLabel}</Text>
@@ -469,6 +489,12 @@ const s = StyleSheet.create({
     input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
 
     dialBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, minWidth: 80 },
+
+    genderRow: { flexDirection: 'row', gap: 3 },
+    genderBtn: { flex: 1, paddingVertical: 7, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, alignItems: 'center' },
+    genderBtnActive: { borderColor: '#f59e0b', backgroundColor: '#f59e0b22' },
+    genderText: { color: colors.textSecondary, fontWeight: '700', fontSize: 12 },
+    genderTextActive: { color: '#fbbf24', fontWeight: '800' },
 
     selectBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     selectText: { color: colors.text, fontSize: 14 },
