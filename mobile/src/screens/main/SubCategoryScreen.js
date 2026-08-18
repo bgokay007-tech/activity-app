@@ -1425,10 +1425,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 )}
                                 {item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX') && (() => {
                                     const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
-                                    const allSame = item.opp1GenderReq === item.opp2GenderReq && item.opp2GenderReq === item.partnerGenderReq;
-                                    const label = allSame && item.opp1GenderReq !== 'MIX'
-                                        ? gL(item.opp1GenderReq)
-                                        : `${gL(item.partnerGenderReq)}+${gL(item.opp1GenderReq)}+${gL(item.opp2GenderReq)}`;
+                                    // Kullanıcı isteği: ilanı açan kişinin (kurucu) GERÇEK cinsiyeti de
+                                    // eklendi — 2v2'de 4 kişi olduğu için 4 emoji gösterilmesi lazım,
+                                    // önceden sadece 3 slotun (partner/rakip1/rakip2) kısıtlaması
+                                    // gösteriliyordu, kurucunun kendisi hiç yoktu. Bu yüzden "hepsi aynı"
+                                    // durumunda tek sembole sıkıştırma da kaldırıldı — kurucu her zaman
+                                    // ayrı bir sembol olarak sayılır.
+                                    const label = `${gL(item.sender?.gender)}+${gL(item.partnerGenderReq)}+${gL(item.opp1GenderReq)}+${gL(item.opp2GenderReq)}`;
                                     return (
                                         <View style={{ flexDirection:'row', marginTop:3 }}>
                                             <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }}>
