@@ -8924,6 +8924,10 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
 
 // ─── Create Rival Modal ────────────────────────────────────────────────────────
 
+// Tekler (SINGLE) ilan oluştururken "davet et" ikonundan (FriendsMultiPickerModal) rakip
+// adayına gönderilebilecek üst sınır — gerçek bir kısıt değil, spam'i önleyen makul bir tavan.
+const SINGLE_OPP_INVITE_MAX = 15;
+
 function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill = null, editItem = null }) {
     const t = useT();
     const navigation = useNavigation();
@@ -8989,7 +8993,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         poolInvite1: null,
         poolInvite2: null,
         poolInvite3: null,
-        singleOppInvite: null,
+        singleOppInvites: [],
         refereeInvites: [], // [{ user, message, price }]
         genderReq: null,
         partnerGenderReq: 'MIX',
@@ -9374,9 +9378,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const [showEloWarning, setShowEloWarning] = useState(false);
     const [eloWarningDismissed, setEloWarningDismissed] = useState(false);
     // DoubleRosterCard/SingleRosterCard'daki boş bir formaya uzun basınca açılan çoklu-seç
-    // arkadaş listesi — seçilenler kalan boş alanlara (DOUBLE: partner/opp1/opp2, SINGLE:
-    // singleOppInvite) sırayla yerel state'e yazılır, ilan submit edilmeden davet gitmez
-    // (bkz. FriendsMultiPickerModal onConfirm).
+    // arkadaş listesi — seçilenler DOUBLE'da kalan boş alanlara (partner/opp1/opp2) sırayla,
+    // SINGLE'da ise hepsi birden f.singleOppInvites dizisine yazılır; ilan submit edilmeden
+    // davet gitmez (bkz. FriendsMultiPickerModal onConfirm).
     const [showFriendsPicker, setShowFriendsPicker] = useState(false);
     const [venueBooking, setVenueBooking] = useState({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null, initialDate: null, initialStartTime: null, initialEndTime: null });
     const [myUnlistedRes, setMyUnlistedRes] = useState([]);
@@ -9443,7 +9447,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             .finally(() => setLoadingFriends(false));
     }, [showPartnerSearch]);
 
-    const INVITE_FIELD = { partner: 'partner', opp1: 'opp1Invite', opp2: 'opp2Invite', singleOpp: 'singleOppInvite' };
+    const INVITE_FIELD = { partner: 'partner', opp1: 'opp1Invite', opp2: 'opp2Invite' };
     const choosePartner = (user) => {
         if (inviteTarget === 'referee') { setRefereeInviteForm({ user, message: '', price: '' }); return; }
         if (inviteTarget) set(INVITE_FIELD[inviteTarget], user);
@@ -9972,11 +9976,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                         : undefined,
                 unassignedManualNames: undefined,
             });
-            // Tekler: belirli bir rakip davet edildiyse, ilan oluştuktan sonra mevcut davet
+            // Tekler: belirli rakip(ler) davet edildiyse, ilan oluştuktan sonra mevcut davet
             // endpoint'i ile gönderilir (DOUBLE'daki partner/opp1/opp2InviteId create-time akışından
             // farklı olarak burada ayrı bir istek — inviteToRival zaten her maç tipinde çalışıyor).
-            if (!isTeamSport && f.matchType === 'SINGLE' && f.singleOppInvite && created?.data?.id) {
-                api.post(`/rivals/${created.data.id}/invite`, { userId: f.singleOppInvite.id }).catch(() => {});
+            // Kullanıcı isteği: davet et ikonundan birden fazla kişi seçilebiliyor — hepsine ayrı
+            // ayrı davet gider, hangisi kabul ederse maç onunla eşleşir (diğerleri backend'deki
+            // notifyOtherPendingOwnerInvitesOfFull ile otomatik iptal edilip bilgilendirilir).
+            if (!isTeamSport && f.matchType === 'SINGLE' && Array.isArray(f.singleOppInvites) && created?.data?.id) {
+                f.singleOppInvites.forEach(u => {
+                    api.post(`/rivals/${created.data.id}/invite`, { userId: u.id }).catch(() => {});
+                });
             }
             // İlan başarıyla oluştu — "Değiştir" ile bırakılmış eski rezervasyon varsa
             // (bkz. pendingCourtChangeRef) artık güvenle iptal edilir.
@@ -11651,17 +11660,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     sub={sub} category={category} cfg={cfg} t={t}
                     maxSelect={f.matchType === 'DOUBLE'
                         ? ['partner', 'opp1Invite', 'opp2Invite'].filter(k => !f[k]).length
-                        : (f.singleOppInvite ? 0 : 1)}
+                        // Tekler: formda yazıp seçmek TEK kişiyle sınırlı kalır, ama bu ikondan
+                        // açılan pencerede kullanıcı isteğiyle "dilediği kadar" davet edebilsin —
+                        // spam'i önlemek için makul bir üst sınır (15) konuldu, gerçek bir kısıt değil.
+                        : (Array.isArray(f.singleOppInvites) && f.singleOppInvites.length > 0 ? 0 : SINGLE_OPP_INVITE_MAX)}
                     slotGenderReqs={f.matchType === 'DOUBLE'
                         ? ['partner', 'opp1Invite', 'opp2Invite'].filter(k => !f[k]).map(k => ({ partner: f.partnerGenderReq, opp1Invite: f.opp1GenderReq, opp2Invite: f.opp2GenderReq }[k]))
-                        : (f.singleOppInvite ? [] : [f.genderReq])}
+                        : Array.from({ length: SINGLE_OPP_INVITE_MAX }, () => f.genderReq)}
                     confirmLabel={(n) => t.friendsMultiPickerAddBtn(n)}
                     onConfirm={(users) => {
                         if (f.matchType === 'DOUBLE') {
                             const emptyKeys = ['partner', 'opp1Invite', 'opp2Invite'].filter(k => !f[k]);
                             users.forEach((u, i) => { if (emptyKeys[i]) set(emptyKeys[i], u); });
-                        } else if (users[0]) {
-                            set('singleOppInvite', users[0]);
+                        } else if (users.length > 0) {
+                            set('singleOppInvites', users);
                         }
                     }}
                 />
