@@ -1511,16 +1511,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             )}
                         </View>
                     </View>
-                    {item.message && <Text style={[s.cardMsg, { marginBottom:12, fontSize: moderateScale(13) }]}>{item.message}</Text>}
-                    {item.wager && (
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'#f59e0b20', borderWidth:1, borderColor:'#f59e0b50', borderRadius:10, paddingHorizontal:8, paddingVertical:6, marginBottom:12 }}>
-                            <Text style={{ fontSize:14 }}>🏆</Text>
-                            <Text style={{ color:'#fbbf24', fontSize: moderateScale(12), fontWeight:'700', flex:1 }}>{item.wager}</Text>
-                        </View>
-                    )}
-
-                    {/* Oyuncular */}
-                    <View style={det.section}>
+                    {/* Oyuncular — kullanıcı isteği: Kurucu/Rakip Takım kadro kartını saran bu
+                        bölümün sağ/sol iç boşluğu daraltıldı (Kurucu Takım biraz sola, Rakip
+                        Takım biraz sağa yaklaşsın diye) — üst/alt det.section'daki gibi kalıyor. */}
+                    <View style={[det.section, { paddingHorizontal:1 }]}>
                         <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                             <Text style={det.sectionTitle}>
                                 {/* Digimon kartlı (DOUBLE veya takım büyüklüğü >1 — voleybol vb.)
@@ -2861,6 +2855,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             </View>
                         )}
                     </View>
+
+                    {/* Açıklama + Ödül — kullanıcı isteği: buraya, Yorumlar'ın hemen üstüne taşındı
+                        (önceden üst bilgi satırının hemen altında, header'a yakın gösteriliyordu). */}
+                    {item.message && <Text style={[s.cardMsg, { marginBottom:12, fontSize: moderateScale(13) }]}>{item.message}</Text>}
+                    {item.wager && (
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'#f59e0b20', borderWidth:1, borderColor:'#f59e0b50', borderRadius:10, paddingHorizontal:8, paddingVertical:6, marginBottom:12 }}>
+                            <Text style={{ fontSize:14 }}>🏆</Text>
+                            <Text style={{ color:'#fbbf24', fontSize: moderateScale(12), fontWeight:'700', flex:1 }}>{item.wager}</Text>
+                        </View>
+                    )}
 
                     {/* Yorumlar bölümü */}
                     <Text style={{ color:'#fff', fontSize:moderateScale(15), fontWeight:'800', marginBottom:14 }}>
