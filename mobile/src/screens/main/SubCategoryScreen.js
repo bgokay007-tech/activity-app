@@ -7665,55 +7665,63 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                     {!loadingV && venue && (
                         <View style={{ flex:1 }}>
 
-                            {/* Tarih Seçici — 14 günlük yatay strip */}
-                            <View style={vb.dateStrip}>
+                            {/* Kullanıcı isteği: seçim/ödeme paneli ekranın en altına yaslansın, üstünde
+                                boşluk kalmasın — tarih şeridi/lejant/kort ızgarası tek bir flex:1
+                                sarmalayıcıya alındı ki bu sarmalayıcı TÜM boş alanı yutsun, altındaki
+                                panel de (flex verilmeyen tek kardeş) doğal olarak tam ekranın dibine
+                                itilsin. Önceki deneme (panelde marginTop:'auto') kort ızgarasının KENDİ
+                                flex:1'iyle çakışıp güvenilir çalışmıyordu — artık tek bir yerde flex:1 var. */}
+                            <View style={{ flex:1 }}>
+                                {/* Tarih Seçici — 14 günlük yatay strip */}
+                                <View style={vb.dateStrip}>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                                        contentContainerStyle={{ paddingHorizontal:3, paddingVertical:1, gap:1, alignItems:'center' }}>
+                                        {Array.from({length:14}, (_,i) => {
+                                            const d = new Date();
+                                            d.setDate(d.getDate() + i);
+                                            const yStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                                            const isSel = selDate === yStr;
+                                            return (
+                                                <TouchableOpacity key={yStr} onPress={() => { selDateWasChangedManually.current = true; setSelDate(yStr); }}
+                                                    style={[vb.dateChip, isSel && vb.dateChipSel]}>
+                                                    <Text style={[vb.dateChipDay, isSel && vb.dateChipDaySel]}>
+                                                        {d.toLocaleDateString('tr-TR', { weekday:'short' })}
+                                                    </Text>
+                                                    <Text style={[vb.dateChipNum, isSel && vb.dateChipNumSel]}>
+                                                        {d.getDate()}
+                                                    </Text>
+                                                    <Text style={[vb.dateChipMonth, isSel && vb.dateChipMonthSel]}>
+                                                        {d.toLocaleDateString('tr-TR', { month:'short' })}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </ScrollView>
+                                </View>
+
+                                {/* Legend */}
+                                <View style={[vb.legend, { paddingHorizontal:3, marginBottom:1 }]}>
+                                    <View style={vb.legendItem}>
+                                        <View style={[vb.legendDot, { backgroundColor:'#16a34a' }]} />
+                                        <Text style={vb.legendTxt}>Boş</Text>
+                                    </View>
+                                    <View style={vb.legendItem}>
+                                        <View style={[vb.legendDot, { backgroundColor:'#dc2626' }]} />
+                                        <Text style={vb.legendTxt}>Dolu</Text>
+                                    </View>
+                                    <View style={vb.legendItem}>
+                                        <View style={[vb.legendDot, { backgroundColor:'#d97706' }]} />
+                                        <Text style={vb.legendTxt}>⏳ Onay Bek.</Text>
+                                    </View>
+                                </View>
+
+                                {/* Tüm kortlar sütun sütun (yatay kaydır) */}
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={{ paddingHorizontal:3, paddingVertical:1, gap:1, alignItems:'center' }}>
-                                    {Array.from({length:14}, (_,i) => {
-                                        const d = new Date();
-                                        d.setDate(d.getDate() + i);
-                                        const yStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                                        const isSel = selDate === yStr;
-                                        return (
-                                            <TouchableOpacity key={yStr} onPress={() => { selDateWasChangedManually.current = true; setSelDate(yStr); }}
-                                                style={[vb.dateChip, isSel && vb.dateChipSel]}>
-                                                <Text style={[vb.dateChipDay, isSel && vb.dateChipDaySel]}>
-                                                    {d.toLocaleDateString('tr-TR', { weekday:'short' })}
-                                                </Text>
-                                                <Text style={[vb.dateChipNum, isSel && vb.dateChipNumSel]}>
-                                                    {d.getDate()}
-                                                </Text>
-                                                <Text style={[vb.dateChipMonth, isSel && vb.dateChipMonthSel]}>
-                                                    {d.toLocaleDateString('tr-TR', { month:'short' })}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
+                                    contentContainerStyle={[vb.courtsRow, { alignItems:'stretch', flexGrow:1 }]}
+                                    style={{ flex:1, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
+                                    {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => renderCourtCol(c))}
                                 </ScrollView>
                             </View>
-
-                            {/* Legend */}
-                            <View style={[vb.legend, { paddingHorizontal:3, marginBottom:1 }]}>
-                                <View style={vb.legendItem}>
-                                    <View style={[vb.legendDot, { backgroundColor:'#16a34a' }]} />
-                                    <Text style={vb.legendTxt}>Boş</Text>
-                                </View>
-                                <View style={vb.legendItem}>
-                                    <View style={[vb.legendDot, { backgroundColor:'#dc2626' }]} />
-                                    <Text style={vb.legendTxt}>Dolu</Text>
-                                </View>
-                                <View style={vb.legendItem}>
-                                    <View style={[vb.legendDot, { backgroundColor:'#d97706' }]} />
-                                    <Text style={vb.legendTxt}>⏳ Onay Bek.</Text>
-                                </View>
-                            </View>
-
-                            {/* Tüm kortlar sütun sütun (yatay kaydır) */}
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={[vb.courtsRow, { alignItems:'stretch', flexGrow:1 }]}
-                                style={{ flex:1, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
-                                {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => renderCourtCol(c))}
-                            </ScrollView>
 
                             {/* Seçim + Ödeme + Rezervasyon — sadece slot seçiliyken */}
                             {!selSlot && (
@@ -7741,12 +7749,12 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                     : 60;
                                 const canConfirm = !isStructured || totalMins >= 60;
                                 return (
-                                    // Kullanıcı isteği: bu panel ekranın en altına yaslansın (üstündeki kort
-                                    // ızgarası boşluk bırakmasın), satırlar arası boşluk sıkı (gap:1) olsun —
-                                    // marginTop:'auto' bu flex sütununda paneli aşağı iter, dış paddingBottom
-                                    // (insets.bottom, bkz. vb.sheet) zaten telefonun gezinme çubuğunu hesaba
-                                    // katıyor.
-                                    <ScrollView style={[vb.body, { marginTop:'auto' }]} contentContainerStyle={{ gap:1 }} showsVerticalScrollIndicator={false}>
+                                    // Bu panel artık yukarıdaki flex:1 sarmalayıcının doğal kardeşi (bkz.
+                                    // yukarısı) — flex verilmeyen tek kardeş olduğu için otomatik olarak
+                                    // ekranın dibine iteliyor, ekstra margin hilesi gerekmiyor. Satırlar
+                                    // arası boşluk sıkı (gap:1); dış paddingBottom (insets.bottom, bkz.
+                                    // vb.sheet) telefonun gezinme çubuğunu hesaba katıyor.
+                                    <ScrollView style={vb.body} contentContainerStyle={{ gap:1 }} showsVerticalScrollIndicator={false}>
                                         <View style={[vb.selSummary, { flexDirection:'row', alignItems:'center', paddingVertical:2 }]}>
                                             <Text style={[vb.selSummaryTxt, { flex:1, textAlign:'left' }]} numberOfLines={1}>
                                                 ✅ {selCourt?.name} · {selSlot.slot.start}{summaryEnd ? ` – ${summaryEnd}` : ''}
