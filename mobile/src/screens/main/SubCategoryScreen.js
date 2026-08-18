@@ -2518,10 +2518,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     {(() => {
                         const canSeeRefereeSlot = (item.refereeRequested || isRefereeAd) && (isOwner || isParticipant || isLinkedMatchPlayer);
                         if (!canSeeRefereeSlot) return null;
-                        // Davete İzin Ver açıksa (participantsCanInvite), kabul edilmiş katılımcılar
-                        // da hakem davet edebilir — asıl maçtan bakılıyorsa item, hakem ilanından
-                        // bakılıyorsa item.linkedRival üzerinde bu ayar tutuluyor.
-                        const canInviteReferee = isOwner || ((isParticipant || isLinkedMatchPlayer) && (item.participantsCanInvite || item.linkedRival?.participantsCanInvite));
                         return (
                             <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8, backgroundColor:'#f59e0b0d', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b30', paddingHorizontal:9, paddingVertical:6 }}>
                                 {item.refereeUser ? (
@@ -2537,18 +2533,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeSlotLabel}: {item.manualRefereeName}{item.refereePayment ? `  ·  ${item.refereePayment}` : ''}</Text>
                                     </>
                                 ) : (
-                                    <>
-                                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                            {t.refereeSlotLabel}: {t.refereeSlotSearching}{item.refereePayment ? `  ·  ${item.refereePayment}` : ''}
-                                        </Text>
-                                        {canInviteReferee && refereeAdId && (
-                                            <TouchableOpacity
-                                                onPress={() => { setInviteForReferee(true); setInviteModalVisible(true); }}
-                                                style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b50', paddingHorizontal:8, paddingVertical:4 }}>
-                                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>{noEmojiStr(t.inviteRefereeBtn)}</Text>
-                                            </TouchableOpacity>
-                                        )}
-                                    </>
+                                    // Kullanıcı isteği: "Hakem Davet Et" butonu artık burada değil,
+                                    // aşağıdaki "Oyuncu Davet Et" ile aynı satırda (sağında) gösteriliyor.
+                                    <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                        {t.refereeSlotLabel}: {t.refereeSlotSearching}{item.refereePayment ? `  ·  ${item.refereePayment}` : ''}
+                                    </Text>
                                 )}
                             </View>
                         );
@@ -2645,25 +2634,49 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             const otherCanAct = !isRefereeAd && (isParticipant || mySentReq === 'ACCEPTED') && item.participantsCanInvite;
                             const canInvite = !isRefereeAd && (isOwner || otherCanAct) && !isFull;
                             const canShare = !isRefereeAd && (isOwner || otherCanAct);
-                            return (canInvite || canShare) && (
-                                <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
-                                    {canInvite && (
-                                        <TouchableOpacity
-                                            style={[s.joinBtn, { flex:1, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
-                                            onPress={() => setInviteModalVisible(true)}
-                                        >
-                                            <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteBtn}</Text>
-                                        </TouchableOpacity>
+                            // Kullanıcı isteği: "Oyuncu Davet Et" solda, "Hakem Davet Et" sağda,
+                            // aynı satırda — eskiden Hakem Davet Et yukarıdaki Hakem Slotu kutusunun
+                            // içindeydi. Hakem sahibi/manuel isim zaten belirlenmişse hiç gösterilmez.
+                            const canInviteRefereeBtn = (item.refereeRequested || isRefereeAd) && !item.refereeUser && !item.manualRefereeName
+                                && (isOwner || ((isParticipant || isLinkedMatchPlayer) && (item.participantsCanInvite || item.linkedRival?.participantsCanInvite)))
+                                && !!refereeAdId;
+                            // Paylaş, ilan sahibiyken aşağıda Düzenle/İptal ile aynı satıra taşındı
+                            // (kullanıcı isteği) — sadece izinli katılımcı (otherCanAct) burada kalıyor,
+                            // onlar için Düzenle/İptal zaten hiç gösterilmiyor.
+                            const canShareHere = canShare && !isOwner;
+                            return (canInvite || canInviteRefereeBtn || canShareHere) && (
+                                <>
+                                    {(canInvite || canInviteRefereeBtn) && (
+                                        <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
+                                            {canInvite && (
+                                                <TouchableOpacity
+                                                    style={[s.joinBtn, { flex:1, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                                    onPress={() => setInviteModalVisible(true)}
+                                                >
+                                                    <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteBtn}</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            {canInviteRefereeBtn && (
+                                                <TouchableOpacity
+                                                    style={{ flex:1, backgroundColor:'#f59e0b20', borderWidth:1, borderColor:'#f59e0b50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5), alignItems:'center' }}
+                                                    onPress={() => { setInviteForReferee(true); setInviteModalVisible(true); }}
+                                                >
+                                                    <Text style={{ color:'#f59e0b', fontSize: moderateScale(11), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{noEmojiStr(t.inviteRefereeBtn)}</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
                                     )}
-                                    {canShare && (
-                                        <TouchableOpacity
-                                            style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
-                                            onPress={() => shareRival(item, t)}
-                                        >
-                                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || '📤 Paylaş'}</Text>
-                                        </TouchableOpacity>
+                                    {canShareHere && (
+                                        <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
+                                            <TouchableOpacity
+                                                style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                                onPress={() => shareRival(item, t)}
+                                            >
+                                                <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || '📤 Paylaş'}</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     )}
-                                </View>
+                                </>
                             );
                         })()}
                         {isOwner && !isRefereeAd && !isFull && (sub === 'tennis' || sub === 'padel') && (
@@ -2688,27 +2701,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <Text style={[s.joinBtnText, { color:'#a78bfa', fontSize: moderateScale(12) }]}>{seedingDemoRival ? '...' : '🤖 Demo Başvuru Gönder'}</Text>
                             </TouchableOpacity>
                         )}
-                        {isOwner && !isRefereeAd && !isFull && sub === 'volleyball' && (
-                            <TouchableOpacity
-                                style={[s.joinBtn, { backgroundColor: demoSpamActive ? '#ef444420' : '#7c3aed20', borderWidth:1, borderColor: demoSpamActive ? '#ef444450' : '#7c3aed50', marginBottom:6, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]}
-                                onPress={() => {
-                                    if (demoSpamIntervalRef.current) {
-                                        clearInterval(demoSpamIntervalRef.current);
-                                        demoSpamIntervalRef.current = null;
-                                        setDemoSpamActive(false);
-                                        return;
-                                    }
-                                    setDemoSpamActive(true);
-                                    const sendOne = () => {
-                                        api.post('/demo/volleyball-join', { rivalId: item.id }).catch(() => {});
-                                    };
-                                    sendOne();
-                                    demoSpamIntervalRef.current = setInterval(sendOne, 2000);
-                                }}
-                            >
-                                <Text style={[s.joinBtnText, { color: demoSpamActive ? '#f87171' : '#a78bfa', fontSize: moderateScale(12) }]}>{demoSpamActive ? '⏹ Demo Botları Durdur' : '🤖 Demo Botları Başlat (2sn/istek)'}</Text>
-                            </TouchableOpacity>
-                        )}
                         {item.ticketUrl && (
                             <TouchableOpacity
                                 style={{ backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(5), marginBottom: 3, alignItems:'center' }}
@@ -2718,17 +2710,55 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             </TouchableOpacity>
                         )}
                         {isOwner && isRefereeAd ? null : isOwner ? (
-                            <View style={{ flexDirection: 'row', gap: 3 }}>
-                                <TouchableOpacity
-                                    style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
-                                    onPress={() => { onClose(); setTimeout(onEdit, 300); }}
-                                >
-                                    <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]}>✏️ Düzenle</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]} onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
-                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>{t.cancelAdBtn}</Text>
-                                </TouchableOpacity>
-                            </View>
+                            <>
+                                <View style={{ flexDirection: 'row', gap: 3 }}>
+                                    {/* Kullanıcı isteği: Paylaş artık kendi satırında değil, Düzenle/İptal
+                                        ile aynı satırda (ilan sahibi için) — izinli katılımcılar için
+                                        Paylaş hâlâ yukarıda kendi satırında (onlara Düzenle/İptal hiç
+                                        gösterilmiyor). */}
+                                    {!isRefereeAd && (
+                                        <TouchableOpacity
+                                            style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                            onPress={() => shareRival(item, t)}
+                                        >
+                                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || '📤 Paylaş'}</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    <TouchableOpacity
+                                        style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                        onPress={() => { onClose(); setTimeout(onEdit, 300); }}
+                                    >
+                                        <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]}>✏️ Düzenle</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]} onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
+                                        <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>{t.cancelAdBtn}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                {/* Kullanıcı isteği: Demo Botları Başlat artık Paylaş/Düzenle/İptal
+                                    satırının ALTINDA — demo botları ilerleyen zamanlarda tamamen
+                                    kaldırılacak, şimdilik burada kalıyor. */}
+                                {!isRefereeAd && !isFull && sub === 'volleyball' && (
+                                    <TouchableOpacity
+                                        style={[s.joinBtn, { backgroundColor: demoSpamActive ? '#ef444420' : '#7c3aed20', borderWidth:1, borderColor: demoSpamActive ? '#ef444450' : '#7c3aed50', marginTop:6, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]}
+                                        onPress={() => {
+                                            if (demoSpamIntervalRef.current) {
+                                                clearInterval(demoSpamIntervalRef.current);
+                                                demoSpamIntervalRef.current = null;
+                                                setDemoSpamActive(false);
+                                                return;
+                                            }
+                                            setDemoSpamActive(true);
+                                            const sendOne = () => {
+                                                api.post('/demo/volleyball-join', { rivalId: item.id }).catch(() => {});
+                                            };
+                                            sendOne();
+                                            demoSpamIntervalRef.current = setInterval(sendOne, 2000);
+                                        }}
+                                    >
+                                        <Text style={[s.joinBtnText, { color: demoSpamActive ? '#f87171' : '#a78bfa', fontSize: moderateScale(12) }]}>{demoSpamActive ? '⏹ Demo Botları Durdur' : '🤖 Demo Botları Başlat (2sn/istek)'}</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </>
                         ) : isLinkedMatchPlayer ? (
                             <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}>
                                 <Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>Bu maça oyuncu olarak katıldığınız için hakemlik başvurusu yapamazsınız.</Text>
