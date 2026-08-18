@@ -435,12 +435,23 @@ export default function Navigation() {
     useEffect(() => {
         if (isExpoGo) return;
         Notifications.getLastNotificationResponseAsync().then(response => {
-            if (response?.notification?.request?.content?.data) {
-                pendingNavRef.current = response.notification.request.content.data;
-            }
+            const data = response?.notification?.request?.content?.data;
+            if (!data) return;
+            // onReady bu promise'ten önce zaten çalışmış olabilir (bootstrapping daha hızlı
+            // bittiyse) — o durumda pendingNavRef'e yazmak hiç tüketilmezdi, burada navigator
+            // zaten hazırsa direkt deneniyor.
+            if (navigationRef.isReady()) navigateFromNotif(data);
+            else pendingNavRef.current = data;
         }).catch(() => {});
         const sub = Notifications.addNotificationResponseReceivedListener(response => {
-            navigateFromNotif(response.notification.request.content.data || {});
+            const data = response.notification.request.content.data || {};
+            // Uygulama arka plandayken bildirime dokunulup öne getirildiğinde bazı durumlarda
+            // navigationRef henüz "ready" olmadan bu callback tetikleniyordu — navigateFromNotif
+            // bu durumda veriyi sessizce atlıyordu (kullanıcı raporu: "ana ekrandan bildirime
+            // tıklayınca ilan detayına gitmiyor"). Hazır değilse pendingNavRef'e yazılıp onReady
+            // tüketsin, veri kaybolmasın.
+            if (navigationRef.isReady()) navigateFromNotif(data);
+            else pendingNavRef.current = data;
         });
         return () => sub.remove();
     }, []);

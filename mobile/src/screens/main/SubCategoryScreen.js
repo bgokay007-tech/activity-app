@@ -3178,7 +3178,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     };
 
     useEffect(() => {
-        if (autoOpen) { setDetailVisible(true); onRefresh(); onAutoOpened?.(); }
+        // Kullanıcı raporu: bildirimden gelip ilan otomatik açılırken hemen ardından
+        // tetiklenen bu onRefresh() — tüm ekranın verisini (rivals/PW/upcoming/posts/...)
+        // baştan çekip modal AÇIKKEN item referansını değiştiriyordu, bu da üstteki özet
+        // bilgi satırının bir kaç yüz ms sonra "kayması"na yol açıyordu. item burada zaten
+        // autoOpen'ı tetikleyen load() çağrısından gelen taze veri — hemen tekrar çekmeye
+        // gerek yok.
+        if (autoOpen) { setDetailVisible(true); onAutoOpened?.(); }
     }, [autoOpen]);
 
     // Telefonun geri tuşu (Android donanım/gesture back) varsayılan olarak
@@ -18218,7 +18224,13 @@ export default function SubCategoryScreen({ route, navigation }) {
         const timeStr = item.matchTime || '00:00';
         return new Date(`${dateStr}T${timeStr}:00`).getTime();
     };
-    const filteredRivals = rivals.filter(applyFilter).slice().sort((a, b) => rivalTimeKey(a) - rivalTimeKey(b));
+    // Kullanıcı raporu: bildirimden gelindiğinde (highlightRivalId) ekranda önceden aktif
+    // bırakılmış bir filtre (şehir/mekan/tarih/salon türü — ekran zaten açıkken bildirime
+    // dokunulduğunda bileşen yeniden mount olmuyor, filtreler AYNEN kalıyor) o ilanı listeden
+    // eleyip auto-open'ın hiç tetiklenmemesine (kart hiç render olmadığı için) yol açıyordu —
+    // "açık ilanlara geliyor ama bildirimin maç detayına gitmiyor". Bildirimle vurgulanan ilan
+    // aktif filtrelerden BAĞIMSIZ olarak her zaman listede kalır.
+    const filteredRivals = rivals.filter(r => r.id === highlightRivalId || applyFilter(r)).slice().sort((a, b) => rivalTimeKey(a) - rivalTimeKey(b));
 
     // Maç saati geçmiş MATCHED maçları yaklaşan listesinden çıkar, skor bekleniyor olarak göster
     const matchHasEnded = (m) => {
@@ -18228,7 +18240,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         d.setHours(h, min, 0, 0);
         return new Date() >= new Date(d.getTime() + 60 * 1000); // maç başladıktan 1 dk sonra
     };
-    const allFiltered = matchedUpcoming.filter(applyFilter);
+    const allFiltered = matchedUpcoming.filter(m => m.id === highlightRivalId || applyFilter(m));
     const filteredMatchedUpcoming = allFiltered.filter(m => !matchHasEnded(m));
     // Yedek kadrosu (substituteCount) belirtilmiş ama henüz dolmamış Yaklaşan Maçlar ayrı bir
     // başlıkta ("Yedek Kadro Aranan Yaklaşan Maçlar") gösterilir — kullanıcı isteği: hâlâ
