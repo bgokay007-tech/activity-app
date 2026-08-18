@@ -3452,10 +3452,16 @@ export const respondToJoin = async (req, res, next) => {
 
         // Geç kabul: yukarıdaki doğrulama geçti (bu istek gerçekten kabul edilebilir), şimdi
         // joiner'a tekrar onay isteriz — henüz hiçbir şey DB'ye yazılmadı. İki durumda tetiklenir:
-        // (1) istek 1 saatten eski, (2) bu ilan daha önce MATCHED'ken açılmış (reopenedAt) —
-        // süre farketmeksizin, çünkü başvuranın koşulları o zamandan beri değişmiş olabilir.
+        // (1) istek 1 saatten eski, (2) bu ilan daha önce MATCHED'ken açılmış (reopenedAt) VE
+        // bu istek o açılıştan ÖNCE gönderilmiş — süre farketmeksizin, çünkü başvuranın koşulları
+        // o zamandan beri değişmiş olabilir. reopenedAt'tan SONRA gönderilen (yeni şartlarla
+        // gönderilmiş) istekler bu kapsama girmez — aksi halde reopenedAt kadro dolana kadar
+        // temizlenmediği için, ilandan sonra gelen HER yeni istek (demo dahil) süresi farketmeksizin
+        // yanlışlıkla "geç kabul" sayılıyordu (kullanıcı raporu: anında kabul ettiği taze bir demo
+        // isteği bile "Son Onay Bekleniyor"a düşüyordu).
         const ONE_HOUR_MS = 60 * 60 * 1000;
-        const lateAccept = (Date.now() - new Date(joinReq.createdAt).getTime() > ONE_HOUR_MS) || !!rival.reopenedAt;
+        const requestPredatesReopen = !!rival.reopenedAt && new Date(joinReq.createdAt) < new Date(rival.reopenedAt);
+        const lateAccept = (Date.now() - new Date(joinReq.createdAt).getTime() > ONE_HOUR_MS) || requestPredatesReopen;
         if (lateAccept) {
             // Kullanıcı raporu: bu iki sorgu birbirine bağlı değil (ikincisi ilkinin sonucunu
             // kullanmıyor), ard arda await edilmeleri "Son Onay Bekleniyor" uyarısının fark
