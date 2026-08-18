@@ -520,6 +520,51 @@ async function perTeamGenderFeasible(rival, side, sideArrFinal) {
     return null;
 }
 
+// Voleybol/airsoft bireysel kabul (isIndividualTeamJoin): ana kadroda (genel doluluk ya da
+// cinsiyet kotası) yer kalmamışsa, doğrudan reddetmek yerine önce yedek kontenjanına bakılır —
+// varsa oraya yerleştirilir, yoksa reddedilip "kadro dolmuştur" bildirimi gider. Kullanıcı
+// isteği: "son onay bekleniyor" durumundaki birden fazla oyuncu sırayla onaylanırken (kim önce
+// onaylarsa kazanır) dışarda kalanlar böylece kaybolmak yerine yedeğe düşsün, hiç yer yoksa da
+// net bir "kadro dolmuş, teşekkürler" mesajıyla bilgilendirilsinler. requestId/res verilen
+// çağıran fonksiyonun (respondToJoin/confirmLateJoin) isteğini burada TAMAMEN yanıtlar.
+async function placeInSubstituteOrRejectFull(rival, joinReq, joinerEntry, requestId, res) {
+    const subsArr = Array.isArray(rival.substitutePlayers) ? rival.substitutePlayers : [];
+    const subsFilledCount = subsArr.filter(p => p?.id || p?.manualName).length;
+    const hasSubRoom = subsFilledCount < (rival.substituteCount || 0);
+    if (!hasSubRoom) {
+        await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
+        emitToUser(joinReq.userId, 'joinRejected', { rivalId: joinReq.rivalId });
+        res.status(409).json({ message: 'Onayınızı beklerken kadro (yedekler dahil) tamamlandı.' });
+        createNotification(
+            joinReq.userId, 'RIVAL_JOIN_REQUEST', '😕 Kadro Dolmuş',
+            `Onayınızı beklerken "${rival.sender?.username || 'ilan sahibi'}" bu maç için kadroyu (yedekler dahil) tamamladı. İlginiz için teşekkür ederiz.`,
+            { rivalId: joinReq.rivalId, category: rival.category, subCategory: rival.subCategory }
+        ).catch(() => {});
+        return;
+    }
+    const updated = await prisma.activityRequest.update({
+        where: { id: rival.id },
+        data: { substitutePlayers: [...subsArr, joinerEntry] },
+        include: {
+            sender: { select: SENDER_SELECT },
+            joinRequests: {
+                where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
+                orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }],
+                include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: rival.category, subCategory: rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } },
+            },
+        },
+    });
+    await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
+    emitToUser(rival.senderId, 'rivalUpdate', updated);
+    emitToUser(joinReq.userId, 'joinAccepted', { rivalId: rival.id, matched: false, toSubstitute: true });
+    res.json({ message: '🔄 Yedek kadroya alındınız.', request: updated, matched: false, toSubstitute: true });
+    createNotification(
+        joinReq.userId, 'MATCH_CONFIRMED', '🔄 Yedek Kadroya Alındınız',
+        `"${rival.sender?.username || 'İlan sahibi'}" ana kadroyu tamamladı — bu maça yedek kadroda devam ediyorsunuz.`,
+        { rivalId: rival.id, category: rival.category, subCategory: rival.subCategory }
+    ).catch(() => {});
+}
+
 // joiningTeam (istemciden [{userId?, manualName?, gender?, isSubstitute?}]) sunucu tarafında
 // doğrulanıp zenginleştirilir — istemcinin gönderdiği username/skillRating gibi bilgilere
 // güvenilmez, DB'den taze çekilir (kayıtlı olmayan/manuel oyuncular hariç). Hata varsa
@@ -3347,7 +3392,12 @@ export const respondToJoin = async (req, res, next) => {
             const isIndividualTeamJoin = ['volleyball', 'airsoft'].includes(rival.subCategory) && (rival.teamSize || 1) > 1 && !isTeamJoin;
             if (isIndividualTeamJoin) {
                 const genderQuotaError = await checkGenderCountQuota(rival, u.gender);
-                if (genderQuotaError) return res.status(400).json({ message: genderQuotaError });
+                if (genderQuotaError) {
+                    // Cinsiyet kotası (EXACT/MIN) dolmuş — reddetmeden önce yedek kontenjanına bak
+                    // (bkz. confirmLateJoin'deki aynı mantık, tutarlılık için burada da uygulanıyor).
+                    await placeInSubstituteOrRejectFull(rival, joinReq, joinerEntry, requestId, res);
+                    return;
+                }
                 updatedParticipants = participants;
                 updatedUnassigned = [...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []), joinerEntry];
             } else if (isTeamJoin) {
@@ -3383,32 +3433,34 @@ export const respondToJoin = async (req, res, next) => {
         const ONE_HOUR_MS = 60 * 60 * 1000;
         const lateAccept = (Date.now() - new Date(joinReq.createdAt).getTime() > ONE_HOUR_MS) || !!rival.reopenedAt;
         if (lateAccept) {
-            await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'AWAITING_JOINER_CONFIRM' } });
-            emitToUser(joinReq.userId, 'joinLateAccepted', { rivalId: joinReq.rivalId, requestId });
-
-            // Frontend, normal kabulde olduğu gibi bu yanıttaki `request.joinRequests`'i
-            // doğrudan yerel state'e yazıyor — bunu döndürmezsek istek, optimistik olarak
-            // listeden kaldırıldıktan sonra sadece onRefresh()'in gelmesine bağlı kalıyor
-            // ve ilan sahibine o kişi "kaybolmuş" (aslında ⏳ Son Onay Bekleniyor durumunda)
-            // gibi görünüyordu.
-            const refreshedRival = await prisma.activityRequest.findUnique({
-                where: { id: joinReq.rivalId },
-                include: {
-                    sender: { select: SENDER_SELECT },
-                    joinRequests: {
-                        where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
-                        orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }],
-                        include: {
-                            user: {
-                                select: {
-                                    ...SENDER_SELECT,
-                                    interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } },
+            // Kullanıcı raporu: bu iki sorgu birbirine bağlı değil (ikincisi ilkinin sonucunu
+            // kullanmıyor), ard arda await edilmeleri "Son Onay Bekleniyor" uyarısının fark
+            // edilir bir gecikmeyle (yaklaşık 1sn) gelmesine katkıda bulunuyordu — paralel
+            // çalıştırılıp yanıt süresi kısaltıldı. interests'e de category/subCategory filtresi
+            // eklendi (önceden kullanıcının TÜM ilgi alanları — diğer sporlar dahil — gereksiz
+            // yere çekiliyordu, çok sayıda bekleyen istek varken bu sorguyu yavaşlatıyordu).
+            const [, refreshedRival] = await Promise.all([
+                prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'AWAITING_JOINER_CONFIRM' } }),
+                prisma.activityRequest.findUnique({
+                    where: { id: joinReq.rivalId },
+                    include: {
+                        sender: { select: SENDER_SELECT },
+                        joinRequests: {
+                            where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
+                            orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }],
+                            include: {
+                                user: {
+                                    select: {
+                                        ...SENDER_SELECT,
+                                        interests: { where: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } },
+                                    },
                                 },
                             },
                         },
                     },
-                },
-            });
+                }),
+            ]);
+            emitToUser(joinReq.userId, 'joinLateAccepted', { rivalId: joinReq.rivalId, requestId });
 
             createNotification(
                 joinReq.userId,
@@ -3463,7 +3515,12 @@ export const respondToJoin = async (req, res, next) => {
                         user: {
                             select: {
                                 ...SENDER_SELECT,
+                                // Kullanıcı raporu: category/subCategory filtresi olmadan her bekleyen
+                                // isteğin sahibinin TÜM ilgi alanları (diğer sporlar dahil) çekiliyordu —
+                                // çok sayıda bekleyen istek varken (ör. demo botları) bu, "Kabul Et"
+                                // yanıtını fark edilir şekilde yavaşlatıyordu.
                                 interests: {
+                                    where: { category: rival.category, subCategory: rival.subCategory },
                                     select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true },
                                 },
                             },
@@ -3711,25 +3768,39 @@ export const confirmLateJoin = async (req, res, next) => {
         // confirm: proceed with normal join logic
         const rival = joinReq.rival;
 
+        const u = joinReq.user;
+        const joinerInterest = await prisma.userInterest.findFirst({
+            where: { userId: u.id, subCategory: rival.subCategory },
+            select: { alias: true },
+        });
+        // gender EKSİKTİ — bkz. respondToJoin'deki aynı isim ve gerekçeli düzeltme.
+        const joinerEntry = { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null, gender: u.gender };
+
         // Bu onay 1 saatten geç kabul yüzünden bekletiliyordu — o süre zarfında ilan sahibi
-        // başka bir oyuncuyu kabul edip maç dolmuş (ya da ilan iptal edilmiş) olabilir.
-        // Böyle bir durumda geç onayı sessizce üstüne eklemek yerine hakkının gittiğini
-        // açıkça bildiririz.
-        const participantsSoFar = Array.isArray(rival.participants) ? rival.participants.filter(p => p && p.id) : [];
-        const alreadyFull = rival.status === 'MATCHED' || rival.status === 'CANCELLED' || ((rival.teamSize || 1) > 1
-            ? teamFilledCount(rival) >= totalPlayerCount(rival)
-            : participantsSoFar.length >= getRequired(rival));
-        if (alreadyFull) {
+        // başka bir oyuncuyu kabul edip maç dolmuş (ya da ilan iptal edilmiş) olabilir. İlan
+        // iptal edildiyse kesin ret; ama sadece kadro dolduysa (kullanıcı isteği: "son onay
+        // bekleniyor" durumundaki birden fazla oyuncu sırayla onaylanınca dışarda kalanlar
+        // olabiliyor) doğrudan reddetmek yerine önce yedek kontenjanına bakılır — bkz.
+        // placeInSubstituteOrRejectFull (yedekte de yer yoksa zaten aynı ret mesajını verir).
+        if (rival.status === 'CANCELLED') {
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
             emitToUser(joinReq.userId, 'joinRejected', { rivalId: joinReq.rivalId });
             createNotification(
                 joinReq.userId,
                 'RIVAL_JOIN_REQUEST',
-                '😕 Yerin Dolmuş',
-                `Onayınızı beklerken "${rival.sender?.username || 'ilan sahibi'}" bu maç için başka bir oyuncu buldu.`,
+                '😕 İlan İptal Edildi',
+                `Onayınızı beklerken "${rival.sender?.username || 'ilan sahibi'}" bu ilanı iptal etti.`,
                 { rivalId: joinReq.rivalId, category: rival.category, subCategory: rival.subCategory }
             ).catch(() => {});
-            return res.status(409).json({ message: 'Onayınızı beklerken bu maç için başka bir oyuncu bulundu.' });
+            return res.status(409).json({ message: 'Onayınızı beklerken bu ilan iptal edildi.' });
+        }
+        const participantsSoFar = Array.isArray(rival.participants) ? rival.participants.filter(p => p && p.id) : [];
+        const alreadyFull = rival.status === 'MATCHED' || ((rival.teamSize || 1) > 1
+            ? teamFilledCount(rival) >= totalPlayerCount(rival)
+            : participantsSoFar.length >= getRequired(rival));
+        if (alreadyFull) {
+            await placeInSubstituteOrRejectFull(rival, joinReq, joinerEntry, requestId, res);
+            return;
         }
 
         let joiningTeam = Array.isArray(joinReq.joiningTeam) ? joinReq.joiningTeam : [];
@@ -3754,15 +3825,8 @@ export const confirmLateJoin = async (req, res, next) => {
         }
         const isTeamJoin = joiningTeam.length > 0;
 
-        const u = joinReq.user;
-        const joinerInterest = await prisma.userInterest.findFirst({
-            where: { userId: u.id, subCategory: rival.subCategory },
-            select: { alias: true },
-        });
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
         const countFilled = (arr) => arr.filter(p => p && p.id).length;
-        // gender EKSİKTİ — bkz. respondToJoin'deki aynı isim ve gerekçeli düzeltme.
-        const joinerEntry = { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null, gender: u.gender };
 
         let updatedParticipants;
         let assignedToPartner = false;
@@ -3791,7 +3855,11 @@ export const confirmLateJoin = async (req, res, next) => {
             const isIndividualTeamJoin = ['volleyball', 'airsoft'].includes(rival.subCategory) && (rival.teamSize || 1) > 1 && !isTeamJoin;
             if (isIndividualTeamJoin) {
                 const genderQuotaError = await checkGenderCountQuota(rival, u.gender);
-                if (genderQuotaError) return res.status(400).json({ message: genderQuotaError });
+                if (genderQuotaError) {
+                    // Cinsiyet kotası (EXACT/MIN) dolmuş — reddetmeden önce yedek kontenjanına bak.
+                    await placeInSubstituteOrRejectFull(rival, joinReq, joinerEntry, requestId, res);
+                    return;
+                }
                 updatedParticipants = participants;
                 updatedUnassigned = [...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []), joinerEntry];
             } else if (isTeamJoin) {
@@ -3853,6 +3921,7 @@ export const confirmLateJoin = async (req, res, next) => {
                             select: {
                                 ...SENDER_SELECT,
                                 interests: {
+                                    where: { category: rival.category, subCategory: rival.subCategory },
                                     select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true },
                                 },
                             },

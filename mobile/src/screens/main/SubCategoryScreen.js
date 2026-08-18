@@ -1409,16 +1409,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <Text style={{ color:'#facc15', fontSize:moderateScale(11), fontWeight:'800' }}>{Number(item.sender.interests[0].skillRating).toFixed(2)} ★</Text>
                                 )}
                                 {/* Kullanıcı isteği: kart'ta (RivalCard) zaten gösterilen tüm bilgiler
-                                    (takım büyüklüğü, cinsiyet kısıtlaması, derece aralığı, iptal cezası,
-                                    kort/salon rezerve durumu) detay ekranında da alt alta görünsün —
-                                    öncesinde bunların çoğu sadece kartta vardı, detayda eksikti. */}
-                                <View style={{ flexDirection:'row', marginTop:3 }}>
-                                    <View style={[s.modeBadge, { backgroundColor:cfg.color+'20', borderColor:cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(2) }]}>
-                                        <Text style={[s.modeBadgeText, { color:cfg.color, fontSize: moderateScale(9) }]}>
-                                            {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
-                                        </Text>
-                                    </View>
-                                </View>
+                                    (cinsiyet kısıtlaması, derece aralığı, iptal cezası, kort/salon
+                                    rezerve durumu) detay ekranında da alt alta görünsün — öncesinde
+                                    bunların çoğu sadece kartta vardı, detayda eksikti. Takım büyüklüğü
+                                    formatı (2v2/6v6) artık burada değil, sağdaki mod rozetinin yanında
+                                    (bkz. aşağıdaki ModeBadge) — "Rekabetçi 2v2" gibi aynı satırda. */}
                                 {item.genderReq && item.genderReq !== 'MIX' && (
                                     <View style={{ flexDirection:'row', marginTop:3 }}>
                                         <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }}>
@@ -1475,7 +1470,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
                         {/* Sağ: mod + tarih/saat/kort/fiyat — küçük, sola yaslı */}
                         <View style={{ flex:1.1, alignItems:'flex-start', gap:3, minWidth:0 }}>
-                            <ModeBadge mode={item.matchMode} />
+                            {/* Kullanıcı isteği: takım büyüklüğü/format rozeti (2v2/6v6) artık ayrı bir
+                                satırda değil, mod rozetinin (Rekabetçi/Antrenman) hemen sağında, aynı
+                                satırda — "Rekabetçi 2v2" gibi. */}
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap' }}>
+                                <ModeBadge mode={item.matchMode} />
+                                <View style={[s.modeBadge, { backgroundColor:cfg.color+'20', borderColor:cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(2) }]}>
+                                    <Text style={[s.modeBadgeText, { color:cfg.color, fontSize: moderateScale(9) }]}>
+                                        {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                                    </Text>
+                                </View>
+                            </View>
                             {item.matchDate && (
                                 <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={2}>
                                     📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' })}
@@ -3235,8 +3240,16 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         try {
             const myReqId = item._myJoinRequestId;
             if (!myReqId) { onRefresh(); return; }
-            await api.patch(`/rivals/join/${myReqId}/confirm`, { action });
-            if (action === 'confirm') { setLocalJoinStatus('ACCEPTED'); setTimeout(onRefresh, 1200); }
+            const { data } = await api.patch(`/rivals/join/${myReqId}/confirm`, { action });
+            if (action === 'confirm') {
+                setLocalJoinStatus('ACCEPTED');
+                // Kullanıcı isteği: "son onay bekleniyor" durumundaki birden fazla oyuncu
+                // sırayla onaylanırken ana kadro dolarsa, dışarda kalan (yedek kontenjanı
+                // varsa) yedeğe alınıyor — bu durumda sessizce geçmek yerine kullanıcıya
+                // ayrıca haber verilir (createNotification zaten kalıcı bildirim de gönderiyor).
+                if (data?.toSubstitute) Alert.alert('🔄', t.lateAcceptSubstitutedMsg || 'Onayınızı beklerken ana kadro doldu — yedek kadroya alındınız.');
+                setTimeout(onRefresh, 1200);
+            }
             else { setLocalJoinStatus(null); onRefresh(); }
         } catch (e) {
             if (e?.response) Alert.alert(t.error, e.response.data?.message || t.actionFailed);
@@ -8726,6 +8739,18 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
     // alanına yazılabilir.
     const fitsAnyGenderSlot = (gender) => [f.partnerGenderReq, f.opp1GenderReq, f.opp2GenderReq]
         .some(req => !req || req === 'MIX' || gender === 'OTHER' || gender === req);
+    // Kullanıcı isteği: aynı kişi hem bir slota hem havuza (ya da birden fazla slota) seçilebiliyordu
+    // — aynı oyuncu aynı maçta birden fazla formada olamaz (kendi kopyası yok). İkinci seçimde
+    // uyarı verip engellenir.
+    const pickedIds = () => [f.partner, f.opp1Invite, f.opp2Invite, f.poolInvite1, f.poolInvite2, f.poolInvite3]
+        .filter(Boolean).map(p => p.id);
+    const pickWithDupeCheck = (field, u) => {
+        if (u.id === myUser?.id || pickedIds().includes(u.id)) {
+            Alert.alert('', 'Bu oyuncu zaten kadroda seçili — aynı kişi birden fazla forma yazılamaz.');
+            return;
+        }
+        set(field, u);
+    };
     const renderFrontSlot = (specificField, genericField, placeholder) => {
         const active = f[specificField] ? specificField : genericField;
         return f[active] ? (
@@ -8738,7 +8763,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
         ) : !editItem ? (
             <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={placeholder}
                 genderFitsCheck={fitsAnyGenderSlot}
-                onPick={(u) => set(genericField, u)} onOpenPicker={onLongPressEmptySlot} />
+                onPick={(u) => pickWithDupeCheck(genericField, u)} onOpenPicker={onLongPressEmptySlot} />
         ) : null;
     };
     const genderTagLocal = (req) => req === 'MALE' ? ` (${t.genderMale ? t.genderMale.replace(/^\S+\s+/, '') : 'Erkek'})` : req === 'FEMALE' ? ` (${t.genderFemale ? t.genderFemale.replace(/^\S+\s+/, '') : 'Kadın'})` : '';
@@ -8754,7 +8779,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
     ) : !editItem ? (
         <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={placeholder}
             genderReq={genderReq}
-            onPick={(u) => set(field, u)} onOpenPicker={() => onLongPressEmptySlot(field)} />
+            onPick={(u) => pickWithDupeCheck(field, u)} onOpenPicker={() => onLongPressEmptySlot(field)} />
     ) : null;
     // Voleybolün ilan oluşturma kartıyla BİREBİR AYNI davranış (kullanıcı isteği: "voleyboldeki
     // gibi") — ön yüzde SADECE doldurulmuş slotlar değil, kilitli kurucu + 3 tane HER ZAMAN
@@ -11953,7 +11978,15 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             confirmLabel={(n) => t.friendsMultiPickerAddBtn(n)}
                             onConfirm={(users) => {
                                 if (f.matchType === 'DOUBLE') {
-                                    users.forEach((u, i) => { if (doubleEmptyKeys[i]) set(doubleEmptyKeys[i], u); });
+                                    // Kullanıcı isteği: aynı kişi hem ön yüzdeki genel havuza (poolInvite1/2/3)
+                                    // hem burada bir slota seçilebiliyordu — havuzda zaten olan biri burada
+                                    // tekrar atanmasın (sessizce atlanır, doubleEmptyKeys sırası korunur).
+                                    const alreadyPooled = new Set([f.poolInvite1, f.poolInvite2, f.poolInvite3].filter(Boolean).map(p => p.id));
+                                    let slotIdx = 0;
+                                    users.forEach((u) => {
+                                        if (alreadyPooled.has(u.id)) return;
+                                        if (doubleEmptyKeys[slotIdx]) { set(doubleEmptyKeys[slotIdx], u); slotIdx++; }
+                                    });
                                 } else if (users.length > 0) {
                                     set('singleOppInvites', users);
                                 }
