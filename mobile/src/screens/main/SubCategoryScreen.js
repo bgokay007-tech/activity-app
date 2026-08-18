@@ -4200,6 +4200,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // gözükmesini istemeyebilir — açıkken paylaşılan medya rivalId'siz gönderilir, tam ekran
     // görünümde altında maç özeti (rakip/tarih/skor) hiç gösterilmez, sadece foto/video kalır.
     const [hideMatchInfoInMedia, setHideMatchInfoInMedia] = useState(false);
+    // Kullanıcı isteği: skor bekleyen (scoreStatus PENDING) maçlarda skoru girenin paylaştığı
+    // medya da karşı tarafın onayını bekler — bu maçlar için o medyaları çekip Onayla/Reddet
+    // gösterir (bkz. backend getPendingMatchMedia/approveMatchMedia/rejectMatchMedia).
+    const [pendingMedia, setPendingMedia] = useState([]);
+    const [reviewingMediaId, setReviewingMediaId] = useState(null);
+    useEffect(() => {
+        if (match.scoreStatus !== 'PENDING') { setPendingMedia([]); return; }
+        api.get(`/posts/pending/${match.id}`).then(({ data }) => setPendingMedia(data || [])).catch(() => setPendingMedia([]));
+    }, [match.scoreStatus, match.id]);
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
     // Atanmamış listesindeki "Takımlara Ata" — kullanıcı isteği: tek bir buton, dokununca
     // hangi slotların (Katılımcı 1/2/3, hangisi hâlâ boşsa ve cinsiyete uyuyorsa) uygun
@@ -4626,6 +4635,27 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             onRefresh();
         } catch(e) { Alert.alert(t.error, e?.response?.data?.message || t.confirmFailed); }
     };
+
+    const approvePendingMedia = async (postId) => {
+        setReviewingMediaId(postId);
+        try {
+            await api.patch(`/posts/${postId}/approve-media`);
+            setPendingMedia(prev => prev.filter(p => p.id !== postId));
+        } catch (e) { Alert.alert(t.error, e?.response?.data?.message || t.actionFailed); }
+        finally { setReviewingMediaId(null); }
+    };
+    const rejectPendingMedia = async (postId) => {
+        setReviewingMediaId(postId);
+        try {
+            await api.patch(`/posts/${postId}/reject-media`);
+            setPendingMedia(prev => prev.filter(p => p.id !== postId));
+        } catch (e) { Alert.alert(t.error, e?.response?.data?.message || t.actionFailed); }
+        finally { setReviewingMediaId(null); }
+    };
+    // Skoru onaylarken karşı taraf kendi medyasını da ekleyebilir — kendisi zaten onaylayan
+    // taraf olduğu için bu medya onay beklemeden direkt yayınlanır (bkz. post.controller.js'teki
+    // scorerInA === posterInA kuralı).
+    const addOwnMatchMedia = () => shareMatchMedia(false);
 
     const openBillView = async () => {
         setShowBillView(true);
@@ -5928,6 +5958,54 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             )}
                         </View>
                     )}
+
+                    {/* Skor bekleyen maçta, skorla birlikte paylaşılan (henüz onaylanmamış) medya —
+                        kendi paylaştığımsa "onay bekliyor" rozeti, karşı tarafınsa Onayla/Reddet. */}
+                    {pendingMedia.length > 0 && (() => {
+                        const isInTeamA = isOwner || senderTeamArr.some(p => p.id === myId);
+                        const isInTeamB = participantsArr.some(p => p.id === myId);
+                        return (
+                            <View style={{ marginTop:10, gap:6 }}>
+                                {pendingMedia.map(p => {
+                                    if (p.userId === myId) {
+                                        return (
+                                            <View key={p.id} style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#f9731618', borderWidth:1, borderColor:'#f9731640', borderRadius:10, padding:8 }}>
+                                                {p.imageUrl ? <Image source={{ uri: p.imageUrl }} style={{ width:36, height:36, borderRadius:6 }} /> : <Text style={{ fontSize:20 }}>🎬</Text>}
+                                                <Text style={{ color:'#fb923c', fontSize:12, fontWeight:'700', flex:1 }}>{t.myMediaPendingApproval}</Text>
+                                            </View>
+                                        );
+                                    }
+                                    const uploaderInA = match.senderId === p.userId || senderTeamArr.some(x => x.id === p.userId);
+                                    const canReview = uploaderInA ? isInTeamB : isInTeamA;
+                                    if (!canReview) return null;
+                                    const busy = reviewingMediaId === p.id;
+                                    return (
+                                        <View key={p.id} style={{ backgroundColor:'#0ea5e918', borderWidth:1, borderColor:'#0ea5e950', borderRadius:10, padding:8 }}>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                                                {p.imageUrl ? <Image source={{ uri: p.imageUrl }} style={{ width:44, height:44, borderRadius:6 }} /> : <View style={{ width:44, height:44, alignItems:'center', justifyContent:'center' }}><Text style={{ fontSize:22 }}>🎬</Text></View>}
+                                                <Text style={{ color:'#38bdf8', fontSize:12, fontWeight:'700', flex:1 }}>{t.pendingMediaReviewLabel}</Text>
+                                            </View>
+                                            <View style={{ flexDirection:'row', gap:6, marginTop:8 }}>
+                                                <TouchableOpacity
+                                                    style={{ flex:1, paddingVertical:6, borderRadius:8, backgroundColor:'#16a34a', alignItems:'center', opacity: busy ? 0.6 : 1 }}
+                                                    onPress={() => approvePendingMedia(p.id)} disabled={busy}>
+                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{t.approveMediaBtn}</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={{ flex:1, paddingVertical:6, borderRadius:8, backgroundColor:'#dc2626', alignItems:'center', opacity: busy ? 0.6 : 1 }}
+                                                    onPress={() => rejectPendingMedia(p.id)} disabled={busy}>
+                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{t.rejectMediaBtn}</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                            <TouchableOpacity onPress={addOwnMatchMedia} disabled={sharingMedia} style={{ marginTop:6, alignItems:'center' }}>
+                                                <Text style={{ color:'#38bdf8', fontSize:11, fontWeight:'700' }}>{sharingMedia ? t.sending : t.addOwnMediaBtn}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        );
+                    })()}
 
                     {/* Score entry form */}
                     {showScore && !hasScore && (

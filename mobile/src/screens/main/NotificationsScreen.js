@@ -50,6 +50,9 @@ const TYPE_ICON = {
     SCORE_SUBMITTED: '📊',
     SCORE_CONFIRMED: '🏆',
     SCORE_DISPUTED: '⚠️',
+    MATCH_MEDIA_PENDING: '📸',
+    MATCH_MEDIA_APPROVED: '✅',
+    MATCH_MEDIA_REJECTED: '😕',
     MATCH_COMPLETED: '🏁',
     VENUE_SUBMISSION: '🏟️',
     TOURNAMENT_PERMISSION_REQUEST:  '📋',
@@ -262,6 +265,8 @@ export default function NotificationsScreen({ navigation }) {
                 highlightRivalId: data.rivalId || null, openPeerReviewRivalId: data.rivalId || null,
             });
         } else if (type === 'SCORE_DISPUTED') {
+            goToSub('rivals');
+        } else if (type === 'MATCH_MEDIA_PENDING' || type === 'MATCH_MEDIA_APPROVED' || type === 'MATCH_MEDIA_REJECTED') {
             goToSub('rivals');
         } else if (type === 'MATCH_COMMENT') {
             goToSub('rivals');

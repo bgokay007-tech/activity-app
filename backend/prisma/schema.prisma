@@ -632,6 +632,9 @@ model Post {
   rivalId        String?                        // maç skor girişinden "Medya Paylaş" ile paylaşılan medya —
                                                   // ilişkili ActivityRequest'in id'si (tam ekran görünümde maç
                                                   // detayı gösterebilmek için, bkz. rival.controller.js/getRivalById)
+  mediaApprovalStatus String?                    // null = onay gerekmez (rivalId yok ya da skor zaten onaylıydı) |
+                                                  // PENDING | APPROVED | REJECTED — skor bekleyen maçta paylaşılan
+                                                  // medya karşı taraf onaylayana kadar Medya sekmesinde görünmez
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 

@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { Prisma } from '@prisma/client';
 import Anthropic from '@anthropic-ai/sdk';
 import { getRelation, canAccess } from '../utils/privacy.js';
+import { createNotification } from './notification.controller.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -26,17 +27,35 @@ export const createPost = async (req, res, next) => {
         // dahil olan biri (kurucu/takım arkadaşı/rakip) kendi maçını etiketleyebilir,
         // rastgele bir rivalId'yi paylaşımına iliştiremez.
         let verifiedRivalId = null;
+        // Kullanıcı isteği: skor henüz karşı tarafça onaylanmamışken (scoreStatus PENDING)
+        // paylaşılan medya, skorla aynı şekilde karşı tarafın onayını bekler — onaylanana
+        // kadar Medya sekmesinde kimseye görünmez (bkz. getPosts'taki mediaApprovalStatus
+        // filtresi ve rival.controller.js'teki approveMatchMedia/rejectMatchMedia).
+        let mediaApprovalStatus = null;
         if (rivalId) {
             const rival = await prisma.activityRequest.findUnique({
                 where: { id: rivalId },
-                select: { senderId: true, participants: true, senderTeam: true },
+                select: { senderId: true, participants: true, senderTeam: true, scoreStatus: true, scoreEnteredBy: true },
             });
+            const participants = Array.isArray(rival?.participants) ? rival.participants : [];
+            const senderTeamArr = Array.isArray(rival?.senderTeam) ? rival.senderTeam : [];
             const isInvolved = rival && (
                 rival.senderId === req.userId
-                || (Array.isArray(rival.participants) && rival.participants.some(p => p?.id === req.userId))
-                || (Array.isArray(rival.senderTeam) && rival.senderTeam.some(p => p?.id === req.userId))
+                || participants.some(p => p?.id === req.userId)
+                || senderTeamArr.some(p => p?.id === req.userId)
             );
-            if (isInvolved) verifiedRivalId = rivalId;
+            if (isInvolved) {
+                verifiedRivalId = rivalId;
+                // Sadece skoru GİREN tarafın (scoreEnteredBy) paylaştığı medya onay bekler —
+                // karşı taraf zaten skoru onaylarken kendi medyasını da ekleyip aynı anda
+                // yayınlayabilir (bkz. approveMatchMedia yanındaki mobil "Kendi Medyanı Ekle").
+                if (rival.scoreStatus === 'PENDING' && rival.scoreEnteredBy && (imageUrl || videoUrl)) {
+                    const teamA = new Set([rival.senderId, ...senderTeamArr.filter(m => m?.id).map(m => m.id)]);
+                    const scorerInA = teamA.has(rival.scoreEnteredBy);
+                    const posterInA = teamA.has(req.userId);
+                    if (scorerInA === posterInA) mediaApprovalStatus = 'PENDING';
+                }
+            }
         }
 
         const post = await prisma.post.create({
@@ -59,6 +78,7 @@ export const createPost = async (req, res, next) => {
                 ...(musicEndTime   != null && { musicEndTime:   Number(musicEndTime) }),
                 ...(type === 'STORY' && { expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) }),
                 ...(verifiedRivalId && { rivalId: verifiedRivalId }),
+                ...(mediaApprovalStatus && { mediaApprovalStatus }),
             },
             include: {
                 user: { select: { id: true, username: true, fullName: true, avatar: true } },
@@ -67,9 +87,118 @@ export const createPost = async (req, res, next) => {
         });
 
         res.status(201).json(post);
+
+        if (mediaApprovalStatus === 'PENDING') {
+            notifyMediaApprovers(post).catch(() => {});
+        }
     } catch (error) {
         next(error);
     }
+};
+
+// Skor bekleyen (PENDING) bir maçta paylaşılan medyanın onayını, skoru onaylayacak KARŞI
+// TARAFA (skoru girenin kendi takımı hariç, confirmScore'daki teamA/teamB ayrımıyla aynı
+// mantık) bildirir — approve/rejectMatchMedia da aynı ayrımla yetkilendirme yapıyor.
+async function notifyMediaApprovers(post) {
+    const rival = await prisma.activityRequest.findUnique({ where: { id: post.rivalId } });
+    if (!rival) return;
+    const participants = Array.isArray(rival.participants) ? rival.participants : [];
+    const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+    const teamA = new Set([rival.senderId, ...senderTeamArr.filter(m => m?.id).map(m => m.id)]);
+    const teamB = new Set(participants.filter(p => p?.id).map(p => p.id));
+    const uploaderInA = teamA.has(post.userId);
+    const approverIds = [...(uploaderInA ? teamB : teamA)].filter(id => id !== post.userId);
+
+    const uploader = await prisma.user.findUnique({ where: { id: post.userId }, select: { username: true, fullName: true } });
+    for (const uid of approverIds) {
+        createNotification(
+            uid, 'MATCH_MEDIA_PENDING',
+            '📸 Onay Bekleyen Medya',
+            `${uploader?.fullName || uploader?.username || 'Rakibin'}, maçtan bir foto/video paylaştı — skorla birlikte senin onayını bekliyor.`,
+            { rivalId: post.rivalId, postId: post.id, category: rival.category, subCategory: rival.subCategory }
+        ).catch(() => {});
+    }
+}
+
+// Skoru onaylayacak taraf (confirmScore'daki teamA/teamB ile birebir aynı ayrım), sadece
+// karşı taraftan biri mi diye kontrol eder — approve/reject uçları bunu paylaşıyor.
+async function assertCanReviewMedia(post, userId) {
+    if (!post.rivalId) return null;
+    const rival = await prisma.activityRequest.findUnique({ where: { id: post.rivalId } });
+    if (!rival) return null;
+    const participants = Array.isArray(rival.participants) ? rival.participants : [];
+    const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+    const teamA = new Set([rival.senderId, ...senderTeamArr.filter(m => m?.id).map(m => m.id)]);
+    const teamB = new Set(participants.filter(p => p?.id).map(p => p.id));
+    const uploaderInA = teamA.has(post.userId);
+    const reviewerSet = uploaderInA ? teamB : teamA;
+    if (!reviewerSet.has(userId)) return null;
+    return rival;
+}
+
+// Skor bekleyen maçta, benim onayımı bekleyen (karşı tarafın paylaştığı) medya var mı —
+// UpcomingCard'da "Skor Bekleyen Maçlar" kartı bunu açılışta çekip Onayla/Reddet gösterir.
+export const getPendingMatchMedia = async (req, res, next) => {
+    try {
+        const { rivalId } = req.params;
+        const rival = await prisma.activityRequest.findUnique({ where: { id: rivalId } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        const participants = Array.isArray(rival.participants) ? rival.participants : [];
+        const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+        const isInvolved = rival.senderId === req.userId
+            || participants.some(p => p?.id === req.userId)
+            || senderTeamArr.some(p => p?.id === req.userId);
+        if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
+
+        const posts = await prisma.post.findMany({
+            where: { rivalId, mediaApprovalStatus: 'PENDING' },
+            include: { user: { select: { id: true, username: true, fullName: true, avatar: true } } },
+            orderBy: { createdAt: 'asc' },
+        });
+        res.json(posts);
+    } catch (error) { next(error); }
+};
+
+export const approveMatchMedia = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const post = await prisma.post.findUnique({ where: { id } });
+        if (!post) return res.status(404).json({ message: 'Bulunamadı' });
+        if (post.mediaApprovalStatus !== 'PENDING') return res.status(400).json({ message: 'Onay bekleyen bir medya değil' });
+        const rival = await assertCanReviewMedia(post, req.userId);
+        if (!rival) return res.status(403).json({ message: 'Bu medyayı onaylama yetkiniz yok' });
+
+        const updated = await prisma.post.update({ where: { id }, data: { mediaApprovalStatus: 'APPROVED' } });
+        res.json(updated);
+
+        createNotification(
+            post.userId, 'MATCH_MEDIA_APPROVED',
+            '✅ Medyanız Onaylandı',
+            'Maçtan paylaştığınız foto/video karşı tarafça onaylandı, artık Medya sekmesinde görünüyor.',
+            { rivalId: post.rivalId, postId: post.id, category: rival.category, subCategory: rival.subCategory }
+        ).catch(() => {});
+    } catch (error) { next(error); }
+};
+
+export const rejectMatchMedia = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const post = await prisma.post.findUnique({ where: { id } });
+        if (!post) return res.status(404).json({ message: 'Bulunamadı' });
+        if (post.mediaApprovalStatus !== 'PENDING') return res.status(400).json({ message: 'Onay bekleyen bir medya değil' });
+        const rival = await assertCanReviewMedia(post, req.userId);
+        if (!rival) return res.status(403).json({ message: 'Bu medyayı reddetme yetkiniz yok' });
+
+        const updated = await prisma.post.update({ where: { id }, data: { mediaApprovalStatus: 'REJECTED' } });
+        res.json(updated);
+
+        createNotification(
+            post.userId, 'MATCH_MEDIA_REJECTED',
+            '😕 Medyanız Reddedildi',
+            'Maçtan paylaştığınız foto/video karşı tarafça reddedildi, paylaşılmadı.',
+            { rivalId: post.rivalId, postId: post.id, category: rival.category, subCategory: rival.subCategory }
+        ).catch(() => {});
+    } catch (error) { next(error); }
 };
 
 export const getPosts = async (req, res, next) => {
@@ -136,6 +265,13 @@ export const getPosts = async (req, res, next) => {
             ...(where.AND || []),
             { OR: [{ hidden: false }, { userId: req.userId }] },
         ];
+        // Skor bekleyen maçta paylaşılan medya (mediaApprovalStatus PENDING) karşı taraf
+        // onaylayana kadar hiç kimseye (sahibi dahil) genel feed'de görünmez — onay durumu
+        // sadece kartın kendisinde (bkz. getPendingMatchMedia) gösteriliyor. Reddedilen
+        // (REJECTED) medya asla yayınlanmaz. DİKKAT: mediaApprovalStatus çoğu post için null
+        // (gate yok) — Prisma'nın notIn'i SQL'de "NOT IN" olduğu için null satırları da
+        // (yanlışlıkla) elerdi, bu yüzden null'u ayrıca OR ile eklemek şart.
+        where.AND.push({ OR: [{ mediaApprovalStatus: null }, { mediaApprovalStatus: 'APPROVED' }] });
 
         const posts = await prisma.post.findMany({
             where,
@@ -197,6 +333,9 @@ export const getUserPosts = async (req, res, next) => {
                 ...storyFilter,
                 // Non-owners cannot see hidden posts
                 ...(!isOwner ? { hidden: false } : {}),
+                // Non-owners cannot see medya onayı bekleyen/reddedilen paylaşımları — sahibi
+                // kendi profilinde görebilir (bkz. mediaApprovalStatus, getPosts'taki aynı kural).
+                ...(!isOwner ? { OR: [{ mediaApprovalStatus: null }, { mediaApprovalStatus: 'APPROVED' }] } : {}),
             },
             include: {
                 ...POST_INCLUDE(req.userId),
