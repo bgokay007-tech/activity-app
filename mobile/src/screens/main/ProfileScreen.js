@@ -2503,7 +2503,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 name={profile?.username}
                                 avatar={profile?.avatar}
                                 size={88}
-                                onPress={null}
+                                onPress={profile?.avatar ? () => setAvatarZoomOpen(true) : null}
                                 onAvatarZoom={
                                     stories.length > 0
                                         ? () => {
@@ -4468,9 +4468,19 @@ export default function ProfileScreen({ route, navigation }) {
             {/* ── Avatar Zoom Modal ── */}
             <Modal visible={avatarZoomOpen} animationType="fade" transparent onRequestClose={() => setAvatarZoomOpen(false)}>
                 <View style={{ flex: 1, backgroundColor: '#000000ee', justifyContent: 'center', alignItems: 'center' }}>
-                    <TouchableOpacity style={{ position: 'absolute', top: 56, right: 20, zIndex: 10 }} onPress={() => setAvatarZoomOpen(false)}>
-                        <Text style={{ color: '#fff', fontSize: 28, fontWeight: '700' }}>✕</Text>
-                    </TouchableOpacity>
+                    <View style={{ position: 'absolute', top: 56, right: 20, zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                        {isOwnProfile && (
+                            <TouchableOpacity
+                                style={{ backgroundColor: colors.purple, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7 }}
+                                onPress={() => { setAvatarZoomOpen(false); handleChangeAvatar(); }}
+                            >
+                                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>Değiştir</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity onPress={() => setAvatarZoomOpen(false)}>
+                            <Text style={{ color: '#fff', fontSize: 28, fontWeight: '700' }}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
                     <ScrollView
                         style={{ flex: 1, width: '100%' }}
                         contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
