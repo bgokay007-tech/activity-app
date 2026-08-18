@@ -4503,6 +4503,29 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         finally { setCancelling(false); }
     };
 
+    // Voleybolde yedekten asıl kadroya terfi eden oyuncu, terfiden itibaren 1 saat içinde
+    // iptal politikası uymasa bile şartsız ayrılabilir (kullanıcı isteği) — normal İptal
+    // butonu yerine bu ayrı, cezasız akış kullanılır (cancelMatch'in joiner-tarafı dalı
+    // team-sport kadrosunu tamamen sıfırlıyor, o yüzden bilinçli olarak kullanılmadı).
+    const promotedAt = match.substitutePromotedAt?.[myId];
+    const promotedWithinGrace = !!promotedAt && (Date.now() - new Date(promotedAt).getTime()) / 3600000 <= 1;
+    const [leavingPromoted, setLeavingPromoted] = useState(false);
+    const doLeaveAsPromoted = async () => {
+        setLeavingPromoted(true);
+        try {
+            await api.post(`/rivals/${match.id}/leave-as-promoted-substitute`, {});
+            Alert.alert('', t.leavePromotedSubSuccess);
+            onRefresh();
+        } catch (e) { Alert.alert(t.error, e?.response?.data?.message || t.leavePromotedSubFailed); }
+        finally { setLeavingPromoted(false); }
+    };
+    const handleLeavePromotedPress = () => {
+        Alert.alert(t.leavePromotedSubTitle, t.leavePromotedSubConfirmMsg, [
+            { text: 'Vazgeç', style: 'cancel' },
+            { text: t.leavePromotedSubBtn, onPress: doLeaveAsPromoted, style: 'destructive' },
+        ]);
+    };
+
     const handleCancelPress = () => {
         const msg = withinPenaltyWindow
             ? t.cancelMatchPenaltyWarning(cancelPenaltyWindowHours, cancelPenaltyAmount)
@@ -5787,11 +5810,19 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         <Text style={{ color:'#60a5fa', fontSize:13 }}>⏳ İstendi</Text>
                                     </View>
                                 )}
-                                <TouchableOpacity
-                                    style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618', alignItems:'center' }}
-                                    onPress={handleCancelPress} disabled={cancelling}>
-                                    <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>✕ İptal{withinPenaltyWindow ? ' ⚠️' : ''}</Text>
-                                </TouchableOpacity>
+                                {promotedWithinGrace ? (
+                                    <TouchableOpacity
+                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#22c55e50', backgroundColor:'#22c55e18', alignItems:'center' }}
+                                        onPress={handleLeavePromotedPress} disabled={leavingPromoted}>
+                                        <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'700' }}>{t.leavePromotedSubBtn}</Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <TouchableOpacity
+                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618', alignItems:'center' }}
+                                        onPress={handleCancelPress} disabled={cancelling}>
+                                        <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>✕ İptal{withinPenaltyWindow ? ' ⚠️' : ''}</Text>
+                                    </TouchableOpacity>
+                                )}
                             </>
                         )}
                         {canReportNoShow && (

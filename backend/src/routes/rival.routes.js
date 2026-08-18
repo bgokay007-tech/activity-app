@@ -6,7 +6,7 @@ import {
     cancelRequest, enterScore, confirmScore, disputeScore, reportDispute, appealScore,
     archiveMatch, getCompletedMatches, getArchivedMatchesBySport,
     extendScoreDeadline, getCountsBySubCategory, getActiveSubCategories, getLocationSuggestions,
-    abandonMatch, cancelMatch, removeRivalParticipant,
+    abandonMatch, cancelMatch, removeRivalParticipant, leaveAsPromotedSubstitute,
     getMatchComments, addMatchComment, deleteMatchComment,
     getMyUpcomingMatches, getMyMatchHistory,
     proposeSchedule, acceptSchedule, updateRivalRequest,
@@ -53,6 +53,7 @@ router.patch('/:id/extend-score',    authenticate, extendScoreDeadline);
 router.patch('/:id/abandon',         authenticate, abandonMatch);
 router.patch('/:id/cancel-match',    authenticate, cancelMatch);
 router.delete('/:id/participants/:userId', authenticate, removeRivalParticipant);
+router.post('/:id/leave-as-promoted-substitute', authenticate, leaveAsPromotedSubstitute);
 router.patch('/:id/swap-positions',  authenticate, swapMatchPositions);
 router.patch('/:id/team-name',       authenticate, setTeamName);
 router.patch('/:id/assign-player',   authenticate, assignPlayerToSide);

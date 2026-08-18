@@ -2410,7 +2410,13 @@ export const sendJoinRequest = async (req, res, next) => {
         const existing = await prisma.rivalJoinRequest.findUnique({
             where: { rivalId_userId: { rivalId: id, userId: req.userId } },
         });
-        if (existing && existing.status !== 'REJECTED') {
+        // Yedek olarak başvuru: ilan MATCHED olmadan önce (hâlâ OPEN'ken) gönderilmiş ama hiç
+        // yanıtlanmamış eski bir PENDING istek varsa (ilan başka biriyle dolup bu eski başvuru
+        // hiç reddedilmemişse) — bu artık geçersiz bir kalıntı, yeni yedek başvurusunu
+        // engellememeli. Kullanıcı raporu: "Yedek Olarak Başvur" deyince "You already sent a
+        // request" hatası alıyordu.
+        const staleBeforeMatch = existing?.status === 'PENDING' && subSlotOpenForRequest;
+        if (existing && existing.status !== 'REJECTED' && !staleBeforeMatch) {
             return res.status(400).json({ message: 'You already sent a request', status: existing.status });
         }
 
@@ -2562,7 +2568,7 @@ export const sendJoinRequest = async (req, res, next) => {
 
         // Hakem başvurusu: fiyat teklifi / mesaj / CV — sadece positions:['REFEREE'] ilanlarında anlamlı
         const { offerPrice, offerMessage, offerCvUrl } = req.body;
-        if (existing?.status === 'REJECTED') {
+        if (existing?.status === 'REJECTED' || staleBeforeMatch) {
             // Reddedilen isteği yeniden PENDING yap — createdAt de sıfırlanır, yoksa eski
             // (reddedilen/geri çekilen) başvurunun tarihi kalır ve owner isteği dakikalar
             // içinde onaylasa bile respondToJoin'deki "1 saatten eski mi" kontrolü bu eski
@@ -5187,6 +5193,9 @@ export const removeRivalParticipant = async (req, res, next) => {
                 senderTeam: finalSenderTeam,
                 unassignedPlayers: updatedUnassigned,
                 ...(promotedSub && { substitutePlayers: remainingSubs }),
+                // Terfi anı kaydedilir — terfi eden kişi iptal politikası uymasa bile
+                // terfiden sonraki 1 saat içinde şartsız çıkabilir (bkz. leaveAsPromotedSubstitute).
+                ...(promotedSub?.id && { substitutePromotedAt: { ...(rival.substitutePromotedAt || {}), [promotedSub.id]: new Date().toISOString() } }),
                 status: staysMatched ? 'MATCHED' : 'OPEN',
                 receiverId: staysMatched ? rival.receiverId : null,
                 schedulingDeadline: staysMatched ? rival.schedulingDeadline : null,
@@ -5236,7 +5245,7 @@ export const removeRivalParticipant = async (req, res, next) => {
         if (promotedSub?.id) {
             createNotification(promotedSub.id, 'MATCH_CONFIRMED',
                 '🚨 Yedekten Asıl Kadroya Geçtiniz!',
-                `"${subCategoryTR(rival.subCategory)}" maçında kadrodan biri ayrıldı, yerine siz asıl kadroya alındınız — maçınız var!`,
+                `"${subCategoryTR(rival.subCategory)}" maçında kadrodan biri ayrıldı, yerine siz asıl kadroya alındınız — maçınız var! Katılım sağlayamayacaksanız, iptal şartlarına uymasa bile terfiden itibaren 1 saat içinde şartsız iptal çekme hakkınız bulunmaktadır.`,
                 { rivalId: id, subCategory: rival.subCategory },
                 'high'
             ).catch(() => {});
@@ -5257,6 +5266,119 @@ export const removeRivalParticipant = async (req, res, next) => {
         // bekleyen istek göndermiş herkese de haber ver — belki artık uygun değillerdir
         // ya da tam tersi. Yedek terfi ettiyse maç zaten dolu, bu bildirime gerek yok.
         if (wasMatched && !staysMatched) notifyPendingRequestersOfReopen(id, rival.category, rival.subCategory, removeIds);
+    } catch (error) { next(error); }
+};
+
+// Terfi eden yedeğin kendi isteğiyle, iptal politikasına bakılmaksızın terfiden sonraki 1 saat
+// içinde şartsız çıkabilmesi için — removeRivalParticipant'taki güvenli tekli-slot boşaltma +
+// sıradaki yedeği terfi ettirme mantığının aynısı, ama owner değil kullanıcının kendisi tetikliyor
+// ve sadece substitutePromotedAt penceresi içindeyse izin veriyor. cancelMatch'in joiner-tarafı
+// dalı participants'ı tamamen sıfırladığı için (voleybol gibi çok kişili kadrolarda yıkıcı)
+// bilinçli olarak KULLANILMADI, bunun yerine removeRivalParticipant'ın güvenli tek-slot mantığı
+// tekrarlandı.
+export const leaveAsPromotedSubstitute = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const userId = req.userId;
+        const rival = await prisma.activityRequest.findUnique({ where: { id }, include: { sender: { select: SENDER_SELECT } } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+
+        const promotedAt = rival.substitutePromotedAt?.[userId];
+        if (!promotedAt) return res.status(403).json({ message: 'Bu ilanda terfi kaydınız yok' });
+        const hoursSincePromotion = (Date.now() - new Date(promotedAt).getTime()) / 3600000;
+        if (hoursSincePromotion > 1) return res.status(400).json({ message: 'Şartsız çıkış hakkı süresi (1 saat) doldu' });
+
+        const participants = Array.isArray(rival.participants) ? rival.participants : [];
+        const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+        const inParticipants = participants.some(p => p?.id === userId);
+        const inSenderTeam = senderTeamArr.some(p => p?.id === userId);
+        if (!inParticipants && !inSenderTeam) return res.status(404).json({ message: 'Asıl kadroda değilsiniz' });
+
+        const updatedParticipants = inParticipants ? participants.map(p => (p?.id === userId ? null : p)) : participants;
+        const updatedSenderTeam = inSenderTeam ? senderTeamArr.filter(p => p?.id !== userId) : senderTeamArr;
+
+        const wasMatched = rival.status === 'MATCHED';
+        let finalParticipants = updatedParticipants;
+        let finalSenderTeam = updatedSenderTeam;
+        let promotedSub = null;
+        let remainingSubs = null;
+        if (wasMatched) {
+            const subs = Array.isArray(rival.substitutePlayers) ? rival.substitutePlayers : [];
+            if (subs.length > 0) {
+                promotedSub = subs[0];
+                remainingSubs = subs.slice(1);
+                if (inParticipants) {
+                    const vacatedIndex = participants.findIndex(p => p?.id === userId);
+                    finalParticipants = setAtSlot(updatedParticipants, vacatedIndex, promotedSub);
+                } else if (inSenderTeam) {
+                    finalSenderTeam = [...updatedSenderTeam, promotedSub];
+                }
+            }
+        }
+        const staysMatched = !!promotedSub;
+
+        const restPromoted = { ...(rival.substitutePromotedAt || {}) };
+        delete restPromoted[userId];
+
+        const updated = await prisma.activityRequest.update({
+            where: { id },
+            data: {
+                participants: finalParticipants,
+                senderTeam: finalSenderTeam,
+                ...(promotedSub && { substitutePlayers: remainingSubs }),
+                substitutePromotedAt: promotedSub?.id ? { ...restPromoted, [promotedSub.id]: new Date().toISOString() } : restPromoted,
+                status: staysMatched ? 'MATCHED' : 'OPEN',
+                receiverId: staysMatched ? rival.receiverId : null,
+                schedulingDeadline: staysMatched ? rival.schedulingDeadline : null,
+                ...(rival.flexibleSchedule && !staysMatched && { matchDate: null, matchTime: null }),
+                ...(wasMatched && !staysMatched && { reopenedAt: new Date() }),
+            },
+            include: { sender: { select: SENDER_SELECT } },
+        });
+
+        await prisma.rivalJoinRequest.updateMany({
+            where: { rivalId: id, userId, status: 'ACCEPTED' },
+            data: { status: 'REJECTED' },
+        });
+        if (promotedSub?.id) {
+            await prisma.rivalJoinRequest.updateMany({
+                where: { rivalId: id, userId: promotedSub.id, status: 'PENDING' },
+                data: { status: 'ACCEPTED' },
+            }).catch(() => {});
+        }
+
+        broadcast('rivalUpdate', updated);
+        emitToUser(userId, 'rivalUpdate', updated);
+        if (promotedSub?.id) emitToUser(promotedSub.id, 'rivalUpdate', updated);
+
+        res.json({ left: true, request: updated });
+
+        createNotification(rival.senderId, 'MATCH_CANCELLED',
+            '⚠️ Yedek Oyuncu Ayrıldı',
+            staysMatched
+                ? `Terfi ettirdiğiniz yedek oyuncu "${subCategoryTR(rival.subCategory)}" maçından şartsız çıkış hakkını kullanarak ayrıldı. Yerine bir sonraki yedek geçti, maç dolu kaldı.`
+                : `Terfi ettirdiğiniz yedek oyuncu "${subCategoryTR(rival.subCategory)}" maçından şartsız çıkış hakkını kullanarak ayrıldı. İlan tekrar açık hâle geldi.`,
+            { rivalId: id, subCategory: rival.subCategory }
+        ).catch(() => {});
+        if (promotedSub?.id) {
+            createNotification(promotedSub.id, 'MATCH_CONFIRMED',
+                '🚨 Yedekten Asıl Kadroya Geçtiniz!',
+                `"${subCategoryTR(rival.subCategory)}" maçında kadrodan biri ayrıldı, yerine siz asıl kadroya alındınız — maçınız var! Katılım sağlayamayacaksanız, iptal şartlarına uymasa bile terfiden itibaren 1 saat içinde şartsız iptal çekme hakkınız bulunmaktadır.`,
+                { rivalId: id, subCategory: rival.subCategory },
+                'high'
+            ).catch(() => {});
+        }
+        const leftName = (Array.isArray(rival.participants) ? rival.participants : []).find(p => p?.id === userId)?.username
+            || (Array.isArray(rival.senderTeam) ? rival.senderTeam : []).find(p => p?.id === userId)?.username
+            || 'Bir oyuncu';
+        notifyRosterChange(updated, {
+            title: '🔄 Kadro Değişti',
+            body: promotedSub
+                ? `${leftName} takımdan ayrıldı, yerine bir yedek oyuncu asıl kadroya alındı.`
+                : `${leftName} takımdan ayrıldı.`,
+            excludeUserId: userId,
+        });
+        if (wasMatched && !staysMatched) notifyPendingRequestersOfReopen(id, rival.category, rival.subCategory, [userId]);
     } catch (error) { next(error); }
 };
 
