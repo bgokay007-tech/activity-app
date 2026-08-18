@@ -1060,6 +1060,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
+    // Voleybol: takım slotuna yerleşmiş bir oyuncuya ekstra pozisyon etiketi (Libero/Pasör/
+    // Smaçör) atar — kullanıcı isteği: bu, ilan oluşturma formunda zaten vardı (bkz.
+    // TeamSlotRow/setSlotPosition) ama sadece yerel state'ti, backend'e hiç gönderilmiyordu.
+    const setParticipantPositionApi = (userId, position) => {
+        api.patch(`/rivals/${item.id}/participant-position`, { userId, position })
+            .then(({ data }) => {
+                if (Array.isArray(data?.participants)) setLocalParticipants(data.participants);
+                if (Array.isArray(data?.senderTeam)) setLocalSenderTeam(data.senderTeam);
+                onRefresh();
+            })
+            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+    };
     // Kadro kartının arka yüzünde dolu bir slota basınca (kullanıcı isteği: "sağında çıkar/
     // değiştir yazsın, tıklayınca küçük pencerede Çıkar / Atanmamışa Taşı çıksın"). Manuel
     // (kayıtsız) isimlerde "Çıkar" backend'de henüz desteklenmiyor (bkz. removeRivalParticipant
@@ -1092,6 +1104,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             }
         }
         actions.push({ label: 'Atanmamışa Taşı', onPress: () => (p.id ? assignUnassignedToSide(p.id, null) : assignManualToSide(p.manualName, null)) });
+        // Voleybol: takım slotuna yerleşmiş oyuncuya ekstra pozisyon etiketi (kullanıcı isteği:
+        // "Libero/Pasör/Smaçör olarak ata") — aynı menüde, zaten seçili pozisyon tekrar listelenmez.
+        if (sub === 'volleyball' && p.id) {
+            if (p.position !== 'SPIKER') actions.push({ label: `🏐 ${t.positionSpiker}`, onPress: () => setParticipantPositionApi(p.id, 'SPIKER') });
+            if (p.position !== 'LIBERO') actions.push({ label: `🙌 ${t.positionLibero}`, onPress: () => setParticipantPositionApi(p.id, 'LIBERO') });
+            if (p.position !== 'SETTER') actions.push({ label: `🎯 ${t.positionSetter}`, onPress: () => setParticipantPositionApi(p.id, 'SETTER') });
+            if (p.position) actions.push({ label: t.positionClearOption, onPress: () => setParticipantPositionApi(p.id, null) });
+        }
         if (p.id) actions.push({ label: 'Çıkar', destructive: true, onPress: () => removeRivalParticipant(p.id, p.username) });
         return { visible: true, title: name, actions };
     })();
@@ -2032,7 +2052,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 ? <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
                                                 : <View style={{ width:14, height:14 }} />}
                                             <Animated.View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', opacity: unassignedWarning ? unassignedBlink : 0.8, minHeight:0 }]}>
-                                                <Text style={{ color: unassignedWarning ? '#ef4444' : '#fff', fontSize:10, fontWeight: unassignedWarning ? '800' : '400' }} numberOfLines={1}>{p.id ? playerDisplayName(p) : p.manualName}</Text>
+                                                <Text style={{ color: unassignedWarning ? '#ef4444' : '#fff', fontSize:10, fontWeight: unassignedWarning ? '800' : '400' }} numberOfLines={1}>
+                                                    {p.id ? playerDisplayName(p) : p.manualName}
+                                                    {/* Voleybol: ekstra pozisyon etiketi (Libero/Pasör/Smaçör) — kullanıcı isteği:
+                                                        isim ile derece puanı arasında parantez içinde göster. */}
+                                                    {sub === 'volleyball' && p.position && (
+                                                        <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({p.position === 'SPIKER' ? t.positionSpiker : p.position === 'LIBERO' ? t.positionLibero : t.positionSetter})</Text>
+                                                    )}
+                                                </Text>
                                             </Animated.View>
                                         </TouchableOpacity>
                                         {/* Kullanıcı isteği: "kadro kartta oyuncuların yanında derece puanları
@@ -5183,6 +5210,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             }}
                             onAddManualSlot={(name, side, slotIndex, gender) => {
                                 api.patch(`/rivals/${match.id}/add-manual-player`, { name, side, slotIndex, gender })
+                                    .then(() => onRefresh())
+                                    .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+                            }}
+                            onSetPosition={(userId, position) => {
+                                api.patch(`/rivals/${match.id}/participant-position`, { userId, position })
                                     .then(() => onRefresh())
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
@@ -8369,8 +8401,13 @@ function FriendsMultiPickerModal({ visible, onClose, sub, category, t, cfg, maxS
 // SINGLE (tenis/padel 1v1) ilan OLUŞTURMA formundaki kadro kartı — eskiden "Rakip Davet Et"
 // butonuyla açılan ayrı bir arama penceresi vardı, kullanıcı isteğiyle DOUBLE'daki Digimon kart
 // mantığına uyarlandı: ön yüz "Katılan Oyuncular" (1 satır, 2 forma — kurucu kilitli + rakip
-// yazılabilir), arka yüz aynı 2 forma Kurucu/Rakip etiketiyle. Doğrudan f.singleOppInvite'a
+// yazılabilir), arka yüz aynı 2 forma Kurucu/Rakip etiketiyle. Doğrudan f.singleOppInvites'a
 // bağlı, submit'teki mekanik (POST /invite, ilan oluştuktan hemen sonra) hiç değişmiyor.
+// Kullanıcı isteği: forma yazıp öneriden seçince tek kişi davet edilir (rakip formda tek bir
+// isim gösterir) ama uzun basıp açılan "davet et" ikonundan (FriendsMultiPickerModal) birden
+// fazla kişi seçilebilir — hangisi kabul ederse onunla oynanır, diğer davetler otomatik iptal
+// olur (bkz. backend notifyOtherPendingOwnerInvitesOfFull). f.singleOppInvites bu yüzden HER
+// ZAMAN bir dizi: forma seçimi [tekKişi], ikon seçimi [birden çok kişi] olarak yazar.
 function SingleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, t, editItem, onLongPressEmptySlot }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
@@ -8390,17 +8427,23 @@ function SingleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, t, 
             )}
         </View>
     );
-    const oppSlot = f.singleOppInvite ? (
-        <TouchableOpacity onPress={() => set('singleOppInvite', null)}
+    const oppInvites = Array.isArray(f.singleOppInvites) ? f.singleOppInvites : [];
+    const oppSlot = oppInvites.length > 0 ? (
+        <TouchableOpacity onPress={() => set('singleOppInvites', [])}
             style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:5, paddingVertical:4 }}>
-            <Avatar name={f.singleOppInvite.username} avatar={f.singleOppInvite.avatar} size={16} color={cfg.color} />
-            <Text style={{ color:'#fff', fontSize:10, flex:1, fontWeight:'700' }} numberOfLines={1}>{f.singleOppInvite.fullName || f.singleOppInvite.username}</Text>
+            <Avatar name={oppInvites[0].username} avatar={oppInvites[0].avatar} size={16} color={cfg.color} />
+            {/* Birden fazla kişi (uzun basıp davet et ikonundan) seçildiyse ilk isim + "+N" —
+                hangisi kabul ederse onunla oynanacağı için tek bir isim gösterilemez, ama tam
+                liste kadro kartındaki tek satırlık kutuya sığmayacak kadar uzun olabilir. */}
+            <Text style={{ color:'#fff', fontSize:10, flex:1, fontWeight:'700' }} numberOfLines={1}>
+                {oppInvites[0].fullName || oppInvites[0].username}{oppInvites.length > 1 ? ` +${oppInvites.length - 1}` : ''}
+            </Text>
             <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
         </TouchableOpacity>
     ) : !editItem ? (
         <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={t.inviteOpponentTitle || t.opponentTeamShortLabel || 'Rakip'}
             genderReq={f.genderReq}
-            onPick={(u) => set('singleOppInvite', u)} onOpenPicker={onLongPressEmptySlot} />
+            onPick={(u) => set('singleOppInvites', [u])} onOpenPicker={onLongPressEmptySlot} />
     ) : null;
     return (
         <View style={{ marginBottom:10 }}>
@@ -8609,7 +8652,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
 // "seç sonra hedefe dokun" ile atama. Kullanıcı isteğiyle iki kart birebir aynı davransın
 // diye kopyalandı — sadece veri kaynağı farklı (burada zaten kabul edilmiş gerçek
 // katılımcılar, formdaki gibi serbest metinle aranan boş slotlar değil).
-function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], substituteCount = 0, isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onSwap, onRemovePlayer, onInviteSlot, onAddManualSlot, matchMode, legacyOppManualNames = [], t, emoji = '🏐' }) {
+function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], substituteCount = 0, isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onSwap, onRemovePlayer, onSetPosition, onInviteSlot, onAddManualSlot, matchMode, legacyOppManualNames = [], t, emoji = '🏐' }) {
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
     const flip = () => {
@@ -8676,6 +8719,15 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                 }
             }
             actions.push({ label: 'Atanmamışa Taşı', onPress: () => onAssign(p.id, null, p.id ? undefined : p.manualName) });
+            // Voleybol: takım slotuna yerleşmiş oyuncuya ekstra pozisyon etiketi (kullanıcı
+            // isteği: "Libero/Pasör/Smaçör olarak ata") — aynı menüde, zaten seçili olan
+            // pozisyon tekrar listelenmez.
+            if (isVolleyball && p.id && onSetPosition) {
+                if (p.position !== 'SPIKER') actions.push({ label: `🏐 ${t.positionSpiker}`, onPress: () => onSetPosition(p.id, 'SPIKER') });
+                if (p.position !== 'LIBERO') actions.push({ label: `🙌 ${t.positionLibero}`, onPress: () => onSetPosition(p.id, 'LIBERO') });
+                if (p.position !== 'SETTER') actions.push({ label: `🎯 ${t.positionSetter}`, onPress: () => onSetPosition(p.id, 'SETTER') });
+                if (p.position) actions.push({ label: t.positionClearOption, onPress: () => onSetPosition(p.id, null) });
+            }
         }
         if (p.id && onRemovePlayer) actions.push({ label: 'Çıkar', destructive: true, onPress: () => onRemovePlayer(p.id) });
         return { visible: true, title: name, actions };
@@ -8739,7 +8791,14 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                     if (p) {
                         return (
                             <View key={p.id || i} style={{ flexDirection:'row', alignItems:'center', marginBottom:2 }}>
-                                <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{i + 1}. {p.id ? senderAlias(p) : p.manualName}{locked ? ' 🔒' : ''}</Text>
+                                <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>
+                                    {i + 1}. {p.id ? senderAlias(p) : p.manualName}{locked ? ' 🔒' : ''}
+                                    {/* Voleybol: ekstra pozisyon etiketi (Libero/Pasör/Smaçör) — kullanıcı
+                                        isteği: isim ile derece puanı arasında parantez içinde göster. */}
+                                    {isVolleyball && p.position && (
+                                        <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({p.position === 'SPIKER' ? t.positionSpiker : p.position === 'LIBERO' ? t.positionLibero : t.positionSetter})</Text>
+                                    )}
+                                </Text>
                                 {p.id && p.skillRating != null && (
                                     <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginRight:3 }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
                                 )}

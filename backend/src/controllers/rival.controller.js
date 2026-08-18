@@ -4831,6 +4831,49 @@ export const assignPlayerToSide = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Voleybol: bir takım slotuna yerleşmiş oyuncuya (kurucu hariç — o zaten sabit/kilitli)
+// ekstra pozisyon etiketi (Libero/Pasör/Smaçör) atamak için — kullanıcı isteği: bu, ilan
+// OLUŞTURMA formunda (bkz. TeamSlotRow/setSlotPosition) zaten vardı ama sadece yerel state'ti,
+// submit'te backend'e hiç gönderilmiyordu. Artık ilan oluştuktan sonra da (açık ilan/yaklaşan
+// maç kadro kartından) aynı pozisyon atanabiliyor ve kalıcı olarak saklanıyor.
+export const setParticipantPosition = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { userId, position } = req.body;
+        if (!userId) return res.status(400).json({ message: 'Oyuncu belirtilmedi' });
+        if (position !== null && !['SPIKER', 'LIBERO', 'SETTER'].includes(position)) {
+            return res.status(400).json({ message: 'Geçersiz pozisyon' });
+        }
+        const rival = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi pozisyon atayabilir' });
+        if (rival.subCategory !== 'volleyball') {
+            return res.status(400).json({ message: 'Bu işlem sadece voleybolda yapılabilir' });
+        }
+
+        const senderTeam = Array.isArray(rival.senderTeam) ? [...rival.senderTeam] : [];
+        const participants = Array.isArray(rival.participants) ? [...rival.participants] : [];
+        const substitutePlayers = Array.isArray(rival.substitutePlayers) ? [...rival.substitutePlayers] : [];
+        const applyPosition = (arr) => {
+            const idx = arr.findIndex(p => p?.id === userId);
+            if (idx === -1) return false;
+            if (position) arr[idx] = { ...arr[idx], position };
+            else { const { position: _drop, ...rest } = arr[idx]; arr[idx] = rest; }
+            return true;
+        };
+        const found = applyPosition(senderTeam) || applyPosition(participants) || applyPosition(substitutePlayers);
+        if (!found) return res.status(404).json({ message: 'Oyuncu bu ilanda bulunamadı' });
+
+        const updated = await prisma.activityRequest.update({
+            where: { id },
+            data: { senderTeam, participants, substitutePlayers },
+            include: { sender: { select: SENDER_SELECT } },
+        });
+        broadcast('rivalUpdate', updated);
+        res.json(updated);
+    } catch (error) { next(error); }
+};
+
 // Kullanıcı isteği: "karşıdaki oyunculardan biri ile değiştirmek isteniyorsa tüm slotlar
 // doluysa atanmamışa atıp sonra tekrar dağıtmakla uğraşmak yerine" — Değiştir/Çıkar menüsünde
 // karşı taraf DOLUYKEN, o taraftaki bir oyuncunun ismine dokununca doğrudan YER DEĞİŞTİRİR:
