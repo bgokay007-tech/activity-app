@@ -7142,7 +7142,6 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     // selSlot: { courtId, slot, flexDur } | null
     const [selSlot,     setSelSlot]     = useState(null);
     const [payMethod,   setPayMethod]   = useState('CASH');
-    const [booked,      setBooked]      = useState(false);
     const [validatingSlot, setValidatingSlot] = useState(false);
     const [varStartMap, setVarStartMap] = useState({});
     const [varDurMap,   setVarDurMap]   = useState({});
@@ -7164,7 +7163,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     useEffect(() => { if (visible) selDateWasChangedManually.current = false; }, [visible]);
     useEffect(() => {
         if (!visible || !venueId) return;
-        setVenue(null); setCourtsSlots({}); setSelSlot(null); setSelDate(initialDate || todayStr()); setBooked(false);
+        setVenue(null); setCourtsSlots({}); setSelSlot(null); setSelDate(initialDate || todayStr());
         initialAppliedRef.current = false;
         setLoadingV(true);
         api.get(`/venues/${venueId}`)
@@ -7342,7 +7341,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
         const effectiveIndoor = activeCourt?.indoor ?? venue?.courtIndoorDefault ?? false;
         const courtObj = { name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId, id: courtId, city: venue?.city, totalPrice: courtTotalPrice, totalPriceByMethod, surface: activeCourt?.surface || null, indoor: effectiveIndoor };
         onBooked?.(courtObj, selDate, slot.start, endTime, payMethod);
-        setBooked(true);
+        // Kullanıcı isteği: eskiden burada sadece "booked" işaretlenip ayrı bir "Kaldığın
+        // yerden devam et" butonuna basmak gerekiyordu — iki defa onay gereksizdi. Artık
+        // seçim aktarılır aktarılmaz modal doğrudan kapanıp kaldığı yere (CreateRivalModal) döner.
+        onClose?.();
     };
 
     // Eskiden burada bir saat sonra (600ms/1500ms) OTOMATİK onaylayan bir zamanlayıcı vardı —
@@ -7668,10 +7670,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                             </ScrollView>
 
                             {/* Seçim + Ödeme + Rezervasyon — sadece slot seçiliyken */}
-                            {!selSlot && !booked && (
+                            {!selSlot && (
                                 <Text style={[vb.emptyTxt, { textAlign:'center', paddingVertical:3 }]}>Yukarıdan bir saat seçin</Text>
                             )}
-                            {selSlot && !booked && (() => {
+                            {selSlot && (() => {
                                 const courtData = courtsSlots[selSlot.courtId]?.data;
                                 const isStructured = courtData?.type === 'FULL_HOUR' || courtData?.type === 'HALF_HOUR' || courtData?.type === 'NINETY_MIN';
                                 const selCourt = venue.courts?.find(c => c.id === selSlot.courtId);
@@ -7693,7 +7695,12 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                     : 60;
                                 const canConfirm = !isStructured || totalMins >= 60;
                                 return (
-                                    <ScrollView style={vb.body} showsVerticalScrollIndicator={false}>
+                                    // Kullanıcı isteği: bu panel ekranın en altına yaslansın (üstündeki kort
+                                    // ızgarası boşluk bırakmasın), satırlar arası boşluk sıkı (gap:1) olsun —
+                                    // marginTop:'auto' bu flex sütununda paneli aşağı iter, dış paddingBottom
+                                    // (insets.bottom, bkz. vb.sheet) zaten telefonun gezinme çubuğunu hesaba
+                                    // katıyor.
+                                    <ScrollView style={[vb.body, { marginTop:'auto' }]} contentContainerStyle={{ gap:1 }} showsVerticalScrollIndicator={false}>
                                         <View style={[vb.selSummary, { flexDirection:'row', alignItems:'center', paddingVertical:2 }]}>
                                             <Text style={[vb.selSummaryTxt, { flex:1, textAlign:'left' }]} numberOfLines={1}>
                                                 ✅ {selCourt?.name} · {selSlot.slot.start}{summaryEnd ? ` – ${summaryEnd}` : ''}
@@ -7744,14 +7751,14 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                 )}
                                             </View>
                                         )}
-                                        {/* Kullanıcı isteği: seçim otomatik onaylanmasın — tarih/saat/kutucuk
-                                            sayısını serbestçe değiştirebilsin, sadece bu butona basınca
-                                            (confirmBooking) seçim CreateRivalModal'a aktarılsın. Gerçek kort
-                                            bloğu zaten daha geç, "İlan Oluştur"a basılınca oluşuyor. */}
+                                        {/* Kullanıcı isteği: eskiden bu buton seçimi onaylayıp "Kaldığın yerden
+                                            devam et" diye AYRI bir ikinci buton gösteriyordu — iki defa onay
+                                            gereksizdi. Artık tek dokunuş: confirmBooking hem seçimi
+                                            CreateRivalModal'a aktarır hem de modalı kapatıp kaldığı yere döner. */}
                                         <TouchableOpacity
                                             onPress={confirmBooking}
                                             disabled={!canConfirm || validatingSlot}
-                                            style={{ backgroundColor: canConfirm ? '#16a34a' : '#374151', borderRadius:10, paddingVertical:11, alignItems:'center', marginTop:8, opacity: validatingSlot ? 0.7 : 1 }}>
+                                            style={{ backgroundColor: canConfirm ? '#16a34a' : '#374151', borderRadius:10, paddingVertical:11, alignItems:'center', opacity: validatingSlot ? 0.7 : 1 }}>
                                             {validatingSlot ? (
                                                 <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
                                                     <ActivityIndicator color="#fff" size="small" />
@@ -7759,23 +7766,16 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                 </View>
                                             ) : (
                                                 <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>
-                                                    {canConfirm ? '✓ Bu Saati Onayla' : `Devam etmek için en az 60dk seçin`}
+                                                    {canConfirm ? '✓ Onayla ve Devam Et' : `Devam etmek için en az 60dk seçin`}
                                                 </Text>
                                             )}
                                         </TouchableOpacity>
-                                        <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center' }}>
                                             Kort, ilanı oluşturduğunuzda rezerve edilir.
                                         </Text>
-                                        <View style={{ height: 6 }} />
                                     </ScrollView>
                                 );
                             })()}
-
-                            {booked && (
-                                <TouchableOpacity style={vb.continueBtn} onPress={onClose} activeOpacity={0.85}>
-                                    <Text style={vb.continueBtnTxt}>📌 Kaldığın yerden devam et</Text>
-                                </TouchableOpacity>
-                            )}
                         </View>
                     )}
                 </View>
@@ -8007,8 +8007,6 @@ const vb = StyleSheet.create({
     ibanVal:      { color:'#fff', fontWeight:'600' },
     bookBtn:      { backgroundColor:'#22c55e', borderRadius:10, padding:3, alignItems:'center', marginTop:3 },
     bookBtnTxt:   { color:'#fff', fontSize:15, fontWeight:'700' },
-    continueBtn:  { backgroundColor:'#7c3aed', borderRadius:10, padding:3, alignItems:'center', margin:3, marginTop:3 },
-    continueBtnTxt: { color:'#fff', fontSize:15, fontWeight:'700' },
 
     // Çok sütunlu kort görünümü
     courtsRow:    { flexDirection:'row', alignItems:'stretch', paddingHorizontal:3, paddingVertical:1, gap:1 },
