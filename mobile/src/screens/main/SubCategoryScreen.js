@@ -5845,6 +5845,18 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                     </View>
 
+                    {/* Açıklama + Ödül — kullanıcı isteği: maç eşleşince ilan sahibinin yazdığı
+                        açıklama/ödül maç detayından tamamen kayboluyordu, burada Yorumlar'ın
+                        hemen üstünde (RivalDetailModal'daki açık ilan görünümüyle aynı stil) tekrar
+                        gösteriliyor. */}
+                    {match.message && <Text style={{ color: colors.textSecondary, fontSize:13, marginBottom:12 }}>{match.message}</Text>}
+                    {match.wager && (
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'#f59e0b20', borderWidth:1, borderColor:'#f59e0b50', borderRadius:10, paddingHorizontal:8, paddingVertical:6, marginBottom:12 }}>
+                            <Text style={{ fontSize:14 }}>🏆</Text>
+                            <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700', flex:1 }}>{match.wager}</Text>
+                        </View>
+                    )}
+
                     {/* Comments section */}
                     <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:12 }}>
                         💬 Yorumlar{localComments.length > 0 ? ` (${localComments.length})` : ''}
