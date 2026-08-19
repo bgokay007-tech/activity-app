@@ -6251,16 +6251,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <Text style={{ color:'#fb923c', fontSize:13, fontWeight:'700' }}>🚫 Gelmedi</Text>
                             </TouchableOpacity>
                         )}
-                        {/* Kullanıcı isteği: "maç skoru girerken media paylaş da olsun" — maç bittikten
-                            sonra (skor girilmiş olsun olmasın) o maçtan foto/video paylaşılabilsin,
-                            o sporun Medya sekmesine düşsün. */}
-                        {isParticipant && matchEnded && ['tennis', 'padel', 'volleyball', 'badminton'].includes(match.subCategory) && (
-                            <TouchableOpacity
-                                style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#0ea5e950', backgroundColor:'#0ea5e918', alignItems:'center', opacity: sharingMedia ? 0.6 : 1 }}
-                                onPress={shareMatchMedia} disabled={sharingMedia}>
-                                <Text style={{ color:'#38bdf8', fontSize:13, fontWeight:'700' }}>{sharingMedia ? t.sending : '📷 Medya Paylaş'}</Text>
-                            </TouchableOpacity>
-                        )}
                         {match._myNoShowPending && (
                             <View style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#f9731630', backgroundColor:'#f9731610', alignItems:'center' }}>
                                 <Text style={{ color:'#fb923c', fontSize:13 }}>⏳ Bildirildi</Text>
