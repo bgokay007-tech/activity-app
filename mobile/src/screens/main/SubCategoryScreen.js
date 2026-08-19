@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useIsFocused } from '@react-navigation/native';
 import {
     View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
@@ -3296,7 +3296,16 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     // Telefonun geri tuşu (Android donanım/gesture back) varsayılan olarak
     // ekranın tamamından çıkıp bir önceki sayfaya atıyordu — açık bir modal
     // varken önce SADECE o modalı kapatması için burada yakalanıyor.
+    // isFocused şartı: kullanıcı ilan detayındayken kullanıcı avatarına dokunup
+    // Profile'a gidince (navigation.push) bu kart hâlâ mount'lu kalıyor (React
+    // Navigation ekranları push'ta unmount etmiyor) ve BackHandler dinleyicisi
+    // global olduğu için Profile ekranındayken basılan geri tuşunu da bu kart
+    // yakalayıp sessizce detailVisible'ı kapatıyordu — geri tuşu Profile'ı hiç
+    // POP'lamıyor, kullanıcı ikinci kez geri basınca da artık detay kapanmış
+    // olduğu için doğrudan açık ilanlar listesine düşüyordu (kullanıcı raporu).
+    const isFocused = useIsFocused();
     useEffect(() => {
+        if (!isFocused) return;
         const onBackPress = () => {
             if (editVisible) { closeEdit(); return true; }
             if (detailVisible) { setDetailVisible(false); return true; }
@@ -3304,7 +3313,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         };
         const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
         return () => sub.remove();
-    }, [editVisible, detailVisible]);
+    }, [editVisible, detailVisible, isFocused]);
 
     // Sunucudan gelen veri local override'ı geçersiz kılar
     useEffect(() => { setLocalJoinStatus(null); }, [item._myJoinStatus]);
