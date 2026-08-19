@@ -1126,6 +1126,24 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         setTeamNameEdit(null);
         setSlotActionTarget(null);
     }, [visible]);
+    // Kullanıcı raporu: "oyuncu davet et" panelini (👥 ikonu) açıp telefonun geri tuşuna
+    // basınca panel kapanmak yerine doğrudan ilan detayının tamamı kapanıp açık ilanlar
+    // listesine düşülüyordu. Sebep: bu panel ayrı bir <Modal> DEĞİL (yukarıdaki not — iç içe
+    // Modal klavye açılınca çöküyordu), bu yüzden geri tuşu hiç yakalanmadan doğrudan dış
+    // Modal'ın onRequestClose={onClose}'una gidiyordu. Panel açıkken geri tuşu önce SADECE
+    // paneli kapatsın diye burada yakalanıyor (kapatma mantığı panelin ✕ butonuyla aynı).
+    useEffect(() => {
+        if (!visible || !inviteModalVisible) return;
+        const onBackPress = () => {
+            setInviteModalVisible(false);
+            setInviteQuery('');
+            setInviteResults([]);
+            setInviteForReferee(false);
+            return true;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [visible, inviteModalVisible]);
     const slotActionSheetProps = (() => {
         if (!slotActionTarget) return { visible: false, title: '', actions: [] };
         const { p, side, mode } = slotActionTarget;
