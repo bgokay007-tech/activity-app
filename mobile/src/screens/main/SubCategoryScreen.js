@@ -5595,6 +5595,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             onEditFounderName={() => setTeamNameModal({ side:'founder', value: match.founderTeamName || '' })}
                             onEditOppName={() => setTeamNameModal({ side:'opponent', value: match.opponentTeamName || '' })}
                             isOwner={isOwner}
+                            myId={myId}
+                            positionSuggestions={Array.isArray(match.positionSuggestions) ? match.positionSuggestions : []}
                             t={t}
                             onAssign={(userId, side, manualName) => {
                                 api.patch(`/rivals/${match.id}/assign-player`, userId ? { userId, side } : { manualName, side })
@@ -5635,6 +5637,18 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             }}
                             onSetPosition={(userId, position) => {
                                 api.patch(`/rivals/${match.id}/participant-position`, { userId, position })
+                                    .then(() => onRefresh())
+                                    .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+                            }}
+                            // Kullanıcı isteği: ilan sahibi olmayan katılımcı kendisi için bir pozisyon
+                            // önerebilsin — ilan sahibinin onayını bekler (bkz. onRespondPositionSuggestion).
+                            onSuggestPosition={(userId, position) => {
+                                api.post(`/rivals/${match.id}/participant-position/suggest`, { position })
+                                    .then(() => { Alert.alert('', t.positionSuggestionSentMsg); onRefresh(); })
+                                    .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+                            }}
+                            onRespondPositionSuggestion={(userId, action, rejectReason) => {
+                                api.patch(`/rivals/${match.id}/participant-position/suggest/respond`, { userId, action, rejectReason })
                                     .then(() => onRefresh())
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
@@ -9306,7 +9320,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
 // "seç sonra hedefe dokun" ile atama. Kullanıcı isteğiyle iki kart birebir aynı davransın
 // diye kopyalandı — sadece veri kaynağı farklı (burada zaten kabul edilmiş gerçek
 // katılımcılar, formdaki gibi serbest metinle aranan boş slotlar değil).
-function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], substituteCount = 0, isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, onAssign, onSwap, onRemovePlayer, onSetPosition, onInviteSlot, onAddManualSlot, matchMode, legacyOppManualNames = [], t, emoji = '🏐' }) {
+function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlayers = [], substituteCount = 0, isVolleyball = true, teamSize = 1, sub, category, founderTeamName, opponentTeamName, canEditFounderName, canEditOppName, onEditFounderName, onEditOppName, isOwner, myId, positionSuggestions = [], onAssign, onSwap, onRemovePlayer, onSetPosition, onSuggestPosition, onRespondPositionSuggestion, onInviteSlot, onAddManualSlot, matchMode, legacyOppManualNames = [], t, emoji = '🏐' }) {
     // Kullanıcı isteği: isme dokununca artık Profiline Git yanında Pozisyona Ata seçeneği de
     // çıksın — bu kart daha önce navigation'a hiç erişemiyordu (prop olarak geçilmiyordu).
     const navigation = useNavigation();
@@ -9363,6 +9377,12 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
             if (isOwner && isVolleyball && p.id && onSetPosition) {
                 actions.push({ label: `🏐 ${t.positionAssignBtn}`, onPress: () => setSlotActionTarget({ p, side, mode: 'position' }) });
             }
+            // Kullanıcı isteği: ilan sahibi olmayan bir katılımcı da kendi ismine dokununca
+            // kendisi için bir pozisyon önerebilsin — ilan sahibi onaylarsa gerçek pozisyona
+            // atanır, reddederse (bkz. 'suggestionReview') sebebiyle bildirim gelir.
+            if (!isOwner && p.id === myId && isVolleyball && onSuggestPosition) {
+                actions.push({ label: `🏐 ${t.positionSuggestBtn}`, onPress: () => setSlotActionTarget({ p, side, mode: 'suggestPosition' }) });
+            }
             if (p.id) actions.push({ label: `👤 ${t.goToProfileBtn}`, onPress: () => navigation.push('Profile', { userId: p.id }) });
             return { visible: true, title: name, actions };
         }
@@ -9371,6 +9391,23 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
             if (p.position !== 'LIBERO') actions.push({ label: `🙌 ${t.positionLibero}`, onPress: () => onSetPosition(p.id, 'LIBERO') });
             if (p.position !== 'SETTER') actions.push({ label: `🎯 ${t.positionSetter}`, onPress: () => onSetPosition(p.id, 'SETTER') });
             if (p.position) actions.push({ label: t.positionClearOption, onPress: () => onSetPosition(p.id, null) });
+            return { visible: true, title: name, actions };
+        }
+        if (mode === 'suggestPosition') {
+            if (p.position !== 'SPIKER') actions.push({ label: `🏐 ${t.positionSpiker}`, onPress: () => onSuggestPosition(p.id, 'SPIKER') });
+            if (p.position !== 'LIBERO') actions.push({ label: `🙌 ${t.positionLibero}`, onPress: () => onSuggestPosition(p.id, 'LIBERO') });
+            if (p.position !== 'SETTER') actions.push({ label: `🎯 ${t.positionSetter}`, onPress: () => onSuggestPosition(p.id, 'SETTER') });
+            return { visible: true, title: t.positionSuggestPickerTitle, actions };
+        }
+        // Kullanıcı isteği: ilan sahibi bekleyen bir öneriyi görünce Onayla ya da (iki hazır
+        // sebepten birini seçerek) Reddet diyebilsin — reddedince seçilen sebep katılımcıya
+        // bildirim olarak gider.
+        if (mode === 'suggestionReview') {
+            const suggestion = positionSuggestions.find(s => s?.userId === p.id);
+            const posLabel = suggestion?.position === 'SPIKER' ? t.positionSpiker : suggestion?.position === 'LIBERO' ? t.positionLibero : t.positionSetter;
+            actions.push({ label: `✅ ${t.positionSuggestionApproveBtn} (${posLabel})`, onPress: () => onRespondPositionSuggestion(p.id, 'approve') });
+            actions.push({ label: `📅 ${t.positionSuggestionRejectArrangeBtn}`, onPress: () => onRespondPositionSuggestion(p.id, 'reject', 'CAN_ARRANGE_IN_MATCH') });
+            actions.push({ label: `🚫 ${t.positionSuggestionRejectFullBtn}`, onPress: () => onRespondPositionSuggestion(p.id, 'reject', 'POSITION_FULL') });
             return { visible: true, title: name, actions };
         }
         if (side == null) {
@@ -9460,16 +9497,21 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                         // sıkışıyordu — artık isim/derece üstte, pozisyon (varsa) + Değiştir/Çıkar
                         // altta, ismin biraz sağından başlayan ikinci bir satırda.
                         const posLabel = isVolleyball && p.position ? (p.position === 'SPIKER' ? t.positionSpiker : p.position === 'LIBERO' ? t.positionLibero : t.positionSetter) : '';
+                        const isMe = p.id != null && p.id === myId;
+                        const pendingSuggestion = isVolleyball && p.id ? positionSuggestions.find(s => s?.userId === p.id) : null;
+                        const pendingSuggestionLabel = pendingSuggestion ? (pendingSuggestion.position === 'SPIKER' ? t.positionSpiker : pendingSuggestion.position === 'LIBERO' ? t.positionLibero : t.positionSetter) : '';
                         return (
                             <View key={p.id || i} style={{ marginBottom:4 }}>
                                 <View style={{ flexDirection:'row', alignItems:'center' }}>
                                     {/* Kullanıcı isteği: isme dokununca artık direkt profile gitmiyor —
                                         ilan sahibi + voleybolda "Pozisyona Ata"/"Profiline Git" seçenekleri
                                         çıkıyor (kurucu/kilitli satır dahil — "kendine pozisyon atayamıyor"
-                                        şikayeti buradan çözülüyor). Diğer herkes için direkt profile gider. */}
+                                        şikayeti buradan çözülüyor). İlan sahibi olmayan katılımcı kendi
+                                        satırına dokununca da "Pozisyon Ata Önerisi" seçeneğini görür (bkz.
+                                        nameMenu). Diğer herkes için direkt profile gider. */}
                                     <TouchableOpacity disabled={!p.id} style={{ flex:1 }}
                                         onPress={() => {
-                                            if (isOwner && isVolleyball && onSetPosition) promptSlotAction(p, targetSide, 'nameMenu');
+                                            if ((isOwner && isVolleyball && onSetPosition) || (!isOwner && isMe && isVolleyball && onSuggestPosition)) promptSlotAction(p, targetSide, 'nameMenu');
                                             else if (p.id) navigation.push('Profile', { userId: p.id });
                                         }}>
                                         <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>
@@ -9496,6 +9538,18 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                                             </TouchableOpacity>
                                         )}
                                     </View>
+                                )}
+                                {/* Kullanıcı isteği: katılımcının kendisi için önerdiği, ilan sahibinin
+                                    henüz yanıtlamadığı pozisyon — ilan sahibi dokununca Onayla/Reddet
+                                    menüsü açılır (bkz. 'suggestionReview'), öneriyi yapan sadece bekliyor. */}
+                                {pendingSuggestion && (
+                                    <TouchableOpacity disabled={!isOwner} activeOpacity={isOwner ? 0.6 : 1}
+                                        onPress={() => isOwner && setSlotActionTarget({ p, side: targetSide, mode: 'suggestionReview' })}
+                                        style={{ paddingLeft:12, marginTop:1 }}>
+                                        <Text style={{ color:'#facc15', fontSize:9, fontWeight:'700' }} numberOfLines={1}>
+                                            {isOwner ? `🏐 ${t.positionSuggestionPendingOwnerLabel(pendingSuggestionLabel)}` : `⏳ ${t.positionSuggestionPendingMineLabel(pendingSuggestionLabel)}`}
+                                        </Text>
+                                    </TouchableOpacity>
                                 )}
                             </View>
                         );

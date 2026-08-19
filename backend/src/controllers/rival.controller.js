@@ -5244,6 +5244,112 @@ export const setParticipantPosition = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Kullanıcı isteği: ilan sahibi olmayan bir katılımcı da kendisi için bir pozisyon
+// ÖNERebilsin (doğrudan atayamaz, o hâlâ sadece ilan sahibinde — bkz. setParticipantPosition
+// yukarıda). Öneri ilan sahibine bildirim olarak gider, onay/red bkz. respondPositionSuggestion.
+export const suggestOwnPosition = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { position } = req.body;
+        if (!['SPIKER', 'LIBERO', 'SETTER'].includes(position)) {
+            return res.status(400).json({ message: 'Geçersiz pozisyon' });
+        }
+        const rival = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (rival.subCategory !== 'volleyball') {
+            return res.status(400).json({ message: 'Bu işlem sadece voleybolda yapılabilir' });
+        }
+        if (rival.senderId === req.userId) {
+            return res.status(400).json({ message: 'İlan sahibi kendine doğrudan pozisyon atayabilir, öneri göndermesine gerek yok' });
+        }
+        const isParticipant = [
+            ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []),
+            ...(Array.isArray(rival.participants) ? rival.participants : []),
+            ...(Array.isArray(rival.substitutePlayers) ? rival.substitutePlayers : []),
+        ].some(p => p?.id === req.userId);
+        if (!isParticipant) return res.status(403).json({ message: 'Bu maçın kadrosunda değilsiniz' });
+
+        // Aynı kişinin önceki bekleyen önerisi varsa (henüz yanıtlanmamış) yenisiyle değişir.
+        const existing = Array.isArray(rival.positionSuggestions) ? rival.positionSuggestions : [];
+        const positionSuggestions = [
+            ...existing.filter(s => s?.userId !== req.userId),
+            { userId: req.userId, position, createdAt: new Date().toISOString() },
+        ];
+        const updated = await prisma.activityRequest.update({ where: { id }, data: { positionSuggestions } });
+        broadcast('rivalUpdate', updated);
+        res.json(updated);
+
+        const posLabel = position === 'SPIKER' ? 'Smaçör' : position === 'LIBERO' ? 'Libero' : 'Pasör';
+        prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } })
+            .then(me => createNotification(
+                rival.senderId, 'POSITION_SUGGESTED', '🏐 Pozisyon Önerisi',
+                `${me?.fullName || me?.username || 'Bir oyuncu'}, kendisi için ${posLabel} pozisyonunu öneriyor — onaylarsan o pozisyona atanır.`,
+                { rivalId: id, category: rival.category, subCategory: rival.subCategory }
+            ).catch(() => {})).catch(() => {});
+    } catch (error) { next(error); }
+};
+
+// İlan sahibi bekleyen bir pozisyon önerisini onaylar (gerçek atama yapılır, bkz.
+// setParticipantPosition'daki aynı applyPosition mantığı) ya da reddeder — reddederken iki
+// hazır sebepten birini seçer, katılımcıya o sebeple bildirim gider.
+export const respondPositionSuggestion = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { userId, action, rejectReason } = req.body;
+        if (!userId) return res.status(400).json({ message: 'Oyuncu belirtilmedi' });
+        if (!['approve', 'reject'].includes(action)) return res.status(400).json({ message: 'Geçersiz işlem' });
+        if (action === 'reject' && !['CAN_ARRANGE_IN_MATCH', 'POSITION_FULL'].includes(rejectReason)) {
+            return res.status(400).json({ message: 'Geçersiz red sebebi' });
+        }
+        const rival = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi öneriyi yanıtlayabilir' });
+
+        const existing = Array.isArray(rival.positionSuggestions) ? rival.positionSuggestions : [];
+        const suggestion = existing.find(s => s?.userId === userId);
+        if (!suggestion) return res.status(404).json({ message: 'Bekleyen bir öneri bulunamadı' });
+        const positionSuggestions = existing.filter(s => s?.userId !== userId);
+
+        let updated;
+        if (action === 'approve') {
+            const senderTeam = Array.isArray(rival.senderTeam) ? [...rival.senderTeam] : [];
+            const participants = Array.isArray(rival.participants) ? [...rival.participants] : [];
+            const substitutePlayers = Array.isArray(rival.substitutePlayers) ? [...rival.substitutePlayers] : [];
+            const applyPosition = (arr) => {
+                const idx = arr.findIndex(p => p?.id === userId);
+                if (idx === -1) return false;
+                arr[idx] = { ...arr[idx], position: suggestion.position };
+                return true;
+            };
+            const found = applyPosition(senderTeam) || applyPosition(participants) || applyPosition(substitutePlayers);
+            if (!found) return res.status(404).json({ message: 'Oyuncu bu ilanda bulunamadı' });
+            updated = await prisma.activityRequest.update({
+                where: { id },
+                data: { senderTeam, participants, substitutePlayers, positionSuggestions },
+            });
+        } else {
+            updated = await prisma.activityRequest.update({ where: { id }, data: { positionSuggestions } });
+        }
+        broadcast('rivalUpdate', updated);
+        res.json(updated);
+
+        const posLabel = suggestion.position === 'SPIKER' ? 'Smaçör' : suggestion.position === 'LIBERO' ? 'Libero' : 'Pasör';
+        if (action === 'approve') {
+            createNotification(userId, 'POSITION_SUGGESTION_APPROVED', '✅ Pozisyon Önerin Onaylandı',
+                `${posLabel} pozisyonuna atandın.`,
+                { rivalId: id, category: rival.category, subCategory: rival.subCategory }
+            ).catch(() => {});
+        } else {
+            const reasonText = rejectReason === 'POSITION_FULL'
+                ? `${posLabel} pozisyonu zaten dolu.`
+                : 'İlan sahibi bu öneriyi şimdilik onaylamadı — pozisyonunu maç içinde kendi aranızda ayarlayabilirsiniz.';
+            createNotification(userId, 'POSITION_SUGGESTION_REJECTED', '😕 Pozisyon Önerin Onaylanmadı', reasonText,
+                { rivalId: id, category: rival.category, subCategory: rival.subCategory }
+            ).catch(() => {});
+        }
+    } catch (error) { next(error); }
+};
+
 // Kullanıcı isteği: "karşıdaki oyunculardan biri ile değiştirmek isteniyorsa tüm slotlar
 // doluysa atanmamışa atıp sonra tekrar dağıtmakla uğraşmak yerine" — Değiştir/Çıkar menüsünde
 // karşı taraf DOLUYKEN, o taraftaki bir oyuncunun ismine dokununca doğrudan YER DEĞİŞTİRİR:
