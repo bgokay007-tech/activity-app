@@ -533,6 +533,71 @@ async function perTeamGenderFeasible(rival, side, sideArrFinal) {
     return null;
 }
 
+// updateRivalRequest'te cinsiyet dağılımı ayarları değiştiğinde (ör. "takım başına en az 2
+// kadın" → "1 kadın") kullanılır — kullanıcı raporu: ayar SIKILAŞTIRILMASA (aksine
+// GEVŞETİLSE) bile mevcut kabul edilmiş TÜM oyuncular gereksiz yere "son onay bekliyor"
+// durumuna çekiliyordu. Artık düzenleme öncesi, YENİ ayarlarla mevcut kadronun (kabul
+// edilmiş + atanmamış havuzdaki) hâlâ mümkün/uyumlu olup olmadığı kontrol edilir; sadece
+// gerçekten imkansız hale geliyorsa (ör. minimum artırıldı ve kadroda yeterli sayı yok)
+// düzenleme bir uyarı mesajıyla reddedilir — ilan sahibi önce uymayan oyuncuları kadrodan
+// çıkarmalı, sistem kimseyi otomatik olarak isteklere geri almaz.
+async function rosterMeetsGenderQuota(rival, genderCountMode, requiredMaleCount, minGenderReq, minGenderCount) {
+    if (!['volleyball', 'airsoft'].includes(rival.subCategory)) return null;
+    if ((rival.teamSize || 1) <= 1) return null;
+
+    // MIN_PER_TEAM: senderTeam/participants zaten tarafa göre ayrılmış durumda — accept
+    // anındaki (havuz henüz bölünmemişken kullanılan) ×2 yaklaşıklığı yerine, her tarafın
+    // GERÇEK kadrosuyla perTeamGenderFeasible'ın kendisi kullanılır, daha doğru sonuç verir.
+    if (genderCountMode === 'MIN_PER_TEAM') {
+        if (minGenderCount == null || !['MALE', 'FEMALE'].includes(minGenderReq)) return null;
+        const proposedRival = { ...rival, genderCountMode, minGenderReq, minGenderCount };
+        const myErr = await perTeamGenderFeasible(proposedRival, 'my', Array.isArray(rival.senderTeam) ? rival.senderTeam : []);
+        if (myErr) return myErr;
+        const oppErr = await perTeamGenderFeasible(proposedRival, 'opp', Array.isArray(rival.participants) ? rival.participants : []);
+        if (oppErr) return oppErr;
+        return null;
+    }
+
+    const isExactMode = genderCountMode == null ? requiredMaleCount != null : genderCountMode === 'EXACT';
+    const isMinMode = genderCountMode === 'MIN' && minGenderCount != null && ['MALE', 'FEMALE'].includes(minGenderReq);
+    if (!isExactMode && !isMinMode) return null;
+
+    const totalSlots = 2 * rival.teamSize;
+    const rosterArrays = [
+        ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []),
+        ...(Array.isArray(rival.participants) ? rival.participants : []),
+        ...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []),
+    ];
+    const hasSlot = (p) => p && (p.id || p.manualName);
+    const filledRoster = rosterArrays.filter(hasSlot);
+    const existingIds = [rival.senderId, ...filledRoster.map(p => p?.id).filter(Boolean)];
+    const existingUsers = await prisma.user.findMany({ where: { id: { in: existingIds } }, select: { id: true, gender: true } });
+    const genderById = new Map(existingUsers.map(u => [u.id, u.gender]));
+    const genderOf = (p) => p.id ? genderById.get(p.id) : p.gender;
+
+    const founderGender = genderById.get(rival.senderId);
+    const maleCount = (founderGender === 'MALE' ? 1 : 0) + filledRoster.filter(p => genderOf(p) === 'MALE').length;
+    const femaleCount = (founderGender === 'FEMALE' ? 1 : 0) + filledRoster.filter(p => genderOf(p) === 'FEMALE').length;
+    const totalFilled = 1 + filledRoster.length;
+    const remaining = totalSlots - totalFilled;
+
+    if (isExactMode) {
+        if (requiredMaleCount == null) return null;
+        const femaleQuota = totalSlots - requiredMaleCount;
+        if (maleCount > requiredMaleCount) return `Bu değişiklikle erkek kontenjanı (${requiredMaleCount}) aşılıyor — kadronuzda şu anda ${maleCount} erkek var. Önce kadrodan/isteklerden yeterince erkek oyuncu çıkarmanız gerekiyor.`;
+        if (femaleCount > femaleQuota) return `Bu değişiklikle kadın kontenjanı (${femaleQuota}) aşılıyor — kadronuzda şu anda ${femaleCount} kadın var. Önce kadrodan/isteklerden yeterince kadın oyuncu çıkarmanız gerekiyor.`;
+        return null;
+    }
+
+    const currentMinGenderCount = minGenderReq === 'MALE' ? maleCount : femaleCount;
+    const neededMore = Math.max(0, minGenderCount - currentMinGenderCount);
+    if (neededMore > remaining) {
+        const label = minGenderReq === 'MALE' ? 'erkek' : 'kadın';
+        return `Bu değişiklikle en az ${minGenderCount} ${label} hedefi mevcut kadronuzla imkansız hale geliyor (şu anda ${currentMinGenderCount} ${label} var, ${remaining} boş kontenjan kaldı). Önce uymayan oyuncuları kadrodan/isteklerden çıkarmanız gerekiyor.`;
+    }
+    return null;
+}
+
 // Voleybol/airsoft bireysel kabul (isIndividualTeamJoin): ana kadroda (genel doluluk ya da
 // cinsiyet kotası) yer kalmamışsa, doğrudan reddetmek yerine önce yedek kontenjanına bakılır —
 // varsa oraya yerleştirilir, yoksa reddedilip "kadro dolmuştur" bildirimi gider. Kullanıcı
@@ -1136,6 +1201,15 @@ export const updateRivalRequest = async (req, res, next) => {
             if (['MIN', 'MIN_PER_TEAM'].includes(genderCountMode) && !['MALE', 'FEMALE'].includes(minGenderReq)) {
                 return res.status(400).json({ message: 'Minimum cinsiyet dağılımı için cinsiyet seçimi gerekli' });
             }
+            // Kullanıcı raporu: cinsiyet dağılımı ayarı değiştirildiğinde (gevşetilse bile)
+            // TÜM kabul edilmiş oyuncular otomatik olarak "son onay bekliyor"na çekiliyordu —
+            // bkz. rosterMeetsGenderQuota. Artık sadece yeni ayarla mevcut kadro gerçekten
+            // imkansız hale geliyorsa düzenleme reddedilir, kimse otomatik geri alınmaz.
+            const effRequiredMaleCount = genderCountMode === 'EXACT' && requiredMaleCount !== null && requiredMaleCount !== '' ? parseInt(requiredMaleCount, 10) : null;
+            const effMinGenderReq = ['MIN', 'MIN_PER_TEAM'].includes(genderCountMode) ? minGenderReq : null;
+            const effMinGenderCount = ['MIN', 'MIN_PER_TEAM'].includes(genderCountMode) && minGenderCount !== null && minGenderCount !== '' ? parseInt(minGenderCount, 10) : null;
+            const quotaErr = await rosterMeetsGenderQuota(rival, genderCountMode, effRequiredMaleCount, effMinGenderReq, effMinGenderCount);
+            if (quotaErr) return res.status(400).json({ message: quotaErr });
         }
 
         let cleanExtraServices;
@@ -1186,6 +1260,25 @@ export const updateRivalRequest = async (req, res, next) => {
         const matchTypeRequested = matchType !== undefined && matchType.toUpperCase() !== rival.matchType;
         const matchTypeLocked = matchTypeRequested && hasParticipants;
         const applyMatchType = matchTypeRequested && !hasParticipants;
+
+        // Kullanıcı raporu: aşağıdaki "kabul edilenleri yeniden onaya çek" temizliği (bkz.
+        // hasParticipants kullanımı ~aşağıda) önceden İLANDAKİ HERHANGİ BİR ALAN değiştiğinde
+        // (ör. sadece cinsiyet dağılımı kotası gevşetildiğinde bile) tetikleniyordu — oysa bir
+        // oyuncunun "artık uygun olmayabileceği" tek gerçek sebep, katılım kararını verirken
+        // baz aldığı PROGRAM/YER bilgisinin değişmesidir (cinsiyet kotası ayrı ve daha kesin
+        // şekilde yukarıda rosterMeetsGenderQuota ile kontrol ediliyor). Artık sadece bu
+        // alanlardan biri GERÇEKTEN değiştiyse tetiklenir.
+        const scheduleFieldsChanged = (
+            (matchDate !== undefined && (matchDate ? new Date(matchDate).getTime() : null) !== (rival.matchDate ? new Date(rival.matchDate).getTime() : null))
+            || (matchTime !== undefined && matchTime !== rival.matchTime)
+            || (location !== undefined && location !== rival.location)
+            || (courtName !== undefined && courtName !== rival.courtName)
+            || (courtAddress !== undefined && courtAddress !== rival.courtAddress)
+            || (duration !== undefined && (duration !== null && duration !== '' ? parseInt(duration, 10) : null) !== rival.duration)
+            || (venueId !== undefined && (venueId || null) !== rival.venueId)
+            || (venueCourtId !== undefined && (venueCourtId || null) !== rival.venueCourtId)
+            || (venueReservationId !== undefined && (venueReservationId || null) !== rival.venueReservationId)
+        );
 
         const updated = await prisma.activityRequest.update({
             where: { id },
@@ -1248,12 +1341,15 @@ export const updateRivalRequest = async (req, res, next) => {
             include: { sender: { select: SENDER_SELECT }, joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } } },
         });
 
-        // İlan düzenlendiğinde, zaten kabul edilmiş katılımcılar (varsa) katılımcı
-        // listesinden çıkarılıp tekrar onay bekleyen duruma (AWAITING_JOINER_CONFIRM)
-        // alınır — detaylar değiştiği için artık uygun olmayabilirler. Aynı geç-kabul
-        // onay/iptal akışı (confirmLateJoin) burada da kullanılır.
+        // İlan düzenlendiğinde, program/yer bilgisi GERÇEKTEN değiştiyse (bkz.
+        // scheduleFieldsChanged) zaten kabul edilmiş katılımcılar katılımcı listesinden
+        // çıkarılıp tekrar onay bekleyen duruma (AWAITING_JOINER_CONFIRM) alınır — artık uygun
+        // olmayabilirler (ör. yeni saatte müsait değiller). Aynı geç-kabul onay/iptal akışı
+        // (confirmLateJoin) burada da kullanılır. Cinsiyet dağılımı gibi diğer ayarlar ayrı ve
+        // daha isabetli şekilde yukarıda (rosterMeetsGenderQuota) kontrol edildiği için burada
+        // artık kimseyi otomatik geri almaz.
         let finalUpdated = updated;
-        if (hasParticipants) {
+        if (hasParticipants && scheduleFieldsChanged) {
             const acceptedJoinReqs = await prisma.rivalJoinRequest.findMany({
                 where: { rivalId: id, status: 'ACCEPTED' },
             });
