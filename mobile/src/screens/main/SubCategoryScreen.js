@@ -2452,6 +2452,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     {joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
                         <View style={det.section}>
                             <Text style={det.sectionTitle}>📬 {t.requests || 'İstekler'} ({joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
+                            {/* Kullanıcı raporu: ilan sahibi olmayan biri kabul/red'e dokununca backend'den
+                                çıplak "Forbidden" hatası dönüyordu — bu istekleri SADECE ilan sahibi
+                                yanıtlayabilir (bkz. respondToJoin). Sahibi değilse butonlar yerine ne
+                                yapabileceğini (davet gönderebilir mi, "kilit" açık mı) anlatan tek satırlık
+                                bir not gösterilir. */}
+                            {!isOwner && (
+                                <Text style={{ color: colors.textMuted, fontSize: moderateScale(10), marginBottom:6 }}>
+                                    {item.participantsCanInvite ? t.requestsOwnerOnlyCanInviteHint : t.requestsOwnerOnlyHint}
+                                </Text>
+                            )}
                             {item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (() => {
                                 // STRICT çiftler maçında başvuran, hangi slota (Kurucu Takımı /
                                 // Rakip 1 / Rakip 2) başvurduğunu request sırasında zaten seçmişti
@@ -2582,7 +2592,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             )}
                                         </View>
                                     )}
-                                    {jr.status === 'AWAITING_JOINER_CONFIRM' ? (
+                                    {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
                                         <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
                                     ) : (
                                         <View style={{ flexDirection:'row', gap:3 }}>
@@ -2593,7 +2603,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✕</Text>
                                             </TouchableOpacity>
                                         </View>
-                                    )}
+                                    ))}
                                 </View>
                             ))}
                         </View>
