@@ -3636,6 +3636,18 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         {item.refereePayment && <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.refereePayment}</Text>}
                     </View>
                 )}
+                {/* Kullanıcı isteği: as kadro dolup sadece yedek kadroda boşluk kaldığında
+                    (ilan bu yüzden hâlâ "açık" sayılıyor) — hakem durumu gibi kaç yedek
+                    yeri kaldığı da kartta görünsün, detaya girmeden. */}
+                {item.subCategory === 'volleyball' && (item.substituteCount || 0) > (Array.isArray(item.substitutePlayers) ? item.substitutePlayers.length : 0) && (
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
+                        <View style={{ backgroundColor:'#0ea5e920', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#0ea5e950' }}>
+                            <Text style={{ color:'#38bdf8', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                🪑 {t.substituteOpenSlotsLabel((item.substituteCount || 0) - (item.substitutePlayers?.length || 0))}
+                            </Text>
+                        </View>
+                    </View>
+                )}
                 <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {item.isCourtReserved ? `${isVolleyball ? '' : '✅ '}${isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}` : `${isVolleyball ? '' : '❌ '}${t.courtNotReserved}`}
                 </Text>
