@@ -3438,23 +3438,38 @@ export const respondToJoin = async (req, res, next) => {
             // gibi alakasız bir hatayla reddediliyordu (asıl sebep cinsiyetti, doluluk değildi).
             const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
             const existingUnassigned = Array.isArray(joinReq.rival.unassignedPlayers) ? joinReq.rival.unassignedPlayers : [];
+            const nextUnassigned = [...existingUnassigned, joinerData];
+            // Kullanıcı isteği/bug raporu: bu kabul kadroyu (headcount olarak, taraf ataması
+            // henüz yapılmamış olsa bile) tamamlıyorsa MATCHED'e geçmesi gerekiyordu — önceden
+            // hiç kontrol edilmiyordu, ilan sonsuza dek OPEN kalıp maç saati gelince "yeterli
+            // oyuncu bulunamadı" diye YANLIŞLIKLA otomatik iptal ediliyordu (bkz. cleanupRivals.js).
+            const countFilled = (arr) => (Array.isArray(arr) ? arr : []).filter(p => p && p.id).length;
+            const isFull = (joinReq.rival.teamSize || 1) > 1
+                ? teamFilledCount(joinReq.rival, { unassignedPlayers: nextUnassigned }) >= totalPlayerCount(joinReq.rival)
+                : joinReq.rival.matchType === 'DOUBLE'
+                    ? 1 + countFilled(joinReq.rival.senderTeam) + countFilled(joinReq.rival.participants) + countFilled(nextUnassigned) >= 4
+                    : false;
             const updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },
-                data: { unassignedPlayers: [...existingUnassigned, joinerData] },
+                data: {
+                    unassignedPlayers: nextUnassigned,
+                    ...(isFull && { status: 'MATCHED', receiverId: joinReq.userId, reopenedAt: null }),
+                },
                 include: {
                     sender: { select: SENDER_SELECT },
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
                 },
             });
             broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
-            emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: false });
+            emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: isFull });
             createNotification(
                 joinReq.rival.senderId, 'MATCH_CONFIRMED',
                 '🤝 Davet Kabul Edildi',
-                `${joinReq.user.username} maça katılmayı kabul etti — takımını sen atayacaksın.`,
+                `${joinReq.user.username} maça katılmayı kabul etti — takımını sen atayacaksın.${isFull ? ' Maç doldu!' : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
-            return res.json({ message: 'Davet kabul edildi.', request: updatedRival });
+            if (isFull) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId]);
+            return res.json({ message: 'Davet kabul edildi.', request: updatedRival, matched: isFull });
         }
 
         // Build participants: when the joiner submitted a full team (football competitive team
@@ -5148,9 +5163,20 @@ export const assignPlayerToSide = async (req, res, next) => {
         else if (side === 'opp') nextParticipants.push(player);
         else nextUnassigned.push(player);
 
+        // Kullanıcı isteği/bug raporu: bu fonksiyon sadece kimin hangi tarafta olduğunu
+        // değiştiriyordu (toplam kadro dolulugunu ETKİLEMİYOR — atanmamış havuzu da zaten
+        // dolu sayılıyor), ama status hiç kontrol edilmiyordu. Eğer bir önceki kabul adımı
+        // (bkz. respondToJoin/isUnassignedInvite) kadroyu tamamlamış ama status hâlâ OPEN
+        // kalmışsa, buradaki atama da o eksikliği fark etmeden geçiyordu — sonuç: dolu bir
+        // kadro maç saati gelince "yeterli oyuncu bulunamadı" diye yanlışlıkla otomatik
+        // iptal ediliyordu (bkz. cleanupRivals.js). Burada da (self-healing) kontrol edilir.
+        const isFull = teamFilledCount(rival, { senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned }) >= totalPlayerCount(rival);
         const updated = await prisma.activityRequest.update({
             where: { id },
-            data: { senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned },
+            data: {
+                senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned,
+                ...(isFull && rival.status !== 'MATCHED' && { status: 'MATCHED', reopenedAt: null }),
+            },
             include: { sender: { select: SENDER_SELECT } },
         });
 
