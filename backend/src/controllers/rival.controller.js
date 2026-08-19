@@ -533,6 +533,38 @@ async function perTeamGenderFeasible(rival, side, sideArrFinal) {
     return null;
 }
 
+// Kullanıcı raporu: "her takıma minimum 1 kadın" ayarı varken, atanmamış havuzundaki İKİ
+// kadın da AYNI tarafa atanabiliyordu — perTeamGenderFeasible SADECE atamanın yapıldığı
+// tarafın kendi kapasitesine bakıyor (o taraf zaten 1 kadınla kendi minimumunu karşılıyor,
+// geçiyor), KARŞI tarafın artık havuzda hiç kadın kalmadığı için minimumunu asla
+// karşılayamayacağını hiç kontrol etmiyordu. Bu, atama SONRASI iki tarafın toplam eksiğini
+// (neededMy+neededOpp), havuzda kalan gerçekten uygun (cinsiyeti eşleşen) kişi sayısıyla
+// karşılaştırır — DOUBLE'daki canAssignAll/placeableUnassigned düzeltmesiyle aynı mantık.
+async function poolWideGenderFeasible(rival, nextSenderTeam, nextParticipants, nextUnassigned) {
+    if (rival.genderCountMode !== 'MIN_PER_TEAM') return null;
+    if (!['volleyball', 'airsoft'].includes(rival.subCategory) || (rival.teamSize || 1) <= 1) return null;
+    if (!rival.minGenderCount || !['MALE', 'FEMALE'].includes(rival.minGenderReq)) return null;
+
+    const hasSlot = (p) => p && (p.id || p.manualName);
+    const myFilled = nextSenderTeam.filter(hasSlot);
+    const oppFilled = nextParticipants.filter(hasSlot);
+    let myGenderCount = myFilled.filter(p => p.gender === rival.minGenderReq).length;
+    const oppGenderCount = oppFilled.filter(p => p.gender === rival.minGenderReq).length;
+    const founder = await prisma.user.findUnique({ where: { id: rival.senderId }, select: { gender: true } });
+    if (founder?.gender === rival.minGenderReq) myGenderCount += 1;
+
+    const neededMy = Math.max(0, rival.minGenderCount - myGenderCount);
+    const neededOpp = Math.max(0, rival.minGenderCount - oppGenderCount);
+    if (neededMy + neededOpp === 0) return null;
+
+    const availableInPool = nextUnassigned.filter(p => hasSlot(p) && p.gender === rival.minGenderReq).length;
+    if (neededMy + neededOpp > availableInPool) {
+        const label = rival.minGenderReq === 'MALE' ? 'erkek' : 'kadın';
+        return `Havuzda yeterli ${label} kalmadı — hem ${rival.founderTeamName || 'Kurucu Takım'} hem ${rival.opponentTeamName || 'Rakip Takım'}'da en az ${rival.minGenderCount} ${label} olması artık imkansız hale geliyor.`;
+    }
+    return null;
+}
+
 // updateRivalRequest'te cinsiyet dağılımı ayarları değiştiğinde (ör. "takım başına en az 2
 // kadın" → "1 kadın") kullanılır — kullanıcı raporu: ayar SIKILAŞTIRILMASA (aksine
 // GEVŞETİLSE) bile mevcut kabul edilmiş TÜM oyuncular gereksiz yere "son onay bekliyor"
@@ -5158,6 +5190,13 @@ export const assignPlayerToSide = async (req, res, next) => {
             const sideArrFinal = [...(side === 'my' ? nextSenderTeam : nextParticipants), player];
             const perTeamGenderError = await perTeamGenderFeasible(rival, side, sideArrFinal);
             if (perTeamGenderError) return res.status(400).json({ message: perTeamGenderError });
+            // Kendi tarafı için kapasite uygun olsa bile, bu atama karşı tarafı (ve havuzdaki
+            // kalan kişileri) hesaba katınca iki tarafın da minimumunu imkansız hale
+            // getirebilir (bkz. poolWideGenderFeasible) — ör. iki kadın da aynı tarafa atanırsa.
+            const nextSenderTeamFinal = side === 'my' ? [...nextSenderTeam, player] : nextSenderTeam;
+            const nextParticipantsFinal = side === 'opp' ? [...nextParticipants, player] : nextParticipants;
+            const poolWideError = await poolWideGenderFeasible(rival, nextSenderTeamFinal, nextParticipantsFinal, nextUnassigned);
+            if (poolWideError) return res.status(400).json({ message: poolWideError });
         }
         if (side === 'my') nextSenderTeam.push(player);
         else if (side === 'opp') nextParticipants.push(player);

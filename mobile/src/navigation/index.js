@@ -60,6 +60,11 @@ function navigateFromNotif(data) {
         else if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') initialTab = 'tournaments';
         else if (type === 'MATCH_CONFIRMED') initialTab = 'rivals';
         else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED') initialTab = 'archive';
+        // "Oyuncuları Değerlendir" bildirimi — maç zaten Arşiv'e kaldırıldığı için Açık
+        // İlanlar'a değil, o maçın Arşiv detayına gitmeli (kullanıcı raporu: OS bildirim
+        // tepsisinden tıklanınca yanlışlıkla Açık İlanlar açılıyordu — NotificationsScreen'deki
+        // uygulama-içi listede bu case zaten vardı, burada hiç eklenmemiş olduğu ortaya çıktı).
+        else if (type === 'PEER_REVIEW_PROMPT') initialTab = 'archive';
         navigationRef.navigate('HomeTab', {
             screen: 'SubCategory',
             params: {
@@ -74,6 +79,7 @@ function navigateFromNotif(data) {
                 // çıkıyordu (kullanıcı raporu).
                 ...(data.inviteDoubleSlot && { inviteDoubleSlot: data.inviteDoubleSlot }),
                 ...(type === 'TOURNAMENT_COMPLETED' && { initialArchiveSubTab: 'tournaments', openArchiveTournamentId: data.tournamentId || null }),
+                ...(type === 'PEER_REVIEW_PROMPT' && { openPeerReviewRivalId: data.rivalId || null }),
             },
         });
     }

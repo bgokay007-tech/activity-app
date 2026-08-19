@@ -8587,6 +8587,15 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
                         {pSets.join('  ')}  <Text style={{ fontWeight:'800', color: pWins != null && pWins > (sets.length - pWins) ? '#4ade80' : pWins != null && pWins < (sets.length - pWins) ? '#f87171' : colors.textMuted }}>({pWins})</Text>
                     </Text>
                 )}
+                {/* Kullanıcı isteği: bildirimden ("Oyuncuları Değerlendir") maç detayına gelince,
+                    tek genel butona ek olarak her oyuncunun yanında da doğrudan değerlendirme
+                    anketine giden bir buton olsun — kendini değerlendiremezsin. */}
+                {m.needsPeerReview && p.id && p.id !== myId && (
+                    <TouchableOpacity onPress={() => onPeerReview(m.id)}
+                        style={{ backgroundColor:'#7c3aed20', borderRadius:6, paddingVertical:4, paddingHorizontal:8, borderWidth:1, borderColor:'#7c3aed50', marginLeft:6 }}>
+                        <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }} numberOfLines={1}>Değerlendir</Text>
+                    </TouchableOpacity>
+                )}
             </View>
         );
     };
@@ -8595,7 +8604,11 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
         <Modal visible={!!match} animationType="slide" transparent onRequestClose={onClose}>
             <View style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
                 <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:18, maxHeight:'88%' }}>
-                    <ScrollView showsVerticalScrollIndicator={false}>
+                    {/* Kullanıcı raporu: kadro uzun olunca alttaki oyuncular görünmüyordu — bu
+                        ScrollView'a flex:1 verilmemişti, üst View'daki maxHeight'a rağmen sınırlı
+                        bir viewport'u olmadığı için içerik kırpılıp kaydırılamıyordu (bkz.
+                        RivalDetailModal'daki aynı desen — orada ScrollView zaten flex:1 alıyor). */}
+                    <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false}>
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>Maç Detayı</Text>
                             <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
@@ -17223,11 +17236,18 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [peerReviewRivalId, setPeerReviewRivalId] = useState(null);
     const [tournSubTab, setTournSubTab] = useState(['open','inprogress'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
 
+    // Kullanıcı isteği: "Oyuncuları Değerlendir" bildirimine (OS bildirimi ya da uygulama
+    // içi liste) dokununca artık doğrudan anketi açmıyor — önce o maçın Arşiv'deki detayına
+    // götürüyor (kullanıcı orada hem genel "Değerlendir" butonunu hem her oyuncunun yanındaki
+    // ayrı "Değerlendir" butonunu görüyor), anket oradan açılıyor.
     useEffect(() => {
-        if (route.params?.openPeerReviewRivalId) {
-            setPeerReviewRivalId(route.params.openPeerReviewRivalId);
+        if (!route.params?.openPeerReviewRivalId) return;
+        const found = archiveRivals.find(r => r.id === route.params.openPeerReviewRivalId);
+        if (found) {
+            setArchiveSubTab('rivals');
+            setArchiveDetailMatch(found);
         }
-    }, [route.params?.openPeerReviewRivalId]);
+    }, [route.params?.openPeerReviewRivalId, archiveRivals]);
 
     useEffect(() => {
         if (['open','inprogress'].includes(route.params?.initialTournSubTab)) {
