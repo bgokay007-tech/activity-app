@@ -2445,9 +2445,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </Animated.View>
                     </View>
 
-                    {/* İstekler — çiftlerde herkes görür (ikili kart + partner davet/kabul),
-                        diğer türlerde sadece ilan sahibi (kabul/red) görür */}
-                    {joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (isOwner || item.matchType === 'DOUBLE') && (
+                    {/* İstekler — kullanıcı isteği: kadroya katılmamış olsalar bile maç detayına
+                        giren HERKES kimlerin başvurduğunu görebilsin (ör. sevmediği biri zaten
+                        başvurmuşsa kendisi başvurmayabilsin); kabul/red butonları yine sadece ilan
+                        sahibinde kalır (bkz. aşağıdaki isOwner kontrolü). */}
+                    {joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
                         <View style={det.section}>
                             <Text style={det.sectionTitle}>📬 {t.requests || 'İstekler'} ({joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
                             {item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (() => {
@@ -2600,8 +2602,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         kurucu takımı panelinde ayrıca gösterildiği için burada tekrar gösterilmiyordu,
                         ama takım sporlarında (voleybol) o panel yok — isPartnerInvite:true olan Kurucu
                         Takımı davetleri hiçbir yerde görünmüyordu (bkz. founderTeamInviteIds). Artık
-                        DOUBLE dışında bu davetler de burada listeleniyor. */}
-                    {isOwner && joinRequests.filter(jr => jr.initiatedBy === 'OWNER' && (!jr.isPartnerInvite || item.matchType !== 'DOUBLE')).length > 0 && (
+                        DOUBLE dışında bu davetler de burada listeleniyor. Kullanıcı isteği: liste artık
+                        sadece ilan sahibine değil, maç detayına giren herkese görünür — davet iptal
+                        etme (✕) yetkisi yine sadece sahipte kalır. */}
+                    {joinRequests.filter(jr => jr.initiatedBy === 'OWNER' && (!jr.isPartnerInvite || item.matchType !== 'DOUBLE')).length > 0 && (
                         <View style={det.section}>
                             <Text style={det.sectionTitle}>📨 Gönderilen Davetler</Text>
                             {joinRequests.filter(jr => jr.initiatedBy === 'OWNER' && (!jr.isPartnerInvite || item.matchType !== 'DOUBLE')).map(jr => (
@@ -2615,9 +2619,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             kalıyordu. Sınıflandırma zaten kadro kartının arka yüzünde. */}
                                         <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
                                     </View>
-                                    <TouchableOpacity onPress={() => rejectLocal(jr.id)} style={{ backgroundColor:'#dc262620', borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28), justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
-                                        <Text style={{ color:'#f87171', fontSize: moderateScale(12), fontWeight:'700' }}>✕</Text>
-                                    </TouchableOpacity>
+                                    {isOwner && (
+                                        <TouchableOpacity onPress={() => rejectLocal(jr.id)} style={{ backgroundColor:'#dc262620', borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28), justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
+                                            <Text style={{ color:'#f87171', fontSize: moderateScale(12), fontWeight:'700' }}>✕</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                             ))}
                         </View>
@@ -5613,8 +5619,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         Takım/Yedek'e gönderdiği davetler (bkz. inviteToRival'daki side parametresi),
                         açık ilandaki "📨 Gönderilen Davetler" bölümüyle aynı — kullanıcı isteğiyle
                         davet gönderilince burada "⏳ Onay Bekleniyor · Rakip Takım" gibi görünüyor,
-                        ✕ ile iptal edilebiliyor. */}
-                    {isOwner && subRequests.filter(jr => jr.initiatedBy === 'OWNER').length > 0 && (
+                        ✕ ile iptal edilebiliyor. Kullanıcı isteği: sadece ilan sahibi değil, maç
+                        detayına giren HERKES kimlere davet gittiğini görebilsin (ör. sevmediği biri
+                        zaten davet edilmişse kendisi başvurmayabilsin) — iptal etme yetkisi (✕) yine
+                        sadece sahipte kalır. */}
+                    {subRequests.filter(jr => jr.initiatedBy === 'OWNER').length > 0 && (
                         <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:9, borderWidth:1, borderColor: colors.border, marginBottom:12 }}>
                             <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8 }}>📨 Gönderilen Davetler</Text>
                             {subRequests.filter(jr => jr.initiatedBy === 'OWNER').map(jr => (
@@ -5628,9 +5637,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             arka yüzünde. */}
                                         <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
                                     </View>
-                                    <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'reject')} style={{ backgroundColor:'#dc262620', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
-                                        <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>✕</Text>
-                                    </TouchableOpacity>
+                                    {isOwner && (
+                                        <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'reject')} style={{ backgroundColor:'#dc262620', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
+                                            <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>✕</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                             ))}
                         </View>
@@ -5638,20 +5649,25 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
                     {/* Yedek istekleri — maç zaten MATCHED olsa da boş Yedek kontenjanı olduğu
                         sürece gönderilebilen istekler (bkz. subRequests) — ilan sahibi burada
-                        kabul/red eder. */}
-                    {isOwner && subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
+                        kabul/red eder. Kullanıcı isteği: liste herkese görünür (kabul/red butonları
+                        yine sadece sahipte). */}
+                    {subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
                         <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:9, borderWidth:1, borderColor: colors.border, marginBottom:12 }}>
                             <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8 }}>🪑 Yedek İstekleri ({subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
                             {subRequests.filter(jr => jr.initiatedBy !== 'OWNER').map(jr => (
                                 <View key={jr.id} style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6 }}>
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={26} color={cfg.color} />
                                     <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>{jr.user?.fullName || jr.user?.username}</Text>
-                                    <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'accept')} style={{ backgroundColor:'#16a34a', borderRadius:8, paddingHorizontal:10, paddingVertical:5 }}>
-                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>Kabul</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'reject')} style={{ backgroundColor:'#ef444420', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#ef444440' }}>
-                                        <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
-                                    </TouchableOpacity>
+                                    {isOwner && (
+                                        <>
+                                            <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'accept')} style={{ backgroundColor:'#16a34a', borderRadius:8, paddingHorizontal:10, paddingVertical:5 }}>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>Kabul</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'reject')} style={{ backgroundColor:'#ef444420', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#ef444440' }}>
+                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    )}
                                 </View>
                             ))}
                         </View>
@@ -17358,7 +17374,6 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showCreateRival, setShowCreateRival] = useState(false);
     const [rivalPrefill, setRivalPrefill] = useState(null);
     const [upcomingExpanded, setUpcomingExpanded] = useState(true);
-    const [upcomingSubsExpanded, setUpcomingSubsExpanded] = useState(true);
     const [playingExpanded, setPlayingExpanded] = useState(true);
     const [openRivalsExpanded, setOpenRivalsExpanded] = useState(true);
     const [showCreatePW, setShowCreatePW] = useState(false);
@@ -18725,9 +18740,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
     const allFiltered = matchedUpcoming.filter(m => m.id === highlightRivalId || applyFilter(m));
     const filteredMatchedUpcoming = allFiltered.filter(m => !matchHasStarted(m));
-    // Yedek kadrosu (substituteCount) belirtilmiş ama henüz dolmamış Yaklaşan Maçlar ayrı bir
-    // başlıkta ("Yedek Kadro Aranan Yaklaşan Maçlar") gösterilir — kullanıcı isteği: hâlâ
-    // Yaklaşan Maçlar'da kalsın ama yedek arandığı ayrıca belli olsun.
+    // Yedek kadrosu (substituteCount) belirtilmiş ama henüz dolmamış eşleşmiş maçlar Yaklaşan
+    // Maçlar'a hiç geçmez, Açık İlanlar'da kalır (kullanıcı isteği: yedek dolana kadar hâlâ
+    // başvurulabilir bir ilan gibi görünsün) — render tarafında upcomingNeedingSubs, Açık
+    // İlanlar bölümünde filteredRivals'la birlikte gösteriliyor.
     const matchNeedsSubs = (m) => {
         const need = m.substituteCount || 0;
         if (need <= 0) return false;
@@ -19283,53 +19299,31 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 onPress={() => setOpenRivalsExpanded(v => !v)}
                                 style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: openRivalsExpanded ? 2 : 1 }}
                             >
-                                <Text style={[s.sectionTitle, { marginTop:0, marginBottom:0 }]}>{t.openRivalsTitle} ({filteredRivals.length + (sub === 'volleyball' ? upcomingNeedingSubs.length : 0)})</Text>
+                                <Text style={[s.sectionTitle, { marginTop:0, marginBottom:0 }]}>{t.openRivalsTitle} ({filteredRivals.length + upcomingNeedingSubs.length})</Text>
                                 <Text style={{ color: colors.textSecondary, fontSize:18, fontWeight:'700', marginTop:-4 }}>
                                     {openRivalsExpanded ? '▼' : '›'}
                                 </Text>
                             </TouchableOpacity>
                             {openRivalsExpanded && (
-                                filteredRivals.length === 0
-                                    // Kullanıcı raporu: sayaç yedek kadro aranan maçları da saydığı için
-                                    // "(1)" gösterip altında "ilan yok" demek çelişkiliydi — bu durumda
-                                    // gerçek boş mesajı yerine aşağıdaki bölüme yönlendiren bir not gösterilir.
-                                    ? (sub === 'volleyball' && upcomingNeedingSubs.length > 0
-                                        ? <EmptyState emoji="🔄" text={t.emptyRivalsButNeedSubs} />
-                                        : <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />)
+                                (filteredRivals.length === 0 && upcomingNeedingSubs.length === 0)
+                                    ? <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />
                                     : (
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                             {filteredRivals.map(item => (
                                                 <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} />
                                             ))}
-                                        </View>
-                                    )
-                            )}
-
-                            {/* Yedek Kadro Aranan Yaklaşan Maçlar — kullanıcı isteği: yedek kontenjanı
-                                (substituteCount) belirtilmiş ama henüz dolmamış maçlar hâlâ Yaklaşan
-                                Maçlar'da kalır, ama ayrı bir başlıkta gruplanır ki yedek aranan
-                                maçlar gözden kaçmasın. */}
-                            {upcomingNeedingSubs.length > 0 && (
-                                <>
-                                    <TouchableOpacity
-                                        onPress={() => setUpcomingSubsExpanded(v => !v)}
-                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: upcomingSubsExpanded ? 8 : 4 }}
-                                    >
-                                        <Text style={s.sectionTitle}>{t.upcomingMatchesNeedSubsTitle} ({upcomingNeedingSubs.length})</Text>
-                                        <Text style={{ color: colors.textSecondary, fontSize:18, fontWeight:'700', marginTop:-4 }}>
-                                            {upcomingSubsExpanded ? '▼' : '›'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                    {upcomingSubsExpanded && (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                            {/* Yedek kadrosu (substituteCount) henüz dolmamış eşleşmiş maçlar — kullanıcı isteği:
+                                                as kadro dolsa bile yedek dolana kadar Yaklaşan Maçlar'a değil, Açık İlanlar'da
+                                                kalsın (herkes hâlâ yedek olarak başvurabileceğini görsün). Maç saati gelince
+                                                (matchHasStarted) bu listeden otomatik çıkıp Oynanan Maçlar'a geçer — yedeksiz
+                                                kalması maçın iptaline yol açmaz. */}
                                             {upcomingNeedingSubs.map(m => (
                                                 <View key={m.id} style={{ width:'48.5%' }}>
                                                     <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
                                                 </View>
                                             ))}
                                         </View>
-                                    )}
-                                </>
+                                    )
                             )}
 
                             {/* Yaklaşan Maçlar — tüm ilanların altında, filtreye tabi */}
