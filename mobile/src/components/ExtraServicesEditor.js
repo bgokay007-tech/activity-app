@@ -151,8 +151,17 @@ function RefereeTypeContent({ referee }) {
                                 ))}
                             </View>
                         )}
-                        {!allowManual && trimmedName.length >= 2 && referee.suggestions.length === 0 && (
-                            <Text style={{ color: colors.textMuted, fontSize:10, marginTop:3 }}>Kayıtlı kullanıcı bulunamadı — sadece uygulamayı kullanan biri hakem eklenebilir.</Text>
+                        {/* Kullanıcı raporu: isim yazınca Hizmetler listesinde/sayacında "eklendi" gibi
+                            görünüyordu ama submit'te hiç gönderilmiyordu (allowManual=false'ta backend'e
+                            manualRefereeName her zaman null/undefined gidiyor) — kullanıcı ilanı
+                            kapatınca "Hakem Aranıyor"a dönüyordu, sanki bug varmış gibi. Artık isim
+                            yazılıp listeden biri SEÇİLMEDEN bu uyarı hemen, göz ardı edilemeyecek
+                            şekilde çıkıyor (bkz. aşağıdaki refereeRowName düzeltmesi — ExtraServicesEditor
+                            artık bu durumda Hizmetler listesine/sayacına hiç eklemiyor). */}
+                        {!allowManual && trimmedName.length >= 2 && !invitedUser && (
+                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700', marginTop:4 }}>
+                                ⚠️ Uygulamadan kayıtlı bir hakem seçmediniz — listeden bir isme dokunmadan hakem eklenmez.
+                            </Text>
                         )}
                     </View>
                     {allowManual && (
@@ -311,8 +320,14 @@ export default function ExtraServicesEditor({ services = [], onChange, referee =
     const remove = (id) => onChange(services.filter(s => s.id !== id));
     const addService = (entry) => onChange([...services, entry]);
 
+    // Kullanıcı raporu: allowManual=false iken (ör. voleybol) sadece YAZILMIŞ ama listeden
+    // seçilmemiş bir isim burada "eklendi" gibi görünüp Hizmetler sayacını artırıyordu — submit
+    // anında bu isim hiç gönderilmediği için (backend'e manualRefereeName her zaman null gidiyor)
+    // ilan kapatılıp açılınca "Hakem Aranıyor"a dönüyor, kullanıcıya bug gibi görünüyordu.
     const refereeRowName = referee && referee.requested
-        ? (referee.invites[0] ? (referee.invites[0].user.fullName || referee.invites[0].user.username) : referee.name.trim())
+        ? (referee.invites[0]
+            ? (referee.invites[0].user.fullName || referee.invites[0].user.username)
+            : (referee.allowManual !== false ? referee.name.trim() : ''))
         : '';
     const totalCount = services.length + (refereeRowName ? 1 : 0);
 
