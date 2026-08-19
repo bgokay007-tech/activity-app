@@ -435,6 +435,12 @@ export const searchUsers = async (req, res, next) => {
                 OR: [
                     { username: { contains: q, mode: 'insensitive' } },
                     { fullName: { contains: q, mode: 'insensitive' } },
+                    // Kullanıcı isteği: her sporda ayrı, benzersiz bir "kullanıcı adı" (alias)
+                    // var — sadece hesabın global username/fullName'ine değil, bu dala özel
+                    // alias'a göre de bulunabilmeli. subCategory verilmediyse (ör. ekipman
+                    // "alıcı seç" araması) hangi dalın alias'ına bakılacağı belli olmadığı
+                    // için bu dal eklenmiyor.
+                    ...(subCategory ? [{ interests: { some: { subCategory, ...(category && { category }), alias: { contains: q, mode: 'insensitive' } } } }] : []),
                 ],
             },
             select: {
@@ -476,6 +482,9 @@ export const getUsersBySport = async (req, res, next) => {
                     OR: [
                         { username: { startsWith: q.trim(), mode: 'insensitive' } },
                         { fullName: { startsWith: q.trim(), mode: 'insensitive' } },
+                        // Kullanıcı isteği: bu dala özel alias (sporda kullanılan "kullanıcı
+                        // adı") ile de bulunabilsin, sadece global username/fullName ile değil.
+                        { interests: { some: { subCategory, ...(category && { category }), alias: { startsWith: q.trim(), mode: 'insensitive' } } } },
                     ],
                 }),
             },
