@@ -4516,6 +4516,23 @@ export const enterScore = async (req, res, next) => {
             }
         }
 
+        // Kullanıcı isteği: voleybolde gerçek set kuralları sunucu tarafında da uygulanır —
+        // mobil taraftaki aynı doğrulamanın (bkz. SubCategoryScreen.js submitScore) bir API
+        // istemcisiyle atlanmasını önler. İlk 4 set 25, 5. set (varsa, index 4) 15 sayıya
+        // en az 2 fark şartıyla ulaşan tarafça kazanılır (24-24→26-24, 25-25→27-25... uzar).
+        if (request.subCategory === 'volleyball' && Array.isArray(sets)) {
+            for (let i = 0; i < sets.length; i++) {
+                const p1 = Number(sets[i]?.sender) || 0, p2 = Number(sets[i]?.opponent) || 0;
+                if (p1 === 0 && p2 === 0) continue;
+                const hi = Math.max(p1, p2), lo = Math.min(p1, p2);
+                const target = i === 4 ? 15 : 25;
+                const valid = (hi === target && lo <= target - 2) || (hi > target && hi - lo === 2);
+                if (!valid) {
+                    return res.status(400).json({ message: `${p1}-${p2} geçersiz set skoru. ${i === 4 ? '5. set' : `${i + 1}. set`} ${target} sayıya (en az 2 fark şartıyla) ulaşan tarafça kazanılmalı.` });
+                }
+            }
+        }
+
         const updated = await prisma.activityRequest.update({
             where: { id },
             data: {
@@ -5210,7 +5227,7 @@ export const assignPlayerToSide = async (req, res, next) => {
         // kadro maç saati gelince "yeterli oyuncu bulunamadı" diye yanlışlıkla otomatik
         // iptal ediliyordu (bkz. cleanupRivals.js). Burada da (self-healing) kontrol edilir.
         const isFull = teamFilledCount(rival, { senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned }) >= totalPlayerCount(rival);
-        const updated = await prisma.activityRequest.update({
+        const updatedRaw = await prisma.activityRequest.update({
             where: { id },
             data: {
                 senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned,
@@ -5218,6 +5235,34 @@ export const assignPlayerToSide = async (req, res, next) => {
             },
             include: { sender: { select: SENDER_SELECT } },
         });
+
+        // Kullanıcı raporu: atama sonrası oyuncuların yıldız/derece puanı bir anlığına
+        // kayboluyordu — bu uç nokta (getUpcomingMatches/getRivalById'nin aksine) skillRating'i
+        // hiç eklemeden ham diziyi yayınlıyordu, socket dinleyicisi bu ham veriyle önceden
+        // zenginleştirilmiş listenin üzerine yazıyordu, sonraki onRefresh() düzeltene kadar
+        // puanlar görünmüyordu. Artık broadcast/response'tan ÖNCE aynı zenginleştirme burada da yapılıyor.
+        const teamUserIds = [...new Set([
+            ...(Array.isArray(updatedRaw.senderTeam) ? updatedRaw.senderTeam : []).filter(p => p?.id).map(p => p.id),
+            ...(Array.isArray(updatedRaw.participants) ? updatedRaw.participants : []).filter(p => p?.id).map(p => p.id),
+            ...(Array.isArray(updatedRaw.unassignedPlayers) ? updatedRaw.unassignedPlayers : []).filter(p => p?.id).map(p => p.id),
+            ...(Array.isArray(updatedRaw.substitutePlayers) ? updatedRaw.substitutePlayers : []).filter(p => p?.id).map(p => p.id),
+        ])];
+        const teamInterests = teamUserIds.length > 0
+            ? await prisma.userInterest.findMany({
+                where: { userId: { in: teamUserIds }, subCategory: updatedRaw.subCategory },
+                select: { userId: true, skillRating: true },
+            })
+            : [];
+        const withSkillRating = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id
+            ? { ...p, skillRating: teamInterests.find(i => i.userId === p.id)?.skillRating ?? null }
+            : p);
+        const updated = {
+            ...updatedRaw,
+            senderTeam: withSkillRating(updatedRaw.senderTeam),
+            participants: withSkillRating(updatedRaw.participants),
+            unassignedPlayers: withSkillRating(updatedRaw.unassignedPlayers),
+            substitutePlayers: withSkillRating(updatedRaw.substitutePlayers),
+        };
 
         broadcast('rivalUpdate', updated);
         if (userId) emitToUser(userId, 'rivalUpdate', updated);

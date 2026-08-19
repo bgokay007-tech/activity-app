@@ -4602,6 +4602,23 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 }
             }
         }
+        // Kullanıcı isteği: voleybolde de gerçek set kuralları uygulansın — ilk 4 set 25 sayıya
+        // (2 fark şartıyla, 24-24 olursa 26-24'e, 25-25 olursa 27-25'e... şeklinde uzar), 5.
+        // set (varsa, index 4) 15 sayıya (aynı 2 fark mantığıyla) ulaşan tarafça kazanılır.
+        if (match.subCategory === 'volleyball') {
+            for (let i = 0; i < sets.length; i++) {
+                const r = sets[i];
+                const p1 = parseInt(r.my) || 0, p2 = parseInt(r.opp) || 0;
+                if (p1 === 0 && p2 === 0) continue;
+                const hi = Math.max(p1, p2), lo = Math.min(p1, p2);
+                const target = i === 4 ? 15 : 25;
+                const valid = (hi === target && lo <= target - 2) || (hi > target && hi - lo === 2);
+                if (!valid) {
+                    Alert.alert('Geçersiz Set Skoru', `${p1}-${p2} geçersiz. ${i === 4 ? '5. set' : `${i + 1}. set`} ${target} sayıya (en az 2 fark şartıyla) ulaşan tarafça kazanılmalı.`);
+                    return;
+                }
+            }
+        }
         setSubmitting(true);
         try {
             const apiSets = sets.map(r => ({
@@ -4615,10 +4632,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 if (!firstErr.response) await doRequest();
                 else throw firstErr;
             }
-            Alert.alert('', t.scoreSent);
             setShowScore(false);
             setSets([{ my: '', opp: '' }]);
-            onRefresh();
+            // Kullanıcı raporu: skor girince maç kartı, liste yenilenene kadar (~1sn) eski
+            // konumunda (yedek arayan maçlar "Açık İlanlar" başlığı altında göründüğü için
+            // orada) kalıp sonra "Skor Bekleyen Maçlar"a atlıyordu. Alert.alert (native, ekranı
+            // kapatan bir modal) gösterilmeden ÖNCE yenilemeyi await ederek bu geçiş kullanıcı
+            // uyarıyı okurken arka planda tamamlanıyor — uyarıyı kapattığında liste zaten doğru yerde.
+            await onRefresh();
+            Alert.alert('', t.scoreSent);
             // Kullanıcı isteği: "Skor Gir ve Medya Paylaş" ile açıldıysa, skor başarıyla
             // gönderildikten hemen sonra galeri seçici otomatik açılır (bkz. pendingMediaAfterScore).
             if (pendingMediaAfterScore) {
@@ -6027,7 +6049,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             </View>
                             <View style={sc.winnerRow}>
                                 <Text style={[sc.winnerText, { color: dispDraw ? '#facc15' : dispIWin ? '#4ade80' : '#f87171' }]}>
-                                    {dispDraw ? t.drawResult : dispIWin ? t.winnerMe : t.winnerOpp}
+                                    {dispDraw ? t.drawResult : isTeamMatch ? t.teamWonLabel(dispIWin ? myScoreLabel : oppScoreLabel) : (dispIWin ? t.winnerMe : t.winnerOpp)}
                                 </Text>
                             </View>
                             {match.scoreStatus === 'CONFIRMED' ? (
@@ -6144,7 +6166,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     </View>
                                     <View style={sc.winnerRow}>
                                         <Text style={[sc.winnerText, { color: autoWinner === 'draw' ? '#facc15' : iWin ? '#4ade80' : '#f87171' }]}>
-                                            {autoWinner === 'draw' ? t.drawResult : iWin ? t.winnerMe : t.winnerOpp}
+                                            {autoWinner === 'draw' ? t.drawResult : isTeamMatch ? t.teamWonLabel(iWin ? myScoreLabel : oppScoreLabel) : (iWin ? t.winnerMe : t.winnerOpp)}
                                         </Text>
                                     </View>
                                 </>
@@ -8560,7 +8582,14 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
     const iAmFounderSide = isOwner || senderTeamArr.some(st => st?.id === myId);
     const founderLabel = m.founderTeamName || (founderSide.length > 1 ? 'Kurucu Takım' : (founderSide[0] ? senderAlias(founderSide[0]) : 'Kurucu'));
     const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? 'Rakip Takım' : (opponentSide[0] ? senderAlias(opponentSide[0]) : 'Rakip'));
-    const myResultText = winner === 'draw' ? '🤝 Berabere' : winner === (iAmFounderSide ? 'sender' : 'opponent') ? '✅ Kazandın' : winner ? '❌ Kaybettin' : null;
+    // Kullanıcı isteği: takım maçlarında "Kazandın/Kaybettin" yerine kazanan takımın ismi
+    // yazsın ("X Takımı Kazandı") — bireysel (tek oyunculu) maçlarda kişiselleştirilmiş metin korunuyor.
+    const isTeamMatch = founderSide.length > 1 || opponentSide.length > 1;
+    const winningLabel = winner === 'sender' ? founderLabel : winner === 'opponent' ? opponentLabel : null;
+    const myResultText = winner === 'draw' ? '🤝 Berabere'
+        : !winningLabel ? null
+        : isTeamMatch ? `🏆 ${winningLabel} Kazandı`
+        : winner === (iAmFounderSide ? 'sender' : 'opponent') ? '✅ Kazandın' : '❌ Kaybettin';
     const myResultColor = winner === 'draw' ? '#fbbf24' : winner === (iAmFounderSide ? 'sender' : 'opponent') ? '#4ade80' : '#f87171';
 
     const renderPlayer = (p, isFounderSidePlayer) => {
@@ -17691,7 +17720,12 @@ export default function SubCategoryScreen({ route, navigation }) {
         const task = InteractionManager.runAfterInteractions(() => { load(); });
         return () => task.cancel();
     }, [load]);
-    const onRefresh = () => { setRefreshing(true); load(); };
+    // Kullanıcı isteği: skor girişi sonrası maç kartı, arkaplandaki liste yenilenene kadar
+    // (yaklaşık 1sn) eski konumunda (ör. yedek arayan maçlar "Açık İlanlar" başlığı altında
+    // gösterildiği için orada) kalıp sonra doğru yere (Skor Bekleyen Maçlar) "atlıyordu" —
+    // return eklenerek submitScore artık bu yenilemeyi (Alert.alert'ten ÖNCE) await edebiliyor,
+    // kullanıcı uyarıyı kapattığında liste zaten doğru yerde.
+    const onRefresh = () => { setRefreshing(true); return load(); };
 
     useEffect(() => {
         ['rivals', 'tournaments', 'coaches', 'equipment', 'referees'].forEach(tab => {
