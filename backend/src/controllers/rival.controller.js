@@ -555,7 +555,7 @@ async function placeInSubstituteOrRejectFull(rival, joinReq, joinerEntry, reques
         },
     });
     await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
-    emitToUser(rival.senderId, 'rivalUpdate', updated);
+    broadcast('rivalUpdate', updated); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
     emitToUser(joinReq.userId, 'joinAccepted', { rivalId: rival.id, matched: false, toSubstitute: true });
     res.json({ message: '🔄 Yedek kadroya alındınız.', request: updated, matched: false, toSubstitute: true });
     createNotification(
@@ -3146,7 +3146,7 @@ export const respondToJoin = async (req, res, next) => {
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
                 },
             });
-            emitToUser(joinReq.rival.senderId, 'rivalUpdate', updatedRival);
+            broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
             emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: false });
             createNotification(
                 joinReq.rival.senderId, 'MATCH_CONFIRMED',
@@ -3199,7 +3199,7 @@ export const respondToJoin = async (req, res, next) => {
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
                 },
             });
-            emitToUser(joinReq.rival.senderId, 'rivalUpdate', updatedRival);
+            broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
             emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: isFullNow });
             createNotification(
                 joinReq.rival.senderId, 'MATCH_CONFIRMED',
@@ -3259,7 +3259,7 @@ export const respondToJoin = async (req, res, next) => {
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
                 },
             });
-            emitToUser(joinReq.rival.senderId, 'rivalUpdate', updatedRival);
+            broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
             emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: isFull });
             createNotification(
                 joinReq.rival.senderId, 'MATCH_CONFIRMED',
@@ -3289,7 +3289,7 @@ export const respondToJoin = async (req, res, next) => {
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
                 },
             });
-            emitToUser(joinReq.rival.senderId, 'rivalUpdate', updatedRival);
+            broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
             emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: false });
             // Bu istek ilan sahibinin daveti (initiatedBy=OWNER) OLABİLİR, ya da oyuncunun kendisinin
             // "Yedek Olarak Başvur" ile gönderdiği bir başvuru (initiatedBy=JOINER, MATCHED bir maça
@@ -3331,7 +3331,7 @@ export const respondToJoin = async (req, res, next) => {
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
                 },
             });
-            emitToUser(joinReq.rival.senderId, 'rivalUpdate', updatedRival);
+            broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
             emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: false });
             createNotification(
                 joinReq.rival.senderId, 'MATCH_CONFIRMED',
@@ -3566,7 +3566,7 @@ export const respondToJoin = async (req, res, next) => {
         }
 
         // Push updated rival to creator's UI
-        emitToUser(rival.senderId, 'rivalUpdate', updated);
+        broadcast('rivalUpdate', updated); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
         // Notify the joiner that they were accepted
         emitToUser(u.id, 'joinAccepted', { rivalId: rival.id, matched: isFull });
         if (partnerJoinReqToAccept) emitToUser(partnerJoinReqToAccept.userId, 'joinAccepted', { rivalId: rival.id, matched: isFull });
@@ -3961,7 +3961,7 @@ export const confirmLateJoin = async (req, res, next) => {
             },
         });
 
-        emitToUser(rival.senderId, 'rivalUpdate', updated);
+        broadcast('rivalUpdate', updated); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
         emitToUser(u.id, 'joinAccepted', { rivalId: rival.id, matched: isFull });
         if (partnerJoinReqToAccept) emitToUser(partnerJoinReqToAccept.userId, 'joinAccepted', { rivalId: rival.id, matched: isFull });
         if (isFull) {

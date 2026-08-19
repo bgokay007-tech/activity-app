@@ -830,6 +830,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             if (updated.id !== item.id) return;
             if (Array.isArray(updated.joinRequests)) setLocalJoinRequests(updated.joinRequests);
             if (Array.isArray(updated.participants)) setLocalParticipants(updated.participants);
+            // Kullanıcı isteği: davet ettiği kişi (Takım Arkadaşı/Partner ya da Atanmamış
+            // havuzu daveti) kabul edince ilan sahibi/diğer görüntüleyenler çıkıp girmeden
+            // anında görsün — önceden sadece participants/joinRequests senkronize ediliyordu,
+            // senderTeam/unassignedPlayers'a düşen kabuller ekrana hiç yansımıyordu.
+            if (Array.isArray(updated.senderTeam)) setLocalSenderTeam(updated.senderTeam);
+            if (Array.isArray(updated.unassignedPlayers)) setLocalUnassigned(updated.unassignedPlayers);
             if (updated.genderReq !== undefined || updated.opp1GenderReq !== undefined) {
                 setLocalGender({
                     genderReq: updated.genderReq ?? item.genderReq,
