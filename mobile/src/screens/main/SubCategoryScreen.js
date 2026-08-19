@@ -8618,28 +8618,31 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
         const pSets = sets ? sets.map(s2 => isFounderSidePlayer ? s2.sender : s2.opponent) : null;
         const pWins = sets ? sets.filter(s2 => (isFounderSidePlayer ? s2.sender : s2.opponent) > (isFounderSidePlayer ? s2.opponent : s2.sender)).length : null;
         return (
-            <View key={p.id || p.username} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:6 }}>
-                <TouchableOpacity onPress={() => { if (p.id) { onUserPress(p.id); onClose(); } }} style={{ flex:1 }} activeOpacity={0.7}>
-                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
-                    {/* Kullanıcı isteği: skor girildikten sonra maç öncesi puan → kazanılan/kaybedilen
-                        → güncel puan sırasıyla görünsün. */}
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:2 }}>
-                        {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>{Number(rBefore).toFixed(2)} ★</Text>}
-                        {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'700' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
-                        {rAfter != null && <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>→ <Text style={{ color:'#4ade80' }}>{Number(rAfter).toFixed(2)} ★</Text></Text>}
-                    </View>
-                </TouchableOpacity>
-                {pSets && (
-                    <Text style={{ color: colors.textMuted, fontSize:12 }}>
-                        {pSets.join('  ')}  <Text style={{ fontWeight:'800', color: pWins != null && pWins > (sets.length - pWins) ? '#4ade80' : pWins != null && pWins < (sets.length - pWins) ? '#f87171' : colors.textMuted }}>({pWins})</Text>
-                    </Text>
-                )}
+            <View key={p.id || p.username} style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:6 }}>
+                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                    <TouchableOpacity onPress={() => { if (p.id) { onUserPress(p.id); onClose(); } }} style={{ flex:1 }} activeOpacity={0.7}>
+                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
+                        {/* Kullanıcı isteği: skor girildikten sonra maç öncesi puan → kazanılan/kaybedilen
+                            → güncel puan sırasıyla görünsün. */}
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:2 }}>
+                            {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>{Number(rBefore).toFixed(2)} ★</Text>}
+                            {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'700' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
+                            {rAfter != null && <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>→ <Text style={{ color:'#4ade80' }}>{Number(rAfter).toFixed(2)} ★</Text></Text>}
+                        </View>
+                    </TouchableOpacity>
+                    {pSets && (
+                        <Text style={{ color: colors.textMuted, fontSize:12 }}>
+                            {pSets.join('  ')}  <Text style={{ fontWeight:'800', color: pWins != null && pWins > (sets.length - pWins) ? '#4ade80' : pWins != null && pWins < (sets.length - pWins) ? '#f87171' : colors.textMuted }}>({pWins})</Text>
+                        </Text>
+                    )}
+                </View>
                 {/* Kullanıcı isteği: bildirimden ("Oyuncuları Değerlendir") maç detayına gelince,
                     tek genel butona ek olarak her oyuncunun yanında da doğrudan değerlendirme
-                    anketine giden bir buton olsun — kendini değerlendiremezsin. */}
+                    anketine giden bir buton olsun — kendini değerlendiremezsin. Kendi satırında,
+                    isim/skor satırıyla sıkışmasın diye. */}
                 {m.needsPeerReview && p.id && p.id !== myId && (
                     <TouchableOpacity onPress={() => onPeerReview(m.id)}
-                        style={{ backgroundColor:'#7c3aed20', borderRadius:6, paddingVertical:4, paddingHorizontal:8, borderWidth:1, borderColor:'#7c3aed50', marginLeft:6 }}>
+                        style={{ backgroundColor:'#7c3aed20', borderRadius:6, paddingVertical:4, paddingHorizontal:8, borderWidth:1, borderColor:'#7c3aed50', marginTop:6, alignSelf:'flex-start' }}>
                         <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }} numberOfLines={1}>Değerlendir</Text>
                     </TouchableOpacity>
                 )}
@@ -8649,8 +8652,12 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
 
     return (
         <Modal visible={!!match} animationType="slide" transparent onRequestClose={onClose}>
-            <View style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
-                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:18, maxHeight:'88%' }}>
+            {/* Kullanıcı raporu: bu belirli maçta içerik hiç görünmeyip sadece saydam siyah
+                arka plan kalıyordu — nedeni kesin doğrulanamadı (cihazda tekrar üretilemedi)
+                ama arka plana dokununca kapatılabilsin diye (önceden sadece ✕ ile kapanıyordu,
+                içerik hiç render olmazsa ✕'e de erişilemiyordu) TouchableOpacity'e çevrildi. */}
+            <TouchableOpacity activeOpacity={1} onPress={onClose} style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
+                <View onStartShouldSetResponder={() => true} style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:18, maxHeight:'88%' }}>
                     {/* Kullanıcı raporu: kadro uzun olunca alttaki oyuncular görünmüyordu — bu
                         ScrollView'a flex:1 verilmemişti, üst View'daki maxHeight'a rağmen sınırlı
                         bir viewport'u olmadığı için içerik kırpılıp kaydırılamıyordu (bkz.
@@ -8718,7 +8725,7 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
                         </View>
                     </ScrollView>
                 </View>
-            </View>
+            </TouchableOpacity>
         </Modal>
     );
 }

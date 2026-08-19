@@ -4780,12 +4780,14 @@ export const confirmScore = async (req, res, next) => {
 
         res.json(updated);
 
-        const eloMsg = pointChanges.length > 0 ? ` Points have been updated based on match result.` : '';
+        // Kullanıcı isteği: uygulamanın tamamı Türkçe bildirim metni kullanıyor — bu bildirim
+        // yanlışlıkla İngilizce yazılmış kalmış, diğerleriyle tutarlı hale getirildi.
+        const eloMsg = pointChanges.length > 0 ? ` Maç sonucuna göre puanlar güncellendi.` : '';
         prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } })
             .then(me => createNotification(
                 request.scoreEnteredBy, 'SCORE_CONFIRMED',
-                '✅ Score confirmed!',
-                `${me.username} confirmed the match score.${eloMsg}`,
+                '✅ Skor Onaylandı!',
+                `${me.username} maç skorunu onayladı.${eloMsg}`,
                 { rivalId: id, pointChanges, category: request.category, subCategory: request.subCategory }
             ).catch(() => {})).catch(() => {});
     } catch (error) { next(error); }
