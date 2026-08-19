@@ -414,7 +414,15 @@ async function checkGenderCountQuota(rival, newJoinerGender) {
     if (!['volleyball', 'airsoft'].includes(rival.subCategory)) return null;
     if ((rival.teamSize || 1) <= 1) return null;
     const isExactMode = rival.requiredMaleCount != null && (rival.genderCountMode == null || rival.genderCountMode === 'EXACT');
-    const isMinMode = rival.genderCountMode === 'MIN' && rival.minGenderCount != null && ['MALE', 'FEMALE'].includes(rival.minGenderReq);
+    // KULLANICI RAPORU / KRİTİK HATA: 'MIN_PER_TEAM' (her takımda AYRI AYRI en az N kişi,
+    // bkz. perTeamGenderFeasible) burada hiç tanınmıyordu — isMinMode sadece 'MIN' kontrol
+    // ediyordu, bu yüzden havuza (unassignedPlayers) kabul anında HİÇBİR kısıtlama
+    // uygulanmıyordu. perTeamGenderFeasible kısıtlaması ancak oyuncu GERÇEKTEN bir tarafa
+    // atanırken devreye giriyor — sonuç: "en az 2 kadın (her takımda)" ayarlı bir ilanda 12
+    // erkek arka arkaya havuza kabul edilebiliyordu, kota imkansız hale gelene kadar hiçbir
+    // uyarı çıkmıyordu. Artık MIN_PER_TEAM de burada tanınıyor; havuz-geneli asgari toplam
+    // gereksinim minGenderCount×2 (her taraf için ayrı ayrı minGenderCount).
+    const isMinMode = ['MIN', 'MIN_PER_TEAM'].includes(rival.genderCountMode) && rival.minGenderCount != null && ['MALE', 'FEMALE'].includes(rival.minGenderReq);
     if (!isExactMode && !isMinMode) return null;
     if (newJoinerGender === 'OTHER') return null; // mevcut tek-slot cinsiyet kontrolleriyle aynı: OTHER kotaya dahil değil
     if (!newJoinerGender) {
@@ -458,10 +466,15 @@ async function checkGenderCountQuota(rival, newJoinerGender) {
     const newTotalFilled = currentTotalFilled + 1;
     const newMinGenderCount = currentMinGenderCount + (newJoinerGender === rival.minGenderReq ? 1 : 0);
     const remainingAfter = totalSlots - newTotalFilled;
-    const neededMore = Math.max(0, rival.minGenderCount - newMinGenderCount);
+    // MIN_PER_TEAM'de her taraf AYRI AYRI minGenderCount istiyor — havuz henüz taraflara
+    // bölünmediği için, kabul aşamasında imkansızlığı yakalayabilmek adına toplamda en az
+    // 2×minGenderCount (bkz. üstteki yorum) gerektiği varsayılır.
+    const effectiveMinGenderCount = rival.genderCountMode === 'MIN_PER_TEAM' ? rival.minGenderCount * 2 : rival.minGenderCount;
+    const neededMore = Math.max(0, effectiveMinGenderCount - newMinGenderCount);
     if (neededMore > remainingAfter) {
         const label = rival.minGenderReq === 'MALE' ? 'erkek' : 'kadın';
-        return `Bu ilanda en az ${rival.minGenderCount} ${label} olması gerekiyor — bu oyuncuyu kabul etmek bu minimumu imkansız hale getiriyor. Kabul etmeden önce ayarlardan cinsiyet dağılımını düzenlemen gerekiyor.`;
+        const scopeLabel = rival.genderCountMode === 'MIN_PER_TEAM' ? ' (her takımda)' : '';
+        return `Bu ilanda en az ${rival.minGenderCount} ${label}${scopeLabel} olması gerekiyor — bu oyuncuyu kabul etmek bu minimumu imkansız hale getiriyor. Kabul etmeden önce ayarlardan cinsiyet dağılımını düzenlemen gerekiyor.`;
     }
     return null;
 }
@@ -4017,7 +4030,23 @@ export const getUpcomingMatches = async (req, res, next) => {
                 ...catWhere,
                 ...(subCategory && { subCategory }),
             },
-            include: { sender: { select: SENDER_SELECT }, refereeUser: { select: SENDER_SELECT }, _count: { select: { matchComments: true } } },
+            include: {
+                sender: { select: SENDER_SELECT },
+                refereeUser: { select: SENDER_SELECT },
+                _count: { select: { matchComments: true } },
+                // KULLANICI RAPORU: Yaklaşan Maçlar kartındaki "Yedek İstekleri"/"Gönderilen
+                // Davetler" bölümleri joinRequests hiç çekilmediği için HER ZAMAN boş geliyordu —
+                // ekranda görünen istekler sadece o an açıkken canlı gelen socket olaylarıyla
+                // (bkz. mobil localSubRequests) yerel hafızada tutuluyordu. Maç "Yedek Kadro
+                // Aranan" bölümüne geçince (farklı bir liste/map'e taşındığı için React kartı
+                // yeniden mount ediyor, yerel state sıfırlanıyor) ya da ekran basitçe yenilenince
+                // bu yerel state kayboluyor, istekler de gerçekten silinmiş gibi "kayboluyordu".
+                joinRequests: {
+                    where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
+                    orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }],
+                    include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } },
+                },
+            },
             orderBy: { matchDate: 'asc' },
         });
 
