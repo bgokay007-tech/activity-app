@@ -1096,9 +1096,9 @@ export const getCountsBySubCategory = async (req, res, next) => {
             const filled = (Array.isArray(r.substitutePlayers) ? r.substitutePlayers : []).filter(p => p?.id).length;
             return filled < (r.substituteCount || 0);
         }).length;
-        // Kullanıcı isteği: yedek kadro aranan maç açık bir ilan sayılmadığı için tam
-        // değil, "buçuk" (0.5) olarak sayılır — ör. 4 açık ilan + 1 yedek aranan maç → 4.5.
-        if (subsNeededCount > 0) counts.volleyball = (counts.volleyball || 0) + subsNeededCount * 0.5;
+        // Kullanıcı isteği: "4.5 ilan" gibi küsuratlı bir sayaç göstermeye gerek yok —
+        // yedek kadro aranan maç da tam (1) sayılır, açık ilanlarla toplanır.
+        if (subsNeededCount > 0) counts.volleyball = (counts.volleyball || 0) + subsNeededCount;
         res.json(counts);
     } catch (error) { next(error); }
 };
