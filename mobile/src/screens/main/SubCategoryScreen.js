@@ -2327,7 +2327,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         onPress={() => promptAssignTeam(p)}
                                                         style={{ width:'32%', flexDirection:'row', alignItems:'center', gap:3, paddingVertical:4 }}>
                                                         {p.id ? <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} /> : <Text style={{ fontSize:11 }}>👤</Text>}
-                                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1}>{p.id ? playerDisplayName(p) : p.manualName}</Text>
+                                                        {/* Kullanıcı isteği: ilan sahibi kime hangi takımı vereceğine karar
+                                                            verirken cinsiyet + derece puanını burada görsün. */}
+                                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1}>
+                                                            {p.id ? playerDisplayName(p) : p.manualName}{reqGenderParen(p.gender, t.lang)}{p.skillRating != null ? `  ⭐${Number(p.skillRating).toFixed(2)}` : ''}
+                                                        </Text>
                                                     </TouchableOpacity>
                                                 ))}
                                             </View>
@@ -9580,7 +9584,11 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                                 {unassigned.map((p, i) => (
                                     <View key={p.id || `m-${i}`} style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:5, paddingHorizontal:6, marginBottom:4 }}>
                                         {p.id ? <Avatar name={p.username} avatar={p.avatar} size={14} color="#a855f7" /> : <Text style={{ fontSize:11 }}>👤</Text>}
-                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', flex:1, minWidth:0 }} numberOfLines={1}>{p.id ? senderAlias(p) : p.manualName}</Text>
+                                        {/* Kullanıcı isteği: ilan sahibi kime hangi takımı vereceğine karar
+                                            verirken cinsiyet + derece puanını burada görsün. */}
+                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', flex:1, minWidth:0 }} numberOfLines={1}>
+                                            {p.id ? senderAlias(p) : p.manualName}{reqGenderParen(p.gender, t.lang)}{p.skillRating != null ? `  ⭐${Number(p.skillRating).toFixed(2)}` : ''}
+                                        </Text>
                                         {(!founderFull || !oppFull) && (
                                             <TouchableOpacity onPress={() => promptSlotAction(p, null)}
                                                 style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor:'#a855f720', borderWidth:1, borderColor:'#a855f750' }}>

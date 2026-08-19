@@ -1005,6 +1005,10 @@ export const getRivalById = async (req, res, next) => {
             ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []).filter(p => p?.id).map(p => p.id),
             ...(Array.isArray(rival.participants) ? rival.participants : []).filter(p => p?.id).map(p => p.id),
             ...(Array.isArray(rival.substitutePlayers) ? rival.substitutePlayers : []).filter(p => p?.id).map(p => p.id),
+            // Kullanıcı isteği: "Atanmamış" listesinde de isimlerin yanında elo/derece puanı
+            // görünsün ki ilan sahibi kime hangi takımı vereceğine ona göre karar versin —
+            // önceden bu liste sadece gender enrichment alıyordu, skillRating hiç yoktu.
+            ...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []).filter(p => p?.id).map(p => p.id),
         ])];
         const teamInterests = teamUserIds.length > 0
             ? await prisma.userInterest.findMany({
@@ -1025,7 +1029,7 @@ export const getRivalById = async (req, res, next) => {
             senderTeam: withTeamRating(rival.senderTeam),
             participants: withTeamRating(rival.participants),
             substitutePlayers: withTeamRating(rival.substitutePlayers),
-            unassignedPlayers: withGender(rival.unassignedPlayers),
+            unassignedPlayers: withGender(withTeamRating(rival.unassignedPlayers)),
         });
     } catch (error) { next(error); }
 };
@@ -2545,6 +2549,8 @@ export const getRivalRequests = async (req, res, next) => {
             ...(Array.isArray(r.senderTeam) ? r.senderTeam : []).filter(p => p?.id).map(p => p.id),
             ...(Array.isArray(r.participants) ? r.participants : []).filter(p => p?.id).map(p => p.id),
             ...(Array.isArray(r.substitutePlayers) ? r.substitutePlayers : []).filter(p => p?.id).map(p => p.id),
+            // Kullanıcı isteği: "Atanmamış" listesinde de elo/derece puanı görünsün.
+            ...(Array.isArray(r.unassignedPlayers) ? r.unassignedPlayers : []).filter(p => p?.id).map(p => p.id),
         ]))];
         const teamInterests = teamUserIds.length > 0
             ? await prisma.userInterest.findMany({ where: { userId: { in: teamUserIds } }, select: { userId: true, subCategory: true, skillRating: true } })
@@ -2560,7 +2566,7 @@ export const getRivalRequests = async (req, res, next) => {
             senderTeam: withTeamRating(r.senderTeam, r.subCategory),
             participants: withTeamRating(r.participants, r.subCategory),
             substitutePlayers: withTeamRating(r.substitutePlayers, r.subCategory),
-            unassignedPlayers: withGender(r.unassignedPlayers),
+            unassignedPlayers: withGender(withTeamRating(r.unassignedPlayers, r.subCategory)),
             _myJoinStatus: myJoinMap[r.id]?.status || null,
             _myJoinRequestId: myJoinMap[r.id]?.id || null,
             _myJoinCounterPrice: myJoinMap[r.id]?.counterPrice || null,
@@ -4182,6 +4188,8 @@ export const getUpcomingMatches = async (req, res, next) => {
                 ...active.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).filter(p => p?.id).map(p => p.id)),
                 ...active.flatMap(m => (Array.isArray(m.senderTeam) ? m.senderTeam : []).filter(p => p?.id).map(p => p.id)),
                 ...active.flatMap(m => (Array.isArray(m.substitutePlayers) ? m.substitutePlayers : []).filter(p => p?.id).map(p => p.id)),
+                // Kullanıcı isteği: "Atanmamış" listesinde de elo/derece puanı görünsün.
+                ...active.flatMap(m => (Array.isArray(m.unassignedPlayers) ? m.unassignedPlayers : []).filter(p => p?.id).map(p => p.id)),
             ].filter(Boolean))];
 
             const interests = allUserIds.length > 0
@@ -4227,7 +4235,11 @@ export const getUpcomingMatches = async (req, res, next) => {
                     skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
                     alias: p.alias || interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.alias || null,
                 }) : p),
-                unassignedPlayers: (Array.isArray(m.unassignedPlayers) ? m.unassignedPlayers : []).map(p => p?.id ? ({ ...p, gender: p.gender ?? unassignedGenderById[p.id] ?? null }) : p),
+                unassignedPlayers: (Array.isArray(m.unassignedPlayers) ? m.unassignedPlayers : []).map(p => p?.id ? ({
+                    ...p,
+                    gender: p.gender ?? unassignedGenderById[p.id] ?? null,
+                    skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
+                }) : p),
                 _myNoShowPending: myNoShowSet.has(m.id),
                 commentCount: commentCountMap[m.id] ?? 0,
             }));
