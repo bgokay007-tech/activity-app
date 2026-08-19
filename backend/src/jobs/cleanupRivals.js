@@ -18,7 +18,10 @@ export async function cleanupExpiredRivals() {
                 matchDate: { not: null },
                 linkedRivalId: null,
             },
-            select: { id: true, senderId: true, category: true, subCategory: true, matchDate: true, matchTime: true },
+            select: {
+                id: true, senderId: true, category: true, subCategory: true, matchDate: true, matchTime: true,
+                participants: true, senderTeam: true, unassignedPlayers: true,
+            },
         });
 
         const expired = openRequests.filter(r => {
@@ -39,9 +42,21 @@ export async function cleanupExpiredRivals() {
                 data: { status: 'CANCELLED' },
             });
             console.log(`[cleanup] Cancelled ${result.count} expired open rival request(s)`);
-            // İlan sahibine haber ver — sessizce iptal olursa "ilanım nereye gitti" sorusuna yol açıyordu.
+            // Sadece ilan sahibine değil, o ana kadar katılmış herkese (takım arkadaşları,
+            // rakip taraf, henüz bir tarafa atanmamış kabul edilmiş oyuncular) haber ver —
+            // önceden sadece sender'a emitToUser yapılıyordu, bu yüzden bir katılımcı ilan
+            // detayını açık tutuyorsa maç iptal olduğunda hiç bilgilendirilmiyor, ölü bir
+            // ekranda kalıyordu (kullanıcı raporu: "detay kısmında kaldım, yönlendirmeliydi").
             for (const r of expired) {
-                emitToUser(r.senderId, 'rivalDeleted', { rivalId: r.id, subCategory: r.subCategory });
+                const involvedIds = [...new Set([
+                    r.senderId,
+                    ...(Array.isArray(r.senderTeam) ? r.senderTeam : []).filter(p => p?.id).map(p => p.id),
+                    ...(Array.isArray(r.participants) ? r.participants : []).filter(p => p?.id).map(p => p.id),
+                    ...(Array.isArray(r.unassignedPlayers) ? r.unassignedPlayers : []).filter(p => p?.id).map(p => p.id),
+                ])];
+                for (const uid of involvedIds) {
+                    emitToUser(uid, 'rivalDeleted', { rivalId: r.id, subCategory: r.subCategory });
+                }
                 createNotification(
                     r.senderId,
                     'MATCH_EXPIRED',
@@ -49,6 +64,16 @@ export async function cleanupExpiredRivals() {
                     `${r.subCategory} ilanınız için yeterli oyuncu bulunamadı ve maç saati geldiği için otomatik kaldırıldı.`,
                     { rivalId: r.id, category: r.category, subCategory: r.subCategory },
                 ).catch(() => {});
+                for (const uid of involvedIds) {
+                    if (uid === r.senderId) continue;
+                    createNotification(
+                        uid,
+                        'MATCH_EXPIRED',
+                        '⏰ Maç İptal Edildi',
+                        `Katıldığınız ${r.subCategory} maçı için yeterli oyuncu bulunamadı ve maç saati geldiği için otomatik iptal edildi.`,
+                        { rivalId: r.id, category: r.category, subCategory: r.subCategory },
+                    ).catch(() => {});
+                }
             }
         }
 

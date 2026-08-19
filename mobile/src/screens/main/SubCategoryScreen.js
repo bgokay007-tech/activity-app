@@ -3257,6 +3257,18 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         setEditVisible(false);
         if (editOpenedFromDetailRef.current) setTimeout(() => setDetailVisible(true), 300);
     };
+    // Kullanıcı isteği: ilan detayındayken (voleybolde maç saati gelip yetersiz oyuncu
+    // nedeniyle) ilan otomatik kaldırılırsa, ölü bir detay ekranında kalınmasın — detay
+    // kapanıp altındaki spor sayfasına dönülsün (backend artık bunu sadece ilan sahibine
+    // değil, o ana kadar katılmış herkese de bildiriyor, bkz. cleanupRivals.js).
+    useEffect(() => {
+        const off = onSocket('rivalDeleted', ({ rivalId }) => {
+            if (rivalId !== item.id) return;
+            setDetailVisible(false);
+            setEditVisible(false);
+        });
+        return off;
+    }, [item.id]);
 
     // Hakemlik için hızlı başvuru — maç detayına hiç girmeden, kart üzerinden
     // doğrudan fiyat/mesaj ile başvurabilsin diye.
