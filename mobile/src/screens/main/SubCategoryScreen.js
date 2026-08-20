@@ -266,7 +266,7 @@ function getTabs(sub, category) {
     if (sub === 'football')
         return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', 'referee', 'media'];
     if (sub === 'volleyball')
-        return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'equipment', 'tickets', 'archive', 'media'];
+        return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'equipment', 'media', 'tickets', 'archive'];
     // Kullanıcı isteği: badminton, padel ile aynı sekme setini kullanıyor.
     if (sub === 'tennis' || sub === 'padel' || sub === 'badminton')
         return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
