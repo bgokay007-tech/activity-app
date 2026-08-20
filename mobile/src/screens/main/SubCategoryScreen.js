@@ -17881,13 +17881,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                     || upcomingList.find(r => r.id === highlightRivalId);
                 if (found) {
                     autoOpenHandledRef.current = highlightRivalId;
-                    setAutoOpenId(highlightRivalId);
+                    // Kullanıcı raporu: bildirimden gelip otomatik açılan ilan detayında üstteki
+                    // bilgi rozetleri (cinsiyet/derece/iptal cezası vb.) bazen bir anda "kayıyordu"
+                    // — sadece bildirimden gelince, direkt karta dokununca hiç olmuyordu. Ekran
+                    // ilk kez (soğuk) monte olurken ScrollView/adjustsFontSizeToFit ölçümü henüz
+                    // oturmadan Modal'ın hemen açılması, ilk çizimde bir yeniden düzenlemeye
+                    // (reflow) yol açıyordu. Kısa bir gecikme, kullanıcı hiçbir şey görmeden bu
+                    // ilk ölçüm turunun oturmasına zaman tanıyor.
+                    setTimeout(() => setAutoOpenId(highlightRivalId), 250);
                 } else if (pwRes.data.some(r => r.id === highlightRivalId)) {
                     // Hakem ilanı (PLAYER_WANTED) — Hakemler alt-sekmesinde yaşıyor
                     autoOpenHandledRef.current = highlightRivalId;
                     setCoachSubTab('referees');
                     setActiveTab('coaches');
-                    setAutoOpenId(highlightRivalId);
+                    setTimeout(() => setAutoOpenId(highlightRivalId), 250);
                 }
             }
         } catch(e) { console.warn(e?.message); }
