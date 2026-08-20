@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+﻿import { Component, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useFocusEffect, useNavigation, useIsFocused } from '@react-navigation/native';
 import {
     View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
@@ -8678,9 +8678,60 @@ const vb = StyleSheet.create({
 // Arşivdeki bir maça dokununca tüm bilgileri (iki takım ayrı ayrı, set skorları,
 // puan değişimleri, kort/tarih/mod, itiraz/akran değerlendirme/hakem aksiyonları)
 // tek bir modalde gösterir — kompakt karttaki özet görünümün tam hâli.
+// Kullanıcı raporu: arşivdeki BAZI maçlarda detay hiç açılmıyor, sadece arka plan
+// biraz daha koyulaşıp öyle kalıyordu — sebebi cihazda tekrar üretilemiyordu. Bunun
+// tek olası açıklaması, aşağıdaki içerikte (veri şekli maça göre değişebildiği için)
+// render sırasında yakalanmamış bir hata fırlaması: hata boundary'siz olduğu için
+// TÜM modal (Modal kabuğu dahil) sessizce çöküyor, sadece native backdrop kalıyor.
+// Artık modal KABUĞU (arka plan + üst başlık + ✕) bu boundary'nin DIŞINDA, ayrı ve
+// asla çökemeyecek kadar basit — içerik çökse bile en azından ✕ ile kapatılabiliyor
+// ve gerçek hata mesajı ekranda görünüyor (rapor edilebilsin diye).
+class ArchiveDetailErrorBoundary extends Component {
+    constructor(props) { super(props); this.state = { error: null }; }
+    static getDerivedStateFromError(error) { return { error }; }
+    componentDidCatch(error, info) { console.error('ArchiveMatchDetailModal içerik hatası:', error, info?.componentStack); }
+    componentDidUpdate(prevProps) {
+        if (prevProps.matchId !== this.props.matchId && this.state.error) this.setState({ error: null });
+    }
+    render() {
+        if (this.state.error) {
+            return (
+                <View style={{ paddingVertical:20 }}>
+                    <Text style={{ color:'#ef4444', fontSize:13, fontWeight:'700', marginBottom:8 }}>⚠️ Bu maçın detayı gösterilirken bir hata oluştu.</Text>
+                    <Text style={{ color: colors.textMuted, fontSize:11 }} selectable>{String(this.state.error?.message || this.state.error)}</Text>
+                </View>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, onPeerReview, onRefereeReview }) {
+    return (
+        <Modal visible={!!match} animationType="slide" transparent onRequestClose={onClose}>
+            {/* Kullanıcı raporu: bu belirli maçta içerik hiç görünmeyip sadece saydam siyah
+                arka plan kalıyordu — nedeni kesin doğrulanamadı (cihazda tekrar üretilemedi)
+                ama arka plana dokununca kapatılabilsin diye (önceden sadece ✕ ile kapanıyordu,
+                içerik hiç render olmazsa ✕'e de erişilemiyordu) TouchableOpacity'e çevrildi. */}
+            <TouchableOpacity activeOpacity={1} onPress={onClose} style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
+                <View onStartShouldSetResponder={() => true} style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:18, maxHeight:'88%', minHeight: 140 }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
+                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>Maç Detayı</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
+                    </View>
+                    {match && (
+                        <ArchiveDetailErrorBoundary matchId={match.id}>
+                            <ArchiveMatchDetailContent match={match} myId={myId} onClose={onClose} onUserPress={onUserPress} onAppeal={onAppeal} onPeerReview={onPeerReview} onRefereeReview={onRefereeReview} />
+                        </ArchiveDetailErrorBoundary>
+                    )}
+                </View>
+            </TouchableOpacity>
+        </Modal>
+    );
+}
+
+function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal, onPeerReview, onRefereeReview }) {
     const t = useT();
-    if (!match) return null;
     const m = match;
     const isOwner = m.senderId === myId;
     const senderTeamArr = Array.isArray(m.senderTeam) ? m.senderTeam : [];
@@ -8754,82 +8805,68 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
     };
 
     return (
-        <Modal visible={!!match} animationType="slide" transparent onRequestClose={onClose}>
-            {/* Kullanıcı raporu: bu belirli maçta içerik hiç görünmeyip sadece saydam siyah
-                arka plan kalıyordu — nedeni kesin doğrulanamadı (cihazda tekrar üretilemedi)
-                ama arka plana dokununca kapatılabilsin diye (önceden sadece ✕ ile kapanıyordu,
-                içerik hiç render olmazsa ✕'e de erişilemiyordu) TouchableOpacity'e çevrildi. */}
-            <TouchableOpacity activeOpacity={1} onPress={onClose} style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
-                <View onStartShouldSetResponder={() => true} style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:18, maxHeight:'88%' }}>
-                    {/* Kullanıcı raporu: kadro uzun olunca alttaki oyuncular görünmüyordu — bu
-                        ScrollView'a flex:1 verilmemişti, üst View'daki maxHeight'a rağmen sınırlı
-                        bir viewport'u olmadığı için içerik kırpılıp kaydırılamıyordu (bkz.
-                        RivalDetailModal'daki aynı desen — orada ScrollView zaten flex:1 alıyor). */}
-                    <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false}>
-                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>Maç Detayı</Text>
-                            <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
-                        </View>
-                        {myResultText && <Text style={{ fontSize:14, fontWeight:'800', marginBottom:10, color: myResultColor }}>{myResultText}</Text>}
-                        <View style={{ marginBottom:14 }}>
-                            <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:2 }}>
-                                {m.flexibleSchedule ? '📅 Esnek Program' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : ''}
-                                {!m.flexibleSchedule && m.matchTime ? ` · 🕐 ${m.matchTime}` : ''}
-                            </Text>
-                            {(m.courtName || m.location) && (
-                                <Text style={{ color: colors.textMuted, fontSize:12 }}>
-                                    🏟️ {m.courtName || m.location}{m.courtName && m.location ? ` · 📍 ${m.location}` : ''}
-                                </Text>
-                            )}
-                            {m.duration != null && (
-                                <Text style={{ color: colors.textMuted, fontSize:12, marginTop:2 }}>
-                                    ⏱ {m.duration} dakika
-                                </Text>
-                            )}
-                            {m.matchMode && (
-                                <Text style={{ color: m.matchMode.toUpperCase()==='COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:12, fontWeight:'700', marginTop:2 }}>
-                                    {m.matchMode.toUpperCase()==='COMPETITIVE' ? '🔥 Rekabetçi' : '🎾 Antrenman'}
-                                </Text>
-                            )}
-                        </View>
+        // Kullanıcı raporu: kadro uzun olunca alttaki oyuncular görünmüyordu — bu
+        // ScrollView'a flex:1 verilmemişti, dış View'daki maxHeight'a rağmen sınırlı
+        // bir viewport'u olmadığı için içerik kırpılıp kaydırılamıyordu (bkz.
+        // RivalDetailModal'daki aynı desen — orada ScrollView zaten flex:1 alıyor).
+        <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false}>
+            {myResultText && <Text style={{ fontSize:14, fontWeight:'800', marginBottom:10, color: myResultColor }}>{myResultText}</Text>}
+            <View style={{ marginBottom:14 }}>
+                <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:2 }}>
+                    {m.flexibleSchedule ? '📅 Esnek Program' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : ''}
+                    {!m.flexibleSchedule && m.matchTime ? ` · 🕐 ${m.matchTime}` : ''}
+                </Text>
+                {(m.courtName || m.location) && (
+                    <Text style={{ color: colors.textMuted, fontSize:12 }}>
+                        🏟️ {m.courtName || m.location}{m.courtName && m.location ? ` · 📍 ${m.location}` : ''}
+                    </Text>
+                )}
+                {m.duration != null && (
+                    <Text style={{ color: colors.textMuted, fontSize:12, marginTop:2 }}>
+                        ⏱ {m.duration} dakika
+                    </Text>
+                )}
+                {m.matchMode && (
+                    <Text style={{ color: m.matchMode.toUpperCase()==='COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:12, fontWeight:'700', marginTop:2 }}>
+                        {m.matchMode.toUpperCase()==='COMPETITIVE' ? '🔥 Rekabetçi' : '🎾 Antrenman'}
+                    </Text>
+                )}
+            </View>
 
-                        <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'800', marginBottom:6 }}>{founderLabel}</Text>
-                        {founderSide.length > 0 ? founderSide.map(p => renderPlayer(p, true)) : <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>—</Text>}
+            <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'800', marginBottom:6 }}>{founderLabel}</Text>
+            {founderSide.length > 0 ? founderSide.map(p => renderPlayer(p, true)) : <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>—</Text>}
 
-                        <Text style={{ color:'#fca5a5', fontSize:12, fontWeight:'800', marginBottom:6, marginTop:8 }}>{opponentLabel}</Text>
-                        {opponentSide.length > 0 ? opponentSide.map(p => renderPlayer(p, false)) : <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>—</Text>}
+            <Text style={{ color:'#fca5a5', fontSize:12, fontWeight:'800', marginBottom:6, marginTop:8 }}>{opponentLabel}</Text>
+            {opponentSide.length > 0 ? opponentSide.map(p => renderPlayer(p, false)) : <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>—</Text>}
 
-                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:14 }}>
-                            {m.scoreStatus === 'CONFIRMED' && !m.scoreAppeal && m.completedAt
-                                && (Date.now() - new Date(m.completedAt).getTime()) <= 48 * 3600 * 1000 && (
-                                <TouchableOpacity onPress={() => { onAppeal(m); onClose(); }}
-                                    style={{ backgroundColor:'#f9731620', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#f9731650' }}>
-                                    <Text style={{ color:'#f97316', fontSize:12, fontWeight:'700' }}>⚠️ İtiraz Et</Text>
-                                </TouchableOpacity>
-                            )}
-                            {m.scoreAppeal && (
-                                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>⏳ İtiraz İnceleniyor</Text>
-                            )}
-                            {m.needsPeerReview && (
-                                <TouchableOpacity onPress={() => onPeerReview(m.id)}
-                                    style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#7c3aed50' }}>
-                                    <Text style={{ color:'#a78bfa', fontSize:12, fontWeight:'700' }}>{t.peerReviewNeedsReviewBtn}</Text>
-                                </TouchableOpacity>
-                            )}
-                            {m.refereeId && m.myRefereeReview && (
-                                <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{'⭐'.repeat(m.myRefereeReview.rating)} Hakemi değerlendirdin</Text>
-                            )}
-                            {m.refereeId && !m.myRefereeReview && m.canReviewReferee && (
-                                <TouchableOpacity onPress={() => onRefereeReview(m)}
-                                    style={{ backgroundColor:'#fbbf2420', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#fbbf2450' }}>
-                                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>Hakemi Değerlendir</Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
-                    </ScrollView>
-                </View>
-            </TouchableOpacity>
-        </Modal>
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:14 }}>
+                {m.scoreStatus === 'CONFIRMED' && !m.scoreAppeal && m.completedAt
+                    && (Date.now() - new Date(m.completedAt).getTime()) <= 48 * 3600 * 1000 && (
+                    <TouchableOpacity onPress={() => { onAppeal(m); onClose(); }}
+                        style={{ backgroundColor:'#f9731620', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#f9731650' }}>
+                        <Text style={{ color:'#f97316', fontSize:12, fontWeight:'700' }}>⚠️ İtiraz Et</Text>
+                    </TouchableOpacity>
+                )}
+                {m.scoreAppeal && (
+                    <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>⏳ İtiraz İnceleniyor</Text>
+                )}
+                {m.needsPeerReview && (
+                    <TouchableOpacity onPress={() => onPeerReview(m.id)}
+                        style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#7c3aed50' }}>
+                        <Text style={{ color:'#a78bfa', fontSize:12, fontWeight:'700' }}>{t.peerReviewNeedsReviewBtn}</Text>
+                    </TouchableOpacity>
+                )}
+                {m.refereeId && m.myRefereeReview && (
+                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{'⭐'.repeat(m.myRefereeReview.rating)} Hakemi değerlendirdin</Text>
+                )}
+                {m.refereeId && !m.myRefereeReview && m.canReviewReferee && (
+                    <TouchableOpacity onPress={() => onRefereeReview(m)}
+                        style={{ backgroundColor:'#fbbf2420', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#fbbf2450' }}>
+                        <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>Hakemi Değerlendir</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+        </ScrollView>
     );
 }
 
