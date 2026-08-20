@@ -3273,6 +3273,21 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     );
     const participants = Array.isArray(item.participants) ? item.participants : [];
     const senderTeamArr = Array.isArray(item.senderTeam) ? item.senderTeam : [];
+    // Kullanıcı isteği: tüm ilan kartları (Açık İlanlar/Bekleyen/Skor Bekleyen Maçlar) artık
+    // önlü-arkalı bir "digimon kart" — sağ üst köşedeki 🔄 ile çevrilince arka yüzde katılan
+    // oyuncular + elo puanları listeleniyor, ön yüz hiç değişmedi. Diğer digimon kartlarla
+    // (DoubleRosterCard vb.) AYNI iki aşamalı çevirme deseni: 0→90'da içerik henüz eskisi,
+    // kart tam yan (görünmez) olduğu anda içerik değişip 90→0'a devam ediyor — böylece
+    // arka yüz "aynalı" görünüp yarım çevrilirken sızmıyor.
+    const [cardFlipped, setCardFlipped] = useState(false);
+    const cardFlipAnim = useRef(new Animated.Value(0)).current;
+    const flipCard = () => {
+        Animated.timing(cardFlipAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(() => {
+            setCardFlipped(b => !b);
+            Animated.timing(cardFlipAnim, { toValue: cardFlipped ? 0 : 1, duration: 150, useNativeDriver: true }).start();
+        });
+    };
+    const cardFlipRotate = cardFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
     // Sipariş butonu: ilan sahibi ya da o ana kadar kabul edilmiş katılımcı/partner —
     // maç henüz eşleşmemiş (açık ilan) olsa bile, kort zaten rezerve edildiyse sipariş
     // verilebilir; maç saatinin gelmesi ya da eşleşmenin tamamlanması şart değil.
@@ -3502,10 +3517,45 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
 
     const rival = { id:item.id, subCategory:item.subCategory, matchType:item.matchType, level:item.level, matchDate:item.matchDate, matchTime:item.matchTime, location:item.location, courtName:item.courtName, flexibleSchedule:item.flexibleSchedule };
 
+    // Kullanıcı isteği: kadro kartı (arka yüz) — katılan herkes (kurucu + takım arkadaşları +
+    // rakip taraf + henüz tarafa atanmamış kabul edilmişler), elo puanlarıyla birlikte.
+    const backFacePlayers = [
+        item.sender,
+        ...senderTeamArr,
+        ...participants,
+        ...(Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []),
+    ].filter(p => p?.id);
+
     return (
         <>
-        <View style={[s.card, { width:'48%', borderRadius: moderateScale(14), paddingHorizontal:0, paddingTop:0, paddingBottom:0 }, item.flexibleSchedule && { borderColor:'#eab30840' }]}>
-
+        <Animated.View style={[s.card, { width:'48%', borderRadius: moderateScale(14), paddingHorizontal:0, paddingTop:0, paddingBottom:0, minHeight: moderateScale(230) }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
+            {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (ilan detayını açmaz). */}
+            <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                style={{ position:'absolute', top:6, right:6, zIndex:10, backgroundColor:'#00000060', borderRadius:12, width:22, height:22, alignItems:'center', justifyContent:'center' }}>
+                <Text style={{ fontSize:12 }}>🔄</Text>
+            </TouchableOpacity>
+            {cardFlipped ? (
+                <View style={{ padding: moderateScale(9), flex:1 }}>
+                    <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'800', marginBottom:8 }}>👥 {t.rosterPoolLabel}</Text>
+                    {backFacePlayers.length === 0 ? (
+                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
+                    ) : (
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {backFacePlayers.map((p, i) => {
+                                const r = p.skillRating ?? p.interests?.[0]?.skillRating;
+                                return (
+                                    <View key={p.id || i} style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
+                                        <Avatar name={p.username} avatar={p.avatar} size={moderateScale(20)} color={cfg.color} />
+                                        <Text style={{ color:'#fff', fontSize:moderateScale(11), flex:1, minWidth:0 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(p)}</Text>
+                                        {r != null && <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800' }}>{Number(r).toFixed(2)} ★</Text>}
+                                    </View>
+                                );
+                            })}
+                        </ScrollView>
+                    )}
+                </View>
+            ) : (
+            <>
             {/* ── Tappable info area → opens detail modal ──
                  Not: burada ayrıca onRefresh() (tüm liste yenileme) ÇAĞRILMIYOR —
                  modal zaten kendi içinde tek ilan için taze veri çekiyor
@@ -3842,7 +3892,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </TouchableOpacity>
                 )}
             </View>
-        </View>
+            </>
+            )}
+        </Animated.View>
 
         <RivalDetailModal
             visible={detailVisible}
@@ -4261,6 +4313,19 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const t = useT();
     const insets = useSafeAreaInsets();
     const [showScore, setShowScore] = useState(false);
+    // Kullanıcı isteği: Açık İlanlar'daki gibi bu kart (liste görünümündeki küçük özet, tam
+    // ekran detay DEĞİL) de önlü-arkalı bir "digimon kart" — sağ üst 🔄 ile çevrilince arka
+    // yüzde katılan herkes + elo puanı listeleniyor. RivalCard'daki AYNI iki aşamalı çevirme
+    // deseni (bkz. oradaki cardFlipRotate açıklaması).
+    const [cardFlipped, setCardFlipped] = useState(false);
+    const cardFlipAnim = useRef(new Animated.Value(0)).current;
+    const flipCard = () => {
+        Animated.timing(cardFlipAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(() => {
+            setCardFlipped(b => !b);
+            Animated.timing(cardFlipAnim, { toValue: cardFlipped ? 0 : 1, duration: 150, useNativeDriver: true }).start();
+        });
+    };
+    const cardFlipRotate = cardFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
     // Maçı Başlat — kamera kaydı ve/ya da saatten canlı skor takibi.
     const [showMatchStart, setShowMatchStart] = useState(false);
     const [showMatchLive, setShowMatchLive] = useState(false);
@@ -5105,16 +5170,42 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         finally { setSendingLocalComment(false); }
     };
 
+    // Kullanıcı isteği: kart arkası — katılan herkes (allPlayers zaten kurucu+takım
+    // arkadaşları+rakip+atanmamış havuzunu doğru şekilde birleştiriyor), elo puanlarıyla.
+    const backFacePlayers = allPlayers.filter(p => p?.id && !p._emptySlot);
+
     return (
         <>
         {/* Compact card — tap opens detail */}
-        <TouchableOpacity
-            style={[s.card, { flex:1, paddingHorizontal:3, paddingTop:3, paddingBottom:3,
+        <Animated.View
+            style={[s.card, { flex:1, paddingHorizontal:3, paddingTop:3, paddingBottom:3, minHeight: moderateScale(110),
                 borderColor: isMatched ? '#16a34a60' : '#a855f740',
-                backgroundColor: isMatched ? '#16a34a08' : undefined }]}
-            activeOpacity={0.75}
-            onPress={openDetail}
+                backgroundColor: isMatched ? '#16a34a08' : undefined,
+                transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}
         >
+            {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (ilan detayını açmaz). */}
+            <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                style={{ position:'absolute', top:2, right:2, zIndex:10, backgroundColor:'#00000060', borderRadius:12, width:20, height:20, alignItems:'center', justifyContent:'center' }}>
+                <Text style={{ fontSize:11 }}>🔄</Text>
+            </TouchableOpacity>
+            {cardFlipped ? (
+                <View style={{ flex:1 }}>
+                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', marginBottom:6 }}>👥 {t.rosterPoolLabel}</Text>
+                    {backFacePlayers.length === 0 ? (
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
+                    ) : (
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {backFacePlayers.map((p, i) => (
+                                <View key={p.id || i} style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
+                                    <Text style={{ color:'#fff', fontSize:11, flex:1, minWidth:0 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
+                                    {p.skillRating != null && <Text style={{ color:'#facc15', fontSize:10, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>}
+                                </View>
+                            ))}
+                        </ScrollView>
+                    )}
+                </View>
+            ) : (
+            <TouchableOpacity style={{ flex:1 }} activeOpacity={0.75} onPress={openDetail}>
             {/* Players + ratings — takım sporlarında (kadro kartı olan maçlarda) bu ham liste
                 yerine takım isimleri gösterilir, kadro kartı zaten tam listeyi (manuel oyuncular
                 dahil) doğru gösteriyor (bkz. hasTeamRoster). */}
@@ -5192,7 +5283,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             <Text style={{ color: colors.textMuted, fontSize:11, marginTop:3 }}>
                 💬 {t.matchCommentsBtn} {match.commentCount ?? 0}
             </Text>
-        </TouchableOpacity>
+            </TouchableOpacity>
+            )}
+        </Animated.View>
 
         {/* Full-screen Detail Modal */}
         <Modal visible={showDetail} animationType="slide" onRequestClose={() => setShowDetail(false)}>
