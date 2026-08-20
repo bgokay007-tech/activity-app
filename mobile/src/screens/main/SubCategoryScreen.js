@@ -573,6 +573,12 @@ const det = StyleSheet.create({
 
 function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin, highlightSlot: highlightSlotFromNotif = null }) {
     const insets = useSafeAreaInsets();
+    // Kullanıcı raporu: "Atanmamış" ızgarasında derece puanı (⭐) küçük ekranlı telefonlarda
+    // görünmüyordu — sabit 3 sütun (width:'32%') dar ekranda isim+cinsiyet metnini doldurup
+    // numberOfLines={1} yüzünden sondaki puanı kesiyordu. Dar ekranlarda 2 sütuna düşülerek
+    // her hücreye daha fazla genişlik ayrılır (bkz. unassignedGridCols kullanımı aşağıda).
+    const { width: screenWidth } = useWindowDimensions();
+    const unassignedGridCols = screenWidth < 380 ? 2 : 3;
     // DOUBLE kadro kartında boş bir formaya dokunarak doğrudan o slota başvurabilmek için
     // (bkz. SlotBox) — kendi cinsiyetimiz slotun gereksinimine uymuyorsa buton hiç gösterilmez.
     const myGender = useSelector(s => s.auth.user?.gender);
@@ -2355,12 +2361,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     {showTeamCards && unassignedSlots.length > 0 && (
                                         <View style={{ marginTop:8, paddingTop:8, borderTopWidth:1, borderTopColor: colors.border }}>
                                             <Text style={[s.fieldLabel, { fontSize:10, marginBottom:4 }]}>{t.unassignedLabel} ({unassignedSlots.length})</Text>
-                                            {/* Kullanıcı isteği: satır başına 3 isim — tek sütun dikey liste yerine ızgara. */}
+                                            {/* Kullanıcı isteği: satır başına 3 isim (dar ekranda 2, bkz. unassignedGridCols) —
+                                                tek sütun dikey liste yerine ızgara. */}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
                                                 {unassignedSlots.map((p, i) => (
                                                     <TouchableOpacity key={p.id || `unassigned-back-${i}`} disabled={!isOwner}
                                                         onPress={() => promptAssignTeam(p)}
-                                                        style={{ width:'32%', flexDirection:'row', alignItems:'center', gap:3, paddingVertical:4 }}>
+                                                        style={{ width:`${Math.floor(100 / unassignedGridCols) - 1}%`, flexDirection:'row', alignItems:'center', gap:3, paddingVertical:4 }}>
                                                         {p.id ? <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} /> : <Text style={{ fontSize:11 }}>👤</Text>}
                                                         {/* Kullanıcı isteği: ilan sahibi kime hangi takımı vereceğine karar
                                                             verirken cinsiyet + derece puanını burada görsün. */}
