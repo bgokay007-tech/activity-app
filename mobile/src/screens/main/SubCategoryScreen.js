@@ -1034,13 +1034,21 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const removeRivalParticipant = (participantUserId, participantName) => {
         Alert.alert(
             'Katılımcıyı Çıkar',
-            `${participantName ? participantName : 'Bu kullanıcı'} maçtan çıkarılacak, ilan tekrar açık hâle gelecek. Emin misiniz?`,
+            `${participantName ? participantName : 'Bu kullanıcı'} maçtan çıkarılacak. Emin misiniz?`,
             [
                 { text: 'Vazgeç', style: 'cancel' },
                 { text: 'Çıkar', style: 'destructive', onPress: async () => {
                     try {
                         const { data } = await api.delete(`/rivals/${item.id}/participants/${participantUserId}`);
-                        setLocalParticipants(Array.isArray(data?.request?.participants) ? data.request.participants : []);
+                        // Kullanıcı raporu: bu çıkarma artık atanmamış/yedek listesinden de
+                        // tetiklenebiliyor (bkz. nameMenu) — önceden SADECE participants
+                        // güncelleniyordu, senderTeam/unassignedPlayers'tan çıkarılan biri
+                        // onRefresh() tüm listeyi yeniden çekene kadar kartta hayalet gibi
+                        // görünmeye devam ediyordu.
+                        if (Array.isArray(data?.request?.participants)) setLocalParticipants(data.request.participants);
+                        if (Array.isArray(data?.request?.senderTeam)) setLocalSenderTeam(data.request.senderTeam);
+                        if (Array.isArray(data?.request?.unassignedPlayers)) setLocalUnassigned(data.request.unassignedPlayers);
+                        onRefresh();
                     } catch (e) {
                         Alert.alert('', e?.response?.data?.message || t.actionFailed);
                     }
@@ -1157,6 +1165,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 nameActions.push({ label: `🏐 ${t.positionAssignBtn}`, onPress: () => setSlotActionTarget({ p, side, mode: 'position' }) });
             }
             if (p.id) nameActions.push({ label: `👤 ${t.goToProfileBtn}`, onPress: () => navigation.push('Profile', { userId: p.id }) });
+            // Kullanıcı isteği: "katılan oyuncular listesinde ya da arka kadro kartında oyuncuya
+            // tıklandığında maçtan çıkar da olsun — belki atama yapmadan, yedek listeden ya da
+            // ana kadrodan çıkarmak isteyecek" — önceden bu menüde SADECE pozisyon/profil vardı,
+            // çıkarma sadece arka yüzdeki ayrı "Çıkar/Değiştir" linkinde (sadece atanmış oyuncular
+            // için) vardı. Kurucu (ilan sahibi) kendini buradan çıkaramaz.
+            if (isOwner && sub === 'volleyball' && p.id && p.id !== item.senderId) {
+                nameActions.push({ label: `🚫 ${t.removeFromMatchBtn}`, destructive: true, onPress: () => removeRivalParticipant(p.id, p.username) });
+            }
             return { visible: true, title: name, actions: nameActions };
         }
         if (mode === 'position') {

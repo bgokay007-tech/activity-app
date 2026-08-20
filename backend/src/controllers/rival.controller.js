@@ -5720,6 +5720,7 @@ export const removeRivalParticipant = async (req, res, next) => {
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
         const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
         const unassignedArr = Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : [];
+        const subsArr = Array.isArray(rival.substitutePlayers) ? rival.substitutePlayers : [];
         const inParticipants = participants.some(p => p?.id === userId);
         const inSenderTeam  = senderTeamArr.some(p => p?.id === userId);
         // Atanmamış havuzunda (henüz hiçbir slota yerleşmemiş) biri de çıkarılabilmeli —
@@ -5727,7 +5728,33 @@ export const removeRivalParticipant = async (req, res, next) => {
         // (ör. erkek kalan tek boş slot kadın-kısıtlıysa) kalıcı olarak Atanmamış'ta sıkışıp
         // kalıyordu, ne owner atayabiliyordu ne de çıkarabiliyordu (kullanıcı raporu).
         const inUnassigned = unassignedArr.some(p => p?.id === userId);
-        if (!inParticipants && !inSenderTeam && !inUnassigned) return res.status(404).json({ message: 'Bu kullanıcı katılımcı listesinde değil' });
+        // Yedek listesindeki biri de çıkarılabilmeli — kullanıcı raporu: "kadro kartta oyuncuya
+        // tıklandığında maçtan çıkar da olsun, atama yapmadan/yedek listeden de olabilmeli".
+        const inSubs = subsArr.some(p => p?.id === userId);
+        if (!inParticipants && !inSenderTeam && !inUnassigned && !inSubs) return res.status(404).json({ message: 'Bu kullanıcı katılımcı listesinde değil' });
+        // Sadece yedek listesindeyse (ana kadroda/atanmamışta değil) terfi/yeniden açma
+        // mantığının hiçbiri geçerli değil — düz bir dizi filtrelemesi yeterli.
+        if (inSubs && !inParticipants && !inSenderTeam && !inUnassigned) {
+            const updatedSubs = subsArr.filter(p => p?.id !== userId);
+            const updated = await prisma.activityRequest.update({
+                where: { id },
+                data: { substitutePlayers: updatedSubs },
+                include: { sender: { select: SENDER_SELECT } },
+            });
+            await prisma.rivalJoinRequest.updateMany({
+                where: { rivalId: id, userId, status: 'ACCEPTED' },
+                data: { status: 'REJECTED' },
+            });
+            broadcast('rivalUpdate', updated);
+            emitToUser(userId, 'rivalUpdate', updated);
+            res.json({ removed: [userId], request: updated });
+            createNotification(userId, 'MATCH_CANCELLED',
+                '⚠️ Katılımınız Kaldırıldı',
+                `${rival.sender?.username || 'İlan sahibi'} sizi "${subCategoryTR(rival.subCategory)}" ilanının yedek listesinden çıkardı.`,
+                { rivalId: id, subCategory: rival.subCategory }
+            ).catch(() => {});
+            return;
+        }
 
         const removeIds = [userId];
         // DOUBLE maçlarda participants[0]=Rakip 1, participants[1]=Rakip 2 sabit konumludur
