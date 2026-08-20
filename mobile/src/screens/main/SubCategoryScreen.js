@@ -8592,10 +8592,20 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
     const isOwner = m.senderId === myId;
     const senderTeamArr = Array.isArray(m.senderTeam) ? m.senderTeam : [];
     const parts = Array.isArray(m.participants) ? m.participants : [];
-    const founderSide = [m.sender, ...senderTeamArr].filter(Boolean);
-    const opponentSide = parts.filter(Boolean);
+    // Kullanıcı raporu: voleybolde bazı arşiv maçlarında detay hiç açılmıyor, sadece
+    // arka plan biraz daha koyulaşıp kalıyordu — sebebi cihazda tekrar üretilemiyordu.
+    // `filter(Boolean)` sadece null/undefined'ı eleyip boş `{}` gibi "hayalet" kadro
+    // girdilerini (id'si de manualName'i de olmayan) elemiyordu; bu tür bir girdi
+    // renderPlayer'a gidince (özellikle .map/.filter zincirleri) modalin TAMAMININ
+    // sessizce render'dan düşmesine yol açabiliyordu. Artık sadece gerçek (id'li veya
+    // manuel isimli) oyuncular listeye giriyor.
+    const hasRealPlayer = (p) => !!(p && (p.id || p.manualName));
+    const founderSide = [m.sender, ...senderTeamArr].filter(hasRealPlayer);
+    const opponentSide = parts.filter(hasRealPlayer);
     const snapshot = m.score?.ratingSnapshot || {};
-    const sets = m.score?.sets;
+    // sets alanı bozuk/eski bir kayıtta dizi olmayabilir — Array.isArray ile korunmazsa
+    // aşağıdaki .map/.filter çağrıları throw edip TÜM modalin render'ını düşürüyordu.
+    const sets = Array.isArray(m.score?.sets) ? m.score.sets : null;
     const winner = m.score?.winner;
     const iAmFounderSide = isOwner || senderTeamArr.some(st => st?.id === myId);
     const founderLabel = m.founderTeamName || (founderSide.length > 1 ? 'Kurucu Takım' : (founderSide[0] ? senderAlias(founderSide[0]) : 'Kurucu'));
