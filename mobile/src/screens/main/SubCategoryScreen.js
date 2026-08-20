@@ -8715,15 +8715,24 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
                 içerik hiç render olmazsa ✕'e de erişilemiyordu) TouchableOpacity'e çevrildi. */}
             <TouchableOpacity activeOpacity={1} onPress={onClose} style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
                 <View onStartShouldSetResponder={() => true} style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:18, maxHeight:'88%', minHeight: 140 }}>
-                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>Maç Detayı</Text>
-                        <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
-                    </View>
-                    {match && (
-                        <ArchiveDetailErrorBoundary matchId={match.id}>
-                            <ArchiveMatchDetailContent match={match} myId={myId} onClose={onClose} onUserPress={onUserPress} onAppeal={onAppeal} onPeerReview={onPeerReview} onRefereeReview={onRefereeReview} />
-                        </ArchiveDetailErrorBoundary>
-                    )}
+                    {/* Kullanıcı raporu: başlık ScrollView'ın DIŞINA alınınca (error boundary
+                        denemesinde) dış View'da maxHeight'a rağmen kesin bir yüksekliği olmayan
+                        BİRDEN FAZLA kardeş (başlık + flex:1 ScrollView) oluştu — Android'de bu
+                        durumda flex:1'li ScrollView neredeyse sıfır yüksekliğe küçülüyor, sheet
+                        küçük kalıp içerik hiç büyümüyordu. ScrollView'ın TEK çocuğu olması
+                        (önceki, kanıtlanmış çalışan yapı) gerekiyor — başlık geri ScrollView'ın
+                        İÇİNE alındı, sadece riskli içerik (oyuncu/skor bölümü) boundary'yle sarılı. */}
+                    <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false}>
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
+                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>Maç Detayı</Text>
+                            <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
+                        </View>
+                        {match && (
+                            <ArchiveDetailErrorBoundary matchId={match.id}>
+                                <ArchiveMatchDetailContent match={match} myId={myId} onClose={onClose} onUserPress={onUserPress} onAppeal={onAppeal} onPeerReview={onPeerReview} onRefereeReview={onRefereeReview} />
+                            </ArchiveDetailErrorBoundary>
+                        )}
+                    </ScrollView>
                 </View>
             </TouchableOpacity>
         </Modal>
@@ -8805,11 +8814,11 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
     };
 
     return (
-        // Kullanıcı raporu: kadro uzun olunca alttaki oyuncular görünmüyordu — bu
-        // ScrollView'a flex:1 verilmemişti, dış View'daki maxHeight'a rağmen sınırlı
-        // bir viewport'u olmadığı için içerik kırpılıp kaydırılamıyordu (bkz.
-        // RivalDetailModal'daki aynı desen — orada ScrollView zaten flex:1 alıyor).
-        <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false}>
+        // Kullanıcı raporu: burada AYRICA bir ScrollView vardı — dış ArchiveMatchDetailModal'daki
+        // ScrollView'ın İÇİNE gömülünce (iç içe iki ScrollView) Android'de dış ScrollView'ın
+        // tek-çocuk boyutlandırma varsayımı bozulup sheet küçük kalıyordu. Bu artık düz bir
+        // Fragment — kaydırma tamamen dış ScrollView'da (bkz. ArchiveMatchDetailModal).
+        <>
             {myResultText && <Text style={{ fontSize:14, fontWeight:'800', marginBottom:10, color: myResultColor }}>{myResultText}</Text>}
             <View style={{ marginBottom:14 }}>
                 <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:2 }}>
@@ -8866,7 +8875,7 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
                     </TouchableOpacity>
                 )}
             </View>
-        </ScrollView>
+        </>
     );
 }
 
