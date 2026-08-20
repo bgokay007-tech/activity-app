@@ -2405,8 +2405,16 @@ export const createRivalRequest = async (req, res, next) => {
             })
             .catch(() => {});
 
-        // Auto-submit venue for admin review if courtName + location provided
-        if (courtName && location) {
+        // Auto-submit venue for admin review if courtName + location provided — ama SADECE
+        // topluluk tarafından eklenen serbest-metin kortlar için. Kullanıcı raporu: zaten
+        // admin onaylı bir BusinessVenue'den (venueId dolu — bkz. VenueBookingModal/CourtSlotsScreen
+        // seçimi) rezerve edilen bir kort ("Buro" tesisinin "Kort 2"si gibi) burada AYRICA
+        // topluluk Court tablosuna (verified:false, pending:true) "yeni bir yer" olarak
+        // gönderiliyordu — venueId'nin BusinessVenue'ye ait olduğu hiç kontrol edilmiyordu.
+        // Bu, zaten onaylı bir tesisin kortunu her ilan/rezervasyonda admin onay kuyruğuna
+        // gereksiz yere düşürüyordu. venueId doluysa kort zaten onaylı bir tesise ait demektir,
+        // ayrıca bir "yeni yer" başvurusuna gerek yok.
+        if (courtName && location && !venueId) {
             try {
                 const sport = subCategory || 'general';
                 const existing = await prisma.court.findFirst({
