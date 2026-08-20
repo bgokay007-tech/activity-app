@@ -4753,7 +4753,7 @@ export async function runScoreConfirmation(request) {
             createNotification(
                 uid, 'PEER_REVIEW_PROMPT',
                 '🏐 Oyuncuları Değerlendir',
-                'Maç arkadaşlarını ve rakiplerini değerlendirerek daha doğru bir eşleşme sistemine katkıda bulun.',
+                'Takım arkadaşlarını değerlendirerek daha doğru bir eşleşme sistemine katkıda bulun.',
                 { rivalId: request.id, category: request.category, subCategory: request.subCategory }
             ).catch(() => {});
         }

@@ -8824,8 +8824,10 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
                 {/* Kullanıcı isteği: bildirimden ("Oyuncuları Değerlendir") maç detayına gelince,
                     tek genel butona ek olarak her oyuncunun yanında da doğrudan değerlendirme
                     anketine giden bir buton olsun — kendini değerlendiremezsin. Kendi satırında,
-                    isim/skor satırıyla sıkışmasın diye. */}
-                {m.needsPeerReview && p.id && p.id !== myId && (
+                    isim/skor satırıyla sıkışmasın diye. Kullanıcı isteği: akran değerlendirmesi
+                    sadece takım arkadaşlarına yapılabildiği için (bkz. peerReview.controller.js)
+                    bu buton artık rakip takımın satırlarında hiç gösterilmiyor. */}
+                {m.needsPeerReview && p.id && p.id !== myId && isFounderSidePlayer === iAmFounderSide && (
                     <TouchableOpacity onPress={() => onPeerReview(m.id)}
                         style={{ backgroundColor:'#7c3aed20', borderRadius:6, paddingVertical:4, paddingHorizontal:8, borderWidth:1, borderColor:'#7c3aed50', marginTop:6, alignSelf:'flex-start' }}>
                         <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }} numberOfLines={1}>Değerlendir</Text>

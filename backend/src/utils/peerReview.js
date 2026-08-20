@@ -13,13 +13,6 @@ export function computeMatchSides(request) {
     return { teamA, teamB };
 }
 
-// İki oyuncu aynı taraftaysa (önceden grup olarak katılmışlarsa) true — bu çiftin oyu
-// harmanlamaya girmez (arkadaşlar birbirine yüksek puan verip istismar edemesin).
-export function isPremadePair(sides, idA, idB) {
-    const { teamA, teamB } = sides;
-    return (teamA.has(idA) && teamA.has(idB)) || (teamB.has(idA) && teamB.has(idB));
-}
-
 // Oy verenin son 10 akran oyunun (teknik+mental ortalaması) standart sapması. <5 önceki
 // oyu varsa yeni oy verenler cezalandırılmaz (1.0). Hep aynı puanı veren şüpheli oy
 // verenler stddev≈0 olur ve 0.2'ye (ağırlığın %80'i kırpılmış) kadar düşer.

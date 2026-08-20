@@ -1003,7 +1003,7 @@ const en = {
 
     // Peer review modal (volleyball)
     peerReviewTitle: '🏐 Rate Players',
-    peerReviewSubtitle: 'Rate your teammates and opponents to help build a more accurate skill rating system.',
+    peerReviewSubtitle: 'Rate your teammates to help build a more accurate skill rating system.',
     peerReviewTechnicalLabel: 'Technical (Passing/Setting)',
     peerReviewMentalLabel: 'Mental / Team Fit',
     peerReviewSubmitBtn: 'Submit',
@@ -2444,7 +2444,7 @@ const tr = {
 
     // Peer review modal (voleybol)
     peerReviewTitle: '🏐 Oyuncuları Değerlendir',
-    peerReviewSubtitle: 'Takım arkadaşlarını ve rakiplerini değerlendirerek daha doğru bir derecelendirme sistemine katkıda bulun.',
+    peerReviewSubtitle: 'Takım arkadaşlarını değerlendirerek daha doğru bir derecelendirme sistemine katkıda bulun.',
     peerReviewTechnicalLabel: 'Teknik (Manşet/Pas)',
     peerReviewMentalLabel: 'Mental / Takım Uyumu',
     peerReviewSubmitBtn: 'Gönder',

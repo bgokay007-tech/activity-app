@@ -1,17 +1,21 @@
 import prisma from '../config/prisma.js';
 import {
-    PEER_REVIEW_SUBCATEGORIES, computeMatchSides, isPremadePair,
+    PEER_REVIEW_SUBCATEGORIES, computeMatchSides,
     computeReviewerTrustScore, tryApplyPeerReviewBlend,
 } from '../utils/peerReview.js';
 
-function getRosterIds(request) {
-    const participants = Array.isArray(request.participants) ? request.participants : [];
-    const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
-    return [...new Set([request.senderId, ...participants.map(p => p.id), ...senderTeamArr.map(m => m.id)])];
+// Kullanıcı isteği: akran değerlendirmesi SADECE aynı takımdaki oyunculara yapılır —
+// rakip takımı oyuncu maç boyunca yakından gözlemlemez, kendi takım arkadaşının
+// manşet/pas/uyumunu gözlemler. Önceden getRosterIds (HER İKİ takım) döndürülüyordu,
+// bu da rakipleri de değerlendirme hedefi olarak sunuyordu — tasarımla çelişiyordu.
+function getSameSideRosterIds(request, userId) {
+    const { teamA, teamB } = computeMatchSides(request);
+    const mySide = teamA.has(userId) ? teamA : teamB.has(userId) ? teamB : null;
+    return mySide ? [...mySide] : [];
 }
 
-// GET /rivals/:id/peer-review-targets — maçtaki, kendisi ve zaten oyladıkları hariç
-// oyuncuları döner. isPremade istemciye hiç gösterilmez (istismarı kolaylaştırmasın).
+// GET /rivals/:id/peer-review-targets — maçtaki, kendi takımından, kendisi ve zaten
+// oyladıkları hariç oyuncuları döner.
 export const getPeerReviewTargets = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -21,8 +25,8 @@ export const getPeerReviewTargets = async (req, res, next) => {
             return res.status(400).json({ message: 'Peer review not available for this activity' });
         }
 
-        const rosterIds = getRosterIds(request);
-        if (!rosterIds.includes(req.userId)) return res.status(403).json({ message: 'Forbidden' });
+        const sameSideIds = getSameSideRosterIds(request, req.userId);
+        if (sameSideIds.length === 0) return res.status(403).json({ message: 'Forbidden' });
 
         const alreadyVoted = await prisma.matchPeerReview.findMany({
             where: { matchId: id, reviewerId: req.userId },
@@ -30,7 +34,7 @@ export const getPeerReviewTargets = async (req, res, next) => {
         });
         const votedIds = new Set(alreadyVoted.map(v => v.revieweeId));
 
-        const targetIds = rosterIds.filter(uid => uid !== req.userId && !votedIds.has(uid));
+        const targetIds = sameSideIds.filter(uid => uid !== req.userId && !votedIds.has(uid));
         if (targetIds.length === 0) return res.json({ targets: [], subCategory: request.subCategory });
 
         const users = await prisma.user.findMany({
@@ -60,13 +64,13 @@ export const submitPeerReview = async (req, res, next) => {
             return res.status(400).json({ message: 'Peer review not available for this activity' });
         }
 
-        const rosterIds = getRosterIds(request);
-        if (!rosterIds.includes(req.userId) || !rosterIds.includes(revieweeId)) {
+        // Kullanıcı isteği: akran değerlendirmesi SADECE aynı takım arkadaşına yapılabilir —
+        // rakip takımdan biri hedef olarak gönderilirse reddedilir (frontend zaten sadece
+        // takım arkadaşlarını hedef olarak sunuyor, bu sunucu tarafı ikinci bir güvence).
+        const mySideIds = getSameSideRosterIds(request, req.userId);
+        if (mySideIds.length === 0 || !mySideIds.includes(revieweeId)) {
             return res.status(403).json({ message: 'Forbidden' });
         }
-
-        const sides = computeMatchSides(request);
-        const premade = isPremadePair(sides, req.userId, revieweeId);
 
         // Oy vermeden ÖNCEKİ trust skoru kullanılır — oyun kendi ağırlığını etkilemesin.
         const trustScore = await computeReviewerTrustScore(req.userId, request.subCategory);
@@ -77,7 +81,14 @@ export const submitPeerReview = async (req, res, next) => {
                     matchId: id, reviewerId: req.userId, revieweeId,
                     subCategory: request.subCategory,
                     technicalStars, mentalStars,
-                    isPremade: premade,
+                    // Kullanıcı isteği: akran değerlendirmesi artık SADECE takım arkadaşları
+                    // arasında yapılıyor — bu isPremadePair'ın "aynı taraf -> harmanlamaya
+                    // girmez" varsayımıyla ÇELİŞİYORDU (her oy otomatik isPremade:true olup
+                    // hiçbiri elo'ya hiç yansımıyordu). Takım arkadaşı değerlendirmesi artık
+                    // sistemin ASIL veri kaynağı, "şüpheli" değil — isPremade her zaman false
+                    // yazılıyor, istismar koruması bunun yerine trustWeightApplied (hep aynı
+                    // puanı veren oy vericilerin ağırlığını düşüren varyans skoru) ile sağlanıyor.
+                    isPremade: false,
                     trustWeightApplied: trustScore,
                 },
             });
@@ -91,11 +102,12 @@ export const submitPeerReview = async (req, res, next) => {
             data: { trustScore },
         });
 
-        // Roster'daki herkes (revieweeId hariç) oyladıysa hemen harmanla (hızlı yol) —
+        // Takım arkadaşlarının hepsi (revieweeId hariç) oyladıysa hemen harmanla (hızlı yol) —
         // aksi halde 48 saatlik job güvence olarak devreye girer (peerReviewBlend.js).
         const revieweeVoteCount = await prisma.matchPeerReview.count({ where: { matchId: id, revieweeId } });
-        const expectedVoters = rosterIds.length - 1;
-        if (revieweeVoteCount >= expectedVoters) {
+        const revieweeSideIds = getSameSideRosterIds(request, revieweeId);
+        const expectedVoters = revieweeSideIds.length - 1;
+        if (expectedVoters > 0 && revieweeVoteCount >= expectedVoters) {
             await tryApplyPeerReviewBlend(id, revieweeId, request.subCategory).catch(() => {});
         }
 
