@@ -8716,6 +8716,10 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
     // yüksekliğe ve TAMAMEN boş görünüme yol açabiliyordu. Artık ekran yüksekliğinin %88'i
     // KESİN bir sayı olarak veriliyor — flex:1 artık belirsizlik olmadan doğru çözümleniyor.
     const { height: screenHeight } = useWindowDimensions();
+    // Kullanıcı raporu: en altta duran İtiraz Et/Oyuncuları Değerlendir butonları telefonun
+    // alt dokunmatik gezinme çubuğuyla (Android gesture/nav bar) çakışıp tıklanamıyordu — bkz.
+    // ekran-güvenli-alan kuralı, her yeni bottom-sheet insets.bottom kullanmalı.
+    const insets = useSafeAreaInsets();
     return (
         <Modal visible={!!match} animationType="slide" transparent onRequestClose={onClose}>
             {/* Kullanıcı raporu: bu belirli maçta içerik hiç görünmeyip sadece saydam siyah
@@ -8724,7 +8728,7 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
                 içerik hiç render olmazsa ✕'e de erişilemiyordu) TouchableOpacity'e çevrildi. */}
             <TouchableOpacity activeOpacity={1} onPress={onClose} style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
                 <View onStartShouldSetResponder={() => true} style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:18, height: Math.round(screenHeight * 0.88), maxHeight: Math.round(screenHeight * 0.88) }}>
-                    <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false}>
+                    <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>Maç Detayı</Text>
                             <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
