@@ -1097,6 +1097,25 @@ export const getRivalById = async (req, res, next) => {
         const unassignedGenderById = await fillMissingUnassignedGenders([rival.unassignedPlayers]);
         const withGender = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id ? { ...p, gender: p.gender ?? unassignedGenderById[p.id] ?? null } : p);
 
+        // Kullanıcı isteği: ilan detayında hangi oyuncunun bu maç/tesis üzerinden sipariş/adisyonu
+        // olduğu görülebilsin (kadroda yanıp sönen "Adisyonu Var" etiketi, bkz. RivalDetailModal).
+        // İki kaynaktan gelebilir: (1) VenueOrder.activityId — henüz bir adisyon (VenueBill)
+        // açılmadan verilen siparişler, (2) reservationId'ye bağlı VenueBill'in kalemleri —
+        // hem kullanıcının kendi siparişi hem işletmenin manuel eklediği ürünler dahil.
+        let orderedUserIds = [];
+        if (rival.venueId) {
+            const [venueOrders, bill] = await Promise.all([
+                prisma.venueOrder.findMany({ where: { activityId: rival.id }, select: { userId: true } }),
+                rival.venueReservationId
+                    ? prisma.venueBill.findUnique({ where: { reservationId: rival.venueReservationId }, include: { items: { select: { userId: true } } } })
+                    : Promise.resolve(null),
+            ]);
+            orderedUserIds = [...new Set([
+                ...venueOrders.map(o => o.userId),
+                ...(bill?.items || []).map(i => i.userId).filter(Boolean),
+            ])];
+        }
+
         res.json({
             ...rival,
             sender: { ...rival.sender, interests: senderInterest ? [senderInterest] : [] },
@@ -1104,6 +1123,7 @@ export const getRivalById = async (req, res, next) => {
             participants: withTeamRating(rival.participants),
             substitutePlayers: withTeamRating(rival.substitutePlayers),
             unassignedPlayers: withGender(withTeamRating(rival.unassignedPlayers)),
+            orderedUserIds,
         });
     } catch (error) { next(error); }
 };

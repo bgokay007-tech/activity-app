@@ -703,6 +703,21 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // yanıp söner — kullanıcı isteği: "ataması olmayan isimler uyarıcı hatırlatma olsun".
     // Atama artık arka yüzdeki "Atanmamış" listesinden yapılıyor (bkz. promptAssignTeam).
     const unassignedBlink = useRef(new Animated.Value(1)).current;
+    // Kullanıcı isteği: bu ilan/tesis üzerinden sipariş veren (adisyonu olan) oyuncunun
+    // kadro kartındaki isminin yanında "Adisyonu Var" yazısı yanıp sönsün — aynı
+    // unassignedBlink deseni (bkz. yukarıdaki yorum).
+    const [localOrderedUserIds, setLocalOrderedUserIds] = useState([]);
+    const orderBlink = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+        if (localOrderedUserIds.length === 0) return;
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(orderBlink, { toValue: 0.25, duration: 500, useNativeDriver: true }),
+            Animated.timing(orderBlink, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [localOrderedUserIds.length]);
+    const [orderVenueId, setOrderVenueId] = useState(null);
     const [comments, setComments] = useState([]);
     const [loadingComments, setLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
@@ -816,6 +831,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         setShowTeamCards(false);
         setComments([]);
         setCommentText('');
+        setLocalOrderedUserIds([]);
         if (item?.id && visible) {
             // Fresh fetch: güncel cinsiyet, katılımcılar ve istekler
             api.get(`/rivals/${item.id}`)
@@ -829,6 +845,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     if (Array.isArray(data.joinRequests)) setLocalJoinRequests(data.joinRequests);
                     if (Array.isArray(data.participants)) setLocalParticipants(data.participants);
                     if (Array.isArray(data.unassignedPlayers)) setLocalUnassigned(data.unassignedPlayers);
+                    setLocalOrderedUserIds(Array.isArray(data.orderedUserIds) ? data.orderedUserIds : []);
                 })
                 .catch(() => {});
             setLoadingComments(true);
@@ -1964,6 +1981,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <View style={{ flex:1 }}>
                                                     <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(item.sender)}</Text>
                                                     <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
+                                                    {item.senderId && localOrderedUserIds.includes(item.senderId) && (
+                                                        <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                    )}
                                                 </View>
                                             </TouchableOpacity>
                                         </View>
@@ -1980,6 +2000,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                             artık SADECE arka yüzdeki takım kartında (spesifik role bağlı
                                                             olduğu yerde) gösteriliyor, ön yüz salt sıra numarası. */}
                                                         <Text style={det.playerSub} numberOfLines={1}>{t.cardParticipantLabel(i + 1)}</Text>
+                                                        {sl.p.id && localOrderedUserIds.includes(sl.p.id) && (
+                                                            <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                        )}
                                                     </View>
                                                 </TouchableOpacity>
                                                 {isOwner && (
@@ -2003,6 +2026,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     <View style={{ flex:1 }}>
                                                         <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(p)}</Text>
                                                         <Text style={det.playerSub} numberOfLines={1}>{t.cardParticipantLabel(teamSlots.length + i + 1)}</Text>
+                                                        {p.id && localOrderedUserIds.includes(p.id) && (
+                                                            <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                        )}
                                                     </View>
                                                 </TouchableOpacity>
                                             </View>
@@ -2902,11 +2928,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // (kullanıcı isteği) — sadece izinli katılımcı (otherCanAct) burada kalıyor,
                             // onlar için Düzenle/İptal zaten hiç gösterilmiyor.
                             const canShareHere = canShare && !isOwner;
-                            return (canInvite || canInviteRefereeBtn || canShareHere) && (
+                            // Kullanıcı isteği: ilan sahibi için "Oyuncu Davet Et" artık burada değil,
+                            // aşağıda Paylaş/Düzenle ile AYNI satırda (solda) gösteriliyor — izinli
+                            // katılımcılar (otherCanAct) için ise değişmedi, hâlâ burada.
+                            const canInviteHere = canInvite && !isOwner;
+                            return (canInviteHere || canInviteRefereeBtn || canShareHere) && (
                                 <>
-                                    {(canInvite || canInviteRefereeBtn) && (
+                                    {(canInviteHere || canInviteRefereeBtn) && (
                                         <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
-                                            {canInvite && (
+                                            {canInviteHere && (
                                                 <TouchableOpacity
                                                     style={[s.joinBtn, { flex:1, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
                                                     onPress={() => setInviteModalVisible(true)}
@@ -2969,25 +2999,45 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         )}
                         {isOwner && isRefereeAd ? null : isOwner ? (
                             <>
-                                <View style={{ flexDirection: 'row', gap: 3 }}>
-                                    {/* Kullanıcı isteği: Paylaş artık kendi satırında değil, Düzenle/İptal
-                                        ile aynı satırda (ilan sahibi için) — izinli katılımcılar için
-                                        Paylaş hâlâ yukarıda kendi satırında (onlara Düzenle/İptal hiç
-                                        gösterilmiyor). */}
-                                    {!isRefereeAd && (
+                                {/* Kullanıcı isteği: Oyuncu Davet Et solda, Paylaş ortada, Düzenle
+                                    sağda — aynı satırda. Oyuncu Davet Et artık yukarıdaki kendi
+                                    satırında değil (ilan sahibi için), burada gösteriliyor. */}
+                                {!isRefereeAd && (
+                                    <View style={{ flexDirection: 'row', gap: 3, marginBottom: 3 }}>
+                                        {!isFull && (
+                                            <TouchableOpacity
+                                                style={[s.joinBtn, { flex: 1, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                                onPress={() => setInviteModalVisible(true)}
+                                            >
+                                                <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteBtn}</Text>
+                                            </TouchableOpacity>
+                                        )}
                                         <TouchableOpacity
                                             style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
                                             onPress={() => shareRival(item, t)}
                                         >
                                             <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || '📤 Paylaş'}</Text>
                                         </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                            onPress={() => { onClose(); setTimeout(onEdit, 300); }}
+                                        >
+                                            <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]}>✏️ Düzenle</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                                {/* Kullanıcı isteği: Sipariş Ver, İptal Et'in solunda — aynı satırda —
+                                    böylece ilan sahibi detaydan çıkmadan da tesis menüsünden sipariş
+                                    verebilir (bkz. VenueMenuOrderModal, RivalCard'daki ile aynı akış). */}
+                                <View style={{ flexDirection: 'row', gap: 3 }}>
+                                    {item.venueId && (
+                                        <TouchableOpacity
+                                            style={[s.cancelBtn, { flex: 1, backgroundColor:'#22c55e20', borderColor:'#22c55e50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                            onPress={() => setOrderVenueId(item.venueId)}
+                                        >
+                                            <Text style={[s.cancelBtnText, { color:'#22c55e', fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📋 Sipariş Ver</Text>
+                                        </TouchableOpacity>
                                     )}
-                                    <TouchableOpacity
-                                        style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
-                                        onPress={() => { onClose(); setTimeout(onEdit, 300); }}
-                                    >
-                                        <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]}>✏️ Düzenle</Text>
-                                    </TouchableOpacity>
                                     <TouchableOpacity style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]} onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
                                         <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>{t.cancelAdBtn}</Text>
                                     </TouchableOpacity>
@@ -3359,6 +3409,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 </View>
             </View>
         </Modal>
+
+        <VenueMenuOrderModal
+            visible={!!orderVenueId}
+            venueId={orderVenueId}
+            onClose={() => setOrderVenueId(null)}
+            onSuccess={() => {
+                api.get(`/rivals/${item.id}`)
+                    .then(({ data }) => setLocalOrderedUserIds(Array.isArray(data.orderedUserIds) ? data.orderedUserIds : []))
+                    .catch(() => {});
+            }}
+        />
         </>
     );
 }
@@ -3894,39 +3955,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         🏆 {item.wager}
                     </Text>
                 )}
-                {/* Kabul edilen oyuncular — çiftlerde henüz "Rakip 1/Rakip 2" gibi kesin bir
-                    koltuğa atanmış gibi gösterilmez (bu, kendi aralarında karar verip
-                    pozisyon değiştirebildikleri "yaklaşan maçlar" ekranındaki kartlarda olur) —
-                    burada sadece kaçıncı sırada kabul edildikleri (Katılımcı 1/2/3) gösterilir. */}
-                {item.matchType === 'DOUBLE' ? (() => {
-                    const partner = Array.isArray(item.senderTeam) ? item.senderTeam[0] : null;
-                    // Kullanıcı isteği: henüz belirli bir role (Takım Arkadaşı/Rakip1/Rakip2)
-                    // atanmamış (kabul edilmiş) oyuncular da bu listede sıradaki Katılımcı N
-                    // olarak sayılır — sadece named slotlara bakmak "kabul ettim ama listede
-                    // hiç görünmüyor" hissi veriyordu.
-                    const unassigned = (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []).filter(p => p?.id);
-                    const slots = [partner, participants[0], participants[1]].filter(p => p?.id).concat(unassigned);
-                    if (slots.length === 0) return null;
-                    return (
-                        <View style={{ gap:2, marginBottom:3 }}>
-                            {slots.map((p, i) => (
-                                <Text key={p.id || i} style={{ color: colors.textSecondary, fontSize: moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                    ✓ {t.cardParticipantLabel(i + 1)}: {senderAlias(p)}
-                                </Text>
-                            ))}
-                        </View>
-                    );
-                })() : (
-                    participants.filter(p => p?.id).length > 0 && (
-                        <View style={[s.participantsRow, { gap:3, marginBottom:3 }]}>
-                            {participants.filter(p => p?.id).map((p, i) => (
-                                <View key={p.id || i} style={[s.participantChip, { borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0 }]}>
-                                    <Text style={[s.participantChipText, { fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>✓ {senderAlias(p)}</Text>
-                                </View>
-                            ))}
-                        </View>
-                    )
-                )}
+                {/* Kullanıcı isteği: kabul edilen oyuncuların listesi ön yüzden kaldırıldı —
+                    kart artık önlü-arkalı "digimon kart" (bkz. backFacePlayers/cardFlipped
+                    yukarıda), aynı liste zaten 🔄 ile çevrilince arka yüzde görünüyor, ön
+                    yüzde tekrar göstermek gereksiz tekrar oluyordu. */}
                 {/* İstek + yorum sayısı — tek satırda */}
                 <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:3 }}>
                     {isOwner && (item.joinRequests||[]).filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
@@ -7781,7 +7813,7 @@ const PADEL_SURFACES = [
 
 const CAT_LABELS = { EQUIPMENT: '🎾 Ekipman', FOOD: '🍔 Yiyecek', DRINK: '☕ İçecek', OTHER: '🛍 Diğer' };
 
-function VenueMenuOrderModal({ visible, venueId, onClose }) {
+function VenueMenuOrderModal({ visible, venueId, onClose, onSuccess }) {
     const insets = useSafeAreaInsets();
     const [items, setItems]   = useState([]);
     const [loading, setLoading] = useState(false);
@@ -7817,6 +7849,7 @@ function VenueMenuOrderModal({ visible, venueId, onClose }) {
         try {
             await api.post(`/venues/${venueId}/orders`, { items: orderItems, notes: notes || undefined });
             Alert.alert('✅ Sipariş Verildi', 'İşletme siparişinizi aldı.');
+            onSuccess?.();
             onClose();
         } catch (e) {
             Alert.alert('Hata', e?.response?.data?.message || 'Sipariş verilemedi');
