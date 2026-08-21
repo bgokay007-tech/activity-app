@@ -17540,6 +17540,17 @@ export default function SubCategoryScreen({ route, navigation }) {
     // rivalUpdate broadcast ederken skillRating'i yeniden hesaplamıyor, bu yüzden liste
     // kartlarının (Digimon kart arka yüzü) elo puanı da anında kaybolabiliyordu.
     const listRatingsCacheRef = useRef({});
+    // Kullanıcı raporu (10+ kez tekrarlanmış): "demo başvuru gönder"/yeni katılım isteği gibi
+    // rivalUpdate broadcast'leri gelince, ilan detayının EN ÜSTÜNDEKİ kurucu satırı (kullanıcı
+    // adı + elo puanı + derece rozetleri) bir anlığına kayıyordu ("yanlış yere kayma" hissi
+    // aslında rozetin kaybolup geri gelmesiyle kartın boyunun değişmesiydi). Kök neden:
+    // backend'deki SENDER_SELECT sabiti "sender" alanını hiç interests İLE seçmiyor — yani
+    // HER rivalUpdate broadcast'i item.sender.interests'i (dolayısıyla ★ puanı ve "assessmentCompleted"
+    // rozetini) sessizce undefined'a düşürüyordu, ekran bir sonraki TAM GET'e kadar rozetsiz
+    // kalıp sonra rozet geri gelince kart tekrar büyüyordu. listRatingsCacheRef'teki AYNI mantık
+    // (TAZE GET'lerden gelen doğru veriyi cache'leyip broadcast'teki eksiği doldurma) burada da
+    // uygulanıyor.
+    const senderInterestCacheRef = useRef({});
     // Dakikada bir tick → zaman bazlı filtreler (matchHasEnded) yeniden hesaplanır
     const [, setTimeTick] = useState(0);
     const [textPosts, setTextPosts] = useState([]);
@@ -17675,6 +17686,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                         if (p?.id && p.skillRating != null) listRatingsCacheRef.current[p.id] = p.skillRating;
                     });
                 });
+                // bkz. senderInterestCacheRef tanımındaki yorum — kurucunun kendi ★ puanı/rozeti.
+                if (r?.sender?.id && Array.isArray(r.sender.interests) && r.sender.interests[0]) {
+                    senderInterestCacheRef.current[r.sender.id] = r.sender.interests[0];
+                }
             });
         };
         scan(rivals); scan(matchedUpcoming); scan(pendingScore);
@@ -19155,8 +19170,16 @@ export default function SubCategoryScreen({ route, navigation }) {
             // broadcast ederken skillRating'i yeniden hesaplamıyor — eksik (null) gelen
             // puanlar burada en son bilinen (GET'ten gelmiş) değerle doldurulur.
             const fillRatings = (arr) => (Array.isArray(arr) ? arr : []).map(p => (p?.id && p.skillRating == null && listRatingsCacheRef.current[p.id] != null) ? { ...p, skillRating: listRatingsCacheRef.current[p.id] } : p);
+            // bkz. senderInterestCacheRef tanımındaki yorum — backend'in SENDER_SELECT'i sender'ı
+            // hiç interests ile seçmiyor, bu yüzden HER broadcast kurucunun ★ puanı/rozetini
+            // sessizce kaybediyordu (detay ekranının en üstünde göze çarpan bir "kayma"ya yol açan
+            // asıl sebep buydu). Eksikse en son bilinen (TAZE GET'ten gelmiş) değerle dolduruluyor.
+            const filledSender = (updatedRaw.sender?.id && !(Array.isArray(updatedRaw.sender.interests) && updatedRaw.sender.interests[0]) && senderInterestCacheRef.current[updatedRaw.sender.id])
+                ? { ...updatedRaw.sender, interests: [senderInterestCacheRef.current[updatedRaw.sender.id]] }
+                : updatedRaw.sender;
             const updated = {
                 ...updatedRaw,
+                ...(filledSender && { sender: filledSender }),
                 ...(Array.isArray(updatedRaw.senderTeam) && { senderTeam: fillRatings(updatedRaw.senderTeam) }),
                 ...(Array.isArray(updatedRaw.participants) && { participants: fillRatings(updatedRaw.participants) }),
                 ...(Array.isArray(updatedRaw.unassignedPlayers) && { unassignedPlayers: fillRatings(updatedRaw.unassignedPlayers) }),
