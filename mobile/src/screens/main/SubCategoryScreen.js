@@ -1973,10 +1973,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     <Avatar name={sl.p.username} avatar={sl.p.avatar} size={moderateScale(28)} color={cfg.color} />
                                                     <View style={{ flex:1 }}>
                                                         <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(sl.p)}</Text>
-                                                        <Text style={det.playerSub} numberOfLines={1}>
-                                                            {t.cardParticipantLabel(i + 1)}
-                                                            {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
-                                                        </Text>
+                                                        {/* Kullanıcı raporu: ön yüzde slot bazlı cinsiyet etiketi ("Katılımcı 1
+                                                            (kadın)") kafa karıştırıyordu — kabul sırasına göre yerleşen biri
+                                                            o numarada göründüğü için, cinsiyeti farklı biri kabul edilince
+                                                            sanki "yanlış cinsiyete atandı" gibi bir izlenim veriyordu. Cinsiyet
+                                                            artık SADECE arka yüzdeki takım kartında (spesifik role bağlı
+                                                            olduğu yerde) gösteriliyor, ön yüz salt sıra numarası. */}
+                                                        <Text style={det.playerSub} numberOfLines={1}>{t.cardParticipantLabel(i + 1)}</Text>
                                                     </View>
                                                 </TouchableOpacity>
                                                 {isOwner && (
@@ -2033,10 +2036,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         <Text style={{ color: colors.textMuted, fontSize:13 }}>?</Text>
                                                     </View>
                                                     <View style={{ flex:1 }}>
-                                                        <Text style={[det.playerSub, { color: colors.textMuted }]} numberOfLines={1}>
-                                                            {t.cardParticipantLabel(acceptedCount + i + 1)}
-                                                            {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
-                                                        </Text>
+                                                        {/* Cinsiyet burada da (boş "Bekleniyor" kutusunda) gösterilmiyor —
+                                                            bkz. yukarıdaki dolu slot yorumu, aynı gerekçe. */}
+                                                        <Text style={[det.playerSub, { color: colors.textMuted }]} numberOfLines={1}>{t.cardParticipantLabel(acceptedCount + i + 1)}</Text>
                                                         <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>Bekleniyor</Text>
                                                     </View>
                                                 </View>
