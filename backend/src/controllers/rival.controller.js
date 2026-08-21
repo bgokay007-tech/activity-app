@@ -558,7 +558,18 @@ async function poolWideGenderFeasible(rival, nextSenderTeam, nextParticipants, n
     if (neededMy + neededOpp === 0) return null;
 
     const availableInPool = nextUnassigned.filter(p => hasSlot(p) && p.gender === rival.minGenderReq).length;
-    if (neededMy + neededOpp > availableInPool) {
+    // Kullanıcı raporu: kadro henüz DOLMAMIŞKEN (ör. 10/12) bu kontrol sadece o an havuzda
+    // bekleyen atanmamış kişilere bakıp "imkansız" diyordu — hâlbuki kadroda hâlâ boş
+    // kontenjan (ve/veya bekleyen katılım istekleri) varsa, ileride o boşluklara doğru
+    // cinsiyette biri katılabilir; henüz gerçekleşmemiş bir ihtimali "imkansız" diye
+    // engellemek mantıksız (bkz. "katılan oyuncular fullenmeden de şartlar sağlandığı
+    // sürece takımları oluşturabilir"). Bu yüzden hâlâ boş genel kontenjan (openSlots) da
+    // ihtiyacı karşılayabilecek bir kaynak olarak sayılır — gerçekten imkansız olması için
+    // kadronun tamamen dolmuş olması VE havuzda/boş kontenjanda yeterli kişi kalmamış olması
+    // gerekir.
+    const filledSoFar = teamFilledCount(rival, { senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned });
+    const openSlots = Math.max(0, totalPlayerCount(rival) - filledSoFar);
+    if (neededMy + neededOpp > availableInPool + openSlots) {
         const label = rival.minGenderReq === 'MALE' ? 'erkek' : 'kadın';
         return `Havuzda yeterli ${label} kalmadı — hem ${rival.founderTeamName || 'Kurucu Takım'} hem ${rival.opponentTeamName || 'Rakip Takım'}'da en az ${rival.minGenderCount} ${label} olması artık imkansız hale geliyor.`;
     }
