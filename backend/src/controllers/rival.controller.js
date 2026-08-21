@@ -320,6 +320,33 @@ async function notifyOtherPendingOwnerInvitesOfFull(rivalId, category, subCatego
     } catch { /* bildirim gönderimi kabul işlemini engellemesin */ }
 }
 
+// Kullanıcı raporu (tenis): kadro başka biriyle dolunca, o sırada hâlâ PENDING olan diğer
+// (JOINER-initiated, yani kullanıcının kendi gönderdiği) başvurular sessizce ortada kalıyordu
+// — sahibi bunlardan birini "kabul" etmeye çalışınca kafa karıştıran bir hatayla
+// karşılaşıyordu (bkz. respondToJoin'deki "Kadro dolu" kontrolü), ama başvuran kişinin
+// kendisi hiçbir şey öğrenmiyordu. Bu istekler REDDEDİLMİYOR (yukarıdaki owner-daveti
+// fonksiyonundan farklı olarak) — kullanıcı isteği: kadroda eksik olma ihtimaline karşı
+// bu kişiler bir tür "yedek listesi" olarak kalmaya devam etsin, sadece bilgilendirilip
+// isterlerse kendileri geri çeksin.
+async function notifyOtherPendingJoinersOfFull(rivalId, category, subCategory, excludeUserIds = []) {
+    try {
+        const pending = await prisma.rivalJoinRequest.findMany({
+            where: { rivalId, initiatedBy: 'JOINER', status: 'PENDING', userId: { notIn: excludeUserIds } },
+            select: { userId: true },
+        });
+        const uniqueUserIds = [...new Set(pending.map(p => p.userId))];
+        for (const uid of uniqueUserIds) {
+            createNotification(
+                uid,
+                'MATCH_ROSTER_FULL_WAITLISTED',
+                '🪑 Kadro Tamamlandı — Yedek Listesindesiniz',
+                `Başvurduğunuz ${subCategoryTR(subCategory)} maçının kadrosu tamamlandı. Siz hâlâ yedek listesindesiniz — kadroda eksik olması durumunda dahil edilebilirsiniz. İstemiyorsanız başvurunuzu geri çekebilirsiniz.`,
+                { rivalId, category, subCategory }
+            ).catch(() => {});
+        }
+    } catch { /* bildirim gönderimi kabul işlemini engellemesin */ }
+}
+
 // DOUBLE: 2 — taraflar artık eşleşmiş çift olarak katılıyor (senderTeam/joiningTeam),
 // tek bir takım katılımı maçı tamamlar (3 ayrı bireysel katılımcı değil). Ancak partner
 // sistemi gelmeden önce oluşturulmuş eski ilanlarda kurucunun senderTeam'i boştur —
@@ -3547,6 +3574,18 @@ export const respondToJoin = async (req, res, next) => {
         // tarafa "onayınız bekleniyor" bildirimi gitmiş oluyordu; hiç kabul edilemeyecek bir
         // istek geç-kabul akışına sızmış oluyordu.
         const rival = joinReq.rival;
+        // Kullanıcı raporu (tenis): kadro başka biriyle dolup ilan MATCHED olduktan SONRA,
+        // elde kalan eski/yanıtlanmamış bir başvuru kabul edilmeye çalışılınca ya DOUBLE'da
+        // kafa karıştıran "Tüm slotlar dolu" hatası (asıl sebep kadronun tamamen dolmuş olması,
+        // tek bir slotun değil) ya da SINGLE'da (buraya kadar hiç kapasite kontrolü olmadığı
+        // için) sessizce "geç kabul" akışına girip ikinci denemede alakasız bir "Bu istek zaten
+        // yanıtlanmış" hatasına dönüşüyordu. Buraya kadar ulaşan her istek (isPartnerInvite/
+        // isOppTeamInvite/isSubstituteInvite/isUnassignedInvite yukarıda kendi kontrolleriyle
+        // zaten return etti) doğrudan ANA kadroya eklenmeye çalışıyor — ilan artık OPEN değilse
+        // net bir "Kadro dolu" hatasıyla reddedilir.
+        if (rival.status !== 'OPEN') {
+            return res.status(400).json({ message: 'Kadro dolu — bu istek artık kabul edilemez.' });
+        }
         let joiningTeam = Array.isArray(joinReq.joiningTeam) ? joinReq.joiningTeam : [];
         let partnerJoinReqToAccept = null;
 
@@ -3784,6 +3823,7 @@ export const respondToJoin = async (req, res, next) => {
             currentSenderTeam.filter(p => p?.id && p.id !== u.id && p.id !== rival.senderId)
                 .forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
             notifyOtherPendingOwnerInvitesOfFull(rival.id, rival.category, rival.subCategory, [u.id, ...(Array.isArray(joiningTeam) ? joiningTeam.filter(m => m?.id).map(m => m.id) : [])]);
+            notifyOtherPendingJoinersOfFull(rival.id, rival.category, rival.subCategory, [u.id, ...(Array.isArray(joiningTeam) ? joiningTeam.filter(m => m?.id).map(m => m.id) : [])]);
         }
 
         // Kullanıcı isteği: uygulamanın tamamı Türkçe metin kullanıyor — bu mesajlar da
@@ -4163,6 +4203,7 @@ export const confirmLateJoin = async (req, res, next) => {
         if (isFull) {
             updatedParticipants.forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
             notifyOtherPendingOwnerInvitesOfFull(rival.id, rival.category, rival.subCategory, [u.id, ...(Array.isArray(joiningTeam) ? joiningTeam.filter(m => m?.id).map(m => m.id) : [])]);
+            notifyOtherPendingJoinersOfFull(rival.id, rival.category, rival.subCategory, [u.id, ...(Array.isArray(joiningTeam) ? joiningTeam.filter(m => m?.id).map(m => m.id) : [])]);
         }
         // Voleybol takım başvurusu: kadrodaki (ana+yedek) tüm gerçek kullanıcılar bilgilendirilir.
         if (updatedSubstitutePlayers !== null || (isTeamJoin && joiningTeam.length > 1)) {
