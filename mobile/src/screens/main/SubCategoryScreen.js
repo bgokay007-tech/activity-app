@@ -1807,8 +1807,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 </View>
                             </>
                         ) : item.matchType === 'DOUBLE' ? (() => {
-                            const allJoinReqs = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
-                            const pendingPartnerInvite = allJoinReqs.find(jr => jr.isPartnerInvite && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING');
 
                             // Slot kutusu: seçiliyse altın border, doluysa dokunulabilir
                             const SlotBox = ({ slot, gReqLabel, gReqValue, p, fallback, onRemove, locked, highlighted }) => {
@@ -2139,7 +2137,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800', marginBottom:4 }}>Atanmamış</Text>
                                             {unassignedDoubleSlots.map(p => {
                                                 const isMe = p.id === myId;
-                                                const canTeam1 = !PartnerContent && !pendingPartnerInvite && genderFitsSlot(p.gender, partnerGenderReq);
+                                                // Kullanıcı raporu: partner slotu kendisi (PartnerContent) boş
+                                                // olduğu sürece, BAŞKA birine gönderilmiş bekleyen bir davet
+                                                // (pendingPartnerInvite) varsa bile "Kendi Takımıma Ata"
+                                                // seçeneği hâlâ sunulmalı — o davet henüz kabul edilmedi,
+                                                // slotu gerçekten dolduran bir şey yok. assignDoubleSlot zaten
+                                                // gerçek dolulukta ("senderTeam[0]") kontrol yapıyor, davetlerle
+                                                // ilgilenmiyor (bkz. backend), bu yüzden burada da engellenmemeli.
+                                                const canTeam1 = !PartnerContent && genderFitsSlot(p.gender, partnerGenderReq);
                                                 const team2Slot = [
                                                     !participants[0]?.id && genderFitsSlot(p.gender, opp1GenderReq) && 'opp1',
                                                     !participants[1]?.id && genderFitsSlot(p.gender, opp2GenderReq) && 'opp2',
@@ -2152,13 +2157,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         {(isOwner || isMe) && canTeam1 && (
                                                             <TouchableOpacity onPress={() => assignDoubleSlot(p.id, 'partner')}
                                                                 style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{team1Label}'e Ata</Text>
+                                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{team1Label}'a Ata</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                         {(isOwner || isMe) && team2Slot && (
                                                             <TouchableOpacity onPress={() => assignDoubleSlot(p.id, team2Slot)}
                                                                 style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{team2Label}'ye Ata</Text>
+                                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{team2Label}'a Ata</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                         {isOwner && (
