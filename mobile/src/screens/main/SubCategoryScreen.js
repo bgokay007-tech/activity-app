@@ -1941,7 +1941,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // numara dizisi var: önce dolu named slotlar, sonra atanmamış (kabul edilmiş)
                             // oyuncular — ARADA HİÇ BOŞLUK OLMADAN — en son da gerçekten boş kalan
                             // "Bekleniyor" slotları, numaralandırma kaldığı yerden devam ediyor.
-                            const emptyNamedSlots = allTeamSlots.filter(sl => !sl.p?.id);
+                            // DİKKAT: allTeamSlots sadece 3 adlandırılmış slot (partner/rakip1/rakip2)
+                            // içerir — kapasite kurucu hariç 3 kişidir. Atanmamış havuzdaki her oyuncu
+                            // da bu 3 kapasiteden birini ZATEN dolduruyor (henüz hangi role gideceği
+                            // belli değil, ama bir kişilik yer kaplıyor). Bunu düşmeden ham
+                            // "adı boş olan slot" listesini göstermek fazladan hayalet kutu üretiyordu
+                            // (ör. 1 atanmamış oyuncu + 3 boş adlandırılmış slot = 4 "Katılımcı" kutusu,
+                            // halbuki 2v2'de kurucu hariç sadece 3 kişilik yer var).
+                            const emptyNamedSlots = allTeamSlots.filter(sl => !sl.p?.id).slice(unassignedDoubleSlots.length);
                             const acceptedCount = teamSlots.length + unassignedDoubleSlots.length;
 
                             if (!showTeamCards) {
