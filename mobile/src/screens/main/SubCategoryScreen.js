@@ -3751,6 +3751,21 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                             })}
                         </ScrollView>
                     )}
+                    {/* Kullanıcı isteği: liste kartında (detaya girmeden) "istek" rozeti ve
+                        "Sipariş Ver" artık ön yüzde değil, dıgımon kartın ARKA yüzünde, oyuncu
+                        listesinin ALTINDA — ön yüz sadece ilan bilgisi. */}
+                    {isOwner && (item.joinRequests||[]).filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
+                        <TouchableOpacity onPress={() => setDetailVisible(true)} style={{ marginTop:6 }}>
+                            <Text style={{ color: colors.purple, fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>
+                                📬 {item.joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length} {t.requests || 'istek'}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                    {item.venueId && isRivalParticipant && (
+                        <TouchableOpacity onPress={() => setOrderVenueId(item.venueId)} style={{ marginTop:6 }}>
+                            <Text style={{ color:'#22c55e', fontSize: moderateScale(11), fontWeight:'600' }}>📋 Sipariş Ver</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             ) : (
             <>
@@ -3936,11 +3951,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     );
                 })()}
 
-                {item.venueId && isRivalParticipant && (
-                    <TouchableOpacity onPress={() => setOrderVenueId(item.venueId)} style={{ marginBottom:3 }}>
-                        <Text style={{ color:'#22c55e', fontSize: moderateScale(11), fontWeight:'600' }}>📋 Sipariş Ver</Text>
-                    </TouchableOpacity>
-                )}
+                {/* Kullanıcı isteği: "Sipariş Ver" artık burada (ön yüz) değil, arka yüzde
+                    oyuncu listesinin altında (bkz. cardFlipped bloğu yukarıda) — modal
+                    (VenueMenuOrderModal) paylaşılan orderVenueId state'i sayesinde hangi
+                    yüzden açıldığından bağımsız çalışıyor. */}
                 <VenueMenuOrderModal
                     visible={!!orderVenueId}
                     venueId={orderVenueId}
@@ -3969,13 +3983,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     kart artık önlü-arkalı "digimon kart" (bkz. backFacePlayers/cardFlipped
                     yukarıda), aynı liste zaten 🔄 ile çevrilince arka yüzde görünüyor, ön
                     yüzde tekrar göstermek gereksiz tekrar oluyordu. */}
-                {/* İstek + yorum sayısı — tek satırda */}
+                {/* Kullanıcı isteği: istek rozeti artık burada (ön yüz) değil, 🔄 ile
+                    çevrilince açılan arka yüzde, oyuncu listesinin altında (bkz. cardFlipped
+                    bloğu yukarıda) — ön yüz sadece yorum sayısını gösterir. */}
                 <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:3 }}>
-                    {isOwner && (item.joinRequests||[]).filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
-                        <Text style={{ color: colors.purple, fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>
-                            📬 {item.joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length} {t.requests || 'istek'}
-                        </Text>
-                    )}
                     <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
                         💬 {item.commentCount ?? 0}
                     </Text>
