@@ -1932,7 +1932,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // yerine gerçekten katılmış (dolu) formalar önce, boş/bekleyen formalar
                             // sonra gösteriliyor — her slotun farklı cinsiyet kısıtlaması olduğunda
                             // sabit sıra "cinsiyete göre sıralanmış" gibi yanıltıcı görünüyordu.
-                            const orderedTeamSlots = [...teamSlots, ...allTeamSlots.filter(sl => !sl.p?.id)];
+                            // Kullanıcı raporu: kabul edilmiş ama henüz named slota (Takım Arkadaşı/
+                            // Rakip1/Rakip2) atanmamış oyuncular önceden TÜM slotlardan (dolu VEYA boş)
+                            // SONRA render ediliyordu — bu yüzden "Bekleniyor" yazan BOŞ kutular ekranda
+                            // atanmış bir katılımcının ÜSTÜNDE görünüyordu, üstelik numaralandırma da
+                            // çakışıyordu (hem boş slot hem atanmamış oyuncu aynı "Katılımcı N" numarasını
+                            // alabiliyordu — ikisi de ayrı ayrı `i+1`den başlıyordu). Artık TEK bir sıralı
+                            // numara dizisi var: önce dolu named slotlar, sonra atanmamış (kabul edilmiş)
+                            // oyuncular — ARADA HİÇ BOŞLUK OLMADAN — en son da gerçekten boş kalan
+                            // "Bekleniyor" slotları, numaralandırma kaldığı yerden devam ediyor.
+                            const emptyNamedSlots = allTeamSlots.filter(sl => !sl.p?.id);
+                            const acceptedCount = teamSlots.length + unassignedDoubleSlots.length;
 
                             if (!showTeamCards) {
                                 // Kullanıcı isteğiyle ön yüzde her satıra 2 oyuncu sığıyor (önceden tek
@@ -1950,66 +1960,29 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </View>
                                             </TouchableOpacity>
                                         </View>
-                                        {orderedTeamSlots.map((sl, i) => {
-                                            if (sl.p?.id) {
-                                                return (
-                                                    <View key={sl.key} style={cardBox}>
-                                                        <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => sl.p.id && navigation.push('Profile', { userId: sl.p.id })}>
-                                                            <Avatar name={sl.p.username} avatar={sl.p.avatar} size={moderateScale(28)} color={cfg.color} />
-                                                            <View style={{ flex:1 }}>
-                                                                <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(sl.p)}</Text>
-                                                                <Text style={det.playerSub} numberOfLines={1}>
-                                                                    {t.cardParticipantLabel(i + 1)}
-                                                                    {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
-                                                                </Text>
-                                                            </View>
-                                                        </TouchableOpacity>
-                                                        {isOwner && (
-                                                            <TouchableOpacity onPress={() => removeRivalParticipant(sl.p.id, sl.p.username)} style={{ marginTop:3, alignSelf:'flex-end' }}>
-                                                                <Text style={{ color:'#f87171', fontSize:moderateScale(10), fontWeight:'700' }}>Çıkar</Text>
-                                                            </TouchableOpacity>
-                                                        )}
-                                                    </View>
-                                                );
-                                            }
-                                            if (sl.key === 'partner' && pendingPartnerInvite) return null; // ayrıca aşağıda gösteriliyor
-                                            // Kullanıcı raporu: ön yüzdeki ("Katılan Oyuncular") boş formalara
-                                            // arka yüzdeki (SlotBox) gibi doğrudan davet arama alanı eklenmişti
-                                            // — ön yüz sadece görüntüleme olmalı, davet/atama SADECE arka yüzdeki
-                                            // "Takımları Düzenle" ekranından yapılır. Bu yüzden isOwner'a bakmadan
-                                            // her zaman aşağıdaki salt-okunur "Bekleniyor" kutusuna düşer.
-                                            return (
-                                                <View key={sl.key} style={[cardBox, { opacity:0.55, flexDirection:'row', alignItems:'center', gap:6 }]}>
-                                                    <View style={{ width:moderateScale(28), height:moderateScale(28), borderRadius:moderateScale(14), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
-                                                        <Text style={{ color: colors.textMuted, fontSize:13 }}>?</Text>
-                                                    </View>
+                                        {teamSlots.map((sl, i) => (
+                                            <View key={sl.key} style={cardBox}>
+                                                <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => sl.p.id && navigation.push('Profile', { userId: sl.p.id })}>
+                                                    <Avatar name={sl.p.username} avatar={sl.p.avatar} size={moderateScale(28)} color={cfg.color} />
                                                     <View style={{ flex:1 }}>
-                                                        <Text style={[det.playerSub, { color: colors.textMuted }]} numberOfLines={1}>
+                                                        <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(sl.p)}</Text>
+                                                        <Text style={det.playerSub} numberOfLines={1}>
                                                             {t.cardParticipantLabel(i + 1)}
                                                             {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
                                                         </Text>
-                                                        <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>Bekleniyor</Text>
                                                     </View>
-                                                </View>
-                                            );
-                                        })}
-                                        {pendingPartnerInvite && (
-                                            <View key="pendingPartner" style={cardBox}>
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                                                    <Avatar name={pendingPartnerInvite.user?.username} avatar={pendingPartnerInvite.user?.avatar} size={moderateScale(28)} color={cfg.color} />
-                                                    <View style={{ flex:1 }}>
-                                                        <Text style={det.playerName} numberOfLines={1}>{pendingPartnerInvite.user?.fullName || pendingPartnerInvite.user?.username}</Text>
-                                                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1}>⏳ Onay Bekleniyor</Text>
-                                                    </View>
-                                                </View>
+                                                </TouchableOpacity>
+                                                {isOwner && (
+                                                    <TouchableOpacity onPress={() => removeRivalParticipant(sl.p.id, sl.p.username)} style={{ marginTop:3, alignSelf:'flex-end' }}>
+                                                        <Text style={{ color:'#f87171', fontSize:moderateScale(10), fontWeight:'700' }}>Çıkar</Text>
+                                                    </TouchableOpacity>
+                                                )}
                                             </View>
-                                        )}
-                                        {/* Bekleyen genel davetler burada TEKRAR gösterilmiyor — "📨 Gönderilen
-                                            Davetler" bölümü zaten bunu listeliyor (kullanıcı isteği: kart içinde
-                                            tekrar "Davet Gönderildi" yazmasın). */}
+                                        ))}
                                         {/* Kullanıcı isteği: kabul edilmiş ama henüz Takım Arkadaşı/Rakip1/
                                             Rakip2'ye ATANMAMIŞ oyuncular ön yüzde "Atanmamış" diye uyarı gibi
-                                            DEĞİL, tıpkı named slotlardaki gibi sıradaki "Katılımcı N" olarak
+                                            DEĞİL, tıpkı named slotlardaki gibi (dolu slotların HEMEN ardından,
+                                            boş "Bekleniyor" kutularından ÖNCE) sıradaki "Katılımcı N" olarak
                                             görünür — hangi spesifik role gideceği (arka yüzdeki "Atanmamış"
                                             listesinden, bkz. promptAssignTeam) SADECE ilan sahibini ilgilendiren
                                             bir arka yüz detayı, ön yüzde katılımcı sayılmaları için önemli değil. */}
@@ -2024,6 +1997,44 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </TouchableOpacity>
                                             </View>
                                         ))}
+                                        {pendingPartnerInvite && (
+                                            <View key="pendingPartner" style={cardBox}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                                    <Avatar name={pendingPartnerInvite.user?.username} avatar={pendingPartnerInvite.user?.avatar} size={moderateScale(28)} color={cfg.color} />
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={det.playerName} numberOfLines={1}>{pendingPartnerInvite.user?.fullName || pendingPartnerInvite.user?.username}</Text>
+                                                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1}>⏳ Onay Bekleniyor</Text>
+                                                    </View>
+                                                </View>
+                                            </View>
+                                        )}
+                                        {/* Bekleyen genel davetler burada TEKRAR gösterilmiyor — "📨 Gönderilen
+                                            Davetler" bölümü zaten bunu listeliyor (kullanıcı isteği: kart içinde
+                                            tekrar "Davet Gönderildi" yazmasın). Gerçekten hâlâ BOŞ kalan slotlar
+                                            (kabul edilenlerin hepsi yukarıda gösterildikten SONRA) en altta,
+                                            numaralandırma kaldığı yerden (acceptedCount) devam ederek. */}
+                                        {emptyNamedSlots.map((sl, i) => {
+                                            if (sl.key === 'partner' && pendingPartnerInvite) return null; // yukarıda ayrıca gösteriliyor
+                                            // Kullanıcı raporu: ön yüzdeki ("Katılan Oyuncular") boş formalara
+                                            // arka yüzdeki (SlotBox) gibi doğrudan davet arama alanı eklenmişti
+                                            // — ön yüz sadece görüntüleme olmalı, davet/atama SADECE arka yüzdeki
+                                            // "Takımları Düzenle" ekranından yapılır. Bu yüzden isOwner'a bakmadan
+                                            // her zaman salt-okunur "Bekleniyor" kutusuna düşer.
+                                            return (
+                                                <View key={sl.key} style={[cardBox, { opacity:0.55, flexDirection:'row', alignItems:'center', gap:6 }]}>
+                                                    <View style={{ width:moderateScale(28), height:moderateScale(28), borderRadius:moderateScale(14), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:13 }}>?</Text>
+                                                    </View>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={[det.playerSub, { color: colors.textMuted }]} numberOfLines={1}>
+                                                            {t.cardParticipantLabel(acceptedCount + i + 1)}
+                                                            {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
+                                                        </Text>
+                                                        <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>Bekleniyor</Text>
+                                                    </View>
+                                                </View>
+                                            );
+                                        })}
                                         {acceptedOthers.length === 0 && !pendingPartnerInvite && unassignedDoubleSlots.length === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
                                     </View>
                                 );
