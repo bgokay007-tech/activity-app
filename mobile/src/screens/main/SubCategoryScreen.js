@@ -640,8 +640,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // kurucu isterse "Takımları Düzenle" ile mevcut kart/takas ekranını açar.
     const [showTeamCards, setShowTeamCards] = useState(false);
     // Kullanıcı isteği: "İstekler" ve "Yedek İstekleri" listeleri yer kaplıyordu — en sağa
-    // dokununca açılıp kapanan bir ok eklendi, varsayılan kapalı (yer tasarrufu için).
-    const [requestsExpanded, setRequestsExpanded] = useState(false);
+    // dokununca açılıp kapanan bir ok eklendi. Varsayılan durum istek sayısına göre değişir:
+    // 5'ten fazla istek varsa varsayılan KAPALI (ok sola dönük, yer tasarrufu için), 5 ya da
+    // daha az istek varsa varsayılan AÇIK (ok aşağı dönük, az sayıda istek gizlenmesin).
+    const [requestsExpanded, setRequestsExpanded] = useState(() => {
+        const initialCount = (Array.isArray(item.joinRequests) ? item.joinRequests : []).filter(jr => jr.initiatedBy !== 'OWNER').length;
+        return initialCount <= 5;
+    });
     // Oyuncular kartı "Takımları Düzenle"ye basınca kart çevrilir gibi arka
     // yüzüne (takım düzenleme ızgarası) döner; tekrar çevirince ön yüze
     // (katılımcı listesi) geri gelir. rotateY 0->90 derece dönerken (kart
