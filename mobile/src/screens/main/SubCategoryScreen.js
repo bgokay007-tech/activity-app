@@ -8296,8 +8296,15 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
         const isWindow = cData && (cData.type === 'FLEXIBLE' || cData.type === 'VAR_DURATION');
 
         const colWidth = isWindow ? 140 : isStructured ? 110 : 130;
+        // Kullanıcı raporu (defalarca tekrarlanmış): "Onayla ve Devam Et" paneli ekranın dibine
+        // yaslanmıyor, altında boşluk kalıyordu. Kök neden: kolon burada height:'100%' (yatay
+        // ScrollView'ın içerik kutusuna göre Android'de belirsiz/güvenilmez bir referans) ile
+        // SABİT yükseklik alıyordu — üstteki ScrollView zaten alignItems:'stretch' ile kolonu
+        // otomatik olarak kendi (kesin flex:1) yüksekliğine geriyordu, height:'100%' bunu ezip
+        // kolonu (ve dolayısıyla altındaki panelin dayandığı flex:1 sarmalayıcıyı) kısaltıyordu.
+        // height:'100%' kaldırılınca stretch güvenilir şekilde çalışıyor.
         return (
-            <View key={court.id} style={[vb.courtCol, { width: colWidth, height: '100%' }]}>
+            <View key={court.id} style={[vb.courtCol, { width: colWidth }]}>
                 <Text style={vb.courtColTitle}>{court.name}</Text>
                 {/* Randevu tipi/zemin/açık-kapalı/aydınlatma bilgisi artık burada değil, üstteki
                     "Önemli" butonuyla açılan modalde (kullanıcı isteği: "kort sütunlarında ...
