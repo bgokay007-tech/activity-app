@@ -7702,7 +7702,7 @@ const CITY_ALERT_INFO_DISMISSED_KEY = 'city_alert_info_dismissed';
 // yarış durumundan). Kalıcı çözüm: artık TEK bir <Modal> var (bkz. çağrı yeri, aşağıda), bu
 // bileşen sadece İÇERİK döndürüyor — "İl Seç"e basınca aynı Modal içinde içerik değişiyor,
 // native modal penceresi hiç kapanıp açılmıyor, bu yarış durumu kökünden imkansız hale geliyor.
-function CityAlertInfoContent({ desc, active, onClose, onToggle, onPickCities, onDismissForever }) {
+function CityAlertInfoContent({ desc, active, cities, onClose, onToggle, onPickCities, onDismissForever }) {
     const t = useT();
     const [checked, setChecked] = useState(false);
 
@@ -7732,6 +7732,13 @@ function CityAlertInfoContent({ desc, active, onClose, onToggle, onPickCities, o
             <TouchableOpacity onPress={onPickCities} style={{ backgroundColor:'#ffffff10', borderRadius:10, paddingVertical:10, alignItems:'center', marginTop:8, borderWidth:1, borderColor:'#ffffff20' }}>
                 <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>📍 {t.cityAlertPickCitiesBtn}</Text>
             </TouchableOpacity>
+            {/* Kullanıcı isteği: hangi il(ler)in seçili olduğu, tekrar açmadan "İl Seç" butonunun
+                hemen altında görünsün. */}
+            {Array.isArray(cities) && cities.length > 0 && (
+                <Text style={{ color: colors.textSecondary, fontSize:12, marginTop:6, textAlign:'center' }}>
+                    {cities.join(', ')}
+                </Text>
+            )}
             <TouchableOpacity onPress={handleCheckboxPress} style={ew.checkRow}>
                 <View style={[ew.checkbox, checked && ew.checkboxChecked]}>
                     {checked && <Text style={{ color:'#fff', fontSize:10 }}>✓</Text>}
@@ -19644,6 +19651,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <CityAlertInfoContent
                             desc={cityAlertDesc[cityAlertInfoTab] || ''}
                             active={(tabSubCities[cityAlertInfoTab] || []).length > 0}
+                            cities={tabSubCities[cityAlertInfoTab] || []}
                             onClose={() => setCityAlertInfoTab(null)}
                             onToggle={() => { const tab = cityAlertInfoTab; setCityAlertInfoTab(null); quickToggleTab(tab); }}
                             onPickCities={() => { setCityPickerTab(cityAlertInfoTab); setCityAlertInfoTab(null); }}
