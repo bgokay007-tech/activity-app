@@ -590,6 +590,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [localUnassigned, setLocalUnassigned] = useState(null);
     const [localSenderTeam, setLocalSenderTeam] = useState(null); // partner slotu — swap-positions sonrası anında güncellensin diye
     const [localJoinRequests, setLocalJoinRequests] = useState(null);
+    // Kullanıcı raporu: pozisyon önerisi/atama gibi bazı backend uçları (respondPositionSuggestion,
+    // setParticipantPosition vb.) senderTeam/participants/unassignedPlayers'ı güncelleyip
+    // broadcast ederken skillRating'i YENİDEN hesaplamıyor (o alan sadece GET uçlarında canlı
+    // eklenir, DB'de kalıcı tutulmaz) — bu yüzden ilan sahibinin AÇIK OLAN detay ekranı bu
+    // broadcast'i alınca elo puanı anında kayboluyordu (oyuncunun kendi telefonu ise bildirime
+    // tıklayıp TAZE bir GET ile açtığı için puanı görüyordu). Burada en son bilinen doğru
+    // skillRating'ler bir cache'te tutulup, broadcast'te eksik gelen (null) puanlar bu
+    // cache'ten doldurulur.
+    const ratingsCacheRef = useRef({});
     // Kullanıcı isteği: "bildirime tıklayınca ne oluyorsa maça tıklayıp detay açılınca da
     // aynısı olsun" — highlightSlotFromNotif SADECE bildirimden gelindiyse dolu (navigasyon
     // parametreleri). Burada AYRICA ilanın kendi joinRequests verisinden benim bekleyen
@@ -630,6 +639,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // otomatik yerleşmiş gösterilmez — önce sırayla "Katılımcı 1/2/3" olarak listelenir,
     // kurucu isterse "Takımları Düzenle" ile mevcut kart/takas ekranını açar.
     const [showTeamCards, setShowTeamCards] = useState(false);
+    // Kullanıcı isteği: "İstekler" ve "Yedek İstekleri" listeleri yer kaplıyordu — en sağa
+    // dokununca açılıp kapanan bir ok eklendi, varsayılan kapalı (yer tasarrufu için).
+    const [requestsExpanded, setRequestsExpanded] = useState(false);
     // Oyuncular kartı "Takımları Düzenle"ye basınca kart çevrilir gibi arka
     // yüzüne (takım düzenleme ızgarası) döner; tekrar çevirince ön yüze
     // (katılımcı listesi) geri gelir. rotateY 0->90 derece dönerken (kart
@@ -835,14 +847,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         if (!visible || !item?.id) return;
         const off = onSocket('rivalUpdate', (updated) => {
             if (updated.id !== item.id) return;
+            const fillRatings = (arr) => (Array.isArray(arr) ? arr : []).map(p => (p?.id && p.skillRating == null && ratingsCacheRef.current[p.id] != null) ? { ...p, skillRating: ratingsCacheRef.current[p.id] } : p);
             if (Array.isArray(updated.joinRequests)) setLocalJoinRequests(updated.joinRequests);
-            if (Array.isArray(updated.participants)) setLocalParticipants(updated.participants);
+            if (Array.isArray(updated.participants)) setLocalParticipants(fillRatings(updated.participants));
             // Kullanıcı isteği: davet ettiği kişi (Takım Arkadaşı/Partner ya da Atanmamış
             // havuzu daveti) kabul edince ilan sahibi/diğer görüntüleyenler çıkıp girmeden
             // anında görsün — önceden sadece participants/joinRequests senkronize ediliyordu,
             // senderTeam/unassignedPlayers'a düşen kabuller ekrana hiç yansımıyordu.
-            if (Array.isArray(updated.senderTeam)) setLocalSenderTeam(updated.senderTeam);
-            if (Array.isArray(updated.unassignedPlayers)) setLocalUnassigned(updated.unassignedPlayers);
+            if (Array.isArray(updated.senderTeam)) setLocalSenderTeam(fillRatings(updated.senderTeam));
+            if (Array.isArray(updated.unassignedPlayers)) setLocalUnassigned(fillRatings(updated.unassignedPlayers));
             if (updated.genderReq !== undefined || updated.opp1GenderReq !== undefined) {
                 setLocalGender({
                     genderReq: updated.genderReq ?? item.genderReq,
@@ -871,6 +884,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const senderTeamArr = localSenderTeam ?? (Array.isArray(item.senderTeam) ? item.senderTeam : []);
     const unassignedArr = localUnassigned ?? (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []);
     const joinRequests = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
+    useEffect(() => {
+        [participants, senderTeamArr, unassignedArr].forEach(arr => {
+            (Array.isArray(arr) ? arr : []).forEach(p => {
+                if (p?.id && p.skillRating != null) ratingsCacheRef.current[p.id] = p.skillRating;
+            });
+        });
+    }, [participants, senderTeamArr, unassignedArr]);
     const reqTimeAgo = (dateStr) => {
         if (!dateStr) return '';
         const diff = Date.now() - new Date(dateStr).getTime();
@@ -2567,18 +2587,23 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         sahibinde kalır (bkz. aşağıdaki isOwner kontrolü). */}
                     {joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
                         <View style={det.section}>
-                            <Text style={det.sectionTitle}>📬 {t.requests || 'İstekler'} ({joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
+                            {/* Kullanıcı isteği: yer tasarrufu için en sağdaki oka dokununca açılıp
+                                kapanıyor — varsayılan kapalı. */}
+                            <TouchableOpacity onPress={() => setRequestsExpanded(v => !v)} style={{ flexDirection:'row', alignItems:'center' }}>
+                                <Text style={[det.sectionTitle, { flex:1 }]}>📬 {t.requests || 'İstekler'} ({joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
+                                <Text style={{ color:'#fff', fontSize:14 }}>{requestsExpanded ? '▼' : '◀'}</Text>
+                            </TouchableOpacity>
                             {/* Kullanıcı raporu: ilan sahibi olmayan biri kabul/red'e dokununca backend'den
                                 çıplak "Forbidden" hatası dönüyordu — bu istekleri SADECE ilan sahibi
                                 yanıtlayabilir (bkz. respondToJoin). Sahibi değilse butonlar yerine ne
                                 yapabileceğini (davet gönderebilir mi, "kilit" açık mı) anlatan tek satırlık
                                 bir not gösterilir. */}
-                            {!isOwner && (
+                            {requestsExpanded && !isOwner && (
                                 <Text style={{ color: colors.textMuted, fontSize: moderateScale(10), marginBottom:6 }}>
                                     {item.participantsCanInvite ? t.requestsOwnerOnlyCanInviteHint : t.requestsOwnerOnlyHint}
                                 </Text>
                             )}
-                            {item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (() => {
+                            {requestsExpanded && (item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (() => {
                                 // STRICT çiftler maçında başvuran, hangi slota (Kurucu Takımı /
                                 // Rakip 1 / Rakip 2) başvurduğunu request sırasında zaten seçmişti
                                 // (requestedSlot) — burada eşleştirme/partner mantığına gerek yok,
@@ -2729,7 +2754,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </View>
                                     ))}
                                 </View>
-                            ))}
+                            )))}
                         </View>
                     )}
                     {/* Ilan sahibinin gönderdiği (OWNER) davetler — partner davetleri ÇİFTLERDE (DOUBLE)
@@ -4466,6 +4491,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const t = useT();
     const insets = useSafeAreaInsets();
     const [showScore, setShowScore] = useState(false);
+    // Kullanıcı isteği: "Yedek İstekleri" listesi yer kaplıyordu — en sağa dokununca açılıp
+    // kapanan bir ok eklendi, varsayılan kapalı (yer tasarrufu için).
+    const [subRequestsExpanded, setSubRequestsExpanded] = useState(false);
     // Kullanıcı isteği: Açık İlanlar'daki gibi bu kart (liste görünümündeki küçük özet, tam
     // ekran detay DEĞİL) de önlü-arkalı bir "digimon kart" — sağ üst 🔄 ile çevrilince arka
     // yüzde katılan herkes + elo puanı listeleniyor. RivalCard'daki AYNI iki aşamalı çevirme
@@ -5979,8 +6007,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         yine sadece sahipte). */}
                     {subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
                         <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:9, borderWidth:1, borderColor: colors.border, marginBottom:12 }}>
-                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8 }}>🪑 Yedek İstekleri ({subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
-                            {subRequests.filter(jr => jr.initiatedBy !== 'OWNER').map(jr => (
+                            {/* Kullanıcı isteği: yer tasarrufu için en sağdaki oka dokununca açılıp
+                                kapanıyor — varsayılan kapalı. */}
+                            <TouchableOpacity onPress={() => setSubRequestsExpanded(v => !v)} style={{ flexDirection:'row', alignItems:'center' }}>
+                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8, flex:1 }}>🪑 Yedek İstekleri ({subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
+                                <Text style={{ color:'#fff', fontSize:14 }}>{subRequestsExpanded ? '▼' : '◀'}</Text>
+                            </TouchableOpacity>
+                            {subRequestsExpanded && subRequests.filter(jr => jr.initiatedBy !== 'OWNER').map(jr => (
                                 <View key={jr.id} style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6 }}>
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={26} color={cfg.color} />
                                     <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>{jr.user?.fullName || jr.user?.username}</Text>
@@ -17469,6 +17502,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [rivals, setRivals] = useState([]);
     const [playerWanted, setPlayerWanted] = useState([]);
     const [matchedUpcoming, setMatchedUpcoming] = useState([]);
+    // RivalDetailModal'daki AYNI cache mantığı (bkz. oradaki yorum): bazı backend uçları
+    // rivalUpdate broadcast ederken skillRating'i yeniden hesaplamıyor, bu yüzden liste
+    // kartlarının (Digimon kart arka yüzü) elo puanı da anında kaybolabiliyordu.
+    const listRatingsCacheRef = useRef({});
     // Dakikada bir tick → zaman bazlı filtreler (matchHasEnded) yeniden hesaplanır
     const [, setTimeTick] = useState(0);
     const [textPosts, setTextPosts] = useState([]);
@@ -17593,6 +17630,21 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveRivals, setArchiveRivals] = useState([]);
     const [loadingArchive, setLoadingArchive] = useState(false);
     const [pendingScore, setPendingScore] = useState([]);
+    // Listeler her TAZE GET ile geldiğinde (bkz. load()) skillRating her zaman doğru/güncel
+    // gelir — bu değerleri cache'e alıp, rivalUpdate broadcast'inde eksik gelen puanları
+    // doldurmak için kullanılır (bkz. aşağıdaki socket handler'daki fillRatings).
+    useEffect(() => {
+        const scan = (list) => {
+            (Array.isArray(list) ? list : []).forEach(r => {
+                [r?.senderTeam, r?.participants, r?.unassignedPlayers].forEach(arr => {
+                    (Array.isArray(arr) ? arr : []).forEach(p => {
+                        if (p?.id && p.skillRating != null) listRatingsCacheRef.current[p.id] = p.skillRating;
+                    });
+                });
+            });
+        };
+        scan(rivals); scan(matchedUpcoming); scan(pendingScore);
+    }, [rivals, matchedUpcoming, pendingScore]);
     const [archiveCity, setArchiveCity] = useState('');
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
@@ -19060,11 +19112,21 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     // Real-time updates via socket
     useEffect(() => {
-        const offUpdate = onSocket('rivalUpdate', (updated) => {
-            if (updated.category?.toUpperCase() !== category?.toUpperCase() || updated.subCategory !== sub) return;
+        const offUpdate = onSocket('rivalUpdate', (updatedRaw) => {
+            if (updatedRaw.category?.toUpperCase() !== category?.toUpperCase() || updatedRaw.subCategory !== sub) return;
             // Hakem/oyuncu-arıyorum ilanları (matchType PLAYER_WANTED) ayrı bir akışa ait —
             // Açık İlanlar/Bekleyen Maçlar listelerine (rivals/matchedUpcoming) karışmasın.
-            if (updated.matchType === 'PLAYER_WANTED') return;
+            if (updatedRaw.matchType === 'PLAYER_WANTED') return;
+            // Bkz. listRatingsCacheRef tanımındaki yorum: bazı backend uçları rivalUpdate
+            // broadcast ederken skillRating'i yeniden hesaplamıyor — eksik (null) gelen
+            // puanlar burada en son bilinen (GET'ten gelmiş) değerle doldurulur.
+            const fillRatings = (arr) => (Array.isArray(arr) ? arr : []).map(p => (p?.id && p.skillRating == null && listRatingsCacheRef.current[p.id] != null) ? { ...p, skillRating: listRatingsCacheRef.current[p.id] } : p);
+            const updated = {
+                ...updatedRaw,
+                ...(Array.isArray(updatedRaw.senderTeam) && { senderTeam: fillRatings(updatedRaw.senderTeam) }),
+                ...(Array.isArray(updatedRaw.participants) && { participants: fillRatings(updatedRaw.participants) }),
+                ...(Array.isArray(updatedRaw.unassignedPlayers) && { unassignedPlayers: fillRatings(updatedRaw.unassignedPlayers) }),
+            };
             setRivals(prev => {
                 const exists = prev.some(r => r.id === updated.id);
                 if (updated.status === 'MATCHED' || updated.status === 'CANCELLED') {
