@@ -4527,6 +4527,26 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         });
     };
     const cardFlipRotate = cardFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
+    // Kullanıcı isteği: sipariş veren oyuncunun isminin yanında yanıp sönen bir adisyon
+    // ikonu çıksın, tıklayınca sipariş detayı (mevcut "Adisyon" modalı, bkz. openBillView
+    // aşağıda) açılsın — RivalDetailModal'daki (açık ilan detayı) aynı desen.
+    const [orderedUserIds, setOrderedUserIds] = useState([]);
+    const orderBlink = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+        if (!match.venueId) { setOrderedUserIds([]); return; }
+        api.get(`/rivals/${match.id}`)
+            .then(({ data }) => setOrderedUserIds(Array.isArray(data.orderedUserIds) ? data.orderedUserIds : []))
+            .catch(() => {});
+    }, [match.id, match.venueId]);
+    useEffect(() => {
+        if (orderedUserIds.length === 0) return;
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(orderBlink, { toValue: 0.25, duration: 500, useNativeDriver: true }),
+            Animated.timing(orderBlink, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [orderedUserIds.length]);
     // Maçı Başlat — kamera kaydı ve/ya da saatten canlı skor takibi.
     const [showMatchStart, setShowMatchStart] = useState(false);
     const [showMatchLive, setShowMatchLive] = useState(false);
@@ -5399,6 +5419,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             {backFacePlayers.map((p, i) => (
                                 <View key={p.id || i} style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
                                     <Text style={{ color:'#fff', fontSize:11, flex:1, minWidth:0 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
+                                    {p.id && orderedUserIds.includes(p.id) && (
+                                        <TouchableOpacity onPress={openBillView} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                            <Animated.Text style={{ fontSize:12, opacity: orderBlink }}>📋</Animated.Text>
+                                        </TouchableOpacity>
+                                    )}
                                     {p.skillRating != null && <Text style={{ color:'#facc15', fontSize:10, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>}
                                 </View>
                             ))}
