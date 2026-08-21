@@ -1809,33 +1809,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
                             // Slot kutusu: seçiliyse altın border, doluysa dokunulabilir
                             const SlotBox = ({ slot, gReqLabel, gReqValue, p, fallback, onRemove, locked, highlighted }) => {
-                                // Bildirimden ("...Rakip 1/Rakip 2/Takım Arkadaşı olmaya davet etti")
-                                // gelindiyse (highlightSlot.doubleSlot) ve bu forma hâlâ boşsa, davet
-                                // edilen kişi hangi formaya davet edildiğini kırmızı yanıp sönen bir
-                                // çerçeveyle görsün (kullanıcı isteği).
-                                if (!p && highlighted) {
-                                    return (
-                                        <View>
-                                            {gReqLabel && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:1 }}>{gReqLabel}</Text>}
-                                            {/* Kullanıcı isteği: "buraya davet edildiniz" kısmına dokununca kabul/reddet
-                                                seçenekleri çıksın — önceden sadece görsel bir uyarıydı, dokunulamıyordu. */}
-                                            <TouchableOpacity
-                                                activeOpacity={0.75}
-                                                disabled={!myInvite}
-                                                onPress={() => Alert.alert(t.youAreInvitedHere, '', [
-                                                    { text: 'Vazgeç', style: 'cancel' },
-                                                    { text: t.inviteRejectBtn, style: 'destructive', onPress: () => rejectLocal(myInvite.id) },
-                                                    { text: t.inviteAcceptBtn, onPress: () => acceptLocal(myInvite.id) },
-                                                ])}
-                                            >
-                                                <Animated.View style={{ flexDirection:'row', alignItems:'center', gap:3, borderWidth:2, borderColor:'#ef4444', borderRadius:8, padding:4, opacity: highlightPulse }}>
-                                                    <Text style={{ fontSize:12 }}>👉</Text>
-                                                    <Text style={{ color:'#ef4444', fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={2}>{t.youAreInvitedHere}</Text>
-                                                </Animated.View>
-                                            </TouchableOpacity>
-                                        </View>
-                                    );
-                                }
+                                // Kullanıcı isteği: bekleyen bir davet artık kartın İÇİNDE (ne ön ne arka
+                                // yüzde) hiçbir şekilde gösterilmiyor — slot dolu görünmemeli, "davet
+                                // edildiniz" kutusu da içermemeli. Davetin kime/hangi role gittiği ve
+                                // kabul/red işlemi SADECE aşağıdaki "📨 Gönderilen Davetler" listesinden
+                                // yapılır (bkz. o bölümdeki myInvite satırı). Kabul edilince kişi zaten
+                                // backend'in doğru yerine (isPartnerInvite→senderTeam, requestedSlot
+                                // varsa o participants index'i, yoksa unassignedPlayers) yerleşiyor ve
+                                // ön yüzde onay sırasına göre, arka yüzde de o role göre görünüyor.
                                 // Boş forma + sahip + aktif takas yoksa: voleybolün Digimon kartındaki gibi
                                 // doğrudan formanın içinde arama/davet (kullanıcı isteği: "voleyboldeki
                                 // mantığı yap"). Dıştaki TouchableOpacity'nin İÇİNE gömülmez — TextInput'un
@@ -2749,34 +2730,45 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             )))}
                         </View>
                     )}
-                    {/* Ilan sahibinin gönderdiği (OWNER) davetler — partner davetleri ÇİFTLERDE (DOUBLE)
-                        kurucu takımı panelinde ayrıca gösterildiği için burada tekrar gösterilmiyordu,
-                        ama takım sporlarında (voleybol) o panel yok — isPartnerInvite:true olan Kurucu
-                        Takımı davetleri hiçbir yerde görünmüyordu (bkz. founderTeamInviteIds). Artık
-                        DOUBLE dışında bu davetler de burada listeleniyor. Kullanıcı isteği: liste artık
-                        sadece ilan sahibine değil, maç detayına giren herkese görünür — davet iptal
-                        etme (✕) yetkisi yine sadece sahipte kalır. */}
-                    {joinRequests.filter(jr => jr.initiatedBy === 'OWNER' && (!jr.isPartnerInvite || item.matchType !== 'DOUBLE')).length > 0 && (
+                    {/* Ilan sahibinin gönderdiği (OWNER) davetler — kullanıcı isteği: DOUBLE'da davet
+                        durumu artık kadro kartının İÇİNDE (ne ön ne arka yüzde) hiç gösterilmiyor,
+                        SADECE burada — bu yüzden partner davetleri de (önceden Kurucu Takımı
+                        panelinde ayrıca gösterildiği için burada hariç tutuluyordu) artık listede.
+                        Hangi role davet edildiği (Takım Arkadaşı/Rakip 1/Rakip 2) satırda yazıyor.
+                        Liste herkese görünür; iptal (✕) sahipte, kabul/red (✓/✕) SADECE daveti alan
+                        kişide — kabul edince backend zaten doğru yere yerleştiriyor (isPartnerInvite→
+                        senderTeam, requestedSlot varsa o participants index'i, yoksa unassignedPlayers)
+                        ve kişi ön yüzde onay sırasına göre, arka yüzde de rolüne göre görünür. */}
+                    {joinRequests.filter(jr => jr.initiatedBy === 'OWNER').length > 0 && (
                         <View style={det.section}>
                             <Text style={det.sectionTitle}>📨 Gönderilen Davetler</Text>
-                            {joinRequests.filter(jr => jr.initiatedBy === 'OWNER' && (!jr.isPartnerInvite || item.matchType !== 'DOUBLE')).map(jr => (
-                                <View key={jr.id} style={det.playerRow}>
-                                    <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
-                                    <View style={{ flex:1 }}>
-                                        <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
-                                        {/* Kullanıcı isteği: hangi takıma davet edildiği burada ayrıca yazılmasın —
-                                            hem gereksiz tekrar hem de takım ismi sonradan değiştirilince (bkz.
-                                            item.founderTeamName/opponentTeamName) burada hâlâ eski/genel etiket
-                                            kalıyordu. Sınıflandırma zaten kadro kartının arka yüzünde. */}
-                                        <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
+                            {joinRequests.filter(jr => jr.initiatedBy === 'OWNER').map(jr => {
+                                const slotLabel = item.matchType !== 'DOUBLE' ? null
+                                    : jr.isPartnerInvite ? 'Takım Arkadaşı'
+                                    : jr.requestedSlot === 'opp1' ? 'Rakip 1'
+                                    : jr.requestedSlot === 'opp2' ? 'Rakip 2'
+                                    : null;
+                                const isMyInvite = jr.userId === myId;
+                                return (
+                                    <View key={jr.id} style={det.playerRow}>
+                                        <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
+                                        <View style={{ flex:1 }}>
+                                            <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
+                                            <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>{slotLabel ? `${slotLabel} — ` : ''}⏳ Onay Bekleniyor</Text>
+                                        </View>
+                                        {isMyInvite && (
+                                            <TouchableOpacity onPress={() => acceptLocal(jr.id)} style={{ backgroundColor:'#16a34a', borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28), justifyContent:'center', alignItems:'center', marginRight:4 }}>
+                                                <Text style={{ color:'#fff', fontSize: moderateScale(12), fontWeight:'700' }}>✓</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        {(isOwner || isMyInvite) && (
+                                            <TouchableOpacity onPress={() => rejectLocal(jr.id)} style={{ backgroundColor:'#dc262620', borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28), justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
+                                                <Text style={{ color:'#f87171', fontSize: moderateScale(12), fontWeight:'700' }}>✕</Text>
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
-                                    {isOwner && (
-                                        <TouchableOpacity onPress={() => rejectLocal(jr.id)} style={{ backgroundColor:'#dc262620', borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28), justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
-                                            <Text style={{ color:'#f87171', fontSize: moderateScale(12), fontWeight:'700' }}>✕</Text>
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                            ))}
+                                );
+                            })}
                         </View>
                     )}
 
