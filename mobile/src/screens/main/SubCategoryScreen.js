@@ -4716,6 +4716,26 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const substituteSlotsOpen = ['volleyball', 'airsoft'].includes(match.subCategory) && (match.teamSize || 1) > 1
         && substitutePlayersArr.length < (match.substituteCount || 0);
     const myPendingSubRequest = subRequests.find(jr => jr.userId === myId);
+    // Kullanıcı raporu (tenis/padel): kadro dolmadan önce gönderilmiş bir davet, kadro
+    // başkasıyla dolduktan SONRA hâlâ PENDING kalıyor (bkz. backend notifyOtherPendingOwnerInvitesOfFull/
+    // placeInDoubleWaitlistOrReject) ama davet edilen kişi (henüz katılımcı DEĞİL, sadece
+    // bekleyen bir daveti var) bu "Yaklaşan Maçlar" kartında onaylayabileceği bir yer
+    // bulamıyordu — voleybolün "Yedek Olarak Başvur" bölümü gibi, ama DOUBLE/SINGLE için
+    // kendi (Onayla/Reddet) karşılığı hiç yoktu.
+    const myInvite = (match.matchType === 'DOUBLE' || match.matchType === 'SINGLE')
+        ? subRequests.find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING')
+        : null;
+    const respondToMyInvite = async (action) => {
+        try {
+            const { data } = await api.patch(`/rivals/join/${myInvite.id}`, { action });
+            if (action === 'accept' && data?.toSubstitute) {
+                Alert.alert('🔄', t.lateAcceptSubstitutedMsg || 'Onayınızı beklerken ana kadro doldu — yedek listesine alındınız.');
+            }
+            onRefresh();
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        }
+    };
     const applyAsSubstitute = async () => {
         setSubJoinSubmitting(true);
         try {
@@ -6083,6 +6103,27 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }}>🪑 Yedek Olarak Başvur</Text>
                             </TouchableOpacity>
                         )
+                    )}
+                    {/* DOUBLE/SINGLE (tenis/padel vb.): kadro dolmadan önce gönderilmiş, hâlâ
+                        PENDING kalan bir davet — davet edilen kişi burada onaylayıp yedek
+                        listesine (waitlistPlayers) girebilir (bkz. backend
+                        placeInDoubleWaitlistOrReject). Sadece daveti alan kişi görür. */}
+                    {!isOwner && !isParticipant && myInvite && (
+                        <View style={{ backgroundColor: cfg.color+'15', borderRadius:10, padding:10, borderWidth:1, borderColor: cfg.color+'40', marginBottom:12 }}>
+                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8, textAlign:'center' }}>
+                                {t.waitlistInviteBannerMsg}
+                            </Text>
+                            <View style={{ flexDirection:'row', gap:6 }}>
+                                <TouchableOpacity onPress={() => respondToMyInvite('accept')}
+                                    style={{ flex:1, backgroundColor:'#16a34a', borderRadius:8, paddingVertical:8, alignItems:'center' }}>
+                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteAcceptBtn}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => respondToMyInvite('reject')}
+                                    style={{ flex:1, backgroundColor:'#ef444420', borderRadius:8, paddingVertical:8, alignItems:'center', borderWidth:1, borderColor:'#ef444440' }}>
+                                    <Text style={{ color:'#f87171', fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteRejectBtn}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
                     )}
 
                     {/* Takım ismi düzenle */}
