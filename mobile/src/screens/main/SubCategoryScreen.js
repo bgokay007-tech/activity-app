@@ -9225,7 +9225,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
             <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                 <View style={{ flex:1, position:'relative' }}>
                     <TextInput
-                        style={{ backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:10, paddingHorizontal:5, paddingVertical:3, minHeight:0 }}
+                        style={{ backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:10, paddingHorizontal:5, paddingVertical:2, minHeight:0 }}
                         value={text}
                         onChangeText={setText}
                         onFocus={() => setFocused(true)}
@@ -9235,12 +9235,16 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                     />
                     {searching && focused && <ActivityIndicator size="small" color={cfg.color} style={{ position:'absolute', right:5, top:3 }} />}
                 </View>
-                {/* Yazarak aramanın yanında, arkadaş listesinden ÇOKLU seçim için ayrı bir dokunma
-                    hedefi — TextInput'un kendi dokunma/imleç davranışıyla çakışmasın diye ayrı,
-                    küçük bir alan (ikon zaten görünür olduğu için tek dokunuş yeterli). */}
+                {/* Kullanıcı raporu: bu kutu voleybolün ilan oluşturma kartındaki (TeamSlotRow)
+                    kutusuyla BİREBİR AYNI görünmeli — orada boş bir formada hiçbir ikon
+                    görünmüyor (TeamSlotRow'un avatar alanı boşken görünmez bir 14x14 boşluk).
+                    Burada da aynı şekilde görünür bir ikon YOK; arkadaş listesinden ÇOKLU seçim
+                    yine mümkün ama TeamSlotRow'daki pozisyon-atama gibi UZUN BASMA ile (dokunma
+                    DEĞİL) — TextInput'un kendi dokunma/imleç davranışıyla çakışmasın diye ayrı,
+                    görünmez küçük bir dokunma alanı. */}
                 {onOpenPicker && (
-                    <TouchableOpacity onPress={onOpenPicker} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                        <Text style={{ fontSize:13 }}>👥</Text>
+                    <TouchableOpacity onLongPress={onOpenPicker} delayLongPress={350} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                        <View style={{ width:13, height:13 }} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -9472,7 +9476,7 @@ function SingleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, t, 
     };
     const rotateY = flipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
     const selfCell = (
-        <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
+        <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
             <Avatar name={myUser?.username} avatar={myUser?.avatar} size={14} color={cfg.color} />
             <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
             {myOwnRating != null && (
@@ -9483,7 +9487,7 @@ function SingleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, t, 
     const oppInvites = Array.isArray(f.singleOppInvites) ? f.singleOppInvites : [];
     const oppSlot = oppInvites.length > 0 ? (
         <TouchableOpacity onPress={() => set('singleOppInvites', [])}
-            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:5, paddingVertical:4 }}>
+            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, paddingHorizontal:5, paddingVertical:4 }}>
             <Avatar name={oppInvites[0].username} avatar={oppInvites[0].avatar} size={16} color={cfg.color} />
             {/* Birden fazla kişi (uzun basıp davet et ikonundan) seçildiyse ilk isim + "+N" —
                 hangisi kabul ederse onunla oynanacağı için tek bir isim gösterilemez, ama tam
@@ -9586,7 +9590,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
         const active = f[specificField] ? specificField : genericField;
         return f[active] ? (
             <TouchableOpacity onPress={() => set(active, null)}
-                style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:5, paddingVertical:4 }}>
+                style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, paddingHorizontal:5, paddingVertical:4 }}>
                 <Avatar name={f[active].username} avatar={f[active].avatar} size={16} color={cfg.color} />
                 <Text style={{ color:'#fff', fontSize:10, flex:1, fontWeight:'700' }} numberOfLines={1}>{f[active].fullName || f[active].username}</Text>
                 <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
@@ -9602,7 +9606,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
     // ÖZEL, tek bir sabit genderReq ile doğrulanır (genel havuzdan farklı olarak).
     const renderBackSlot = (field, placeholder, genderReq) => f[field] ? (
         <TouchableOpacity onPress={() => set(field, null)}
-            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:5, paddingVertical:4 }}>
+            style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, paddingHorizontal:5, paddingVertical:4 }}>
             <Avatar name={f[field].username} avatar={f[field].avatar} size={16} color={cfg.color} />
             <Text style={{ color:'#fff', fontSize:10, flex:1, fontWeight:'700' }} numberOfLines={1}>{f[field].fullName || f[field].username}</Text>
             <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
@@ -9633,7 +9637,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
                             başına alt satıra taşıyordu). */}
                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4 }}>
                             <View style={{ width:'48%' }}>
-                                <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
                                     <Avatar name={myUser?.username} avatar={myUser?.avatar} size={14} color={cfg.color} />
                                     <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>1. {myUser?.fullName || myUser?.username}</Text>
                                     {myOwnRating != null && (
