@@ -583,6 +583,91 @@ function VenueAddModal({ visible, onClose, onSuccess }) {
     );
 }
 
+// ── Öneri Listesi Kaydı (paketsiz/aboneliği olmayan işletmeler için) ─────────
+// Kullanıcı isteği: paket yenilemeyen/hiç almamış ama normal işletme kaydı olan
+// bir tesis, gerçek rezervasyon sistemine (BusinessVenue, kort/slot/fiyat vb.
+// abonelik gerektirir) hiç girmeden, sıradan bir kullanıcının "Kort Ekle" ile
+// eklediği community Court kaydıyla AYNI mekanizmayı kullanarak (bkz. POST
+// /courts, court.controller.js: addCourt — zaten herhangi bir giriş yapmış
+// kullanıcıya açık, abonelik kontrolü yok) admin onayından sonra kort/saha/salon
+// aramalarında bir öneri olarak görünebilsin — tıpkı community'nin manuel
+// eklediği (sonradan "verified" yapılan) bir kort gibi. Böyle bir kayıt üzerinden
+// gerçek rezervasyon/müsaitlik sistemi çalışmaz; kullanıcılar tesisle uygulama
+// dışında iletişime geçip "Rezerve Yapıldı" kutusunu kendileri işaretler.
+function SuggestionCourtModal({ visible, onClose, onSuccess, businessName }) {
+    const [showBranchPicker, setShowBranchPicker] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [form, setForm] = useState({ name: businessName || '', branch: '', city: '', district: '', address: '' });
+
+    const set = (key, val) => setForm(p => ({ ...p, [key]: val }));
+
+    const handleClose = () => {
+        setShowBranchPicker(false);
+        setForm({ name: businessName || '', branch: '', city: '', district: '', address: '' });
+        onClose();
+    };
+
+    const handleSubmit = async () => {
+        if (!form.name.trim()) { Alert.alert('Hata', 'Tesis adı giriniz'); return; }
+        if (!form.branch) { Alert.alert('Hata', 'Spor dalı seçiniz'); return; }
+        if (!form.city.trim()) { Alert.alert('Hata', 'Şehir giriniz'); return; }
+        setSaving(true);
+        try {
+            await api.post('/courts', {
+                name: form.name.trim(), sport: form.branch, city: form.city.trim(),
+                district: form.district.trim() || undefined, address: form.address.trim() || undefined,
+            });
+            Alert.alert('✅ Gönderildi', 'Tesisiniz öneri listesine eklenmek üzere admin onayına gönderildi. Onaylanınca kort/saha/salon aramalarında görünecek. Bu kayıt üzerinden uygulama içinden rezervasyon yapılamaz — kullanıcılar sizinle uygulama dışında iletişime geçip anlaşabilir.');
+            handleClose();
+            onSuccess?.();
+        } catch (e) {
+            Alert.alert('Hata', e?.response?.data?.message || 'Gönderilemedi');
+        } finally { setSaving(false); }
+    };
+
+    return (
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+            <View style={ms.overlay}>
+                <View style={[ms.sheet, { maxHeight: '92%' }]}>
+                    <View style={ms.handle} />
+                    <View style={ms.subHeader}>
+                        <Text style={ms.subTitle}>📍 Öneri Listesine Ekle</Text>
+                        <TouchableOpacity onPress={handleClose}><Text style={ms.closeBtn}>✕</Text></TouchableOpacity>
+                    </View>
+                    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 30 }}>
+                        <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 14, lineHeight: 17 }}>
+                            Aktif paketiniz olmadan gerçek rezervasyon/takvim sistemi kuramazsınız, ama tesisinizin ismi/konumu admin onayından sonra kort/saha/salon aramalarında bir öneri olarak çıkabilir. Kullanıcılar sizi seçip uygulama dışında (telefonla vb.) rezervasyon yapabilir.
+                        </Text>
+                        <TextInput style={va.input} placeholder="Tesis / İşletme Adı *" placeholderTextColor={colors.textMuted} value={form.name} onChangeText={v => set('name', v)} />
+                        <TouchableOpacity style={[va.input, { justifyContent: 'center' }]} onPress={() => setShowBranchPicker(true)} activeOpacity={0.8}>
+                            <Text style={{ color: form.branch ? '#fff' : colors.textMuted, fontSize: 14 }}>
+                                {form.branch ? (VENUE_BRANCHES.find(b => b.key === form.branch)?.label || form.branch) : 'Spor Dalı *'}
+                            </Text>
+                        </TouchableOpacity>
+                        {showBranchPicker && (
+                            <View style={{ backgroundColor: '#0f0f1a', borderRadius: 10, marginBottom: 10, borderWidth: 1, borderColor: colors.border }}>
+                                {VENUE_BRANCHES.map(b => (
+                                    <TouchableOpacity key={b.key}
+                                        style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: '#ffffff10', backgroundColor: form.branch === b.key ? '#7c3aed20' : 'transparent' }}
+                                        onPress={() => { set('branch', b.key); setShowBranchPicker(false); }}>
+                                        <Text style={{ color: form.branch === b.key ? '#a78bfa' : '#e5e7eb', fontSize: 14, fontWeight: form.branch === b.key ? '700' : '400' }}>{b.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+                        <TextInput style={va.input} placeholder="Şehir *" placeholderTextColor={colors.textMuted} value={form.city} onChangeText={v => set('city', v)} />
+                        <TextInput style={va.input} placeholder="İlçe" placeholderTextColor={colors.textMuted} value={form.district} onChangeText={v => set('district', v)} />
+                        <TextInput style={va.input} placeholder="Adres" placeholderTextColor={colors.textMuted} value={form.address} onChangeText={v => set('address', v)} />
+                        <TouchableOpacity style={[va.nextBtn2, saving && { opacity: 0.6 }]} onPress={handleSubmit} disabled={saving} activeOpacity={0.8}>
+                            {saving ? <ActivityIndicator size="small" color="#000" /> : <Text style={va.nextBtnText}>Gönder ✓</Text>}
+                        </TouchableOpacity>
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 // ── IBAN Kartı ────────────────────────────────────────────────────────────────
 function IbanCard({ iban, ibanHolder, onSave }) {
     const [editing, setEditing] = useState(false);
@@ -4849,6 +4934,7 @@ export default function BusinessHomeScreen({ navigation, route }) {
     const [loading,        setLoading]        = useState(true);
     const [subModal,       setSubModal]       = useState(false);
     const [venueModal,     setVenueModal]     = useState(false);
+    const [suggestionModal, setSuggestionModal] = useState(false);
     const [cancelling,     setCancelling]     = useState(false);
     const [submitting,     setSubmitting]     = useState(false);
     const [uploading,      setUploading]      = useState(false);
@@ -5032,9 +5118,13 @@ export default function BusinessHomeScreen({ navigation, route }) {
                     {/* Tesisler */}
                     <View style={s.sectionHeader}>
                         <Text style={s.sectionTitle}>🏟️ Tesislerim</Text>
-                        {sub && ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType) && (
+                        {sub && ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType) ? (
                             <TouchableOpacity style={s.addVenueBtn} onPress={handleAddVenue} activeOpacity={0.8}>
                                 <Text style={s.addVenueBtnText}>+ Tesis Ekle</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity style={s.addVenueBtn} onPress={() => setSuggestionModal(true)} activeOpacity={0.8}>
+                                <Text style={s.addVenueBtnText}>📍 Öneri Olarak Ekle</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -5046,10 +5136,19 @@ export default function BusinessHomeScreen({ navigation, route }) {
                                     ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType)
                                         ? 'Henüz tesis eklenmedi.' : 'Tesis eklemek için Rahatlatıcı veya üstü paket gereklidir.')
                                     : 'Tesis eklemek için önce abonelik alın.'}</Text>
-                            {sub && ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType) && (
+                            {sub && ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType) ? (
                                 <TouchableOpacity style={s.addVenueBtnLg} onPress={handleAddVenue} activeOpacity={0.8}>
                                     <Text style={s.addVenueBtnText}>+ Tesis / Kort Ekle</Text>
                                 </TouchableOpacity>
+                            ) : (
+                                <>
+                                    <Text style={[s.emptyText, { marginTop: 6, fontSize: 12 }]}>
+                                        Yine de tesisiniz kort/saha/salon aramalarında öneri olarak görünebilir.
+                                    </Text>
+                                    <TouchableOpacity style={s.addVenueBtnLg} onPress={() => setSuggestionModal(true)} activeOpacity={0.8}>
+                                        <Text style={s.addVenueBtnText}>📍 Öneri Olarak Ekle</Text>
+                                    </TouchableOpacity>
+                                </>
                             )}
                         </View>
                     ) : (
@@ -5092,6 +5191,13 @@ export default function BusinessHomeScreen({ navigation, route }) {
                 visible={venueModal}
                 onClose={() => setVenueModal(false)}
                 onSuccess={fetchAll}
+            />
+
+            <SuggestionCourtModal
+                visible={suggestionModal}
+                onClose={() => setSuggestionModal(false)}
+                onSuccess={fetchAll}
+                businessName={user?.businessName}
             />
 
         </View>
