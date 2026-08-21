@@ -1963,23 +1963,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 );
                                             }
                                             if (sl.key === 'partner' && pendingPartnerInvite) return null; // ayrıca aşağıda gösteriliyor
-                                            // Kullanıcı isteği: ön yüzdeki boş formalardan da arka yüzdeki
-                                            // (SlotBox) gibi doğrudan isim yazıp davet edilebilsin — sadece
-                                            // gösterim/atama değil.
-                                            if (isOwner && !swapSlot) {
-                                                return (
-                                                    <View key={sl.key} style={cardBox}>
-                                                        <Text style={[det.playerSub, { color: colors.textMuted, marginBottom:2 }]} numberOfLines={1}>
-                                                            {t.cardParticipantLabel(i + 1)}
-                                                            {gParen(sl.gReq) && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{gParen(sl.gReq)}</Text>}
-                                                        </Text>
-                                                        <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t} placeholder="Davet et"
-                                                            genderReq={sl.gReq}
-                                                            onInvite={(u) => inviteToDoubleSlot(u, sl.key)}
-                                                            onOpenPicker={() => { setDoubleInviteFromSlot(sl.key); setShowDoubleFriendsPicker(true); }} />
-                                                    </View>
-                                                );
-                                            }
+                                            // Kullanıcı raporu: ön yüzdeki ("Katılan Oyuncular") boş formalara
+                                            // arka yüzdeki (SlotBox) gibi doğrudan davet arama alanı eklenmişti
+                                            // — ön yüz sadece görüntüleme olmalı, davet/atama SADECE arka yüzdeki
+                                            // "Takımları Düzenle" ekranından yapılır. Bu yüzden isOwner'a bakmadan
+                                            // her zaman aşağıdaki salt-okunur "Bekleniyor" kutusuna düşer.
                                             return (
                                                 <View key={sl.key} style={[cardBox, { opacity:0.55, flexDirection:'row', alignItems:'center', gap:6 }]}>
                                                     <View style={{ width:moderateScale(28), height:moderateScale(28), borderRadius:moderateScale(14), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
@@ -2009,58 +1997,24 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         {/* Bekleyen genel davetler burada TEKRAR gösterilmiyor — "📨 Gönderilen
                                             Davetler" bölümü zaten bunu listeliyor (kullanıcı isteği: kart içinde
                                             tekrar "Davet Gönderildi" yazmasın). */}
-                                        {/* Atanmamış — kabul edilmiş ama henüz Takım Arkadaşı/Rakip1/Rakip2'ye
-                                            yerleşmemiş oyuncular. İlan sahibi HERKESİ, oyuncunun kendisi de
-                                            SADECE kendini atayabilir. */}
-                                        {unassignedDoubleSlots.map(p => {
-                                            const isMe = p.id === myId;
-                                            // Kullanıcı isteği: "Takım1'e Ata Takım2'ye Ata olsun" — Rakip1/Rakip2
-                                            // ayrımı kaldırıldı, Takım 2 için ikisinden hangisi boşsa (ve cinsiyete
-                                            // uyuyorsa) o kullanılır. İsim değiştirildiyse o takımın ismi kullanılır.
-                                            const canTeam1 = !PartnerContent && !pendingPartnerInvite && genderFitsSlot(p.gender, partnerGenderReq);
-                                            const team2Slot = [
-                                                !participants[0]?.id && genderFitsSlot(p.gender, opp1GenderReq) && 'opp1',
-                                                !participants[1]?.id && genderFitsSlot(p.gender, opp2GenderReq) && 'opp2',
-                                            ].find(Boolean);
-                                            const team1Label = item.founderTeamName || t.founderTeamShortLabel || 'Takım 1';
-                                            const team2Label = item.opponentTeamName || t.opponentTeamShortLabel || 'Takım 2';
-                                            return (
-                                                <View key={p.id} style={[cardBox, { width:'100%', flexDirection:'row', alignItems:'center', gap:4 }]}>
-                                                    <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6, flex:1, minWidth:0 }} onPress={() => navigation.push('Profile', { userId: p.id })}>
-                                                        <Avatar name={p.username} avatar={p.avatar} size={moderateScale(28)} color={cfg.color} />
-                                                        {/* Kullanıcı isteği: takıma atanana kadar yanıp sönme devam etsin — voleybol/airsoft'un
-                                                            aynı listesindeki unassignedBlink (yukarıda zaten unassignedSlots.length'e göre
-                                                            döngüde) burada da (DOUBLE'da) aynen kullanılıyor, önceden sadece statik sarı
-                                                            "Atanmamış" yazısıydı. */}
-                                                        <Animated.View style={{ flex:1, minWidth:0, opacity: unassignedBlink }}>
-                                                            <Text style={[det.playerName, { color:'#ef4444' }]} numberOfLines={1}>{playerDisplayName(p)}</Text>
-                                                            <Text style={[det.playerSub, { color:'#ef4444', fontWeight:'800' }]} numberOfLines={1}>Atanmamış</Text>
-                                                        </Animated.View>
-                                                    </TouchableOpacity>
-                                                    {(isOwner || isMe) && canTeam1 && (
-                                                        <TouchableOpacity onPress={() => assignDoubleSlot(p.id, 'partner')}
-                                                            style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                            <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{team1Label}'e Ata</Text>
-                                                        </TouchableOpacity>
-                                                    )}
-                                                    {(isOwner || isMe) && team2Slot && (
-                                                        <TouchableOpacity onPress={() => assignDoubleSlot(p.id, team2Slot)}
-                                                            style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                            <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{team2Label}'ye Ata</Text>
-                                                        </TouchableOpacity>
-                                                    )}
-                                                    {/* Kalan hiçbir slot cinsiyete uymasa bile ilan sahibi için her zaman
-                                                        Çıkar gösterilir — aksi halde bu kişi kalıcı olarak sıkışıp kalıyordu
-                                                        (kullanıcı raporu). En sağda (kullanıcı isteği). */}
-                                                    {isOwner && (
-                                                        <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)}
-                                                            style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor:'#dc262612', borderWidth:1, borderColor:'#dc262630' }}>
-                                                            <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>Çıkar</Text>
-                                                        </TouchableOpacity>
-                                                    )}
-                                                </View>
-                                            );
-                                        })}
+                                        {/* Kullanıcı raporu: ön yüzde kabul edilmiş ama henüz Takım Arkadaşı/
+                                            Rakip1/Rakip2'ye yerleşmemiş oyuncular için "Takım1'e Ata"/"Çıkar"
+                                            gibi atama butonları vardı — ön yüz artık SADECE görüntüleme,
+                                            atama/çıkarma yalnızca arka yüzdeki "Takımları Düzenle" ekranından
+                                            yapılabiliyor (bkz. aşağıdaki showTeamCards bloğu, aynı liste orada
+                                            promptAssignTeam ile zaten var). Burada sadece kim atanmayı
+                                            beklediği (yanıp sönerek) gösteriliyor. */}
+                                        {unassignedDoubleSlots.map(p => (
+                                            <View key={p.id} style={[cardBox, { width:'100%', flexDirection:'row', alignItems:'center', gap:4 }]}>
+                                                <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6, flex:1, minWidth:0 }} onPress={() => navigation.push('Profile', { userId: p.id })}>
+                                                    <Avatar name={p.username} avatar={p.avatar} size={moderateScale(28)} color={cfg.color} />
+                                                    <Animated.View style={{ flex:1, minWidth:0, opacity: unassignedBlink }}>
+                                                        <Text style={[det.playerName, { color:'#ef4444' }]} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                                        <Text style={[det.playerSub, { color:'#ef4444', fontWeight:'800' }]} numberOfLines={1}>Atanmamış</Text>
+                                                    </Animated.View>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
                                         {acceptedOthers.length === 0 && !pendingPartnerInvite && unassignedDoubleSlots.length === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
                                     </View>
                                 );
