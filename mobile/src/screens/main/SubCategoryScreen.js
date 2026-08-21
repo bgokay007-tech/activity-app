@@ -5678,16 +5678,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 </View>
                             );
                         };
-                        // Ön yüz havuzu — kurucu kilitli ilk forma + partner/rakip1/rakip2, voleyboldeki
-                        // TeamAssignCard'ın ön yüzüyle AYNI görsel dil (numaralı forma, atanmamışlar
-                        // kırmızı yanıp söner).
-                        // unassignedArr eklendi — kabul edilmiş ama henüz bir slota (partner/opp1/opp2)
-                        // yerleşmemiş oyuncular önceden ön yüz havuzunda hiç görünmüyordu, sadece arka
-                        // yüzdeki "Atanmamış" listesinde vardı (kullanıcı raporu: "katılan oyuncular
-                        // gözükmesi lazım gözükmüyor"). Kırmızı yanıp sönen unassignedKeys işareti zaten
-                        // aşağıdaki map'te hazırdı, sadece diziye hiç eklenmiyordu.
+                        // Ön yüz havuzu — kurucu kilitli ilk forma + partner/rakip1/rakip2 + henüz
+                        // role atanmamış (unassignedArr) kabul edilmiş oyuncular, hepsi sırayla
+                        // numaralı "Katılımcı N" olarak, voleyboldeki TeamAssignCard'ın ön yüzüyle
+                        // AYNI görsel dil (kullanıcı isteği: atanmamış olmak ön yüzde bir "uyarı"
+                        // gibi görünmemeli — hangi role gideceği sadece arka yüzü ilgilendirir).
                         const doublePool = [{ ...match.sender, skillRating: match.senderSkillRating }, partner, opp1, opp2, ...unassignedArr].filter(p => p && (p.id || p.manualName));
-                        const unassignedKeys = new Set(unassignedArr.map(p => p.id));
                         const rotateY = doubleFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
                         return (
                             <View style={{ marginBottom:12 }}>
@@ -5700,23 +5696,25 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                     <Text style={{ fontSize:15 }}>🔄</Text>
                                                 </TouchableOpacity>
                                             </View>
+                                            {/* Kullanıcı isteği: voleybolün Digimon kartıyla AYNI mantık — ön yüzde
+                                                atanmamış (henüz Takım Arkadaşı/Rakip1/Rakip2'ye yerleşmemiş) biri
+                                                kırmızı/yanıp sönen bir "uyarı" gibi DEĞİL, sıradaki normal katılımcı
+                                                gibi görünür. Hangi role gideceği sadece arka yüzdeki "Atanmamış"
+                                                listesinden (aşağıda) ilgilendiriyor. */}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
-                                                {doublePool.map((p, i) => {
-                                                    const isUnassigned = unassignedKeys.has(p.id);
-                                                    return (
-                                                        <View key={p.id || `m-${i}`} style={{ width:'48%' }}>
-                                                            <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
-                                                                <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
-                                                                <Animated.View style={{ flex:1, opacity: isUnassigned ? doubleUnassignedBlink : 1 }}>
-                                                                    <Text style={{ color: isUnassigned ? '#ef4444' : '#fff', fontSize:10, fontWeight: isUnassigned ? '800' : '400' }} numberOfLines={1}>{i + 1}. {senderAlias(p)}</Text>
-                                                                </Animated.View>
-                                                                {p.skillRating != null && (
-                                                                    <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
-                                                                )}
+                                                {doublePool.map((p, i) => (
+                                                    <View key={p.id || `m-${i}`} style={{ width:'48%' }}>
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
+                                                            <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
+                                                            <View style={{ flex:1 }}>
+                                                                <Text style={{ color:'#fff', fontSize:10, fontWeight:'400' }} numberOfLines={1}>{i + 1}. {senderAlias(p)}</Text>
                                                             </View>
+                                                            {p.skillRating != null && (
+                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
+                                                            )}
                                                         </View>
-                                                    );
-                                                })}
+                                                    </View>
+                                                ))}
                                             </View>
                                         </>
                                     ) : (
@@ -7677,10 +7675,18 @@ const CITY_ALERT_INFO_DISMISSED_KEY = 'city_alert_info_dismissed';
 // modalı açılır (ne için bildirim aldığını anlatır), "Bir daha gösterme" işaretlenip
 // onaylanırsa AsyncStorage'a yazılır ve bir sonraki tıklamalarda zil doğrudan aç/kapat yapar
 // (aynı EloWarningModal deseni).
-function CityAlertInfoModal({ visible, desc, active, onClose, onToggle, onPickCities, onDismissForever }) {
+// Kullanıcı raporu: "İl Seç"e dokununca ekran az kararıp hiçbir şey açılmıyordu — hâlâ devam
+// ediyordu. Önceki deneme (bu modal kapanırken 300ms gecikmeyle il seçici Modal'ı açmak) ayrı
+// birer native Modal olduğu için Android'de hâlâ arada bir başarısız oluyordu. Kök neden: iki
+// AYRI <Modal> bileşeni sırayla kapanıp açılıyordu — Android bir native modal penceresi tam
+// kapanmadan yenisi açılmaya çalışırsa ikincisinin penceresi hiç görünmeden "takılı" kalabiliyor
+// (ekranın kararması native modal host'un açılmasından, içeriğin hiç görünmemesi ise bu
+// yarış durumundan). Kalıcı çözüm: artık TEK bir <Modal> var (bkz. çağrı yeri, aşağıda), bu
+// bileşen sadece İÇERİK döndürüyor — "İl Seç"e basınca aynı Modal içinde içerik değişiyor,
+// native modal penceresi hiç kapanıp açılmıyor, bu yarış durumu kökünden imkansız hale geliyor.
+function CityAlertInfoContent({ desc, active, onClose, onToggle, onPickCities, onDismissForever }) {
     const t = useT();
     const [checked, setChecked] = useState(false);
-    useEffect(() => { if (visible) setChecked(false); }, [visible]);
 
     const handleCheckboxPress = () => {
         if (checked) { setChecked(false); return; }
@@ -7696,29 +7702,25 @@ function CityAlertInfoModal({ visible, desc, active, onClose, onToggle, onPickCi
     };
 
     return (
-        <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-            <TouchableOpacity style={ew.overlay} activeOpacity={1} onPress={onClose}>
-                <View style={ew.box} onStartShouldSetResponder={() => true}>
-                    <View style={ew.header}>
-                        <Text style={ew.title}>{t.cityAlertInfoTitle}</Text>
-                        <TouchableOpacity onPress={onClose}><Text style={ew.close}>✕</Text></TouchableOpacity>
-                    </View>
-                    <Text style={[ew.body, { color: colors.textSecondary }]}>{desc}</Text>
-                    <TouchableOpacity onPress={onToggle} style={{ backgroundColor: colors.purple + '20', borderRadius:10, paddingVertical:10, alignItems:'center', marginTop:14, borderWidth:1, borderColor: colors.purple + '50' }}>
-                        <Text style={{ color: colors.purple, fontWeight:'800', fontSize:13 }}>{active ? t.cityAlertDisableBtn : t.cityAlertEnableBtn}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={onPickCities} style={{ backgroundColor:'#ffffff10', borderRadius:10, paddingVertical:10, alignItems:'center', marginTop:8, borderWidth:1, borderColor:'#ffffff20' }}>
-                        <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>📍 {t.cityAlertPickCitiesBtn}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={handleCheckboxPress} style={ew.checkRow}>
-                        <View style={[ew.checkbox, checked && ew.checkboxChecked]}>
-                            {checked && <Text style={{ color:'#fff', fontSize:10 }}>✓</Text>}
-                        </View>
-                        <Text style={ew.checkLabel}>{t.eloDontShowAgain}</Text>
-                    </TouchableOpacity>
-                </View>
+        <View style={ew.box} onStartShouldSetResponder={() => true}>
+            <View style={ew.header}>
+                <Text style={ew.title}>{t.cityAlertInfoTitle}</Text>
+                <TouchableOpacity onPress={onClose}><Text style={ew.close}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={[ew.body, { color: colors.textSecondary }]}>{desc}</Text>
+            <TouchableOpacity onPress={onToggle} style={{ backgroundColor: colors.purple + '20', borderRadius:10, paddingVertical:10, alignItems:'center', marginTop:14, borderWidth:1, borderColor: colors.purple + '50' }}>
+                <Text style={{ color: colors.purple, fontWeight:'800', fontSize:13 }}>{active ? t.cityAlertDisableBtn : t.cityAlertEnableBtn}</Text>
             </TouchableOpacity>
-        </Modal>
+            <TouchableOpacity onPress={onPickCities} style={{ backgroundColor:'#ffffff10', borderRadius:10, paddingVertical:10, alignItems:'center', marginTop:8, borderWidth:1, borderColor:'#ffffff20' }}>
+                <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>📍 {t.cityAlertPickCitiesBtn}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleCheckboxPress} style={ew.checkRow}>
+                <View style={[ew.checkbox, checked && ew.checkboxChecked]}>
+                    {checked && <Text style={{ color:'#fff', fontSize:10 }}>✓</Text>}
+                </View>
+                <Text style={ew.checkLabel}>{t.eloDontShowAgain}</Text>
+            </TouchableOpacity>
+        </View>
     );
 }
 const ew = StyleSheet.create({
@@ -19569,22 +19571,65 @@ export default function SubCategoryScreen({ route, navigation }) {
                 </View>
             </Modal>
 
-            <CityAlertInfoModal
-                visible={cityAlertInfoTab !== null}
-                desc={cityAlertDesc[cityAlertInfoTab] || ''}
-                active={(tabSubCities[cityAlertInfoTab] || []).length > 0}
-                onClose={() => setCityAlertInfoTab(null)}
-                onToggle={() => { const tab = cityAlertInfoTab; setCityAlertInfoTab(null); quickToggleTab(tab); }}
-                // Kullanıcı raporu: "il seç"e dokununca ekran az kararıp hiçbir şey açılmıyordu.
-                // Sebep: bu modal (CityAlertInfoModal) kapanırken (setCityAlertInfoTab(null)) AYNI
-                // state güncellemesinde il seçici <Modal>'ı da açıyorduk (setCityPickerTab) —
-                // Android'de iki native Modal aynı anda (biri kapanırken diğeri açılırken) geçiş
-                // yaparsa ikincisi çoğu zaman görünmez şekilde başarısız oluyor. Artık önce bu
-                // modal kapanıyor, il seçici KISA bir gecikmeyle (kapanma animasyonu bittikten
-                // sonra) açılıyor.
-                onPickCities={() => { const tab = cityAlertInfoTab; setCityAlertInfoTab(null); setTimeout(() => setCityPickerTab(tab), 300); }}
-                onDismissForever={() => setCityAlertInfoDismissed(true)}
-            />
+            {/* Bildirim zili bilgi kutusu + il seçici — kullanıcı raporu: 300ms gecikmeli iki ayrı
+                <Modal> denemesi (bkz. CityAlertInfoContent tanımındaki yorum) hâlâ bazen ekranı
+                kararmış hiçbir şey açılmadan bırakıyordu. Artık TEK <Modal>: "İl Seç"e basınca
+                sadece İÇERİK değişiyor, ayrı bir native modal penceresi hiç kapanıp açılmıyor. */}
+            <Modal
+                visible={cityAlertInfoTab !== null || cityPickerTab !== null}
+                animationType="fade"
+                transparent
+                onRequestClose={() => { setCityAlertInfoTab(null); setCityPickerTab(null); }}
+            >
+                {cityPickerTab !== null ? (
+                    <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
+                        <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:18, borderTopRightRadius:18, maxHeight:'75%' }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', padding:13, borderBottomWidth:1, borderBottomColor:colors.border }}>
+                                <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', flex:1 }}>
+                                    🔔 {sportDisplayName} — Bildirim İlleri
+                                </Text>
+                                <TouchableOpacity onPress={() => setCityPickerTab(null)}>
+                                    <Text style={{ color:colors.textMuted, fontSize:20 }}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <Text style={{ color:colors.textMuted, fontSize:12, paddingHorizontal:3, paddingTop:3, paddingBottom:3 }}>
+                                Seçtiğin illerden yeni {sportDisplayName} bildirimi alırsın
+                            </Text>
+                            <ScrollView contentContainerStyle={{ paddingVertical:5 }}>
+                                {TR_PROVINCES.map(province => {
+                                    const isChecked = cityPickerTab ? (tabSubCities[cityPickerTab] || []).includes(province) : false;
+                                    const isLoading = cityPickerTogglingCity === province;
+                                    return (
+                                        <TouchableOpacity
+                                            key={province}
+                                            onPress={() => cityPickerTab && toggleTabCity(cityPickerTab, province)}
+                                            disabled={cityPickerTogglingCity !== null}
+                                            style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:13, paddingVertical:8, borderBottomWidth:1, borderBottomColor:colors.border+'40' }}
+                                        >
+                                            <Text style={{ flex:1, color:'#fff', fontSize:14, fontWeight: isChecked ? '700' : '400' }}>{province}</Text>
+                                            {isLoading
+                                                ? <ActivityIndicator size="small" color={cfg.color} />
+                                                : <Text style={{ color: isChecked ? cfg.color : colors.textMuted, fontSize:18 }}>{isChecked ? '●' : '○'}</Text>
+                                            }
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </ScrollView>
+                        </View>
+                    </View>
+                ) : (
+                    <TouchableOpacity style={ew.overlay} activeOpacity={1} onPress={() => setCityAlertInfoTab(null)}>
+                        <CityAlertInfoContent
+                            desc={cityAlertDesc[cityAlertInfoTab] || ''}
+                            active={(tabSubCities[cityAlertInfoTab] || []).length > 0}
+                            onClose={() => setCityAlertInfoTab(null)}
+                            onToggle={() => { const tab = cityAlertInfoTab; setCityAlertInfoTab(null); quickToggleTab(tab); }}
+                            onPickCities={() => { setCityPickerTab(cityAlertInfoTab); setCityAlertInfoTab(null); }}
+                            onDismissForever={() => setCityAlertInfoDismissed(true)}
+                        />
+                    </TouchableOpacity>
+                )}
+            </Modal>
 
             {/* Zaman filtresi — Tümü/Bugün/Bu Hafta/Bu Ay hızlı seçenekleri + özel tarih aralığı takvimi aynı modalda */}
             <DateRangePickerModal
@@ -19701,45 +19746,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                             </Text>
                             <Text style={{ color:colors.textMuted, fontSize:12 }}>▾</Text>
                         </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* Bildirim il seçici — tüm sekmeler için ortak */}
-            <Modal visible={cityPickerTab !== null} animationType="slide" transparent onRequestClose={() => setCityPickerTab(null)}>
-                <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
-                    <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:18, borderTopRightRadius:18, maxHeight:'75%' }}>
-                        <View style={{ flexDirection:'row', alignItems:'center', padding:13, borderBottomWidth:1, borderBottomColor:colors.border }}>
-                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', flex:1 }}>
-                                🔔 {sportDisplayName} — Bildirim İlleri
-                            </Text>
-                            <TouchableOpacity onPress={() => setCityPickerTab(null)}>
-                                <Text style={{ color:colors.textMuted, fontSize:20 }}>✕</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <Text style={{ color:colors.textMuted, fontSize:12, paddingHorizontal:3, paddingTop:3, paddingBottom:3 }}>
-                            Seçtiğin illerden yeni {sportDisplayName} bildirimi alırsın
-                        </Text>
-                        <ScrollView contentContainerStyle={{ paddingVertical:5 }}>
-                            {TR_PROVINCES.map(province => {
-                                const isChecked = cityPickerTab ? (tabSubCities[cityPickerTab] || []).includes(province) : false;
-                                const isLoading = cityPickerTogglingCity === province;
-                                return (
-                                    <TouchableOpacity
-                                        key={province}
-                                        onPress={() => cityPickerTab && toggleTabCity(cityPickerTab, province)}
-                                        disabled={cityPickerTogglingCity !== null}
-                                        style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:13, paddingVertical:8, borderBottomWidth:1, borderBottomColor:colors.border+'40' }}
-                                    >
-                                        <Text style={{ flex:1, color:'#fff', fontSize:14, fontWeight: isChecked ? '700' : '400' }}>{province}</Text>
-                                        {isLoading
-                                            ? <ActivityIndicator size="small" color={cfg.color} />
-                                            : <Text style={{ color: isChecked ? cfg.color : colors.textMuted, fontSize:18 }}>{isChecked ? '●' : '○'}</Text>
-                                        }
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </ScrollView>
                     </View>
                 </View>
             </Modal>
