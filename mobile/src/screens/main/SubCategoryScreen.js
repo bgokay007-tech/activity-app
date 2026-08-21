@@ -17801,6 +17801,26 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveModalTab, setArchiveModalTab] = useState('details');
 
     const [filterCity, setFilterCity] = useState('');
+    // Kullanıcı isteği: sadece "Konum" filtresi dalına göre hafızada kalıcı olsun — uygulama
+    // kapatılıp açılsa, ya da başka bir dala gidip geri dönülse bile son seçilen il aynı
+    // kalır, kullanıcı isterse tekrar filtreye dokunup değiştirir. Diğer filtreler (zaman
+    // aralığı, kort/mekan adı vb.) BİLEREK kalıcı yapılmadı — her ekrana yeniden girişte
+    // sıfırlanmaları isteniyor.
+    const filterCityLoadedRef = useRef(false);
+    useEffect(() => {
+        filterCityLoadedRef.current = false;
+        AsyncStorage.getItem(`filter_city_${sub}`).then(v => {
+            filterCityLoadedRef.current = true;
+            if (v) setFilterCity(v);
+        }).catch(() => { filterCityLoadedRef.current = true; });
+    }, [sub]);
+    useEffect(() => {
+        // Depolamadan yüklenen değeri kendi kendine geri yazmasın diye (zararsız olurdu ama
+        // gereksiz) — sadece kullanıcı değişikliğinden sonra kaydeder.
+        if (!filterCityLoadedRef.current) return;
+        if (filterCity) AsyncStorage.setItem(`filter_city_${sub}`, filterCity).catch(() => {});
+        else AsyncStorage.removeItem(`filter_city_${sub}`).catch(() => {});
+    }, [filterCity, sub]);
     const [filterVenueName, setFilterVenueName] = useState(''); // kort/salon/mekan adına göre ayrı arama — dala göre etiketi değişir
     // Voleybol Türü (Salon/Plaj/Çim/Mahalle/Toprak) — önceden ayrı sekmeler halindeydi,
     // kullanıcı isteğiyle kaldırılıp diğer filtrelerle (il, tarih vb.) aynı "Filtrele"
