@@ -4783,6 +4783,22 @@ export const getRivalBill = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Kullanıcı isteği: sipariş veren oyuncu kendi maç detayındaki "Adisyonu Var" ikonuna
+// dokununca kendi siparişini (teslim edildi mi/ücreti alındı mı) görebilsin — işletmenin
+// Siparişler sekmesinde işaretlediği delivered/paid burada da yansır. Sadece kendi
+// siparişleri (userId'ye göre) döner, başka oyuncunun siparişi hiç görünmez.
+export const getMyRivalOrders = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const orders = await prisma.venueOrder.findMany({
+            where: { activityId: id, userId: req.userId },
+            include: { items: { include: { menuItem: { select: { name: true } } } } },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json({ orders });
+    } catch (error) { next(error); }
+};
+
 const BILL_PAYMENT_ESCALATE_MS = 2 * 60 * 60 * 1000; // ödeme talebinden 2 saat sonra admine bildirilebilir
 
 // Katılımcı, ödenmemiş adisyon için diğer katılımcılardan uygulama üzerinden ödeme ister.

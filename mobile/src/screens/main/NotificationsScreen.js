@@ -299,7 +299,15 @@ export default function NotificationsScreen({ navigation }) {
             }
         } else if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') {
             goToSub('tournaments');
-        } else if (type === 'RESERVATION' || type === 'RESERVATION_UPDATE' || type === 'VENUE_ORDER' || type === 'PAYMENT_ALERT') {
+        } else if (type === 'VENUE_ORDER') {
+            // navigateFromNotif (navigation/index.js) ile aynı mantık — sipariş bildirimine
+            // dokununca rezervasyon takvimi değil, doğrudan o maçın Siparişler sekmesi açılır.
+            if (isBusiness) {
+                navigation.navigate('BusinessApp', { openOrders: true, venueId: data.venueId || null, highlightActivityId: data.rivalId || null });
+            } else {
+                navigation.navigate('HomeTab', { screen: 'MyReservations' });
+            }
+        } else if (type === 'RESERVATION' || type === 'RESERVATION_UPDATE' || type === 'PAYMENT_ALERT') {
             if (isBusiness) {
                 // navigateFromNotif (navigation/index.js) ile aynı mantık — venueId varsa
                 // sadece o tesisin takvimi açılır, yoksa (eski bildirimler) tüm kartlar

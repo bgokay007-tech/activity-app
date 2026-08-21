@@ -718,6 +718,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         return () => loop.stop();
     }, [localOrderedUserIds.length]);
     const [orderVenueId, setOrderVenueId] = useState(null);
+    // Kullanıcı isteği: kendi siparişini veren oyuncu, ismi yanındaki yanıp sönen ikona
+    // dokununca kendi siparişinin (teslim/ödeme) durumunu görebilsin — bkz. MyOrderStatusModal.
+    const [showMyOrder, setShowMyOrder] = useState(false);
     const [comments, setComments] = useState([]);
     const [loadingComments, setLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
@@ -1959,7 +1962,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(item.sender)}</Text>
                                                     <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
                                                     {item.senderId && localOrderedUserIds.includes(item.senderId) && (
-                                                        <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                        item.senderId === myId ? (
+                                                            <TouchableOpacity onPress={() => setShowMyOrder(true)}>
+                                                                <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                            </TouchableOpacity>
+                                                        ) : (
+                                                            <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                        )
                                                     )}
                                                 </View>
                                             </TouchableOpacity>
@@ -1978,7 +1987,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                             olduğu yerde) gösteriliyor, ön yüz salt sıra numarası. */}
                                                         <Text style={det.playerSub} numberOfLines={1}>{t.cardParticipantLabel(i + 1)}</Text>
                                                         {sl.p.id && localOrderedUserIds.includes(sl.p.id) && (
-                                                            <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                            sl.p.id === myId ? (
+                                                                <TouchableOpacity onPress={() => setShowMyOrder(true)}>
+                                                                    <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                                </TouchableOpacity>
+                                                            ) : (
+                                                                <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                            )
                                                         )}
                                                     </View>
                                                 </TouchableOpacity>
@@ -2004,7 +2019,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(p)}</Text>
                                                         <Text style={det.playerSub} numberOfLines={1}>{t.cardParticipantLabel(teamSlots.length + i + 1)}</Text>
                                                         {p.id && localOrderedUserIds.includes(p.id) && (
-                                                            <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                            p.id === myId ? (
+                                                                <TouchableOpacity onPress={() => setShowMyOrder(true)}>
+                                                                    <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                                </TouchableOpacity>
+                                                            ) : (
+                                                                <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                            )
                                                         )}
                                                     </View>
                                                 </TouchableOpacity>
@@ -3403,6 +3424,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     .catch(() => {});
             }}
         />
+        <MyOrderStatusModal visible={showMyOrder} rivalId={item.id} onClose={() => setShowMyOrder(false)} />
         </>
     );
 }
@@ -4638,6 +4660,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [localCommentText, setLocalCommentText] = useState('');
     const [sendingLocalComment, setSendingLocalComment] = useState(false);
     const [orderVenueId, setOrderVenueId] = useState(null);
+    const [showMyOrder, setShowMyOrder] = useState(false);
     const [billView, setBillView] = useState(null); // { bill, courtFeePaid } | null
     const [billViewLoading, setBillViewLoading] = useState(false);
     const [billActionBusy, setBillActionBusy] = useState(false);
@@ -5423,7 +5446,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <View key={p.id || i} style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
                                     <Text style={{ color:'#fff', fontSize:11, flex:1, minWidth:0 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
                                     {p.id && orderedUserIds.includes(p.id) && (
-                                        <TouchableOpacity onPress={openBillView} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                        <TouchableOpacity onPress={() => p.id === myId ? setShowMyOrder(true) : openBillView()} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
                                             <Animated.Text style={{ fontSize:12, opacity: orderBlink }}>📋</Animated.Text>
                                         </TouchableOpacity>
                                     )}
@@ -7061,7 +7084,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             visible={!!orderVenueId}
             venueId={orderVenueId}
             onClose={() => setOrderVenueId(null)}
+            onSuccess={() => {
+                api.get(`/rivals/${match.id}`)
+                    .then(({ data }) => setOrderedUserIds(Array.isArray(data.orderedUserIds) ? data.orderedUserIds : []))
+                    .catch(() => {});
+            }}
         />
+        <MyOrderStatusModal visible={showMyOrder} rivalId={match.id} onClose={() => setShowMyOrder(false)} />
         </>
     );
 }
@@ -7970,6 +7999,64 @@ function VenueMenuOrderModal({ visible, venueId, onClose, onSuccess }) {
                             </TouchableOpacity>
                         </View>
                     )}
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
+// Kullanıcı isteği: sipariş veren oyuncu, o maçın detayındaki "Adisyonu Var" ikonuna
+// dokununca KENDİ siparişinin durumunu (teslim edildi mi, ücreti alındı mı) görebilsin —
+// işletmenin Siparişler sekmesinde işaretlediği ile aynı veri (bkz. getMyRivalOrders).
+// Salt okunur — durumu sadece işletme değiştirebilir.
+function MyOrderStatusModal({ visible, rivalId, onClose }) {
+    const [loading, setLoading] = useState(false);
+    const [orders, setOrders] = useState([]);
+
+    useEffect(() => {
+        if (!visible || !rivalId) return;
+        setLoading(true);
+        api.get(`/rivals/${rivalId}/my-orders`)
+            .then(({ data }) => setOrders(Array.isArray(data.orders) ? data.orders : []))
+            .catch(() => setOrders([]))
+            .finally(() => setLoading(false));
+    }, [visible, rivalId]);
+
+    return (
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+            <View style={vm.overlay}>
+                <View style={[vm.sheet, { height:'60%' }]}>
+                    <View style={vm.header}>
+                        <Text style={vm.title}>📋 Siparişim</Text>
+                        <TouchableOpacity onPress={onClose} style={vm.closeBtn}>
+                            <Text style={vm.closeX}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <ScrollView style={vm.body} showsVerticalScrollIndicator={false}>
+                        {loading && <ActivityIndicator color="#22c55e" style={{ marginVertical: 24 }} />}
+                        {!loading && orders.length === 0 && (
+                            <Text style={vm.emptyTxt}>Sipariş bulunamadı</Text>
+                        )}
+                        {!loading && orders.map(order => (
+                            <View key={order.id} style={{ backgroundColor:'#ffffff08', borderRadius:10, padding:12, marginBottom:10 }}>
+                                {order.items?.map((it, i) => (
+                                    <Text key={i} style={{ color:'#ddd', fontSize:13, marginBottom:2 }}>
+                                        {it.quantity}× {it.menuItem?.name} — {it.unitPrice * it.quantity}₺
+                                    </Text>
+                                ))}
+                                <Text style={{ color:'#22c55e', fontWeight:'700', marginTop:4, fontSize:13 }}>Toplam: {order.totalPrice}₺</Text>
+                                <View style={{ flexDirection:'row', gap:8, marginTop:8 }}>
+                                    <View style={{ flex:1, borderRadius:8, paddingVertical:6, alignItems:'center', backgroundColor: order.delivered ? '#16a34a30' : '#ef444420', borderWidth:1, borderColor: order.delivered ? '#16a34a80' : '#ef444450' }}>
+                                        <Text style={{ color: order.delivered ? '#4ade80' : '#f87171', fontSize:12, fontWeight:'700' }}>{order.delivered ? '✅ Teslim Edildi' : '📦 Teslim Edilmedi'}</Text>
+                                    </View>
+                                    <View style={{ flex:1, borderRadius:8, paddingVertical:6, alignItems:'center', backgroundColor: order.paid ? '#16a34a30' : '#ef444420', borderWidth:1, borderColor: order.paid ? '#16a34a80' : '#ef444450' }}>
+                                        <Text style={{ color: order.paid ? '#4ade80' : '#f87171', fontSize:12, fontWeight:'700' }}>{order.paid ? '✅ Ücret Alındı' : '💰 Ücret Alınmadı'}</Text>
+                                    </View>
+                                </View>
+                            </View>
+                        ))}
+                        <View style={{ height: 20 }} />
+                    </ScrollView>
                 </View>
             </View>
         </Modal>

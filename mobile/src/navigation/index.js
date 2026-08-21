@@ -39,9 +39,13 @@ function navigateFromNotif(data) {
         } else {
             navigationRef.navigate('ProfileTab');
         }
-    } else if (type === 'RESERVATION' || type === 'RESERVATION_UPDATE' || type === 'VENUE_ORDER' || type === 'PAYMENT_ALERT') {
-        // venueId varsa (ör. VENUE_ORDER) sadece o tesisin takvimi açılır — yoksa (ör. bazı
-        // RESERVATION bildirimleri) eski davranış korunur, tüm tesis kartları açılmayı dener.
+    } else if (type === 'VENUE_ORDER') {
+        // Kullanıcı raporu: sipariş bildirimine dokununca rezervasyon takvimi açılıyordu —
+        // yanlış, doğrudan o maçın Siparişler sekmesine (rivalId ile filtrelenmiş) gitmeli.
+        navigationRef.navigate('BusinessApp', { openOrders: true, venueId: data.venueId || null, highlightActivityId: data.rivalId || null });
+    } else if (type === 'RESERVATION' || type === 'RESERVATION_UPDATE' || type === 'PAYMENT_ALERT') {
+        // venueId varsa sadece o tesisin takvimi açılır — yoksa (ör. bazı RESERVATION
+        // bildirimleri) eski davranış korunur, tüm tesis kartları açılmayı dener.
         // reservationId varsa (ör. iptal talebi) takvimde o saat kutucuğu yanıp söner ve
         // dokununca doğrudan Onayla/Reddet sorulur (kullanıcı isteği).
         navigationRef.navigate('BusinessApp', { openReservations: true, venueId: data.venueId || null, highlightReservationId: data.reservationId || null, highlightDate: data.date || null });

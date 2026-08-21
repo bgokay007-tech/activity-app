@@ -1801,7 +1801,7 @@ const MENU_CATS = [
 const ORDER_COLORS = { PENDING:'#eab308', CONFIRMED:'#3b82f6', READY:'#22c55e', CANCELLED:'#ef4444' };
 const ORDER_LABELS = { PENDING:'⏳ Bekliyor', CONFIRMED:'✅ Onaylandı', READY:'🟢 Hazır', CANCELLED:'❌ İptal' };
 
-function VenueCard({ venue, sub, onDelete, navigation, openReservations = false, highlightReservationId = null, highlightDate = null }) {
+function VenueCard({ venue, sub, onDelete, navigation, openReservations = false, highlightReservationId = null, highlightDate = null, openOrders = false, highlightActivityId = null }) {
     const insets = useSafeAreaInsets();
     const isApproved = venue.status === 'APPROVED';
     const isPro     = sub && ['PRO', 'PREMIUM'].includes(sub.packageType);
@@ -2207,6 +2207,16 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         }
     }, [openReservations]);
 
+    // Kullanıcı raporu: "Yeni Sipariş" bildirimine dokununca rezervasyon takvimi açılıyordu,
+    // hâlbuki doğrudan Siparişler sekmesine (o maçın siparişlerine) gitmeli — bkz. aşağıdaki
+    // orders.map'teki highlightActivityId filtrelemesi.
+    useEffect(() => {
+        if (openOrders) {
+            setActiveTab('orders');
+            if (!ordersLoaded) loadOrders();
+        }
+    }, [openOrders]);
+
     const handleTab = (tab) => {
         setActiveTab(tab);
         if (tab === 'blocks'       && !blocksLoaded)  loadBlocks();
@@ -2258,6 +2268,14 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         try {
             await api.patch(`/venues/orders/${orderId}`, { status });
             setOrders(p => p.map(o => o.id === orderId ? { ...o, status } : o));
+        } catch {}
+    };
+    // Kullanıcı isteği: sipariş teslim edildi mi / ücreti alındı mı, status'tan bağımsız
+    // olarak ayrı ayrı işaretlenebilsin — o oyuncunun maç detayındaki adisyonunda görünür.
+    const handleOrderFlag = async (orderId, key, value) => {
+        try {
+            await api.patch(`/venues/orders/${orderId}`, { [key]: value });
+            setOrders(p => p.map(o => o.id === orderId ? { ...o, [key]: value } : o));
         } catch {}
     };
 
@@ -2992,8 +3010,14 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 <View style={vc.panel}>
                     {orders.length === 0
                         ? <Text style={vc.emptyTxt}>Henüz sipariş yok</Text>
-                        : orders.slice(0, 15).map(order => (
-                            <View key={order.id} style={vc.orderCard}>
+                        : (
+                            // Kullanıcı isteği: "Yeni Sipariş" bildiriminden geldiyse (highlightActivityId),
+                            // sadece o maçın siparişleri gösterilsin — 15'lik genel listede kaybolmasın.
+                            highlightActivityId
+                                ? orders.filter(o => o.activityId === highlightActivityId)
+                                : orders.slice(0, 15)
+                        ).map(order => (
+                            <View key={order.id} style={[vc.orderCard, order.activityId === highlightActivityId && { borderColor: BIZ_COLOR, borderWidth: 2 }]}>
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                                     <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>@{order.user?.username}</Text>
                                     <Text style={{ color: ORDER_COLORS[order.status], fontSize: 12, fontWeight: '600' }}>{ORDER_LABELS[order.status]}</Text>
@@ -3032,6 +3056,22 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                     <TouchableOpacity style={vc.orderBtn} onPress={() => handleOrderStatus(order.id, 'READY')} style={{ marginTop: 6 }}>
                                         <Text style={vc.orderBtnTxt}>🟢 Hazır İşaretle</Text>
                                     </TouchableOpacity>
+                                )}
+                                {/* Kullanıcı isteği: teslim/ödeme durumu status'tan bağımsız, ayrı ayrı
+                                    işaretlenebilsin — oyuncu kendi maç detayında bunu görebiliyor. */}
+                                {order.status !== 'CANCELLED' && (
+                                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                                        <TouchableOpacity
+                                            style={[vc.orderBtn, order.delivered && { backgroundColor: '#16a34a30', borderColor: '#16a34a80' }]}
+                                            onPress={() => handleOrderFlag(order.id, 'delivered', !order.delivered)}>
+                                            <Text style={[vc.orderBtnTxt, order.delivered && { color: '#4ade80' }]}>{order.delivered ? '✅ Teslim Edildi' : '📦 Teslim Edilmedi'}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[vc.orderBtn, order.paid && { backgroundColor: '#16a34a30', borderColor: '#16a34a80' }]}
+                                            onPress={() => handleOrderFlag(order.id, 'paid', !order.paid)}>
+                                            <Text style={[vc.orderBtnTxt, order.paid && { color: '#4ade80' }]}>{order.paid ? '✅ Ücret Alındı' : '💰 Ücret Alınmadı'}</Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 )}
                             </View>
                         ))
@@ -5163,8 +5203,13 @@ export default function BusinessHomeScreen({ navigation, route }) {
                             // ile aynı venueId eşleşmesine bağlı.
                             const highlightReservationId = shouldOpen ? (route?.params?.highlightReservationId || null) : null;
                             const highlightDate = shouldOpen ? (route?.params?.highlightDate || null) : null;
+                            // Kullanıcı isteği: "Yeni Sipariş" bildirimine dokununca rezervasyon
+                            // takvimi yerine doğrudan Siparişler sekmesi (o maçın siparişleri) açılsın.
+                            const shouldOpenOrders = route?.params?.openOrders === true
+                                && (!route?.params?.venueId || route.params.venueId === v.id);
+                            const highlightActivityId = shouldOpenOrders ? (route?.params?.highlightActivityId || null) : null;
                             return (
-                                <VenueCard key={v.id} venue={v} sub={sub} navigation={navigation} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} openReservations={shouldOpen} highlightReservationId={highlightReservationId} highlightDate={highlightDate} />
+                                <VenueCard key={v.id} venue={v} sub={sub} navigation={navigation} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} openReservations={shouldOpen} highlightReservationId={highlightReservationId} highlightDate={highlightDate} openOrders={shouldOpenOrders} highlightActivityId={highlightActivityId} />
                             );
                         })
                     )}

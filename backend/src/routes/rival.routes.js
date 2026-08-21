@@ -10,7 +10,7 @@ import {
     getMatchComments, addMatchComment, deleteMatchComment,
     getMyUpcomingMatches, getMyMatchHistory,
     proposeSchedule, acceptSchedule, updateRivalRequest,
-    getForReservation, getRefereeApplications, submitRefereeReview, getRivalBill,
+    getForReservation, getRefereeApplications, submitRefereeReview, getRivalBill, getMyRivalOrders,
     requestBillPayment, reportBillUnpaid,
 } from '../controllers/rival.controller.js';
 import { reportNoShow } from '../controllers/noshow.controller.js';
@@ -41,6 +41,7 @@ router.delete('/join/:requestId',    authenticate, withdrawJoinRequest);
 router.patch('/:id/cancel',          authenticate, cancelRequest);
 router.patch('/:id/score',           authenticate, enterScore);
 router.get('/:id/bill',              authenticate, getRivalBill);
+router.get('/:id/my-orders',         authenticate, getMyRivalOrders);
 router.post('/:id/request-bill-payment', authenticate, requestBillPayment);
 router.post('/:id/report-bill-unpaid',   authenticate, reportBillUnpaid);
 router.patch('/:id/confirm-score',   authenticate, confirmScore);

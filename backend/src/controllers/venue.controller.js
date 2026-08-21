@@ -2230,7 +2230,7 @@ export const placeOrder = async (req, res, next) => {
             const updatedBill = await recalcBillTotal(existingBill.id);
             await createNotification(venue.userId, 'VENUE_ORDER', '🛒 Adisyona Sipariş Eklendi',
                 `${user?.username} adisyona ürün ekledi. Yeni toplam: ${updatedBill.totalPrice}₺`,
-                { reservationId: myMatch.venueReservationId, venueId: id }
+                { reservationId: myMatch.venueReservationId, venueId: id, rivalId: myMatch.id }
             );
             emitToUser(venue.userId, 'notification', {});
             return res.status(201).json({ addedToBill: true, bill: updatedBill });
@@ -2254,7 +2254,7 @@ export const placeOrder = async (req, res, next) => {
 
         await createNotification(venue.userId, 'VENUE_ORDER', '🛒 Yeni Sipariş',
             `${user?.username} tesisinden sipariş verdi. Toplam: ${totalPrice}₺`,
-            { orderId: order.id, venueId: id }
+            { orderId: order.id, venueId: id, rivalId: myMatch.id }
         );
         emitToUser(venue.userId, 'notification', {});
 
@@ -2309,22 +2309,34 @@ export const getUserOrders = async (req, res, next) => {
 export const updateOrderStatus = async (req, res, next) => {
     try {
         const { orderId } = req.params;
-        const { status } = req.body;
+        const { status, delivered, paid } = req.body;
         const VALID = ['CONFIRMED', 'READY', 'CANCELLED'];
-        if (!VALID.includes(status)) return res.status(400).json({ message: 'Geçersiz durum' });
+        if (status !== undefined && !VALID.includes(status)) return res.status(400).json({ message: 'Geçersiz durum' });
 
         const order = await prisma.venueOrder.findUnique({ where: { id: orderId }, include: { venue: true } });
         if (!order) return res.status(404).json({ message: 'Sipariş bulunamadı' });
         if (order.venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
 
-        const updated = await prisma.venueOrder.update({ where: { id: orderId }, data: { status } });
+        // Kullanıcı isteği: sipariş verilen ürün oyuncuya fiziksel teslim edildiyse ve/ya da
+        // ücreti tahsil edildiyse, işletme bunu bağımsız olarak (status'tan ayrı) işaretleyebilsin
+        // — maç detayında bu oyuncunun adisyonu "teslim edildi"/"ücret alındı" diye görünür.
+        const updated = await prisma.venueOrder.update({
+            where: { id: orderId },
+            data: {
+                ...(status !== undefined && { status }),
+                ...(typeof delivered === 'boolean' && { delivered }),
+                ...(typeof paid === 'boolean' && { paid }),
+            },
+        });
 
-        const statusMsg = { CONFIRMED: '✅ onaylandı', READY: '🟢 hazır', CANCELLED: '❌ iptal edildi' };
-        await createNotification(order.userId, 'ORDER_STATUS', '📦 Sipariş Güncellendi',
-            `${order.venue.name} siparişiniz ${statusMsg[status]}.`,
-            { orderId, venueId: order.venueId }
-        );
-        emitToUser(order.userId, 'notification', {});
+        if (status !== undefined) {
+            const statusMsg = { CONFIRMED: '✅ onaylandı', READY: '🟢 hazır', CANCELLED: '❌ iptal edildi' };
+            await createNotification(order.userId, 'ORDER_STATUS', '📦 Sipariş Güncellendi',
+                `${order.venue.name} siparişiniz ${statusMsg[status]}.`,
+                { orderId, venueId: order.venueId }
+            );
+            emitToUser(order.userId, 'notification', {});
+        }
 
         res.json({ order: updated });
     } catch (error) { next(error); }
