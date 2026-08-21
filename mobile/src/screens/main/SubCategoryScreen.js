@@ -2008,6 +2008,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         )}
                                                     </View>
                                                 </TouchableOpacity>
+                                                {/* Kullanıcı raporu: named slottaki (Takım Arkadaşı/Rakip1/Rakip2)
+                                                    dolu formalarda olduğu gibi, atanmamış havuzdaki oyuncular için
+                                                    de Çıkar butonu eksikti. */}
+                                                {isOwner && (
+                                                    <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ marginTop:3, alignSelf:'flex-end' }}>
+                                                        <Text style={{ color:'#f87171', fontSize:moderateScale(10), fontWeight:'700' }}>Çıkar</Text>
+                                                    </TouchableOpacity>
+                                                )}
                                             </View>
                                         ))}
                                         {/* Kullanıcı isteği: bekleyen (henüz yanıtlanmamış) davet ön yüzde
