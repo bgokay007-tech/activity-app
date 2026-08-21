@@ -791,14 +791,16 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
         };
     }
 
-    // Bireysel kabul: kabul edilen oyuncu, cinsiyet şartına uyan İLK boş slota (Takım
-    // Arkadaşı → Rakip1 → Rakip2 sırasıyla) DOĞRUDAN yerleşir — yani "ilk onaydan sonraki
-    // onay sırasına göre" ön yüzdeki Katılan Oyuncular'a otomatik dolar. Kullanıcı raporu:
-    // bir süre önce burası "atanmamış" havuzuna düşüp ilan sahibinin arka yüzden elle
-    // atamasını gerektiren bir akışa çevrilmişti — bu, DOUBLE'ın (voleybolden farklı olarak
-    // esnek pozisyon/forma kavramı olmayan) eski, doğru davranışını bozmuştu. "Atanmamış"
-    // havuzu artık DOUBLE'da normal kabul akışında hiç kullanılmıyor, sadece (nadiren) OWNER
-    // slot davetlerinin farklı yollarla biriktirdiği eski kayıtlar için arka yüzde kalıyor.
+    // Bireysel kabul: hangi boş adlandırılmış slota (Takım Arkadaşı/Rakip1/Rakip2) uyduğu
+    // sadece DOĞRULANIR — hangisine gideceği burada otomatik seçilmez (kullanıcı isteği:
+    // "arka yüz takım kısmına atanmamış liste olarak belirtilecek, takım formlarına ordan
+    // atacak ilan sahibi"). Kabul edilen oyuncu "atanmamış" havuzuna düşer; ÖN YÜZDE bu kişi
+    // yine sıradaki "Katılımcı N" olarak görünür (bkz. mobil, unassignedPlayers ön yüzde
+    // sıradan bir katılımcı gibi render ediliyor), sadece ARKA yüzdeki takım kartında hangi
+    // spesifik role (partner/rakip1/rakip2) gideceği ilan sahibi tarafından seçilir
+    // (assignDoubleSlot). Kullanıcı DOĞRUDAN belirli bir slota da başvurabilir (requestedSlot,
+    // STRICT modda her zaman, FLEXIBLE'da isteğe bağlı) — o durumda kabul edilince doğrudan o
+    // slota yerleşir, atanmamışa hiç düşmez.
     const gUser = await prisma.user.findUnique({ where: { id: joinReq.userId }, select: { gender: true } });
     const pg = gUser?.gender;
     // Cinsiyeti belirtilmemiş kullanıcı MIX olmayan (cinsiyete özel) slotlara uymaz —
@@ -821,8 +823,11 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
 
     // Takım Değiştirilemez (STRICT): başvuru sırasında seçilen slotla (veya taraf) sınırlı
     // kalır — owner, başvuranı seçtiğinin dışına atayamaz (takas özelliği zaten kapalı).
-    // FLEXIBLE'da (requestedSlot boş) ise aşağıdaki genel "ilk uyan boş slota yerleş" yoluna
-    // düşer — ikisi de aynı şekilde DOĞRUDAN bir named slota yerleştirir, atanmamışa düşmez.
+    // STRICT'te oyuncu zaten belirli bir slotu seçerek başvurduğu için atanmamış havuzuna
+    // düşmüyor, doğrudan o slota yerleşiyor. FLEXIBLE'da da aynı şekilde çalışıyor (kullanıcı
+    // isteği: "kullanıcıların olmak istedikleri slota göre yerleştir") — tek fark, FLEXIBLE'da
+    // bu seçim ZORUNLU değildi (bkz. sendJoinRequest), seçilmediyse joinReq.requestedSlot
+    // zaten null olur ve aşağıdaki "Atanmamış" yoluna düşer.
     if (joinReq.requestedSlot) {
         openSlots = joinReq.requestedSlot === 'opponent'
             ? openSlots.filter(s => s.key === 'opp1' || s.key === 'opp2')
@@ -830,21 +835,66 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
         if (openSlots.length === 0) {
             return { error: joinReq.requestedSlot === 'partner' ? 'Kurucu takımı slotu artık dolu.' : 'Seçilen slot artık dolu.' };
         }
+        const target = openSlots.find(s => fits(s.req));
+        if (!target) {
+            const details = openSlots.map(s => s.req !== 'MIX' ? `${s.label}: ${s.req === 'MALE' ? 'erkek' : 'kadın'}` : null).filter(Boolean).join(', ');
+            return { error: `Bu oyuncu ilanın cinsiyet gereksinimlerini karşılamıyor.${details ? ` (${details})` : ''}` };
+        }
+        if (target.key === 'partner') {
+            return { updatedParticipants: participants, assignedToPartner: true, updatedSenderTeam: [joinerEntry] };
+        }
+        const newP = [participants[0] || null, participants[1] || null];
+        newP[target.key === 'opp1' ? 0 : 1] = joinerEntry;
+        return { updatedParticipants: newP };
     }
 
     if (openSlots.length === 0) return { error: 'Tüm slotlar dolu.' };
 
-    const target = openSlots.find(s => fits(s.req));
-    if (!target) {
+    // BUG (kullanıcı raporu): "3 kadın kabul ettim ama takım arkadaşım kadın, rakip 1 kadın,
+    // rakip 2 erkek olacak şekilde ayarlanmıştı" — eskiden burada SADECE bu başvuranın kendi
+    // başına açık slotlardan BİRİNE uyup uymadığına bakılıyordu (fitsAny). Atanmamış havuzuna
+    // düşen kişiler henüz hiçbir named slotu "dolu" yapmadığı için (partnerFilled/opp1Filled/
+    // opp2Filled hesabı sadece GERÇEKTEN yerleşmiş kişilere bakar), aynı cinsiyetten art arda
+    // 3 kişi kabul edilebiliyordu — üçüncü kabulden sonra erkek gerektiren slot için havuzda
+    // uygun kimse kalmıyordu ama bunu yakalayan bir kontrol yoktu. Artık havuzda ZATEN bekleyen
+    // herkesin cinsiyeti de bu başvuranla BİRLİKTE, açık slotlara (basit backtracking ile) tam
+    // olarak yerleştirilebiliyor mu diye kontrol ediliyor — mümkün değilse kabul reddedilir.
+    const existingUnassigned = (Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []).filter(p => p?.id);
+    const existingGenders = existingUnassigned.length > 0
+        ? await prisma.user.findMany({ where: { id: { in: existingUnassigned.map(p => p.id) } }, select: { id: true, gender: true } })
+        : [];
+    const genderById = Object.fromEntries(existingGenders.map(u => [u.id, u.gender]));
+    // BUG (kullanıcı raporu): ilan sahibi cinsiyet kısıtlamasını SONRADAN değiştirince
+    // (ör. tüm slotlar kadına çevrildi), havuzda önceden kabul edilmiş ve artık HİÇBİR açık
+    // slota uymayan biri (ör. erkek) kalıcı olarak sıkışıp kalabiliyordu — bu, bu kişinin
+    // kendi sorunuydu ve yeni bir başvuruyu kabul etmekle ilgisi yok. Eskiden bu kişi de
+    // "hepsi yerleştirilebilmeli" kontrolüne dahil ediliyordu, bu yüzden kendisi hiçbir slota
+    // uymadığı için kontrol HER ZAMAN başarısız oluyor, artık kimse kabul edilemiyordu. Zaten
+    // hiçbir açık slota uymayan (sıkışmış) havuz üyeleri bu kontrolden hariç tutulur — onların
+    // durumu bu kabul işleminden bağımsız, zaten sorunlu.
+    const placeableUnassigned = existingUnassigned.filter(p => openSlots.some(s => fits(s.req, genderById[p.id])));
+    const poolGenders = [...placeableUnassigned.map(p => genderById[p.id]), pg];
+
+    const canAssignAll = (genders, slots) => {
+        if (genders.length === 0) return true;
+        if (genders.length > slots.length) return false;
+        const [g, ...restGenders] = genders;
+        for (let i = 0; i < slots.length; i++) {
+            if (fits(slots[i].req, g)) {
+                const restSlots = [...slots.slice(0, i), ...slots.slice(i + 1)];
+                if (canAssignAll(restGenders, restSlots)) return true;
+            }
+        }
+        return false;
+    };
+
+    if (!canAssignAll(poolGenders, openSlots)) {
         const details = openSlots.map(s => s.req !== 'MIX' ? `${s.label}: ${s.req === 'MALE' ? 'erkek' : 'kadın'}` : null).filter(Boolean).join(', ');
-        return { error: `Bu oyuncu ilanın cinsiyet gereksinimlerini karşılamıyor.${details ? ` (${details})` : ''}` };
+        return { error: `Bu oyuncuyu kabul edersen, atanmamış havuzundaki bekleyen oyuncularla birlikte kalan slotların cinsiyet gereksinimini karşılamak imkansız hale geliyor.${details ? ` (${details})` : ''}` };
     }
-    if (target.key === 'partner') {
-        return { updatedParticipants: participants, assignedToPartner: true, updatedSenderTeam: [joinerEntry] };
-    }
-    const newP = [participants[0] || null, participants[1] || null];
-    newP[target.key === 'opp1' ? 0 : 1] = joinerEntry;
-    return { updatedParticipants: newP };
+    // Katılımcı/senderTeam'e hiç dokunulmaz — sadece unassignedPlayers'a eklenir. Ön yüzde bu
+    // kişi yine sıradaki "Katılımcı N" olarak görünür (bkz. mobil RivalDetailModal front face).
+    return { updatedParticipants: participants, updatedUnassignedPlayers: [...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []), joinerEntry] };
 }
 
 // Hakem pazarlığı adımlarını (başvuru/karşı teklif/kabul/red) asıl maçın mevcut yorum

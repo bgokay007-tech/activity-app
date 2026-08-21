@@ -1673,7 +1673,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     (kullanıcı isteği: voleybolda da aynı etiket kullanılsın). */}
                                 👥 {(item.matchType === 'DOUBLE' || item.matchType === 'SINGLE' || (item.teamSize || 1) > 1) ? t.rosterPoolLabel : (t.players || 'Oyuncular')} {isRefereeAd && item.linkedRival
                                     ? `(${linkedSenderSideCount + linkedFilled} / ${linkedTotalCapacity})`
-                                    : `(${senderSideCount + filled + (item.matchType === 'DOUBLE' ? 0 : (oppManualNames.length + unassignedSlots.length))} / ${totalCapacity})`}
+                                    /* Kullanıcı isteği: DOUBLE'da kabul edilip henüz Takım Arkadaşı/Rakip1/
+                                       Rakip2'ye atanmamış oyuncular ("atanmamış havuzu") artık ön yüzde
+                                       sıradaki Katılımcı N olarak sayılıyor — önceden bu sayaç DOUBLE'da
+                                       unassignedSlots'u hiç eklemiyordu (0 sabitti), bu yüzden atanmamış
+                                       biri varken bile toplam "(1/4)" gibi eksik gösteriyordu. */
+                                    : `(${senderSideCount + filled + unassignedSlots.length + (item.matchType === 'DOUBLE' ? 0 : oppManualNames.length)} / ${totalCapacity})`}
                             </Text>
                             {/* isOwner/isParticipant'a ek olarak highlightSlot.doubleSlot da butonu açık tutar —
                                 bir DOUBLE forma davetiyle (bildirimden) gelen kişi henüz participants
@@ -2002,21 +2007,20 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         {/* Bekleyen genel davetler burada TEKRAR gösterilmiyor — "📨 Gönderilen
                                             Davetler" bölümü zaten bunu listeliyor (kullanıcı isteği: kart içinde
                                             tekrar "Davet Gönderildi" yazmasın). */}
-                                        {/* Kullanıcı raporu: ön yüzde kabul edilmiş ama henüz Takım Arkadaşı/
-                                            Rakip1/Rakip2'ye yerleşmemiş oyuncular için "Takım1'e Ata"/"Çıkar"
-                                            gibi atama butonları vardı — ön yüz artık SADECE görüntüleme,
-                                            atama/çıkarma yalnızca arka yüzdeki "Takımları Düzenle" ekranından
-                                            yapılabiliyor (bkz. aşağıdaki showTeamCards bloğu, aynı liste orada
-                                            promptAssignTeam ile zaten var). Burada sadece kim atanmayı
-                                            beklediği (yanıp sönerek) gösteriliyor. */}
-                                        {unassignedDoubleSlots.map(p => (
-                                            <View key={p.id} style={[cardBox, { width:'100%', flexDirection:'row', alignItems:'center', gap:4 }]}>
-                                                <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6, flex:1, minWidth:0 }} onPress={() => navigation.push('Profile', { userId: p.id })}>
+                                        {/* Kullanıcı isteği: kabul edilmiş ama henüz Takım Arkadaşı/Rakip1/
+                                            Rakip2'ye ATANMAMIŞ oyuncular ön yüzde "Atanmamış" diye uyarı gibi
+                                            DEĞİL, tıpkı named slotlardaki gibi sıradaki "Katılımcı N" olarak
+                                            görünür — hangi spesifik role gideceği (arka yüzdeki "Atanmamış"
+                                            listesinden, bkz. promptAssignTeam) SADECE ilan sahibini ilgilendiren
+                                            bir arka yüz detayı, ön yüzde katılımcı sayılmaları için önemli değil. */}
+                                        {unassignedDoubleSlots.map((p, i) => (
+                                            <View key={p.id} style={cardBox}>
+                                                <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => navigation.push('Profile', { userId: p.id })}>
                                                     <Avatar name={p.username} avatar={p.avatar} size={moderateScale(28)} color={cfg.color} />
-                                                    <Animated.View style={{ flex:1, minWidth:0, opacity: unassignedBlink }}>
-                                                        <Text style={[det.playerName, { color:'#ef4444' }]} numberOfLines={1}>{playerDisplayName(p)}</Text>
-                                                        <Text style={[det.playerSub, { color:'#ef4444', fontWeight:'800' }]} numberOfLines={1}>Atanmamış</Text>
-                                                    </Animated.View>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                                        <Text style={det.playerSub} numberOfLines={1}>{t.cardParticipantLabel(teamSlots.length + i + 1)}</Text>
+                                                    </View>
                                                 </TouchableOpacity>
                                             </View>
                                         ))}
@@ -3876,7 +3880,12 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     burada sadece kaçıncı sırada kabul edildikleri (Katılımcı 1/2/3) gösterilir. */}
                 {item.matchType === 'DOUBLE' ? (() => {
                     const partner = Array.isArray(item.senderTeam) ? item.senderTeam[0] : null;
-                    const slots = [partner, participants[0], participants[1]].filter(p => p?.id);
+                    // Kullanıcı isteği: henüz belirli bir role (Takım Arkadaşı/Rakip1/Rakip2)
+                    // atanmamış (kabul edilmiş) oyuncular da bu listede sıradaki Katılımcı N
+                    // olarak sayılır — sadece named slotlara bakmak "kabul ettim ama listede
+                    // hiç görünmüyor" hissi veriyordu.
+                    const unassigned = (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []).filter(p => p?.id);
+                    const slots = [partner, participants[0], participants[1]].filter(p => p?.id).concat(unassigned);
                     if (slots.length === 0) return null;
                     return (
                         <View style={{ gap:2, marginBottom:3 }}>
