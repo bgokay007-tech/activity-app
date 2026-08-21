@@ -297,15 +297,33 @@ async function notifyPendingRequestersOfReopen(rivalId, category, subCategory, e
 // "zaten dolu" gibi geç kalmış bir hatayla karşılaşıyordu (kullanıcı raporu). Tenis/padel/
 // voleybol farketmeksizin, PENDING davet kaydı olan her yerde (partner/rakip1/rakip2/pool/
 // takım daveti) aynı şekilde çalışır — matchType'a özel bir dal gerekmiyor.
-async function notifyOtherPendingOwnerInvitesOfFull(rivalId, category, subCategory, excludeUserIds = []) {
+async function notifyOtherPendingOwnerInvitesOfFull(rivalId, category, subCategory, excludeUserIds = [], matchType = null) {
     try {
         const pending = await prisma.rivalJoinRequest.findMany({
             where: { rivalId, initiatedBy: 'OWNER', status: 'PENDING', userId: { notIn: excludeUserIds } },
             select: { id: true, userId: true },
         });
         if (pending.length === 0) return;
-        await prisma.rivalJoinRequest.updateMany({ where: { id: { in: pending.map(p => p.id) } }, data: { status: 'REJECTED' } });
         const uniqueUserIds = [...new Set(pending.map(p => p.userId))];
+        // Kullanıcı isteği (tenis/padel): DOUBLE/SINGLE'da davet artık REDDEDİLMİYOR, PENDING
+        // kalıyor — "onay veresiye kadar kadro dolmuştur, onaylarsanız yedek sayılacaksınız"
+        // bildirimi gider. Kabul ederlerse respondToJoin'deki roster-dolu kontrolü onları
+        // placeInDoubleWaitlistOrReject ile waitlistPlayers'a düşürür (bkz. o fonksiyon).
+        // Voleybol/airsoft (kendi substituteCount/substitutePlayers sistemi var) davranışı
+        // AYNEN korunur — burada dokunulmuyor.
+        if (matchType === 'DOUBLE' || matchType === 'SINGLE') {
+            for (const uid of uniqueUserIds) {
+                createNotification(
+                    uid,
+                    'MATCH_ROSTER_FULL_WAITLISTED',
+                    '🪑 Kadro Doldu — Onaylarsanız Yedek Olursunuz',
+                    `Davet edildiğiniz ${subCategoryTR(subCategory)} maçının kadrosu, siz daveti yanıtlamadan önce doldu. Yine de onaylarsanız yedek istek olarak kabul edilmiş sayılırsınız — kadrodan biri çıkarsa doğrudan asıl kadroya geçersiniz ve bildirim alırsınız. İstemiyorsanız daveti reddedebilirsiniz.`,
+                    { rivalId, category, subCategory }
+                ).catch(() => {});
+            }
+            return;
+        }
+        await prisma.rivalJoinRequest.updateMany({ where: { id: { in: pending.map(p => p.id) } }, data: { status: 'REJECTED' } });
         for (const uid of uniqueUserIds) {
             emitToUser(uid, 'joinRejected', { rivalId });
             createNotification(
@@ -709,6 +727,49 @@ async function placeInSubstituteOrRejectFull(rival, joinReq, joinerEntry, reques
     createNotification(
         joinReq.userId, 'MATCH_CONFIRMED', '🔄 Yedek Kadroya Alındınız',
         `"${rival.sender?.username || 'İlan sahibi'}" ana kadroyu tamamladı — bu maça yedek kadroda devam ediyorsunuz.`,
+        { rivalId: rival.id, category: rival.category, subCategory: rival.subCategory }
+    ).catch(() => {});
+}
+
+// DOUBLE (kurucu+3) / SINGLE (kurucu+1) kadrosu GERÇEKTEN (kurucu + senderTeam + participants +
+// unassignedPlayers toplamı) dolu mu — bkz. placeInDoubleWaitlistOrReject'in ne zaman devreye
+// gireceğini belirlemek için kullanılıyor. Named slotlardan biri (ör. Rakip 1) boş görünse bile
+// toplam kişi sayısı zaten hedefe ulaşmışsa (unassignedPlayers havuzu doldurduysa) kadro dolu
+// sayılır — aksi halde 5. bir kişi named slota "sığdırılabilir" gibi yanlış bir izlenim olurdu.
+function isDoubleOrSingleRosterFull(rival) {
+    if (rival.matchType !== 'DOUBLE' && rival.matchType !== 'SINGLE') return false;
+    const countFilled = (arr) => (Array.isArray(arr) ? arr : []).filter(p => p && p.id).length;
+    const total = 1 + countFilled(rival.senderTeam) + countFilled(rival.participants) + countFilled(rival.unassignedPlayers);
+    return total >= (rival.matchType === 'DOUBLE' ? 4 : 2);
+}
+
+// Kullanıcı isteği (tenis/padel): davet gönderilen/başvuran biri onay vermeden ÖNCE kadro başka
+// biriyle dolarsa, artık doğrudan reddedilmiyor — DOUBLE/SINGLE'ın kendi substituteCount'u
+// olmadığı için (voleybolün aksine, bkz. placeInSubstituteOrRejectFull) kapasite sınırsız bir
+// "yedek listesi"ne (waitlistPlayers) düşüyor. Kabul eden kişiye "onaylarsanız yedek olarak
+// sayılırsınız, biri çıkarsa asıl kadroya geçersiniz" bildirimi gider; asıl terfi
+// removeRivalParticipant'ta gerçekleşir.
+async function placeInDoubleWaitlistOrReject(rival, joinReq, joinerEntry, requestId, res) {
+    const waitlist = Array.isArray(rival.waitlistPlayers) ? rival.waitlistPlayers : [];
+    const updated = await prisma.activityRequest.update({
+        where: { id: rival.id },
+        data: { waitlistPlayers: [...waitlist, joinerEntry] },
+        include: {
+            sender: { select: SENDER_SELECT },
+            joinRequests: {
+                where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
+                orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }],
+                include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: rival.category, subCategory: rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } },
+            },
+        },
+    });
+    await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
+    broadcast('rivalUpdate', updated);
+    emitToUser(joinReq.userId, 'joinAccepted', { rivalId: rival.id, matched: false, toSubstitute: true });
+    res.json({ message: '🔄 Yedek listesine alındınız.', request: updated, matched: false, toSubstitute: true });
+    createNotification(
+        joinReq.userId, 'MATCH_CONFIRMED', '🔄 Yedek Listesine Alındınız',
+        `"${rival.sender?.username || 'İlan sahibi'}" kadroyu tamamladı — onayınız yedek istek olarak kabul edildi. Kadrodan biri çıkarsa doğrudan asıl kadroya geçersiniz ve size bildirim gönderilir.`,
         { rivalId: rival.id, category: rival.category, subCategory: rival.subCategory }
     ).catch(() => {});
 }
@@ -3330,6 +3391,15 @@ export const respondToJoin = async (req, res, next) => {
 
         // Partner daveti kabul: senderTeam'e ekle, participants'a değil
         if (joinReq.isPartnerInvite) {
+            // Kullanıcı isteği (tenis/padel): partner slotu kendisi hâlâ boş görünse bile,
+            // kadro BAŞKA yollarla (ör. unassignedPlayers dolarak) zaten tamamlanmış olabilir —
+            // bu durumda partner slotuna 5. kişi olarak yerleştirmek yerine yedek listesine
+            // düşürülür (bkz. isDoubleOrSingleRosterFull/placeInDoubleWaitlistOrReject).
+            if (isDoubleOrSingleRosterFull(joinReq.rival)) {
+                const waitlistEntry = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
+                await placeInDoubleWaitlistOrReject(joinReq.rival, joinReq, waitlistEntry, requestId, res);
+                return;
+            }
             // Partner cinsiyet kontrolü
             const pGenderReq = joinReq.rival.partnerGenderReq;
             if (pGenderReq && pGenderReq !== 'MIX') {
@@ -3433,7 +3503,7 @@ export const respondToJoin = async (req, res, next) => {
                 `${joinReq.user.username} Rakip Takım'a katılmayı kabul etti.${isFullNow ? ' Maç doldu!' : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
-            if (isFullNow) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId]);
+            if (isFullNow) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId], joinReq.rival.matchType);
             return res.json({ message: 'Rakip Takım daveti kabul edildi.', request: updatedRival, matched: isFullNow });
         }
 
@@ -3456,6 +3526,13 @@ export const respondToJoin = async (req, res, next) => {
                 await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
                 emitToUser(joinReq.userId, 'joinRejected', { rivalId: joinReq.rivalId });
                 return res.status(400).json({ message: `${joinReq.requestedSlot === 'opp1' ? 'Rakip 1' : 'Rakip 2'} slotu artık dolu.` });
+            }
+            // İstenen slotun kendisi boş olsa bile, kadro BAŞKA yollarla (ör. unassignedPlayers
+            // dolarak) zaten tamamlanmış olabilir — bkz. isPartnerInvite dalındaki aynı kontrol.
+            if (isDoubleOrSingleRosterFull(joinReq.rival)) {
+                const waitlistEntry = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
+                await placeInDoubleWaitlistOrReject(joinReq.rival, joinReq, waitlistEntry, requestId, res);
+                return;
             }
             const gReq = joinReq.requestedSlot === 'opp1' ? joinReq.rival.opp1GenderReq : joinReq.rival.opp2GenderReq;
             if (gReq && gReq !== 'MIX') {
@@ -3493,7 +3570,7 @@ export const respondToJoin = async (req, res, next) => {
                 `${joinReq.user.username} ${joinReq.requestedSlot === 'opp1' ? 'Rakip 1' : 'Rakip 2'} olarak katılmayı kabul etti.${isFull ? ' Maç doldu!' : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
-            if (isFull) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId]);
+            if (isFull) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId], joinReq.rival.matchType);
             return res.json({ message: 'Davet kabul edildi.', request: updatedRival, matched: isFull });
         }
 
@@ -3541,6 +3618,13 @@ export const respondToJoin = async (req, res, next) => {
         // Hangi takımda oynayacağı belli olmayan davet kabul: unassignedPlayers'a ekle —
         // ilan sahibi ilerde Yaklaşan Maçlar kartından Kurucu/Rakip'e elle atar.
         if (joinReq.isUnassignedInvite) {
+            // Kadro BAŞKA yollarla zaten tamamlanmışsa (bkz. isPartnerInvite dalındaki aynı
+            // kontrol) bu kabul de yedek listesine düşer, atanmamış havuzuna değil.
+            if (isDoubleOrSingleRosterFull(joinReq.rival)) {
+                const waitlistEntry = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
+                await placeInDoubleWaitlistOrReject(joinReq.rival, joinReq, waitlistEntry, requestId, res);
+                return;
+            }
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
             // gender de snapshot'a eklendi — DOUBLE'da "Atanmamış" listesindeki atama
             // butonlarının cinsiyete uymayan slotları hiç göstermemesi için (bkz. mobil
@@ -3579,7 +3663,7 @@ export const respondToJoin = async (req, res, next) => {
                 `${joinReq.user.username} maça katılmayı kabul etti — takımını sen atayacaksın.${isFull ? ' Maç doldu!' : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
-            if (isFull) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId]);
+            if (isFull) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId], joinReq.rival.matchType);
             return res.json({ message: 'Davet kabul edildi.', request: updatedRival, matched: isFull });
         }
 
@@ -3602,8 +3686,17 @@ export const respondToJoin = async (req, res, next) => {
         // yanıtlanmış" hatasına dönüşüyordu. Buraya kadar ulaşan her istek (isPartnerInvite/
         // isOppTeamInvite/isSubstituteInvite/isUnassignedInvite yukarıda kendi kontrolleriyle
         // zaten return etti) doğrudan ANA kadroya eklenmeye çalışıyor — ilan artık OPEN değilse
-        // net bir "Kadro dolu" hatasıyla reddedilir.
+        // net bir "Kadro dolu" hatasıyla reddedilir. DOUBLE/SINGLE'da, ilan gerçekten dolduğu
+        // (MATCHED) için OPEN değilse — iptal/tamamlanmış değilse — kullanıcı isteğiyle artık
+        // sert ret yerine yedek listesine düşer (bkz. isDoubleOrSingleRosterFull/
+        // placeInDoubleWaitlistOrReject, aynı mantık yukarıdaki isPartnerInvite/opp1-opp2/
+        // isUnassignedInvite dallarında da uygulandı).
         if (rival.status !== 'OPEN') {
+            if (rival.status === 'MATCHED' && (rival.matchType === 'DOUBLE' || rival.matchType === 'SINGLE')) {
+                const waitlistEntry = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
+                await placeInDoubleWaitlistOrReject(rival, joinReq, waitlistEntry, requestId, res);
+                return;
+            }
             return res.status(400).json({ message: 'Kadro dolu — bu istek artık kabul edilemez.' });
         }
         let joiningTeam = Array.isArray(joinReq.joiningTeam) ? joinReq.joiningTeam : [];
@@ -3842,7 +3935,7 @@ export const respondToJoin = async (req, res, next) => {
             const currentSenderTeam = Array.isArray(updated.senderTeam) ? updated.senderTeam : [];
             currentSenderTeam.filter(p => p?.id && p.id !== u.id && p.id !== rival.senderId)
                 .forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
-            notifyOtherPendingOwnerInvitesOfFull(rival.id, rival.category, rival.subCategory, [u.id, ...(Array.isArray(joiningTeam) ? joiningTeam.filter(m => m?.id).map(m => m.id) : [])]);
+            notifyOtherPendingOwnerInvitesOfFull(rival.id, rival.category, rival.subCategory, [u.id, ...(Array.isArray(joiningTeam) ? joiningTeam.filter(m => m?.id).map(m => m.id) : [])], rival.matchType);
             notifyOtherPendingJoinersOfFull(rival.id, rival.category, rival.subCategory, [u.id, ...(Array.isArray(joiningTeam) ? joiningTeam.filter(m => m?.id).map(m => m.id) : [])]);
         }
 
@@ -4085,7 +4178,13 @@ export const confirmLateJoin = async (req, res, next) => {
             ? teamFilledCount(rival) >= totalPlayerCount(rival)
             : participantsSoFar.length >= getRequired(rival));
         if (alreadyFull) {
-            await placeInSubstituteOrRejectFull(rival, joinReq, joinerEntry, requestId, res);
+            // DOUBLE/SINGLE'ın kendi substituteCount'u yok (her zaman 0) — placeInSubstituteOrRejectFull
+            // bu yüzden burada hep reddederdi. Kendi sınırsız yedek listesine (waitlistPlayers) düşer.
+            if (rival.matchType === 'DOUBLE' || rival.matchType === 'SINGLE') {
+                await placeInDoubleWaitlistOrReject(rival, joinReq, joinerEntry, requestId, res);
+            } else {
+                await placeInSubstituteOrRejectFull(rival, joinReq, joinerEntry, requestId, res);
+            }
             return;
         }
 
@@ -4222,7 +4321,7 @@ export const confirmLateJoin = async (req, res, next) => {
         if (partnerJoinReqToAccept) emitToUser(partnerJoinReqToAccept.userId, 'joinAccepted', { rivalId: rival.id, matched: isFull });
         if (isFull) {
             updatedParticipants.forEach(p => emitToUser(p.id, 'rivalUpdate', updated));
-            notifyOtherPendingOwnerInvitesOfFull(rival.id, rival.category, rival.subCategory, [u.id, ...(Array.isArray(joiningTeam) ? joiningTeam.filter(m => m?.id).map(m => m.id) : [])]);
+            notifyOtherPendingOwnerInvitesOfFull(rival.id, rival.category, rival.subCategory, [u.id, ...(Array.isArray(joiningTeam) ? joiningTeam.filter(m => m?.id).map(m => m.id) : [])], rival.matchType);
             notifyOtherPendingJoinersOfFull(rival.id, rival.category, rival.subCategory, [u.id, ...(Array.isArray(joiningTeam) ? joiningTeam.filter(m => m?.id).map(m => m.id) : [])]);
         }
         // Voleybol takım başvurusu: kadrodaki (ana+yedek) tüm gerçek kullanıcılar bilgilendirilir.
@@ -5736,7 +5835,7 @@ export const addManualTeamPlayer = async (req, res, next) => {
             title: '🔄 Kadro Değişti',
             body: `${trimmed} ${sideLabel}'a eklendi.`,
         });
-        if (isFullNow) notifyOtherPendingOwnerInvitesOfFull(id, updated.category, updated.subCategory);
+        if (isFullNow) notifyOtherPendingOwnerInvitesOfFull(id, updated.category, updated.subCategory, [], rival.matchType);
 
         res.json(updated);
     } catch (error) { next(error); }
@@ -5870,8 +5969,16 @@ export const removeRivalParticipant = async (req, res, next) => {
         // yoksa aşağıdaki eski davranış (ilan yeniden açılır) aynen çalışır.
         let finalParticipants = updatedParticipants;
         let finalSenderTeam = updatedSenderTeam;
+        let finalUnassigned = updatedUnassigned;
         let promotedSub = null;
         let remainingSubs = null;
+        // DOUBLE/SINGLE (tenis/padel vb.): kendi substituteCount/substitutePlayers sistemi yok —
+        // bunun yerine sınırsız kapasiteli waitlistPlayers kullanılır (bkz. placeInDoubleWaitlistOrReject).
+        // Terfi eden kişi SPESİFİK bir named slota (Rakip 1/2 gibi) DEĞİL, atanmamış havuzuna
+        // düşer — hangi role gideceğini ilan sahibi normal "Takıma Ata" akışıyla seçer, bu sayede
+        // terfi eden kişinin cinsiyeti boşalan slotla uyuşmasa bile hatasız çalışır.
+        let promotedFromWaitlist = null;
+        let remainingWaitlist = null;
         if (wasMatched && rival.subCategory === 'volleyball') {
             const subs = Array.isArray(rival.substitutePlayers) ? rival.substitutePlayers : [];
             if (subs.length > 0) {
@@ -5884,16 +5991,25 @@ export const removeRivalParticipant = async (req, res, next) => {
                     finalSenderTeam = [...updatedSenderTeam, promotedSub];
                 }
             }
+        } else if (wasMatched && (rival.matchType === 'DOUBLE' || rival.matchType === 'SINGLE')) {
+            const waitlist = Array.isArray(rival.waitlistPlayers) ? rival.waitlistPlayers : [];
+            if (waitlist.length > 0) {
+                promotedFromWaitlist = waitlist[0];
+                remainingWaitlist = waitlist.slice(1);
+                finalUnassigned = [...updatedUnassigned, promotedFromWaitlist];
+            }
         }
-        const staysMatched = !!promotedSub;
+        const promoted = promotedSub || promotedFromWaitlist;
+        const staysMatched = !!promoted;
 
         const updated = await prisma.activityRequest.update({
             where: { id },
             data: {
                 participants: finalParticipants,
                 senderTeam: finalSenderTeam,
-                unassignedPlayers: updatedUnassigned,
+                unassignedPlayers: finalUnassigned,
                 ...(promotedSub && { substitutePlayers: remainingSubs }),
+                ...(promotedFromWaitlist && { waitlistPlayers: remainingWaitlist }),
                 // Terfi anı kaydedilir — terfi eden kişi iptal politikası uymasa bile
                 // terfiden sonraki 1 saat içinde şartsız çıkabilir (bkz. leaveAsPromotedSubstitute).
                 ...(promotedSub?.id && { substitutePromotedAt: { ...(rival.substitutePromotedAt || {}), [promotedSub.id]: new Date().toISOString() } }),
@@ -5917,18 +6033,18 @@ export const removeRivalParticipant = async (req, res, next) => {
             where: { rivalId: id, userId: { in: removeIds }, status: 'ACCEPTED' },
             data: { status: 'REJECTED' },
         });
-        // Terfi eden yedeğin bekleyen "yedek olarak başvur" isteği varsa artık asıl kadroda,
-        // ayrıca bir kabul/red beklemesine gerek yok.
-        if (promotedSub?.id) {
+        // Terfi eden yedeğin/waitlist'in bekleyen "yedek olarak başvur"/onaylanmış-ama-bekleyen
+        // isteği varsa artık asıl kadroda, ayrıca bir kabul/red beklemesine gerek yok.
+        if (promoted?.id) {
             await prisma.rivalJoinRequest.updateMany({
-                where: { rivalId: id, userId: promotedSub.id, status: 'PENDING' },
+                where: { rivalId: id, userId: promoted.id, status: 'PENDING' },
                 data: { status: 'ACCEPTED' },
             }).catch(() => {});
         }
 
         broadcast('rivalUpdate', updated);
         for (const uid of removeIds) emitToUser(uid, 'rivalUpdate', updated);
-        if (promotedSub?.id) emitToUser(promotedSub.id, 'rivalUpdate', updated);
+        if (promoted?.id) emitToUser(promoted.id, 'rivalUpdate', updated);
 
         res.json({ removed: removeIds, request: updated });
 
@@ -5942,9 +6058,9 @@ export const removeRivalParticipant = async (req, res, next) => {
                 { rivalId: id, subCategory: rival.subCategory }
             ).catch(() => {});
         }
-        // Yedekten asıl kadroya terfi — maçı kaçırmasın diye yüksek öncelikli push.
-        if (promotedSub?.id) {
-            createNotification(promotedSub.id, 'MATCH_CONFIRMED',
+        // Yedekten/yedek listesinden asıl kadroya terfi — maçı kaçırmasın diye yüksek öncelikli push.
+        if (promoted?.id) {
+            createNotification(promoted.id, 'MATCH_CONFIRMED',
                 '🚨 Yedekten Asıl Kadroya Geçtiniz!',
                 `"${subCategoryTR(rival.subCategory)}" maçında kadrodan biri ayrıldı, yerine siz asıl kadroya alındınız — maçınız var! Katılım sağlayamayacaksanız, iptal şartlarına uymasa bile terfiden itibaren 1 saat içinde şartsız iptal çekme hakkınız bulunmaktadır.`,
                 { rivalId: id, subCategory: rival.subCategory },
@@ -5958,7 +6074,7 @@ export const removeRivalParticipant = async (req, res, next) => {
             || 'Bir oyuncu';
         notifyRosterChange(updated, {
             title: '🔄 Kadro Değişti',
-            body: promotedSub
+            body: promoted
                 ? `${removedName} takımdan çıkarıldı, yerine bir yedek oyuncu asıl kadroya alındı.`
                 : `${removedName} takımdan çıkarıldı.`,
             excludeUserId: userId,
