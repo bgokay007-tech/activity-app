@@ -920,6 +920,7 @@ model RivalJoinRequest {
   counterMessage  String?                       // Hakem başvurusu: karşı teklifle birlikte gönderilen mesaj
   requestedSlot   String?                       // İki kullanımı var: (1) Çiftler (DOUBLE) + teamFlexibility=STRICT, initiatedBy='JOINER': başvuru sırasında seçilen hedef taraf — 'partner' | 'opponent'. (2) Çiftler (DOUBLE), initiatedBy='OWNER': Digimon kart'tan Rakip 1/Rakip 2 formasına doğrudan davet — 'opp1' | 'opp2' (bkz. inviteToRival/respondToJoin). Yazım ve initiatedBy farklı olduğu için asla çakışmaz.
   slotIndex       Int?                          // Takım sporlarında (voleybol/airsoft) isPartnerInvite/isOppTeamInvite daveti kadro kartındaki HANGİ sıradaki forma yazıldıysa (0-index) — kabul edilince kişi senderTeam/participants dizisinde bu index'e yerleşir, dizinin sonuna değil (kullanıcı isteği: "hangi forma yazıldıysa orada kalsın").
+  positionPreferences Json?                     // Voleybol: başvuran kişinin oynamak istediği pozisyon(lar), öncelik sırasıyla — ["SETTER","SPIKER"] gibi (ilk eleman en yüksek öncelik). İlan sahibi İstekler listesinde bunu görüp kabul/red kararını buna göre verebiliyor (bkz. sendJoinRequest/kullanıcı isteği).
   createdAt   DateTime @default(now())
 
   rival      ActivityRequest @relation(fields: [rivalId],  references: [id], onDelete: Cascade)

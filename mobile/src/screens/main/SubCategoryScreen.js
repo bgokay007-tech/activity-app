@@ -2706,6 +2706,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     🎯 {jr.requestedSlot === 'partner' ? t.founderTeamLabel : jr.requestedSlot === 'opp1' ? t.opp1Label : jr.requestedSlot === 'opp2' ? t.opp2Label : t.joinAsOpponentBtn}
                                                 </Text>
                                             )}
+                                            {/* Kullanıcı isteği: voleybolde başvuran hangi pozisyon(lar)ı istediğini
+                                                (öncelik sırasıyla) belirtmişse, ilan sahibi kabul/red kararını buna
+                                                göre versin diye burada gösterilir. */}
+                                            {Array.isArray(jr.positionPreferences) && jr.positionPreferences.length > 0 && (
+                                                <Text style={{ color:'#38bdf8', fontSize: moderateScale(9), fontWeight:'700', marginTop:1 }} numberOfLines={1}>
+                                                    🏐 {jr.positionPreferences.map((p, i) => `${i + 1}. ${p === 'SETTER' ? t.positionSetter : p === 'SPIKER' ? t.positionSpiker : t.positionLibero}`).join('  ')}
+                                                </Text>
+                                            )}
                                         </View>
                                     )}
                                     {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
@@ -3997,7 +4005,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 ) : (
                     <TouchableOpacity
                         style={{ backgroundColor:cfg.color, borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }}
-                        onPress={() => isTeamWantedAd ? setShowTeamJoinModal(true) : handleJoinPress()}
+                        onPress={() => isTeamWantedAd ? setShowTeamJoinModal(true) : isVolleyballTeamMatch ? setShowPositionPicker(true) : handleJoinPress()}
                     >
                         <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }}>{t.joinBtn}</Text>
                     </TouchableOpacity>
@@ -4039,6 +4047,40 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 t={t}
             />
         )}
+        {/* Kullanıcı isteği: voleybol takım maçına katılmadan önce hangi pozisyonda oynamak
+            istediğini (öncelik sırasıyla, dokunma sırası = öncelik) seçebilsin — ilan sahibi
+            İstekler listesinde bunu görüp kabul/red kararını buna göre versin. */}
+        <Modal visible={showPositionPicker} animationType="fade" transparent onRequestClose={() => setShowPositionPicker(false)}>
+            <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', paddingHorizontal:30 }}>
+                <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:16 }}>
+                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', marginBottom:4 }}>Pozisyon Tercihi</Text>
+                    <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:12 }}>
+                        İstersen oynamak istediğin pozisyon(lar)ı öncelik sırasıyla seç (dokunduğun sıra önceliğin olur) — dilersen hiç seçmeden de katılabilirsin.
+                    </Text>
+                    <View style={{ flexDirection:'row', gap:6, marginBottom:16 }}>
+                        {[['SETTER', t.positionSetter], ['SPIKER', t.positionSpiker], ['LIBERO', t.positionLibero]].map(([pos, label]) => {
+                            const idx = selectedPositions.indexOf(pos);
+                            const selected = idx !== -1;
+                            return (
+                                <TouchableOpacity key={pos} onPress={() => togglePositionPref(pos)}
+                                    style={{ flex:1, alignItems:'center', paddingVertical:9, borderRadius:10, borderWidth:1, borderColor: selected ? cfg.color : colors.border, backgroundColor: selected ? cfg.color+'20' : colors.surface2 }}>
+                                    {selected && <Text style={{ color: cfg.color, fontSize:10, fontWeight:'900', marginBottom:2 }}>{idx + 1}</Text>}
+                                    <Text style={{ color: selected ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{label}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                    <View style={{ flexDirection:'row', gap:8 }}>
+                        <TouchableOpacity onPress={() => { setShowPositionPicker(false); setSelectedPositions([]); }} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor:'#ffffff10' }}>
+                            <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={confirmJoinWithPosition} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor: cfg.color }}>
+                            <Text style={{ color:'#fff', fontWeight:'800' }}>{t.joinBtn}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
         {editVisible && (
             <CreateRivalModal
                 visible
