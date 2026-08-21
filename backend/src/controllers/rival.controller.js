@@ -2794,6 +2794,13 @@ export const sendJoinRequest = async (req, res, next) => {
         }
 
         const joiningTeam = Array.isArray(req.body.joiningTeam) ? req.body.joiningTeam : [];
+        // Kullanıcı isteği: voleybolde katılım isteği gönderirken (öncelik sırasıyla) hangi
+        // pozisyonda oynamak istediğini belirtebilsin — ilan sahibi İstekler listesinde bunu
+        // görüp kabul/red kararını buna göre versin. Sadece voleybol + geçerli pozisyon kodları.
+        const VALID_POSITIONS = ['SETTER', 'SPIKER', 'LIBERO'];
+        const positionPreferences = request.subCategory === 'volleyball' && Array.isArray(req.body.positionPreferences)
+            ? req.body.positionPreferences.filter(p => VALID_POSITIONS.includes(p)).slice(0, 3)
+            : undefined;
 
         // Voleybol "Rakip Aranıyor" (PLAYER_WANTED, teamSize>1): tek başına katılım kapalı —
         // başvuran kendi tam takımını (teamSize ana + substituteCount yedek) tek seferde
@@ -2877,10 +2884,10 @@ export const sendJoinRequest = async (req, res, next) => {
             // tarihe bakıp yanlışlıkla "geç kabul" (joiner'a son onay sorusu) akışına sokar.
             await prisma.rivalJoinRequest.update({
                 where: { rivalId_userId: { rivalId: id, userId: req.userId } },
-                data: { status: 'PENDING', joiningTeam: resolvedJoiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null, createdAt: new Date(), ...(subSlotOpenForRequest && { isSubstituteInvite: true }) },
+                data: { status: 'PENDING', joiningTeam: resolvedJoiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null, createdAt: new Date(), ...(subSlotOpenForRequest && { isSubstituteInvite: true }), ...(positionPreferences !== undefined && { positionPreferences: positionPreferences.length > 0 ? positionPreferences : null }) },
             });
         } else {
-            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam: resolvedJoiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null, ...(subSlotOpenForRequest && { isSubstituteInvite: true }) } });
+            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId: req.userId, joiningTeam: resolvedJoiningTeam, partnerId, requestedSlot, offerPrice: offerPrice || null, offerMessage: offerMessage || null, offerCvUrl: offerCvUrl || null, ...(subSlotOpenForRequest && { isSubstituteInvite: true }), ...(positionPreferences?.length > 0 && { positionPreferences }) } });
         }
 
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: SENDER_SELECT });
@@ -2902,7 +2909,9 @@ export const sendJoinRequest = async (req, res, next) => {
         });
         broadcast('rivalUpdate', updatedRival);
 
-        res.status(201).json({ message: '✓ Join request sent! Waiting for the organizer to accept.' });
+        // Kullanıcı isteği: uygulamanın tamamı Türkçe metin kullanıyor — bu mesaj yanlışlıkla
+        // İngilizce yazılmış kalmıştı ("maça katılınca İngilizce geliyor").
+        res.status(201).json({ message: '✓ Katılım isteği gönderildi! İlan sahibinin onayı bekleniyor.' });
 
         const isRefereeAd = Array.isArray(request.positions) && request.positions.includes('REFEREE');
         createNotification(
@@ -3762,8 +3771,10 @@ export const respondToJoin = async (req, res, next) => {
             notifyOtherPendingOwnerInvitesOfFull(rival.id, rival.category, rival.subCategory, [u.id, ...(Array.isArray(joiningTeam) ? joiningTeam.filter(m => m?.id).map(m => m.id) : [])]);
         }
 
+        // Kullanıcı isteği: uygulamanın tamamı Türkçe metin kullanıyor — bu mesajlar da
+        // yanlışlıkla İngilizce yazılmış kalmıştı, diğerleriyle tutarlı hale getirildi.
         res.json({
-            message: isFull ? '🎉 Match is full!' : `✓ Accepted!`,
+            message: isFull ? '🎉 Maç doldu!' : `✓ Kabul edildi!`,
             request: updated,
             matched: isFull,
         });
@@ -3771,14 +3782,14 @@ export const respondToJoin = async (req, res, next) => {
         createNotification(
             u.id,
             'MATCH_CONFIRMED',
-            isFull ? '🎉 Match confirmed!' : '✓ Join request accepted!',
+            isFull ? '🎉 Maç onaylandı!' : '✓ Katılım isteğin kabul edildi!',
             assignedToPartner
                 ? (isFull
                     ? `${rival.sender?.username || ''} sizi çiftler takımına takım arkadaşı olarak kabul etti. Maç doldu!`
                     : `${rival.sender?.username || ''} sizi çiftler takımına takım arkadaşı olarak kabul etti.`)
                 : isFull
-                    ? `Your request to join ${rival.sender?.username || ''}'s match was accepted. Match is full!`
-                    : `Your request to join a match was accepted.`,
+                    ? `${rival.sender?.username || ''} maçına katılım isteğin kabul edildi. Maç doldu!`
+                    : `Bir maça katılım isteğin kabul edildi.`,
             { rivalId: rival.id, category: rival.category, subCategory: rival.subCategory }
         ).catch(() => {});
 
@@ -5382,10 +5393,15 @@ export const suggestOwnPosition = async (req, res, next) => {
         if (rival.senderId === req.userId) {
             return res.status(400).json({ message: 'İlan sahibi kendine doğrudan pozisyon atayabilir, öneri göndermesine gerek yok' });
         }
+        // Kullanıcı isteği: açık ilanda kabul edilen bireysel voleybol katılımcıları HER ZAMAN
+        // önce "Atanmamış" havuzuna düşer (bkz. respondToJoin'deki isIndividualTeamJoin) — bu
+        // yüzden unassignedPlayers de kontrol edilmezse en yaygın durumda (henüz takım ataması
+        // yapılmamış katılımcı) öneri gönderilemiyor, "kadroda değilsiniz" hatası dönüyordu.
         const isParticipant = [
             ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []),
             ...(Array.isArray(rival.participants) ? rival.participants : []),
             ...(Array.isArray(rival.substitutePlayers) ? rival.substitutePlayers : []),
+            ...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []),
         ].some(p => p?.id === req.userId);
         if (!isParticipant) return res.status(403).json({ message: 'Bu maçın kadrosunda değilsiniz' });
 
@@ -5435,17 +5451,22 @@ export const respondPositionSuggestion = async (req, res, next) => {
             const senderTeam = Array.isArray(rival.senderTeam) ? [...rival.senderTeam] : [];
             const participants = Array.isArray(rival.participants) ? [...rival.participants] : [];
             const substitutePlayers = Array.isArray(rival.substitutePlayers) ? [...rival.substitutePlayers] : [];
+            // Kullanıcı isteği: açık ilanda kabul edilen bireysel voleybol katılımcıları HER ZAMAN
+            // önce "Atanmamış" havuzuna düşer — öneriyi onaylarken bu havuz da kontrol edilmezse
+            // en yaygın durumda (henüz takım ataması yapılmamış katılımcı) "oyuncu bulunamadı"
+            // hatası dönüyordu.
+            const unassignedPlayers = Array.isArray(rival.unassignedPlayers) ? [...rival.unassignedPlayers] : [];
             const applyPosition = (arr) => {
                 const idx = arr.findIndex(p => p?.id === userId);
                 if (idx === -1) return false;
                 arr[idx] = { ...arr[idx], position: suggestion.position };
                 return true;
             };
-            const found = applyPosition(senderTeam) || applyPosition(participants) || applyPosition(substitutePlayers);
+            const found = applyPosition(senderTeam) || applyPosition(participants) || applyPosition(substitutePlayers) || applyPosition(unassignedPlayers);
             if (!found) return res.status(404).json({ message: 'Oyuncu bu ilanda bulunamadı' });
             updated = await prisma.activityRequest.update({
                 where: { id },
-                data: { senderTeam, participants, substitutePlayers, positionSuggestions },
+                data: { senderTeam, participants, substitutePlayers, unassignedPlayers, positionSuggestions },
             });
         } else {
             updated = await prisma.activityRequest.update({ where: { id }, data: { positionSuggestions } });

@@ -1115,6 +1115,24 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
+    // Kullanıcı isteği: açık ilan detayında "Katılan Oyuncular"a girmiş (kadroda, atanmamışta
+    // ya da yedekte fark etmez) bir katılımcı kendi ismine dokununca kendisi için pozisyon
+    // önerebilsin — önceden bu SADECE Yaklaşan Maçlar'daki kadro kartında (TeamAssignCard) vardı.
+    const suggestOwnPositionApi = (position) => {
+        api.post(`/rivals/${item.id}/participant-position/suggest`, { position })
+            .then(() => { Alert.alert('', t.positionSuggestionSentMsg); onRefresh(); })
+            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+    };
+    const respondPositionSuggestionApi = (userId, action, rejectReason) => {
+        api.patch(`/rivals/${item.id}/participant-position/suggest/respond`, { userId, action, rejectReason })
+            .then(({ data }) => {
+                if (Array.isArray(data?.participants)) setLocalParticipants(data.participants);
+                if (Array.isArray(data?.senderTeam)) setLocalSenderTeam(data.senderTeam);
+                if (Array.isArray(data?.unassignedPlayers)) setLocalUnassigned(data.unassignedPlayers);
+                onRefresh();
+            })
+            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+    };
     // Kadro kartının arka yüzünde dolu bir slota basınca (kullanıcı isteği: "sağında çıkar/
     // değiştir yazsın, tıklayınca küçük pencerede Çıkar / Atanmamışa Taşı çıksın"). Manuel
     // (kayıtsız) isimlerde "Çıkar" backend'de henüz desteklenmiyor (bkz. removeRivalParticipant
@@ -1179,6 +1197,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             if (isOwner && sub === 'volleyball' && p.id && p.id !== item.senderId) {
                 nameActions.push({ label: `🚫 ${t.removeFromMatchBtn}`, destructive: true, onPress: () => removeRivalParticipant(p.id, p.username) });
             }
+            // Kullanıcı isteği: ilan sahibi olmayan bir katılımcı da "Katılan Oyuncular" listesinde
+            // kendi ismine dokununca kendisi için bir pozisyon önerebilsin — ilan sahibi onaylarsa
+            // gerçek pozisyona atanır, reddederse (bkz. 'suggestionReview') sebebiyle bildirim gelir.
+            if (!isOwner && p.id === myId && sub === 'volleyball') {
+                nameActions.push({ label: `🏐 ${t.positionSuggestBtn}`, onPress: () => setSlotActionTarget({ p, side, mode: 'suggestPosition' }) });
+            }
             return { visible: true, title: name, actions: nameActions };
         }
         if (mode === 'position') {
@@ -1188,6 +1212,26 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             if (p.position !== 'SETTER') posActions.push({ label: `🎯 ${t.positionSetter}`, onPress: () => setParticipantPositionApi(p.id, 'SETTER') });
             if (p.position) posActions.push({ label: t.positionClearOption, onPress: () => setParticipantPositionApi(p.id, null) });
             return { visible: true, title: name, actions: posActions };
+        }
+        if (mode === 'suggestPosition') {
+            const posActions = [];
+            if (p.position !== 'SPIKER') posActions.push({ label: `🏐 ${t.positionSpiker}`, onPress: () => suggestOwnPositionApi('SPIKER') });
+            if (p.position !== 'LIBERO') posActions.push({ label: `🙌 ${t.positionLibero}`, onPress: () => suggestOwnPositionApi('LIBERO') });
+            if (p.position !== 'SETTER') posActions.push({ label: `🎯 ${t.positionSetter}`, onPress: () => suggestOwnPositionApi('SETTER') });
+            return { visible: true, title: t.positionSuggestPickerTitle, actions: posActions };
+        }
+        // Kullanıcı isteği: ilan sahibi bekleyen bir öneriyi görünce Onayla ya da (iki hazır
+        // sebepten birini seçerek) Reddet diyebilsin — reddedince seçilen sebep katılımcıya
+        // bildirim olarak gider.
+        if (mode === 'suggestionReview') {
+            const suggestion = (Array.isArray(item.positionSuggestions) ? item.positionSuggestions : []).find(sg => sg?.userId === p.id);
+            const posLabel = suggestion?.position === 'SPIKER' ? t.positionSpiker : suggestion?.position === 'LIBERO' ? t.positionLibero : t.positionSetter;
+            const reviewActions = [
+                { label: `✅ ${t.positionSuggestionApproveBtn} (${posLabel})`, onPress: () => respondPositionSuggestionApi(p.id, 'approve') },
+                { label: `📅 ${t.positionSuggestionRejectArrangeBtn}`, onPress: () => respondPositionSuggestionApi(p.id, 'reject', 'CAN_ARRANGE_IN_MATCH') },
+                { label: `🚫 ${t.positionSuggestionRejectFullBtn}`, onPress: () => respondPositionSuggestionApi(p.id, 'reject', 'POSITION_FULL') },
+            ];
+            return { visible: true, title: name, actions: reviewActions };
         }
         const oppositeSide = side === 'my' ? 'opp' : 'my';
         const oppositeFull = oppositeSide === 'my' ? founderFullForAssign : oppFullForAssign;
@@ -2159,6 +2203,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // atanmamışlar için kırmızı yanıp sönen uyarı (unassignedWarning).
                             const Cell = ({ p, side, allowRemove, unassignedWarning }) => {
                                 const isFounder = p.id && p.id === item.senderId;
+                                const isMe = p.id != null && p.id === myId;
                                 // İlan sahibi (item.sender) SENDER_SELECT+interests ilişkisiyle geliyor
                                 // (interests[0].skillRating), diğer oyuncular ise senderTeam/participants
                                 // Json snapshot'ından (backend'in eklediği düz p.skillRating) — ikisini de kapsa.
@@ -2169,6 +2214,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     ? ` (${p.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})` : '';
                                 const posLabel = sub === 'volleyball' && p.position
                                     ? (p.position === 'SPIKER' ? t.positionSpiker : p.position === 'LIBERO' ? t.positionLibero : t.positionSetter) : '';
+                                // Kullanıcı isteği: ilan sahibi olmayan bir katılımcı da (atanmamış
+                                // havuzunda, takıma atanmış ya da yedekte fark etmez) "Katılan Oyuncular"
+                                // listesinde kendi ismine dokununca kendisi için pozisyon önerebilsin —
+                                // önceden bu sadece Yaklaşan Maçlar'daki kadro kartında (TeamAssignCard)
+                                // vardı, açık ilan detayında hiç yoktu.
+                                const pendingSuggestion = sub === 'volleyball' && p.id
+                                    ? (Array.isArray(item.positionSuggestions) ? item.positionSuggestions : []).find(sg => sg?.userId === p.id)
+                                    : null;
+                                const pendingSuggestionLabel = pendingSuggestion
+                                    ? (pendingSuggestion.position === 'SPIKER' ? t.positionSpiker : pendingSuggestion.position === 'LIBERO' ? t.positionLibero : t.positionSetter) : '';
                                 // Kullanıcı isteği: pozisyon + Çıkar/Değiştir aynı satırda isimle
                                 // sıkışıyordu — takım sütununda (allowRemove'lu bağlamda) artık ismin
                                 // biraz sağından başlayan ikinci bir satırda gösteriliyor. Ön yüz
@@ -2177,11 +2232,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <View>
                                         <View style={{ flexDirection:'row', alignItems:'center' }}>
                                             {/* Kullanıcı isteği: isme dokununca artık direkt profile gitmiyor —
-                                                ilan sahibi + voleybolda "Pozisyona Ata"/"Profiline Git" seçenekleri
-                                                çıkıyor (kurucu dahil — "kendine pozisyon atayamıyor" şikayeti
-                                                buradan çözülüyor). Diğer herkes için direkt profile gider. */}
+                                                ilan sahibi + voleybolda "Pozisyona Ata"/"Profiline Git"/"Maçtan
+                                                Çıkar" seçenekleri çıkıyor (kurucu dahil — "kendine pozisyon
+                                                atayamıyor" şikayeti buradan çözülüyor). İlan sahibi olmayan
+                                                katılımcı kendi satırına dokununca "Pozisyon Önerisi Sun"
+                                                seçeneğini görür. Diğer herkes için direkt profile gider. */}
                                             <TouchableOpacity disabled={!p.id} onPress={() => {
                                                 if (isOwner && sub === 'volleyball') promptSlotAction(p, side, 'nameMenu');
+                                                else if (!isOwner && isMe && sub === 'volleyball') promptSlotAction(p, side, 'nameMenu');
                                                 else if (p.id) navigation.push('Profile', { userId: p.id });
                                             }} style={{ flexDirection:'row', alignItems:'center', gap:2, flex:1, minWidth:0 }}>
                                                 {p.id
@@ -2213,6 +2271,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
+                                        )}
+                                        {/* Kullanıcı isteği: katılımcının kendisi için önerdiği, ilan sahibinin
+                                            henüz yanıtlamadığı pozisyon — ilan sahibi dokununca Onayla/Reddet
+                                            menüsü açılır (bkz. 'suggestionReview'), öneriyi yapan sadece bekler. */}
+                                        {pendingSuggestion && (
+                                            <TouchableOpacity disabled={!isOwner} activeOpacity={isOwner ? 0.6 : 1}
+                                                onPress={() => isOwner && promptSlotAction(p, side, 'suggestionReview')}
+                                                style={{ paddingLeft:16, marginTop:1 }}>
+                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'700' }} numberOfLines={1}>
+                                                    {isOwner ? `🏐 ${t.positionSuggestionPendingOwnerLabel(pendingSuggestionLabel)}` : `⏳ ${t.positionSuggestionPendingMineLabel(pendingSuggestionLabel)}`}
+                                                </Text>
+                                            </TouchableOpacity>
                                         )}
                                     </View>
                                 );
@@ -3332,6 +3402,20 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     // tam takım doldurularak yapılıyor — bkz. TeamJoinRequestModal.
     const [showTeamJoinModal, setShowTeamJoinModal] = useState(false);
     const isTeamWantedAd = sub === 'volleyball' && item.matchType === 'PLAYER_WANTED' && (item.teamSize || 1) > 1;
+    // Kullanıcı isteği: voleybol takım maçına katılım isteği gönderirken hangi pozisyonda
+    // oynamak istediğini (öncelik sırasıyla, ör. önce Pasör olmazsa Smaçör) belirtebilsin —
+    // ilan sahibi İstekler listesinde bunu görüp kabul/red kararını buna göre versin.
+    const [showPositionPicker, setShowPositionPicker] = useState(false);
+    const [selectedPositions, setSelectedPositions] = useState([]); // dokunma sırası = öncelik sırası
+    const isVolleyballTeamMatch = sub === 'volleyball' && (item.teamSize || 1) > 1 && !isTeamWantedAd;
+    const togglePositionPref = (pos) => {
+        setSelectedPositions(prev => prev.includes(pos) ? prev.filter(p => p !== pos) : [...prev, pos]);
+    };
+    const confirmJoinWithPosition = () => {
+        setShowPositionPicker(false);
+        handleJoinPress(undefined, selectedPositions);
+        setSelectedPositions([]);
+    };
     // Düzenleme, ilan detayından mı yoksa karttaki ✏️ butonundan mı açıldı —
     // kapatınca (X veya telefonun geri tuşu) sadece detaydan açıldıysa detaya
     // geri dönülsün diye.
@@ -3471,13 +3555,16 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         ]);
     };
 
-    const handleJoin = async (requestedSlot) => {
+    const handleJoin = async (requestedSlot, positionPreferences) => {
         // Puan limiti kontrolü artık burada değil, sadece sunucuda yapılıyor — myRating
         // (Redux'taki auth.user.interests'ten) maç sonrası puan güncellemelerinde bayatlayabiliyordu,
         // bu da güncel puanı yeterli olan kullanıcıları yanlışlıkla "puanınız 0" diye engelliyordu.
         try {
             setLocalJoinStatus('PENDING'); // anlık göster
-            await api.post(`/rivals/${item.id}/respond`, requestedSlot ? { requestedSlot } : {});
+            await api.post(`/rivals/${item.id}/respond`, {
+                ...(requestedSlot && { requestedSlot }),
+                ...(Array.isArray(positionPreferences) && positionPreferences.length > 0 && { positionPreferences }),
+            });
             onRefresh();
         } catch (e) {
             if (!e?.response) { onRefresh(); return; } // network drop — sunucu aldı, yenile
@@ -3496,8 +3583,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     // gönderildikten sonra İstekler bölümündeki takım kartlarından (davet et/kabul et) yapılır.
     // Takım Değiştirilemez (STRICT) çiftler maçında ise başvuran hangi tarafa katılacağını
     // (kurucu takımı / rakip takımı) en baştan seçmek zorunda — bkz. ilgili buton grupları.
-    const handleJoinPress = (requestedSlot) => {
-        handleJoin(requestedSlot);
+    const handleJoinPress = (requestedSlot, positionPreferences) => {
+        handleJoin(requestedSlot, positionPreferences);
     };
 
 
