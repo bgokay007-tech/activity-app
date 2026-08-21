@@ -19566,7 +19566,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                 active={(tabSubCities[cityAlertInfoTab] || []).length > 0}
                 onClose={() => setCityAlertInfoTab(null)}
                 onToggle={() => { const tab = cityAlertInfoTab; setCityAlertInfoTab(null); quickToggleTab(tab); }}
-                onPickCities={() => { const tab = cityAlertInfoTab; setCityAlertInfoTab(null); setCityPickerTab(tab); }}
+                // Kullanıcı raporu: "il seç"e dokununca ekran az kararıp hiçbir şey açılmıyordu.
+                // Sebep: bu modal (CityAlertInfoModal) kapanırken (setCityAlertInfoTab(null)) AYNI
+                // state güncellemesinde il seçici <Modal>'ı da açıyorduk (setCityPickerTab) —
+                // Android'de iki native Modal aynı anda (biri kapanırken diğeri açılırken) geçiş
+                // yaparsa ikincisi çoğu zaman görünmez şekilde başarısız oluyor. Artık önce bu
+                // modal kapanıyor, il seçici KISA bir gecikmeyle (kapanma animasyonu bittikten
+                // sonra) açılıyor.
+                onPickCities={() => { const tab = cityAlertInfoTab; setCityAlertInfoTab(null); setTimeout(() => setCityPickerTab(tab), 300); }}
                 onDismissForever={() => setCityAlertInfoDismissed(true)}
             />
 
