@@ -1927,11 +1927,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 );
                             };
 
-                            const PartnerContent = senderTeamArr[0]
-                                ? senderTeamArr[0]
-                                : pendingPartnerInvite
-                                    ? null // pending state özel gösterim
-                                    : null;
+                            const PartnerContent = senderTeamArr[0] || null;
 
                             // Kabul edilmiş katılımcılar (kurucu hariç) — henüz Partner/Rakip 1/
                             // Rakip 2 kartlarına atanmış gibi değil, sırayla numaralı gösterilir.
@@ -2083,17 +2079,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', flex:1, textAlign:'center' }}>+</Text>
                                                 {genderLabel(partnerGenderReq) && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700' }}>{genderLabel(partnerGenderReq)}</Text>}
                                             </View>
-                                            {pendingPartnerInvite ? (
-                                                <View>
-                                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{pendingPartnerInvite.user?.fullName || pendingPartnerInvite.user?.username}</Text>
-                                                    <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
-                                                </View>
-                                            ) : (
-                                                // SlotBox artık boşken de kendi içinde arama/davet alanını (ya da,
-                                                // sahip değilse/takas aktifse, eski statik metni) gösteriyor.
-                                                <SlotBox slot="partner" p={PartnerContent} fallback="Partner yok" gReqLabel={null} gReqValue={partnerGenderReq}
-                                                    highlighted={highlightSlot?.doubleSlot === 'partner'} />
-                                            )}
+                                            {/* Kullanıcı isteği: bekleyen (henüz yanıtlanmamış) partner daveti
+                                                burada da (arka yüz) ayrıca isim+"Onay Bekleniyor" olarak
+                                                GÖSTERİLMİYOR — "📨 Gönderilen Davetler" bölümü zaten bunu
+                                                gösteriyor, kart içinde tekrarı kafa karıştırıyordu (kullanıcı
+                                                raporu, ön yüzdeki aynı kaldırma ile tutarlı). SlotBox boşken
+                                                kendi içinde arama/davet alanını (ya da, sahip değilse/takas
+                                                aktifse, eski statik metni) gösteriyor. */}
+                                            <SlotBox slot="partner" p={PartnerContent} fallback="Partner yok" gReqLabel={null} gReqValue={partnerGenderReq}
+                                                highlighted={highlightSlot?.doubleSlot === 'partner'} />
                                         </View>
                                         <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:5, marginBottom:6 }}>
                                             <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }}>⚔️ Rakip Takımı</Text>
