@@ -2033,24 +2033,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </TouchableOpacity>
                                             </View>
                                         ))}
-                                        {pendingPartnerInvite && (
-                                            <View key="pendingPartner" style={cardBox}>
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                                                    <Avatar name={pendingPartnerInvite.user?.username} avatar={pendingPartnerInvite.user?.avatar} size={moderateScale(28)} color={cfg.color} />
-                                                    <View style={{ flex:1 }}>
-                                                        <Text style={det.playerName} numberOfLines={1}>{pendingPartnerInvite.user?.fullName || pendingPartnerInvite.user?.username}</Text>
-                                                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1}>⏳ Onay Bekleniyor</Text>
-                                                    </View>
-                                                </View>
-                                            </View>
-                                        )}
-                                        {/* Bekleyen genel davetler burada TEKRAR gösterilmiyor — "📨 Gönderilen
-                                            Davetler" bölümü zaten bunu listeliyor (kullanıcı isteği: kart içinde
-                                            tekrar "Davet Gönderildi" yazmasın). Gerçekten hâlâ BOŞ kalan slotlar
-                                            (kabul edilenlerin hepsi yukarıda gösterildikten SONRA) en altta,
-                                            numaralandırma kaldığı yerden (acceptedCount) devam ederek. */}
+                                        {/* Kullanıcı isteği: bekleyen (henüz yanıtlanmamış) davet ön yüzde
+                                            ayrıca isim+"Onay Bekleniyor" kutusu olarak GÖSTERİLMİYOR — bu
+                                            zaten "📨 Gönderilen Davetler" bölümünde var, tekrar burada
+                                            göstermek yanıltıcı ("kabul edilmiş gibi" görünüyordu). Partner
+                                            slotu da (daveti bekleyen dahil) diğer boş slotlar gibi düz
+                                            "Bekleniyor" kutusuna düşer, aşağıdaki emptyNamedSlots döngüsünde. */}
                                         {emptyNamedSlots.map((sl, i) => {
-                                            if (sl.key === 'partner' && pendingPartnerInvite) return null; // yukarıda ayrıca gösteriliyor
                                             // Kullanıcı raporu: ön yüzdeki ("Katılan Oyuncular") boş formalara
                                             // arka yüzdeki (SlotBox) gibi doğrudan davet arama alanı eklenmişti
                                             // — ön yüz sadece görüntüleme olmalı, davet/atama SADECE arka yüzdeki
@@ -2070,7 +2059,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </View>
                                             );
                                         })}
-                                        {acceptedOthers.length === 0 && !pendingPartnerInvite && unassignedDoubleSlots.length === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
+                                        {acceptedOthers.length === 0 && unassignedDoubleSlots.length === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
                                     </View>
                                 );
                             }
