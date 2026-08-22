@@ -3031,9 +3031,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // aşağıda Paylaş/Düzenle ile AYNI satırda (solda) gösteriliyor — izinli
                             // katılımcılar (otherCanAct) için ise değişmedi, hâlâ burada.
                             const canInviteHere = canInvite && !isOwner;
-                            return (canInviteHere || canInviteRefereeBtn || canShareHere) && (
+                            // Kullanıcı isteği: sadece ilan sahibi değil, bu maça katılan (kabul
+                            // edilmiş) HERKES ilan detayından sipariş verebilsin — "Oyuncu Davet Et"
+                            // ile aynı satırda (o satır zaten burada, izinli katılımcılar için).
+                            const canOrderNonOwner = !isOwner && !!item.venueId && (
+                                participants.some(p => p?.id === myId) || senderTeamArr.some(p => p?.id === myId)
+                                || unassignedArr.some(p => p?.id === myId) || item.receiverId === myId
+                            );
+                            return (canInviteHere || canInviteRefereeBtn || canShareHere || canOrderNonOwner) && (
                                 <>
-                                    {(canInviteHere || canInviteRefereeBtn) && (
+                                    {(canInviteHere || canInviteRefereeBtn || canOrderNonOwner) && (
                                         <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
                                             {canInviteHere && (
                                                 <TouchableOpacity
@@ -3049,6 +3056,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     onPress={() => { setInviteForReferee(true); setInviteModalVisible(true); }}
                                                 >
                                                     <Text style={{ color:'#f59e0b', fontSize: moderateScale(11), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{noEmojiStr(t.inviteRefereeBtn)}</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            {canOrderNonOwner && (
+                                                <TouchableOpacity
+                                                    style={[s.cancelBtn, { flex:1, backgroundColor:'#22c55e20', borderColor:'#22c55e50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                                    onPress={() => setOrderVenueId(item.venueId)}
+                                                >
+                                                    <Text style={[s.cancelBtnText, { color:'#22c55e', fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📋 Sipariş Ver</Text>
                                                 </TouchableOpacity>
                                             )}
                                         </View>
@@ -8067,6 +8082,13 @@ function VenueMenuOrderModal({ visible, venueId, onClose, onSuccess, rivalId }) 
                         </TouchableOpacity>
                     </View>
                     <ScrollView style={vm.body} showsVerticalScrollIndicator={false}>
+                        {/* Kullanıcı isteği: sipariş verirken, sipariş onaylanınca ne olacağı
+                            (adisyona işlenmesi + hazırlanması) bilgi/uyarı olarak gösterilsin. */}
+                        <View style={{ backgroundColor:'#22c55e15', borderRadius:10, borderWidth:1, borderColor:'#22c55e40', padding:10, marginBottom:14 }}>
+                            <Text style={{ color:'#4ade80', fontSize:12, lineHeight:17 }}>
+                                ℹ️ Siparişiniz işletme tarafından onaylanınca adisyonunuz oluşacak ve siparişiniz hazırlanacak.
+                            </Text>
+                        </View>
                         {loading && <ActivityIndicator color="#22c55e" style={{ marginVertical: 24 }} />}
                         {!loading && items.length === 0 && (
                             <Text style={vm.emptyTxt}>Menü bulunamadı</Text>
