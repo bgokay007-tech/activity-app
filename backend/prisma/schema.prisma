@@ -1685,6 +1685,10 @@ model VenueBillItem {
   unitPrice  Int     // ekleme anındaki fiyat
   quantity   Int     @default(1)
   note       String? // manuel eklenen ürünün isteğe bağlı detayı
+  sourceOrderId String? // hangi VenueOrder'dan geldi (FK değil — sipariş silinse de adisyon kalemi
+                        // kalsın) — aynı maça art arda gelen siparişler aynı adisyona "N. Sipariş"
+                        // olarak gruplanıp gösterilsin diye (kullanıcı isteği). Manuel eklenen
+                        // ürünlerde null.
   createdAt  DateTime @default(now())
 
   bill     VenueBill      @relation(fields: [billId], references: [id], onDelete: Cascade)

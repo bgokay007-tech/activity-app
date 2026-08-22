@@ -1801,6 +1801,29 @@ const MENU_CATS = [
 const ORDER_COLORS = { PENDING:'#eab308', CONFIRMED:'#3b82f6', READY:'#22c55e', CANCELLED:'#ef4444' };
 const ORDER_LABELS = { PENDING:'⏳ Bekliyor', CONFIRMED:'✅ Onaylandı', READY:'🟢 Hazır', CANCELLED:'❌ İptal' };
 
+// Kullanıcı isteği: aynı maça art arda gelen siparişler aynı adisyona tek tek ekleniyor
+// (bkz. backend updateOrderStatus'taki sourceOrderId) — burada "1. Sipariş"/"2. Sipariş"
+// diye gruplanır, her grubun kendi ara toplamı gösterilir. Manuel eklenen ürünler (sourceOrderId
+// yok) ayrı bir "Manuel Eklenen" grubunda toplanır. Tek grup varsa (ör. henüz ikinci sipariş
+// gelmediyse) başlık göstermeye gerek yok — items düz liste olarak dönülür.
+const groupBillItems = (items) => {
+    const list = Array.isArray(items) ? items : [];
+    const order = []; // sourceOrderId sırası (ilk görüldüğü sıra = kronolojik, items zaten createdAt asc)
+    const byKey = {};
+    for (const it of list) {
+        const key = it.sourceOrderId || '__manual__';
+        if (!byKey[key]) { byKey[key] = []; order.push(key); }
+        byKey[key].push(it);
+    }
+    if (order.length <= 1) return [{ label: null, items: list, subtotal: list.reduce((s, it) => s + it.unitPrice * it.quantity, 0) }];
+    let orderNo = 0;
+    return order.map(key => {
+        const groupItems = byKey[key];
+        const label = key === '__manual__' ? 'Manuel Eklenen' : `${++orderNo}. Sipariş`;
+        return { label, items: groupItems, subtotal: groupItems.reduce((s, it) => s + it.unitPrice * it.quantity, 0) };
+    });
+};
+
 function VenueCard({ venue, sub, onDelete, navigation, openReservations = false, highlightReservationId = null, highlightDate = null, openOrders = false, highlightActivityId = null }) {
     const insets = useSafeAreaInsets();
     const isApproved = venue.status === 'APPROVED';
@@ -1838,10 +1861,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     // Kullanıcı isteği: Ödenmemiş/Arşiv ayrımı artık Adisyon sekmesinde, adisyonun kendi
     // ödeme durumuna (VenueBill.status) göre — sipariş onay akışıyla (Aktif) karışmasın.
     const [billsSubTab, setBillsSubTab] = useState('open');
-    // Kullanıcı isteği: Teslim/Ücret durumu artık tek dokunuşluk toggle değil, "form" gibi
-    // (etikete dokununca seçenekler açılan) bir seçim — Android'de Alert.alert 3 buton
-    // sınırına takıldığı için (3 seçenekli Ücret formu) özel bir seçim modalı kullanılıyor.
-    const [fieldPickerFor, setFieldPickerFor] = useState(null); // { orderId, field: 'delivered'|'payment' } | null
 
     const [bills, setBills]               = useState([]);
     const [billsLoaded, setBillsLoaded]   = useState(false);
@@ -2291,15 +2310,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
             setOrders(p => p.map(o => o.id === orderId ? { ...o, status } : o));
         } catch {}
     };
-    // Kullanıcı isteği: sipariş teslim edildi mi / ücreti alındı mı, status'tan bağımsız
-    // olarak ayrı ayrı işaretlenebilsin — o oyuncunun maç detayındaki adisyonunda görünür.
-    const handleOrderFlag = async (orderId, key, value) => {
-        try {
-            await api.patch(`/venues/orders/${orderId}`, { [key]: value });
-            setOrders(p => p.map(o => o.id === orderId ? { ...o, [key]: value } : o));
-        } catch {}
-    };
-
     const handleCancelReservation = async (resId) => {
         try {
             await api.delete(`/venues/reservations/${resId}`);
@@ -3028,16 +3038,17 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
             )}
 
             {activeTab === 'orders' && (() => {
-                // Kullanıcı isteği: Aktif sekmesi artık sadece sipariş onay akışı — ödeme/adisyon
-                // takibi (Ödenmemiş/Arşiv) buradan kaldırılıp Adisyon sekmesine taşındı (bkz.
-                // aşağıdaki "bills" sekmesindeki billsSubTab, VenueBill.status üzerinden).
+                // Kullanıcı isteği: Aktif sekmesi artık sadece onay bekleyen (PENDING) siparişleri
+                // gösterir — onaylanan sipariş anında adisyona (VenueBill) eklenip buradan düşer
+                // (bkz. backend updateOrderStatus'taki CONFIRMED tetiklemesi), ödeme/adisyon takibi
+                // de Adisyon sekmesine taşındı (bkz. aşağıdaki "bills" sekmesi, billsSubTab).
                 const visibleOrders = highlightActivityId
                     ? orders.filter(o => o.activityId === highlightActivityId)
-                    : orders.slice(0, 30);
+                    : orders.filter(o => o.status === 'PENDING').slice(0, 30);
                 return (
                 <View style={vc.panel}>
                     {visibleOrders.length === 0
-                        ? <Text style={vc.emptyTxt}>Henüz sipariş yok</Text>
+                        ? <Text style={vc.emptyTxt}>{highlightActivityId ? 'Bu maça ait sipariş yok' : 'Onay bekleyen sipariş yok'}</Text>
                         : visibleOrders.map(order => (
                             <View key={order.id} style={[vc.orderCard, order.activityId === highlightActivityId && { borderColor: BIZ_COLOR, borderWidth: 2 }]}>
                                 <View style={{ flexDirection: 'row' }}>
@@ -3069,7 +3080,9 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                         ))}
                                         <Text style={{ color: BIZ_COLOR, fontWeight: '700', marginTop: 4, fontSize: 13 }}>Toplam: {order.totalPrice}₺</Text>
                                     </View>
-                                    {/* Sağ: durum + onayla/iptal (kullanıcı isteği: sağ tarafta, durumun altında). */}
+                                    {/* Sağ: durum + onayla/iptal (kullanıcı isteği: sağ tarafta, durumun altında).
+                                        Onaylanınca sipariş adisyona geçip bu listeden düşüyor, bu yüzden burada
+                                        sadece PENDING'e özgü aksiyonlar var — teslim/ödeme takibi Adisyon'da. */}
                                     <View style={{ alignItems: 'flex-end', gap: 6 }}>
                                         <Text style={{ color: ORDER_COLORS[order.status], fontSize: 12, fontWeight: '600' }}>{ORDER_LABELS[order.status]}</Text>
                                         {order.status === 'PENDING' && (
@@ -3081,16 +3094,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                                     <Text style={{ color: '#f87171', fontSize: 11, fontWeight: '700' }}>❌ İptal</Text>
                                                 </TouchableOpacity>
                                             </>
-                                        )}
-                                        {/* Teslim işareti burada kalıyor — bir siparişin adisyona (VenueBill)
-                                            eklenmesini bu tetikliyor (bkz. backend updateOrderStatus); ödeme
-                                            takibi artık Adisyon sekmesinde (bkz. o adisyonun "Ödendi" butonu). */}
-                                        {order.status !== 'CANCELLED' && (
-                                            <TouchableOpacity onPress={() => setFieldPickerFor({ orderId: order.id, field: 'delivered' })}>
-                                                <Text style={{ color: order.delivered ? '#4ade80' : '#f87171', fontSize: 11, fontWeight: '700' }}>
-                                                    {order.delivered ? '✅ Teslim Edildi' : '📦 Teslim Edilmedi'}
-                                                </Text>
-                                            </TouchableOpacity>
                                         )}
                                     </View>
                                 </View>
@@ -3138,10 +3141,15 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                 <Text style={{ color: '#6b7280', fontSize: 11, marginBottom: 4 }}>
                                     {b.reservation?.date} {b.reservation?.startTime}
                                 </Text>
-                                {(b.items || []).map(it => (
-                                    <Text key={it.id} style={{ color: '#aaa', fontSize: 12 }}>
-                                        {it.quantity}× {it.name} — {it.unitPrice * it.quantity}₺
-                                    </Text>
+                                {groupBillItems(b.items).map((g, gi) => (
+                                    <View key={gi} style={{ marginTop: gi > 0 ? 4 : 0 }}>
+                                        {g.label && <Text style={{ color: '#93c5fd', fontSize: 11, fontWeight: '700' }}>{g.label}</Text>}
+                                        {g.items.map(it => (
+                                            <Text key={it.id} style={{ color: '#aaa', fontSize: 12 }}>
+                                                {it.quantity}× {it.name} — {it.unitPrice * it.quantity}₺
+                                            </Text>
+                                        ))}
+                                    </View>
                                 ))}
                                 <Text style={{ color: BIZ_COLOR, fontWeight: '700', marginTop: 4, fontSize: 13 }}>Toplam: {b.totalPrice}₺</Text>
                             </TouchableOpacity>
@@ -3306,28 +3314,41 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                     <Text style={{ color:'#9ca3af', fontSize:11, fontWeight:'700', marginBottom:6 }}>ADİSYONDAKİ ÜRÜNLER</Text>
                                     {(activeBill?.items || []).length === 0 ? (
                                         <Text style={{ color:'#6b7280', fontSize:12, marginBottom:12 }}>Henüz ürün eklenmedi</Text>
-                                    ) : activeBill.items.map(it => (
-                                        <View key={it.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#ffffff06', borderRadius:8, padding:10, marginBottom:6 }}>
-                                            <View style={{ flex:1 }}>
-                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'600' }}>{it.name}</Text>
-                                                {it.user ? <Text style={{ color:'#93c5fd', fontSize:11, marginTop:1 }}>👤 {it.user.fullName || it.user.username}</Text> : null}
-                                                {it.note ? <Text style={{ color:'#9ca3af', fontSize:11, marginTop:1 }}>{it.note}</Text> : null}
-                                                <Text style={{ color:'#6b7280', fontSize:11 }}>{it.unitPrice}₺ / adet</Text>
-                                            </View>
-                                            {activeBill.status !== 'PAID' && (
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:10, width:88, justifyContent:'center' }}>
-                                                    <TouchableOpacity disabled={billItemBusy} onPress={() => changeBillItemQty(it, -1)}>
-                                                        <Text style={{ color:'#f87171', fontSize:18, fontWeight:'800' }}>−</Text>
-                                                    </TouchableOpacity>
-                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{it.quantity}</Text>
-                                                    <TouchableOpacity disabled={billItemBusy} onPress={() => changeBillItemQty(it, 1)}>
-                                                        <Text style={{ color:'#22c55e', fontSize:18, fontWeight:'800' }}>+</Text>
-                                                    </TouchableOpacity>
+                                    ) : groupBillItems(activeBill.items).map((g, gi) => (
+                                        <View key={gi} style={{ marginBottom: 4 }}>
+                                            {/* Kullanıcı isteği: aynı maça art arda gelen siparişler aynı
+                                                adisyona ekleniyor — burada "1. Sipariş"/"2. Sipariş" diye
+                                                gruplanıp kendi ara toplamıyla gösterilir. */}
+                                            {g.label && (
+                                                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginTop: gi > 0 ? 6 : 0, marginBottom:4 }}>
+                                                    <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'800' }}>{g.label}</Text>
+                                                    <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'700' }}>{g.subtotal}₺</Text>
                                                 </View>
                                             )}
-                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', minWidth:60, textAlign:'right' }}>
-                                                {it.unitPrice * it.quantity}₺
-                                            </Text>
+                                            {g.items.map(it => (
+                                                <View key={it.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#ffffff06', borderRadius:8, padding:10, marginBottom:6 }}>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'600' }}>{it.name}</Text>
+                                                        {it.user ? <Text style={{ color:'#93c5fd', fontSize:11, marginTop:1 }}>👤 {it.user.fullName || it.user.username}</Text> : null}
+                                                        {it.note ? <Text style={{ color:'#9ca3af', fontSize:11, marginTop:1 }}>{it.note}</Text> : null}
+                                                        <Text style={{ color:'#6b7280', fontSize:11 }}>{it.unitPrice}₺ / adet</Text>
+                                                    </View>
+                                                    {activeBill.status !== 'PAID' && (
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:10, width:88, justifyContent:'center' }}>
+                                                            <TouchableOpacity disabled={billItemBusy} onPress={() => changeBillItemQty(it, -1)}>
+                                                                <Text style={{ color:'#f87171', fontSize:18, fontWeight:'800' }}>−</Text>
+                                                            </TouchableOpacity>
+                                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{it.quantity}</Text>
+                                                            <TouchableOpacity disabled={billItemBusy} onPress={() => changeBillItemQty(it, 1)}>
+                                                                <Text style={{ color:'#22c55e', fontSize:18, fontWeight:'800' }}>+</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    )}
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', minWidth:60, textAlign:'right' }}>
+                                                        {it.unitPrice * it.quantity}₺
+                                                    </Text>
+                                                </View>
+                                            ))}
                                         </View>
                                     ))}
 
@@ -4866,28 +4887,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 venue={venue}
                 onClose={() => setAnalyticsOpen(false)}
             />
-
-            {/* Teslim formu — etikete dokununca çıkan seçim listesi (bkz. fieldPickerFor). Ücret/ödeme
-                seçimi artık Adisyon sekmesindeki "Ödendi" akışında (bkz. setBillPaidStatus). */}
-            <Modal visible={!!fieldPickerFor} transparent animationType="fade" onRequestClose={() => setFieldPickerFor(null)}>
-                <TouchableOpacity style={{ flex: 1, backgroundColor: '#000000a0', justifyContent: 'center', padding: 30 }}
-                    activeOpacity={1} onPress={() => setFieldPickerFor(null)}>
-                    <View style={{ backgroundColor: '#1a1a2e', borderRadius: 14, overflow: 'hidden' }}>
-                        {fieldPickerFor?.field === 'delivered' && (
-                            <>
-                                <TouchableOpacity style={{ paddingVertical: 14, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}
-                                    onPress={() => { handleOrderFlag(fieldPickerFor.orderId, 'delivered', true); setFieldPickerFor(null); }}>
-                                    <Text style={{ color: '#4ade80', fontSize: 14, fontWeight: '700' }}>✅ Edildi</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={{ paddingVertical: 14, paddingHorizontal: 18 }}
-                                    onPress={() => { handleOrderFlag(fieldPickerFor.orderId, 'delivered', false); setFieldPickerFor(null); }}>
-                                    <Text style={{ color: '#f87171', fontSize: 14, fontWeight: '700' }}>📦 Edilmedi</Text>
-                                </TouchableOpacity>
-                            </>
-                        )}
-                    </View>
-                </TouchableOpacity>
-            </Modal>
 
             {/* İptal / Değişiklik Politikası — hızlı seçenekler veya manuel saat girişi */}
             <Modal visible={policyModalField !== null} transparent animationType="slide"

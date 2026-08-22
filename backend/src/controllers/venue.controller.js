@@ -2333,13 +2333,15 @@ export const updateOrderStatus = async (req, res, next) => {
             },
         });
 
-        // Kullanıcı isteği: sipariş teslim edilince (delivered: false→true) o rezervasyonun
-        // adisyonuna (VenueBill) eklensin — bill yoksa oluşturulur. Böylece "Siparişler"
-        // sekmesindeki tekil, kesikli sipariş kartları yerine, işletme aynı masanın/kortun
-        // TÜM teslim edilmiş siparişlerini tek bir adisyonda (bkz. "Adisyon" sekmesi) toplu
-        // görür — sipariş kendi PENDING→CONFIRMED→READY akışını (kitchen/hazırlık takibi
-        // için) korumaya devam eder, bu sadece teslim ANINDA ek bir kopyalama adımıdır.
-        if (delivered === true && !order.delivered && order.activityId) {
+        // Kullanıcı isteği: sipariş onaylanınca (PENDING→CONFIRMED) o rezervasyonun adisyonuna
+        // (VenueBill) eklensin — bill yoksa oluşturulur. Aynı maça art arda gelen siparişler
+        // menuItem/kullanıcı bazlı BİRLEŞTİRİLMİYOR — her sipariş kendi kalemlerini sourceOrderId
+        // etiketiyle ayrı ayrı bırakır, böylece Adisyon'da "1. Sipariş"/"2. Sipariş" diye
+        // gruplanıp gösterilebilir (bkz. mobildeki groupBillItems), toplam fiyat ise
+        // recalcBillTotal ile adisyonun TÜM kalemleri toplanarak hesaplanır. Sipariş kendi
+        // PENDING→CONFIRMED→READY akışını (kitchen/hazırlık takibi için) korumaya devam eder,
+        // bu sadece onay ANINDA ek bir kopyalama adımıdır.
+        if (status === 'CONFIRMED' && order.status !== 'CONFIRMED' && order.activityId) {
             try {
                 const rival = await prisma.activityRequest.findUnique({ where: { id: order.activityId }, select: { venueReservationId: true } });
                 if (rival?.venueReservationId) {
@@ -2348,14 +2350,9 @@ export const updateOrderStatus = async (req, res, next) => {
                         bill = await prisma.venueBill.create({ data: { venueId: order.venueId, reservationId: rival.venueReservationId } });
                     }
                     for (const it of order.items) {
-                        const existingItem = await prisma.venueBillItem.findFirst({ where: { billId: bill.id, menuItemId: it.menuItemId, userId: order.userId } });
-                        if (existingItem) {
-                            await prisma.venueBillItem.update({ where: { id: existingItem.id }, data: { quantity: existingItem.quantity + it.quantity } });
-                        } else {
-                            await prisma.venueBillItem.create({
-                                data: { billId: bill.id, menuItemId: it.menuItemId, userId: order.userId, name: it.menuItem.name, unitPrice: it.unitPrice, quantity: it.quantity, note: order.notes || null },
-                            });
-                        }
+                        await prisma.venueBillItem.create({
+                            data: { billId: bill.id, menuItemId: it.menuItemId, userId: order.userId, sourceOrderId: order.id, name: it.menuItem.name, unitPrice: it.unitPrice, quantity: it.quantity, note: order.notes || null },
+                        });
                     }
                     await recalcBillTotal(bill.id);
                 }
