@@ -5534,27 +5534,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 </View>
             ) : (
             <TouchableOpacity style={{ flex:1 }} activeOpacity={0.75} onPress={openDetail}>
-            {/* Players + ratings — takım sporlarında (kadro kartı olan maçlarda) bu ham liste
-                yerine takım isimleri gösterilir, kadro kartı zaten tam listeyi (manuel oyuncular
-                dahil) doğru gösteriyor (bkz. hasTeamRoster). */}
-            {hasTeamRoster ? (
+            {/* Kullanıcı raporu: kompakt kartın ÖN yüzünde katılan oyuncuların isim+puan listesi
+                gösteriliyordu — bu isimler kart 🔄 ile çevrilince açılan ARKA yüzde (backFacePlayers)
+                zaten var, ön yüzde tekrar gereksizdi. Takım sporlarında (hasTeamRoster) tekil oyuncu
+                ismi değil, sadece jenerik "Kurucu Takım vs Rakip Takım" etiketi kalıyor — o bir
+                kişinin ismi değil, formatın kendisi. */}
+            {hasTeamRoster && (
                 <Text style={s.cardName} numberOfLines={1}>
                     {match.founderTeamName || t.founderTeamShortLabel} <Text style={{ color: colors.textMuted, fontWeight:'400' }}>vs</Text> {match.opponentTeamName || t.opponentTeamShortLabel}
                 </Text>
-            ) : allPlayers.map((p, idx) => (
-                <View key={`player-${idx}-${p.id || 'x'}`} style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginBottom: idx < allPlayers.length - 1 ? 2 : 0 }}>
-                    {p._emptySlot ? (
-                        <Text style={{ color: colors.textMuted, fontSize:13, fontStyle:'italic' }}>— ortak slot boş —</Text>
-                    ) : (
-                        <>
-                            <Text style={s.cardName}>{senderAlias(p)}</Text>
-                            {p.skillRating != null && (
-                                <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
-                            )}
-                        </>
-                    )}
-                </View>
-            ))}
+            )}
             {/* Format / mode badges */}
             <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginTop:3 }}>
                 <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
@@ -5782,18 +5771,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                     </View>
 
-                    {/* Kullanıcı isteği: kompakt açık ilan kartındaki gibi (RivalCard) — kadro/digimon
-                        kartı varsayılan olarak GİZLİ, kim katıldığı sadece bu başlığa dokununca açılır. */}
-                    {(match.matchType === 'DOUBLE' || match.matchType === 'SINGLE' || hasTeamRoster) && (
-                        <TouchableOpacity onPress={() => setShowRosterCard(v => !v)}
-                            style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:10, paddingVertical:8, paddingHorizontal:10, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
-                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', flex:1 }}>👥 {t.rosterPoolLabel}</Text>
-                            <Text style={{ color: colors.textMuted, fontSize:12 }}>{showRosterCard ? '▼' : '▶'}</Text>
-                        </TouchableOpacity>
-                    )}
-
                     {/* DOUBLE team management */}
-                    {showRosterCard && match.matchType === 'DOUBLE' && (() => {
+                    {match.matchType === 'DOUBLE' && (() => {
                         // handleSwapTap ile aynı kural: STRICT ilanlarda takas kapalı — ipucu
                         // metni de bu durumda gösterilmemeli (önceden burada tanımsız "locked"
                         // değişkenine referans vardı, render anında "Property 'locked' doesn't
@@ -6038,7 +6017,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {/* Takım yönetimi — DOUBLE'dan farklı olarak değişken boyutlu takım (voleybol
                         1v1-6v6, airsoft serbest sayı): ön yüz Kurucu/Rakip slotları (+ atanmamış
                         varsa yerleştirme tepsisi), arka yüz düz katılımcı listesi. */}
-                    {showRosterCard && hasTeamRoster && (
+                    {hasTeamRoster && (
                         <TeamAssignCard
                             emoji={match.subCategory === 'airsoft' ? '🪖' : '🏐'}
                             isVolleyball={isVolleyball}
@@ -6257,7 +6236,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         biri render olduğu için ayrı state gerekmiyor): ön yüz "Katılan Oyuncular" (2
                         kişi), arka yüz Kurucu/Rakip etiketli 2 kutu. Eşleşmiş (MATCHED) bir maçta her
                         iki taraf da zaten dolu olduğu için davet alanı yok, sadece görünüm + Çıkar. */}
-                    {showRosterCard && match.matchType === 'SINGLE' && (() => {
+                    {match.matchType === 'SINGLE' && (() => {
                         const opp = participantsArr[0] || null;
                         const rotateY = doubleFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
                         return (
