@@ -2309,23 +2309,27 @@ export const getUserOrders = async (req, res, next) => {
 export const updateOrderStatus = async (req, res, next) => {
     try {
         const { orderId } = req.params;
-        const { status, delivered, paid } = req.body;
+        const { status, delivered, paymentStatus } = req.body;
         const VALID = ['CONFIRMED', 'READY', 'CANCELLED'];
+        const VALID_PAYMENT = ['UNPAID', 'PAID', 'COMPED'];
         if (status !== undefined && !VALID.includes(status)) return res.status(400).json({ message: 'Geçersiz durum' });
+        if (paymentStatus !== undefined && !VALID_PAYMENT.includes(paymentStatus)) return res.status(400).json({ message: 'Geçersiz ödeme durumu' });
 
         const order = await prisma.venueOrder.findUnique({ where: { id: orderId }, include: { venue: true } });
         if (!order) return res.status(404).json({ message: 'Sipariş bulunamadı' });
         if (order.venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
 
         // Kullanıcı isteği: sipariş verilen ürün oyuncuya fiziksel teslim edildiyse ve/ya da
-        // ücreti tahsil edildiyse, işletme bunu bağımsız olarak (status'tan ayrı) işaretleyebilsin
-        // — maç detayında bu oyuncunun adisyonu "teslim edildi"/"ücret alındı" diye görünür.
+        // ücreti tahsil edildiyse (ya da ikram edildiyse), işletme bunu bağımsız olarak
+        // (status'tan ayrı) işaretleyebilsin — maç detayında bu oyuncunun adisyonu "teslim
+        // edildi"/"ücret alındı" diye görünür; teslim edilmiş ama ödenmemiş siparişin borcu
+        // kırmızı yazıyla belirgin gösterilir (bkz. MyOrderStatusModal/BusinessHomeScreen).
         const updated = await prisma.venueOrder.update({
             where: { id: orderId },
             data: {
                 ...(status !== undefined && { status }),
                 ...(typeof delivered === 'boolean' && { delivered }),
-                ...(typeof paid === 'boolean' && { paid }),
+                ...(paymentStatus !== undefined && { paymentStatus }),
             },
         });
 
@@ -2349,13 +2353,17 @@ export const updateOrderStatus = async (req, res, next) => {
                 notifyData);
             emitToUser(order.userId, 'notification', {});
         }
-        if (typeof paid === 'boolean') {
-            await createNotification(order.userId, 'ORDER_STATUS',
-                paid ? '💰 Ödemeniz Alındı' : '💰 Ödeme Durumu Güncellendi',
-                `${order.venue.name} — siparişinizin ücreti ${paid ? 'alındı.' : 'henüz alınmadı olarak işaretlendi.'}`,
+        if (paymentStatus !== undefined) {
+            const paymentMsg = { PAID: '💰 Ödemeniz Alındı', UNPAID: '💰 Ödeme Durumu Güncellendi', COMPED: '🎁 Siparişiniz İkram Edildi' };
+            const paymentBody = { PAID: 'ücreti alındı.', UNPAID: 'henüz alınmadı olarak işaretlendi.', COMPED: 'işletme tarafından ikram edildi, ücret alınmayacak.' };
+            await createNotification(order.userId, 'ORDER_STATUS', paymentMsg[paymentStatus],
+                `${order.venue.name} — siparişinizin ${paymentBody[paymentStatus]}`,
                 notifyData);
             emitToUser(order.userId, 'notification', {});
         }
+        // Kullanıcı isteği: oyuncu "Siparişim" ekranını kapatıp açmaya gerek kalmadan,
+        // durum değişikliğini (ör. Onaylandı → Hazır) CANLI görsün.
+        emitToUser(order.userId, 'venueOrderUpdated', updated);
 
         res.json({ order: updated });
     } catch (error) { next(error); }

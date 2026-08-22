@@ -8128,6 +8128,17 @@ function MyOrderStatusModal({ visible, rivalId, onClose }) {
             .finally(() => setLoading(false));
     }, [visible, rivalId]);
 
+    // Kullanıcı isteği: "onaylandıdan hazıra işaretlenince kapat aç yapmaya gerek duymadan
+    // direkt hazıra dönsün" — işletme durumu güncelleyince (bkz. updateOrderStatus'taki
+    // emitToUser(..., 'venueOrderUpdated', ...)) bu ekran açıkken canlı güncellensin.
+    useEffect(() => {
+        if (!visible) return;
+        const off = onSocket('venueOrderUpdated', (updated) => {
+            setOrders(prev => prev.some(o => o.id === updated.id) ? prev.map(o => o.id === updated.id ? { ...o, ...updated } : o) : prev);
+        });
+        return off;
+    }, [visible]);
+
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={vm.overlay}>
@@ -8163,10 +8174,17 @@ function MyOrderStatusModal({ visible, rivalId, onClose }) {
                                     <View style={{ flex:1, borderRadius:8, paddingVertical:6, alignItems:'center', backgroundColor: order.delivered ? '#16a34a30' : '#ef444420', borderWidth:1, borderColor: order.delivered ? '#16a34a80' : '#ef444450' }}>
                                         <Text style={{ color: order.delivered ? '#4ade80' : '#f87171', fontSize:12, fontWeight:'700' }}>{order.delivered ? '✅ Teslim Edildi' : '📦 Teslim Edilmedi'}</Text>
                                     </View>
-                                    <View style={{ flex:1, borderRadius:8, paddingVertical:6, alignItems:'center', backgroundColor: order.paid ? '#16a34a30' : '#ef444420', borderWidth:1, borderColor: order.paid ? '#16a34a80' : '#ef444450' }}>
-                                        <Text style={{ color: order.paid ? '#4ade80' : '#f87171', fontSize:12, fontWeight:'700' }}>{order.paid ? '✅ Ücret Alındı' : '💰 Ücret Alınmadı'}</Text>
+                                    <View style={{ flex:1, borderRadius:8, paddingVertical:6, alignItems:'center', backgroundColor: order.paymentStatus === 'PAID' ? '#16a34a30' : order.paymentStatus === 'COMPED' ? '#0ea5e930' : '#ef444420', borderWidth:1, borderColor: order.paymentStatus === 'PAID' ? '#16a34a80' : order.paymentStatus === 'COMPED' ? '#0ea5e980' : '#ef444450' }}>
+                                        <Text style={{ color: order.paymentStatus === 'PAID' ? '#4ade80' : order.paymentStatus === 'COMPED' ? '#38bdf8' : '#f87171', fontSize:12, fontWeight:'700' }}>
+                                            {order.paymentStatus === 'PAID' ? '✅ Ücret Alındı' : order.paymentStatus === 'COMPED' ? '🎁 İkram' : '💰 Ücret Alınmadı'}
+                                        </Text>
                                     </View>
                                 </View>
+                                {/* Kullanıcı isteği: teslim edildi ama ücreti alınmadıysa (ikram
+                                    değilse) borç belirgin, kırmızı yazıyla gösterilir. */}
+                                {order.delivered && order.paymentStatus === 'UNPAID' && (
+                                    <Text style={{ color:'#ef4444', fontSize:14, fontWeight:'900', marginTop:8 }}>🔴 Borç: {order.totalPrice}₺</Text>
+                                )}
                             </View>
                             );
                         })}

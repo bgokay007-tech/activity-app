@@ -1832,6 +1832,10 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
 
     const [orders, setOrders]             = useState([]);
     const [ordersLoaded, setOrdersLoaded] = useState(false);
+    // Kullanıcı isteği: Teslim/Ücret durumu artık tek dokunuşluk toggle değil, "form" gibi
+    // (etikete dokununca seçenekler açılan) bir seçim — Android'de Alert.alert 3 buton
+    // sınırına takıldığı için (3 seçenekli Ücret formu) özel bir seçim modalı kullanılıyor.
+    const [fieldPickerFor, setFieldPickerFor] = useState(null); // { orderId, field: 'delivered'|'payment' } | null
 
     const [bills, setBills]               = useState([]);
     const [billsLoaded, setBillsLoaded]   = useState(false);
@@ -3068,20 +3072,30 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                         <Text style={vc.orderBtnTxt}>🟢 Hazır İşaretle</Text>
                                     </TouchableOpacity>
                                 )}
-                                {/* Kullanıcı isteği: teslim/ödeme durumu status'tan bağımsız, ayrı ayrı
-                                    işaretlenebilsin — oyuncu kendi maç detayında bunu görebiliyor. */}
+                                {/* Kullanıcı isteği: teslim/ödeme durumu status'tan bağımsız, "form"
+                                    gibi (etikete dokununca seçenekler çıkan) ayrı ayrı işaretlenebilsin
+                                    — oyuncu kendi maç detayında bunu görebiliyor. */}
                                 {order.status !== 'CANCELLED' && (
-                                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                                        <TouchableOpacity
-                                            style={[vc.orderBtn, order.delivered && { backgroundColor: '#16a34a30', borderColor: '#16a34a80' }]}
-                                            onPress={() => handleOrderFlag(order.id, 'delivered', !order.delivered)}>
-                                            <Text style={[vc.orderBtnTxt, order.delivered && { color: '#4ade80' }]}>{order.delivered ? '✅ Teslim Edildi' : '📦 Teslim Edilmedi'}</Text>
+                                    <View style={{ marginTop: 8, gap: 6 }}>
+                                        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}
+                                            onPress={() => setFieldPickerFor({ orderId: order.id, field: 'delivered' })}>
+                                            <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '700' }}>Teslim: </Text>
+                                            <Text style={{ color: order.delivered ? '#4ade80' : '#f87171', fontSize: 12, fontWeight: '800' }}>
+                                                {order.delivered ? 'Edildi' : 'Edilmedi'}
+                                            </Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[vc.orderBtn, order.paid && { backgroundColor: '#16a34a30', borderColor: '#16a34a80' }]}
-                                            onPress={() => handleOrderFlag(order.id, 'paid', !order.paid)}>
-                                            <Text style={[vc.orderBtnTxt, order.paid && { color: '#4ade80' }]}>{order.paid ? '✅ Ücret Alındı' : '💰 Ücret Alınmadı'}</Text>
+                                        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}
+                                            onPress={() => setFieldPickerFor({ orderId: order.id, field: 'payment' })}>
+                                            <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '700' }}>Ücret: </Text>
+                                            <Text style={{ color: order.paymentStatus === 'PAID' ? '#4ade80' : order.paymentStatus === 'COMPED' ? '#38bdf8' : '#f87171', fontSize: 12, fontWeight: '800' }}>
+                                                {order.paymentStatus === 'PAID' ? 'Alındı' : order.paymentStatus === 'COMPED' ? 'İkram' : 'Alınmadı'}
+                                            </Text>
                                         </TouchableOpacity>
+                                        {/* Kullanıcı isteği: teslim edildi ama ücreti alınmadıysa (ikram
+                                            değilse) o oyuncunun borcu belirgin, kırmızı yazıyla gösterilir. */}
+                                        {order.delivered && order.paymentStatus === 'UNPAID' && (
+                                            <Text style={{ color: '#ef4444', fontSize: 13, fontWeight: '900' }}>🔴 Borç: {order.totalPrice}₺</Text>
+                                        )}
                                     </View>
                                 )}
                             </View>
@@ -4834,6 +4848,42 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 venue={venue}
                 onClose={() => setAnalyticsOpen(false)}
             />
+
+            {/* Teslim/Ücret formu — etikete dokununca çıkan seçim listesi (bkz. fieldPickerFor) */}
+            <Modal visible={!!fieldPickerFor} transparent animationType="fade" onRequestClose={() => setFieldPickerFor(null)}>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: '#000000a0', justifyContent: 'center', padding: 30 }}
+                    activeOpacity={1} onPress={() => setFieldPickerFor(null)}>
+                    <View style={{ backgroundColor: '#1a1a2e', borderRadius: 14, overflow: 'hidden' }}>
+                        {fieldPickerFor?.field === 'delivered' ? (
+                            <>
+                                <TouchableOpacity style={{ paddingVertical: 14, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}
+                                    onPress={() => { handleOrderFlag(fieldPickerFor.orderId, 'delivered', true); setFieldPickerFor(null); }}>
+                                    <Text style={{ color: '#4ade80', fontSize: 14, fontWeight: '700' }}>✅ Edildi</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={{ paddingVertical: 14, paddingHorizontal: 18 }}
+                                    onPress={() => { handleOrderFlag(fieldPickerFor.orderId, 'delivered', false); setFieldPickerFor(null); }}>
+                                    <Text style={{ color: '#f87171', fontSize: 14, fontWeight: '700' }}>📦 Edilmedi</Text>
+                                </TouchableOpacity>
+                            </>
+                        ) : fieldPickerFor?.field === 'payment' ? (
+                            <>
+                                <TouchableOpacity style={{ paddingVertical: 14, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}
+                                    onPress={() => { handleOrderFlag(fieldPickerFor.orderId, 'paymentStatus', 'PAID'); setFieldPickerFor(null); }}>
+                                    <Text style={{ color: '#4ade80', fontSize: 14, fontWeight: '700' }}>✅ Alındı</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={{ paddingVertical: 14, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}
+                                    onPress={() => { handleOrderFlag(fieldPickerFor.orderId, 'paymentStatus', 'UNPAID'); setFieldPickerFor(null); }}>
+                                    <Text style={{ color: '#f87171', fontSize: 14, fontWeight: '700' }}>💰 Alınmadı</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={{ paddingVertical: 14, paddingHorizontal: 18 }}
+                                    onPress={() => { handleOrderFlag(fieldPickerFor.orderId, 'paymentStatus', 'COMPED'); setFieldPickerFor(null); }}>
+                                    <Text style={{ color: '#38bdf8', fontSize: 14, fontWeight: '700' }}>🎁 İkram</Text>
+                                </TouchableOpacity>
+                            </>
+                        ) : null}
+                    </View>
+                </TouchableOpacity>
+            </Modal>
 
             {/* İptal / Değişiklik Politikası — hızlı seçenekler veya manuel saat girişi */}
             <Modal visible={policyModalField !== null} transparent animationType="slide"

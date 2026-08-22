@@ -1635,8 +1635,8 @@ model VenueOrder {
   activityId String?  // sipariş verildiği anda kullanıcının bu tesisteki maçı/ilanı (ActivityRequest.id)
                        // — FK değil (ActivityRequest silinirse sipariş geçmişi bozulmasın diye), işletmeci
                        // "hangi maç/oyuncu" görsün diye Sipariş sekmesinde manuel join ile gösterilir.
-  delivered  Boolean  @default(false) // işletme ürünü oyuncuya fiziksel olarak teslim etti mi
-  paid       Boolean  @default(false) // işletme bu siparişin ücretini oyuncudan tahsil etti mi
+  delivered      Boolean  @default(false) // işletme ürünü oyuncuya fiziksel olarak teslim etti mi
+  paymentStatus  String   @default("UNPAID") // UNPAID | PAID | COMPED (ikram — ücretsiz, borç sayılmaz)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
