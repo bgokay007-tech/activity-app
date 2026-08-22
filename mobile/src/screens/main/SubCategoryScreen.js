@@ -1878,13 +1878,29 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         onPress'ini hiç tetiklemeden yutuluyordu (iç içe TouchableOpacity). */}
                                                     {swapSlot ? (
                                                         <View style={{ flex:1 }}>
-                                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(p)}</Text>
-                                                            <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{p.username}</Text>
+                                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                                {playerDisplayName(p)}
+                                                                {(p.gender === 'MALE' || p.gender === 'FEMALE') && (
+                                                                    <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({p.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})</Text>
+                                                                )}
+                                                            </Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                                {p.username}
+                                                                {p.skillRating != null && <Text style={{ color:'#facc15', fontWeight:'800' }}>  {Number(p.skillRating).toFixed(2)}★</Text>}
+                                                            </Text>
                                                         </View>
                                                     ) : (
                                                         <TouchableOpacity onPress={() => p.id && navigation.push('Profile', { userId: p.id })} style={{ flex:1 }}>
-                                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(p)}</Text>
-                                                            <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{p.username}</Text>
+                                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                                {playerDisplayName(p)}
+                                                                {(p.gender === 'MALE' || p.gender === 'FEMALE') && (
+                                                                    <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({p.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})</Text>
+                                                                )}
+                                                            </Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                                {p.username}
+                                                                {p.skillRating != null && <Text style={{ color:'#facc15', fontWeight:'800' }}>  {Number(p.skillRating).toFixed(2)}★</Text>}
+                                                            </Text>
                                                         </TouchableOpacity>
                                                     )}
                                                     {isSelected && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'900', marginLeft:4 }}>✓</Text>}
@@ -1981,11 +1997,22 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     <Avatar name={sl.p.username} avatar={sl.p.avatar} size={moderateScale(28)} color={cfg.color} />
                                                     <View style={{ flex:1 }}>
                                                         <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                                            <Text style={[det.playerName, { flexShrink:1 }]} numberOfLines={1}>{playerDisplayName(sl.p)}</Text>
+                                                            <Text style={[det.playerName, { flexShrink:1 }]} numberOfLines={1}>
+                                                                {playerDisplayName(sl.p)}
+                                                                {/* Kullanıcı isteği: isim yanında (voleyboldaki gibi) kısa cinsiyet
+                                                                    parantezi — (E)/(K). */}
+                                                                {(sl.p.gender === 'MALE' || sl.p.gender === 'FEMALE') && (
+                                                                    <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({sl.p.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})</Text>
+                                                                )}
+                                                            </Text>
                                                             {sl.p.id && localOrderedUserIds.includes(sl.p.id) && (
                                                                 <TouchableOpacity onPress={() => sl.p.id === myId && setShowMyOrder(true)} hitSlop={{ top:6, bottom:6, left:4, right:6 }} disabled={sl.p.id !== myId}>
                                                                     <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
                                                                 </TouchableOpacity>
+                                                            )}
+                                                            {/* Kullanıcı isteği: derece puanı (elo) isimlerin sağında. */}
+                                                            {sl.p.skillRating != null && (
+                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{Number(sl.p.skillRating).toFixed(2)}★</Text>
                                                             )}
                                                         </View>
                                                         {/* Kullanıcı raporu: ön yüzde slot bazlı cinsiyet etiketi ("Katılımcı 1
@@ -2017,11 +2044,19 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     <Avatar name={p.username} avatar={p.avatar} size={moderateScale(28)} color={cfg.color} />
                                                     <View style={{ flex:1 }}>
                                                         <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                                            <Text style={[det.playerName, { flexShrink:1 }]} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                                            <Text style={[det.playerName, { flexShrink:1 }]} numberOfLines={1}>
+                                                                {playerDisplayName(p)}
+                                                                {(p.gender === 'MALE' || p.gender === 'FEMALE') && (
+                                                                    <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({p.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})</Text>
+                                                                )}
+                                                            </Text>
                                                             {p.id && localOrderedUserIds.includes(p.id) && (
                                                                 <TouchableOpacity onPress={() => p.id === myId && setShowMyOrder(true)} hitSlop={{ top:6, bottom:6, left:4, right:6 }} disabled={p.id !== myId}>
                                                                     <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
                                                                 </TouchableOpacity>
+                                                            )}
+                                                            {p.skillRating != null && (
+                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
                                                             )}
                                                         </View>
                                                         <Text style={det.playerSub} numberOfLines={1}>{t.cardParticipantLabel(teamSlots.length + i + 1)}</Text>
@@ -2153,7 +2188,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 const team2Label = item.opponentTeamName || t.opponentTeamShortLabel || 'Takım 2';
                                                 return (
                                                     <View key={p.id} style={{ backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:4, flexDirection:'row', alignItems:'center', gap:4 }}>
-                                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700', flex:1, minWidth:0 }} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'700', flex:1, minWidth:0 }} numberOfLines={1}>
+                                                            {playerDisplayName(p)}
+                                                            {(p.gender === 'MALE' || p.gender === 'FEMALE') && (
+                                                                <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({p.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})</Text>
+                                                            )}
+                                                            {p.skillRating != null && (
+                                                                <Text style={{ color:'#facc15', fontWeight:'800' }}>  {Number(p.skillRating).toFixed(2)}★</Text>
+                                                            )}
+                                                        </Text>
                                                         {(isOwner || isMe) && canTeam1 && (
                                                             <TouchableOpacity onPress={() => assignDoubleSlot(p.id, 'partner')}
                                                                 style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50' }}>
