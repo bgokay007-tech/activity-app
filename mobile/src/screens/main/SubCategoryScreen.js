@@ -3839,7 +3839,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 <Text style={{ fontSize:12 }}>🔄</Text>
             </TouchableOpacity>
             {cardFlipped ? (
-                <View style={{ padding: moderateScale(9), flex:1 }}>
+                // Kullanıcı isteği: arka yüzden (oyuncu listesi) de dokununca ilan detayı açılsın —
+                // önceden sadece ön yüz açıyordu, arka yüzde dokunmanın hiçbir etkisi yoktu. İçindeki
+                // "istek"/"Sipariş Ver" gibi kendi onPress'i olan öğeler yine kendi işlevini korur.
+                <TouchableOpacity activeOpacity={0.85} style={{ padding: moderateScale(9), flex:1 }} onPress={() => setDetailVisible(true)}>
                     <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'800', marginBottom:8 }}>👥 {t.rosterPoolLabel}</Text>
                     {backFacePlayers.length === 0 ? (
                         <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
@@ -3874,7 +3877,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                             <Text style={{ color:'#22c55e', fontSize: moderateScale(11), fontWeight:'600' }}>📋 Sipariş Ver</Text>
                         </TouchableOpacity>
                     )}
-                </View>
+                </TouchableOpacity>
             ) : (
             <>
             {/* ── Tappable info area → opens detail modal ──
@@ -5579,7 +5582,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 <Text style={{ fontSize:11 }}>🔄</Text>
             </TouchableOpacity>
             {cardFlipped ? (
-                <View style={{ flex:1 }}>
+                // Kullanıcı isteği: arka yüzden (oyuncu listesi) de dokununca ilan detayı açılsın.
+                <TouchableOpacity activeOpacity={0.85} style={{ flex:1 }} onPress={openDetail}>
                     <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', marginBottom:6 }}>👥 {t.rosterPoolLabel}</Text>
                     {backFacePlayers.length === 0 ? (
                         <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
@@ -5607,7 +5611,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             <Text style={{ color:'#22c55e', fontSize:12, fontWeight:'600' }}>📋 Sipariş Ver</Text>
                         </TouchableOpacity>
                     )}
-                </View>
+                </TouchableOpacity>
             ) : (
             <TouchableOpacity style={{ flex:1 }} activeOpacity={0.75} onPress={openDetail}>
             {/* Kullanıcı raporu: kompakt kartın ÖN yüzünde katılan oyuncuların isim+puan listesi
