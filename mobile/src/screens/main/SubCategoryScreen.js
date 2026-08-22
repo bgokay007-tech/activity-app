@@ -5715,6 +5715,27 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom:5 }}
                     keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
+                    {/* Kullanıcı isteği: Yaklaşan Maçlar'daki bu ekran Açık İlanlar'daki (RivalDetailModal)
+                        detay ekranıyla AYNI stilde olsun — orada ilk satır her zaman "kurucu" (ilanı
+                        açan) avatar+isim+puanla başlıyor, burada hiç yoktu (sadece header alt
+                        başlığında düz metin olarak geçiyordu). */}
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:8 }}>
+                        <Avatar name={match.sender?.username} avatar={match.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => match.senderId && onUserPress?.(match.senderId)} />
+                        <View style={{ flex:1, minWidth:0 }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap' }}>
+                                <Text style={[s.cardName, { fontSize: moderateScale(13) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(match.sender)}</Text>
+                                {match.sender?.gender && match.sender.gender !== 'OTHER' && (
+                                    <Text style={{ fontSize: moderateScale(11), fontWeight:'700', color: match.sender.gender === 'MALE' ? '#3b82f6' : '#ec4899' }}>
+                                        {match.sender.gender === 'MALE' ? '♂' : '♀'}
+                                    </Text>
+                                )}
+                            </View>
+                            {match.senderSkillRating != null && (
+                                <Text style={{ color:'#facc15', fontSize:moderateScale(11), fontWeight:'800' }}>{Number(match.senderSkillRating).toFixed(2)} ★</Text>
+                            )}
+                        </View>
+                    </View>
+
                     {/* Format / mod / esnek program rozetleri */}
                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginBottom:8 }}>
                         <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
