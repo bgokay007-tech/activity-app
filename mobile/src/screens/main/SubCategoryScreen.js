@@ -4709,6 +4709,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         api.get(`/posts/pending/${match.id}`).then(({ data }) => setPendingMedia(data || [])).catch(() => setPendingMedia([]));
     }, [match.scoreStatus, match.id]);
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2'
+    // Kullanıcı isteği: dolu bir formada "Çıkar"ın yanında "Değiştir" de olsun — dokununca
+    // "Atanmamış Listesine Ata" ya da (varsa) diğer dolu formalardaki oyuncuyla "X ile yer
+    // değiştir" seçenekleri çıksın. Slot bazlı tap-to-swap (handleSwapTap) zaten vardı ama
+    // keşfedilebilir bir buton/metin yoktu.
+    const [slotChangeTarget, setSlotChangeTarget] = useState(null); // { slot, player } | null
     // Atanmamış listesindeki "Takımlara Ata" — kullanıcı isteği: tek bir buton, dokununca
     // hangi slotların (Katılımcı 1/2/3, hangisi hâlâ boşsa ve cinsiyete uyuyorsa) uygun
     // olduğunu gösteren bir seçim penceresi açılsın, hangisine dokunulursa oraya atansın.
@@ -5686,22 +5691,20 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         {/* Full-screen Detail Modal */}
         <Modal visible={showDetail} animationType="slide" onRequestClose={() => setShowDetail(false)}>
             <View style={{ flex:1, backgroundColor: colors.bg }}>
-                {/* Header */}
-                {/* paddingTop sabit 24 idi — Android'de saat/pil gibi durum çubuğu simgeleriyle
-                    başlık iç içe giriyordu (kullanıcı raporu, voleybol kadro kartı açıldığında).
-                    RivalDetailModal'daki header'la aynı desen: insets.top kullan. */}
-                <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:9,
-                    paddingTop: Platform.OS==='ios' ? 56 : insets.top + 14, paddingBottom:11,
+                {/* Header — kullanıcı isteği: Açık İlanlar'daki (RivalDetailModal) header'la
+                    BİREBİR aynı boşluk/yazı boyutu değerleri (aynı "stil" hissi). */}
+                <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:5,
+                    paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(14),
                     borderBottomWidth:1, borderBottomColor: colors.border }}>
                     <TouchableOpacity onPress={() => setShowDetail(false)} style={{ marginRight:14, padding:1 }}>
-                        <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
+                        <Text style={{ color:'#fff', fontSize:moderateScale(22), fontWeight:'300' }}>←</Text>
                     </TouchableOpacity>
                     <View style={{ flex:1 }}>
-                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'800' }}>{getSubCategoryLabel(match.subCategory, t.lang)}</Text>
+                        <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800' }}>{getSubCategoryLabel(match.subCategory, t.lang)}</Text>
                         {/* Takım sporlarında (kadro kartı olan maçlarda) burada da gerçek kullanıcı
                             isimleriyle sınırlı, eksik bir liste gösterip kafa karıştırıyordu — kadro
                             kartı zaten tam listeyi gösteriyor (bkz. hasTeamRoster). */}
-                        <Text style={{ color: colors.textMuted, fontSize:12 }}>
+                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(12), marginTop:1 }}>
                             {hasTeamRoster
                                 ? `${match.founderTeamName || t.founderTeamShortLabel} vs ${match.opponentTeamName || t.opponentTeamShortLabel}`
                                 : allPlayers.filter(p => !p._emptySlot).map(p => senderAlias(p)).join(' · ')}
@@ -5709,7 +5712,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     </View>
                 </View>
 
-                <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:9, paddingBottom:21 }}
+                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom:5 }}
                     keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
                     {/* Format / mod / esnek program rozetleri */}
@@ -5924,11 +5927,18 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         onTap={handleSwapTap}
                                     />
                                     {p && !swapSlot && isOwner && (
-                                        <TouchableOpacity
-                                            onPress={() => removePlayer(p.id, senderAlias(p))}
-                                            style={{ marginTop:2, paddingVertical:0, alignItems:'center', backgroundColor:'#dc262612', borderRadius:6, borderWidth:1, borderColor:'#dc262630' }}>
-                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
-                                        </TouchableOpacity>
+                                        <View style={{ flexDirection:'row', gap:3, marginTop:2 }}>
+                                            <TouchableOpacity
+                                                onPress={() => setSlotChangeTarget({ slot, player: p })}
+                                                style={{ flex:1, paddingVertical:0, alignItems:'center', backgroundColor:'#a855f712', borderRadius:6, borderWidth:1, borderColor:'#a855f730' }}>
+                                                <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>Değiştir</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => removePlayer(p.id, senderAlias(p))}
+                                                style={{ flex:1, paddingVertical:0, alignItems:'center', backgroundColor:'#dc262612', borderRadius:6, borderWidth:1, borderColor:'#dc262630' }}>
+                                                <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     )}
                                 </View>
                             );
@@ -6034,6 +6044,20 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && !locked && (
                                                 <Text style={{ color: colors.textMuted, fontSize:10, marginTop:4, textAlign:'center' }}>↕ Bir oyuncuya dokun → seç → diğerine dokun → yer değiştir</Text>
                                             )}
+                                            <SlotActionSheet
+                                                visible={!!slotChangeTarget}
+                                                title={slotChangeTarget ? senderAlias(slotChangeTarget.player) : ''}
+                                                onClose={() => setSlotChangeTarget(null)}
+                                                actions={slotChangeTarget ? [
+                                                    ...[
+                                                        { key: 'partner', p: partner },
+                                                        { key: 'opp1', p: opp1 },
+                                                        { key: 'opp2', p: opp2 },
+                                                    ].filter(s => s.key !== slotChangeTarget.slot && s.p?.id)
+                                                        .map(s => ({ label: `🔁 ${senderAlias(s.p)} ile yer değiştir`, onPress: () => performSwap(slotChangeTarget.slot, s.key) })),
+                                                    { label: 'Atanmamış Listesine Ata', onPress: () => assignDoubleSlot(slotChangeTarget.player.id, null) },
+                                                ] : []}
+                                            />
                                             {/* Atanmamış — kabul edilmiş ama henüz Takım Arkadaşı/Rakip1/Rakip2'ye
                                                 yerleşmemiş oyuncular (bkz. yukarıdaki assignDoubleSlot). RivalDetailModal'daki
                                                 aynı bölümün buradaki karşılığı — önceden burada hiç gösterilmiyordu. */}
