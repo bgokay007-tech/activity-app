@@ -5544,6 +5544,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             ))}
                         </ScrollView>
                     )}
+                    {/* Kullanıcı isteği: "Sipariş Ver" ön yüzde değil, kart 🔄 ile çevrilince
+                        açılan arka yüzde, oyuncu listesinin altında. */}
+                    {match.venueId && isParticipant && (
+                        <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:6 }}>
+                            <Text style={{ color:'#22c55e', fontSize:12, fontWeight:'600' }}>📋 Sipariş Ver</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             ) : (
             <TouchableOpacity style={{ flex:1 }} activeOpacity={0.75} onPress={openDetail}>
@@ -5607,11 +5614,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             {/* Court */}
             {match.courtName && (
                 <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2 }]}>{isVolleyball ? '' : '🏟️ '}{match.courtName}</Text>
-            )}
-            {match.venueId && isParticipant && (
-                <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:4 }}>
-                    <Text style={{ color:'#22c55e', fontSize:12, fontWeight:'600' }}>📋 Sipariş Ver</Text>
-                </TouchableOpacity>
             )}
             {match.refereeRequested && (match.refereeUser || match.manualRefereeName || !matchEnded) && (
                 <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'600', marginTop:4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
