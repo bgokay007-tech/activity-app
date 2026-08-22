@@ -2498,6 +2498,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <View style={{ flex:1, minWidth:0 }}>
                                                 <Text style={det.playerName} numberOfLines={1}>{i + 1}. {playerDisplayName(p)}</Text>
                                                 <Text style={det.playerSub} numberOfLines={1}>{p.username}</Text>
+                                                {p.id && localOrderedUserIds.includes(p.id) && (
+                                                    p.id === myId ? (
+                                                        <TouchableOpacity onPress={() => setShowMyOrder(true)}>
+                                                            <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                        </TouchableOpacity>
+                                                    ) : (
+                                                        <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                    )
+                                                )}
                                             </View>
                                         </TouchableOpacity>
                                     ))}
@@ -2510,6 +2519,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <View style={{ flex:1 }}>
                                                 <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(item.sender)}</Text>
                                                 <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
+                                                {item.senderId && localOrderedUserIds.includes(item.senderId) && (
+                                                    item.senderId === myId ? (
+                                                        <TouchableOpacity onPress={() => setShowMyOrder(true)}>
+                                                            <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                        </TouchableOpacity>
+                                                    ) : (
+                                                        <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                    )
+                                                )}
                                             </View>
                                         </TouchableOpacity>
                                     </View>
@@ -2524,6 +2542,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                             {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? '(Erkek) ' : '(Kadın) '}</Text>}
                                                             {participants[0].username}
                                                         </Text>
+                                                        {participants[0].id && localOrderedUserIds.includes(participants[0].id) && (
+                                                            participants[0].id === myId ? (
+                                                                <TouchableOpacity onPress={() => setShowMyOrder(true)}>
+                                                                    <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                                </TouchableOpacity>
+                                                            ) : (
+                                                                <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                            )
+                                                        )}
                                                     </View>
                                                 </TouchableOpacity>
                                                 {isOwner && (
@@ -2556,6 +2583,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <View style={{ flex:1 }}>
                                         <Text style={det.playerName}>{playerDisplayName(item.sender)}</Text>
                                         <Text style={det.playerSub}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
+                                        {item.senderId && localOrderedUserIds.includes(item.senderId) && (
+                                            item.senderId === myId ? (
+                                                <TouchableOpacity onPress={() => setShowMyOrder(true)}>
+                                                    <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                </TouchableOpacity>
+                                            ) : (
+                                                <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                            )
+                                        )}
                                     </View>
                                 </View>
                                 {participants.filter(p => p?.id).map((p, i) => (
@@ -2567,6 +2603,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? '(Erkek) ' : '(Kadın) '}</Text>}
                                                 {p.username}
                                             </Text>
+                                            {p.id && localOrderedUserIds.includes(p.id) && (
+                                                p.id === myId ? (
+                                                    <TouchableOpacity onPress={() => setShowMyOrder(true)}>
+                                                        <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                    </TouchableOpacity>
+                                                ) : (
+                                                    <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                )
+                                            )}
                                         </View>
                                         {isOwner && (
                                             <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ padding:3 }}>
