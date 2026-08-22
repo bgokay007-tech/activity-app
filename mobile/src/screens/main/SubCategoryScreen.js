@@ -8498,7 +8498,11 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                 {cs?.loading && <ActivityIndicator color="#22c55e" style={{ marginTop:3 }} size="small" />}
                 {!cs?.loading && !cData && <Text style={vb.colEmpty}>Bilgi yok</Text>}
 
-                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ flex:1 }}>
+                {/* paddingBottom: alttaki seçim/ödeme paneli artık position:'absolute' ile bu
+                    sütunların ÜZERİNE biniyor (bkz. yukarıdaki yorum) — en alttaki saatler
+                    panelin arkasında kalmasın diye kaydırılabilir alana pay bırakılıyor. */}
+                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ flex:1 }}
+                    contentContainerStyle={{ paddingBottom: selSlot ? 280 : 60 }}>
                 {!cs?.loading && isStructured && (() => {
                     // Seçili aralık bu kortta ise (birden fazla art arda saat olabilir),
                     // aralıktaki tüm kutucukları gridde vurgula.
@@ -8732,14 +8736,18 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                     {loadingV && <ActivityIndicator color="#22c55e" style={{ marginVertical: 28 }} />}
 
                     {!loadingV && venue && (
-                        <View style={{ flex:1 }}>
+                        <View style={{ flex:1, position:'relative' }}>
 
-                            {/* Kullanıcı isteği: seçim/ödeme paneli ekranın en altına yaslansın, üstünde
-                                boşluk kalmasın — tarih şeridi/lejant/kort ızgarası tek bir flex:1
-                                sarmalayıcıya alındı ki bu sarmalayıcı TÜM boş alanı yutsun, altındaki
-                                panel de (flex verilmeyen tek kardeş) doğal olarak tam ekranın dibine
-                                itilsin. Önceki deneme (panelde marginTop:'auto') kort ızgarasının KENDİ
-                                flex:1'iyle çakışıp güvenilir çalışmıyordu — artık tek bir yerde flex:1 var. */}
+                            {/* Kullanıcı raporu (defalarca tekrarlanmış, ekran görüntüsüyle işaretlenmiş):
+                                yukarıdaki flex:1 tabanlı deneme ("panel flex verilmeyen tek kardeş, kort
+                                ızgarası tüm boş alanı yutar") Android'de HÂLÂ ekranın dibinde boşluk
+                                bırakıyordu — nested flex:1 + horizontal ScrollView kombinasyonunun Android
+                                Yoga'da güvenilmez olduğu bir sınıf hata. Artık flex dağıtımına hiç
+                                güvenilmiyor: panel (aşağıda) position:'absolute' ile doğrudan bu View'ın
+                                (position:'relative') fiziksel dibine sabitleniyor — hangi flex hesaplaması
+                                olursa olsun panel her zaman TAM ekranın dibinde, boşluk imkansız. Kort
+                                ızgarası da artık TEK normal-akış çocuğu olduğu için (panel akıştan çıktı)
+                                kendiliğinden bu View'ın TAMAMINI kaplıyor — sütunlar daha uzun. */}
                             <View style={{ flex:1 }}>
                                 {/* Tarih Seçici — 14 günlük yatay strip */}
                                 <View style={vb.dateStrip}>
@@ -8792,7 +8800,14 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                 </ScrollView>
                             </View>
 
-                            {/* Seçim + Ödeme + Rezervasyon — sadece slot seçiliyken */}
+                            {/* Seçim + Ödeme + Rezervasyon — position:'absolute' ile dış View'ın (position:
+                                'relative', yukarıda) fiziksel dibine sabitlenir, flex hesaplamasına hiç
+                                bağlı değil (bkz. yukarıdaki yorum). backgroundColor: arkadaki kort
+                                sütunları artık tam yüksekliğe uzandığı için panelin arkasını kapatır. */}
+                            {/* paddingBottom EKLENMEDİ — bu View'ın dışındaki vb.sheet zaten
+                                paddingBottom:insets.bottom uyguluyor, ikisi üst üste binerse
+                                panel dibe değil, tekrar bir miktar yukarıda kalırdı. */}
+                            <View style={{ position:'absolute', left:0, right:0, bottom:0, backgroundColor: colors.bg }}>
                             {!selSlot && (
                                 <Text style={[vb.emptyTxt, { textAlign:'center', paddingVertical:3 }]}>Yukarıdan bir saat seçin</Text>
                             )}
@@ -8899,6 +8914,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                     </ScrollView>
                                 );
                             })()}
+                            </View>
                         </View>
                     )}
                 </View>
