@@ -731,6 +731,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [loadingComments, setLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
     const [sendingComment, setSendingComment] = useState(false);
+    // Seyirci listesi — sadece voleybolda: onaylı antrenörlerin izledikleri maçlardaki
+    // oyuncuları değerlendirebilmesi için (bkz. resolveRaterRole, backend/utils/volleyballRating.js).
+    const [spectators, setSpectators] = useState([]);
+    const [amISpectator, setAmISpectator] = useState(false);
+    const [spectatorActionLoading, setSpectatorActionLoading] = useState(false);
     const [inviteModalVisible, setInviteModalVisible] = useState(false);
     const [inviteQuery, setInviteQuery] = useState('');
     const [inviteResults, setInviteResults] = useState([]);
@@ -840,6 +845,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         setShowTeamCards(false);
         setComments([]);
         setCommentText('');
+        setSpectators([]);
+        setAmISpectator(false);
         setLocalOrderedUserIds([]);
         if (item?.id && visible) {
             // Fresh fetch: güncel cinsiyet, katılımcılar ve istekler
@@ -862,8 +869,28 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 .then(res => setComments(res.data || []))
                 .catch(e => Alert.alert('Hata', e?.response?.data?.message || 'Yorumlar yüklenemedi'))
                 .finally(() => setLoadingComments(false));
+            if (item.subCategory === 'volleyball') {
+                api.get(`/rivals/${item.id}/spectators`)
+                    .then(({ data }) => {
+                        setSpectators(Array.isArray(data?.spectators) ? data.spectators : []);
+                        setAmISpectator(!!data?.amISpectator);
+                    })
+                    .catch(() => {});
+            }
         }
     }, [item?.id, visible]);
+
+    const toggleSpectator = () => {
+        if (!item?.id || spectatorActionLoading) return;
+        setSpectatorActionLoading(true);
+        const req = amISpectator ? api.delete(`/rivals/${item.id}/spectators`) : api.post(`/rivals/${item.id}/spectators`);
+        req.then(({ data }) => {
+            setSpectators(Array.isArray(data?.spectators) ? data.spectators : []);
+            setAmISpectator(!!data?.amISpectator);
+        })
+            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed))
+            .finally(() => setSpectatorActionLoading(false));
+    };
 
     useEffect(() => {
         if (!visible || !item?.id) return;
@@ -3329,6 +3356,34 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </View>
                     )}
 
+                    {/* Seyirci Listesi — sadece voleybolda: onaylı antrenörler ancak seyirci olarak
+                        katıldıkları maçlardaki oyuncuları değerlendirebilir (bkz. resolveRaterRole). */}
+                    {item.subCategory === 'volleyball' && (
+                        <View style={det.section}>
+                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: spectators.length > 0 ? moderateScale(10) : 0 }}>
+                                <Text style={det.sectionTitle}>👁 {t.spectatorListTitle}{spectators.length > 0 ? ` (${spectators.length})` : ''}</Text>
+                                <TouchableOpacity
+                                    disabled={spectatorActionLoading}
+                                    onPress={toggleSpectator}
+                                    style={{ backgroundColor: amISpectator ? colors.border : cfg.color, borderRadius:moderateScale(8), paddingHorizontal:moderateScale(10), paddingVertical:moderateScale(6), opacity: spectatorActionLoading ? 0.6 : 1 }}
+                                >
+                                    <Text style={{ color: amISpectator ? colors.textMuted : '#fff', fontSize:moderateScale(11), fontWeight:'800' }}>
+                                        {amISpectator ? t.spectatorLeaveBtn : t.spectatorJoinBtn}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                            {spectators.length === 0 ? (
+                                <Text style={det.emptyTxt}>{t.spectatorListEmpty}</Text>
+                            ) : (
+                                spectators.map(sp => (
+                                    <View key={sp.id} style={det.playerRow}>
+                                        <Text style={det.playerName}>{sp.user?.username || sp.user?.fullName}</Text>
+                                    </View>
+                                ))
+                            )}
+                        </View>
+                    )}
+
                     {/* Yorumlar bölümü */}
                     <Text style={{ color:'#fff', fontSize:moderateScale(15), fontWeight:'800', marginBottom:14 }}>
                         💬 {t.matchCommentsTitle}{comments.length > 0 ? ` (${comments.length})` : ''}
@@ -4804,6 +4859,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [localCommentsLoaded, setLocalCommentsLoaded] = useState(false);
     const [localCommentText, setLocalCommentText] = useState('');
     const [sendingLocalComment, setSendingLocalComment] = useState(false);
+    // Seyirci listesi — sadece voleybolda: onaylı antrenörlerin izledikleri maçlardaki
+    // oyuncuları değerlendirebilmesi için (bkz. resolveRaterRole, backend/utils/volleyballRating.js).
+    const [spectators, setSpectators] = useState([]);
+    const [amISpectator, setAmISpectator] = useState(false);
+    const [spectatorActionLoading, setSpectatorActionLoading] = useState(false);
     const [orderVenueId, setOrderVenueId] = useState(null);
     const [showMyOrder, setShowMyOrder] = useState(false);
     const [billView, setBillView] = useState(null); // { bill, courtFeePaid } | null
@@ -5540,6 +5600,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
     const openDetail = useCallback(async () => {
         setShowDetail(true);
+        if (match.subCategory === 'volleyball') {
+            api.get(`/rivals/${match.id}/spectators`)
+                .then(({ data }) => {
+                    setSpectators(Array.isArray(data?.spectators) ? data.spectators : []);
+                    setAmISpectator(!!data?.amISpectator);
+                })
+                .catch(() => {});
+        }
         if (localCommentsLoaded) return;
         setLoadingLocalComments(true);
         try {
@@ -5549,6 +5617,18 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         } catch(e) { console.warn(e?.message); }
         finally { setLoadingLocalComments(false); }
     }, [match.id, localCommentsLoaded]);
+
+    const toggleSpectator = () => {
+        if (!match?.id || spectatorActionLoading) return;
+        setSpectatorActionLoading(true);
+        const req = amISpectator ? api.delete(`/rivals/${match.id}/spectators`) : api.post(`/rivals/${match.id}/spectators`);
+        req.then(({ data }) => {
+            setSpectators(Array.isArray(data?.spectators) ? data.spectators : []);
+            setAmISpectator(!!data?.amISpectator);
+        })
+            .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed))
+            .finally(() => setSpectatorActionLoading(false));
+    };
 
     // Kullanıcı isteği: bildirimden (ör. "Sipariş Güncellendi") gelindiğinde bu maç
     // Yaklaşan Maçlar'daysa detay otomatik açılsın — RivalCard'daki autoOpen ile aynı desen,
@@ -6974,6 +7054,34 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         <View style={{ flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'#f59e0b20', borderWidth:1, borderColor:'#f59e0b50', borderRadius:10, paddingHorizontal:8, paddingVertical:6, marginBottom:12 }}>
                             <Text style={{ fontSize:14 }}>🏆</Text>
                             <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700', flex:1 }}>{match.wager}</Text>
+                        </View>
+                    )}
+
+                    {/* Seyirci Listesi — sadece voleybolda: onaylı antrenörler ancak seyirci olarak
+                        katıldıkları maçlardaki oyuncuları değerlendirebilir (bkz. resolveRaterRole). */}
+                    {isVolleyball && (
+                        <View style={det.section}>
+                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: spectators.length > 0 ? moderateScale(10) : 0 }}>
+                                <Text style={det.sectionTitle}>👁 {t.spectatorListTitle}{spectators.length > 0 ? ` (${spectators.length})` : ''}</Text>
+                                <TouchableOpacity
+                                    disabled={spectatorActionLoading}
+                                    onPress={toggleSpectator}
+                                    style={{ backgroundColor: amISpectator ? colors.border : cfg.color, borderRadius:moderateScale(8), paddingHorizontal:moderateScale(10), paddingVertical:moderateScale(6), opacity: spectatorActionLoading ? 0.6 : 1 }}
+                                >
+                                    <Text style={{ color: amISpectator ? colors.textMuted : '#fff', fontSize:moderateScale(11), fontWeight:'800' }}>
+                                        {amISpectator ? t.spectatorLeaveBtn : t.spectatorJoinBtn}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                            {spectators.length === 0 ? (
+                                <Text style={det.emptyTxt}>{t.spectatorListEmpty}</Text>
+                            ) : (
+                                spectators.map(sp => (
+                                    <View key={sp.id} style={det.playerRow}>
+                                        <Text style={det.playerName}>{sp.user?.username || sp.user?.fullName}</Text>
+                                    </View>
+                                ))
+                            )}
                         </View>
                     )}
 

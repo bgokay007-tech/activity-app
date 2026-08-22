@@ -94,11 +94,40 @@ export async function isApprovedVolleyballCoach(userId) {
     return !!listing;
 }
 
+// Onaylı bir antrenör, subjectId'yi ancak subjectId'nin OYNADIĞI ve antrenörün SEYİRCİ olarak
+// katıldığı en az bir tamamlanmış maç varsa değerlendirebilir — "hiç izlemediği bir oyuncuyu
+// değerlendiremesin" kuralı. hasBeenVolleyballTeammates'teki aynı taraf/tamamlanmış-maç
+// sorgu deseni reuse ediliyor, tek fark takım şartı yerine MatchSpectator kaydı aranması.
+export async function hasSpectatedVolleyballMatch(coachId, subjectId) {
+    const spectations = await prisma.matchSpectator.findMany({
+        where: { userId: coachId },
+        select: { activityRequestId: true },
+    });
+    if (spectations.length === 0) return false;
+
+    const matches = await prisma.activityRequest.findMany({
+        where: {
+            id: { in: spectations.map(s => s.activityRequestId) },
+            subCategory: 'volleyball',
+            status: 'COMPLETED',
+        },
+        select: { senderId: true, senderTeam: true, participants: true },
+    });
+
+    return matches.some(m => {
+        const senderTeamArr = Array.isArray(m.senderTeam) ? m.senderTeam : [];
+        const participantsArr = Array.isArray(m.participants) ? m.participants : [];
+        return m.senderId === subjectId
+            || senderTeamArr.some(p => p?.id === subjectId)
+            || participantsArr.some(p => p?.id === subjectId);
+    });
+}
+
 // req.userId'nin subjectId için hangi rolle değerlendirme yapabileceğini belirler.
 // Rol client'tan alınmaz — spoofing'i önlemek için her zaman sunucu tarafında hesaplanır.
 export async function resolveRaterRole(raterId, subjectId) {
     if (raterId === subjectId) return 'SELF';
-    if (await isApprovedVolleyballCoach(raterId)) return 'COACH';
+    if (await isApprovedVolleyballCoach(raterId) && await hasSpectatedVolleyballMatch(raterId, subjectId)) return 'COACH';
     if (await hasBeenVolleyballTeammates(raterId, subjectId)) return 'TEAMMATE';
     return null;
 }

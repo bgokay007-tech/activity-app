@@ -129,6 +129,7 @@ model User {
   volleyballRatingsReceived VolleyballRating[] @relation("VolleyballRatingSubject")
   padelRatingsGiven    PadelRating[] @relation("PadelRatingRater")
   padelRatingsReceived PadelRating[] @relation("PadelRatingSubject")
+  matchSpectations     MatchSpectator[]
   profileChangeRequests ProfileChangeRequest[]
   supportMessages       SupportMessage[]
   subscriptions         BusinessSubscription[]
@@ -834,6 +835,24 @@ model ActivityRequest {
   refereeAds      ActivityRequest[] @relation("RefereeLink")
   refereeUser     User?  @relation("MatchRefereeUser", fields: [refereeId], references: [id], onDelete: SetNull)
   refereeReviews  RefereeReview[]
+  spectators      MatchSpectator[]
+}
+
+// Voleybolda bir ilana "seyirci" olarak katılım kaydı. Amaç: onaylı antrenörlerin sadece
+// SEYİRCİ olarak katıldıkları (izledikleri) maçlardaki oyuncuları değerlendirebilmesi —
+// eskiden onaylı bir antrenör hiçbir kısıt olmadan HERHANGİ bir oyuncuyu değerlendirebiliyordu
+// (bkz. resolveRaterRole/hasSpectatedVolleyballMatch, backend/src/utils/volleyballRating.js).
+// Seyirci olarak katılmak herkese açık — sadece antrenörler için (COACH rolü) bir ön koşul.
+model MatchSpectator {
+  id                String   @id @default(uuid())
+  activityRequestId String
+  userId            String
+  createdAt         DateTime @default(now())
+
+  activityRequest ActivityRequest @relation(fields: [activityRequestId], references: [id], onDelete: Cascade)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([activityRequestId, userId])
 }
 
 model MatchComment {

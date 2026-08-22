@@ -15,6 +15,7 @@ import {
 } from '../controllers/rival.controller.js';
 import { reportNoShow } from '../controllers/noshow.controller.js';
 import { getPeerReviewTargets, submitPeerReview } from '../controllers/peerReview.controller.js';
+import { getSpectators, joinSpectator, leaveSpectator } from '../controllers/spectator.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
 const router = Router();
@@ -74,5 +75,8 @@ router.post('/:id/propose-schedule', authenticate, proposeSchedule);
 router.post('/:id/accept-schedule',  authenticate, acceptSchedule);
 router.get('/:id/peer-review-targets', authenticate, getPeerReviewTargets);
 router.post('/:id/peer-review',      authenticate, submitPeerReview);
+router.get('/:id/spectators',        authenticate, getSpectators);
+router.post('/:id/spectators',       authenticate, joinSpectator);
+router.delete('/:id/spectators',     authenticate, leaveSpectator);
 
 export default router;

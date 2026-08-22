@@ -723,6 +723,10 @@ const en = {
     matchCommentPlaceholder: 'Write a comment...',
     matchCommentSend: 'Send',
     matchCommentEmpty: 'No comments yet.',
+    spectatorListTitle: 'Spectators',
+    spectatorListEmpty: 'No spectators yet.',
+    spectatorJoinBtn: 'Join as Spectator',
+    spectatorLeaveBtn: 'Leave',
 
     // SubCategory — tournament creation
     createTournamentBtn: '+ Create Tournament',
@@ -1021,7 +1025,7 @@ const en = {
     volleyballRatingCoachLabel: n => `Approved Coach (50%, ${n})`,
     volleyballRatingTeammateLabel: n => `Teammate (10%, ${n})`,
     volleyballRatingNoDataLabel: 'Not yet',
-    volleyballRatingNotEligible: 'You cannot rate this player — you are not an approved coach and have not played on the same team.',
+    volleyballRatingNotEligible: 'You cannot rate this player — you have not played on the same team, or (as an approved coach) haven\'t joined as a spectator to a completed match this player played in.',
     volleyballRatingSelfHint: 'You can update your own survey by re-taking the volleyball assessment from your interests section.',
     volleyballRatingSubmitBtn: 'Save',
     volleyballRatingSubmittedMsg: '✓ Your rating was saved',
@@ -2165,6 +2169,10 @@ const tr = {
     matchCommentPlaceholder: 'Yorum yaz...',
     matchCommentSend: 'Gönder',
     matchCommentEmpty: 'Henüz yorum yok.',
+    spectatorListTitle: 'Seyirci Listesi',
+    spectatorListEmpty: 'Henüz seyirci yok.',
+    spectatorJoinBtn: 'Seyirci Olarak Katıl',
+    spectatorLeaveBtn: 'Ayrıl',
 
     // SubCategory — tournament creation
     createTournamentBtn: '+ Turnuva Oluştur',
@@ -2463,7 +2471,7 @@ const tr = {
     volleyballRatingCoachLabel: n => `Onaylı Antrenör (%50, ${n} kişi)`,
     volleyballRatingTeammateLabel: n => `Takım Arkadaşı (%10, ${n} kişi)`,
     volleyballRatingNoDataLabel: 'Henüz yok',
-    volleyballRatingNotEligible: 'Bu oyuncuyu değerlendiremezsiniz — antrenör onayınız veya birlikte oynadığınız bir maç yok.',
+    volleyballRatingNotEligible: 'Bu oyuncuyu değerlendiremezsiniz — birlikte oynadığınız bir maç yok, ya da (onaylı antrenörseniz) bu oyuncunun oynadığı tamamlanmış bir maça seyirci olarak katılmadınız.',
     volleyballRatingSelfHint: 'Kendi anketini ilgi alanların bölümünden voleybolü yeniden değerlendirerek güncelleyebilirsin.',
     volleyballRatingSubmitBtn: 'Kaydet',
     volleyballRatingSubmittedMsg: '✓ Değerlendirmen kaydedildi',
