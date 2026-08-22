@@ -1921,6 +1921,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     </View>
                                                 )}
                                             </View>
+                                        ) : highlighted ? (
+                                            // Kullanıcı raporu: bu boş forma için bekleyen bir davetim varsa
+                                            // (bildirimden tıklayınca ya da ilana kendim girince) yanıp sönen
+                                            // bir işaretle vurgulanması gerekiyordu — "highlighted" prop'u
+                                            // taşınıyordu ama burada hiç kullanılmadığı için görsel etki
+                                            // tamamen kayboluyordu. İsim/"Onay Bekleniyor" GÖSTERİLMİYOR
+                                            // (yukarıdaki yorumdaki kural korunuyor, slot dolu görünmemeli) —
+                                            // sadece hangi boş formanın kendisine ait olduğu yanıp söner.
+                                            <Animated.View style={{ flexDirection:'row', alignItems:'center', gap:4, opacity: highlightPulse }}>
+                                                <Text style={{ fontSize:12 }}>👉</Text>
+                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800', flex:1 }}>{fallback}</Text>
+                                            </Animated.View>
                                         ) : (
                                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                                                 <Text style={{ color: isTarget ? '#a855f7' : colors.textMuted, fontSize:9, fontWeight: isTarget ? '700' : '400' }}>{fallback}</Text>
