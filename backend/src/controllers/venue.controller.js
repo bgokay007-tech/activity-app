@@ -2181,7 +2181,7 @@ export const placeOrder = async (req, res, next) => {
         // eşleşmenin tamamlanmış olması şart değil, sadece geçerli bir rezervasyon/ilan yeterli.
         const venueMatches = await prisma.activityRequest.findMany({
             where: { venueId: id, status: { in: ['OPEN', 'MATCHED', 'COMPLETED'] } },
-            select: { id: true, senderId: true, receiverId: true, participants: true, senderTeam: true, venueReservationId: true },
+            select: { id: true, senderId: true, receiverId: true, participants: true, senderTeam: true, venueReservationId: true, courtName: true, matchDate: true, matchTime: true },
         });
         const myMatch = venueMatches.find(m => {
             if (m.senderId === req.userId || m.receiverId === req.userId) return true;
@@ -2204,38 +2204,15 @@ export const placeOrder = async (req, res, next) => {
 
         const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
 
-        // İşletme, bu kullanıcının rezervasyonu için zaten bir adisyon açtıysa (VenueBill),
-        // sipariş ayrı/bağlantısız bir kayıt olarak kalmasın — doğrudan aynı adisyona
-        // eklensin (işletmeci tek yerden takip etsin).
-        const existingBill = myMatch.venueReservationId
-            ? await prisma.venueBill.findUnique({ where: { reservationId: myMatch.venueReservationId } })
-            : null;
-
-        if (existingBill && existingBill.status === 'OPEN') {
-            for (const i of items) {
-                const mi = menuItems.find(m => m.id === i.menuItemId);
-                if (!mi) continue;
-                const qty = i.quantity || 1;
-                // userId'ye göre de eşleştirilir — aksi halde iki farklı kullanıcının aynı
-                // ürünü sipariş etmesi tek satırda birleşip "kim ne aldı" bilgisini kaybederdi.
-                const existingItem = await prisma.venueBillItem.findFirst({ where: { billId: existingBill.id, menuItemId: mi.id, userId: req.userId } });
-                if (existingItem) {
-                    await prisma.venueBillItem.update({ where: { id: existingItem.id }, data: { quantity: existingItem.quantity + qty } });
-                } else {
-                    await prisma.venueBillItem.create({
-                        data: { billId: existingBill.id, menuItemId: mi.id, userId: req.userId, name: mi.name, unitPrice: mi.price, quantity: qty, note: notes || null },
-                    });
-                }
-            }
-            const updatedBill = await recalcBillTotal(existingBill.id);
-            await createNotification(venue.userId, 'VENUE_ORDER', '🛒 Adisyona Sipariş Eklendi',
-                `${user?.username} adisyona ürün ekledi. Yeni toplam: ${updatedBill.totalPrice}₺`,
-                { reservationId: myMatch.venueReservationId, venueId: id, rivalId: myMatch.id }
-            );
-            emitToUser(venue.userId, 'notification', {});
-            return res.status(201).json({ addedToBill: true, bill: updatedBill });
-        }
-
+        // Kullanıcı raporu: bu siparişler eskiden, rezervasyon için ZATEN bir adisyon
+        // (VenueBill) açıksa, sessizce doğrudan o adisyona (VenueBillItem) ekleniyordu — ama
+        // VenueBillItem'ın hiç onay/durum akışı (PENDING/CONFIRMED/READY) yok, İşletmenin
+        // "Siparişler" sekmesi de SADECE VenueOrder'ları listeliyor. Sonuç: adisyon zaten
+        // açık bir rezervasyonda verilen her sipariş İşletmenin Siparişler sekmesinde HİÇ
+        // görünmüyordu, "Onayla" butonu hiç çıkmıyordu, oyuncunun adisyon ikonu da hiç
+        // tetiklenmiyordu (ikon SADECE CONFIRMED/READY bir VenueOrder'a bakıyor). Artık her
+        // sipariş, adisyon açık olsun olmasın, HER ZAMAN kendi VenueOrder kaydını oluşturur —
+        // tek, tutarlı bir onay/bildirim akışı.
         const order = await prisma.venueOrder.create({
             data: {
                 venueId: id, userId: req.userId,
@@ -2249,7 +2226,7 @@ export const placeOrder = async (req, res, next) => {
                     }),
                 },
             },
-            include: { items: { include: { menuItem: true } } },
+            include: { items: { include: { menuItem: true } }, user: { select: { id: true, username: true, avatar: true } } },
         });
 
         await createNotification(venue.userId, 'VENUE_ORDER', '🛒 Yeni Sipariş',
@@ -2257,6 +2234,10 @@ export const placeOrder = async (req, res, next) => {
             { orderId: order.id, venueId: id, rivalId: myMatch.id }
         );
         emitToUser(venue.userId, 'notification', {});
+        // Kullanıcı isteği: işletme sahibi Siparişler sekmesindeyken sayfayı yenilemeden de
+        // yeni siparişi anında görsün — bildirim rozetinden ayrı, doğrudan listeye eklenecek
+        // canlı bir olay (bkz. BusinessHomeScreen'deki venueOrderCreated dinleyicisi).
+        emitToUser(venue.userId, 'venueOrderCreated', { ...order, activity: { id: myMatch.id, courtName: myMatch.courtName, matchDate: myMatch.matchDate, matchTime: myMatch.matchTime } });
 
         res.status(201).json({ order });
     } catch (error) { next(error); }

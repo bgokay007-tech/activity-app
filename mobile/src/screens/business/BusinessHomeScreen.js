@@ -2217,6 +2217,17 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         }
     }, [openOrders]);
 
+    // Kullanıcı isteği: "sipariş verilince işletme sahibi sayfayı yenilemeden görsün" —
+    // yeni sipariş geldiğinde bildirim rozetinden AYRI, doğrudan Siparişler listesine
+    // canlı eklensin (bkz. placeOrder'daki emitToUser(..., 'venueOrderCreated', ...)).
+    useEffect(() => {
+        const off = onSocket('venueOrderCreated', (order) => {
+            if (order.venueId !== venue.id) return;
+            setOrders(prev => prev.some(o => o.id === order.id) ? prev : [order, ...prev]);
+        });
+        return off;
+    }, [venue.id]);
+
     const handleTab = (tab) => {
         setActiveTab(tab);
         if (tab === 'blocks'       && !blocksLoaded)  loadBlocks();
