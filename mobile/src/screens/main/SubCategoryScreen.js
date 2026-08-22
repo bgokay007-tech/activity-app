@@ -4614,6 +4614,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // çalıştığı için TeamAssignCard doğrudan kullanılamadı — aynı görsel dil, ama DOUBLE'a
     // özgü assign-double-slot/swap-positions uç noktalarıyla (aşağıdaki assignDoubleSlot/
     // handleSwapTap) kendi flip state'i burada tutuluyor.
+    // Kullanıcı isteği: kompakt ilan kartındaki (RivalCard) "kadro sadece 🔄 ile çevrilince
+    // görünür" mantığının aynısı Yaklaşan Maçlar kartında da olsun — kadro/digimon kartı
+    // varsayılan olarak GİZLİ, "👥 Kadro" başlığına dokununca açılır. Açıldıktan sonraki
+    // ön/arka geçişi (doubleCardBack) değişmeden aynen çalışmaya devam eder.
+    const [showRosterCard, setShowRosterCard] = useState(false);
     const [doubleCardBack, setDoubleCardBack] = useState(false);
     const doubleFlipAnim = useRef(new Animated.Value(0)).current;
     const doubleUnassignedBlink = useRef(new Animated.Value(1)).current;
@@ -5750,8 +5755,18 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                     </View>
 
+                    {/* Kullanıcı isteği: kompakt açık ilan kartındaki gibi (RivalCard) — kadro/digimon
+                        kartı varsayılan olarak GİZLİ, kim katıldığı sadece bu başlığa dokununca açılır. */}
+                    {(match.matchType === 'DOUBLE' || match.matchType === 'SINGLE' || hasTeamRoster) && (
+                        <TouchableOpacity onPress={() => setShowRosterCard(v => !v)}
+                            style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:10, paddingVertical:8, paddingHorizontal:10, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', flex:1 }}>👥 {t.rosterPoolLabel}</Text>
+                            <Text style={{ color: colors.textMuted, fontSize:12 }}>{showRosterCard ? '▼' : '▶'}</Text>
+                        </TouchableOpacity>
+                    )}
+
                     {/* DOUBLE team management */}
-                    {match.matchType === 'DOUBLE' && (() => {
+                    {showRosterCard && match.matchType === 'DOUBLE' && (() => {
                         // handleSwapTap ile aynı kural: STRICT ilanlarda takas kapalı — ipucu
                         // metni de bu durumda gösterilmemeli (önceden burada tanımsız "locked"
                         // değişkenine referans vardı, render anında "Property 'locked' doesn't
@@ -5996,7 +6011,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {/* Takım yönetimi — DOUBLE'dan farklı olarak değişken boyutlu takım (voleybol
                         1v1-6v6, airsoft serbest sayı): ön yüz Kurucu/Rakip slotları (+ atanmamış
                         varsa yerleştirme tepsisi), arka yüz düz katılımcı listesi. */}
-                    {(isVolleyball || match.subCategory === 'airsoft') && (senderTeamArr.length > 0 || participantsArr.length > 0 || unassignedArr.length > 0) && (
+                    {showRosterCard && hasTeamRoster && (
                         <TeamAssignCard
                             emoji={match.subCategory === 'airsoft' ? '🪖' : '🏐'}
                             isVolleyball={isVolleyball}
@@ -6215,7 +6230,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         biri render olduğu için ayrı state gerekmiyor): ön yüz "Katılan Oyuncular" (2
                         kişi), arka yüz Kurucu/Rakip etiketli 2 kutu. Eşleşmiş (MATCHED) bir maçta her
                         iki taraf da zaten dolu olduğu için davet alanı yok, sadece görünüm + Çıkar. */}
-                    {match.matchType === 'SINGLE' && (() => {
+                    {showRosterCard && match.matchType === 'SINGLE' && (() => {
                         const opp = participantsArr[0] || null;
                         const rotateY = doubleFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
                         return (
