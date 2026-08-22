@@ -736,6 +736,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [spectators, setSpectators] = useState([]);
     const [amISpectator, setAmISpectator] = useState(false);
     const [spectatorActionLoading, setSpectatorActionLoading] = useState(false);
+    const [disputingSpectatorId, setDisputingSpectatorId] = useState(null);
     const [inviteModalVisible, setInviteModalVisible] = useState(false);
     const [inviteQuery, setInviteQuery] = useState('');
     const [inviteResults, setInviteResults] = useState([]);
@@ -892,6 +893,31 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             .finally(() => setSpectatorActionLoading(false));
     };
 
+    // Maç kadrosundan biri "bu kişi seyirci olarak gelmedi, sahte" diye itiraz eder — kadronun
+    // yarısından fazlası itiraz edince seyirci kaydı silinir ve varsa buna dayanan antrenör
+    // değerlendirmesi geçersiz kılınır (bkz. disputeSpectator, backend/spectator.controller.js).
+    const disputeSpectatorUser = (targetUserId) => {
+        Alert.alert(t.spectatorDisputeConfirmTitle, t.spectatorDisputeConfirmMsg, [
+            { text: t.cancelBtn, style: 'cancel' },
+            {
+                text: t.spectatorDisputeConfirmBtn, style: 'destructive', onPress: () => {
+                    setDisputingSpectatorId(targetUserId);
+                    api.post(`/rivals/${item.id}/spectators/${targetUserId}/dispute`)
+                        .then(({ data }) => {
+                            if (data?.resolved) {
+                                setSpectators(prev => prev.filter(sp => sp.user?.id !== targetUserId));
+                                Alert.alert(t.spectatorDisputeResolvedTitle, t.spectatorDisputeResolvedMsg);
+                            } else {
+                                Alert.alert(t.spectatorDisputeRecordedTitle, t.spectatorDisputeRecordedMsg(data.voteCount, data.majorityNeeded));
+                            }
+                        })
+                        .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed))
+                        .finally(() => setDisputingSpectatorId(null));
+                },
+            },
+        ]);
+    };
+
     useEffect(() => {
         if (!visible || !item?.id) return;
         const off = onSocket('newComment', ({ rivalId, comment }) => {
@@ -941,6 +967,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const participants = localParticipants ?? (Array.isArray(item.participants) ? item.participants : []);
     const senderTeamArr = localSenderTeam ?? (Array.isArray(item.senderTeam) ? item.senderTeam : []);
     const unassignedArr = localUnassigned ?? (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []);
+    // Seyirci itirazı: sadece bu maçın kadrosundaki (iki takım) oyuncular itiraz edebilir.
+    const isMatchRosterMember = isOwner || senderTeamArr.some(p => p?.id === myId) || participants.some(p => p?.id === myId);
     const joinRequests = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
     useEffect(() => {
         [participants, senderTeamArr, unassignedArr].forEach(arr => {
@@ -3376,8 +3404,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <Text style={det.emptyTxt}>{t.spectatorListEmpty}</Text>
                             ) : (
                                 spectators.map(sp => (
-                                    <View key={sp.id} style={det.playerRow}>
+                                    <View key={sp.id} style={[det.playerRow, { justifyContent:'space-between' }]}>
                                         <Text style={det.playerName}>{sp.user?.username || sp.user?.fullName}</Text>
+                                        {isMatchRosterMember && sp.user?.id !== myId && (
+                                            <TouchableOpacity
+                                                disabled={disputingSpectatorId === sp.user?.id}
+                                                onPress={() => disputeSpectatorUser(sp.user.id)}
+                                                style={{ opacity: disputingSpectatorId === sp.user?.id ? 0.5 : 1 }}
+                                            >
+                                                <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>🚩 {t.spectatorDisputeBtn}</Text>
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
                                 ))
                             )}
@@ -4864,6 +4901,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [spectators, setSpectators] = useState([]);
     const [amISpectator, setAmISpectator] = useState(false);
     const [spectatorActionLoading, setSpectatorActionLoading] = useState(false);
+    const [disputingSpectatorId, setDisputingSpectatorId] = useState(null);
     const [orderVenueId, setOrderVenueId] = useState(null);
     const [showMyOrder, setShowMyOrder] = useState(false);
     const [billView, setBillView] = useState(null); // { bill, courtFeePaid } | null
@@ -4901,6 +4939,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // tarafı olarak görmeli (eskiden isOwner tek başına kullanılıyordu, takım arkadaşı için
     // yanlışlıkla Rakip tarafına sayılıyordu).
     const iAmFounderSide = isOwner || senderTeamArr.some(p => p.id === myId);
+    // Seyirci itirazı: sadece bu maçın kadrosundaki (iki takım) oyuncular itiraz edebilir.
+    const isMatchRosterMember = iAmFounderSide || participantsArr.some(p => p.id === myId);
     const isTeamMatch = (match.teamSize || 1) > 1;
     const myScoreLabel  = isTeamMatch ? (iAmFounderSide ? (match.founderTeamName || t.founderTeamShortLabel) : (match.opponentTeamName || t.opponentTeamShortLabel)) : 'Sen';
     const oppScoreLabel = isTeamMatch ? (iAmFounderSide ? (match.opponentTeamName || t.opponentTeamShortLabel) : (match.founderTeamName || t.founderTeamShortLabel)) : 'Rakip';
@@ -5628,6 +5668,31 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed))
             .finally(() => setSpectatorActionLoading(false));
+    };
+
+    // Maç kadrosundan biri "bu kişi seyirci olarak gelmedi, sahte" diye itiraz eder — kadronun
+    // yarısından fazlası itiraz edince seyirci kaydı silinir ve varsa buna dayanan antrenör
+    // değerlendirmesi geçersiz kılınır (bkz. disputeSpectator, backend/spectator.controller.js).
+    const disputeSpectatorUser = (targetUserId) => {
+        Alert.alert(t.spectatorDisputeConfirmTitle, t.spectatorDisputeConfirmMsg, [
+            { text: t.cancelBtn, style: 'cancel' },
+            {
+                text: t.spectatorDisputeConfirmBtn, style: 'destructive', onPress: () => {
+                    setDisputingSpectatorId(targetUserId);
+                    api.post(`/rivals/${match.id}/spectators/${targetUserId}/dispute`)
+                        .then(({ data }) => {
+                            if (data?.resolved) {
+                                setSpectators(prev => prev.filter(sp => sp.user?.id !== targetUserId));
+                                Alert.alert(t.spectatorDisputeResolvedTitle, t.spectatorDisputeResolvedMsg);
+                            } else {
+                                Alert.alert(t.spectatorDisputeRecordedTitle, t.spectatorDisputeRecordedMsg(data.voteCount, data.majorityNeeded));
+                            }
+                        })
+                        .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed))
+                        .finally(() => setDisputingSpectatorId(null));
+                },
+            },
+        ]);
     };
 
     // Kullanıcı isteği: bildirimden (ör. "Sipariş Güncellendi") gelindiğinde bu maç
@@ -7077,8 +7142,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <Text style={det.emptyTxt}>{t.spectatorListEmpty}</Text>
                             ) : (
                                 spectators.map(sp => (
-                                    <View key={sp.id} style={det.playerRow}>
+                                    <View key={sp.id} style={[det.playerRow, { justifyContent:'space-between' }]}>
                                         <Text style={det.playerName}>{sp.user?.username || sp.user?.fullName}</Text>
+                                        {isMatchRosterMember && sp.user?.id !== myId && (
+                                            <TouchableOpacity
+                                                disabled={disputingSpectatorId === sp.user?.id}
+                                                onPress={() => disputeSpectatorUser(sp.user.id)}
+                                                style={{ opacity: disputingSpectatorId === sp.user?.id ? 0.5 : 1 }}
+                                            >
+                                                <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>🚩 {t.spectatorDisputeBtn}</Text>
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
                                 ))
                             )}

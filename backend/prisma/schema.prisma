@@ -848,6 +848,11 @@ model MatchSpectator {
   activityRequestId String
   userId            String
   createdAt         DateTime @default(now())
+  // Maç kadrosundan (iki takım) "bu kişi seyirci olarak gelmedi, sahte" diyerek itiraz eden
+  // oyuncuların id listesi. Kadronun yarısından fazlası itiraz edince (bkz. disputeSpectator,
+  // spectator.controller.js) bu kayıt silinir ve varsa bu seyirciliğe dayanan COACH
+  // değerlendirmesi geçersiz kılınır.
+  disputeVoterIds   Json     @default("[]")
 
   activityRequest ActivityRequest @relation(fields: [activityRequestId], references: [id], onDelete: Cascade)
   user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)

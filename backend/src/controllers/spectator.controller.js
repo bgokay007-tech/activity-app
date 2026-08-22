@@ -1,4 +1,6 @@
 import prisma from '../config/prisma.js';
+import { createNotification } from './notification.controller.js';
+import { applyBlendedVolleyballRating } from '../utils/volleyballRating.js';
 
 const SPECTATOR_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -81,5 +83,69 @@ export const leaveSpectator = async (req, res, next) => {
             amISpectator: false,
             canJoin: true,
         });
+    } catch (error) { next(error); }
+};
+
+// POST /rivals/:id/spectators/:spectatorUserId/dispute — kullanıcı isteği: "o seyircinin gelip
+// gelmediğini iki takımın yarısından 1 fazla kişi itiraz ederse sahte değerlendirme var diye
+// bildirimde bulunsunlar, o değerlendirme yok hükmünde olsun, admine de bildirim gitsin."
+// Maç kadrosundaki (iki takım) oyuncular "bu kişi seyirci olarak gelmedi" diye itiraz eder;
+// itiraz edenler kadronun yarısından fazlasına ulaşınca (abandonMatch'teki aynı çoğunluk
+// formülü — bkz. rival.controller.js) seyirci kaydı silinir ve bu seyirciliğe dayanarak
+// verilmiş COACH değerlendirmesi (varsa) geçersiz kılınıp derece puanı yeniden hesaplanır.
+export const disputeSpectator = async (req, res, next) => {
+    try {
+        const { id, spectatorUserId } = req.params;
+        const rival = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!rival) return res.status(404).json({ message: 'Bulunamadı' });
+
+        const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+        const participantsArr = Array.isArray(rival.participants) ? rival.participants : [];
+        const rosterIds = [...new Set([
+            rival.senderId,
+            ...senderTeamArr.filter(p => p?.id).map(p => p.id),
+            ...participantsArr.filter(p => p?.id).map(p => p.id),
+        ])];
+        if (!rosterIds.includes(req.userId)) return res.status(403).json({ message: 'Bu maçın kadrosunda değilsiniz.' });
+
+        const spectator = await prisma.matchSpectator.findUnique({
+            where: { activityRequestId_userId: { activityRequestId: id, userId: spectatorUserId } },
+        });
+        if (!spectator) return res.status(404).json({ message: 'Bu kişi bu maça seyirci olarak kayıtlı değil.' });
+
+        const voterIds = new Set(Array.isArray(spectator.disputeVoterIds) ? spectator.disputeVoterIds : []);
+        voterIds.add(req.userId);
+        const majorityNeeded = Math.floor(rosterIds.length / 2) + 1;
+
+        if (voterIds.size < majorityNeeded) {
+            await prisma.matchSpectator.update({ where: { id: spectator.id }, data: { disputeVoterIds: [...voterIds] } });
+            return res.json({ resolved: false, voided: false, voteCount: voterIds.size, majorityNeeded });
+        }
+
+        await prisma.matchSpectator.delete({ where: { id: spectator.id } });
+
+        const voidedRatings = await prisma.volleyballRating.findMany({
+            where: { raterId: spectatorUserId, subjectId: { in: rosterIds }, raterRole: 'COACH' },
+            select: { subjectId: true },
+        });
+        if (voidedRatings.length > 0) {
+            await prisma.volleyballRating.deleteMany({
+                where: { raterId: spectatorUserId, subjectId: { in: voidedRatings.map(r => r.subjectId) }, raterRole: 'COACH' },
+            });
+            for (const { subjectId } of voidedRatings) {
+                await applyBlendedVolleyballRating(subjectId).catch(() => {});
+            }
+        }
+
+        res.json({ resolved: true, voided: voidedRatings.length > 0 });
+
+        const disputedUser = await prisma.user.findUnique({ where: { id: spectatorUserId }, select: { username: true, fullName: true } });
+        const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
+        for (const admin of admins) {
+            createNotification(admin.id, 'FAKE_SPECTATOR_REPORTED', '🚩 Sahte Seyirci Bildirimi',
+                `"${disputedUser?.fullName || disputedUser?.username}" bir voleybol maçında seyirci olarak katıldığını iddia etti ama maç kadrosunun çoğunluğu (${voterIds.size}/${rosterIds.length}) bunu reddetti. Seyirci kaydı silindi${voidedRatings.length > 0 ? ' ve verdiği antrenör değerlendirmesi geçersiz kılındı.' : '.'}`,
+                { rivalId: id, disputedUserId: spectatorUserId }
+            ).catch(() => {});
+        }
     } catch (error) { next(error); }
 };

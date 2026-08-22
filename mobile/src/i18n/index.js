@@ -727,6 +727,14 @@ const en = {
     spectatorListEmpty: 'No spectators yet.',
     spectatorJoinBtn: 'Join as Spectator',
     spectatorLeaveBtn: 'Leave',
+    spectatorDisputeBtn: 'Report',
+    spectatorDisputeConfirmTitle: 'Report Fake Spectator',
+    spectatorDisputeConfirmMsg: 'Are you sure this person was not actually at the match as a spectator? If more than half of both teams\' players report the same person, their spectator record and any coach rating they gave for this match will be voided.',
+    spectatorDisputeConfirmBtn: 'Report',
+    spectatorDisputeRecordedTitle: 'Report Recorded',
+    spectatorDisputeRecordedMsg: (n, needed) => `Your report was recorded (${n}/${needed}). Once more than half of both teams report this spectator, their record will be voided.`,
+    spectatorDisputeResolvedTitle: 'Spectator Removed',
+    spectatorDisputeResolvedMsg: 'The majority of the match roster reported this spectator — their spectator record (and any coach rating based on it) has been voided. Admins have been notified.',
 
     // SubCategory — tournament creation
     createTournamentBtn: '+ Create Tournament',
@@ -2173,6 +2181,14 @@ const tr = {
     spectatorListEmpty: 'Henüz seyirci yok.',
     spectatorJoinBtn: 'Seyirci Olarak Katıl',
     spectatorLeaveBtn: 'Ayrıl',
+    spectatorDisputeBtn: 'İtiraz Et',
+    spectatorDisputeConfirmTitle: 'Sahte Seyirci Bildir',
+    spectatorDisputeConfirmMsg: 'Bu kişinin maça seyirci olarak gerçekten gelmediğinden emin misiniz? İki takımın yarısından fazlası aynı kişiye itiraz ederse, seyirci kaydı ve bu maç için verdiği antrenör değerlendirmesi (varsa) geçersiz sayılır.',
+    spectatorDisputeConfirmBtn: 'İtiraz Et',
+    spectatorDisputeRecordedTitle: 'İtiraz Kaydedildi',
+    spectatorDisputeRecordedMsg: (n, needed) => `İtirazınız kaydedildi (${n}/${needed}). İki takımın yarısından fazlası itiraz edince bu seyircinin kaydı geçersiz sayılacak.`,
+    spectatorDisputeResolvedTitle: 'Seyirci Kaydı Silindi',
+    spectatorDisputeResolvedMsg: 'Maç kadrosunun çoğunluğu bu seyirciye itiraz etti — seyirci kaydı ve varsa buna dayanan antrenör değerlendirmesi geçersiz kılındı. Admine bildirim gönderildi.',
 
     // SubCategory — tournament creation
     createTournamentBtn: '+ Turnuva Oluştur',
