@@ -3438,23 +3438,33 @@ export const respondToJoin = async (req, res, next) => {
             const perTeamGenderError = await perTeamGenderFeasible(joinReq.rival, 'my', updatedSenderTeamArr);
             if (perTeamGenderError) return res.status(400).json({ message: perTeamGenderError });
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
+            // BUG (kullanıcı raporu): "4/4 oldu ama Yaklaşan Maçlar'a geçmedi" — bu dal SADECE
+            // senderTeam'i güncelliyordu, kadronun (kurucu+senderTeam+participants+unassignedPlayers)
+            // toplamda tamamlanıp tamamlanmadığına HİÇ bakmıyordu, "matched: false" sabitti. Partner
+            // daveti, roster'ı BAŞKA yollarla (ör. participants/unassignedPlayers) zaten dolmuş bir
+            // ilanda TAMAMLAYAN son kabul olabilir — bkz. opp1/opp2 DOUBLE dalındaki aynı hesap.
+            const isFullNow = 1
+                + (Array.isArray(updatedSenderTeamArr) ? updatedSenderTeamArr.filter(p => p?.id).length : 0)
+                + (Array.isArray(joinReq.rival.participants) ? joinReq.rival.participants.filter(p => p?.id).length : 0)
+                + (Array.isArray(joinReq.rival.unassignedPlayers) ? joinReq.rival.unassignedPlayers.filter(p => p?.id).length : 0) >= 4;
             const updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },
-                data: { senderTeam: updatedSenderTeamArr },
+                data: { senderTeam: updatedSenderTeamArr, ...(isFullNow && { status: 'MATCHED', receiverId: joinReq.userId, reopenedAt: null }) },
                 include: {
                     sender: { select: SENDER_SELECT },
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
                 },
             });
             broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
-            emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: false });
+            emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: isFullNow });
             createNotification(
                 joinReq.rival.senderId, 'MATCH_CONFIRMED',
                 '🤝 Partner Kabul Etti',
-                `${joinReq.user.username} çiftler takımınıza katılmayı kabul etti.`,
+                `${joinReq.user.username} çiftler takımınıza katılmayı kabul etti.${isFullNow ? ' Maç doldu!' : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
-            return res.json({ message: 'Partner daveti kabul edildi.', request: updatedRival });
+            if (isFullNow) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId], joinReq.rival.matchType);
+            return res.json({ message: 'Partner daveti kabul edildi.', request: updatedRival, matched: isFullNow });
         }
 
         // Rakip Takım daveti kabul: participants'a DOĞRUDAN eklenir (atanmamış havuzuna değil)
