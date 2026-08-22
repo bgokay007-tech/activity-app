@@ -5664,7 +5664,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             )}
             {/* Court */}
             {match.courtName && (
-                <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2 }]}>{isVolleyball ? '' : '🏟️ '}{match.courtName}</Text>
+                <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
+                    <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2, textDecorationLine:'underline' }]}>{isVolleyball ? '' : '🏟️ '}{match.courtName}</Text>
+                </TouchableOpacity>
             )}
             {match.refereeRequested && (match.refereeUser || match.manualRefereeName || !matchEnded) && (
                 <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'600', marginTop:4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
