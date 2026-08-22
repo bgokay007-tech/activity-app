@@ -2331,9 +2331,12 @@ export const updateOrderStatus = async (req, res, next) => {
 
         if (status !== undefined) {
             const statusMsg = { CONFIRMED: '✅ onaylandı', READY: '🟢 hazır', CANCELLED: '❌ iptal edildi' };
+            // Kullanıcı isteği: bu bildirime dokununca doğrudan o maçın detayına (adisyon
+            // ikonu otomatik açık) gidilsin — bunun için maçın category/subCategory'si de
+            // (navigateFromNotif'in SubCategory'ye gidebilmesi için) taşınır.
             await createNotification(order.userId, 'ORDER_STATUS', '📦 Sipariş Güncellendi',
                 `${order.venue.name} siparişiniz ${statusMsg[status]}.`,
-                { orderId, venueId: order.venueId }
+                { orderId, venueId: order.venueId, rivalId: order.activityId || null, category: 'SPORTS', subCategory: order.venue.branch }
             );
             emitToUser(order.userId, 'notification', {});
         }

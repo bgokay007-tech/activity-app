@@ -84,6 +84,10 @@ function navigateFromNotif(data) {
                 ...(data.inviteDoubleSlot && { inviteDoubleSlot: data.inviteDoubleSlot }),
                 ...(type === 'TOURNAMENT_COMPLETED' && { initialArchiveSubTab: 'tournaments', openArchiveTournamentId: data.tournamentId || null }),
                 ...(type === 'PEER_REVIEW_PROMPT' && { openPeerReviewRivalId: data.rivalId || null }),
+                // Kullanıcı isteği: "Sipariş Güncellendi/Onaylandı/Hazır" bildirimine dokununca
+                // doğrudan o maçın detayı, kadro kartında kendi "Adisyonu Var" ikonu otomatik
+                // açılmış halde gösterilsin (bkz. RivalCard/UpcomingCard'daki autoOpenOrder).
+                ...(type === 'ORDER_STATUS' && { autoOpenOrder: true }),
             },
         });
     }

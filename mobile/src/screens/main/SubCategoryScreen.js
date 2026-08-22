@@ -571,7 +571,7 @@ const det = StyleSheet.create({
     chatBtnTxt:   { fontSize:moderateScale(13) },
 });
 
-function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin, highlightSlot: highlightSlotFromNotif = null }) {
+function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin, highlightSlot: highlightSlotFromNotif = null, autoOpenOrder = false }) {
     const insets = useSafeAreaInsets();
     // Kullanıcı raporu: "Atanmamış" ızgarasında derece puanı (⭐) küçük ekranlı telefonlarda
     // görünmüyordu — sabit 3 sütun (width:'32%') dar ekranda isim+cinsiyet metnini doldurup
@@ -721,6 +721,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // Kullanıcı isteği: kendi siparişini veren oyuncu, ismi yanındaki yanıp sönen ikona
     // dokununca kendi siparişinin (teslim/ödeme) durumunu görebilsin — bkz. MyOrderStatusModal.
     const [showMyOrder, setShowMyOrder] = useState(false);
+    // Kullanıcı isteği: "Sipariş Güncellendi/Onaylandı/Hazır" bildiriminden gelindiyse
+    // (autoOpenOrder), detay açılır açılmaz kendi sipariş durumu otomatik gösterilsin.
+    useEffect(() => {
+        if (visible && autoOpenOrder) setShowMyOrder(true);
+    }, [visible, autoOpenOrder]);
     const [comments, setComments] = useState([]);
     const [loadingComments, setLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
@@ -3436,7 +3441,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
 // ─── Rival Card ────────────────────────────────────────────────────────────────
 
-function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpened, myRating = 0, refereeListings = [], highlightSlot = null }) {
+function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpened, myRating = 0, refereeListings = [], highlightSlot = null, autoOpenOrder = false }) {
     const t = useT();
     const cfg = getConfig(sub);
     const isVolleyball = sub === 'volleyball';
@@ -4099,6 +4104,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             myRefereeListing={refereeListings.find(r => r.userId === myId)}
             onConfirmLateJoin={handleConfirmLateJoin}
             highlightSlot={highlightSlot}
+            autoOpenOrder={autoOpenOrder}
         />
         {isTeamWantedAd && (
             <TeamJoinRequestModal
@@ -4528,7 +4534,7 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, t }) {
     );
 }
 
-function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress }) {
+function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress, autoOpen = false, onAutoOpened, autoOpenOrder = false }) {
     const t = useT();
     const insets = useSafeAreaInsets();
     const [showScore, setShowScore] = useState(false);
@@ -5420,6 +5426,23 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         } catch(e) { console.warn(e?.message); }
         finally { setLoadingLocalComments(false); }
     }, [match.id, localCommentsLoaded]);
+
+    // Kullanıcı isteği: bildirimden (ör. "Sipariş Güncellendi") gelindiğinde bu maç
+    // Yaklaşan Maçlar'daysa detay otomatik açılsın — RivalCard'daki autoOpen ile aynı desen,
+    // önceden UpcomingCard'da hiç yoktu (bildirimle gelen highlightRivalId'nin MATCHED bir
+    // maça denk gelmesi durumunda hiçbir şey açılmıyordu).
+    const autoOpenedRef = useRef(false);
+    useEffect(() => {
+        if (autoOpen && !autoOpenedRef.current) {
+            autoOpenedRef.current = true;
+            openDetail();
+            onAutoOpened?.();
+        }
+    }, [autoOpen]);
+    // Detay bildirimden (autoOpenOrder) açıldıysa, kendi sipariş durumu da otomatik gösterilir.
+    useEffect(() => {
+        if (showDetail && autoOpenOrder) setShowMyOrder(true);
+    }, [showDetail, autoOpenOrder]);
 
     const sendLocalComment = async () => {
         if (!localCommentText.trim()) return;
@@ -17569,7 +17592,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId, inviteSide, inviteSlotIndex, inviteDoubleSlot, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
             openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor,
-            openEquipmentId, initialCoachSubTab, openCoachId, initialArchiveSubTab, openArchiveTournamentId } = route.params;
+            openEquipmentId, initialCoachSubTab, openCoachId, initialArchiveSubTab, openArchiveTournamentId, autoOpenOrder } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
@@ -20101,7 +20124,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : (
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                             {filteredRivals.map(item => (
-                                                <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} />
+                                                <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
                                             {/* Yedek kadrosu (substituteCount) henüz dolmamış eşleşmiş maçlar — kullanıcı isteği:
                                                 as kadro dolsa bile yedek dolana kadar Yaklaşan Maçlar'a değil, Açık İlanlar'da
@@ -20110,7 +20133,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 kalması maçın iptaline yol açmaz. */}
                                             {upcomingNeedingSubs.map(m => (
                                                 <View key={m.id} style={{ width:'48.5%' }}>
-                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                                 </View>
                                             ))}
                                         </View>
@@ -20133,7 +20156,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                             {upcomingSubsFull.map(m => (
                                                 <View key={m.id} style={{ width:'48.5%' }}>
-                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                                 </View>
                                             ))}
                                         </View>
@@ -20157,7 +20180,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                             {playingMatches.map(m => (
                                                 <View key={m.id} style={{ width:'48.5%' }}>
-                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                                 </View>
                                             ))}
                                         </View>
@@ -20172,7 +20195,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                         {pendingScoreAll.map(m => (
                                             <View key={m.id} style={{ width:'48.5%' }}>
-                                                <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} />
+                                                <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             </View>
                                         ))}
                                     </View>
@@ -20929,7 +20952,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         : (
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                                 {refereeMatches.map(item => (
-                                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} />
+                                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
                                                 ))}
                                             </View>
                                         )

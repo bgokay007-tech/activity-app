@@ -307,6 +307,14 @@ export default function NotificationsScreen({ navigation }) {
             } else {
                 navigation.navigate('HomeTab', { screen: 'MyReservations' });
             }
+        } else if (type === 'ORDER_STATUS') {
+            // Kullanıcı isteği: "Sipariş Güncellendi/Onaylandı/Hazır" bildirimine dokununca
+            // doğrudan o maçın detayına, kadro kartında kendi "Adisyonu Var" ikonu otomatik
+            // açılmış halde gidilsin (bkz. navigateFromNotif'teki aynı mantık, RivalCard/
+            // UpcomingCard'daki autoOpenOrder).
+            if (data.category && data.subCategory) {
+                navigation.push('SubCategory', { category: String(data.category).toUpperCase(), sub: data.subCategory, initialTab: 'rivals', highlightRivalId: data.rivalId || null, autoOpenOrder: true });
+            }
         } else if (type === 'RESERVATION' || type === 'RESERVATION_UPDATE' || type === 'PAYMENT_ALERT') {
             if (isBusiness) {
                 // navigateFromNotif (navigation/index.js) ile aynı mantık — venueId varsa
