@@ -2632,6 +2632,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
                                                 </TouchableOpacity>
                                             )}
+                                            {/* Kullanıcı isteği: digimon kartlarda oyuncuların yanında elo puanı
+                                                HER dalda gösterilsin, ilan detayına bakan HERKES (ilan sahibi
+                                                dahil) görebilsin — burada (SINGLE/1v1 ilanlar) hiç yoktu. */}
+                                            {item.sender?.interests?.[0]?.skillRating != null && (
+                                                <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{Number(item.sender.interests[0].skillRating).toFixed(2)}★</Text>
+                                            )}
                                         </View>
                                         <Text style={det.playerSub}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
                                     </View>
@@ -2646,6 +2652,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     <TouchableOpacity onPress={() => p.id === myId && setShowMyOrder(true)} hitSlop={{ top:6, bottom:6, left:4, right:6 }} disabled={p.id !== myId}>
                                                         <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
                                                     </TouchableOpacity>
+                                                )}
+                                                {p.skillRating != null && (
+                                                    <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
                                                 )}
                                             </View>
                                             <Text style={det.playerSub}>
