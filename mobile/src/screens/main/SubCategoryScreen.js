@@ -3836,7 +3836,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                     <View key={p.id || i} style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
                                         <Avatar name={p.username} avatar={p.avatar} size={moderateScale(20)} color={cfg.color} />
                                         <Text style={{ color:'#fff', fontSize:moderateScale(11), flex:1, minWidth:0 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(p)}</Text>
-                                        {r != null && <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800' }}>{Number(r).toFixed(2)} ★</Text>}
+                                        {/* Kullanıcı isteği: ilan sahibi kadro puanlarını görmesin (kimi kabul edeceğine
+                                            puana göre karar vermesin diye), diğer tüm katılımcılar görebilsin. */}
+                                        {!isOwner && r != null && <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800' }}>{Number(r).toFixed(2)} ★</Text>}
                                     </View>
                                 );
                             })}
@@ -5576,7 +5578,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             <Animated.Text style={{ fontSize:12, opacity: orderBlink }}>📋</Animated.Text>
                                         </TouchableOpacity>
                                     )}
-                                    {p.skillRating != null && <Text style={{ color:'#facc15', fontSize:10, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>}
+                                    {/* Kullanıcı isteği: ilan sahibi kadro puanlarını görmesin, diğer tüm
+                                        katılımcılar görebilsin. */}
+                                    {!isOwner && p.skillRating != null && <Text style={{ color:'#facc15', fontSize:10, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>}
                                 </View>
                             ))}
                         </ScrollView>
