@@ -2329,15 +2329,31 @@ export const updateOrderStatus = async (req, res, next) => {
             },
         });
 
+        // Kullanıcı isteği: bu bildirimlere dokununca doğrudan o maçın detayına (adisyon
+        // ikonu otomatik açık) gidilsin — bunun için maçın category/subCategory'si de
+        // (navigateFromNotif'in SubCategory'ye gidebilmesi için) her bildirimde taşınır.
+        const notifyData = { orderId, venueId: order.venueId, rivalId: order.activityId || null, category: 'SPORTS', subCategory: order.venue.branch };
+
         if (status !== undefined) {
             const statusMsg = { CONFIRMED: '✅ onaylandı', READY: '🟢 hazır', CANCELLED: '❌ iptal edildi' };
-            // Kullanıcı isteği: bu bildirime dokununca doğrudan o maçın detayına (adisyon
-            // ikonu otomatik açık) gidilsin — bunun için maçın category/subCategory'si de
-            // (navigateFromNotif'in SubCategory'ye gidebilmesi için) taşınır.
             await createNotification(order.userId, 'ORDER_STATUS', '📦 Sipariş Güncellendi',
-                `${order.venue.name} siparişiniz ${statusMsg[status]}.`,
-                { orderId, venueId: order.venueId, rivalId: order.activityId || null, category: 'SPORTS', subCategory: order.venue.branch }
-            );
+                `${order.venue.name} siparişiniz ${statusMsg[status]}.`, notifyData);
+            emitToUser(order.userId, 'notification', {});
+        }
+        // Kullanıcı isteği: teslim/ödeme durumu status'tan bağımsız değişebildiği için, her
+        // biri de kendi bildirimini (ve maç detayına/adisyona giden aynı deep-link'i) tetikler.
+        if (typeof delivered === 'boolean') {
+            await createNotification(order.userId, 'ORDER_STATUS',
+                delivered ? '📦 Siparişiniz Teslim Edildi' : '📦 Teslimat Durumu Güncellendi',
+                `${order.venue.name} — siparişiniz ${delivered ? 'teslim edildi.' : 'henüz teslim edilmedi olarak işaretlendi.'}`,
+                notifyData);
+            emitToUser(order.userId, 'notification', {});
+        }
+        if (typeof paid === 'boolean') {
+            await createNotification(order.userId, 'ORDER_STATUS',
+                paid ? '💰 Ödemeniz Alındı' : '💰 Ödeme Durumu Güncellendi',
+                `${order.venue.name} — siparişinizin ücreti ${paid ? 'alındı.' : 'henüz alınmadı olarak işaretlendi.'}`,
+                notifyData);
             emitToUser(order.userId, 'notification', {});
         }
 

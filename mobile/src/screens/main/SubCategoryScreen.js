@@ -703,9 +703,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // yanıp söner — kullanıcı isteği: "ataması olmayan isimler uyarıcı hatırlatma olsun".
     // Atama artık arka yüzdeki "Atanmamış" listesinden yapılıyor (bkz. promptAssignTeam).
     const unassignedBlink = useRef(new Animated.Value(1)).current;
-    // Kullanıcı isteği: bu ilan/tesis üzerinden sipariş veren (adisyonu olan) oyuncunun
-    // kadro kartındaki isminin yanında "Adisyonu Var" yazısı yanıp sönsün — aynı
-    // unassignedBlink deseni (bkz. yukarıdaki yorum).
+    // Kullanıcı isteği: bu ilan/tesis üzerinden verdiği sipariş İŞLETME TARAFINDAN
+    // ONAYLANMIŞ (CONFIRMED/READY, bkz. backend orderedUserIds filtresi) bir oyuncunun
+    // kadro kartındaki isminin SAĞINDA küçük yanıp sönen bir 📋 ikonu/buton belirsin — aynı
+    // unassignedBlink deseni (bkz. yukarıdaki yorum). Sadece kendi siparişiyse tıklanabilir.
     const [localOrderedUserIds, setLocalOrderedUserIds] = useState([]);
     const orderBlink = useRef(new Animated.Value(1)).current;
     useEffect(() => {
@@ -1962,17 +1963,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })}>
                                                 <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(28)} color={cfg.color} />
                                                 <View style={{ flex:1 }}>
-                                                    <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(item.sender)}</Text>
-                                                    <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
-                                                    {item.senderId && localOrderedUserIds.includes(item.senderId) && (
-                                                        item.senderId === myId ? (
-                                                            <TouchableOpacity onPress={() => setShowMyOrder(true)}>
-                                                                <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                    <View style={{ flexDirection:'row', alignItems:'center' }}>
+                                                        <Text style={[det.playerName, { flexShrink:1 }]} numberOfLines={1}>{playerDisplayName(item.sender)}</Text>
+                                                        {item.senderId && localOrderedUserIds.includes(item.senderId) && (
+                                                            <TouchableOpacity onPress={() => item.senderId === myId && setShowMyOrder(true)} hitSlop={{ top:6, bottom:6, left:4, right:6 }} disabled={item.senderId !== myId}>
+                                                                <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
                                                             </TouchableOpacity>
-                                                        ) : (
-                                                            <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
-                                                        )
-                                                    )}
+                                                        )}
+                                                    </View>
+                                                    <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
                                                 </View>
                                             </TouchableOpacity>
                                         </View>
@@ -1981,7 +1980,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => sl.p.id && navigation.push('Profile', { userId: sl.p.id })}>
                                                     <Avatar name={sl.p.username} avatar={sl.p.avatar} size={moderateScale(28)} color={cfg.color} />
                                                     <View style={{ flex:1 }}>
-                                                        <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(sl.p)}</Text>
+                                                        <View style={{ flexDirection:'row', alignItems:'center' }}>
+                                                            <Text style={[det.playerName, { flexShrink:1 }]} numberOfLines={1}>{playerDisplayName(sl.p)}</Text>
+                                                            {sl.p.id && localOrderedUserIds.includes(sl.p.id) && (
+                                                                <TouchableOpacity onPress={() => sl.p.id === myId && setShowMyOrder(true)} hitSlop={{ top:6, bottom:6, left:4, right:6 }} disabled={sl.p.id !== myId}>
+                                                                    <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                        </View>
                                                         {/* Kullanıcı raporu: ön yüzde slot bazlı cinsiyet etiketi ("Katılımcı 1
                                                             (kadın)") kafa karıştırıyordu — kabul sırasına göre yerleşen biri
                                                             o numarada göründüğü için, cinsiyeti farklı biri kabul edilince
@@ -1989,15 +1995,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                             artık SADECE arka yüzdeki takım kartında (spesifik role bağlı
                                                             olduğu yerde) gösteriliyor, ön yüz salt sıra numarası. */}
                                                         <Text style={det.playerSub} numberOfLines={1}>{t.cardParticipantLabel(i + 1)}</Text>
-                                                        {sl.p.id && localOrderedUserIds.includes(sl.p.id) && (
-                                                            sl.p.id === myId ? (
-                                                                <TouchableOpacity onPress={() => setShowMyOrder(true)}>
-                                                                    <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
-                                                                </TouchableOpacity>
-                                                            ) : (
-                                                                <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
-                                                            )
-                                                        )}
                                                     </View>
                                                 </TouchableOpacity>
                                                 {isOwner && (
@@ -2019,17 +2016,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => navigation.push('Profile', { userId: p.id })}>
                                                     <Avatar name={p.username} avatar={p.avatar} size={moderateScale(28)} color={cfg.color} />
                                                     <View style={{ flex:1 }}>
-                                                        <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(p)}</Text>
-                                                        <Text style={det.playerSub} numberOfLines={1}>{t.cardParticipantLabel(teamSlots.length + i + 1)}</Text>
-                                                        {p.id && localOrderedUserIds.includes(p.id) && (
-                                                            p.id === myId ? (
-                                                                <TouchableOpacity onPress={() => setShowMyOrder(true)}>
-                                                                    <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                        <View style={{ flexDirection:'row', alignItems:'center' }}>
+                                                            <Text style={[det.playerName, { flexShrink:1 }]} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                                            {p.id && localOrderedUserIds.includes(p.id) && (
+                                                                <TouchableOpacity onPress={() => p.id === myId && setShowMyOrder(true)} hitSlop={{ top:6, bottom:6, left:4, right:6 }} disabled={p.id !== myId}>
+                                                                    <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
                                                                 </TouchableOpacity>
-                                                            ) : (
-                                                                <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
-                                                            )
-                                                        )}
+                                                            )}
+                                                        </View>
+                                                        <Text style={det.playerSub} numberOfLines={1}>{t.cardParticipantLabel(teamSlots.length + i + 1)}</Text>
                                                     </View>
                                                 </TouchableOpacity>
                                                 {/* Kullanıcı raporu: named slottaki (Takım Arkadaşı/Rakip1/Rakip2)
@@ -2496,17 +2491,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             onPress={() => p.id && navigation.push('Profile', { userId: p.id })}>
                                             <Avatar name={p.username} avatar={p.avatar} size={moderateScale(28)} color={cfg.color} />
                                             <View style={{ flex:1, minWidth:0 }}>
-                                                <Text style={det.playerName} numberOfLines={1}>{i + 1}. {playerDisplayName(p)}</Text>
-                                                <Text style={det.playerSub} numberOfLines={1}>{p.username}</Text>
-                                                {p.id && localOrderedUserIds.includes(p.id) && (
-                                                    p.id === myId ? (
-                                                        <TouchableOpacity onPress={() => setShowMyOrder(true)}>
-                                                            <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                <View style={{ flexDirection:'row', alignItems:'center' }}>
+                                                    <Text style={[det.playerName, { flexShrink:1 }]} numberOfLines={1}>{i + 1}. {playerDisplayName(p)}</Text>
+                                                    {p.id && localOrderedUserIds.includes(p.id) && (
+                                                        <TouchableOpacity onPress={() => p.id === myId && setShowMyOrder(true)} hitSlop={{ top:6, bottom:6, left:4, right:6 }} disabled={p.id !== myId}>
+                                                            <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
                                                         </TouchableOpacity>
-                                                    ) : (
-                                                        <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
-                                                    )
-                                                )}
+                                                    )}
+                                                </View>
+                                                <Text style={det.playerSub} numberOfLines={1}>{p.username}</Text>
                                             </View>
                                         </TouchableOpacity>
                                     ))}
@@ -2517,17 +2510,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })}>
                                             <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(28)} color={cfg.color} />
                                             <View style={{ flex:1 }}>
-                                                <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(item.sender)}</Text>
-                                                <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
-                                                {item.senderId && localOrderedUserIds.includes(item.senderId) && (
-                                                    item.senderId === myId ? (
-                                                        <TouchableOpacity onPress={() => setShowMyOrder(true)}>
-                                                            <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                                <View style={{ flexDirection:'row', alignItems:'center' }}>
+                                                    <Text style={[det.playerName, { flexShrink:1 }]} numberOfLines={1}>{playerDisplayName(item.sender)}</Text>
+                                                    {item.senderId && localOrderedUserIds.includes(item.senderId) && (
+                                                        <TouchableOpacity onPress={() => item.senderId === myId && setShowMyOrder(true)} hitSlop={{ top:6, bottom:6, left:4, right:6 }} disabled={item.senderId !== myId}>
+                                                            <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
                                                         </TouchableOpacity>
-                                                    ) : (
-                                                        <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
-                                                    )
-                                                )}
+                                                    )}
+                                                </View>
+                                                <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
                                             </View>
                                         </TouchableOpacity>
                                     </View>
@@ -2537,20 +2528,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => navigation.push('Profile', { userId: participants[0].id })}>
                                                     <Avatar name={participants[0].username} avatar={participants[0].avatar} size={moderateScale(28)} color={cfg.color} />
                                                     <View style={{ flex:1 }}>
-                                                        <Text style={det.playerName} numberOfLines={1}>{playerDisplayName(participants[0])}</Text>
+                                                        <View style={{ flexDirection:'row', alignItems:'center' }}>
+                                                            <Text style={[det.playerName, { flexShrink:1 }]} numberOfLines={1}>{playerDisplayName(participants[0])}</Text>
+                                                            {participants[0].id && localOrderedUserIds.includes(participants[0].id) && (
+                                                                <TouchableOpacity onPress={() => participants[0].id === myId && setShowMyOrder(true)} hitSlop={{ top:6, bottom:6, left:4, right:6 }} disabled={participants[0].id !== myId}>
+                                                                    <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                        </View>
                                                         <Text style={det.playerSub} numberOfLines={1}>
                                                             {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? '(Erkek) ' : '(Kadın) '}</Text>}
                                                             {participants[0].username}
                                                         </Text>
-                                                        {participants[0].id && localOrderedUserIds.includes(participants[0].id) && (
-                                                            participants[0].id === myId ? (
-                                                                <TouchableOpacity onPress={() => setShowMyOrder(true)}>
-                                                                    <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
-                                                                </TouchableOpacity>
-                                                            ) : (
-                                                                <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
-                                                            )
-                                                        )}
                                                     </View>
                                                 </TouchableOpacity>
                                                 {isOwner && (
@@ -2581,37 +2570,33 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <View style={det.playerRow}>
                                     <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
                                     <View style={{ flex:1 }}>
-                                        <Text style={det.playerName}>{playerDisplayName(item.sender)}</Text>
-                                        <Text style={det.playerSub}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
-                                        {item.senderId && localOrderedUserIds.includes(item.senderId) && (
-                                            item.senderId === myId ? (
-                                                <TouchableOpacity onPress={() => setShowMyOrder(true)}>
-                                                    <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
+                                        <View style={{ flexDirection:'row', alignItems:'center' }}>
+                                            <Text style={[det.playerName, { flexShrink:1 }]}>{playerDisplayName(item.sender)}</Text>
+                                            {item.senderId && localOrderedUserIds.includes(item.senderId) && (
+                                                <TouchableOpacity onPress={() => item.senderId === myId && setShowMyOrder(true)} hitSlop={{ top:6, bottom:6, left:4, right:6 }} disabled={item.senderId !== myId}>
+                                                    <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
                                                 </TouchableOpacity>
-                                            ) : (
-                                                <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
-                                            )
-                                        )}
+                                            )}
+                                        </View>
+                                        <Text style={det.playerSub}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
                                     </View>
                                 </View>
                                 {participants.filter(p => p?.id).map((p, i) => (
                                     <View key={p.id || i} style={det.playerRow}>
                                         <Avatar name={p.username} avatar={p.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} />
                                         <View style={{ flex:1 }}>
-                                            <Text style={det.playerName}>{playerDisplayName(p)}</Text>
+                                            <View style={{ flexDirection:'row', alignItems:'center' }}>
+                                                <Text style={[det.playerName, { flexShrink:1 }]}>{playerDisplayName(p)}</Text>
+                                                {p.id && localOrderedUserIds.includes(p.id) && (
+                                                    <TouchableOpacity onPress={() => p.id === myId && setShowMyOrder(true)} hitSlop={{ top:6, bottom:6, left:4, right:6 }} disabled={p.id !== myId}>
+                                                        <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
                                             <Text style={det.playerSub}>
                                                 {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? '(Erkek) ' : '(Kadın) '}</Text>}
                                                 {p.username}
                                             </Text>
-                                            {p.id && localOrderedUserIds.includes(p.id) && (
-                                                p.id === myId ? (
-                                                    <TouchableOpacity onPress={() => setShowMyOrder(true)}>
-                                                        <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
-                                                    </TouchableOpacity>
-                                                ) : (
-                                                    <Animated.Text style={{ color:'#22c55e', fontSize:moderateScale(9), fontWeight:'700', opacity: orderBlink }} numberOfLines={1}>📋 Adisyonu Var</Animated.Text>
-                                                )
-                                            )}
                                         </View>
                                         {isOwner && (
                                             <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ padding:3 }}>
@@ -4659,11 +4644,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // çalıştığı için TeamAssignCard doğrudan kullanılamadı — aynı görsel dil, ama DOUBLE'a
     // özgü assign-double-slot/swap-positions uç noktalarıyla (aşağıdaki assignDoubleSlot/
     // handleSwapTap) kendi flip state'i burada tutuluyor.
-    // Kullanıcı isteği: kompakt ilan kartındaki (RivalCard) "kadro sadece 🔄 ile çevrilince
-    // görünür" mantığının aynısı Yaklaşan Maçlar kartında da olsun — kadro/digimon kartı
-    // varsayılan olarak GİZLİ, "👥 Kadro" başlığına dokununca açılır. Açıldıktan sonraki
-    // ön/arka geçişi (doubleCardBack) değişmeden aynen çalışmaya devam eder.
-    const [showRosterCard, setShowRosterCard] = useState(false);
     const [doubleCardBack, setDoubleCardBack] = useState(false);
     const doubleFlipAnim = useRef(new Animated.Value(0)).current;
     const doubleUnassignedBlink = useRef(new Animated.Value(1)).current;
@@ -8138,8 +8118,16 @@ function MyOrderStatusModal({ visible, rivalId, onClose }) {
                         {!loading && orders.length === 0 && (
                             <Text style={vm.emptyTxt}>Sipariş bulunamadı</Text>
                         )}
-                        {!loading && orders.map(order => (
+                        {!loading && orders.map(order => {
+                            const statusInfo = {
+                                PENDING:   { label: '⏳ Onay Bekliyor', color: '#facc15' },
+                                CONFIRMED: { label: '✅ Onaylandı',     color: '#4ade80' },
+                                READY:     { label: '🟢 Hazır',         color: '#4ade80' },
+                                CANCELLED: { label: '❌ İptal Edildi',  color: '#f87171' },
+                            }[order.status] || { label: order.status, color: '#facc15' };
+                            return (
                             <View key={order.id} style={{ backgroundColor:'#ffffff08', borderRadius:10, padding:12, marginBottom:10 }}>
+                                <Text style={{ color: statusInfo.color, fontSize:12, fontWeight:'700', marginBottom:6 }}>{statusInfo.label}</Text>
                                 {order.items?.map((it, i) => (
                                     <Text key={i} style={{ color:'#ddd', fontSize:13, marginBottom:2 }}>
                                         {it.quantity}× {it.menuItem?.name} — {it.unitPrice * it.quantity}₺
@@ -8155,7 +8143,8 @@ function MyOrderStatusModal({ visible, rivalId, onClose }) {
                                     </View>
                                 </View>
                             </View>
-                        ))}
+                            );
+                        })}
                         <View style={{ height: 20 }} />
                     </ScrollView>
                 </View>

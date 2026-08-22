@@ -1159,14 +1159,18 @@ export const getRivalById = async (req, res, next) => {
         const withGender = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id ? { ...p, gender: p.gender ?? unassignedGenderById[p.id] ?? null } : p);
 
         // Kullanıcı isteği: ilan detayında hangi oyuncunun bu maç/tesis üzerinden sipariş/adisyonu
-        // olduğu görülebilsin (kadroda yanıp sönen "Adisyonu Var" etiketi, bkz. RivalDetailModal).
-        // İki kaynaktan gelebilir: (1) VenueOrder.activityId — henüz bir adisyon (VenueBill)
-        // açılmadan verilen siparişler, (2) reservationId'ye bağlı VenueBill'in kalemleri —
-        // hem kullanıcının kendi siparişi hem işletmenin manuel eklediği ürünler dahil.
+        // olduğu görülebilsin (kadroda yanıp sönen adisyon ikonu, bkz. RivalDetailModal) — ama
+        // SADECE işletme siparişi onayladıktan (CONFIRMED/READY) sonra, henüz PENDING (onay
+        // bekleyen) ya da CANCELLED bir sipariş için ikon çıkmaz (kullanıcı isteği: "işletme
+        // onaylayınca adisyon butonu oluşsun"). İki kaynaktan gelebilir: (1) VenueOrder.activityId
+        // — henüz bir adisyon (VenueBill) açılmadan verilen siparişler, (2) reservationId'ye bağlı
+        // VenueBill'in kalemleri — bunlar zaten ya kullanıcının onaylı siparişinden ya da
+        // işletmenin doğrudan adisyona eklediği kalemlerden geldiği için ayrıca durum filtresi
+        // gerekmez.
         let orderedUserIds = [];
         if (rival.venueId) {
             const [venueOrders, bill] = await Promise.all([
-                prisma.venueOrder.findMany({ where: { activityId: rival.id }, select: { userId: true } }),
+                prisma.venueOrder.findMany({ where: { activityId: rival.id, status: { in: ['CONFIRMED', 'READY'] } }, select: { userId: true } }),
                 rival.venueReservationId
                     ? prisma.venueBill.findUnique({ where: { reservationId: rival.venueReservationId }, include: { items: { select: { userId: true } } } })
                     : Promise.resolve(null),
