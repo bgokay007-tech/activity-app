@@ -4659,12 +4659,20 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // çalıştığı için TeamAssignCard doğrudan kullanılamadı — aynı görsel dil, ama DOUBLE'a
     // özgü assign-double-slot/swap-positions uç noktalarıyla (aşağıdaki assignDoubleSlot/
     // handleSwapTap) kendi flip state'i burada tutuluyor.
-    // Kullanıcı raporu: kartın ön yüzündeki isim havuzu arka yüzdeki Kurucu/Rakip kutularıyla
-    // aynı isimleri tekrar ediyordu — ön yüz kaldırıldığı için artık ayrı bir ön/arka çevirme
-    // durumuna (ve flipDoubleCard'a) gerek yok (bkz. DOUBLE/SINGLE render blokları).
-    // doubleFlipAnim sabit 0'da kalıyor, transform'da zararsız şekilde duruyor.
+    // Kullanıcı isteği: kompakt ilan kartındaki (RivalCard) "kadro sadece 🔄 ile çevrilince
+    // görünür" mantığının aynısı Yaklaşan Maçlar kartında da olsun — kadro/digimon kartı
+    // varsayılan olarak GİZLİ, "👥 Kadro" başlığına dokununca açılır. Açıldıktan sonraki
+    // ön/arka geçişi (doubleCardBack) değişmeden aynen çalışmaya devam eder.
+    const [showRosterCard, setShowRosterCard] = useState(false);
+    const [doubleCardBack, setDoubleCardBack] = useState(false);
     const doubleFlipAnim = useRef(new Animated.Value(0)).current;
     const doubleUnassignedBlink = useRef(new Animated.Value(1)).current;
+    const flipDoubleCard = () => {
+        Animated.timing(doubleFlipAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(() => {
+            setDoubleCardBack(b => !b);
+            Animated.timing(doubleFlipAnim, { toValue: doubleCardBack ? 0 : 1, duration: 150, useNativeDriver: true }).start();
+        });
+    };
     const [teamNameModal, setTeamNameModal] = useState(null); // { side: 'founder'|'opponent', value } | null
     const [savingTeamName, setSavingTeamName] = useState(false);
     // Boş bir formaya uzun basınca açılan çoklu-seç arkadaş listesi (bkz. mkSlot) — sadece
@@ -5792,8 +5800,18 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                     </View>
 
+                    {/* Kullanıcı isteği: kompakt açık ilan kartındaki gibi (RivalCard) — kadro/digimon
+                        kartı varsayılan olarak GİZLİ, kim katıldığı sadece bu başlığa dokununca açılır. */}
+                    {(match.matchType === 'DOUBLE' || match.matchType === 'SINGLE' || hasTeamRoster) && (
+                        <TouchableOpacity onPress={() => setShowRosterCard(v => !v)}
+                            style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:10, paddingVertical:8, paddingHorizontal:10, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', flex:1 }}>👥 {t.rosterPoolLabel}</Text>
+                            <Text style={{ color: colors.textMuted, fontSize:12 }}>{showRosterCard ? '▼' : '▶'}</Text>
+                        </TouchableOpacity>
+                    )}
+
                     {/* DOUBLE team management */}
-                    {match.matchType === 'DOUBLE' && (() => {
+                    {showRosterCard && match.matchType === 'DOUBLE' && (() => {
                         // handleSwapTap ile aynı kural: STRICT ilanlarda takas kapalı — ipucu
                         // metni de bu durumda gösterilmemeli (önceden burada tanımsız "locked"
                         // değişkenine referans vardı, render anında "Property 'locked' doesn't
@@ -5862,18 +5880,53 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 </View>
                             );
                         };
-                        // Kullanıcı raporu: Yaklaşan Maçlar'daki bu kartta ön yüzdeki numaralı isim
-                        // havuzu, arka yüzdeki Kurucu/Rakip Takım sütunlarında ZATEN aynı isimleri
-                        // gösterdiği için gereksiz bir tekrardı ("ön yüzünde yazan isimler gereksiz,
-                        // zaten arka yüzünde yazıyor"). Ön yüz tamamen kaldırıldı — kart artık
-                        // sadece tek bir görünüme (aşağıdaki Kurucu/Rakip sütunları) sahip, çevirme
-                        // butonuna gerek kalmadı.
+                        // Ön yüz havuzu — kurucu kilitli ilk forma + partner/rakip1/rakip2 + henüz
+                        // role atanmamış (unassignedArr) kabul edilmiş oyuncular, hepsi sırayla
+                        // numaralı "Katılımcı N" olarak, voleyboldeki TeamAssignCard'ın ön yüzüyle
+                        // AYNI görsel dil (kullanıcı isteği: atanmamış olmak ön yüzde bir "uyarı"
+                        // gibi görünmemeli — hangi role gideceği sadece arka yüzü ilgilendirir).
+                        const doublePool = [{ ...match.sender, skillRating: match.senderSkillRating }, partner, opp1, opp2, ...unassignedArr].filter(p => p && (p.id || p.manualName));
                         const rotateY = doubleFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
                         return (
                             <View style={{ marginBottom:12 }}>
                                 <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor:'#ffffff20', padding:10, transform:[{ perspective:800 }, { rotateY }] }}>
-                                    <>
-                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', marginBottom:6 }} numberOfLines={1}>{t.rosterPoolLabel}</Text>
+                                    {!doubleCardBack ? (
+                                        <>
+                                            <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.rosterPoolLabel}</Text>
+                                                <TouchableOpacity onPress={flipDoubleCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                    <Text style={{ fontSize:15 }}>🔄</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                            {/* Kullanıcı isteği: voleybolün Digimon kartıyla AYNI mantık — ön yüzde
+                                                atanmamış (henüz Takım Arkadaşı/Rakip1/Rakip2'ye yerleşmemiş) biri
+                                                kırmızı/yanıp sönen bir "uyarı" gibi DEĞİL, sıradaki normal katılımcı
+                                                gibi görünür. Hangi role gideceği sadece arka yüzdeki "Atanmamış"
+                                                listesinden (aşağıda) ilgilendiriyor. */}
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
+                                                {doublePool.map((p, i) => (
+                                                    <View key={p.id || `m-${i}`} style={{ width:'48%' }}>
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
+                                                            <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
+                                                            <View style={{ flex:1 }}>
+                                                                <Text style={{ color:'#fff', fontSize:10, fontWeight:'400' }} numberOfLines={1}>{i + 1}. {senderAlias(p)}</Text>
+                                                            </View>
+                                                            {p.skillRating != null && (
+                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
+                                                            )}
+                                                        </View>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{cfg.emoji}</Text>
+                                                <TouchableOpacity onPress={flipDoubleCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                    <Text style={{ fontSize:14 }}>🔄</Text>
+                                                </TouchableOpacity>
+                                            </View>
                                             {swapSlot && (
                                                 <View style={{ backgroundColor:'#f59e0b10', borderRadius:5, padding:1, marginBottom:4, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                                                     <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>Hedef slota dokun</Text>
@@ -5964,6 +6017,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                 </View>
                                             )}
                                         </>
+                                    )}
                                 </Animated.View>
                                 {(() => {
                                     // Bkz. RivalDetailModal'daki aynı isim ve gerekçeli düzeltme — tıklanan
@@ -6002,7 +6056,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {/* Takım yönetimi — DOUBLE'dan farklı olarak değişken boyutlu takım (voleybol
                         1v1-6v6, airsoft serbest sayı): ön yüz Kurucu/Rakip slotları (+ atanmamış
                         varsa yerleştirme tepsisi), arka yüz düz katılımcı listesi. */}
-                    {hasTeamRoster && (
+                    {showRosterCard && hasTeamRoster && (
                         <TeamAssignCard
                             emoji={match.subCategory === 'airsoft' ? '🪖' : '🏐'}
                             isVolleyball={isVolleyball}
@@ -6215,18 +6269,48 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         />
                     )}
 
-                    {/* Tekler (SINGLE, 1v1) — kullanıcı raporu: Yaklaşan Maçlar kartındaki ön yüz
-                        (numaralı isim havuzu) arka yüzdeki Kurucu/Rakip kutularıyla aynı isimleri
-                        tekrar ediyordu, gereksizdi. Ön yüz kaldırıldı — DOUBLE'daki aynı düzeltmeyle
-                        tutarlı (bkz. yukarısı), kart artık doğrudan Kurucu/Rakip görünümünde. */}
-                    {match.matchType === 'SINGLE' && (() => {
+                    {/* Tekler (SINGLE, 1v1) — kullanıcı raporu: "yaklaşan maçlara geçince de dıgımon
+                        kart yok, olması lazımdı". DOUBLE'ın doublePool/flip kartıyla AYNI görsel dil
+                        (doubleCardBack/flipDoubleCard/doubleFlipAnim paylaşılıyor — aynı anda sadece
+                        biri render olduğu için ayrı state gerekmiyor): ön yüz "Katılan Oyuncular" (2
+                        kişi), arka yüz Kurucu/Rakip etiketli 2 kutu. Eşleşmiş (MATCHED) bir maçta her
+                        iki taraf da zaten dolu olduğu için davet alanı yok, sadece görünüm + Çıkar. */}
+                    {showRosterCard && match.matchType === 'SINGLE' && (() => {
                         const opp = participantsArr[0] || null;
                         const rotateY = doubleFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
                         return (
                             <View style={{ marginBottom:12 }}>
                                 <Animated.View style={{ backgroundColor:'#1e293b', borderRadius:12, borderWidth:1, borderColor:'#ffffff20', padding:10, transform:[{ perspective:800 }, { rotateY }] }}>
-                                    <>
-                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', marginBottom:6 }} numberOfLines={1}>{t.rosterPoolLabel}</Text>
+                                    {!doubleCardBack ? (
+                                        <>
+                                            <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.rosterPoolLabel}</Text>
+                                                <TouchableOpacity onPress={flipDoubleCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                    <Text style={{ fontSize:15 }}>🔄</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
+                                                {[{ ...match.sender, skillRating: match.senderSkillRating }, opp].filter(p => p?.id).map((p, i) => (
+                                                    <View key={p.id || `s-${i}`} style={{ width:'48%' }}>
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
+                                                            <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
+                                                            <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{i + 1}. {senderAlias(p)}</Text>
+                                                            {p.skillRating != null && (
+                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
+                                                            )}
+                                                        </View>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>👤</Text>
+                                                <TouchableOpacity onPress={flipDoubleCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                                    <Text style={{ fontSize:14 }}>🔄</Text>
+                                                </TouchableOpacity>
+                                            </View>
                                             <View style={{ flexDirection:'row', gap:6 }}>
                                                 <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#a855f720' }}>
                                                     <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{t.founderTeamShortLabel || 'Kurucu'}</Text>
@@ -6254,6 +6338,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                 </View>
                                             </View>
                                         </>
+                                    )}
                                 </Animated.View>
                             </View>
                         );
