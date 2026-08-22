@@ -4470,6 +4470,8 @@ function TeamSlot({ slot, player, color, label, disabled, isSelected, isTarget, 
                 ayrıca gösterildiği için "Katılımcı 1 Katılımcı 1" gibi çift yazıyordu. */}
             <Text style={{ color, fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                 {senderAlias(player)}
+                {/* Kullanıcı isteği: takım kartlarında oyuncuların yanında da derece puanı yazsın. */}
+                {player.skillRating != null && <Text style={{ color:'#facc15', fontWeight:'800' }}>  {Number(player.skillRating).toFixed(2)}★</Text>}
             </Text>
         </View>
     );
@@ -5879,6 +5881,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         const oppLabel1 = (match.opponentTeamName ? `${match.opponentTeamName} 1` : SLOT_LABEL.opp1) + genderTag(match.opp1GenderReq);
                         const oppLabel2 = (match.opponentTeamName ? `${match.opponentTeamName} 2` : SLOT_LABEL.opp2) + genderTag(match.opp2GenderReq);
                         const slotGReq = { partner: match.partnerGenderReq, opp1: match.opp1GenderReq, opp2: match.opp2GenderReq };
+                        // Kullanıcı isteği: takım kartlarında (Takım 1/Takım 2) da voleyboldeki
+                        // TeamColBack ile aynı şekilde takım ortalaması gösterilsin.
+                        const avgOfList = (list) => {
+                            const rs = list.filter(r => r != null).map(Number);
+                            return rs.length > 0 ? rs.reduce((s, r) => s + r, 0) / rs.length : null;
+                        };
+                        const founderTeamAvg = avgOfList([match.senderSkillRating, partner?.skillRating]);
+                        const oppTeamAvg = avgOfList([opp1?.skillRating, opp2?.skillRating]);
                         const mkSlot = (slot, p, color) => {
                             const isSel = swapSlot === slot;
                             const isTgt = !!swapSlot && swapSlot !== slot;
@@ -5988,9 +5998,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                                 <Text style={{ fontSize:9 }}>✎</Text>
                                                             </TouchableOpacity>
                                                         )}
+                                                        {founderTeamAvg != null && (
+                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {founderTeamAvg.toFixed(2)}★</Text>
+                                                        )}
                                                     </View>
                                                     <View style={{ borderRadius:5, paddingHorizontal:3, paddingVertical:2, backgroundColor:'#1e293b', marginBottom:4 }}>
-                                                        <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(match.sender)} 🔒</Text>
+                                                        <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                            {senderAlias(match.sender)} 🔒
+                                                            {match.senderSkillRating != null && <Text style={{ color:'#facc15', fontWeight:'800' }}>  {Number(match.senderSkillRating).toFixed(2)}★</Text>}
+                                                        </Text>
                                                     </View>
                                                     <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>{founderLabel2}</Text>
                                                     {mkSlot('partner', partner, '#c084fc')}
@@ -6002,6 +6018,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                             <TouchableOpacity onPress={() => setTeamNameModal({ side:'opponent', value: match.opponentTeamName || '' })}>
                                                                 <Text style={{ fontSize:9 }}>✎</Text>
                                                             </TouchableOpacity>
+                                                        )}
+                                                        {oppTeamAvg != null && (
+                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {oppTeamAvg.toFixed(2)}★</Text>
                                                         )}
                                                     </View>
                                                     <Text style={{ color:'#f87171', fontSize:8, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>{oppLabel1}</Text>

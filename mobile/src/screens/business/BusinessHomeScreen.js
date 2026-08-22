@@ -3093,11 +3093,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                         </TouchableOpacity>
                                     </View>
                                 )}
-                                {order.status === 'CONFIRMED' && (
-                                    <TouchableOpacity style={vc.orderBtn} onPress={() => handleOrderStatus(order.id, 'READY')} style={{ marginTop: 6 }}>
-                                        <Text style={vc.orderBtnTxt}>🟢 Hazır İşaretle</Text>
-                                    </TouchableOpacity>
-                                )}
                                 {/* Kullanıcı isteği: teslim/ödeme durumu status'tan bağımsız, "form"
                                     gibi (etikete dokununca seçenekler çıkan) ayrı ayrı işaretlenebilsin
                                     — oyuncu kendi maç detayında bunu görebiliyor. */}
