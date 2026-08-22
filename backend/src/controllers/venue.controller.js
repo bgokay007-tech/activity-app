@@ -2270,7 +2270,7 @@ export const getVenueOrders = async (req, res, next) => {
         const orders = await prisma.venueOrder.findMany({
             where: { venueId: id },
             include: {
-                user:  { select: { id: true, username: true, avatar: true } },
+                user:  { select: { id: true, username: true, fullName: true, avatar: true } },
                 items: { include: { menuItem: { select: { name: true, category: true } } } },
             },
             orderBy: { createdAt: 'desc' },

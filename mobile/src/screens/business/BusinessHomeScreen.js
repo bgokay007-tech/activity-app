@@ -1835,7 +1835,9 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     // Kullanıcı isteği: Siparişler sekmesi içinde üç ayrı görünüm — Aktif (henüz teslim/ödeme
     // kapanmamış), Ödenmemiş Adisyonlar (teslim edildi ama ücreti hâlâ alınmadı — borç), ve
     // Arşiv (ücreti alınmış ya da ikram edilmiş, tamamen kapanmış siparişler).
-    const [ordersSubTab, setOrdersSubTab] = useState('active');
+    // Kullanıcı isteği: Ödenmemiş/Arşiv ayrımı artık Adisyon sekmesinde, adisyonun kendi
+    // ödeme durumuna (VenueBill.status) göre — sipariş onay akışıyla (Aktif) karışmasın.
+    const [billsSubTab, setBillsSubTab] = useState('open');
     // Kullanıcı isteği: Teslim/Ücret durumu artık tek dokunuşluk toggle değil, "form" gibi
     // (etikete dokununca seçenekler açılan) bir seçim — Android'de Alert.alert 3 buton
     // sınırına takıldığı için (3 seçenekli Ücret formu) özel bir seçim modalı kullanılıyor.
@@ -3026,99 +3028,72 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
             )}
 
             {activeTab === 'orders' && (() => {
-                const isArchived   = (o) => o.paymentStatus === 'PAID' || o.paymentStatus === 'COMPED';
-                const isUnpaidDebt = (o) => o.delivered && o.paymentStatus === 'UNPAID';
-                const archiveOrders = orders.filter(isArchived);
-                const unpaidOrders  = orders.filter(o => !isArchived(o) && isUnpaidDebt(o));
-                const activeOrders  = orders.filter(o => !isArchived(o) && !isUnpaidDebt(o));
-                // "Yeni Sipariş" bildiriminden geldiyse (highlightActivityId), sub-tab'dan
-                // bağımsız sadece o maçın siparişleri gösterilir — genel listede kaybolmasın.
+                // Kullanıcı isteği: Aktif sekmesi artık sadece sipariş onay akışı — ödeme/adisyon
+                // takibi (Ödenmemiş/Arşiv) buradan kaldırılıp Adisyon sekmesine taşındı (bkz.
+                // aşağıdaki "bills" sekmesindeki billsSubTab, VenueBill.status üzerinden).
                 const visibleOrders = highlightActivityId
                     ? orders.filter(o => o.activityId === highlightActivityId)
-                    : (ordersSubTab === 'archive' ? archiveOrders : ordersSubTab === 'unpaid' ? unpaidOrders : activeOrders).slice(0, 30);
+                    : orders.slice(0, 30);
                 return (
                 <View style={vc.panel}>
-                    {!highlightActivityId && (
-                        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
-                            {[
-                                { key: 'active',  label: `Aktif (${activeOrders.length})` },
-                                { key: 'unpaid',  label: `Ödenmemiş Adisyonlar (${unpaidOrders.length})` },
-                                { key: 'archive', label: `Arşiv (${archiveOrders.length})` },
-                            ].map(t => (
-                                <TouchableOpacity key={t.key}
-                                    onPress={() => setOrdersSubTab(t.key)}
-                                    style={{ flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center',
-                                        backgroundColor: ordersSubTab === t.key ? BIZ_COLOR + '28' : '#ffffff08',
-                                        borderWidth: 1, borderColor: ordersSubTab === t.key ? BIZ_COLOR + '60' : '#ffffff12' }}>
-                                    <Text style={{ color: ordersSubTab === t.key ? BIZ_LIGHT : '#94a3b8', fontSize: 11, fontWeight: '700', textAlign: 'center' }}>{t.label}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    )}
                     {visibleOrders.length === 0
-                        ? <Text style={vc.emptyTxt}>{ordersSubTab === 'archive' ? 'Arşivde sipariş yok' : ordersSubTab === 'unpaid' ? 'Ödenmemiş adisyon yok' : 'Henüz sipariş yok'}</Text>
+                        ? <Text style={vc.emptyTxt}>Henüz sipariş yok</Text>
                         : visibleOrders.map(order => (
                             <View key={order.id} style={[vc.orderCard, order.activityId === highlightActivityId && { borderColor: BIZ_COLOR, borderWidth: 2 }]}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>@{order.user?.username}</Text>
-                                    <Text style={{ color: ORDER_COLORS[order.status], fontSize: 12, fontWeight: '600' }}>{ORDER_LABELS[order.status]}</Text>
-                                </View>
-                                {/* Hangi maç/kort/saat için sipariş verildiği — kullanıcı isteği:
-                                    "hangi maç için hangi oyuncu verdiğini göremiyor". */}
-                                {order.activity && (
-                                    <Text style={{ color: '#60a5fa', fontSize: 11, marginBottom: 3 }}>
-                                        🎾 {order.activity.courtName || 'Kort'}
-                                        {order.activity.matchDate ? ` · ${new Date(order.activity.matchDate).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}` : ''}
-                                        {order.activity.matchTime ? ` ${order.activity.matchTime}` : ''}
-                                    </Text>
-                                )}
-                                {order.notes && (
-                                    <Text style={{ color: '#fbbf24', fontSize: 12, marginBottom: 4, fontStyle: 'italic' }}>
-                                        📝 {order.notes}
-                                    </Text>
-                                )}
-                                {order.items?.map((it, i) => (
-                                    <Text key={i} style={{ color: '#aaa', fontSize: 12 }}>
-                                        {it.quantity}× {it.menuItem?.name} — {it.unitPrice * it.quantity}₺
-                                    </Text>
-                                ))}
-                                <Text style={{ color: BIZ_COLOR, fontWeight: '700', marginTop: 4, fontSize: 13 }}>Toplam: {order.totalPrice}₺</Text>
-                                {order.status === 'PENDING' && (
-                                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                                        <TouchableOpacity style={vc.orderBtn} onPress={() => handleOrderStatus(order.id, 'CONFIRMED')}>
-                                            <Text style={vc.orderBtnTxt}>✅ Onayla</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={[vc.orderBtn, { borderColor: '#ef444440' }]} onPress={() => handleOrderStatus(order.id, 'CANCELLED')}>
-                                            <Text style={[vc.orderBtnTxt, { color: '#f87171' }]}>❌ İptal</Text>
-                                        </TouchableOpacity>
+                                <View style={{ flexDirection: 'row' }}>
+                                    {/* Sol: kim sipariş verdi, hangi maç/kort/saat, siparişler
+                                        (kullanıcı isteği: bu sıralamada, solda). */}
+                                    <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
+                                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
+                                            {order.user?.fullName || order.user?.username}
+                                        </Text>
+                                        <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 3 }} numberOfLines={1}>@{order.user?.username}</Text>
+                                        {/* Hangi maç/kort/saat için sipariş verildiği — kullanıcı isteği:
+                                            "hangi maç için hangi oyuncu verdiğini göremiyor". */}
+                                        {order.activity && (
+                                            <Text style={{ color: '#60a5fa', fontSize: 11, marginBottom: 3 }}>
+                                                🎾 {order.activity.courtName || 'Kort'}
+                                                {order.activity.matchDate ? ` · ${new Date(order.activity.matchDate).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}` : ''}
+                                                {order.activity.matchTime ? ` ${order.activity.matchTime}` : ''}
+                                            </Text>
+                                        )}
+                                        {order.notes && (
+                                            <Text style={{ color: '#fbbf24', fontSize: 12, marginBottom: 4, fontStyle: 'italic' }}>
+                                                📝 {order.notes}
+                                            </Text>
+                                        )}
+                                        {order.items?.map((it, i) => (
+                                            <Text key={i} style={{ color: '#aaa', fontSize: 12 }}>
+                                                {it.quantity}× {it.menuItem?.name} — {it.unitPrice * it.quantity}₺
+                                            </Text>
+                                        ))}
+                                        <Text style={{ color: BIZ_COLOR, fontWeight: '700', marginTop: 4, fontSize: 13 }}>Toplam: {order.totalPrice}₺</Text>
                                     </View>
-                                )}
-                                {/* Kullanıcı isteği: teslim/ödeme durumu status'tan bağımsız, "form"
-                                    gibi (etikete dokununca seçenekler çıkan) ayrı ayrı işaretlenebilsin
-                                    — oyuncu kendi maç detayında bunu görebiliyor. */}
-                                {order.status !== 'CANCELLED' && (
-                                    <View style={{ marginTop: 8, gap: 6 }}>
-                                        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}
-                                            onPress={() => setFieldPickerFor({ orderId: order.id, field: 'delivered' })}>
-                                            <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '700' }}>Teslim: </Text>
-                                            <Text style={{ color: order.delivered ? '#4ade80' : '#f87171', fontSize: 12, fontWeight: '800' }}>
-                                                {order.delivered ? 'Edildi' : 'Edilmedi'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}
-                                            onPress={() => setFieldPickerFor({ orderId: order.id, field: 'payment' })}>
-                                            <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '700' }}>Ücret: </Text>
-                                            <Text style={{ color: order.paymentStatus === 'PAID' ? '#4ade80' : order.paymentStatus === 'COMPED' ? '#38bdf8' : '#f87171', fontSize: 12, fontWeight: '800' }}>
-                                                {order.paymentStatus === 'PAID' ? 'Alındı' : order.paymentStatus === 'COMPED' ? 'İkram' : 'Alınmadı'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                        {/* Kullanıcı isteği: teslim edildi ama ücreti alınmadıysa (ikram
-                                            değilse) o oyuncunun borcu belirgin, kırmızı yazıyla gösterilir. */}
-                                        {order.delivered && order.paymentStatus === 'UNPAID' && (
-                                            <Text style={{ color: '#ef4444', fontSize: 13, fontWeight: '900' }}>🔴 Borç: {order.totalPrice}₺</Text>
+                                    {/* Sağ: durum + onayla/iptal (kullanıcı isteği: sağ tarafta, durumun altında). */}
+                                    <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                                        <Text style={{ color: ORDER_COLORS[order.status], fontSize: 12, fontWeight: '600' }}>{ORDER_LABELS[order.status]}</Text>
+                                        {order.status === 'PENDING' && (
+                                            <>
+                                                <TouchableOpacity style={vc.orderBtn} onPress={() => handleOrderStatus(order.id, 'CONFIRMED')}>
+                                                    <Text style={vc.orderBtnTxt}>✅ Onayla</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => handleOrderStatus(order.id, 'CANCELLED')}>
+                                                    <Text style={{ color: '#f87171', fontSize: 11, fontWeight: '700' }}>❌ İptal</Text>
+                                                </TouchableOpacity>
+                                            </>
+                                        )}
+                                        {/* Teslim işareti burada kalıyor — bir siparişin adisyona (VenueBill)
+                                            eklenmesini bu tetikliyor (bkz. backend updateOrderStatus); ödeme
+                                            takibi artık Adisyon sekmesinde (bkz. o adisyonun "Ödendi" butonu). */}
+                                        {order.status !== 'CANCELLED' && (
+                                            <TouchableOpacity onPress={() => setFieldPickerFor({ orderId: order.id, field: 'delivered' })}>
+                                                <Text style={{ color: order.delivered ? '#4ade80' : '#f87171', fontSize: 11, fontWeight: '700' }}>
+                                                    {order.delivered ? '✅ Teslim Edildi' : '📦 Teslim Edilmedi'}
+                                                </Text>
+                                            </TouchableOpacity>
                                         )}
                                     </View>
-                                )}
+                                </View>
                             </View>
                         ))
                     }
@@ -3126,11 +3101,31 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 );
             })()}
 
-            {activeTab === 'bills' && (
+            {activeTab === 'bills' && (() => {
+                // Kullanıcı isteği: siparişlerdeki (Aktif) "Ödenmemiş Adisyonlar"/"Arşiv" ayrımı
+                // buraya taşındı — artık adisyonun kendi ödeme durumuna (VenueBill.status) göre.
+                const openBills = bills.filter(b => b.status !== 'PAID');
+                const paidBills = bills.filter(b => b.status === 'PAID');
+                const visibleBills = billsSubTab === 'archive' ? paidBills : openBills;
+                return (
                 <View style={vc.panel}>
-                    {bills.length === 0
-                        ? <Text style={vc.emptyTxt}>Henüz adisyon yok</Text>
-                        : bills.map(b => (
+                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                        {[
+                            { key: 'open',    label: `Ödenmemiş Adisyonlar (${openBills.length})` },
+                            { key: 'archive', label: `Arşiv (${paidBills.length})` },
+                        ].map(t => (
+                            <TouchableOpacity key={t.key}
+                                onPress={() => setBillsSubTab(t.key)}
+                                style={{ flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center',
+                                    backgroundColor: billsSubTab === t.key ? BIZ_COLOR + '28' : '#ffffff08',
+                                    borderWidth: 1, borderColor: billsSubTab === t.key ? BIZ_COLOR + '60' : '#ffffff12' }}>
+                                <Text style={{ color: billsSubTab === t.key ? BIZ_LIGHT : '#94a3b8', fontSize: 11, fontWeight: '700', textAlign: 'center' }}>{t.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                    {visibleBills.length === 0
+                        ? <Text style={vc.emptyTxt}>{billsSubTab === 'archive' ? 'Arşivde adisyon yok' : 'Ödenmemiş adisyon yok'}</Text>
+                        : visibleBills.map(b => (
                             <TouchableOpacity key={b.id} style={vc.orderCard} onPress={() => openBillModal(b.reservation)}>
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                                     <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
@@ -3153,7 +3148,8 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                         ))
                     }
                 </View>
-            )}
+                );
+            })()}
 
             {activeTab === 'reviews' && (
                 <View style={vc.panel}>
@@ -4871,12 +4867,13 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 onClose={() => setAnalyticsOpen(false)}
             />
 
-            {/* Teslim/Ücret formu — etikete dokununca çıkan seçim listesi (bkz. fieldPickerFor) */}
+            {/* Teslim formu — etikete dokununca çıkan seçim listesi (bkz. fieldPickerFor). Ücret/ödeme
+                seçimi artık Adisyon sekmesindeki "Ödendi" akışında (bkz. setBillPaidStatus). */}
             <Modal visible={!!fieldPickerFor} transparent animationType="fade" onRequestClose={() => setFieldPickerFor(null)}>
                 <TouchableOpacity style={{ flex: 1, backgroundColor: '#000000a0', justifyContent: 'center', padding: 30 }}
                     activeOpacity={1} onPress={() => setFieldPickerFor(null)}>
                     <View style={{ backgroundColor: '#1a1a2e', borderRadius: 14, overflow: 'hidden' }}>
-                        {fieldPickerFor?.field === 'delivered' ? (
+                        {fieldPickerFor?.field === 'delivered' && (
                             <>
                                 <TouchableOpacity style={{ paddingVertical: 14, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}
                                     onPress={() => { handleOrderFlag(fieldPickerFor.orderId, 'delivered', true); setFieldPickerFor(null); }}>
@@ -4887,22 +4884,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                     <Text style={{ color: '#f87171', fontSize: 14, fontWeight: '700' }}>📦 Edilmedi</Text>
                                 </TouchableOpacity>
                             </>
-                        ) : fieldPickerFor?.field === 'payment' ? (
-                            <>
-                                <TouchableOpacity style={{ paddingVertical: 14, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}
-                                    onPress={() => { handleOrderFlag(fieldPickerFor.orderId, 'paymentStatus', 'PAID'); setFieldPickerFor(null); }}>
-                                    <Text style={{ color: '#4ade80', fontSize: 14, fontWeight: '700' }}>✅ Alındı</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={{ paddingVertical: 14, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}
-                                    onPress={() => { handleOrderFlag(fieldPickerFor.orderId, 'paymentStatus', 'UNPAID'); setFieldPickerFor(null); }}>
-                                    <Text style={{ color: '#f87171', fontSize: 14, fontWeight: '700' }}>💰 Alınmadı</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={{ paddingVertical: 14, paddingHorizontal: 18 }}
-                                    onPress={() => { handleOrderFlag(fieldPickerFor.orderId, 'paymentStatus', 'COMPED'); setFieldPickerFor(null); }}>
-                                    <Text style={{ color: '#38bdf8', fontSize: 14, fontWeight: '700' }}>🎁 İkram</Text>
-                                </TouchableOpacity>
-                            </>
-                        ) : null}
+                        )}
                     </View>
                 </TouchableOpacity>
             </Modal>
