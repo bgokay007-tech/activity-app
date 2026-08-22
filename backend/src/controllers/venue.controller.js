@@ -2156,7 +2156,7 @@ export const getVenueMenu = async (req, res, next) => {
 export const placeOrder = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { items, notes } = req.body; // items: [{menuItemId, quantity}]
+        const { items, notes, rivalId } = req.body; // items: [{menuItemId, quantity}]
         if (!items?.length) return res.status(400).json({ message: 'En az bir ürün seçin' });
 
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
@@ -2179,16 +2179,35 @@ export const placeOrder = async (req, res, next) => {
         // Bu tesiste ilanı/maçı olan (açık ilan, eşleşmiş yaklaşan maç ya da skor bekleyen
         // tamamlanmış maç) kullanıcılar sipariş verebilir — maç saatinin gelmesi ya da
         // eşleşmenin tamamlanmış olması şart değil, sadece geçerli bir rezervasyon/ilan yeterli.
-        const venueMatches = await prisma.activityRequest.findMany({
-            where: { venueId: id, status: { in: ['OPEN', 'MATCHED', 'COMPLETED'] } },
-            select: { id: true, senderId: true, receiverId: true, participants: true, senderTeam: true, venueReservationId: true, courtName: true, matchDate: true, matchTime: true },
-        });
-        const myMatch = venueMatches.find(m => {
+        const isInMatch = (m) => {
             if (m.senderId === req.userId || m.receiverId === req.userId) return true;
             const parts = Array.isArray(m.participants) ? m.participants : [];
             const team  = Array.isArray(m.senderTeam)   ? m.senderTeam   : [];
             return parts.some(p => p?.id === req.userId) || team.some(p => p?.id === req.userId);
-        });
+        };
+        const matchSelect = { id: true, senderId: true, receiverId: true, participants: true, senderTeam: true, venueReservationId: true, courtName: true, matchDate: true, matchTime: true, venueId: true };
+        // Kullanıcı raporu: aynı kullanıcının bu tesiste (özellikle test/tekrar eden
+        // rezervasyonlarda) birden fazla maçı/ilanı olabiliyor — eskiden hangi maça sipariş
+        // verildiği venueMatches.find() ile "TAHMİN" ediliyordu, bu da SIRALAMASI garanti
+        // olmayan bir listeden İLK eşleşeni (genelde en eski/alakasız, hatta tamamlanmış bir
+        // maçı) seçip siparişi yanlış maça bağlıyordu — bildirim/adisyon ikonu bu yüzden hep
+        // yanlış (ya da eski, artık ilgisiz) maça gidiyordu. Artık istemci HANGİ maç için
+        // sipariş verdiğini (item.id/match.id) doğrudan gönderiyor (bkz. VenueMenuOrderModal),
+        // burada sadece o maçın gerçekten bu tesiste ve kullanıcının kendisiyle ilgili olduğu
+        // doğrulanıyor. rivalId gönderilmezse (eski istemci sürümü ihtimaline karşı) eski
+        // "tahmin et" mantığına geri dönülür.
+        let myMatch = null;
+        if (rivalId) {
+            const specific = await prisma.activityRequest.findUnique({ where: { id: rivalId }, select: matchSelect });
+            if (specific && specific.venueId === id && isInMatch(specific)) myMatch = specific;
+        }
+        if (!myMatch) {
+            const venueMatches = await prisma.activityRequest.findMany({
+                where: { venueId: id, status: { in: ['OPEN', 'MATCHED', 'COMPLETED'] } },
+                select: matchSelect,
+            });
+            myMatch = venueMatches.find(isInMatch);
+        }
         if (!myMatch) return res.status(403).json({ message: 'Bu tesisten sipariş verebilmek için bu tesiste bir maçınız/ilanınız olmalı.' });
 
         // Menu item fiyatlarını çek

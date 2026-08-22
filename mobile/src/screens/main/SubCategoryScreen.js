@@ -3500,6 +3500,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         <VenueMenuOrderModal
             visible={!!orderVenueId}
             venueId={orderVenueId}
+            rivalId={item.id}
             onClose={() => setOrderVenueId(null)}
             onSuccess={() => {
                 api.get(`/rivals/${item.id}`)
@@ -4036,6 +4037,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 <VenueMenuOrderModal
                     visible={!!orderVenueId}
                     venueId={orderVenueId}
+                    rivalId={item.id}
                     onClose={() => setOrderVenueId(null)}
                 />
 
@@ -7186,6 +7188,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         <VenueMenuOrderModal
             visible={!!orderVenueId}
             venueId={orderVenueId}
+            rivalId={match.id}
             onClose={() => setOrderVenueId(null)}
             onSuccess={() => {
                 api.get(`/rivals/${match.id}`)
@@ -7994,7 +7997,7 @@ const PADEL_SURFACES = [
 
 const CAT_LABELS = { EQUIPMENT: '🎾 Ekipman', FOOD: '🍔 Yiyecek', DRINK: '☕ İçecek', OTHER: '🛍 Diğer' };
 
-function VenueMenuOrderModal({ visible, venueId, onClose, onSuccess }) {
+function VenueMenuOrderModal({ visible, venueId, onClose, onSuccess, rivalId }) {
     const insets = useSafeAreaInsets();
     const [items, setItems]   = useState([]);
     const [loading, setLoading] = useState(false);
@@ -8028,7 +8031,7 @@ function VenueMenuOrderModal({ visible, venueId, onClose, onSuccess }) {
         if (!orderItems.length) return;
         setPlacing(true);
         try {
-            await api.post(`/venues/${venueId}/orders`, { items: orderItems, notes: notes || undefined });
+            await api.post(`/venues/${venueId}/orders`, { items: orderItems, notes: notes || undefined, rivalId: rivalId || undefined });
             Alert.alert('✅ Sipariş Verildi', 'İşletme siparişinizi aldı.');
             onSuccess?.();
             onClose();
