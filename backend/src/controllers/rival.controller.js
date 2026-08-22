@@ -2248,7 +2248,19 @@ export const createRivalRequest = async (req, res, next) => {
                 // Hakem belirli kullanıcılara davet edildiyse ("Hakem Davet Et"), her biri için
                 // bağlı "Hakem Arıyorum" ilanına, kendi teklif fiyatı/mesajıyla doğrudan davet
                 // gönderilir — hakem daveti kabul/red edebilir (handleRefereeJoinResponse).
-                const invites = Array.isArray(refereeInvites) ? refereeInvites.filter(inv => inv?.userId) : [];
+                // Kullanıcı isteği: sadece bu dalda aktif bir hakem kaydı olanlar davet
+                // edilebilsin — mobil zaten sadece kayıtlıları öneriyor (bkz. searchUsers/
+                // getUsersBySport refereeOnly), burası doğrudan API çağrısıyla atlatılmasını önler.
+                const rawInvites = Array.isArray(refereeInvites) ? refereeInvites.filter(inv => inv?.userId) : [];
+                let invites = rawInvites;
+                if (rawInvites.length > 0) {
+                    const eligible = await prisma.refereeListing.findMany({
+                        where: { userId: { in: rawInvites.map(inv => inv.userId) }, subCategory, category, status: 'ACTIVE' },
+                        select: { userId: true },
+                    });
+                    const eligibleIds = new Set(eligible.map(l => l.userId));
+                    invites = rawInvites.filter(inv => eligibleIds.has(inv.userId));
+                }
                 for (const inv of invites) {
                     await prisma.rivalJoinRequest.create({
                         data: {
@@ -3215,6 +3227,7 @@ export const inviteToRival = async (req, res, next) => {
         // hiç dokunmadan DOUBLE'a (tenis/padel 2v2) forma-özel davet ekliyor (kullanıcı isteği:
         // DOUBLE de Digimon kart'taki gibi boş formadan davet edilebilsin).
         const isDoubleSlotInvite = rival.matchType === 'DOUBLE' && !!slot;
+        const isRefereeAd = Array.isArray(rival.positions) && rival.positions.includes('REFEREE');
 
         // Sahibi her zaman davet edebilir. Hakem ilanına davet ediliyorsa (linkedRivalId
         // dolu) yetki, asıl maçın katılımcısı olup olmadığına ve o maçın "Davete İzin
@@ -3280,6 +3293,16 @@ export const inviteToRival = async (req, res, next) => {
             return res.status(400).json({ message: 'Bu kullanıcıya zaten bir istek/davet gönderilmiş', status: existing.status });
         }
 
+        // Kullanıcı isteği: hakem ilanına sadece bu dalda aktif bir hakem kaydı (RefereeListing)
+        // olan kişi davet edilebilsin/atanabilsin — arama zaten sadece kayıtlıları öneriyor
+        // (bkz. searchUsers refereeOnly), burası doğrudan API çağrısıyla atlatılmasını önler.
+        if (isRefereeAd) {
+            const refListing = await prisma.refereeListing.findFirst({
+                where: { userId, subCategory: rival.subCategory, category: rival.category, status: 'ACTIVE' },
+            });
+            if (!refListing) return res.status(400).json({ message: 'Bu kullanıcının bu dalda aktif bir hakem kaydı yok, hakem olarak davet edilemez.' });
+        }
+
         const teamSlotFlags = isTeamSlotInvite
             ? { ...(side === 'my' ? { isPartnerInvite: true } : { isOppTeamInvite: true }), slotIndex: Number.isInteger(slotIndex) ? slotIndex : null }
             : {};
@@ -3301,7 +3324,6 @@ export const inviteToRival = async (req, res, next) => {
 
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: SENDER_SELECT });
 
-        const isRefereeAd = Array.isArray(rival.positions) && rival.positions.includes('REFEREE');
         const teamInviteEmoji = rival.subCategory === 'airsoft' ? '🪖' : '🏐';
         const doubleSlotLabel = slot === 'partner' ? 'Takım Arkadaşı' : slot === 'opp1' ? 'Rakip 1' : 'Rakip 2';
         // Takım Değişikliği kapalıysa (STRICT) davet edilen kişi bu pozisyonun değişmeyeceğini de

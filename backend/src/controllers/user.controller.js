@@ -421,7 +421,7 @@ export const getPendingFollowRequests = async (req, res, next) => {
 
 export const searchUsers = async (req, res, next) => {
     try {
-        const { q, subCategory, category } = req.query;
+        const { q, subCategory, category, refereeOnly } = req.query;
         if (!q || q.length < 2) return res.json([]);
 
         const blocked = await prisma.block.findMany({
@@ -442,6 +442,12 @@ export const searchUsers = async (req, res, next) => {
                     // için bu dal eklenmiyor.
                     ...(subCategory ? [{ interests: { some: { subCategory, ...(category && { category }), alias: { contains: q, mode: 'insensitive' } } } }] : []),
                 ],
+                // Kullanıcı isteği: "Hakem Davet Et" araması sadece bu dalda aktif bir hakem
+                // kaydı (RefereeListing) olan kişileri önersin — kayıtsız biri hakem olarak
+                // atanamaz/davet edilemez zaten, önceki davranış herkesi öneriyordu.
+                ...(refereeOnly === 'true' && subCategory && {
+                    refereeListings: { some: { subCategory, ...(category && { category }), status: 'ACTIVE' } },
+                }),
             },
             select: {
                 id: true, username: true, fullName: true, avatar: true, isPublic: true, gender: true,
@@ -452,6 +458,12 @@ export const searchUsers = async (req, res, next) => {
                             ...(category && { category }),
                         },
                         select: { subCategory: true, skillRating: true, totalPoints: true, level: true, alias: true, assessmentCompleted: true },
+                    },
+                }),
+                ...(refereeOnly === 'true' && subCategory && {
+                    refereeListings: {
+                        where: { subCategory, ...(category && { category }), status: 'ACTIVE' },
+                        select: { credentialLevel: true, pricePerMatch: true },
                     },
                 }),
             },
@@ -466,7 +478,7 @@ export const searchUsers = async (req, res, next) => {
 // canlı daralır); q boşsa dal içindeki herkes alfabetik listelenir.
 export const getUsersBySport = async (req, res, next) => {
     try {
-        const { subCategory, category, q } = req.query;
+        const { subCategory, category, q, refereeOnly } = req.query;
         if (!subCategory) return res.status(400).json({ message: 'subCategory required' });
 
         const blocked = await prisma.block.findMany({
@@ -474,10 +486,17 @@ export const getUsersBySport = async (req, res, next) => {
         });
         const blockedIds = blocked.map(b => b.blockerId === req.userId ? b.blockedId : b.blockerId);
 
+        // Kullanıcı isteği: hakem davetinde bu liste "bu sporu oynayanlar" değil, bu dalda
+        // aktif bir hakem kaydı (RefereeListing) olanlar olmalı — davet edilemeyecek/hakem
+        // olarak atanamayacak biri öneri olarak hiç çıkmasın.
+        const membershipFilter = refereeOnly === 'true'
+            ? { refereeListings: { some: { subCategory, ...(category && { category }), status: 'ACTIVE' } } }
+            : { interests: { some: { subCategory, ...(category && { category }) } } };
+
         const users = await prisma.user.findMany({
             where: {
                 id: { not: req.userId, notIn: blockedIds },
-                interests: { some: { subCategory, ...(category && { category }) } },
+                ...membershipFilter,
                 ...(q && q.trim() && {
                     OR: [
                         { username: { startsWith: q.trim(), mode: 'insensitive' } },
@@ -494,6 +513,12 @@ export const getUsersBySport = async (req, res, next) => {
                     where: { subCategory, ...(category && { category }) },
                     select: { subCategory: true, skillRating: true, totalPoints: true, level: true, alias: true, assessmentCompleted: true },
                 },
+                ...(refereeOnly === 'true' && {
+                    refereeListings: {
+                        where: { subCategory, ...(category && { category }), status: 'ACTIVE' },
+                        select: { credentialLevel: true, pricePerMatch: true },
+                    },
+                }),
             },
             orderBy: { username: 'asc' },
             take: 50,

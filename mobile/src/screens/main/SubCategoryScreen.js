@@ -11036,9 +11036,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         if (!q || q.length < 2) { setRefereeNameSuggestions([]); return; }
         setRefereeNameSearching(true);
         const task = setTimeout(() => {
-            // Aynı sebeple hakem aramasında da /users/search — hakem her zaman o dalda
-            // "ilgi alanı" kaydı olan biri olmak zorunda değil.
-            api.get(`/users/search?q=${encodeURIComponent(q)}&subCategory=${sub}&category=${category}`)
+            // Aynı sebeple hakem aramasında da /users/search — ama kullanıcı isteği: sadece
+            // bu dalda aktif bir hakem kaydı (RefereeListing) olanlar öneri olarak çıksın,
+            // kayıtsız biri hakem olarak atanamaz/davet edilemez zaten.
+            api.get(`/users/search?q=${encodeURIComponent(q)}&subCategory=${sub}&category=${category}&refereeOnly=true`)
                 .then(res => setRefereeNameSuggestions(Array.isArray(res.data) ? res.data.slice(0, 5) : []))
                 .catch(() => setRefereeNameSuggestions([]))
                 .finally(() => setRefereeNameSearching(false));
@@ -11185,9 +11186,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // baştaki emoji'yi sadece burada (diğer ekranları etkilemeden) kırpar.
     const noEmoji = (str) => (str || '').replace(/^\S+\s+/, '');
 
-    // Davet penceresi her açıldığında "Arkadaşlarım" sekmesiyle başlar, arama kutusu sıfırlanır
+    // Davet penceresi her açıldığında "Arkadaşlarım" sekmesiyle başlar, arama kutusu sıfırlanır.
+    // Hakem hedefinde "Arkadaşlarım" listesi hakem kaydına göre filtrelenmiyor (bkz. GET /friends) —
+    // kayıtsız biri önerilmesin diye doğrudan "Tüm Hakemler" (refereeOnly) sekmesiyle başlar.
     useEffect(() => {
-        if (showPartnerSearch) { setInviteTab('friends'); setPartnerQuery(''); }
+        if (showPartnerSearch) { setInviteTab(inviteTarget === 'referee' ? 'all' : 'friends'); setPartnerQuery(''); }
     }, [showPartnerSearch]);
 
     // "Tüm Oyuncular" sekmesi — bu sporda ilgi kaydı olan herkes; q yazıldıkça sunucudan
@@ -11196,13 +11199,15 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         if (!showPartnerSearch || inviteTab !== 'all') return;
         setLoadingSportUsers(true);
         const task = setTimeout(() => {
-            api.get(`/users/by-sport?subCategory=${sub}&category=${category}${partnerQuery.trim() ? `&q=${encodeURIComponent(partnerQuery.trim())}` : ''}`)
+            // Kullanıcı isteği: hakem hedefinde bu liste sadece o dalda aktif bir hakem
+            // kaydı (RefereeListing) olanları göstersin, "bu sporu oynayanlar" değil.
+            api.get(`/users/by-sport?subCategory=${sub}&category=${category}${partnerQuery.trim() ? `&q=${encodeURIComponent(partnerQuery.trim())}` : ''}${inviteTarget === 'referee' ? '&refereeOnly=true' : ''}`)
                 .then(res => setSportUsers(Array.isArray(res.data) ? res.data : []))
                 .catch(() => setSportUsers([]))
                 .finally(() => setLoadingSportUsers(false));
         }, 300);
         return () => clearTimeout(task);
-    }, [partnerQuery, showPartnerSearch, inviteTab]);
+    }, [partnerQuery, showPartnerSearch, inviteTab, inviteTarget]);
 
     // Arkadaşlar listesi — davet penceresi ilk açıldığında bir kez çekilir
     useEffect(() => {
@@ -13585,7 +13590,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         </View>
                                     ) : (
                                     <>
-                                    {/* Arkadaşlarım | Tüm Oyuncular sekmeleri */}
+                                    {/* Arkadaşlarım | Tüm Oyuncular sekmeleri — kullanıcı isteği: hakem hedefinde
+                                        "Arkadaşlarım" listesi hakem kaydına göre filtrelenmediği için (bkz. GET
+                                        /friends) hiç gösterilmez, sadece hakem kaydı olanları listeleyen tek
+                                        sekme (refereeOnly) kalır. */}
+                                    {inviteTarget !== 'referee' && (
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                                         {[{ id:'friends', label: t.friendsListLabel }, { id:'all', label: t.inviteTabAllPlayers }].map(tab => (
                                             <TouchableOpacity key={tab.id} onPress={() => setInviteTab(tab.id)}
@@ -13594,6 +13603,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             </TouchableOpacity>
                                         ))}
                                     </View>
+                                    )}
                                     <TextInput
                                         style={s.fieldInput}
                                         value={partnerQuery}
@@ -13633,7 +13643,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         <View style={{ flex:1 }}>
                                                             <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
                                                             <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                                                {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                                                {inviteTarget === 'referee'
+                                                                    ? `${u.username}${u.refereeListings?.[0]?.credentialLevel ? `  · ${u.refereeListings[0].credentialLevel}` : ''}${u.refereeListings?.[0]?.pricePerMatch ? `  ${u.refereeListings[0].pricePerMatch}₺` : ''}`
+                                                                    : `${u.username}${u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}`}
                                                             </Text>
                                                         </View>
                                                     </TouchableOpacity>
