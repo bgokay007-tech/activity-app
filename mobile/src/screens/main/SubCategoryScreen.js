@@ -1069,13 +1069,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         if (!inviteQuery.trim() || inviteQuery.trim().length < 2) { setInviteResults([]); return; }
         setInviteSearching(true);
         const task = setTimeout(() => {
-            api.get(`/users/search?q=${encodeURIComponent(inviteQuery.trim())}&subCategory=${sub}&category=${item.category}`)
+            api.get(`/users/search?q=${encodeURIComponent(inviteQuery.trim())}&subCategory=${sub}&category=${item.category}${inviteForReferee ? '&refereeOnly=true' : ''}`)
                 .then(res => setInviteResults(Array.isArray(res.data) ? res.data : []))
                 .catch(() => setInviteResults([]))
                 .finally(() => setInviteSearching(false));
         }, 400);
         return () => clearTimeout(task);
-    }, [inviteQuery, inviteModalVisible]);
+    }, [inviteQuery, inviteModalVisible, inviteForReferee]);
 
     const handleInvite = async (targetUser) => {
         setInvitingUserId(targetUser.id);
@@ -3509,7 +3509,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color:'#fff', fontWeight:'700', fontSize:moderateScale(13) }}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
                                                     <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
-                                                        {u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                                        {inviteForReferee
+                                                            ? `${u.username}${u.refereeListings?.[0]?.credentialLevel ? `  · ${u.refereeListings[0].credentialLevel}` : ''}${u.refereeListings?.[0]?.pricePerMatch ? `  ${u.refereeListings[0].pricePerMatch}₺` : ''}`
+                                                            : `${u.username}${u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}`}
                                                     </Text>
                                                 </View>
                                                 {invitedUserIds.has(u.id) ? (
@@ -4206,21 +4208,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 </View>
             </TouchableOpacity>
 
-            {/* Aksiyon alanı */}
+            {/* Aksiyon alanı — kullanıcı isteği: kompakt kartta Düzenle/İptal Et/İstek At
+                (Katıl) artık YOK — kullanıcı önce detaya girip kadroyu vs. inceleyip ona göre
+                istek atsın. Kart zaten tıklanınca detayı açıyor, tüm bu aksiyonlar orada var. */}
             <View>
-                {isOwner && isRefereeAd ? null : isOwner ? (
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
-                        <TouchableOpacity
-                            style={[s.cancelBtn, { flex: 0, width: moderateScale(30), paddingHorizontal:0, paddingVertical: moderateScale(4), borderRadius: moderateScale(10), backgroundColor: colors.purple + '20', borderColor: colors.purple + '40' }]}
-                            onPress={() => { editOpenedFromDetailRef.current = false; setEditVisible(true); }}
-                        >
-                            <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]}>✏️</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[s.cancelBtn, { flex: 0, paddingHorizontal: moderateScale(14), paddingVertical: moderateScale(3), borderRadius: moderateScale(10) }]} onPress={handleCancel}>
-                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.cancelAdBtn}</Text>
-                        </TouchableOpacity>
-                    </View>
-                ) : isLinkedMatchPlayer ? (
+                {isOwner ? null : isLinkedMatchPlayer ? (
                     <Text style={{ color: colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }} numberOfLines={2}>Bu maça oyuncu olarak katıldığınız için hakemlik başvurusu yapamazsınız.</Text>
                 ) : myInvite ? (() => {
                     // Kullanıcı isteğiyle davet rozeti artık hangi takıma/role davet edildiğini
@@ -4265,30 +4257,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700', textAlign:'center' }}>✓ Kabul</Text>
                 ) : isFull ? (
                     <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }}>{t.ilanFull || 'Dolu'}</Text>
-                ) : Array.isArray(item.positions) && item.positions.includes('REFEREE') ? (
-                    <TouchableOpacity
-                        style={{ backgroundColor:'#f59e0b20', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }}
-                        onPress={() => setRefereeApplyVisible(true)}
-                    >
-                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeApplyBtn}</Text>
-                    </TouchableOpacity>
-                ) : item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (
-                    <View style={{ flexDirection:'row', gap:3 }}>
-                        <TouchableOpacity style={{ flex:1, backgroundColor:cfg.color+'20', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center', borderWidth:1, borderColor:cfg.color+'50' }} onPress={() => handleJoinPress('partner')}>
-                            <Text style={{ color:cfg.color, fontSize:moderateScale(9), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.joinAsPartnerBtn}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={{ flex:1, backgroundColor:cfg.color, borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }} onPress={() => handleJoinPress('opponent')}>
-                            <Text style={{ color:'#fff', fontSize:moderateScale(9), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.joinAsOpponentBtn}</Text>
-                        </TouchableOpacity>
-                    </View>
-                ) : (
-                    <TouchableOpacity
-                        style={{ backgroundColor:cfg.color, borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }}
-                        onPress={() => isTeamWantedAd ? setShowTeamJoinModal(true) : isVolleyballTeamMatch ? setShowPositionPicker(true) : handleJoinPress()}
-                    >
-                        <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }}>{t.joinBtn}</Text>
-                    </TouchableOpacity>
-                )}
+                ) : null}
             </View>
             </>
             )}

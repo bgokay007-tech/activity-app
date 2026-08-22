@@ -74,15 +74,29 @@ function renderSharePage({ title, description, deepLink, pageUrl, notFound = fal
   <div id="store-buttons" style="margin-top:8px;">${storeButtons.join('')}${storeButtons.length ? '' : '<p class=\"hint\">Uygulamayı henüz yüklemediyseniz, yakında mağazalarda!</p>'}</div>
   <script>
     (function() {
-      // WhatsApp/Instagram gibi uygulama içi tarayıcılar, sayfa yüklenir yüklenmez
-      // yapılan otomatik (kullanıcı etkileşimi olmayan) özel URL şeması yönlendirmelerini
-      // sıkça engelliyor — bu yüzden yukarıdaki "Uygulamada Aç" butonu her zaman görünür
-      // ve gerçek bir dokunuşla açılıyor. Bu otomatik deneme sadece ekstra bir kolaylık;
-      // başarısız olsa da buton zaten orada.
+      // Kullanıcı raporu: uygulama telefonda YÜKLÜ DEĞİLSE "Uygulamada Aç" butonuna
+      // (activityapp:// özel şeması) dokununca hiçbir şey olmuyordu ("tepkisiz") — özel URL
+      // şemaları, ilgili uygulama yüklü değilse çoğu tarayıcıda SESSİZCE başarısız olur,
+      // hata da vermez, mağazaya da yönlendirmez. Artık: butona dokununca hem şema denenir
+      // hem de kısa bir süre sonra (sayfa hâlâ görünürse — yani uygulama açılıp bu sekmeden
+      // uzaklaşılmadıysa) platforma göre mağaza linkine (varsa) otomatik yönlendirilir.
       var ua = navigator.userAgent || '';
       var isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
+      var isIOS = /iPhone|iPad|iPod/i.test(ua);
+      var storeUrl = isIOS ? ${JSON.stringify(IOS_APP_STORE_URL || null)} : ${JSON.stringify(ANDROID_PLAY_STORE_URL || null)};
+      function goToStoreIfStillHere() {
+        if (document.hidden) return; // uygulama açıldıysa sekme zaten arka planda/kapanmış olur
+        if (storeUrl) window.location.href = storeUrl;
+      }
+      var btn = document.getElementById('open-app-btn');
+      if (btn) {
+        btn.addEventListener('click', function() {
+          setTimeout(goToStoreIfStillHere, 1800);
+        });
+      }
       if (!isMobile) return;
       window.location.href = ${JSON.stringify(deepLink)};
+      setTimeout(goToStoreIfStillHere, 1800);
     })();
   </script>`}
 </body>
