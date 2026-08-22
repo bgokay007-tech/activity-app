@@ -2315,7 +2315,7 @@ export const updateOrderStatus = async (req, res, next) => {
         if (status !== undefined && !VALID.includes(status)) return res.status(400).json({ message: 'Geçersiz durum' });
         if (paymentStatus !== undefined && !VALID_PAYMENT.includes(paymentStatus)) return res.status(400).json({ message: 'Geçersiz ödeme durumu' });
 
-        const order = await prisma.venueOrder.findUnique({ where: { id: orderId }, include: { venue: true } });
+        const order = await prisma.venueOrder.findUnique({ where: { id: orderId }, include: { venue: true, items: { include: { menuItem: true } } } });
         if (!order) return res.status(404).json({ message: 'Sipariş bulunamadı' });
         if (order.venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
 
@@ -2332,6 +2332,35 @@ export const updateOrderStatus = async (req, res, next) => {
                 ...(paymentStatus !== undefined && { paymentStatus }),
             },
         });
+
+        // Kullanıcı isteği: sipariş teslim edilince (delivered: false→true) o rezervasyonun
+        // adisyonuna (VenueBill) eklensin — bill yoksa oluşturulur. Böylece "Siparişler"
+        // sekmesindeki tekil, kesikli sipariş kartları yerine, işletme aynı masanın/kortun
+        // TÜM teslim edilmiş siparişlerini tek bir adisyonda (bkz. "Adisyon" sekmesi) toplu
+        // görür — sipariş kendi PENDING→CONFIRMED→READY akışını (kitchen/hazırlık takibi
+        // için) korumaya devam eder, bu sadece teslim ANINDA ek bir kopyalama adımıdır.
+        if (delivered === true && !order.delivered && order.activityId) {
+            try {
+                const rival = await prisma.activityRequest.findUnique({ where: { id: order.activityId }, select: { venueReservationId: true } });
+                if (rival?.venueReservationId) {
+                    let bill = await prisma.venueBill.findUnique({ where: { reservationId: rival.venueReservationId } });
+                    if (!bill) {
+                        bill = await prisma.venueBill.create({ data: { venueId: order.venueId, reservationId: rival.venueReservationId } });
+                    }
+                    for (const it of order.items) {
+                        const existingItem = await prisma.venueBillItem.findFirst({ where: { billId: bill.id, menuItemId: it.menuItemId, userId: order.userId } });
+                        if (existingItem) {
+                            await prisma.venueBillItem.update({ where: { id: existingItem.id }, data: { quantity: existingItem.quantity + it.quantity } });
+                        } else {
+                            await prisma.venueBillItem.create({
+                                data: { billId: bill.id, menuItemId: it.menuItemId, userId: order.userId, name: it.menuItem.name, unitPrice: it.unitPrice, quantity: it.quantity, note: order.notes || null },
+                            });
+                        }
+                    }
+                    await recalcBillTotal(bill.id);
+                }
+            } catch (e) { /* adisyona eklenemese bile sipariş güncellemesi geçerli kalır */ }
+        }
 
         // Kullanıcı isteği: bu bildirimlere dokununca doğrudan o maçın detayına (adisyon
         // ikonu otomatik açık) gidilsin — bunun için maçın category/subCategory'si de

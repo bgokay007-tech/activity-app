@@ -1832,6 +1832,10 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
 
     const [orders, setOrders]             = useState([]);
     const [ordersLoaded, setOrdersLoaded] = useState(false);
+    // Kullanıcı isteği: Siparişler sekmesi içinde üç ayrı görünüm — Aktif (henüz teslim/ödeme
+    // kapanmamış), Ödenmemiş Adisyonlar (teslim edildi ama ücreti hâlâ alınmadı — borç), ve
+    // Arşiv (ücreti alınmış ya da ikram edilmiş, tamamen kapanmış siparişler).
+    const [ordersSubTab, setOrdersSubTab] = useState('active');
     // Kullanıcı isteği: Teslim/Ücret durumu artık tek dokunuşluk toggle değil, "form" gibi
     // (etikete dokununca seçenekler açılan) bir seçim — Android'de Alert.alert 3 buton
     // sınırına takıldığı için (3 seçenekli Ücret formu) özel bir seçim modalı kullanılıyor.
@@ -3021,17 +3025,39 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 </View>
             )}
 
-            {activeTab === 'orders' && (
+            {activeTab === 'orders' && (() => {
+                const isArchived   = (o) => o.paymentStatus === 'PAID' || o.paymentStatus === 'COMPED';
+                const isUnpaidDebt = (o) => o.delivered && o.paymentStatus === 'UNPAID';
+                const archiveOrders = orders.filter(isArchived);
+                const unpaidOrders  = orders.filter(o => !isArchived(o) && isUnpaidDebt(o));
+                const activeOrders  = orders.filter(o => !isArchived(o) && !isUnpaidDebt(o));
+                // "Yeni Sipariş" bildiriminden geldiyse (highlightActivityId), sub-tab'dan
+                // bağımsız sadece o maçın siparişleri gösterilir — genel listede kaybolmasın.
+                const visibleOrders = highlightActivityId
+                    ? orders.filter(o => o.activityId === highlightActivityId)
+                    : (ordersSubTab === 'archive' ? archiveOrders : ordersSubTab === 'unpaid' ? unpaidOrders : activeOrders).slice(0, 30);
+                return (
                 <View style={vc.panel}>
-                    {orders.length === 0
-                        ? <Text style={vc.emptyTxt}>Henüz sipariş yok</Text>
-                        : (
-                            // Kullanıcı isteği: "Yeni Sipariş" bildiriminden geldiyse (highlightActivityId),
-                            // sadece o maçın siparişleri gösterilsin — 15'lik genel listede kaybolmasın.
-                            highlightActivityId
-                                ? orders.filter(o => o.activityId === highlightActivityId)
-                                : orders.slice(0, 15)
-                        ).map(order => (
+                    {!highlightActivityId && (
+                        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                            {[
+                                { key: 'active',  label: `Aktif (${activeOrders.length})` },
+                                { key: 'unpaid',  label: `Ödenmemiş Adisyonlar (${unpaidOrders.length})` },
+                                { key: 'archive', label: `Arşiv (${archiveOrders.length})` },
+                            ].map(t => (
+                                <TouchableOpacity key={t.key}
+                                    onPress={() => setOrdersSubTab(t.key)}
+                                    style={{ flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center',
+                                        backgroundColor: ordersSubTab === t.key ? BIZ_COLOR + '28' : '#ffffff08',
+                                        borderWidth: 1, borderColor: ordersSubTab === t.key ? BIZ_COLOR + '60' : '#ffffff12' }}>
+                                    <Text style={{ color: ordersSubTab === t.key ? BIZ_LIGHT : '#94a3b8', fontSize: 11, fontWeight: '700', textAlign: 'center' }}>{t.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
+                    {visibleOrders.length === 0
+                        ? <Text style={vc.emptyTxt}>{ordersSubTab === 'archive' ? 'Arşivde sipariş yok' : ordersSubTab === 'unpaid' ? 'Ödenmemiş adisyon yok' : 'Henüz sipariş yok'}</Text>
+                        : visibleOrders.map(order => (
                             <View key={order.id} style={[vc.orderCard, order.activityId === highlightActivityId && { borderColor: BIZ_COLOR, borderWidth: 2 }]}>
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                                     <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>@{order.user?.username}</Text>
@@ -3102,7 +3128,8 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                         ))
                     }
                 </View>
-            )}
+                );
+            })()}
 
             {activeTab === 'bills' && (
                 <View style={vc.panel}>
