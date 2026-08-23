@@ -1578,17 +1578,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
     return (
         <>
-        {/* android_keyboardInputMode="adjustPan" — önceden "adjustNothing" idi: varsayılan
-            adjustResize Modal'ı klavye açılınca yeniden boyutlandırıp kadro kartındaki arama
-            önerisini (TeamSlotInviteField, satır ~1894/~2482 — DOUBLE/tenis-padel açık ilan
-            kadrosu) anında kapatıyordu (eski hata, references/ekran-guvenli-alan.md). Ama
-            "adjustNothing" içerik hiç kaymadığı için klavyeye yakın satırlardaki dokunuşları
-            (öneriye tıklama) klavye AÇIKKEN hiç işletmiyordu — davet "Gönderilen Davetler"e
-            hiç düşmüyordu, klavye kapatılınca aynı dokunuş çalışıyordu (kullanıcı raporu,
-            hem voleybol hem padelde doğrulandı). "adjustPan" resize YAPMADAN (eski hata geri
-            gelmiyor) içeriği klavyenin üstünde tutuyor, uygulamanın geri kalanında zaten
-            kullanılan softwareKeyboardLayoutMode:"pan" ile aynı. */}
-        <Modal visible={visible} animationType="slide" onRequestClose={onClose} android_keyboardInputMode="adjustPan">
+        {/* android_keyboardInputMode="adjustNothing" — Android'de bu Modal, uygulama genelindeki
+            softwareKeyboardLayoutMode:"pan" ayarıyla birlikte kendi kendine de yeniden boyutlanıyordu
+            (varsayılan adjustResize), bu da klavye açılınca kadro kartındaki arama önerisinin
+            (TeamSlotInviteField) hemen kapanmasına/ilk dokunuşun boşa gitmesine ve altta Yorum
+            yaz/Gönder çubuğunun gereksiz yukarı kayıp boş siyah alan bırakmasına sebep oluyordu
+            (kullanıcı raporu) — bkz. references/ekran-guvenli-alan.md.
+            (Not: "öneriye dokununca klavye açıkken davet gitmiyordu" sorunu bu ayarla değil,
+            TeamSlotInviteField'ın öneri kutusunu artık focus/blur yerine text/results'a göre
+            göstermesiyle çözüldü — bkz. o bileşendeki showDropdown yorumu.) */}
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={{ flex:1, backgroundColor: colors.bg }}>
                 {/* Header */}
                 <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:5, paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(14), borderBottomWidth:1, borderBottomColor: colors.border }}>
@@ -9821,7 +9820,12 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
     const [text, setText] = useState('');
     const [results, setResults] = useState([]);
     const [searching, setSearching] = useState(false);
-    const [focused, setFocused] = useState(false);
+    // Öneri kutusu, klavye odağına (focused/onBlur) DEĞİL doğrudan arama sonucu olup
+    // olmamasına bağlı — Android'de klavye açıkken bazı cihazlarda öneriye dokunmak
+    // hiç işlemiyordu (klavye kapatılınca aynı dokunuş çalışıyordu, kullanıcı raporu).
+    // TextInput'un blur/klavye davranışına bağımlılığı tamamen kaldırmak bu sınıf
+    // sorunları kökten çözüyor — kutu, seçim yapılıp text temizlenene kadar görünür kalır.
+    const showDropdown = text.trim().length >= 2 && (results.length > 0 || (onAddManual && text.trim().length >= 3));
     useEffect(() => {
         if (text.trim().length < 2) { setResults([]); return; }
         setSearching(true);
@@ -9834,23 +9838,21 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
         return () => clearTimeout(task);
     }, [text]);
     return (
-        // zIndex: bu slot odaklanıp öneri kutusu açıldığında, altındaki BAŞKA bir slotun
-        // (aynı seviyedeki sonraki kardeş) kendi kutusu z-sırasında önde kaldığı için öneri
-        // görünse de dokunuşu o alttaki slot yiyordu (kullanıcı raporu: "öneriye tıklıyorum
-        // ama davet gitmiyor" — aslında tıklama alttaki boş slota gidiyordu).
-        <View style={{ position:'relative', zIndex: focused ? 50 : 1, elevation: focused ? 50 : 0 }}>
+        // zIndex: öneri kutusu açıkken, altındaki BAŞKA bir slotun (aynı seviyedeki sonraki
+        // kardeş) kendi kutusu z-sırasında önde kaldığı için öneri görünse de dokunuşu o
+        // alttaki slot yiyordu (kullanıcı raporu: "öneriye tıklıyorum ama davet gitmiyor" —
+        // aslında tıklama alttaki boş slota gidiyordu).
+        <View style={{ position:'relative', zIndex: showDropdown ? 50 : 1, elevation: showDropdown ? 50 : 0 }}>
             <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                 <View style={{ flex:1, position:'relative' }}>
                     <TextInput
                         style={{ backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:10, paddingHorizontal:5, paddingVertical:2, minHeight:0 }}
                         value={text}
                         onChangeText={setText}
-                        onFocus={() => setFocused(true)}
-                        onBlur={() => setTimeout(() => setFocused(false), 150)}
                         placeholder={placeholder || (t.teamSlotPh ? t.teamSlotPh(1) : 'İsim yaz...')}
                         placeholderTextColor={colors.textMuted}
                     />
-                    {searching && focused && <ActivityIndicator size="small" color={cfg.color} style={{ position:'absolute', right:5, top:3 }} />}
+                    {searching && <ActivityIndicator size="small" color={cfg.color} style={{ position:'absolute', right:5, top:3 }} />}
                 </View>
                 {/* Kullanıcı raporu: bu kutu voleybolün ilan oluşturma kartındaki (TeamSlotRow)
                     kutusuyla BİREBİR AYNI görünmeli — orada boş bir formada hiçbir ikon
@@ -9865,16 +9867,15 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                     </TouchableOpacity>
                 )}
             </View>
-            {focused && (results.length > 0 || (onAddManual && text.trim().length >= 3)) && (
+            {showDropdown && (
                 <View style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:50, elevation:20, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, marginTop:2 }}>
                     {results.map(u => (
                         <TouchableOpacity key={u.id}
-                            // onPress DEĞİL onPressIn — TextInput'un onBlur'u (150ms sonra
-                            // setFocused(false) yapıp bu listeyi kaldırıyor) dokunuş tamamlanmadan
-                            // önce tetiklenip TouchableOpacity'yi ağaçtan söküyordu, bu yüzden
-                            // onPress hiç çalışmadan öneri kayboluyordu (kullanıcı raporu:
-                            // "tıklıyorum, işlevsiz kalıyor, kayboluyor"). onPressIn dokunuşun
-                            // en başında, blur'dan önce ateşlendiği için bu yarışı kazanıyor.
+                            // onPress DEĞİL onPressIn — Android'de klavye açıkken bazı cihazlarda
+                            // dokunuş bu görünüme hiç ulaşmıyordu (klavye kapatılınca aynı dokunuş
+                            // çalışıyordu, kullanıcı raporu). onPressIn dokunuşun en başında
+                            // ateşlendiği için (showDropdown artık focus/blur'a değil text/results'a
+                            // bağlı olduğundan bu görünüm klavye kapanırken sökülmüyor) daha güvenilir.
                             onPressIn={() => {
                                 // Formanın cinsiyet kısıtlaması varsa (genderReq), seçilen kişinin
                                 // cinsiyeti uymuyorsa daveti/atamayı hiç başlatmadan uyar — backend
@@ -9889,7 +9890,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                                     Alert.alert(t.genderMismatchTitle, genderFitsCheck ? t.genderMismatchAnyMsg : t.genderMismatchMsg(genderReq));
                                     return;
                                 }
-                                setText(''); setResults([]); setFocused(false);
+                                setText(''); setResults([]);
                                 // onPick verildiyse (ör. DOUBLE ilan oluşturma formu) seçim yerel
                                 // state'e yazılır, davet ancak ilan submit edilince gider — o anda
                                 // zaten bir onay diyaloğuna gerek yok (bkz. DoubleRosterCard).
@@ -9918,7 +9919,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                         <TouchableOpacity
                             onPressIn={() => {
                                 const manualName = text.trim();
-                                setText(''); setResults([]); setFocused(false);
+                                setText(''); setResults([]);
                                 Alert.alert(
                                     'Bu Oyuncu Kalsın',
                                     `"${manualName}" uygulamayı kullanmıyor olarak takıma eklensin mi? Kendisine davet/bildirim gitmez. Cinsiyet seçin:`,
