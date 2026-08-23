@@ -2931,7 +2931,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <View style={det.section}>
                             <Text style={det.sectionTitle}>📨 Gönderilen Davetler</Text>
                             {joinRequests.filter(jr => jr.initiatedBy === 'OWNER').map(jr => {
-                                const slotLabel = item.matchType !== 'DOUBLE' ? null
+                                const slotLabel = isRefereeAd ? '🟨 Hakemlik Daveti'
+                                    : item.matchType !== 'DOUBLE' ? null
                                     : jr.isPartnerInvite ? 'Takım Arkadaşı'
                                     : jr.requestedSlot === 'opp1' ? 'Rakip 1'
                                     : jr.requestedSlot === 'opp2' ? 'Rakip 2'
@@ -2941,8 +2942,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <View key={jr.id} style={det.playerRow}>
                                         <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                         <View style={{ flex:1 }}>
-                                            <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
+                                            <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}{!isRefereeAd && jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
                                             <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>{slotLabel ? `${slotLabel} — ` : ''}⏳ Onay Bekleniyor</Text>
+                                            {/* Kullanıcı isteği: hakem daveti bildiriminden gelen kişi, kabul/red
+                                                etmeden önce kendisine teklif edilen ücret/mesajı görebilmeli —
+                                                önceden bu satırda hiç gösterilmiyordu, ne teklif edildiği belirsizdi. */}
+                                            {isRefereeAd && jr.offerPrice && (
+                                                <Text style={{ color:'#4ade80', fontSize: moderateScale(10), fontWeight:'700', marginTop:2 }}>💰 {jr.offerPrice}</Text>
+                                            )}
+                                            {isRefereeAd && jr.offerMessage && (
+                                                <Text style={{ color: colors.textSecondary, fontSize: moderateScale(10), marginTop:2 }} numberOfLines={2}>{jr.offerMessage}</Text>
+                                            )}
                                         </View>
                                         {isMyInvite && (
                                             <TouchableOpacity onPress={() => acceptLocal(jr.id)} style={{ backgroundColor:'#16a34a', borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28), justifyContent:'center', alignItems:'center', marginRight:4 }}>
