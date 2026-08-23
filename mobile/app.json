@@ -37,6 +37,7 @@
         "backgroundColor": "#0A0A0A"
       },
       "package": "com.activity.app",
+      "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "pan",
       "permissions": [
         "ACCESS_FINE_LOCATION",
