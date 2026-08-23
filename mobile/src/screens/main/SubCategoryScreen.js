@@ -1578,17 +1578,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
     return (
         <>
-        {/* android_keyboardInputMode="adjustNothing" — Android'de bu Modal, uygulama genelindeki
-            softwareKeyboardLayoutMode:"pan" ayarıyla birlikte kendi kendine de yeniden boyutlanıyordu
-            (varsayılan adjustResize), bu da klavye açılınca kadro kartındaki arama önerisinin
-            (TeamSlotInviteField) hemen kapanmasına/ilk dokunuşun boşa gitmesine ve altta Yorum
-            yaz/Gönder çubuğunun gereksiz yukarı kayıp boş siyah alan bırakmasına sebep oluyordu
-            (kullanıcı raporu) — bkz. references/ekran-guvenli-alan.md.
-            NOT: TeamAssignCard/TeamSlotInviteField aslında bu modalda değil, UpcomingCard'ın
-            kendi "Full-screen Detail Modal"ında kullanılıyor (bkz. orada eklenen aynı ayar) —
-            burada sadece "Oyuncu Davet Et" basit arama paneli (satır ~3508) için geçerli,
-            ama aynı ayarı korumak güvenli/dokunulmamış tarafı bozmuyor. */}
-        <Modal visible={visible} animationType="slide" onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
+        {/* android_keyboardInputMode="adjustPan" — önceden "adjustNothing" idi: varsayılan
+            adjustResize Modal'ı klavye açılınca yeniden boyutlandırıp kadro kartındaki arama
+            önerisini (TeamSlotInviteField, satır ~1894/~2482 — DOUBLE/tenis-padel açık ilan
+            kadrosu) anında kapatıyordu (eski hata, references/ekran-guvenli-alan.md). Ama
+            "adjustNothing" içerik hiç kaymadığı için klavyeye yakın satırlardaki dokunuşları
+            (öneriye tıklama) klavye AÇIKKEN hiç işletmiyordu — davet "Gönderilen Davetler"e
+            hiç düşmüyordu, klavye kapatılınca aynı dokunuş çalışıyordu (kullanıcı raporu,
+            hem voleybol hem padelde doğrulandı). "adjustPan" resize YAPMADAN (eski hata geri
+            gelmiyor) içeriği klavyenin üstünde tutuyor, uygulamanın geri kalanında zaten
+            kullanılan softwareKeyboardLayoutMode:"pan" ile aynı. */}
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose} android_keyboardInputMode="adjustPan">
             <View style={{ flex:1, backgroundColor: colors.bg }}>
                 {/* Header */}
                 <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:5, paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(14), borderBottomWidth:1, borderBottomColor: colors.border }}>
@@ -5837,15 +5837,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         </Animated.View>
 
         {/* Full-screen Detail Modal */}
-        {/* android_keyboardInputMode="adjustNothing" — RivalDetailModal'daki (açık ilan detayı)
-            AYNI kadro kartı (TeamAssignCard/TeamSlotInviteField) bileşeni burada da kullanılıyor
-            ama bu modal hiç bu ayarı almamıştı. Varsayılan adjustResize, klavye açılınca modalı
-            yeniden boyutlandırıp kadro kartındaki arama önerisini anında kapatıyordu — az slotlu
-            (tenis DOUBLE) kartlarda fark edilmiyordu ama çok slotlu (voleybol, 6v6) kartlarda
-            öneriye dokununca liste kayboluyor, davet hiç gitmiyordu (kullanıcı raporu). 9 gün önce
-            RivalDetailModal'da aynı sebeple aynı şekilde düzeltilmişti (bkz. o modaldaki yorum,
-            references/ekran-guvenli-alan.md) — bu modal o düzeltmeyi kaçırmış. */}
-        <Modal visible={showDetail} animationType="slide" onRequestClose={() => setShowDetail(false)} android_keyboardInputMode="adjustNothing">
+        <Modal visible={showDetail} animationType="slide" onRequestClose={() => setShowDetail(false)}>
             <View style={{ flex:1, backgroundColor: colors.bg }}>
                 {/* Header — kullanıcı isteği: Açık İlanlar'daki (RivalDetailModal) header'la
                     BİREBİR aynı boşluk/yazı boyutu değerleri (aynı "stil" hissi). */}
