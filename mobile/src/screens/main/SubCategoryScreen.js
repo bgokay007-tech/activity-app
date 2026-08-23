@@ -9800,8 +9800,10 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                 üstte, manuel ekleme istemi altında, üst üste binmeden art arda sıralanıyor. */}
             {activeSlotKey === key && (slotSuggestions.length > 0 || showStatus) && (
                 <View style={[s.courtResultsBox, { position:'absolute', top:'100%', left:0, right:0, zIndex:30, elevation:8 }]}>
+                    {/* onPressIn — TeamSlotInviteField'daki aynı düzeltme: TextInput'un blur
+                        davranışı öneri kutusunu dokunuş tamamlanmadan kaldırabiliyordu. */}
                     {slotSuggestions.map(u => (
-                        <TouchableOpacity key={u.id} style={[s.courtResultRow, { flexDirection:'row', alignItems:'center', gap:3 }]} onPress={() => onPickUser(u)}>
+                        <TouchableOpacity key={u.id} style={[s.courtResultRow, { flexDirection:'row', alignItems:'center', gap:3 }]} onPressIn={() => onPickUser(u)}>
                             <Avatar name={u.username} avatar={u.avatar} size={24} color={cfg.color} />
                             <Text style={s.courtResultName} numberOfLines={1}>
                                 {u.interests?.[0]?.alias || u.fullName || u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
@@ -9879,7 +9881,13 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                 <View style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:50, elevation:20, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, marginTop:2 }}>
                     {results.map(u => (
                         <TouchableOpacity key={u.id}
-                            onPress={() => {
+                            // onPress DEĞİL onPressIn — TextInput'un onBlur'u (150ms sonra
+                            // setFocused(false) yapıp bu listeyi kaldırıyor) dokunuş tamamlanmadan
+                            // önce tetiklenip TouchableOpacity'yi ağaçtan söküyordu, bu yüzden
+                            // onPress hiç çalışmadan öneri kayboluyordu (kullanıcı raporu:
+                            // "tıklıyorum, işlevsiz kalıyor, kayboluyor"). onPressIn dokunuşun
+                            // en başında, blur'dan önce ateşlendiği için bu yarışı kazanıyor.
+                            onPressIn={() => {
                                 // Formanın cinsiyet kısıtlaması varsa (genderReq), seçilen kişinin
                                 // cinsiyeti uymuyorsa daveti/atamayı hiç başlatmadan uyar — backend
                                 // zaten aynı kontrolü yapıyor ama ilan OLUŞTURMA formunda (onPick)
@@ -9920,7 +9928,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                         tutarlı sayılabilsin diye ekleme onayıyla birlikte isteniyor. */}
                     {onAddManual && text.trim().length >= 3 && (
                         <TouchableOpacity
-                            onPress={() => {
+                            onPressIn={() => {
                                 const manualName = text.trim();
                                 setText(''); setResults([]); setFocused(false);
                                 Alert.alert(
