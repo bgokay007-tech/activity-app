@@ -1614,7 +1614,7 @@ export default function ProfileScreen({ route, navigation }) {
             // için üstteki setInterests tek başına modaldeki görünümü güncellemiyordu.
             setCardModalItem(prev => (prev && prev.id === interestId) ? { ...prev, alias: data.alias } : prev);
             setAliasEditId(null);
-        } catch { /* silent */ }
+        } catch (e) { Alert.alert(t.error, e?.response?.data?.message || t.actionFailed); }
         setSavingAlias(false);
     };
 

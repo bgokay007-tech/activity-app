@@ -486,6 +486,22 @@ export const updateAlias = async (req, res, next) => {
         if (interest.userId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
 
         const trimmed = alias ? alias.trim().slice(0, 30) : null;
+
+        if (trimmed) {
+            // Kullanıcı isteği: aynı spor dalında iki kişi aynı takma adı kullanamasın —
+            // başka bir dalda aynı ad serbest (tenis'te "x" varsa voleybol'da da "x"
+            // olabilir ama tenis'te ikinci bir "x" olamaz).
+            const taken = await prisma.userInterest.findFirst({
+                where: {
+                    category: interest.category,
+                    subCategory: interest.subCategory,
+                    userId: { not: interest.userId },
+                    alias: { equals: trimmed, mode: 'insensitive' },
+                },
+            });
+            if (taken) return res.status(409).json({ message: 'Bu takma ad bu spor dalında zaten kullanılıyor' });
+        }
+
         const updated = await prisma.userInterest.update({
             where: { id },
             data: { alias: trimmed || null },
