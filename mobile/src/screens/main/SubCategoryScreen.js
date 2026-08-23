@@ -4249,29 +4249,29 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     );
                 })() : mySentReq === 'AWAITING_JOINER_CONFIRM' ? (
                     <View style={{ gap:3 }}>
-                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(9), textAlign:'center', marginBottom:2 }}>{t.awaitingYourConfirm}</Text>
+                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(9), textAlign:'center', marginBottom:2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.awaitingYourConfirm}</Text>
                         <View style={{ flexDirection:'row', gap:3 }}>
                             <TouchableOpacity style={{ flex:1, backgroundColor:'#16a34a', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }} onPress={() => handleConfirmLateJoin('confirm')}>
-                                <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }}>{t.confirmJoinBtn}</Text>
+                                <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.confirmJoinBtn}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={{ flex:1, backgroundColor:'#ef444420', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center', borderWidth:1, borderColor:'#ef444440' }} onPress={() => handleConfirmLateJoin('cancel')}>
-                                <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>{t.cancelJoinBtn}</Text>
+                                <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.cancelJoinBtn}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
                 ) : mySentReq === 'PENDING' ? (
                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6 }}>
-                        <TouchableOpacity onPress={handleWithdraw}>
-                            <Text style={{ color:'#f87171', fontSize:moderateScale(9), fontWeight:'700', textAlign:'center' }}>{t.withdrawReqBtn}</Text>
+                        <TouchableOpacity onPress={handleWithdraw} style={{ flexShrink:0 }}>
+                            <Text style={{ color:'#f87171', fontSize:moderateScale(9), fontWeight:'700', textAlign:'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.withdrawReqBtn}</Text>
                         </TouchableOpacity>
-                        <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }}>
+                        <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center', flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                             {Array.isArray(item.positions) && item.positions.includes('REFEREE') ? 'İsteğiniz Bekleniyor' : t.waitingReq}
                         </Text>
                     </View>
                 ) : mySentReq === 'ACCEPTED' ? (
-                    <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700', textAlign:'center' }}>✓ Kabul</Text>
+                    <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700', textAlign:'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>✓ Kabul</Text>
                 ) : isFull ? (
-                    <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }}>{t.ilanFull || 'Dolu'}</Text>
+                    <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ilanFull || 'Dolu'}</Text>
                 ) : null}
             </View>
             </>
