@@ -9,6 +9,7 @@ import {
     getTournamentPermissionRequests, approveTournamentPermission, rejectTournamentPermission, revokeTournamentPermission,
     getFlaggedListings, moderateListing,
     getCoachRatingApprovals, setCoachRatingApproval,
+    getCoachListingApprovals, setCoachListingApproval,
     getRefereeApprovals, setRefereeApproval,
     getProfileChangeRequests, reviewProfileChangeRequest,
     getSupportMessages, replySupportMessage,
@@ -41,6 +42,8 @@ router.get('/flagged-listings',              getFlaggedListings);
 router.patch('/listings/:type/:id',          moderateListing);
 router.get('/coach-rating-approvals',        getCoachRatingApprovals);
 router.patch('/coach-rating-approvals/:id',  setCoachRatingApproval);
+router.get('/coach-listing-approvals',       getCoachListingApprovals);
+router.patch('/coach-listing-approvals/:id', setCoachListingApproval);
 router.get('/referee-approvals',             getRefereeApprovals);
 router.patch('/referee-approvals/:id',       setRefereeApproval);
 router.get('/tournament-permissions',                   getTournamentPermissionRequests);

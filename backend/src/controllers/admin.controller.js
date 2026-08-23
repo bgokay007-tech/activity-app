@@ -334,6 +334,42 @@ export const setRefereeApproval = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+// Voleybol "onaylı antrenör ilanı" onayı — approvedForRating'den AYRI: bu, antrenörün
+// VolleyballRating'de COACH rolüyle değerlendirme verebilmesi değil, İLANININ başkalarına
+// görünüp ders için rezervasyon alabilmesi için gereken onay (bkz. RefereeApproval ile
+// birebir aynı desen — CV ile birlikte başvurulur).
+export const getCoachListingApprovals = async (req, res, next) => {
+    try {
+        const { status } = req.query; // PENDING | APPROVED
+        const listings = await prisma.coachListing.findMany({
+            where: { subCategory: 'volleyball', status: 'ACTIVE', approved: status === 'APPROVED' },
+            include: { user: { select: RATING_APPROVAL_USER_SELECT } },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(listings);
+    } catch (e) { next(e); }
+};
+
+export const setCoachListingApproval = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { action } = req.body; // 'APPROVE' | 'REVOKE'
+        const listing = await prisma.coachListing.update({
+            where: { id },
+            data: { approved: action === 'APPROVE' },
+        });
+        createNotification(listing.userId,
+            action === 'APPROVE' ? 'COACH_LISTING_APPROVED' : 'COACH_APPROVAL_REVOKED',
+            action === 'APPROVE' ? '✅ Antrenörlük İlanınız Onaylandı' : '🚫 Antrenörlük Onayınız Kaldırıldı',
+            action === 'APPROVE'
+                ? 'Voleybol antrenörlük başvurunuz admin tarafından onaylandı — ilanınız artık herkese görünüyor.'
+                : 'Voleybol antrenörlük ilan onayınız admin tarafından kaldırıldı, ilanınız başkalarına görünmüyor.',
+            {}
+        ).catch(() => {});
+        res.json({ ok: true });
+    } catch (e) { next(e); }
+};
+
 export const revokeTournamentPermission = async (req, res, next) => {
     try {
         const { userId } = req.params;

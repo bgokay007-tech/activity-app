@@ -18995,6 +18995,9 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const submitCoach = async () => {
         if (!coachForm.locationMutual && !coachForm.location.trim()) return Alert.alert('', 'Konum zorunludur');
+        // Kullanıcı isteği: voleybolde antrenörlük başvurusu admin onayıyla değerlendirildiği
+        // için CV'siz gönderilemez — CV eksikse admin neye göre onaylayacağını bilemez.
+        if (sub === 'volleyball' && !coachCvImage) return Alert.alert('', 'Voleybolde antrenörlük başvurusu için CV yüklemeniz zorunludur.');
         setSubmittingCoach(true);
         try {
             setUploadingCoachMedia(true);
@@ -21264,6 +21267,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                             : filteredCoaches;
                         return (
                         <>
+                            {/* Kullanıcı isteği: Antrenörler/Kurslar/Hakemler/CVler alt-sekmeleri
+                                "İlan Oluştur/CV Yükle" butonlarının ÜSTÜNDE — önce hangi sekmede
+                                olduğun belli olsun, sonra o sekmeye özel eylemler gelsin. */}
+                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
+                                {subTabs.map(st => (
+                                    <TouchableOpacity key={st.key} onPress={() => setCoachSubTab(st.key)}
+                                        style={{ flex: isCoachExpanded ? undefined : 1, minWidth: isCoachExpanded ? '23%' : undefined, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: coachSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachSubTab===st.key ? cfg.color : colors.border }}>
+                                        <Text style={{ color: coachSubTab===st.key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }}>
+                                            {st.label}{st.count > 0 ? `  ${st.count}` : ''}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
                             {coachSubTab === 'referees' ? (
                                 <CityAlertRow tab="referees">
                                     <TouchableOpacity
@@ -21299,17 +21316,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                 </CityAlertRow>
                             )}
-
-                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
-                                {subTabs.map(st => (
-                                    <TouchableOpacity key={st.key} onPress={() => setCoachSubTab(st.key)}
-                                        style={{ flex: isCoachExpanded ? undefined : 1, minWidth: isCoachExpanded ? '23%' : undefined, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: coachSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachSubTab===st.key ? cfg.color : colors.border }}>
-                                        <Text style={{ color: coachSubTab===st.key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }}>
-                                            {st.label}{st.count > 0 ? `  ${st.count}` : ''}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
 
                             <CompactFilter showDateChips={false} />
                             {coachSubTab === 'referees' ? (
@@ -21417,6 +21423,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     {c.certName && <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.certName}</Text>}
                                                     {c.reviewCount > 0 && (
                                                         <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>★ {c.avgRating.toFixed(1)} ({c.reviewCount})</Text>
+                                                    )}
+                                                    {/* Kullanıcı isteği: voleybolde admin onayı olmadan antrenörlük ilanı
+                                                        başkalarına görünmez — başvuru sahibi kendi ilanının durumunu
+                                                        görebilsin diye (bkz. getListings, onaylanmamış ilanlar zaten
+                                                        başkalarına hiç gösterilmiyor). */}
+                                                    {c.subCategory === 'volleyball' && !c.approved && (
+                                                        <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>⏳ Admin Onayı Bekleniyor</Text>
                                                     )}
                                                 </View>
                                                 <TouchableOpacity onPress={() => setProfileUserId(c.userId)}>
@@ -21647,8 +21660,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TouchableOpacity onPress={() => pickCoachSingleImage(setCoachCvImage)}
                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
                                         <Text style={{ fontSize:14 }}>📄</Text>
-                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{coachCvImage ? 'CV Fotoğrafı Seçildi ✓' : 'CV Fotoğrafı Yükle (opsiyonel)'}</Text>
+                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{coachCvImage ? 'CV Fotoğrafı Seçildi ✓' : `CV Fotoğrafı Yükle${sub === 'volleyball' ? ' *' : ' (opsiyonel)'}`}</Text>
                                     </TouchableOpacity>
+                                    {sub === 'volleyball' && (
+                                        <Text style={{ color:'#f59e0b', fontSize:11, marginBottom:8 }}>
+                                            Voleybolde antrenörlük başvurunuz admin onayına gönderilir — CV'niz incelenip onaylandıktan sonra ilanınız herkese görünür.
+                                        </Text>
+                                    )}
 
                                     <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={coachForm.description} onChangeText={v => setCoachForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
 
@@ -21685,27 +21703,32 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     // Kullanıcı isteği: "CV Yükle"nin amacı zaten bir ilanı olup olmamasına
                                     // bağlı olmamalı — hiç ilanı yoksa burada ölü bir metinle bırakmak
                                     // yerine, gerekli tüm bilgileri (CV dahil) isteyen asıl başvuru
-                                    // formu doğrudan buradan açılabilsin.
+                                    // formu doğrudan buradan açılabilsin. Ayrıca hangi sekmeden (Antrenörler/
+                                    // Hakemler) açıldıysa SADECE o türle ilgili alan gösterilir — önceden
+                                    // ikisi birden gösteriliyordu, hakemlikten CV yükle derken antrenörlük
+                                    // seçeneği de çıkıyordu (kullanıcı raporu).
                                     const startCoachApplication = () => { setShowCvUploadModal(false); setShowCreateCoach(true); };
                                     const startRefereeApplication = () => { setShowCvUploadModal(false); setShowCreateReferee(true); };
+                                    const isRefereeContext = coachSubTab === 'referees';
                                     return (
                                         <ScrollView showsVerticalScrollIndicator={false}>
-                                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:12 }}>CV Yükle</Text>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800', marginBottom:6 }}>Antrenörlükler</Text>
-                                            {myCoachListings.length === 0 ? (
-                                                <TouchableOpacity onPress={startCoachApplication} style={{ paddingVertical:9, paddingHorizontal:10, backgroundColor: cfg.color+'15', borderRadius:8, borderWidth:1, borderColor: cfg.color+'50', marginBottom:14 }}>
-                                                    <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>+ Antrenörlük Başvurusu Oluştur (CV dahil)</Text>
-                                                </TouchableOpacity>
+                                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:12 }}>{isRefereeContext ? 'Hakemlik CV Yükle' : 'Antrenörlük CV Yükle'}</Text>
+                                            {isRefereeContext ? (
+                                                myRefereeListingsOwn.length === 0 ? (
+                                                    <TouchableOpacity onPress={startRefereeApplication} style={{ paddingVertical:9, paddingHorizontal:10, backgroundColor:'#f59e0b15', borderRadius:8, borderWidth:1, borderColor:'#f59e0b50', marginBottom:14 }}>
+                                                        <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>+ Hakemlik Başvurusu Oluştur (CV dahil)</Text>
+                                                    </TouchableOpacity>
+                                                ) : (
+                                                    <View style={{ marginBottom:14 }}>{myRefereeListingsOwn.map(l => pickRow(l, 'referee'))}</View>
+                                                )
                                             ) : (
-                                                <View style={{ marginBottom:14 }}>{myCoachListings.map(l => pickRow(l, 'coach'))}</View>
-                                            )}
-                                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'800', marginBottom:6 }}>Hakemlikler</Text>
-                                            {myRefereeListingsOwn.length === 0 ? (
-                                                <TouchableOpacity onPress={startRefereeApplication} style={{ paddingVertical:9, paddingHorizontal:10, backgroundColor:'#f59e0b15', borderRadius:8, borderWidth:1, borderColor:'#f59e0b50', marginBottom:14 }}>
-                                                    <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>+ Hakemlik Başvurusu Oluştur (CV dahil)</Text>
-                                                </TouchableOpacity>
-                                            ) : (
-                                                <View style={{ marginBottom:14 }}>{myRefereeListingsOwn.map(l => pickRow(l, 'referee'))}</View>
+                                                myCoachListings.length === 0 ? (
+                                                    <TouchableOpacity onPress={startCoachApplication} style={{ paddingVertical:9, paddingHorizontal:10, backgroundColor: cfg.color+'15', borderRadius:8, borderWidth:1, borderColor: cfg.color+'50', marginBottom:14 }}>
+                                                        <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>+ Antrenörlük Başvurusu Oluştur (CV dahil)</Text>
+                                                    </TouchableOpacity>
+                                                ) : (
+                                                    <View style={{ marginBottom:14 }}>{myCoachListings.map(l => pickRow(l, 'coach'))}</View>
+                                                )
                                             )}
                                             <TouchableOpacity onPress={() => setShowCvUploadModal(false)} style={{ paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
                                                 <Text style={{ color:colors.textMuted, fontWeight:'700' }}>Kapat</Text>

@@ -20,6 +20,7 @@ const TABS = [
     { key: 'cities',           label: '📍 Şehirler' },
     { key: 'tourperms',        label: '🏆 Turnuva' },
     { key: 'coachRating',      label: '🏐 Antrenör Onayı' },
+    { key: 'coachListingApproval', label: '🎓 Antrenörlük İlanı Onayı' },
     { key: 'refereeApproval',  label: '🟨 Hakem Onayı' },
     { key: 'flagged',          label: '🚩 İlanlar' },
     { key: 'profilechanges',   label: '🪪 Profil' },
@@ -829,6 +830,77 @@ function CoachRatingApprovalTab() {
     );
 }
 
+// ── Voleybol Antrenörlük İlanı Onayı (CoachListing.approved — ilanın görünür/rezerve
+// edilebilir olması için, approvedForRating'den AYRI) ──────────────────────────────
+function CoachListingApprovalTab() {
+    const [listings, setListings] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [filter, setFilter] = useState('PENDING');
+    const [refreshing, setRefreshing] = useState(false);
+
+    const load = useCallback(async (st, isRefresh = false) => {
+        if (isRefresh) setRefreshing(true); else setLoading(true);
+        try {
+            const { data } = await api.get(`/admin/coach-listing-approvals?status=${st}`);
+            setListings(Array.isArray(data) ? data : []);
+        } catch {}
+        if (isRefresh) setRefreshing(false); else setLoading(false);
+    }, []);
+
+    useEffect(() => { load(filter); }, [filter, load]);
+
+    const setApproval = async (id, action) => {
+        try {
+            await api.patch(`/admin/coach-listing-approvals/${id}`, { action });
+            load(filter);
+        } catch { Alert.alert('Hata', 'İşlem başarısız.'); }
+    };
+
+    if (loading) return <LoadingView />;
+
+    return (
+        <View style={{ flex: 1 }}>
+            <FilterRow
+                options={[
+                    { key: 'PENDING',  label: '⏳ Bekleyen' },
+                    { key: 'APPROVED', label: '✅ Onaylılar' },
+                ]}
+                active={filter}
+                onChange={setFilter}
+            />
+            <FlatList
+                data={listings}
+                keyExtractor={c => c.id}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(filter, true)} tintColor={colors.purple} />}
+                renderItem={({ item: c }) => (
+                    <View style={s.card}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={s.cardTitle}>@{c.user?.username || '?'}</Text>
+                            {c.user?.fullName ? <Text style={s.cardMeta}>{c.user.fullName}</Text> : null}
+                            <Text style={s.cardMeta}>{c.credentialLevel} · {c.city || c.location}</Text>
+                            {c.cvUrl ? (
+                                <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)}>
+                                    <Text style={[s.cardMeta, { color: colors.purple, fontWeight: '700' }]}>📄 CV'yi Aç</Text>
+                                </TouchableOpacity>
+                            ) : (
+                                <Text style={[s.cardMeta, { color: '#ef4444' }]}>CV yok</Text>
+                            )}
+                        </View>
+                        <View style={s.actionCol}>
+                            {filter === 'PENDING' ? (
+                                <Btn label="✓ Onayla" onPress={() => setApproval(c.id, 'APPROVE')} color="#10b981" small />
+                            ) : (
+                                <Btn label="✕ Onayı Kaldır" onPress={() => setApproval(c.id, 'REVOKE')} color="#ef4444" small />
+                            )}
+                        </View>
+                    </View>
+                )}
+                ListEmptyComponent={<EmptyView text={filter === 'PENDING' ? 'Onay bekleyen antrenörlük ilanı yok. ✅' : 'Onaylı antrenörlük ilanı bulunamadı.'} />}
+            />
+        </View>
+    );
+}
+
 // ── Voleybol Hakem Onayı (RefereeListing.approved — maça hakem olarak davet/atanma için) ──
 function RefereeApprovalTab() {
     const [listings, setListings] = useState([]);
@@ -1366,6 +1438,7 @@ export default function AdminPortalScreen({ navigation, route }) {
             case 'cities':         return <CitiesTab />;
             case 'tourperms':      return <TourPermsTab />;
             case 'coachRating':    return <CoachRatingApprovalTab />;
+            case 'coachListingApproval': return <CoachListingApprovalTab />;
             case 'refereeApproval': return <RefereeApprovalTab />;
             case 'flagged':        return <FlaggedTab />;
             case 'profilechanges': return <ProfileChangesTab />;

@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
+import { createNotification } from './notification.controller.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -12,6 +13,14 @@ export const getListings = async (req, res, next) => {
                 status: 'ACTIVE',
                 category: category || undefined,
                 subCategory: subCategory || undefined,
+                // Voleybolde admin onayı olmayan bir ilan başkalarına GÖRÜNMEZ — sahibi
+                // kendi başvurusunun durumunu takip edebilsin diye kendi ilanını her zaman
+                // görür (bkz. RefereeListing.approved ile aynı desen).
+                OR: [
+                    { subCategory: { not: 'volleyball' } },
+                    { approved: true },
+                    { userId: req.userId },
+                ],
             },
             include: { user: { select: USER_SELECT } },
             orderBy: { createdAt: 'desc' },
@@ -42,6 +51,9 @@ export const getListing = async (req, res, next) => {
             include: { user: { select: USER_SELECT } },
         });
         if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
+        if (listing.subCategory === 'volleyball' && !listing.approved && listing.userId !== req.userId) {
+            return res.status(404).json({ message: 'İlan bulunamadı' });
+        }
         const agg = await prisma.coachReview.aggregate({
             where: { coachListingId: id },
             _avg: { rating: true },
@@ -171,6 +183,10 @@ export const createListing = async (req, res, next) => {
 
         if (!credentialLevel || !location || !category || !subCategory)
             return res.status(400).json({ message: 'Missing required fields' });
+        // Kullanıcı isteği: voleybolde antrenörlük başvurusu CV'siz gönderilemez — admin
+        // onayı CV'ye bakarak veriliyor, CV eksikse başvuru zaten değerlendirilemez.
+        if (subCategory === 'volleyball' && !cvUrl)
+            return res.status(400).json({ message: 'Voleybolde antrenörlük başvurusu için CV yüklemeniz zorunludur.' });
 
         const listing = await prisma.coachListing.create({
             data: {
@@ -189,6 +205,10 @@ export const createListing = async (req, res, next) => {
                 timeFrom: timeFrom || '09:00',
                 timeTo: timeTo || '21:00',
                 description,
+                // Voleybolde admin onayı gerekiyor (approved varsayılan false kalır); diğer
+                // dallarda hiç kontrol edilmediği için baştan onaylı sayılır — davranış
+                // değişmesin diye.
+                approved: subCategory !== 'volleyball',
             },
             include: { user: { select: USER_SELECT } },
         });
@@ -230,6 +250,11 @@ export const updateListing = async (req, res, next) => {
             location, city, days, timeFrom, timeTo, description,
         } = req.body;
 
+        // Voleybolde onaylı bir antrenör CV'sini değiştirirse onay otomatik düşer — admin
+        // hangi CV'yi onayladığını biliyor, sessizce farklı bir CV'yle onaylı kalınamaz.
+        const cvChanged = cvUrl !== undefined && cvUrl !== listing.cvUrl;
+        const revokeApproval = listing.subCategory === 'volleyball' && listing.approved && cvChanged;
+
         const updated = await prisma.coachListing.update({
             where: { id },
             data: {
@@ -251,10 +276,17 @@ export const updateListing = async (req, res, next) => {
                 ...(timeFrom !== undefined && { timeFrom }),
                 ...(timeTo !== undefined && { timeTo }),
                 ...(description !== undefined && { description }),
+                ...(revokeApproval && { approved: false }),
             },
             include: { user: { select: USER_SELECT } },
         });
         res.json(updated);
+        if (revokeApproval) {
+            createNotification(req.userId, 'COACH_APPROVAL_REVOKED', '🚫 Antrenörlük Onayınız Kaldırıldı',
+                'CV\'nizi değiştirdiğiniz için antrenörlük ilan onayınız kaldırıldı, yeni CV admin tarafından tekrar incelenene kadar ilanınız başkalarına görünmez.',
+                {}
+            ).catch(() => {});
+        }
     } catch (err) { next(err); }
 };
 

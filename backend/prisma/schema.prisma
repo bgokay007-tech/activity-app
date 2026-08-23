@@ -392,6 +392,10 @@ model CoachListing {
   status          String   @default("ACTIVE")  // ACTIVE | FLAGGED | REMOVED
   reportCount     Int      @default(0)
   approvedForRating Boolean @default(false)  // admin onayı — voleybolde resmi oyuncu değerlendirmesi verebilir (bkz. VolleyballRating)
+  // approvedForRating'den AYRI bir onay — bu ilanın KENDİSİNİN başkalarına görünüp
+  // rezervasyon alabilmesi için (RefereeListing.approved ile aynı desen). Sadece voleybolde
+  // zorunlu; diğer dallarda kontrol edilmediği için yayınlanır yayınlanmaz görünür kalır.
+  approved        Boolean @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
