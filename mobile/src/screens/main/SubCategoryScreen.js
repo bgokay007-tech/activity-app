@@ -6062,8 +6062,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             // listesi açılır (kullanıcı isteği). Aktif takas varken (isTgt/hedef) ya da
                             // sahip değilken eski statik "bekleniyor"/"buraya taşı" davranışı korunur.
                             if (!p && isOwner && !swapSlot) {
+                                // zIndex: opp1/opp2 aynı sütunda alt alta — opp1'in öneri kutusu
+                                // altına taşınca opp2'nin kendi kutusu üstte kalıp dokunuşu
+                                // yiyordu (bkz. TeamAssignCard.renderColumn'daki aynı düzeltme).
+                                const slotZ = { partner: 3, opp1: 2, opp2: 1 }[slot] || 1;
                                 return (
-                                    <View key={slot}>
+                                    <View key={slot} style={{ zIndex: slotZ }}>
                                         <TeamSlotInviteField
                                             sub={match.subCategory} category={match.category} cfg={cfg} t={t}
                                             placeholder={SLOT_LABEL[slot]}
@@ -9713,7 +9717,10 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
     return (
         // position:'relative' — öneri kutusu mutlak konumlanıp altına biner, 3'lü grid'deki
         // komşu hücreleri aşağı itmesin diye (bkz. çağıran: dar sütunlarda kullanılıyor).
-        <View style={{ marginBottom: 1, position:'relative' }}>
+        // zIndex: bu slot aktifken (öneri kutusu açıkken) altındaki sonraki kardeş slotun
+        // kendi kutusu z-sırasında önde kaldığı için öneriye dokunma o alttaki boş slota
+        // gidiyordu (kullanıcı raporu: "öneriye tıklıyorum ama davet gitmiyor").
+        <View style={{ marginBottom: 1, position:'relative', zIndex: isActive ? 50 : 1, elevation: isActive ? 50 : 0 }}>
             {/* İkon ve ✕ alanları slot dolu/boş fark etmeksizin HER ZAMAN aynı genişlikte
                 render edilir (boşken görünmez/pasif) — eskiden sadece slot doluyken
                 render edilip TextInput'un genişliğini birden değiştiriyordu, ilk harf
@@ -9843,7 +9850,11 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
         return () => clearTimeout(task);
     }, [text]);
     return (
-        <View style={{ position:'relative' }}>
+        // zIndex: bu slot odaklanıp öneri kutusu açıldığında, altındaki BAŞKA bir slotun
+        // (aynı seviyedeki sonraki kardeş) kendi kutusu z-sırasında önde kaldığı için öneri
+        // görünse de dokunuşu o alttaki slot yiyordu (kullanıcı raporu: "öneriye tıklıyorum
+        // ama davet gitmiyor" — aslında tıklama alttaki boş slota gidiyordu).
+        <View style={{ position:'relative', zIndex: focused ? 50 : 1, elevation: focused ? 50 : 0 }}>
             <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                 <View style={{ flex:1, position:'relative' }}>
                     <TextInput
@@ -10524,7 +10535,10 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                         const pendingSuggestion = isVolleyball && p.id ? positionSuggestions.find(s => s?.userId === p.id) : null;
                         const pendingSuggestionLabel = pendingSuggestion ? (pendingSuggestion.position === 'SPIKER' ? t.positionSpiker : pendingSuggestion.position === 'LIBERO' ? t.positionLibero : t.positionSetter) : '';
                         return (
-                            <View key={p.id || i} style={{ marginBottom:4 }}>
+                            // zIndex: alttaki (daha büyük i) boş slotların öneri kutusu üste taştığında
+                            // bu satırın dokunma alanı öneriyi ezmesin diye üstteki slotlar (küçük i)
+                            // her zaman daha yüksek zIndex'te tutuluyor (bkz. empty slot dalı).
+                            <View key={p.id || i} style={{ marginBottom:4, zIndex: slotsCount - i }}>
                                 <View style={{ flexDirection:'row', alignItems:'center' }}>
                                     {/* Kullanıcı isteği: isme dokununca artık direkt profile gitmiyor —
                                         ilan sahibi + voleybolda "Pozisyona Ata"/"Profiline Git" seçenekleri
@@ -10581,7 +10595,7 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                     // (kullanıcı isteği: ilan oluşturma formundaki gibi yazarak davet, hangi
                     // forma yazıldıysa orada kalır — bkz. slotIndex).
                     return isOwner && onInviteSlot ? (
-                        <View key={`empty-${i}`} style={{ marginBottom:2 }}>
+                        <View key={`empty-${i}`} style={{ marginBottom:2, zIndex: slotsCount - i }}>
                             <TeamSlotInviteField sub={sub} category={category} cfg={{ color }} t={t}
                                 placeholder={t.teamSlotPh(i + 1)}
                                 onInvite={(u) => onInviteSlot(u, targetSide, i)} />
