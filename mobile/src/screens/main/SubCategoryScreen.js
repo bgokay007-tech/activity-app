@@ -8190,8 +8190,6 @@ function EloWarningModal({ visible, onClose, onDismissForever }) {
 }
 const noEmojiStr = (str) => (str || '').replace(/^\S+\s+/, '');
 
-const CITY_ALERT_INFO_DISMISSED_KEY = 'city_alert_info_dismissed';
-
 // Zile (🔔) tıklayınca bildirim aç/kapat işlemi doğrudan yapılmaz — önce bu bilgilendirme
 // modalı açılır (ne için bildirim aldığını anlatır), "Bir daha gösterme" işaretlenip
 // onaylanırsa AsyncStorage'a yazılır ve bir sonraki tıklamalarda zil doğrudan aç/kapat yapar
@@ -8205,22 +8203,8 @@ const CITY_ALERT_INFO_DISMISSED_KEY = 'city_alert_info_dismissed';
 // yarış durumundan). Kalıcı çözüm: artık TEK bir <Modal> var (bkz. çağrı yeri, aşağıda), bu
 // bileşen sadece İÇERİK döndürüyor — "İl Seç"e basınca aynı Modal içinde içerik değişiyor,
 // native modal penceresi hiç kapanıp açılmıyor, bu yarış durumu kökünden imkansız hale geliyor.
-function CityAlertInfoContent({ desc, active, cities, onClose, onToggle, onPickCities, onDismissForever }) {
+function CityAlertInfoContent({ desc, active, cities, onClose, onToggle, onPickCities }) {
     const t = useT();
-    const [checked, setChecked] = useState(false);
-
-    const handleCheckboxPress = () => {
-        if (checked) { setChecked(false); return; }
-        Alert.alert(t.eloConfirmTitle, t.eloConfirmMsg, [
-            { text: t.eloConfirmNo, style: 'cancel' },
-            { text: t.eloConfirmYes, style: 'destructive', onPress: async () => {
-                setChecked(true);
-                await AsyncStorage.setItem(CITY_ALERT_INFO_DISMISSED_KEY, '1');
-                onDismissForever?.();
-                onClose();
-            }},
-        ]);
-    };
 
     return (
         <View style={ew.box} onStartShouldSetResponder={() => true}>
@@ -8242,12 +8226,6 @@ function CityAlertInfoContent({ desc, active, cities, onClose, onToggle, onPickC
                     {cities.join(', ')}
                 </Text>
             )}
-            <TouchableOpacity onPress={handleCheckboxPress} style={ew.checkRow}>
-                <View style={[ew.checkbox, checked && ew.checkboxChecked]}>
-                    {checked && <Text style={{ color:'#fff', fontSize:10 }}>✓</Text>}
-                </View>
-                <Text style={ew.checkLabel}>{t.eloDontShowAgain}</Text>
-            </TouchableOpacity>
         </View>
     );
 }
@@ -18392,12 +18370,11 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [cityAlertLoading, setCityAlertLoading] = useState(null); // toggling tab or null
     const [cityPickerTab, setCityPickerTab] = useState(null); // hangi sekme için picker açık
     const [cityPickerTogglingCity, setCityPickerTogglingCity] = useState(null);
-    // Zile tıklayınca önce bilgilendirme modalı açılır — "bir daha gösterme" onaylanana kadar
+    // Kullanıcı isteği: "bir daha gösterme" bir kez onaylanınca zile kısa basış kalıcı olarak
+    // sadece hızlı aç/kapa yapıyordu, "İl Seç" paneline kısa basışla bir daha erişilemiyordu
+    // (sadece gizli bir uzun-basış vardı) — "bir daha gösterme" tamamen kaldırıldı, zil her
+    // zaman bu bilgi/seçim panelini açar.
     const [cityAlertInfoTab, setCityAlertInfoTab] = useState(null); // hangi sekme için bilgi modalı açık
-    const [cityAlertInfoDismissed, setCityAlertInfoDismissed] = useState(false);
-    useEffect(() => {
-        AsyncStorage.getItem(CITY_ALERT_INFO_DISMISSED_KEY).then(v => { if (v) setCityAlertInfoDismissed(true); });
-    }, []);
 
     // Coaches data
     const [coachListings, setCoachListings] = useState([]);
@@ -20045,7 +20022,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         const isLoading = cityAlertLoading === tab;
         return (
             <TouchableOpacity
-                onPress={() => { if (isLoading) return; cityAlertInfoDismissed ? quickToggleTab(tab) : setCityAlertInfoTab(tab); }}
+                onPress={() => { if (isLoading) return; setCityAlertInfoTab(tab); }}
                 onLongPress={() => setCityPickerTab(tab)}
                 delayLongPress={400}
                 disabled={isLoading}
@@ -20349,7 +20326,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                             onClose={() => setCityAlertInfoTab(null)}
                             onToggle={() => { const tab = cityAlertInfoTab; setCityAlertInfoTab(null); quickToggleTab(tab); }}
                             onPickCities={() => { setCityPickerTab(cityAlertInfoTab); setCityAlertInfoTab(null); }}
-                            onDismissForever={() => setCityAlertInfoDismissed(true)}
                         />
                     </TouchableOpacity>
                 )}
