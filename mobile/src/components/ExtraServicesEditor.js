@@ -146,7 +146,7 @@ function RefereeTypeContent({ referee }) {
                                 {referee.suggestions.map(u => (
                                     <TouchableOpacity key={u.id} onPress={() => referee.onPickSuggestion(u)}
                                         style={{ flexDirection:'row', alignItems:'center', gap:6, padding:7, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                                        <Text style={{ color: colors.text, fontSize:12, fontWeight:'600' }} numberOfLines={1}>{u.fullName || u.username}</Text>
+                                        <Text style={{ color: colors.text, fontSize:12, fontWeight:'600' }} numberOfLines={1}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>

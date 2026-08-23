@@ -9803,7 +9803,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
                         <TouchableOpacity key={u.id} style={[s.courtResultRow, { flexDirection:'row', alignItems:'center', gap:3 }]} onPress={() => onPickUser(u)}>
                             <Avatar name={u.username} avatar={u.avatar} size={24} color={cfg.color} />
                             <Text style={s.courtResultName} numberOfLines={1}>
-                                {u.fullName || u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
+                                {u.interests?.[0]?.alias || u.fullName || u.username}{u.interests?.[0]?.skillRating != null ? `  ${Number(u.interests[0].skillRating).toFixed(2)} ★` : ''}
                             </Text>
                         </TouchableOpacity>
                     ))}
@@ -9903,7 +9903,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                             }}
                             style={{ paddingVertical:5, paddingHorizontal:6, flexDirection:'row', alignItems:'center', gap:4, borderBottomWidth:1, borderBottomColor: colors.border+'60' }}>
                             <Avatar name={u.username} avatar={u.avatar} size={16} color={cfg.color} />
-                            <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{u.fullName || u.username}</Text>
+                            <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
                         </TouchableOpacity>
                     ))}
                     {/* Uygulamayı kullanmayan (kayıtsız) oyuncu — sadece isim yazıp bu takıma
@@ -10013,7 +10013,7 @@ function FriendsMultiPickerModal({ visible, onClose, sub, category, t, cfg, maxS
                 </View>
                 <Avatar name={u.username} avatar={u.avatar} size={32} color={cfg.color} />
                 <View style={{ flex:1 }}>
-                    <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }} numberOfLines={1}>{u.fullName || u.username}</Text>
+                    <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }} numberOfLines={1}>{u.interests?.[0]?.alias || u.fullName || u.username}</Text>
                     <Text style={{ color: colors.textMuted, fontSize:11 }} numberOfLines={1}>{u.username}</Text>
                 </View>
             </TouchableOpacity>
