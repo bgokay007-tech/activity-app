@@ -1125,6 +1125,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         handleRespondJoin(jrId, 'reject');
     };
 
+    // İlan sahibinin "📨 Gönderilen Davetler"den kendi gönderdiği bir daveti ✕ ile geri
+    // çekmesi — kullanıcı raporu: backend bunu her zaman "Forbidden" ile reddediyordu
+    // (bkz. rival.controller.js respondToJoin, isOwnerWithdrawingOwnInvite düzeltmesi).
+    // rejectLocal'dan ayrı: burada başarı sonrası açık bir onay mesajı gösteriliyor.
+    const withdrawSentInvite = (jrId) => {
+        setLocalJoinRequests(joinRequests.filter(r => r.id !== jrId));
+        api.patch(`/rivals/join/${jrId}`, { action: 'reject' })
+            .then(() => { Alert.alert('', t.inviteWithdrawnMsg); onRefresh(); })
+            .catch(e => { Alert.alert(t.error, e?.response?.data?.message || t.actionFailed); onRefresh(); });
+    };
+
     // Çiftler: kendi bireysel başvurumun partner durumunu değiştirir — davet et / kabul et / geri çek
     const setMyRivalJoinPartner = async (partnerId) => {
         setPartnerActionLoading(true);
@@ -2963,7 +2974,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             </TouchableOpacity>
                                         )}
                                         {(isOwner || isMyInvite) && (
-                                            <TouchableOpacity onPress={() => rejectLocal(jr.id)} style={{ backgroundColor:'#dc262620', borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28), justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
+                                            <TouchableOpacity onPress={() => (isOwner ? withdrawSentInvite(jr.id) : rejectLocal(jr.id))} style={{ backgroundColor:'#dc262620', borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28), justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
                                                 <Text style={{ color:'#f87171', fontSize: moderateScale(12), fontWeight:'700' }}>✕</Text>
                                             </TouchableOpacity>
                                         )}
@@ -5001,6 +5012,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             setLocalSubRequests(subRequests);
         }
     };
+
+    // İlan sahibinin "📨 Gönderilen Davetler"den kendi gönderdiği bir daveti ✕ ile geri
+    // çekmesi — respondToSubRequest'ten ayrı: burada başarı sonrası açık bir onay mesajı var
+    // (bkz. RivalDetailModal.withdrawSentInvite ile aynı düzeltme, backend'deki
+    // isOwnerWithdrawingOwnInvite iznine dayanır).
+    const withdrawSentInviteFromCard = (jrId) => {
+        setLocalSubRequests(subRequests.filter(r => r.id !== jrId));
+        api.patch(`/rivals/join/${jrId}`, { action: 'reject' })
+            .then(() => { Alert.alert('', t.inviteWithdrawnMsg); onRefresh(); })
+            .catch(e => { Alert.alert(t.error, e?.response?.data?.message || t.actionFailed); setLocalSubRequests(subRequests); });
+    };
     // Maç saati geçtiyse (Skor Bekleyen Maçlar listesindeki kartlar) artık tesiste
     // sipariş vermenin bir anlamı kalmıyor — bu buton sadece maç henüz oynanmamışken gösterilir.
     const matchEnded = (() => {
@@ -6418,7 +6440,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
                                     </View>
                                     {isOwner && (
-                                        <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'reject')} style={{ backgroundColor:'#dc262620', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
+                                        <TouchableOpacity onPress={() => withdrawSentInviteFromCard(jr.id)} style={{ backgroundColor:'#dc262620', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
                                             <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>✕</Text>
                                         </TouchableOpacity>
                                     )}

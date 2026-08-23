@@ -3386,7 +3386,13 @@ export const respondToJoin = async (req, res, next) => {
 
         // Owner responds to a join request from a player; the invited player responds to an owner-sent invite
         const responder = joinReq.initiatedBy === 'OWNER' ? joinReq.userId : joinReq.rival.senderId;
-        if (responder !== req.userId) return res.status(403).json({ message: 'Forbidden' });
+        // Kullanıcı raporu: ilan sahibi "Gönderilen Davetler"den kendi gönderdiği bir daveti
+        // ✕ ile geri çekmek istediğinde her zaman "Forbidden" dönüyordu — responder SADECE
+        // daveti ALAN kişiydi, daveti GÖNDEREN sahibin reddetmesi (=geri çekmesi) hiç
+        // düşünülmemişti. accept dışındaki aksiyonlarda (reject/geri çekme) sahibin kendi
+        // gönderdiği daveti iptal edebilmesi de izin veriliyor.
+        const isOwnerWithdrawingOwnInvite = action !== 'accept' && joinReq.initiatedBy === 'OWNER' && joinReq.rival.senderId === req.userId;
+        if (responder !== req.userId && !isOwnerWithdrawingOwnInvite) return res.status(403).json({ message: 'Forbidden' });
 
         // İdempotentlik: aynı istek zaten işlenmişse (çift dokunma / ağ tekrar denemesi) yeniden
         // işlenip tekrar tekrar bildirim gönderilmesin — bir isteğe bir kez yanıt verilebilir.
@@ -3394,6 +3400,15 @@ export const respondToJoin = async (req, res, next) => {
 
         if (action !== 'accept') {
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
+
+            // İlan sahibi kendi gönderdiği daveti geri çekiyor — davet edilen kişiye anında
+            // "davet kalktı" sinyali gider (sanki hiç gönderilmemiş gibi), ama sahibe kendi
+            // eylemi için "reddetti" diyen yanlış bir bildirim gitmez.
+            if (isOwnerWithdrawingOwnInvite) {
+                emitToUser(joinReq.userId, 'joinRejected', { rivalId: joinReq.rivalId });
+                return res.json({ message: 'Davetiniz geri çekildi.' });
+            }
+
             // Reddedildiğini diğer tarafa bildir — katıl/davet butonu geri açılsın
             const notifyTargetId = joinReq.initiatedBy === 'OWNER' ? joinReq.rival.senderId : joinReq.userId;
             emitToUser(notifyTargetId, 'joinRejected', { rivalId: joinReq.rivalId });
