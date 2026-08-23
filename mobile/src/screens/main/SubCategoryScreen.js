@@ -3005,11 +3005,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     })()}
 
                     {/* Hakem Başvuruları — ilan sahibi + katılımcılar ortak görür; sahibi kabul/red/karşı teklif verebilir.
-                        Hakemler sekmesinden ilanın kendi detayı açıldığında da (isRefereeAd) görünür. */}
-                    {(item.refereeRequested || isRefereeAd) && (isOwner || isParticipant || isLinkedMatchPlayer) && refereeApplications.length > 0 && (
+                        Hakemler sekmesinden ilanın kendi detayı açıldığında da (isRefereeAd) görünür.
+                        Kullanıcı isteği: onaylanan başvuru burada TEKRAR gösterilmiyor — o bilgi zaten
+                        yukarıdaki "Hakem Slotu" özet kutusunda (Hakem: X ✓) var, burada sadece diğer
+                        (bekleyen/karşı teklifli) başvurular kalır. */}
+                    {(() => {
+                        const pendingRefereeApplications = refereeApplications.filter(app => app.status !== 'ACCEPTED');
+                        return (item.refereeRequested || isRefereeAd) && (isOwner || isParticipant || isLinkedMatchPlayer) && pendingRefereeApplications.length > 0 && (
                         <View style={{ marginBottom:10, backgroundColor:'#f59e0b0d', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b30', padding:6 }}>
                             <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'800', marginBottom:4 }}>{t.refereeApplicationsTitle}</Text>
-                            {refereeApplications.map(app => (
+                            {pendingRefereeApplications.map(app => (
                                 <View key={app.id} style={{ marginBottom:4, paddingBottom:4, borderBottomWidth:1, borderBottomColor:'#f59e0b20' }}>
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
                                         <Avatar name={app.user?.username} avatar={app.user?.avatar} size={moderateScale(20)} color="#f59e0b" />
@@ -3081,7 +3086,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 </View>
                             ))}
                         </View>
-                    )}
+                        );
+                    })()}
 
                     {/* Katıl / İptal aksiyonu */}
                     <View style={{ marginBottom:14 }}>

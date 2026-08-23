@@ -4140,7 +4140,8 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                     : `"${subCategoryTR(joinReq.rival.subCategory)}" maçı için hakemlik başvurunuz onaylandı.`,
                 { rivalId: joinReq.rival.linkedRivalId || joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
-            postRefereeComment(joinReq.rival.linkedRivalId, req.userId, `✅ ${refUser.fullName || refUser.username} hakem olarak onaylandı${refereeShare ? ` — kişi başı ${refereeShare}₺` : ''}.`);
+            // Kullanıcı isteği: hakem onaylanınca aynı bilgi zaten "Hakem Slotu" özet kutusunda
+            // (Hakem: X ✓) gösteriliyor — buraya ayrıca yorum olarak da düşmesi gereksiz tekrardı.
             return;
         }
 
