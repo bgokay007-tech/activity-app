@@ -4,7 +4,7 @@ import {
     View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
     Alert, KeyboardAvoidingView, Platform, Switch, Linking, Image,
-    InteractionManager, PanResponder, Animated, BackHandler, useWindowDimensions,
+    InteractionManager, PanResponder, Animated, BackHandler, useWindowDimensions, Keyboard,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9831,7 +9831,17 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
         setSearching(true);
         const task = setTimeout(() => {
             api.get(`/users/search?q=${encodeURIComponent(text.trim())}&subCategory=${sub}&category=${category}`)
-                .then(res => setResults(Array.isArray(res.data) ? res.data.slice(0, 5) : []))
+                .then(res => {
+                    const list = Array.isArray(res.data) ? res.data.slice(0, 5) : [];
+                    setResults(list);
+                    // Android'de bazı cihazlarda klavye AÇIKKEN öneriye dokunmak hiç işlemiyordu
+                    // (klavye kapatılınca aynı dokunuş çalışıyordu, kullanıcı raporu — z-index,
+                    // onPressIn, Modal'ın adjustPan/adjustNothing ayarları hiçbiri çözmedi, bu
+                    // işletim sistemi seviyesinde bir davranış olmalı). Öneriler gelir gelmez
+                    // klavyeyi biz kapatıyoruz ki dokunuş klavye kapalıyken (kanıtlanmış çalışan
+                    // durum) gerçekleşsin.
+                    if (list.length > 0) Keyboard.dismiss();
+                })
                 .catch(() => setResults([]))
                 .finally(() => setSearching(false));
         }, 350);
