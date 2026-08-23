@@ -21668,18 +21668,28 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <Text style={{ color: l.cvUrl ? '#4ade80' : cfg.color, fontSize:11, fontWeight:'700' }}>{l.cvUrl ? 'Değiştir' : 'CV Yükle'}</Text>
                                         </TouchableOpacity>
                                     );
+                                    // Kullanıcı isteği: "CV Yükle"nin amacı zaten bir ilanı olup olmamasına
+                                    // bağlı olmamalı — hiç ilanı yoksa burada ölü bir metinle bırakmak
+                                    // yerine, gerekli tüm bilgileri (CV dahil) isteyen asıl başvuru
+                                    // formu doğrudan buradan açılabilsin.
+                                    const startCoachApplication = () => { setShowCvUploadModal(false); setShowCreateCoach(true); };
+                                    const startRefereeApplication = () => { setShowCvUploadModal(false); setShowCreateReferee(true); };
                                     return (
                                         <ScrollView showsVerticalScrollIndicator={false}>
                                             <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:12 }}>CV Yükle</Text>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800', marginBottom:6 }}>Antrenörlükler</Text>
                                             {myCoachListings.length === 0 ? (
-                                                <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:14 }}>Henüz bir antrenörlük ilanınız yok.</Text>
+                                                <TouchableOpacity onPress={startCoachApplication} style={{ paddingVertical:9, paddingHorizontal:10, backgroundColor: cfg.color+'15', borderRadius:8, borderWidth:1, borderColor: cfg.color+'50', marginBottom:14 }}>
+                                                    <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>+ Antrenörlük Başvurusu Oluştur (CV dahil)</Text>
+                                                </TouchableOpacity>
                                             ) : (
                                                 <View style={{ marginBottom:14 }}>{myCoachListings.map(l => pickRow(l, 'coach'))}</View>
                                             )}
                                             <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'800', marginBottom:6 }}>Hakemlikler</Text>
                                             {myRefereeListingsOwn.length === 0 ? (
-                                                <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:14 }}>Henüz bir hakemlik ilanınız yok.</Text>
+                                                <TouchableOpacity onPress={startRefereeApplication} style={{ paddingVertical:9, paddingHorizontal:10, backgroundColor:'#f59e0b15', borderRadius:8, borderWidth:1, borderColor:'#f59e0b50', marginBottom:14 }}>
+                                                    <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>+ Hakemlik Başvurusu Oluştur (CV dahil)</Text>
+                                                </TouchableOpacity>
                                             ) : (
                                                 <View style={{ marginBottom:14 }}>{myRefereeListingsOwn.map(l => pickRow(l, 'referee'))}</View>
                                             )}

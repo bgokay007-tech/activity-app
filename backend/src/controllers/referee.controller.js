@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
+import { createNotification } from './notification.controller.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -175,6 +176,11 @@ export const updateListing = async (req, res, next) => {
             location, city, days, timeFrom, timeTo, description,
         } = req.body;
 
+        // Voleybolde onaylı bir hakem CV'sini değiştirirse onay otomatik düşer — admin
+        // hangi CV'yi onayladığını biliyor, sessizce farklı bir CV'yle onaylı kalınamaz.
+        const cvChanged = cvUrl !== undefined && cvUrl !== listing.cvUrl;
+        const revokeApproval = listing.subCategory === 'volleyball' && listing.approved && cvChanged;
+
         const updated = await prisma.refereeListing.update({
             where: { id },
             data: {
@@ -192,10 +198,17 @@ export const updateListing = async (req, res, next) => {
                 ...(timeFrom !== undefined && { timeFrom }),
                 ...(timeTo !== undefined && { timeTo }),
                 ...(description !== undefined && { description }),
+                ...(revokeApproval && { approved: false }),
             },
             include: { user: { select: USER_SELECT } },
         });
         res.json(updated);
+        if (revokeApproval) {
+            createNotification(req.userId, 'REFEREE_APPROVAL_REVOKED', '🚫 Hakemlik Onayınız Kaldırıldı',
+                'CV\'nizi değiştirdiğiniz için hakemlik onayınız kaldırıldı, yeni CV admin tarafından tekrar incelenene kadar maçlara hakem olarak davet edilemezsiniz.',
+                {}
+            ).catch(() => {});
+        }
     } catch (err) { next(err); }
 };
 
