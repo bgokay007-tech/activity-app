@@ -3400,15 +3400,20 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <View style={det.section}>
                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: spectators.length > 0 ? moderateScale(10) : 0 }}>
                                 <Text style={det.sectionTitle}>👁 {t.spectatorListTitle}{spectators.length > 0 ? ` (${spectators.length})` : ''}</Text>
-                                <TouchableOpacity
-                                    disabled={spectatorActionLoading}
-                                    onPress={toggleSpectator}
-                                    style={{ backgroundColor: amISpectator ? colors.border : cfg.color, borderRadius:moderateScale(8), paddingHorizontal:moderateScale(10), paddingVertical:moderateScale(6), opacity: spectatorActionLoading ? 0.6 : 1 }}
-                                >
-                                    <Text style={{ color: amISpectator ? colors.textMuted : '#fff', fontSize:moderateScale(11), fontWeight:'800' }}>
-                                        {amISpectator ? t.spectatorLeaveBtn : t.spectatorJoinBtn}
-                                    </Text>
-                                </TouchableOpacity>
+                                {/* Kullanıcı isteği: ilan sahibi ve maçta oyuncu olarak yer alanlar zaten
+                                    kadroda — onlara "seyirci olarak katıl" butonu saçma olur, sadece
+                                    kadro dışındakilere gösterilir. */}
+                                {!isMatchRosterMember && (
+                                    <TouchableOpacity
+                                        disabled={spectatorActionLoading}
+                                        onPress={toggleSpectator}
+                                        style={{ backgroundColor: amISpectator ? colors.border : cfg.color, borderRadius:moderateScale(8), paddingHorizontal:moderateScale(10), paddingVertical:moderateScale(6), opacity: spectatorActionLoading ? 0.6 : 1 }}
+                                    >
+                                        <Text style={{ color: amISpectator ? colors.textMuted : '#fff', fontSize:moderateScale(11), fontWeight:'800' }}>
+                                            {amISpectator ? t.spectatorLeaveBtn : t.spectatorJoinBtn}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                             {spectators.length === 0 ? (
                                 <Text style={det.emptyTxt}>{t.spectatorListEmpty}</Text>
@@ -7107,15 +7112,20 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         <View style={det.section}>
                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: spectators.length > 0 ? moderateScale(10) : 0 }}>
                                 <Text style={det.sectionTitle}>👁 {t.spectatorListTitle}{spectators.length > 0 ? ` (${spectators.length})` : ''}</Text>
-                                <TouchableOpacity
-                                    disabled={spectatorActionLoading}
-                                    onPress={toggleSpectator}
-                                    style={{ backgroundColor: amISpectator ? colors.border : cfg.color, borderRadius:moderateScale(8), paddingHorizontal:moderateScale(10), paddingVertical:moderateScale(6), opacity: spectatorActionLoading ? 0.6 : 1 }}
-                                >
-                                    <Text style={{ color: amISpectator ? colors.textMuted : '#fff', fontSize:moderateScale(11), fontWeight:'800' }}>
-                                        {amISpectator ? t.spectatorLeaveBtn : t.spectatorJoinBtn}
-                                    </Text>
-                                </TouchableOpacity>
+                                {/* Kullanıcı isteği: ilan sahibi ve maçta oyuncu olarak yer alanlar zaten
+                                    kadroda — onlara "seyirci olarak katıl" butonu saçma olur, sadece
+                                    kadro dışındakilere gösterilir. */}
+                                {!isMatchRosterMember && (
+                                    <TouchableOpacity
+                                        disabled={spectatorActionLoading}
+                                        onPress={toggleSpectator}
+                                        style={{ backgroundColor: amISpectator ? colors.border : cfg.color, borderRadius:moderateScale(8), paddingHorizontal:moderateScale(10), paddingVertical:moderateScale(6), opacity: spectatorActionLoading ? 0.6 : 1 }}
+                                    >
+                                        <Text style={{ color: amISpectator ? colors.textMuted : '#fff', fontSize:moderateScale(11), fontWeight:'800' }}>
+                                            {amISpectator ? t.spectatorLeaveBtn : t.spectatorJoinBtn}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                             {spectators.length === 0 ? (
                                 <Text style={det.emptyTxt}>{t.spectatorListEmpty}</Text>
@@ -19040,6 +19050,9 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const submitReferee = async () => {
         if (!refereeForm.locationMutual && !refereeForm.location.trim()) return Alert.alert('', 'Konum zorunludur');
+        // Kullanıcı isteği: voleybolde hakemlik başvurusu admin onayıyla değerlendirildiği
+        // için CV'siz gönderilemez — CV eksikse admin neye göre onaylayacağını bilemez.
+        if (sub === 'volleyball' && !refereeCvImage) return Alert.alert('', 'Voleybolde hakemlik başvurusu için CV yüklemeniz zorunludur.');
         setSubmittingReferee(true);
         try {
             setUploadingRefereeMedia(true);
@@ -21302,6 +21315,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             {r.reviewCount > 0 && (
                                                                 <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>★ {r.avgRating.toFixed(1)} ({r.reviewCount})</Text>
                                                             )}
+                                                            {/* Kullanıcı isteği: voleybolde admin onayı olmadan hakemlik yapılamaz —
+                                                                başvuru sahibi kendi ilanının durumunu görebilsin diye (bkz. getListings,
+                                                                onaylanmamış ilanlar başkalarına zaten hiç gösterilmiyor). */}
+                                                            {r.subCategory === 'volleyball' && !r.approved && (
+                                                                <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>⏳ Admin Onayı Bekleniyor</Text>
+                                                            )}
                                                         </View>
                                                         <TouchableOpacity onPress={() => setProfileUserId(r.userId)}>
                                                             <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{r.user?.username}</Text>
@@ -21898,8 +21917,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TouchableOpacity onPress={() => pickCoachSingleImage(setRefereeCvImage)}
                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
                                         <Text style={{ fontSize:14 }}>📄</Text>
-                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{refereeCvImage ? 'CV Fotoğrafı Seçildi ✓' : 'CV Fotoğrafı Yükle (opsiyonel)'}</Text>
+                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{refereeCvImage ? 'CV Fotoğrafı Seçildi ✓' : `CV Fotoğrafı Yükle${sub === 'volleyball' ? ' *' : ' (opsiyonel)'}`}</Text>
                                     </TouchableOpacity>
+                                    {sub === 'volleyball' && (
+                                        <Text style={{ color:'#f59e0b', fontSize:11, marginBottom:8 }}>
+                                            Voleybolde hakemlik başvurunuz admin onayına gönderilir — CV'niz incelenip onaylandıktan sonra maçlara hakem olarak davet edilebilir/atanabilirsiniz.
+                                        </Text>
+                                    )}
 
                                     <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={refereeForm.description} onChangeText={v => setRefereeForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
 

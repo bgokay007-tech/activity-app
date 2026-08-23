@@ -12,6 +12,14 @@ export const getListings = async (req, res, next) => {
                 status: 'ACTIVE',
                 category: category || undefined,
                 subCategory: subCategory || undefined,
+                // Voleybolde admin onayı olmayan bir ilan başkalarına GÖRÜNMEZ — sadece
+                // sahibi kendi başvurusunun durumunu (onay bekliyor) takip edebilsin diye
+                // kendi ilanını her zaman görür. Diğer dallarda approved hiç kontrol edilmez.
+                OR: [
+                    { subCategory: { not: 'volleyball' } },
+                    { approved: true },
+                    { userId: req.userId },
+                ],
             },
             include: { user: { select: USER_SELECT } },
             orderBy: { createdAt: 'desc' },
@@ -104,6 +112,10 @@ export const createListing = async (req, res, next) => {
 
         if (!credentialLevel || !location || !category || !subCategory)
             return res.status(400).json({ message: 'Missing required fields' });
+        // Kullanıcı isteği: voleybolde hakemlik başvurusu CV'siz gönderilemez — admin onayı
+        // CV'ye bakarak veriliyor, CV eksikse başvuru zaten değerlendirilemez.
+        if (subCategory === 'volleyball' && !cvUrl)
+            return res.status(400).json({ message: 'Voleybolde hakemlik başvurusu için CV yüklemeniz zorunludur.' });
 
         const listing = await prisma.refereeListing.create({
             data: {
@@ -118,6 +130,10 @@ export const createListing = async (req, res, next) => {
                 timeFrom: timeFrom || '09:00',
                 timeTo: timeTo || '21:00',
                 description,
+                // Voleybolde admin onayı gerekiyor (approved varsayılan false kalır); diğer
+                // dallarda hiç kontrol edilmediği için baştan onaylı sayılır — davranış
+                // değişmesin diye (bkz. resolveRefereeEligibility).
+                approved: subCategory !== 'volleyball',
             },
             include: { user: { select: USER_SELECT } },
         });

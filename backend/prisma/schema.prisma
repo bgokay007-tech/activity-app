@@ -482,6 +482,11 @@ model RefereeListing {
   description     String?
   status          String   @default("ACTIVE")  // ACTIVE | FLAGGED | REMOVED
   reportCount     Int      @default(0)
+  // Voleybolde admin onayı olmadan hakemlik yapılamaz (bkz. resolveRefereeEligibility,
+  // rival.controller.js) — CoachListing.approvedForRating ile aynı desen. Diğer dallarda
+  // (tenis/padel/badminton/masa tenisi/airsoft) bu alan kontrol edilmez, ilan yayınlanır
+  // yayınlanmaz hakem olarak davet edilebilir — sadece voleybol için admin onay şartı var.
+  approved        Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
