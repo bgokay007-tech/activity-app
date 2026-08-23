@@ -10,4 +10,7 @@ export const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d
 export const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5174';
 export const IOS_APP_STORE_URL = process.env.IOS_APP_STORE_URL || null;
 export const ANDROID_PLAY_STORE_URL = process.env.ANDROID_PLAY_STORE_URL || null;
+// Uygulama henüz Play Store'da yayınlanmadığı için, "Uygulamada Aç" linkindeki mağaza
+// yönlendirmesi yerine geçici olarak doğrudan bir APK indirme linki (bkz. share.controller.js).
+export const ANDROID_APK_URL = process.env.ANDROID_APK_URL || null;
 export const BACKEND_URL = process.env.BACKEND_URL || 'https://activity-app-production-f4c2.up.railway.app';

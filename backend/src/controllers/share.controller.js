@@ -1,5 +1,5 @@
 import prisma from '../config/prisma.js';
-import { BACKEND_URL, IOS_APP_STORE_URL, ANDROID_PLAY_STORE_URL } from '../config/env.js';
+import { BACKEND_URL, IOS_APP_STORE_URL, ANDROID_PLAY_STORE_URL, ANDROID_APK_URL } from '../config/env.js';
 
 // Bu route'lar auth'suz herkese açık (WhatsApp/Telegram/Instagram önizleme botları giriş
 // yapamaz) — sadece özet/genel bilgi döndürülür, hassas alanlar (id'ler, iletişim vs.) yok.
@@ -36,9 +36,17 @@ function subCategoryLabel(sub) {
 
 function renderSharePage({ title, description, deepLink, pageUrl, notFound = false }) {
     const ogImage = `${BACKEND_URL}/icon-512.png`;
+    // Uygulama henüz Play Store'da değil — varsa gerçek mağaza linki, yoksa geçici olarak
+    // doğrudan APK indirme linki kullanılır (bkz. ANDROID_APK_URL, ekran görüntüsü/metin de
+    // buna göre değişir — "Google Play'den İndir" değil "Uygulamayı İndir (APK)").
+    const androidUrl = ANDROID_PLAY_STORE_URL || ANDROID_APK_URL;
+    const androidLabel = ANDROID_PLAY_STORE_URL ? "Google Play'den İndir" : '⬇️ Uygulamayı İndir (APK)';
     const storeButtons = [];
     if (IOS_APP_STORE_URL) storeButtons.push(`<a class="store-btn" href="${escapeHtml(IOS_APP_STORE_URL)}">App Store'dan İndir</a>`);
-    if (ANDROID_PLAY_STORE_URL) storeButtons.push(`<a class="store-btn" href="${escapeHtml(ANDROID_PLAY_STORE_URL)}">Google Play'den İndir</a>`);
+    if (androidUrl) storeButtons.push(`<a class="store-btn" href="${escapeHtml(androidUrl)}">${androidLabel}</a>`);
+    if (!ANDROID_PLAY_STORE_URL && ANDROID_APK_URL) {
+        storeButtons.push(`<p class="hint" style="margin-top:6px;">Android'de "Bilinmeyen kaynaklardan yükleme" izni gerekebilir.</p>`);
+    }
 
     return `<!DOCTYPE html>
 <html lang="tr">
@@ -83,7 +91,7 @@ function renderSharePage({ title, description, deepLink, pageUrl, notFound = fal
       var ua = navigator.userAgent || '';
       var isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
       var isIOS = /iPhone|iPad|iPod/i.test(ua);
-      var storeUrl = isIOS ? ${JSON.stringify(IOS_APP_STORE_URL || null)} : ${JSON.stringify(ANDROID_PLAY_STORE_URL || null)};
+      var storeUrl = isIOS ? ${JSON.stringify(IOS_APP_STORE_URL || null)} : ${JSON.stringify(androidUrl || null)};
       function goToStoreIfStillHere() {
         if (document.hidden) return; // uygulama açıldıysa sekme zaten arka planda/kapanmış olur
         if (storeUrl) window.location.href = storeUrl;
