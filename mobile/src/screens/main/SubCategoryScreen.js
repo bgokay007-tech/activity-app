@@ -3400,10 +3400,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <View style={det.section}>
                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: spectators.length > 0 ? moderateScale(10) : 0 }}>
                                 <Text style={det.sectionTitle}>👁 {t.spectatorListTitle}{spectators.length > 0 ? ` (${spectators.length})` : ''}</Text>
-                                {/* Kullanıcı isteği: ilan sahibi ve maçta oyuncu olarak yer alanlar zaten
-                                    kadroda — onlara "seyirci olarak katıl" butonu saçma olur, sadece
-                                    kadro dışındakilere gösterilir. */}
-                                {!isMatchRosterMember && (
+                                {/* Kullanıcı isteği: ilan sahibi, maçta oyuncu olarak yer alanlar VE atanmış
+                                    hakem zaten kadroda/maçta görevli — onlara "seyirci olarak katıl" butonu
+                                    saçma olur, sadece bunların dışındakilere gösterilir. */}
+                                {!isMatchRosterMember && item.refereeUser?.id !== myId && (
                                     <TouchableOpacity
                                         disabled={spectatorActionLoading}
                                         onPress={toggleSpectator}
@@ -7112,10 +7112,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         <View style={det.section}>
                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: spectators.length > 0 ? moderateScale(10) : 0 }}>
                                 <Text style={det.sectionTitle}>👁 {t.spectatorListTitle}{spectators.length > 0 ? ` (${spectators.length})` : ''}</Text>
-                                {/* Kullanıcı isteği: ilan sahibi ve maçta oyuncu olarak yer alanlar zaten
-                                    kadroda — onlara "seyirci olarak katıl" butonu saçma olur, sadece
-                                    kadro dışındakilere gösterilir. */}
-                                {!isMatchRosterMember && (
+                                {/* Kullanıcı isteği: ilan sahibi, maçta oyuncu olarak yer alanlar VE atanmış
+                                    hakem zaten kadroda/maçta görevli — onlara "seyirci olarak katıl" butonu
+                                    saçma olur, sadece bunların dışındakilere gösterilir. */}
+                                {!isMatchRosterMember && match.refereeUser?.id !== myId && (
                                     <TouchableOpacity
                                         disabled={spectatorActionLoading}
                                         onPress={toggleSpectator}

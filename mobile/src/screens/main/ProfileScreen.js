@@ -1609,6 +1609,10 @@ export default function ProfileScreen({ route, navigation }) {
         try {
             const { data } = await api.patch(`/interests/${interestId}/alias`, { alias: aliasValue });
             setInterests(prev => prev.map(i => i.id === interestId ? { ...i, alias: data.alias } : i));
+            // Kullanıcı isteği: kaydedilen değişiklik ekrandan çıkıp tekrar girmeden ANINDA
+            // yansımalı — cardModalItem, interests dizisinden bağımsız kendi kopyasını tuttuğu
+            // için üstteki setInterests tek başına modaldeki görünümü güncellemiyordu.
+            setCardModalItem(prev => (prev && prev.id === interestId) ? { ...prev, alias: data.alias } : prev);
             setAliasEditId(null);
         } catch { /* silent */ }
         setSavingAlias(false);
