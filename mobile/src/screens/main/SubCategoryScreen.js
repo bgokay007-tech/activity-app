@@ -9888,6 +9888,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                             // "tıklıyorum, işlevsiz kalıyor, kayboluyor"). onPressIn dokunuşun
                             // en başında, blur'dan önce ateşlendiği için bu yarışı kazanıyor.
                             onPressIn={() => {
+                                Alert.alert('DEBUG', 'onPressIn tetiklendi: ' + (u.username || u.id));
                                 // Formanın cinsiyet kısıtlaması varsa (genderReq), seçilen kişinin
                                 // cinsiyeti uymuyorsa daveti/atamayı hiç başlatmadan uyar — backend
                                 // zaten aynı kontrolü yapıyor ama ilan OLUŞTURMA formunda (onPick)
