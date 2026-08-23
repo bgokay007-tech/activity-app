@@ -20,12 +20,23 @@ function useAutoUpdate() {
     useEffect(() => {
         if (__DEV__ || !Updates.isEnabled) return;
         let cancelled = false;
+        // Soğuk başlatmadaki İLK kontrolde reloadAsync() JS bağlamını sıfırlıyor — uygulama bir
+        // bildirime dokunularak açıldıysa, navigation/index.js'teki getLastNotificationResponseAsync/
+        // pendingNavRef mekanizması henüz o yönlendirmeyi tüketmeden reload araya girip veriyi
+        // kaybediyordu (kullanıcı raporu: "ana ekrandan bildirime tıklayınca ilan detayına
+        // yönlendirmiyor"). İlk kontrolde güncelleme sessizce indirilip hazır tutulur, gerçek
+        // reload bir sonraki ön plana gelişte (ya da bir sonraki soğuk başlatmada, expo-updates
+        // zaten en son indirilmiş sürümü kullanır) uygulanır.
+        let isFirstRun = true;
         const checkAndApply = async () => {
+            const firstRun = isFirstRun;
+            isFirstRun = false;
             try {
                 const result = await Updates.checkForUpdateAsync();
                 if (!result.isAvailable || cancelled) return;
                 await Updates.fetchUpdateAsync();
-                if (!cancelled) await Updates.reloadAsync();
+                if (cancelled || firstRun) return;
+                await Updates.reloadAsync();
             } catch (e) {
                 // güncelleme kontrolü başarısız olursa sessizce yut, uygulama normal akışına devam etsin
             }
