@@ -106,6 +106,16 @@ app.use('/api/sports-tickets', sportsTicketRoutes);
 app.use('/api/trails', trailRoutes);
 app.use('/share', shareRoutes);
 
+// Uygulama henüz Play Store'da olmadığı için, paylaşım linkindeki "Uygulamada Aç"
+// yönlendirmesi geçici olarak buradaki APK'yı indirtiyor (bkz. ANDROID_APK_URL,
+// share.controller.js) — dosya kalıcı bir Railway Volume'de (/data) duruyor, kod
+// redeploy'larından etkilenmiyor. APK, `railway volume files upload` ile elle güncellenir.
+app.get('/download/activity.apk', (req, res) => {
+    const apkPath = '/data/activity-latest.apk';
+    if (!fs.existsSync(apkPath)) return res.status(404).send('APK bulunamadı');
+    res.download(apkPath, 'activity.apk');
+});
+
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'AcTiViTy API is running 🎯' });
 });
