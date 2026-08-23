@@ -1578,13 +1578,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
     return (
         <>
-        {/* android_keyboardInputMode="adjustNothing" — Android'de bu Modal, uygulama genelindeki
-            softwareKeyboardLayoutMode:"pan" ayarıyla birlikte kendi kendine de yeniden boyutlanıyordu
-            (varsayılan adjustResize), bu da klavye açılınca kadro kartındaki arama önerisinin
-            (TeamSlotInviteField) hemen kapanmasına/ilk dokunuşun boşa gitmesine ve altta Yorum
-            yaz/Gönder çubuğunun gereksiz yukarı kayıp boş siyah alan bırakmasına sebep oluyordu
-            (kullanıcı raporu) — bkz. references/ekran-guvenli-alan.md. */}
-        <Modal visible={visible} animationType="slide" onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
+        {/* android_keyboardInputMode="adjustPan" — önceden "adjustNothing" idi çünkü varsayılan
+            adjustResize, Modal'ı klavye açılınca kendi kendine yeniden boyutlandırıp kadro
+            kartındaki arama önerisini (TeamSlotInviteField) anında kapatıyordu (eski hata).
+            Ama "adjustNothing" ile içerik klavye açılınca HİÇ kaymadığı için, klavyeye yakın
+            satırlardaki dokunuşlar (öneriye tıklama) klavye AÇIKKEN hiç işlemiyordu — davet
+            gitmiyordu, ama klavye kapatılınca AYNI dokunuş çalışıyordu (kullanıcı raporu,
+            "Gönderilen Davetler"e hiç düşmüyor doğrulaması ile netleşti). "adjustPan" resize
+            YAPMADAN (eski hata geri gelmiyor) uygulamanın geri kalanında zaten kullanılan
+            softwareKeyboardLayoutMode:"pan" ile aynı, kanıtlanmış davranışı bu modala da
+            getiriyor — bkz. references/ekran-guvenli-alan.md. */}
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose} android_keyboardInputMode="adjustPan">
             <View style={{ flex:1, backgroundColor: colors.bg }}>
                 {/* Header */}
                 <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:5, paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(14), borderBottomWidth:1, borderBottomColor: colors.border }}>
@@ -9866,7 +9870,6 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                             // "tıklıyorum, işlevsiz kalıyor, kayboluyor"). onPressIn dokunuşun
                             // en başında, blur'dan önce ateşlendiği için bu yarışı kazanıyor.
                             onPressIn={() => {
-                                Alert.alert('DEBUG', 'onPressIn tetiklendi: ' + (u.username || u.id));
                                 // Formanın cinsiyet kısıtlaması varsa (genderReq), seçilen kişinin
                                 // cinsiyeti uymuyorsa daveti/atamayı hiç başlatmadan uyar — backend
                                 // zaten aynı kontrolü yapıyor ama ilan OLUŞTURMA formunda (onPick)
