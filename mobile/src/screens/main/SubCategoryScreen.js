@@ -26,7 +26,7 @@ import CityAutocomplete from '../../components/CityAutocomplete';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
 import DateRangePickerModal from '../../components/DateRangePickerModal';
 import TimePickerModal from '../../components/TimePickerModal';
-import PeerReviewModal from '../../components/PeerReviewModal';
+import VolleyballRatingModal from '../../components/VolleyballRatingModal';
 import ExtraServicesEditor from '../../components/ExtraServicesEditor';
 import TrailsTab from './TrailsTab';
 import { shareRival, shareTournament } from '../../utils/share';
@@ -9506,7 +9506,7 @@ class ArchiveDetailErrorBoundary extends Component {
     }
 }
 
-function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, onPeerReview, onRefereeReview }) {
+function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, onRatePlayer, onRefereeReview }) {
     // Kullanıcı raporu: sheet "maxHeight:'88%'" (içeriğe göre boyutlanan, KESİN olmayan bir
     // üst sınır) kullanıyordu — içindeki tek çocuk ScrollView'ın flex:1'i bu yüzden belirsiz
     // bir referans yüksekliğe göre çözümleniyordu (Yoga/Android'de flex:1, KESİN yükseklikli
@@ -9534,7 +9534,7 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
                         </View>
                         {match && (
                             <ArchiveDetailErrorBoundary matchId={match.id}>
-                                <ArchiveMatchDetailContent match={match} myId={myId} onClose={onClose} onUserPress={onUserPress} onAppeal={onAppeal} onPeerReview={onPeerReview} onRefereeReview={onRefereeReview} />
+                                <ArchiveMatchDetailContent match={match} myId={myId} onClose={onClose} onUserPress={onUserPress} onAppeal={onAppeal} onRatePlayer={onRatePlayer} onRefereeReview={onRefereeReview} />
                             </ArchiveDetailErrorBoundary>
                         )}
                     </ScrollView>
@@ -9544,7 +9544,7 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
     );
 }
 
-function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal, onPeerReview, onRefereeReview }) {
+function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal, onRatePlayer, onRefereeReview }) {
     const t = useT();
     const m = match;
     const isOwner = m.senderId === myId;
@@ -9604,14 +9604,14 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
                         </Text>
                     )}
                 </View>
-                {/* Kullanıcı isteği: bildirimden ("Oyuncuları Değerlendir") maç detayına gelince,
-                    tek genel butona ek olarak her oyuncunun yanında da doğrudan değerlendirme
-                    anketine giden bir buton olsun — kendini değerlendiremezsin. Kendi satırında,
-                    isim/skor satırıyla sıkışmasın diye. Kullanıcı isteği: akran değerlendirmesi
-                    sadece takım arkadaşlarına yapılabildiği için (bkz. peerReview.controller.js)
-                    bu buton artık rakip takımın satırlarında hiç gösterilmiyor. */}
-                {m.needsPeerReview && p.id && p.id !== myId && isFounderSidePlayer === iAmFounderSide && (
-                    <TouchableOpacity onPress={() => onPeerReview(m.id)}
+                {/* Kullanıcı isteği: her oyuncunun yanında SADECE o oyuncuya özel değerlendirme
+                    anketi açan bir buton — kendini değerlendiremezsin, rakip takımdakini de
+                    (sadece takım arkadaşı değerlendirilebilir). Voleybolda bu buton artık
+                    VolleyballRatingModal'ı (self/koç/takım arkadaşı ağırlıklı anket) doğrudan
+                    o oyuncunun subjectId'siyle açıyor — önceden genel butonla aynı m.id'yi
+                    geçip TÜM takımın hedef listesini açan eski akran-oyu sistemine gidiyordu. */}
+                {m.subCategory === 'volleyball' && m.matchMode === 'COMPETITIVE' && p.id && p.id !== myId && isFounderSidePlayer === iAmFounderSide && (
+                    <TouchableOpacity onPress={() => onRatePlayer(p.id, m.subCategory)}
                         style={{ backgroundColor:'#7c3aed20', borderRadius:6, paddingVertical:4, paddingHorizontal:8, borderWidth:1, borderColor:'#7c3aed50', marginTop:6, alignSelf:'flex-start' }}>
                         <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }} numberOfLines={1}>Değerlendir</Text>
                     </TouchableOpacity>
@@ -9665,12 +9665,6 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
                 )}
                 {m.scoreAppeal && (
                     <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>⏳ İtiraz İnceleniyor</Text>
-                )}
-                {m.needsPeerReview && (
-                    <TouchableOpacity onPress={() => onPeerReview(m.id)}
-                        style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#7c3aed50' }}>
-                        <Text style={{ color:'#a78bfa', fontSize:12, fontWeight:'700' }}>{t.peerReviewNeedsReviewBtn}</Text>
-                    </TouchableOpacity>
                 )}
                 {m.refereeId && m.myRefereeReview && (
                     <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{'⭐'.repeat(m.myRefereeReview.rating)} Hakemi değerlendirdin</Text>
@@ -18305,7 +18299,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveDateTo, setArchiveDateTo] = useState('');
     const [archiveSubTab, setArchiveSubTab] = useState(initialArchiveSubTab === 'tournaments' ? 'tournaments' : 'rivals');
     const [archiveDetailMatch, setArchiveDetailMatch] = useState(null);
-    const [peerReviewRivalId, setPeerReviewRivalId] = useState(null);
+    const [ratingSubject, setRatingSubject] = useState(null); // { userId, subCategory } — Voleybol oyuncu değerlendirme anketi (VolleyballRatingModal) hedefi
     const [tournSubTab, setTournSubTab] = useState(['open','inprogress'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
 
     // Kullanıcı isteği: "Oyuncuları Değerlendir" bildirimine (OS bildirimi ya da uygulama
@@ -20153,10 +20147,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                 nearMeLoading={locationLoading}
             />
 
-            <PeerReviewModal
-                visible={!!peerReviewRivalId}
-                rivalId={peerReviewRivalId}
-                onClose={() => { setPeerReviewRivalId(null); loadArchive(); }}
+            <VolleyballRatingModal
+                visible={!!ratingSubject}
+                subjectId={ratingSubject?.userId}
+                subCategory={ratingSubject?.subCategory || 'volleyball'}
+                onClose={() => { setRatingSubject(null); loadArchive(); }}
             />
 
             <Modal visible={!!appealMatch} animationType="slide" transparent onRequestClose={() => setAppealMatch(null)}>
@@ -22147,7 +22142,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             onClose={() => setArchiveDetailMatch(null)}
                             onUserPress={setProfileUserId}
                             onAppeal={handleAppeal}
-                            onPeerReview={(id) => { setArchiveDetailMatch(null); setPeerReviewRivalId(id); }}
+                            onRatePlayer={(userId, subCategory) => { setArchiveDetailMatch(null); setRatingSubject({ userId, subCategory }); }}
                             onRefereeReview={(mm) => { setArchiveDetailMatch(null); openRefereeReview(mm); }}
                         />
 
