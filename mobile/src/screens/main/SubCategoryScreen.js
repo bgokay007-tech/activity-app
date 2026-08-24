@@ -1623,7 +1623,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     görünür alanın ÜSTÜNDEKİ içeriğin (İstekler listesi, kadro kartı vb.) boyutunu
                     değiştirince, kullanıcı hâlâ aynı yeri okurken ekran alakasız bir yere kayıyordu
                     (kullanıcı raporu: "yukarı kayıyor ne alaka") — bu prop kaydırma konumunu korur. */}
-                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom:5 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }}>
+                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom:5 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" maintainVisibleContentPosition={{ minIndexForVisible: 0 }}>
 
                     {/* Kurucu (sol) + Tarih/Saat/Kort/Fiyat (sağ, küçük) — tek satırda */}
                     <View style={{ flexDirection:'row', alignItems:'flex-start', gap:moderateScale(8), marginBottom:item.message ? 8 : 12, paddingBottom:9, borderBottomWidth:1, borderBottomColor: colors.border }}>
@@ -5893,7 +5893,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 </View>
 
                 <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom:5 }}
-                    keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                    keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
 
                     {/* Kullanıcı isteği: Yaklaşan Maçlar'daki bu ekran Açık İlanlar'daki (RivalDetailModal)
                         detay ekranıyla AYNI stilde olsun — orada ilk satır her zaman "kurucu" (ilanı
@@ -9871,20 +9871,12 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
         }, 350);
         return () => clearTimeout(task);
     }, [text]);
-    // ESKİDEN: öneriler gelir gelmez Keyboard.dismiss() çağrılıyordu (Android'de bazı
-    // cihazlarda klavye açıkken öneriye dokunmanın hiç işlememesi için) — ama bu HER harfte
-    // tetiklendiği için 2 harften sonra klavye kendiliğinden kapanıp daha fazla harf yazarak
-    // sonucu daraltmayı imkansızlaştırıyordu (kullanıcı raporu: "formu sıfırlıyor"). Kaldırınca
-    // bu kez de eski dokunma sorunu geri geldi (kullanıcı raporu: "ilk tıklama klavyeyi
-    // indiriyor, ikinci tıklama gönderiyor"). Orta yol: klavye artık HER harfte değil, kullanıcı
-    // YAZMAYI DURAKLATINCA (yeni harf gelmeden ~800ms geçince) kapanıyor — yazarken hiç
-    // kesilmiyor, ama öneriye dokunmaya geçtiğinde klavye zaten kapalı olduğu için ilk
-    // dokunuş güvenilir çalışıyor.
-    useEffect(() => {
-        if (results.length === 0) return;
-        const task = setTimeout(() => Keyboard.dismiss(), 800);
-        return () => clearTimeout(task);
-    }, [text, results]);
+    // ESKİDEN: klavye ya her harfte ya da yazma duraklayınca otomatik kapatılıyordu — ikisi de
+    // kullanıcı isteğiyle ÇELİŞİYORDU ("harf yazdıkça önerileri azaltmak istiyorum, klavye BEN
+    // kapatmadan kendiliğinden kapanmasın"). Klavyeyi biz artık HİÇ kapatmıyoruz — öneriye
+    // dokunmanın klavye AÇIKKEN de ilk seferde çalışması için asıl sorun (bu görünümü saran
+    // ScrollView'ların keyboardShouldPersistTaps="handled" olması) kaynağında düzeltildi:
+    // "handled" yerine "always" kullanılıyor (bkz. RivalDetailModal/UpcomingCard ana ScrollView'ları).
     return (
         // zIndex: öneri kutusu açıkken, altındaki BAŞKA bir slotun (aynı seviyedeki sonraki
         // kardeş) kendi kutusu z-sırasında önde kaldığı için öneri görünse de dokunuşu o
@@ -11890,7 +11882,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             <Text style={s.modalTitle}>{isMatchedEdit ? `✏️ ${(isVolleyball && VOLLEYBALL_VENUE_SHORT[f.surface]) || 'Kort'}/Saat Değiştir` : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : t.createTitle)}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
-                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always"
                             contentContainerStyle={{ paddingBottom: Math.max(20, insets.bottom + 16) }}>
 
                             {/* Konum — kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) formun en
