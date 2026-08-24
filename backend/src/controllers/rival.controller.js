@@ -1089,7 +1089,10 @@ export const swapMatchPositions = async (req, res, next) => {
                 joinRequests: {
                     where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
                     orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }],
-                    include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } },
+                    // where filtresi + alias ÖNEMLİ — bkz. getRivalById'deki aynı düzeltmenin
+                    // yorumu: filtresiz interests, kullanıcının BAŞKA bir daldaki takma adını/
+                    // puanını gösterebiliyordu.
+                    include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: rival.category, subCategory: rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } },
                 },
             },
         });
@@ -1124,7 +1127,9 @@ export const getRivalById = async (req, res, next) => {
                 // hata anlık ama görünür oluyordu.
                 sender: { select: SENDER_SELECT },
                 refereeUser: { select: SENDER_SELECT },
-                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                // where filtresi + alias ÖNEMLİ (bkz. yukarıdaki sender.interests yorumu ile
+                // aynı sebep) — davet listesindeki kişinin bu daldaki takma adı gösterilsin.
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: rival.category, subCategory: rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
                 // Hakem Arıyorum ilanları (matchType PLAYER_WANTED, positions:['REFEREE']) için:
                 // asıl maçın oyuncularını (kim başvuramaz) ve dolu/boş slot durumunu görebilmek için.
                 linkedRival: { select: { id: true, senderId: true, matchType: true, teamSize: true, participants: true, senderTeam: true, participantsCanInvite: true, sender: { select: SENDER_SELECT } } },
@@ -3117,7 +3122,7 @@ export const withdrawJoinRequest = async (req, res, next) => {
             include: {
                 // where filtresi ÖNEMLİ — bkz. sendJoinRequest'teki aynı düzeltmenin yorumu.
                 sender: { select: { ...SENDER_SELECT, interests: { where: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }, select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
-                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
             },
         });
         broadcast('rivalUpdate', updatedRival);
@@ -3180,7 +3185,7 @@ export const setRivalJoinPartner = async (req, res, next) => {
             include: {
                 // where filtresi ÖNEMLİ — bkz. sendJoinRequest'teki aynı düzeltmenin yorumu.
                 sender: { select: { ...SENDER_SELECT, interests: { where: { category: request.category, subCategory: request.subCategory }, select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
-                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: request.category, subCategory: request.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
             },
         });
         broadcast('rivalUpdate', updatedRival);
@@ -3354,7 +3359,7 @@ export const inviteToRival = async (req, res, next) => {
             include: {
                 // where filtresi ÖNEMLİ — bkz. sendJoinRequest'teki aynı düzeltmenin yorumu.
                 sender: { select: { ...SENDER_SELECT, interests: { where: { category: rival.category, subCategory: rival.subCategory }, select: { level: true, totalPoints: true, wins: true, losses: true, alias: true } } } },
-                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: rival.category, subCategory: rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
             },
         });
         emitToUser(userId, 'rivalUpdate', updatedRival);
@@ -3489,7 +3494,7 @@ export const respondToJoin = async (req, res, next) => {
                 data: { senderTeam: updatedSenderTeamArr, ...(isFullNow && { status: 'MATCHED', receiverId: joinReq.userId, reopenedAt: null }) },
                 include: {
                     sender: { select: SENDER_SELECT },
-                    joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                    joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
                 },
             });
             broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
@@ -3543,7 +3548,7 @@ export const respondToJoin = async (req, res, next) => {
                 },
                 include: {
                     sender: { select: SENDER_SELECT },
-                    joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                    joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
                 },
             });
             broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
@@ -3610,7 +3615,7 @@ export const respondToJoin = async (req, res, next) => {
                 data: { participants: existingParticipants, ...(isFull && { status: 'MATCHED', receiverId: joinReq.userId, reopenedAt: null }) },
                 include: {
                     sender: { select: SENDER_SELECT },
-                    joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
+                    joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
                 },
             });
             broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
@@ -3879,7 +3884,7 @@ export const respondToJoin = async (req, res, next) => {
                                 user: {
                                     select: {
                                         ...SENDER_SELECT,
-                                        interests: { where: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } },
+                                        interests: { where: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } },
                                     },
                                 },
                             },
@@ -4439,7 +4444,10 @@ export const getUpcomingMatches = async (req, res, next) => {
                 joinRequests: {
                     where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
                     orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }],
-                    include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } },
+                    // where filtresi + alias: bu uç nokta her zaman tek bir subCategory için
+                    // çağrıldığından (bkz. mobil GET /rivals/upcoming?...&subCategory=) burada
+                    // da diğer tek-satırlı sorgulardaki (getRivalById vb.) aynı düzeltme uygulanabilir.
+                    include: { user: { select: { ...SENDER_SELECT, interests: { where: { ...(cat && { category: cat }), ...(subCategory && { subCategory }) }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } },
                 },
             },
             orderBy: { matchDate: 'asc' },

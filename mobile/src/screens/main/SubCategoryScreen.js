@@ -1085,7 +1085,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             setInvitedUserIds(prev => new Set(prev).add(targetUser.id));
             // Kullanıcı isteği: davet gönderilince küçük bir onay yazısı çıksın — aşağıdaki
             // "Gönderilen Davetler" listesine düştüğünü kullanıcı fark etmeyebilir.
-            Alert.alert('', t.inviteSentToMsg(targetUser.fullName || targetUser.username));
+            Alert.alert('', t.inviteSentToMsg(playerDisplayName(targetUser)));
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
         } finally { setInvitingUserId(null); }
@@ -2791,7 +2791,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <View key={jr.id} style={det.playerRow}>
                                         <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                         <View style={{ flex:1 }}>
-                                            <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
+                                            <Text style={det.playerName}>{playerDisplayName(jr.user)}</Text>
                                             <Text style={det.playerSub}>
                                                 {jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}{reqGenderParen(jr.user?.gender, t.lang)}
                                             </Text>
@@ -2844,7 +2844,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <View key={jr.id} style={det.playerRow}>
                                                 <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                                 <View style={{ flex:1 }}>
-                                                    <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
+                                                    <Text style={det.playerName}>{playerDisplayName(jr.user)}</Text>
                                                     <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}{reqGenderParen(jr.user?.gender, t.lang)}</Text>
                                                 </View>
                                                 {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
@@ -2902,7 +2902,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </View>
                                     ) : (
                                         <View style={{ flex:1 }}>
-                                            <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}</Text>
+                                            <Text style={det.playerName}>{playerDisplayName(jr.user)}</Text>
                                             <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}{reqGenderParen(jr.user?.gender, t.lang)}</Text>
                                             {jr.requestedSlot && (
                                                 <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'700', marginTop:1 }}>
@@ -2959,7 +2959,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <View key={jr.id} style={det.playerRow}>
                                         <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                         <View style={{ flex:1 }}>
-                                            <Text style={det.playerName}>{jr.user?.fullName || jr.user?.username}{!isRefereeAd && jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
+                                            <Text style={det.playerName}>{playerDisplayName(jr.user)}{!isRefereeAd && jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
                                             <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>{slotLabel ? `${slotLabel} — ` : ''}⏳ Onay Bekleniyor</Text>
                                             {/* Kullanıcı isteği: hakem daveti bildiriminden gelen kişi, kabul/red
                                                 etmeden önce kendisine teklif edilen ücret/mesajı görebilmeli —
@@ -6435,7 +6435,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <View key={jr.id} style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6 }}>
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={26} color={cfg.color} />
                                     <View style={{ flex:1 }}>
-                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{jr.user?.fullName || jr.user?.username}</Text>
+                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(jr.user)}</Text>
                                         {/* Kullanıcı isteği: hangi takıma davet edildiği burada ayrıca yazılmasın —
                                             hem gereksiz tekrar hem de takım ismi sonradan değiştirilince burada
                                             hâlâ eski/genel etiket kalıyordu. Sınıflandırma zaten kadro kartının
@@ -6467,7 +6467,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             {subRequestsExpanded && subRequests.filter(jr => jr.initiatedBy !== 'OWNER').map(jr => (
                                 <View key={jr.id} style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6 }}>
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={26} color={cfg.color} />
-                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>{jr.user?.fullName || jr.user?.username}</Text>
+                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1}>{playerDisplayName(jr.user)}</Text>
                                     {isOwner && (
                                         <>
                                             <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'accept')} style={{ backgroundColor:'#16a34a', borderRadius:8, paddingHorizontal:10, paddingVertical:5 }}>
