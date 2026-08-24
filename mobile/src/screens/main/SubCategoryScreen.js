@@ -9908,7 +9908,17 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                 )}
             </View>
             {showDropdown && (
-                <View style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:50, elevation:20, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, marginTop:2 }}>
+                <View
+                    // Kullanıcı isteği: klavye SADECE öneriye dokunulunca kapansın (yazarken asla) —
+                    // ama Android'de klavye açıkken bir görünüme ilk dokunuş bazı cihazlarda hiç
+                    // ulaşmıyor (native IME dokunuşu klavyeyi kapatmak için yutuyor, alttaki satırın
+                    // onPressIn'i hiç tetiklenmiyor — "ilk tıklama klavyeyi indiriyor, ikinci tıklama
+                    // davet gönderiyor" raporu buradan geliyordu). onStartShouldSetResponderCapture
+                    // dokunuşun EN başında (native'in yutmasından önce) devreye girip klavyeyi
+                    // kapatıyor, false döndürerek responder'ı ÇALMIYOR — alttaki satırın onPressIn'i
+                    // AYNI dokunuşta normal şekilde tetiklenmeye devam ediyor.
+                    onStartShouldSetResponderCapture={() => { Keyboard.dismiss(); return false; }}
+                    style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:50, elevation:20, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, marginTop:2 }}>
                     {results.map(u => (
                         <TouchableOpacity key={u.id}
                             // onPress DEĞİL onPressIn — Android'de klavye açıkken bazı cihazlarda
