@@ -3540,7 +3540,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         autoFocus
                                     />
                                     {inviteSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
-                                    <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
+                                    <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="always">
                                         {inviteResults.map(u => (
                                             <View key={u.id} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
                                                 <Avatar name={u.username} avatar={u.avatar} size={moderateScale(36)} color={cfg.color} />
@@ -9859,13 +9859,12 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                 .then(res => {
                     const list = Array.isArray(res.data) ? res.data.slice(0, 5) : [];
                     setResults(list);
-                    // Android'de bazı cihazlarda klavye AÇIKKEN öneriye dokunmak hiç işlemiyordu
-                    // (klavye kapatılınca aynı dokunuş çalışıyordu, kullanıcı raporu — z-index,
-                    // onPressIn, Modal'ın adjustPan/adjustNothing ayarları hiçbiri çözmedi, bu
-                    // işletim sistemi seviyesinde bir davranış olmalı). Öneriler gelir gelmez
-                    // klavyeyi biz kapatıyoruz ki dokunuş klavye kapalıyken (kanıtlanmış çalışan
-                    // durum) gerçekleşsin.
-                    if (list.length > 0) Keyboard.dismiss();
+                    // ESKİDEN: öneriler gelir gelmez Keyboard.dismiss() çağrılıyordu (Android'de
+                    // bazı cihazlarda klavye açıkken öneriye dokunmanın işlememesi için). Kullanıcı
+                    // isteğiyle kaldırıldı — 2-3 harften sonra klavye kendiliğinden kapanıp daha
+                    // fazla harf yazarak sonucu daraltmayı imkansızlaştırıyordu ("formu sıfırlıyor"
+                    // şikayetine yol açan asıl sebep buydu). Klavye artık SADECE kullanıcı kendi
+                    // kapatırsa (öneriye dokununca zaten TextInput temizlenip kapanıyor) kapanır.
                 })
                 .catch(() => setResults([]))
                 .finally(() => setSearching(false));
@@ -10086,7 +10085,7 @@ function FriendsMultiPickerModal({ visible, onClose, sub, category, t, cfg, maxS
                             value={query} onChangeText={setQuery} placeholder={t.inviteSearchPh} placeholderTextColor={colors.textMuted} autoFocus
                         />
                         {(tab === 'friends' ? loadingFriends : loadingSportUsers) && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
-                        <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
+                        <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="always">
                             {tab === 'friends' ? (
                                 <>
                                     {!loadingFriends && shownFriends.length === 0 && (
@@ -13673,7 +13672,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         autoFocus
                                     />
                                     {(inviteTab === 'friends' ? loadingFriends : loadingSportUsers) && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
-                                    <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
+                                    <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="always">
                                         {inviteTab === 'friends' ? (() => {
                                             const q = partnerQuery.trim().toLowerCase();
                                             const shownFriends = q
@@ -16457,7 +16456,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             autoFocus
                         />
                         {partnerSearching && <ActivityIndicator color={cfg.color} style={{ marginTop:12 }} />}
-                        <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="handled">
+                        <ScrollView style={{ marginTop:8 }} keyboardShouldPersistTaps="always">
                             {partnerResults.map(u => (
                                 <TouchableOpacity key={u.id} onPress={() => choosePartner(u)} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
                                     <Avatar name={u.username} avatar={u.avatar} size={36} color={cfg.color} />
