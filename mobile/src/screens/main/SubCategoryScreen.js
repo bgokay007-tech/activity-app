@@ -1419,6 +1419,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 // (onRefresh() tüm listeyi yeniden çekene kadar beklemeden).
                 if (Array.isArray(data?.request?.joinRequests)) setLocalJoinRequests(data.request.joinRequests);
                 onRefresh();
+                // Kullanıcı isteği: kadro kartındaki formadan davet gönderilince de (arama
+                // penceresinden gönderilen davetle aynı şekilde) küçük bir onay yazısı çıksın.
+                Alert.alert('', t.inviteSentToMsg(playerDisplayName(u)));
             })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
@@ -1431,6 +1434,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             .then(({ data }) => {
                 if (Array.isArray(data?.request?.joinRequests)) setLocalJoinRequests(data.request.joinRequests);
                 onRefresh();
+                Alert.alert('', t.inviteSentToMsg(playerDisplayName(u)));
             })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
@@ -5147,7 +5151,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // birebir DOUBLE karşılığı (bkz. backend inviteToRival'daki isDoubleSlotInvite).
     const onInviteDoubleSlot = (u, slot) => {
         api.post(`/rivals/${match.id}/invite`, { userId: u.id, slot })
-            .then(({ data }) => { if (Array.isArray(data?.request?.joinRequests)) setLocalSubRequests(data.request.joinRequests); onRefresh(); })
+            .then(({ data }) => {
+                if (Array.isArray(data?.request?.joinRequests)) setLocalSubRequests(data.request.joinRequests);
+                onRefresh();
+                Alert.alert('', t.inviteSentToMsg(playerDisplayName(u)));
+            })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
 
@@ -6392,6 +6400,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     .then(({ data }) => {
                                         if (Array.isArray(data?.request?.joinRequests)) setLocalSubRequests(data.request.joinRequests);
                                         onRefresh();
+                                        Alert.alert('', t.inviteSentToMsg(playerDisplayName(u)));
                                     })
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
@@ -9856,21 +9865,26 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
         setSearching(true);
         const task = setTimeout(() => {
             api.get(`/users/search?q=${encodeURIComponent(text.trim())}&subCategory=${sub}&category=${category}`)
-                .then(res => {
-                    const list = Array.isArray(res.data) ? res.data.slice(0, 5) : [];
-                    setResults(list);
-                    // ESKİDEN: öneriler gelir gelmez Keyboard.dismiss() çağrılıyordu (Android'de
-                    // bazı cihazlarda klavye açıkken öneriye dokunmanın işlememesi için). Kullanıcı
-                    // isteğiyle kaldırıldı — 2-3 harften sonra klavye kendiliğinden kapanıp daha
-                    // fazla harf yazarak sonucu daraltmayı imkansızlaştırıyordu ("formu sıfırlıyor"
-                    // şikayetine yol açan asıl sebep buydu). Klavye artık SADECE kullanıcı kendi
-                    // kapatırsa (öneriye dokununca zaten TextInput temizlenip kapanıyor) kapanır.
-                })
+                .then(res => setResults(Array.isArray(res.data) ? res.data.slice(0, 5) : []))
                 .catch(() => setResults([]))
                 .finally(() => setSearching(false));
         }, 350);
         return () => clearTimeout(task);
     }, [text]);
+    // ESKİDEN: öneriler gelir gelmez Keyboard.dismiss() çağrılıyordu (Android'de bazı
+    // cihazlarda klavye açıkken öneriye dokunmanın hiç işlememesi için) — ama bu HER harfte
+    // tetiklendiği için 2 harften sonra klavye kendiliğinden kapanıp daha fazla harf yazarak
+    // sonucu daraltmayı imkansızlaştırıyordu (kullanıcı raporu: "formu sıfırlıyor"). Kaldırınca
+    // bu kez de eski dokunma sorunu geri geldi (kullanıcı raporu: "ilk tıklama klavyeyi
+    // indiriyor, ikinci tıklama gönderiyor"). Orta yol: klavye artık HER harfte değil, kullanıcı
+    // YAZMAYI DURAKLATINCA (yeni harf gelmeden ~800ms geçince) kapanıyor — yazarken hiç
+    // kesilmiyor, ama öneriye dokunmaya geçtiğinde klavye zaten kapalı olduğu için ilk
+    // dokunuş güvenilir çalışıyor.
+    useEffect(() => {
+        if (results.length === 0) return;
+        const task = setTimeout(() => Keyboard.dismiss(), 800);
+        return () => clearTimeout(task);
+    }, [text, results]);
     return (
         // zIndex: öneri kutusu açıkken, altındaki BAŞKA bir slotun (aynı seviyedeki sonraki
         // kardeş) kendi kutusu z-sırasında önde kaldığı için öneri görünse de dokunuşu o
