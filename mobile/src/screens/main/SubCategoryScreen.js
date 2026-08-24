@@ -9908,17 +9908,20 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                 )}
             </View>
             {showDropdown && (
-                <View
-                    // Kullanıcı isteği: klavye SADECE öneriye dokunulunca kapansın (yazarken asla) —
-                    // ama Android'de klavye açıkken bir görünüme ilk dokunuş bazı cihazlarda hiç
-                    // ulaşmıyor (native IME dokunuşu klavyeyi kapatmak için yutuyor, alttaki satırın
-                    // onPressIn'i hiç tetiklenmiyor — "ilk tıklama klavyeyi indiriyor, ikinci tıklama
-                    // davet gönderiyor" raporu buradan geliyordu). onStartShouldSetResponderCapture
-                    // dokunuşun EN başında (native'in yutmasından önce) devreye girip klavyeyi
-                    // kapatıyor, false döndürerek responder'ı ÇALMIYOR — alttaki satırın onPressIn'i
-                    // AYNI dokunuşta normal şekilde tetiklenmeye devam ediyor.
-                    onStartShouldSetResponderCapture={() => { Keyboard.dismiss(); return false; }}
-                    style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:50, elevation:20, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, marginTop:2 }}>
+                // Kullanıcı isteği: klavye SADECE öneriye dokunulunca kapansın (yazarken asla).
+                // Android'de klavye açıkken bir dokunuşun düz bir View'e (bu görünümün önceki hali)
+                // ilk seferde ulaşmaması, denenen tüm yöntemlerde (onPressIn, onStartShouldSet-
+                // ResponderCapture, keyboardShouldPersistTaps sadece dıştaki sayfa ScrollView'ında)
+                // devam etti. keyboardShouldPersistTaps'in KENDİ dokümantasyonu bu prop'un sadece
+                // ScrollView/FlatList'te işe yaradığını, düz View'de hiçbir etkisi olmadığını
+                // söylüyor — önceki denemelerin hiçbiri işe yaramamasının asıl sebebi bu. Öneri
+                // kutusu artık kendi başına (maxHeight ile sınırlı) bir ScrollView; keyboardShould-
+                // PersistTaps="always" DOĞRUDAN bu görünümde, dokunulan satırın en yakın ScrollView
+                // atası olarak.
+                <ScrollView
+                    keyboardShouldPersistTaps="always"
+                    keyboardDismissMode="none"
+                    style={{ position:'absolute', top:'100%', left:0, right:0, maxHeight:160, zIndex:50, elevation:20, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, marginTop:2 }}>
                     {results.map(u => (
                         <TouchableOpacity key={u.id}
                             // onPress DEĞİL onPressIn — Android'de klavye açıkken bazı cihazlarda
@@ -9985,7 +9988,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                             <Text style={{ color: cfg.color, fontSize:10, flex:1, fontWeight:'700' }} numberOfLines={2}>"{text.trim()}" — uygulamada yok, bu oyuncu kalsın</Text>
                         </TouchableOpacity>
                     )}
-                </View>
+                </ScrollView>
             )}
         </View>
     );
