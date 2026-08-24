@@ -1083,6 +1083,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             const targetRivalId = inviteForReferee && refereeAdId ? refereeAdId : item.id;
             await api.post(`/rivals/${targetRivalId}/invite`, { userId: targetUser.id });
             setInvitedUserIds(prev => new Set(prev).add(targetUser.id));
+            // Kullanıcı isteği: davet gönderilince küçük bir onay yazısı çıksın — aşağıdaki
+            // "Gönderilen Davetler" listesine düştüğünü kullanıcı fark etmeyebilir.
+            Alert.alert('', t.inviteSentToMsg(targetUser.fullName || targetUser.username));
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
         } finally { setInvitingUserId(null); }
