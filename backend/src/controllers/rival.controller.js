@@ -2806,6 +2806,12 @@ export const sendJoinRequest = async (req, res, next) => {
             && (Array.isArray(request.substitutePlayers) ? request.substitutePlayers.filter(p => p?.id).length : 0) < (request.substituteCount || 0);
         if (request.status !== 'OPEN' && !subSlotOpenForRequest) return res.status(400).json({ message: 'This request is no longer open' });
         if (request.senderId === req.userId) return res.status(400).json({ message: 'You cannot join your own request' });
+        // Kullanıcı isteği: bu maçın ONAYLI hakemi kendi yönettiği maça aynı zamanda oyuncu
+        // olarak katılamaz (çelişki) — ama hakemlik SIRASINDA (refereeQueue, henüz atanmamış)
+        // bekleyen biri normal şekilde oyuncu olarak katılabilir, orada çelişki yok.
+        if (!req.body.asReferee && request.refereeId === req.userId) {
+            return res.status(400).json({ message: 'Bu maçın hakemisiniz, aynı zamanda oyuncu olarak katılamazsınız.' });
+        }
 
         await requireActiveInterest(req.userId, request.category, request.subCategory);
 
@@ -3265,6 +3271,11 @@ export const inviteToRival = async (req, res, next) => {
 
         if (participants.some(p => p?.id === userId) || senderTeamArr.some(p => p?.id === userId)) {
             return res.status(400).json({ message: 'Bu kullanıcı zaten maça katılmış' });
+        }
+        // Kullanıcı isteği: maçın onaylı hakemi aynı zamanda oyuncu olarak davet edilemez —
+        // yedek sırasındaki (refereeQueue) biri için bu kısıtlama yok.
+        if (!isRefereeAd && rival.refereeId === userId) {
+            return res.status(400).json({ message: 'Bu kullanıcı maçın hakemi, aynı zamanda oyuncu olarak davet edilemez.' });
         }
 
         const existing = await prisma.rivalJoinRequest.findUnique({
