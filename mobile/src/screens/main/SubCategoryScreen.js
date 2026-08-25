@@ -15564,9 +15564,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 ) : matchTab === 'playoffs' ? (() => {
                     // Kullanıcı isteği: Play-Off'lar sekmesi — en üstte kaç kişi/takım play-off'a
                     // kaldıysa (playoffQualifiers) 1'den başlayarak sıralı liste, altında turlar
-                    // (Çeyrek Final/Yarı Final/Final) alt alta — sekme değiştirmeden aşağı
-                    // kaydırarak tüm play-off ilerleyişi görülsün. Salt-okunur bir özet — skor
-                    // girişi hâlâ "Maçlar" sekmesindeki tur seçicisinden yapılır.
+                    // ARTIK Final → Yarı Final → Çeyrek Final sırasıyla (en önemli/son maç en
+                    // üstte) — ve skor girişi de doğrudan burada yapılabiliyor, "Maçlar"
+                    // sekmesine geçmeye gerek yok.
                     const playoffMs = tournMatches.filter(m => m.phase === 'PLAYOFF');
                     if (playoffMs.length === 0) {
                         return <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>Henüz play-off turu başlamadı</Text>;
@@ -15592,7 +15592,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         if (m.p2Id) seeds[bracketSize-1-idx] = { id:m.p2Id, name:m.p2Name };
                     });
                     const rounds = [];
-                    for (let r = minRound; r <= playoffMaxRound; r++) {
+                    for (let r = playoffMaxRound; r >= minRound; r--) {
                         rounds.push({ round:r, matches: playoffMs.filter(m => m.round === r).sort((a,b) => (a.matchIndex||0)-(b.matchIndex||0)) });
                     }
                     return (
@@ -15614,11 +15614,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     {matches.map(match => {
                                         const isDone = match.status === 'COMPLETED';
                                         const isBye = match.status === 'BYE';
+                                        const isReady = match.status === 'PENDING' && match.p1Id && match.p2Id;
+                                        const isEntering = scoreEntry?.matchId === match.id;
                                         const p1Win = isDone && match.winnerId === match.p1Id;
                                         const p2Win = isDone && match.winnerId === match.p2Id;
                                         const mSets = match.score?.sets || [];
+                                        const bothConfirmed = match.p1Confirmed && match.p2Confirmed;
+                                        const myUnconfirmedSide = (match.p1Id === mySideId && !match.p1Confirmed) ? 'p1'
+                                            : (match.p2Id === mySideId && !match.p2Confirmed) ? 'p2' : null;
                                         return (
-                                            <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:6, borderWidth:1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : '#334155' }}>
+                                            <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:6, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : '#334155' }}>
                                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                                                     <Text style={{ color: p1Win ? '#4ade80' : '#fff', fontSize:12, fontWeight: p1Win ? '800' : '600', flex:1 }} numberOfLines={1}>{match.p1Name || 'TBD'}</Text>
                                                     {isDone && mSets.length > 0 && (
@@ -15636,6 +15641,62 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     )}
                                                 </View>
                                                 {isBye && <Text style={{ color: colors.textMuted, fontSize:9, marginTop:3 }}>BYE</Text>}
+                                                {/* Kullanıcı isteği: skor girişi artık "Maçlar" sekmesine gitmeden
+                                                    doğrudan burada — openScoreEntry/submitScore/confirmTournamentScore
+                                                    üstteki "Maçlar" sekmesindeki kartla AYNI fonksiyonlar. */}
+                                                {!isEntering && (
+                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:6, marginTop:6 }}>
+                                                        {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && (
+                                                            <TouchableOpacity onPress={() => openScoreEntry(match)}
+                                                                style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor: infoColor+'50' }}>
+                                                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Skor Gir</Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                        {isDone && !bothConfirmed && myUnconfirmedSide && (
+                                                            <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
+                                                                style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#16a34a60' }}>
+                                                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>✓ Onayla</Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                        {isDone && !bothConfirmed && (isCreator || myIsAdmin) && (
+                                                            <TouchableOpacity onPress={() => openScoreEntry(match)}
+                                                                style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>✏️ Düzelt</Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                    </View>
+                                                )}
+                                                {isEntering && (
+                                                    <View style={{ marginTop:8, borderTopWidth:1, borderTopColor: colors.border, paddingTop:5 }}>
+                                                        <View style={{ flexDirection:'row', marginBottom:4 }}>
+                                                            <Text style={{ color: colors.textMuted, fontSize:10, width:54 }}>Set</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'center' }}>{match.p1Name}</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'center' }}>{match.p2Name}</Text>
+                                                        </View>
+                                                        {scoreSets.map((set, si) => (
+                                                            <View key={si} style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
+                                                                <Text style={{ color: si === 2 ? '#f59e0b' : colors.textMuted, fontSize:11, width:54 }}>{si === 2 ? '🔥 3.' : `${si+1}.`} Set</Text>
+                                                                <TextInput
+                                                                    style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center', marginRight:6 }}
+                                                                    value={set.p1} onChangeText={v => updateTournSet(si, 'p1', v)}
+                                                                    keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
+                                                                <TextInput
+                                                                    style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center' }}
+                                                                    value={set.p2} onChangeText={v => updateTournSet(si, 'p2', v)}
+                                                                    keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
+                                                            </View>
+                                                        ))}
+                                                        <View style={{ flexDirection:'row', gap:3, marginTop:6 }}>
+                                                            <TouchableOpacity onPress={submitScore} disabled={submittingScore}
+                                                                style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:5, borderWidth:1, borderColor:'#16a34a60' }}>
+                                                                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{submittingScore ? '...' : 'Kaydet'}</Text>
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity onPress={() => setScoreEntry(null)} style={{ paddingHorizontal:7, paddingVertical:5 }}>
+                                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕ İptal</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    </View>
+                                                )}
                                             </View>
                                         );
                                     })}
@@ -15718,6 +15779,19 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
                             return (
                                 <>
+                                    {/* Kullanıcı isteği: grup turları bitip play-off aşamasına geçilince
+                                        "Maçlar" sekmesinde yeni Play-Off'lar sekmesine yönlendiren bir
+                                        buton çıksın — sonuçları tur tur takip etmek ve skor girmek için
+                                        artık orası daha uygun. */}
+                                    {playoffMs.length > 0 && (
+                                        <TouchableOpacity onPress={() => setMatchTab('playoffs')}
+                                            style={{ backgroundColor:'#16a34a20', borderRadius:8, borderWidth:1, borderColor:'#16a34a50', padding:8, marginBottom:8, flexDirection:'row', alignItems:'center', gap:6 }}>
+                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={2}>
+                                                🏆 Play-Off aşaması başladı — sonuçları tur tur takip etmek için Play-Off'lar sekmesine geç
+                                            </Text>
+                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'900' }}>Git ›</Text>
+                                        </TouchableOpacity>
+                                    )}
                                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
                                         <View style={{ flexDirection:'row', gap:3 }}>
                                             {roundKeys.map(({ phase, round }) => {
@@ -20900,8 +20974,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                 İçindeki "Konum"/"Özel Tarih Aralığı" satırları mevcut CityPickerModal ve
                 DateRangePickerModal'ı bu modalın üstünde ayrı bir katman olarak açıyor,
                 seçim yapılınca o katman kapanıp bu modal açık kalıyor. */}
-            <Modal visible={showFilterModal} transparent animationType="slide" onRequestClose={() => setShowFilterModal(false)}>
+            <Modal visible={showFilterModal} transparent animationType="slide" onRequestClose={() => setShowFilterModal(false)} android_keyboardInputMode="adjustNothing">
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
+                    <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:16, paddingTop:17, paddingBottom: Math.max(20, insets.bottom + 16) }}>
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🔍 {lang==='tr' ? 'Filtrele' : 'Filter'}</Text>
@@ -21001,6 +21076,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>✓ {lang==='tr' ? 'Onayla' : 'Apply'}</Text>
                         </TouchableOpacity>
                     </View>
+                    </KeyboardAvoidingView>
                 </View>
             </Modal>
 
