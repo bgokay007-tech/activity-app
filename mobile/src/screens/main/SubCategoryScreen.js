@@ -20835,7 +20835,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : (
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                             {filteredRivals.map(item => (
-                                                <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
+                                                <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} refereeListings={refereeListings} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
                                             {/* Yedek kadrosu (substituteCount) henüz dolmamış eşleşmiş maçlar — kullanıcı isteği:
                                                 as kadro dolsa bile yedek dolana kadar Yaklaşan Maçlar'a değil, Açık İlanlar'da
@@ -20933,7 +20933,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 : (
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                         {playerWanted.map(item => (
-                                            <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} />
+                                            <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} />
                                         ))}
                                     </View>
                                 )
