@@ -53,7 +53,7 @@ async function pruneRosterSpectators(rival, rows) {
 // terfi anlarının HER birinden (removeRivalParticipant/leaveAsPromotedSubstitute/disputeReferee/
 // removeReferee) çağrılır — pruneRosterSpectators'ın aksine (o sadece liste her okunduğunda
 // sessizce temizliyordu) burada kullanıcıya NEDEN çıkarıldığını açıklayan bir bildirim de gider.
-export async function removeSpectatorOnPromotion(rivalId, userId, promotionLabel) {
+export async function removeSpectatorOnPromotion(rivalId, userId, promotionLabel, category, subCategory) {
     try {
         const existing = await prisma.matchSpectator.findUnique({
             where: { activityRequestId_userId: { activityRequestId: rivalId, userId } },
@@ -63,7 +63,9 @@ export async function removeSpectatorOnPromotion(rivalId, userId, promotionLabel
         createNotification(
             userId, 'SPECTATOR_REMOVED_PROMOTED', '👀 Seyirci Kaydınız Kaldırıldı',
             `Bu maçta ${promotionLabel} terfi ettiğiniz için artık aynı zamanda seyirci olarak kayıtlı kalamazsınız — seyirci listesinden otomatik çıkarıldınız.`,
-            { rivalId }
+            // category/subCategory ÖNEMLİ — olmadan mobil taraftaki bildirim tıklama yönlendirmesi
+            // (bkz. navigateFromNotif) hiçbir yere gitmiyor, bildirim "ölü" kalıyor.
+            { rivalId, category, subCategory }
         ).catch(() => {});
     } catch { /* best-effort — seyirci kaydı yoksa/silme başarısız olursa terfi işlemini engellemez */ }
 }

@@ -5354,7 +5354,7 @@ export const disputeReferee = async (req, res, next) => {
                 { rivalId: id, category: match.category, subCategory: match.subCategory }
             ).catch(() => {});
             emitToUser(promoted.userId, 'notification', {});
-            removeSpectatorOnPromotion(id, promoted.userId, 'asıl hakemliğe').catch(() => {});
+            removeSpectatorOnPromotion(id, promoted.userId, 'asıl hakemliğe', match.category, match.subCategory).catch(() => {});
         }
     } catch (error) { next(error); }
 };
@@ -5398,7 +5398,7 @@ export const removeReferee = async (req, res, next) => {
                 { rivalId: id, category: match.category, subCategory: match.subCategory }
             ).catch(() => {});
             emitToUser(promoted.userId, 'notification', {});
-            removeSpectatorOnPromotion(id, promoted.userId, 'asıl hakemliğe').catch(() => {});
+            removeSpectatorOnPromotion(id, promoted.userId, 'asıl hakemliğe', match.category, match.subCategory).catch(() => {});
         }
     } catch (error) { next(error); }
 };
@@ -6352,7 +6352,7 @@ export const removeRivalParticipant = async (req, res, next) => {
                 { rivalId: id, category: rival.category, subCategory: rival.subCategory },
                 'high'
             ).catch(() => {});
-            removeSpectatorOnPromotion(id, promoted.id, 'asıl kadroya').catch(() => {});
+            removeSpectatorOnPromotion(id, promoted.id, 'asıl kadroya', rival.category, rival.subCategory).catch(() => {});
         }
         // Kullanıcı isteği: kadro değiştiğinde (biri çıkarıldığında) kalan takım
         // arkadaşları da haberdar olsun.
@@ -6471,7 +6471,7 @@ export const leaveAsPromotedSubstitute = async (req, res, next) => {
                 { rivalId: id, category: rival.category, subCategory: rival.subCategory },
                 'high'
             ).catch(() => {});
-            removeSpectatorOnPromotion(id, promotedSub.id, 'asıl kadroya').catch(() => {});
+            removeSpectatorOnPromotion(id, promotedSub.id, 'asıl kadroya', rival.category, rival.subCategory).catch(() => {});
         }
         const leftName = (Array.isArray(rival.participants) ? rival.participants : []).find(p => p?.id === userId)?.username
             || (Array.isArray(rival.senderTeam) ? rival.senderTeam : []).find(p => p?.id === userId)?.username
