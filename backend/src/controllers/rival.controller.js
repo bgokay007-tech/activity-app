@@ -3371,6 +3371,16 @@ export const respondToJoin = async (req, res, next) => {
         // işlenip tekrar tekrar bildirim gönderilmesin — bir isteğe bir kez yanıt verilebilir.
         if (joinReq.status !== 'PENDING') return res.status(400).json({ message: 'Bu istek zaten yanıtlanmış' });
 
+        // Kullanıcı raporu: bir kullanıcıyı bu spor dalındaki takma ismiyle (ör. "luckymonkey")
+        // davet ettiğinde bile, "davetinizi kabul etti/reddetti" bildirimi gerçek isim/kullanıcı
+        // adını gösteriyordu — mobildeki playerDisplayName ile aynı öncelik (alias varsa alias)
+        // aşağıdaki bildirim metinlerinde de uygulanır.
+        const joinerInterestForAlias = await prisma.userInterest.findFirst({
+            where: { userId: joinReq.userId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory },
+            select: { alias: true },
+        });
+        const joinerDisplayName = joinerInterestForAlias?.alias || joinReq.user.username;
+
         if (action !== 'accept') {
             await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
 
@@ -3391,12 +3401,12 @@ export const respondToJoin = async (req, res, next) => {
                 createNotification(
                     joinReq.rival.senderId, 'MATCH_INVITE_DECLINED',
                     '❌ Davet Reddedildi',
-                    `@${joinReq.user?.username || 'Biri'} ${roleLabel} davetinizi reddetti.`,
+                    `@${joinerDisplayName} ${roleLabel} davetinizi reddetti.`,
                     { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory, rivalId: joinReq.rivalId }
                 ).catch(() => {});
                 emitToUser(joinReq.rival.senderId, 'notification', {
                     type: 'MATCH_INVITE_DECLINED', title: '❌ Davet Reddedildi',
-                    body: `@${joinReq.user?.username || 'Biri'} ${roleLabel} davetinizi reddetti.`,
+                    body: `@${joinerDisplayName} ${roleLabel} davetinizi reddetti.`,
                     data: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory, rivalId: joinReq.rivalId },
                 });
             }
@@ -3470,7 +3480,7 @@ export const respondToJoin = async (req, res, next) => {
             createNotification(
                 joinReq.rival.senderId, 'MATCH_CONFIRMED',
                 '🤝 Partner Kabul Etti',
-                `${joinReq.user.username} çiftler takımınıza katılmayı kabul etti.${isFullNow ? ' Maç doldu!' : ''}`,
+                `${joinerDisplayName} çiftler takımınıza katılmayı kabul etti.${isFullNow ? ' Maç doldu!' : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
             if (isFullNow) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId], joinReq.rival.matchType);
@@ -3524,7 +3534,7 @@ export const respondToJoin = async (req, res, next) => {
             createNotification(
                 joinReq.rival.senderId, 'MATCH_CONFIRMED',
                 '⚔️ Rakip Takım Daveti Kabul Edildi',
-                `${joinReq.user.username} Rakip Takım'a katılmayı kabul etti.${isFullNow ? ' Maç doldu!' : ''}`,
+                `${joinerDisplayName} Rakip Takım'a katılmayı kabul etti.${isFullNow ? ' Maç doldu!' : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
             if (isFullNow) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId], joinReq.rival.matchType);
@@ -3591,7 +3601,7 @@ export const respondToJoin = async (req, res, next) => {
             createNotification(
                 joinReq.rival.senderId, 'MATCH_CONFIRMED',
                 '⚔️ Davet Kabul Edildi',
-                `${joinReq.user.username} ${joinReq.requestedSlot === 'opp1' ? 'Rakip 1' : 'Rakip 2'} olarak katılmayı kabul etti.${isFull ? ' Maç doldu!' : ''}`,
+                `${joinerDisplayName} ${joinReq.requestedSlot === 'opp1' ? 'Rakip 1' : 'Rakip 2'} olarak katılmayı kabul etti.${isFull ? ' Maç doldu!' : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
             if (isFull) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId], joinReq.rival.matchType);
@@ -3632,7 +3642,7 @@ export const respondToJoin = async (req, res, next) => {
                 createNotification(
                     joinReq.rival.senderId, 'MATCH_CONFIRMED',
                     '🪑 Yedek Kabul Etti',
-                    `${joinReq.user.username} yedek oyuncu olarak katılmayı kabul etti.`,
+                    `${joinerDisplayName} yedek oyuncu olarak katılmayı kabul etti.`,
                     { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
                 ).catch(() => {});
             }
@@ -3684,7 +3694,7 @@ export const respondToJoin = async (req, res, next) => {
             createNotification(
                 joinReq.rival.senderId, 'MATCH_CONFIRMED',
                 '🤝 Davet Kabul Edildi',
-                `${joinReq.user.username} maça katılmayı kabul etti — takımını sen atayacaksın.${isFull ? ' Maç doldu!' : ''}`,
+                `${joinerDisplayName} maça katılmayı kabul etti — takımını sen atayacaksın.${isFull ? ' Maç doldu!' : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
             if (isFull) notifyOtherPendingOwnerInvitesOfFull(joinReq.rivalId, joinReq.rival.category, joinReq.rival.subCategory, [joinReq.userId], joinReq.rival.matchType);
