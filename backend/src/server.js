@@ -22,6 +22,7 @@ import { startPeerReviewBlendJob } from './jobs/peerReviewBlend.js';
 import { startExternalEventAlertsJob } from './jobs/externalEventAlerts.js';
 import { startEquipmentAutoConfirmSoldJob } from './jobs/equipmentAutoConfirmSold.js';
 import { startDemoBotResponderJob } from './jobs/demoBotResponder.js';
+import { startCancelPenaltyWarningJob } from './jobs/cancelPenaltyWarning.js';
 import prisma from './config/prisma.js';
 
 const PROVINCES = [
@@ -130,5 +131,6 @@ Promise.all([ensureTables(), seedCitiesIfEmpty()]).then(() => {
         startExternalEventAlertsJob();
         startEquipmentAutoConfirmSoldJob();
         startDemoBotResponderJob();
+        startCancelPenaltyWarningJob();
     });
 });

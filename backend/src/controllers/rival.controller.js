@@ -3420,7 +3420,7 @@ export const respondToJoin = async (req, res, next) => {
             // bu durumda partner slotuna 5. kişi olarak yerleştirmek yerine yedek listesine
             // düşürülür (bkz. isDoubleOrSingleRosterFull/placeInDoubleWaitlistOrReject).
             if (isDoubleOrSingleRosterFull(joinReq.rival)) {
-                const waitlistEntry = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
+                const waitlistEntry = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender, alias: joinerInterestForAlias?.alias || null };
                 await placeInDoubleWaitlistOrReject(joinReq.rival, joinReq, waitlistEntry, requestId, res);
                 return;
             }
@@ -3443,7 +3443,7 @@ export const respondToJoin = async (req, res, next) => {
             // openSlotOptions/genderFitsSlot) — önceden bu bilgi hiç taşınmıyordu, bu yüzden
             // örn. erkek bir oyuncuya kadın-kısıtlı bir slot seçenek olarak sunulup "zaten dolu"
             // gibi alakasız bir hatayla reddediliyordu (asıl sebep cinsiyetti, doluluk değildi).
-            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender, alias: joinerInterestForAlias?.alias || null };
             // DOUBLE'da (tenis/padel) senderTeam zaten tek partnerle sınırlı ve boştan
             // başlıyordu — ekleme=değiştirme, davranış değişmiyor. Voleybolde ise kurucu
             // takıma birden fazla kişi davet edilebildiği için mevcut diziye EKLENİR,
@@ -3505,7 +3505,7 @@ export const respondToJoin = async (req, res, next) => {
             // openSlotOptions/genderFitsSlot) — önceden bu bilgi hiç taşınmıyordu, bu yüzden
             // örn. erkek bir oyuncuya kadın-kısıtlı bir slot seçenek olarak sunulup "zaten dolu"
             // gibi alakasız bir hatayla reddediliyordu (asıl sebep cinsiyetti, doluluk değildi).
-            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender, alias: joinerInterestForAlias?.alias || null };
             // Davet kadro kartında belirli bir forma yazıldıysa (slotIndex) tam o pozisyona
             // yerleşir, dizinin sonuna değil.
             const updatedParticipantsArr = setAtSlot(existingParticipants, joinReq.slotIndex, joinerData);
@@ -3564,7 +3564,7 @@ export const respondToJoin = async (req, res, next) => {
             // İstenen slotun kendisi boş olsa bile, kadro BAŞKA yollarla (ör. unassignedPlayers
             // dolarak) zaten tamamlanmış olabilir — bkz. isPartnerInvite dalındaki aynı kontrol.
             if (isDoubleOrSingleRosterFull(joinReq.rival)) {
-                const waitlistEntry = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
+                const waitlistEntry = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender, alias: joinerInterestForAlias?.alias || null };
                 await placeInDoubleWaitlistOrReject(joinReq.rival, joinReq, waitlistEntry, requestId, res);
                 return;
             }
@@ -3582,7 +3582,7 @@ export const respondToJoin = async (req, res, next) => {
             // openSlotOptions/genderFitsSlot) — önceden bu bilgi hiç taşınmıyordu, bu yüzden
             // örn. erkek bir oyuncuya kadın-kısıtlı bir slot seçenek olarak sunulup "zaten dolu"
             // gibi alakasız bir hatayla reddediliyordu (asıl sebep cinsiyetti, doluluk değildi).
-            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender, alias: joinerInterestForAlias?.alias || null };
             existingParticipants[idx] = joinerData;
             const isFull = 1
                 + (Array.isArray(joinReq.rival.senderTeam) ? joinReq.rival.senderTeam.filter(p => p?.id).length : 0)
@@ -3616,7 +3616,7 @@ export const respondToJoin = async (req, res, next) => {
             // openSlotOptions/genderFitsSlot) — önceden bu bilgi hiç taşınmıyordu, bu yüzden
             // örn. erkek bir oyuncuya kadın-kısıtlı bir slot seçenek olarak sunulup "zaten dolu"
             // gibi alakasız bir hatayla reddediliyordu (asıl sebep cinsiyetti, doluluk değildi).
-            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender, alias: joinerInterestForAlias?.alias || null };
             const existingSubs = Array.isArray(joinReq.rival.substitutePlayers) ? joinReq.rival.substitutePlayers : [];
             const updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },
@@ -3655,7 +3655,7 @@ export const respondToJoin = async (req, res, next) => {
             // Kadro BAŞKA yollarla zaten tamamlanmışsa (bkz. isPartnerInvite dalındaki aynı
             // kontrol) bu kabul de yedek listesine düşer, atanmamış havuzuna değil.
             if (isDoubleOrSingleRosterFull(joinReq.rival)) {
-                const waitlistEntry = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
+                const waitlistEntry = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender, alias: joinerInterestForAlias?.alias || null };
                 await placeInDoubleWaitlistOrReject(joinReq.rival, joinReq, waitlistEntry, requestId, res);
                 return;
             }
@@ -3665,7 +3665,7 @@ export const respondToJoin = async (req, res, next) => {
             // openSlotOptions/genderFitsSlot) — önceden bu bilgi hiç taşınmıyordu, bu yüzden
             // örn. erkek bir oyuncuya kadın-kısıtlı bir slot seçenek olarak sunulup "zaten dolu"
             // gibi alakasız bir hatayla reddediliyordu (asıl sebep cinsiyetti, doluluk değildi).
-            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender, alias: joinerInterestForAlias?.alias || null };
             const existingUnassigned = Array.isArray(joinReq.rival.unassignedPlayers) ? joinReq.rival.unassignedPlayers : [];
             const nextUnassigned = [...existingUnassigned, joinerData];
             // Kullanıcı isteği/bug raporu: bu kabul kadroyu (headcount olarak, taraf ataması
@@ -3727,7 +3727,7 @@ export const respondToJoin = async (req, res, next) => {
         // isUnassignedInvite dallarında da uygulandı).
         if (rival.status !== 'OPEN') {
             if (rival.status === 'MATCHED' && (rival.matchType === 'DOUBLE' || rival.matchType === 'SINGLE')) {
-                const waitlistEntry = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender };
+                const waitlistEntry = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender, alias: joinerInterestForAlias?.alias || null };
                 await placeInDoubleWaitlistOrReject(rival, joinReq, waitlistEntry, requestId, res);
                 return;
             }
@@ -6063,13 +6063,13 @@ export const removeRivalParticipant = async (req, res, next) => {
                 createNotification(rival.senderId, 'MATCH_CANCELLED',
                     '⚠️ Bir Yedek Ayrıldı',
                     `Bir oyuncu "${subCategoryTR(rival.subCategory)}" ilanınızın yedek listesinden ayrıldı.`,
-                    { rivalId: id, subCategory: rival.subCategory }
+                    { rivalId: id, category: rival.category, subCategory: rival.subCategory }
                 ).catch(() => {});
             } else {
                 createNotification(userId, 'MATCH_CANCELLED',
                     '⚠️ Katılımınız Kaldırıldı',
                     `${rival.sender?.username || 'İlan sahibi'} sizi "${subCategoryTR(rival.subCategory)}" ilanının yedek listesinden çıkardı.`,
-                    { rivalId: id, subCategory: rival.subCategory }
+                    { rivalId: id, category: rival.category, subCategory: rival.subCategory }
                 ).catch(() => {});
             }
             return;
@@ -6222,7 +6222,7 @@ export const removeRivalParticipant = async (req, res, next) => {
                     staysMatched
                         ? `${senderName} sizi "${subCategoryTR(rival.subCategory)}" ilanından çıkardı. Yerinize bir yedek oyuncu geçti, maç dolu kaldı.`
                         : `${senderName} sizi "${subCategoryTR(rival.subCategory)}" ilanından çıkardı. İlan tekrar açık hâle geldi.`,
-                    { rivalId: id, subCategory: rival.subCategory }
+                    { rivalId: id, category: rival.category, subCategory: rival.subCategory }
                 ).catch(() => {});
             }
         } else {
@@ -6231,7 +6231,7 @@ export const removeRivalParticipant = async (req, res, next) => {
                 staysMatched
                     ? `Bir oyuncu "${subCategoryTR(rival.subCategory)}" ilanınızdan ayrıldı. Yerine bir yedek oyuncu geçti, maç dolu kaldı.`
                     : `Bir oyuncu "${subCategoryTR(rival.subCategory)}" ilanınızdan ayrıldı. İlan tekrar açık hâle geldi.`,
-                { rivalId: id, subCategory: rival.subCategory }
+                { rivalId: id, category: rival.category, subCategory: rival.subCategory }
             ).catch(() => {});
         }
         // Yedekten/yedek listesinden asıl kadroya terfi — maçı kaçırmasın diye yüksek öncelikli push.
@@ -6239,7 +6239,7 @@ export const removeRivalParticipant = async (req, res, next) => {
             createNotification(promoted.id, 'MATCH_CONFIRMED',
                 '🚨 Yedekten Asıl Kadroya Geçtiniz!',
                 `"${subCategoryTR(rival.subCategory)}" maçında kadrodan biri ayrıldı, yerine siz asıl kadroya alındınız — maçınız var! Katılım sağlayamayacaksanız, iptal şartlarına uymasa bile terfiden itibaren 1 saat içinde şartsız iptal çekme hakkınız bulunmaktadır.`,
-                { rivalId: id, subCategory: rival.subCategory },
+                { rivalId: id, category: rival.category, subCategory: rival.subCategory },
                 'high'
             ).catch(() => {});
         }
@@ -6351,13 +6351,13 @@ export const leaveAsPromotedSubstitute = async (req, res, next) => {
             staysMatched
                 ? `Terfi ettirdiğiniz yedek oyuncu "${subCategoryTR(rival.subCategory)}" maçından şartsız çıkış hakkını kullanarak ayrıldı. Yerine bir sonraki yedek geçti, maç dolu kaldı.`
                 : `Terfi ettirdiğiniz yedek oyuncu "${subCategoryTR(rival.subCategory)}" maçından şartsız çıkış hakkını kullanarak ayrıldı. İlan tekrar açık hâle geldi.`,
-            { rivalId: id, subCategory: rival.subCategory }
+            { rivalId: id, category: rival.category, subCategory: rival.subCategory }
         ).catch(() => {});
         if (promotedSub?.id) {
             createNotification(promotedSub.id, 'MATCH_CONFIRMED',
                 '🚨 Yedekten Asıl Kadroya Geçtiniz!',
                 `"${subCategoryTR(rival.subCategory)}" maçında kadrodan biri ayrıldı, yerine siz asıl kadroya alındınız — maçınız var! Katılım sağlayamayacaksanız, iptal şartlarına uymasa bile terfiden itibaren 1 saat içinde şartsız iptal çekme hakkınız bulunmaktadır.`,
-                { rivalId: id, subCategory: rival.subCategory },
+                { rivalId: id, category: rival.category, subCategory: rival.subCategory },
                 'high'
             ).catch(() => {});
         }
