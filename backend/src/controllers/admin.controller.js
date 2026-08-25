@@ -409,19 +409,26 @@ export const getCoachListingApprovals = async (req, res, next) => {
 export const setCoachListingApproval = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { action } = req.body; // 'APPROVE' | 'REVOKE'
+        const { action, adminNote } = req.body; // 'APPROVE' | 'REJECT' | 'REVOKE'
+        // Kullanıcı isteği: admin reddederken bir açıklama yazabilsin, kullanıcıya bu
+        // sebeple bildirim gitsin. REJECT, henüz onaylanmamış bir başvuruyu not düşerek
+        // geri bildirim vermek için — REVOKE zaten onaylanmış bir ilanın onayını kaldırmak
+        // için, ayrı bir eylem olarak kalıyor (not gerektirmiyor, davranış değişmedi).
         const listing = await prisma.coachListing.update({
             where: { id },
-            data: { approved: action === 'APPROVE' },
+            data: {
+                approved: action === 'APPROVE',
+                adminNote: action === 'REJECT' ? (adminNote || null) : null,
+            },
         });
-        createNotification(listing.userId,
-            action === 'APPROVE' ? 'COACH_LISTING_APPROVED' : 'COACH_APPROVAL_REVOKED',
-            action === 'APPROVE' ? '✅ Antrenörlük İlanınız Onaylandı' : '🚫 Antrenörlük Onayınız Kaldırıldı',
-            action === 'APPROVE'
-                ? 'Antrenörlük başvurunuz admin tarafından onaylandı — ilanınız artık herkese görünüyor.'
-                : 'Antrenörlük ilan onayınız admin tarafından kaldırıldı, ilanınız başkalarına görünmüyor.',
-            {}
-        ).catch(() => {});
+        const notifType = action === 'APPROVE' ? 'COACH_LISTING_APPROVED' : action === 'REJECT' ? 'COACH_LISTING_REJECTED' : 'COACH_APPROVAL_REVOKED';
+        const title = action === 'APPROVE' ? '✅ Antrenörlük İlanınız Onaylandı' : action === 'REJECT' ? '❌ Antrenörlük Başvurunuz Reddedildi' : '🚫 Antrenörlük Onayınız Kaldırıldı';
+        const body = action === 'APPROVE'
+            ? 'Antrenörlük başvurunuz admin tarafından onaylandı — ilanınız artık herkese görünüyor.'
+            : action === 'REJECT'
+                ? `Antrenörlük başvurunuz admin tarafından reddedildi.${adminNote ? ` Neden: ${adminNote}` : ''}`
+                : 'Antrenörlük ilan onayınız admin tarafından kaldırıldı, ilanınız başkalarına görünmüyor.';
+        createNotification(listing.userId, notifType, title, body, {}).catch(() => {});
         res.json({ ok: true });
     } catch (e) { next(e); }
 };

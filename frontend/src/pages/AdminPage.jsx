@@ -1421,10 +1421,13 @@ function BusinessVenuesPanel() {
 // Mobil AdminPortalScreen.js'deki CoachListingApprovalTab/RefereeApprovalTab/
 // CoachRatingApprovalTab ile aynı davranış — üçü de PENDING/APPROVED filtresine göre
 // backend'den liste çekip Onayla/Onayı Kaldır eylemi sunuyor, tek şablonla paylaşılıyor.
-function ApprovalQueuePanel({ endpoint, showCv = true, emptyPendingText, emptyOtherText }) {
+function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, emptyPendingText, emptyOtherText }) {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('PENDING');
+    // Kullanıcı isteği: reddederken bir açıklama yazılabilsin, kullanıcıya bu sebeple
+    // bildirim gitsin — ProfileChangesPanel'deki "Red notu" alanıyla aynı desen.
+    const [notes, setNotes] = useState({}); // id → not metni
 
     const load = useCallback(() => {
         setLoading(true);
@@ -1435,7 +1438,7 @@ function ApprovalQueuePanel({ endpoint, showCv = true, emptyPendingText, emptyOt
 
     const setApproval = async (id, action) => {
         try {
-            await api.patch(`${endpoint}/${id}`, { action });
+            await api.patch(`${endpoint}/${id}`, { action, adminNote: notes[id] || '' });
             load();
         } catch (e) { alert(e?.response?.data?.message || 'Error'); }
     };
@@ -1457,35 +1460,62 @@ function ApprovalQueuePanel({ endpoint, showCv = true, emptyPendingText, emptyOt
             )}
 
             {items.map(c => (
-                <div key={c.id} className="bg-gray-900 border border-purple-700/30 rounded-2xl p-5 flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                        <p className="text-white font-bold text-sm">@{c.user?.username || '?'}</p>
-                        {c.user?.fullName && <p className="text-gray-500 text-xs">{c.user.fullName}</p>}
-                        <p className="text-gray-400 text-xs">{c.subCategory} · {c.credentialLevel}</p>
-                        <p className="text-gray-500 text-xs">
-                            {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : (c.city || c.location || '—')}
-                        </p>
-                        {showCv && (
-                            c.cvUrl ? (
-                                <a href={c.cvUrl} target="_blank" rel="noreferrer" className="text-purple-400 text-xs font-bold hover:underline">📄 CV'yi Aç</a>
-                            ) : (
-                                <p className="text-red-400 text-xs">CV yok</p>
-                            )
+                <div key={c.id} className="bg-gray-900 border border-purple-700/30 rounded-2xl p-5">
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                            <p className="text-white font-bold text-sm">@{c.user?.username || '?'}</p>
+                            {c.user?.fullName && <p className="text-gray-500 text-xs">{c.user.fullName}</p>}
+                            <p className="text-gray-400 text-xs">{c.subCategory} · {c.credentialLevel}</p>
+                            <p className="text-gray-500 text-xs">
+                                {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : (c.city || c.location || '—')}
+                            </p>
+                            {showCv && (
+                                c.cvUrl ? (
+                                    <a href={c.cvUrl} target="_blank" rel="noreferrer" className="text-purple-400 text-xs font-bold hover:underline">📄 CV'yi Aç</a>
+                                ) : (
+                                    <p className="text-red-400 text-xs">CV yok</p>
+                                )
+                            )}
+                        </div>
+                        {!(allowReject && filter === 'PENDING') && (
+                            <div className="shrink-0">
+                                {filter === 'PENDING' ? (
+                                    <button onClick={() => setApproval(c.id, 'APPROVE')}
+                                        className="px-3 py-1.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-xs transition">
+                                        ✓ Onayla
+                                    </button>
+                                ) : (
+                                    <button onClick={() => setApproval(c.id, 'REVOKE')}
+                                        className="px-3 py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-xs transition">
+                                        ✕ Onayı Kaldır
+                                    </button>
+                                )}
+                            </div>
                         )}
                     </div>
-                    <div className="shrink-0">
-                        {filter === 'PENDING' ? (
-                            <button onClick={() => setApproval(c.id, 'APPROVE')}
-                                className="px-3 py-1.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-xs transition">
-                                ✓ Onayla
-                            </button>
-                        ) : (
-                            <button onClick={() => setApproval(c.id, 'REVOKE')}
-                                className="px-3 py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-xs transition">
-                                ✕ Onayı Kaldır
-                            </button>
-                        )}
-                    </div>
+                    {allowReject && filter === 'PENDING' && (
+                        <div className="flex flex-col gap-2 mt-3">
+                            <input
+                                value={notes[c.id] || ''}
+                                onChange={e => setNotes(n => ({ ...n, [c.id]: e.target.value }))}
+                                placeholder="Red notu (isteğe bağlı)..."
+                                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
+                            />
+                            <div className="flex gap-2">
+                                <button onClick={() => setApproval(c.id, 'APPROVE')}
+                                    className="flex-1 py-2 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-sm transition">
+                                    ✓ Onayla
+                                </button>
+                                <button onClick={() => setApproval(c.id, 'REJECT')}
+                                    className="flex-1 py-2 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-sm transition">
+                                    ❌ Reddet
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                    {c.adminNote && (
+                        <p className="text-gray-500 text-xs mt-2 italic">Not: {c.adminNote}</p>
+                    )}
                 </div>
             ))}
         </div>
@@ -1493,7 +1523,7 @@ function ApprovalQueuePanel({ endpoint, showCv = true, emptyPendingText, emptyOt
 }
 
 function CoachListingApprovalPanel() {
-    return <ApprovalQueuePanel endpoint="/admin/coach-listing-approvals"
+    return <ApprovalQueuePanel endpoint="/admin/coach-listing-approvals" allowReject
         emptyPendingText="Onay bekleyen antrenörlük ilanı yok. ✅" emptyOtherText="Onaylı antrenörlük ilanı bulunamadı." />;
 }
 

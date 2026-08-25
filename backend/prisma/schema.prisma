@@ -400,6 +400,8 @@ model CoachListing {
   // rezervasyon alabilmesi için (RefereeListing.approved ile aynı desen). Sadece voleybolde
   // zorunlu; diğer dallarda kontrol edilmediği için yayınlanır yayınlanmaz görünür kalır.
   approved        Boolean @default(false)
+  adminNote       String?  // kullanıcı isteği: admin başvuruyu reddederken bir açıklama
+  // yazabilsin, kullanıcıya bu sebeple bildirim gitsin (bkz. setCoachListingApproval REJECT)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
