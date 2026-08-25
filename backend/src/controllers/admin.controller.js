@@ -433,6 +433,59 @@ export const setCoachListingApproval = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+// Voleybol "Resmi Takım Adı" onayı — bkz. teamName.controller.js/schema.prisma TeamNameRequest.
+// Diğer onaylardan farkı: bu bir Boolean approved bayrağı değil, tam bir PENDING/APPROVED/
+// REJECTED yaşam döngüsü — ve onaylanınca isim (büyük/küçük harf farksız) tek başına o
+// kullanıcıya ait olduğu için, onay ANINDA yarış durumuna karşı tekrar kontrol edilir.
+export const getTeamNameApprovals = async (req, res, next) => {
+    try {
+        const { status } = req.query; // PENDING | APPROVED | REJECTED
+        const requests = await prisma.teamNameRequest.findMany({
+            where: { status: status || 'PENDING' },
+            include: { user: { select: RATING_APPROVAL_USER_SELECT } },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json(requests);
+    } catch (e) { next(e); }
+};
+
+export const setTeamNameApproval = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { action, adminNote } = req.body; // 'APPROVE' | 'REJECT'
+        const request = await prisma.teamNameRequest.findUnique({ where: { id } });
+        if (!request) return res.status(404).json({ message: 'Başvuru bulunamadı' });
+        if (request.status !== 'PENDING') return res.status(400).json({ message: 'Bu başvuru zaten sonuçlandırılmış' });
+
+        if (action === 'APPROVE') {
+            // Başvuru PENDING'ken aynı isim başka biri tarafından onaylanmış olabilir —
+            // migration'daki kısmi unique index bunu DB seviyesinde de garanti eder, burada
+            // önce kontrol edip kullanıcıya net bir hata dönmek için (unique-violation
+            // exception'ından daha okunur bir mesaj vermek amacıyla) erken kontrol yapılır.
+            const taken = await prisma.teamNameRequest.findFirst({
+                where: { status: 'APPROVED', teamName: { equals: request.teamName, mode: 'insensitive' } },
+            });
+            if (taken) return res.status(409).json({ message: `"${request.teamName}" bu sırada başka bir kullanıcıya onaylandı, bu başvuru reddedilmeli.` });
+        }
+
+        const updated = await prisma.teamNameRequest.update({
+            where: { id },
+            data: {
+                status: action === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+                adminNote: action === 'REJECT' ? (adminNote || null) : null,
+            },
+        });
+
+        const notifType = action === 'APPROVE' ? 'TEAM_NAME_APPROVED' : 'TEAM_NAME_REJECTED';
+        const title = action === 'APPROVE' ? '🏆 Takım Adınız Onaylandı!' : '❌ Takım Adı Başvurunuz Reddedildi';
+        const body = action === 'APPROVE'
+            ? `"${updated.teamName}" artık sizin resmi takım adınız — bu isim başka kimse tarafından kullanılamaz.`
+            : `"${updated.teamName}" takım adı başvurunuz admin tarafından reddedildi.${adminNote ? ` Neden: ${adminNote}` : ''}`;
+        createNotification(updated.userId, notifType, title, body, {}).then(() => emitToUser(updated.userId, 'notification', {})).catch(() => {});
+        res.json({ ok: true });
+    } catch (e) { next(e); }
+};
+
 export const revokeTournamentPermission = async (req, res, next) => {
     try {
         const { userId } = req.params;

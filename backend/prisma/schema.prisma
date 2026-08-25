@@ -134,6 +134,7 @@ model User {
   supportMessages       SupportMessage[]
   subscriptions         BusinessSubscription[]
   subscriptionRequests  SubscriptionRequest[]
+  teamNameRequests      TeamNameRequest[]
   businessIban          String?
   businessIbanHolder    String?
   venues                BusinessVenue[]
@@ -1499,6 +1500,23 @@ model SubscriptionRequest {
   userId      String
   packageType String   @default("STARTER")
   receiptUrl  String?
+  status      String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  adminNote   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Voleybol "Resmi Takım Adı" — kullanıcı istediği bir takım ismi için bağış dekontu yükleyip
+// başvurur, admin onaylarsa o isim (küçük/büyük harf farksız) TEK BAŞINA o kullanıcıya ait
+// olur, başka kimse aynı ismi onaylatamaz (bkz. migration'daki kısmi unique index — sadece
+// APPROVED satırlar arasında geçerli, PENDING/REJECTED aynı ismi tekrar deneyebilir).
+model TeamNameRequest {
+  id          String   @id @default(uuid())
+  userId      String
+  teamName    String
+  receiptUrl  String
   status      String   @default("PENDING") // PENDING | APPROVED | REJECTED
   adminNote   String?
   createdAt   DateTime @default(now())

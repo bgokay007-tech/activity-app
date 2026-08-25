@@ -11,6 +11,7 @@ import {
     getCoachRatingApprovals, setCoachRatingApproval,
     getCoachListingApprovals, setCoachListingApproval,
     getRefereeApprovals, setRefereeApproval,
+    getTeamNameApprovals, setTeamNameApproval,
     getProfileChangeRequests, reviewProfileChangeRequest,
     getSupportMessages, replySupportMessage,
 } from '../controllers/admin.controller.js';
@@ -47,6 +48,8 @@ router.get('/coach-listing-approvals',       getCoachListingApprovals);
 router.patch('/coach-listing-approvals/:id', setCoachListingApproval);
 router.get('/referee-approvals',             getRefereeApprovals);
 router.patch('/referee-approvals/:id',       setRefereeApproval);
+router.get('/team-name-approvals',           getTeamNameApprovals);
+router.patch('/team-name-approvals/:id',     setTeamNameApproval);
 router.get('/tournament-permissions',                   getTournamentPermissionRequests);
 router.patch('/tournament-permissions/:userId/approve', approveTournamentPermission);
 router.patch('/tournament-permissions/:userId/reject',  rejectTournamentPermission);
