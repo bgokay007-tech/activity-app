@@ -5220,6 +5220,10 @@ export const appealScore = async (req, res, next) => {
 // (hakemin kendisi hariç) hakeme maç başına 1 kez yorum+yıldız (1-5) verebilir. Hakemin
 // o kategori/dalda aktif bir ilanı varsa (RefereeListing) genel ortalama puanına da
 // yansısın diye otomatik bağlanır — ilanı yoksa da yorum sorunsuz kaydedilir.
+// Voleybolde hakem değerlendirmesi genel yıldızdan önce anket sorularını da içerir —
+// diğer dallarda (tenis/padel/futbol vb.) bu sorular hiç sorulmuyor, sadece rating+comment var.
+const REFEREE_QUESTION_FIELDS = ['ruleKnowledge', 'decisionConsistency', 'fairness', 'communication', 'gameManagement'];
+
 export const submitRefereeReview = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -5238,6 +5242,16 @@ export const submitRefereeReview = async (req, res, next) => {
         const rosterIds = [match.senderId, ...participants.map(p => p?.id), ...senderTeamArr.map(m => m?.id)].filter(Boolean);
         if (!rosterIds.includes(req.userId)) return res.status(403).json({ message: 'Bu maçta yer almadığınız için hakemi değerlendiremezsiniz' });
 
+        const questionData = {};
+        if (match.subCategory === 'volleyball') {
+            for (const field of REFEREE_QUESTION_FIELDS) {
+                const v = parseInt(req.body[field], 10);
+                if (!Number.isInteger(v) || v < 1 || v > 5)
+                    return res.status(400).json({ message: 'Anket sorularının hepsi 1-5 arasında olmalı.' });
+                questionData[field] = v;
+            }
+        }
+
         const listing = await prisma.refereeListing.findFirst({
             where: { userId: match.refereeId, category: match.category, subCategory: match.subCategory, status: 'ACTIVE' },
             select: { id: true },
@@ -5245,10 +5259,10 @@ export const submitRefereeReview = async (req, res, next) => {
 
         const review = await prisma.refereeReview.upsert({
             where: { rivalId_reviewerId: { rivalId: id, reviewerId: req.userId } },
-            update: { rating: r, comment: comment?.trim() || null },
+            update: { rating: r, comment: comment?.trim() || null, ...questionData },
             create: {
                 rivalId: id, refereeUserId: match.refereeId, refereeListingId: listing?.id || null,
-                reviewerId: req.userId, rating: r, comment: comment?.trim() || null,
+                reviewerId: req.userId, rating: r, comment: comment?.trim() || null, ...questionData,
             },
             include: { reviewer: { select: { id: true, username: true, fullName: true, avatar: true } } },
         });

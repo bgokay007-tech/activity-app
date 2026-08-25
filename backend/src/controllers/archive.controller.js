@@ -116,7 +116,10 @@ export const getArchive = async (req, res, next) => {
         });
 
         // ── Hakemlik yaptığım (tamamlanmış) maçlar — Arşiv > Hakemlik sekmesi ──────────
-        const refereedMatches = await prisma.activityRequest.findMany({
+        // Kullanıcı isteği: bu sekmede her maçın anket cevapları/yorumları ve o maça özel
+        // yıldız ortalaması görülebilsin, ayrıca admin onaylı hakemlere (RefereeListing.approved)
+        // tüm hakemlik geçmişinin genel ortalaması gösterilsin.
+        const refereedMatchesRaw = await prisma.activityRequest.findMany({
             where: {
                 refereeId: myId,
                 status: 'COMPLETED',
@@ -124,11 +127,43 @@ export const getArchive = async (req, res, next) => {
                 ...(subCategory && { subCategory }),
                 ...(hasDate && { completedAt: dateFilter }),
             },
-            include: { sender: { select: USER_SELECT } },
+            include: {
+                sender: { select: USER_SELECT },
+                refereeReviews: {
+                    include: { reviewer: { select: USER_SELECT } },
+                    orderBy: { createdAt: 'desc' },
+                },
+            },
             orderBy: { completedAt: 'desc' },
             take: 100,
         });
+        const refereedMatches = refereedMatchesRaw.map(m => {
+            const reviews = m.refereeReviews || [];
+            const sum = reviews.reduce((s, r) => s + r.rating, 0);
+            return { ...m, avgRating: reviews.length ? sum / reviews.length : null, reviewCount: reviews.length };
+        });
 
-        res.json({ tournaments, rivals: rivalsFinal, refereedMatches });
+        // Genel hakemlik ortalaması/onay durumu — arşiv filtrelerinden (tarih/şehir)
+        // ETKİLENMEZ, her zaman TÜM hakemlik geçmişini yansıtır.
+        let refereeApproved = false, refereeOverallAvgRating = null, refereeTotalReviews = 0;
+        if (subCategory) {
+            const listing = await prisma.refereeListing.findFirst({
+                where: { userId: myId, subCategory, approved: true },
+                select: { id: true },
+            });
+            refereeApproved = !!listing;
+            const agg = await prisma.refereeReview.aggregate({
+                where: { refereeUserId: myId, rival: { subCategory } },
+                _avg: { rating: true },
+                _count: { id: true },
+            });
+            refereeOverallAvgRating = agg._avg.rating;
+            refereeTotalReviews = agg._count.id;
+        }
+
+        res.json({
+            tournaments, rivals: rivalsFinal, refereedMatches,
+            refereeApproved, refereeOverallAvgRating, refereeTotalReviews,
+        });
     } catch (e) { next(e); }
 };

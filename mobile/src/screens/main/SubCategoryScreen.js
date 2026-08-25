@@ -18463,9 +18463,14 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveEquipment, setArchiveEquipment] = useState([]);
     const [loadingArchiveEquipment, setLoadingArchiveEquipment] = useState(false);
     const [archiveRefereedMatches, setArchiveRefereedMatches] = useState([]);
+    const [refereeApproved, setRefereeApproved] = useState(false);
+    const [refereeOverallAvgRating, setRefereeOverallAvgRating] = useState(null);
+    const [refereeTotalReviews, setRefereeTotalReviews] = useState(0);
+    const [expandedRefereedMatchId, setExpandedRefereedMatchId] = useState(null);
     const [refereeReviewMatch, setRefereeReviewMatch] = useState(null);
     const [refereeReviewRating, setRefereeReviewRating] = useState(0);
     const [refereeReviewComment, setRefereeReviewComment] = useState('');
+    const [refereeReviewAnswers, setRefereeReviewAnswers] = useState({}); // { ruleKnowledge, decisionConsistency, fairness, communication, gameManagement } — sadece voleybolde
     const [submittingRefereeReview, setSubmittingRefereeReview] = useState(false);
     const [selectedArchiveTournament, setSelectedArchiveTournament] = useState(null);
     const [archiveModalMatches, setArchiveModalMatches] = useState([]);
@@ -18815,18 +18820,36 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
     }, [appealMatch, appealReasonText]);
 
+    const REFEREE_QUESTIONS = [
+        { key: 'ruleKnowledge', label: 'Kurallara Hakimiyet' },
+        { key: 'decisionConsistency', label: 'Karar Tutarlılığı' },
+        { key: 'fairness', label: 'Tarafsızlık' },
+        { key: 'communication', label: 'İletişim ve Otorite' },
+        { key: 'gameManagement', label: 'Maç Temposunu Yönetme' },
+    ];
+
     const openRefereeReview = useCallback((match) => {
         setRefereeReviewRating(match.myRefereeReview?.rating || 0);
         setRefereeReviewComment(match.myRefereeReview?.comment || '');
+        const rv = match.myRefereeReview;
+        setRefereeReviewAnswers(rv ? {
+            ruleKnowledge: rv.ruleKnowledge, decisionConsistency: rv.decisionConsistency,
+            fairness: rv.fairness, communication: rv.communication, gameManagement: rv.gameManagement,
+        } : {});
         setRefereeReviewMatch(match);
     }, []);
 
+    const isVolleyballRefereeReview = refereeReviewMatch?.subCategory === 'volleyball';
+    const refereeReviewAnswersComplete = !isVolleyballRefereeReview
+        || REFEREE_QUESTIONS.every(q => refereeReviewAnswers[q.key] >= 1);
+
     const submitRefereeReview = useCallback(async () => {
-        if (!refereeReviewMatch || !refereeReviewRating) return;
+        if (!refereeReviewMatch || !refereeReviewRating || !refereeReviewAnswersComplete) return;
         setSubmittingRefereeReview(true);
         try {
             const { data } = await api.post(`/rivals/${refereeReviewMatch.id}/referee-review`, {
                 rating: refereeReviewRating, comment: refereeReviewComment.trim(),
+                ...(isVolleyballRefereeReview ? refereeReviewAnswers : {}),
             });
             const applyReview = (list) => list.map(m => m.id === refereeReviewMatch.id ? { ...m, myRefereeReview: data } : m);
             setArchiveRivals(applyReview);
@@ -18836,7 +18859,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         } finally {
             setSubmittingRefereeReview(false);
         }
-    }, [refereeReviewMatch, refereeReviewRating, refereeReviewComment]);
+    }, [refereeReviewMatch, refereeReviewRating, refereeReviewComment, refereeReviewAnswers, isVolleyballRefereeReview, refereeReviewAnswersComplete]);
 
     // Real-time new comment for upcoming match modal
     useEffect(() => {
@@ -18983,6 +19006,9 @@ export default function SubCategoryScreen({ route, navigation }) {
             .then(res => {
                 setArchiveRivals(res.data?.rivals || []);
                 setArchiveRefereedMatches(res.data?.refereedMatches || []);
+                setRefereeApproved(!!res.data?.refereeApproved);
+                setRefereeOverallAvgRating(res.data?.refereeOverallAvgRating ?? null);
+                setRefereeTotalReviews(res.data?.refereeTotalReviews || 0);
             })
             .catch(() => {})
             .finally(() => setLoadingArchive(false));
@@ -20316,39 +20342,62 @@ export default function SubCategoryScreen({ route, navigation }) {
                 </View>
             </Modal>
 
-            <Modal visible={!!refereeReviewMatch} animationType="slide" transparent onRequestClose={() => setRefereeReviewMatch(null)}>
+            <Modal visible={!!refereeReviewMatch} animationType="slide" transparent onRequestClose={() => setRefereeReviewMatch(null)} android_keyboardInputMode="adjustNothing">
                 <View style={s.modalOverlay}>
-                    <View style={s.modalBox}>
-                        <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>Hakemi Değerlendir</Text>
-                            <TouchableOpacity onPress={() => setRefereeReviewMatch(null)}>
-                                <Text style={s.modalClose}>✕</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <View style={{ flexDirection:'row', justifyContent:'center', gap:6, marginBottom:14 }}>
-                            {[1,2,3,4,5].map(n => (
-                                <TouchableOpacity key={n} onPress={() => setRefereeReviewRating(n)}>
-                                    <Text style={{ fontSize:30, color: n <= refereeReviewRating ? '#fbbf24' : colors.border }}>★</Text>
+                    <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
+                        <View style={s.modalBox}>
+                            <View style={s.modalHeader}>
+                                <Text style={s.modalTitle}>Hakemi Değerlendir</Text>
+                                <TouchableOpacity onPress={() => setRefereeReviewMatch(null)}>
+                                    <Text style={s.modalClose}>✕</Text>
                                 </TouchableOpacity>
-                            ))}
+                            </View>
+                            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                                {/* Kullanıcı isteği: voleybolde genel yıldızdan ÖNCE anket soruları sorulsun —
+                                    diğer dallarda (tenis/padel/futbol vb.) bu sorular hiç sorulmuyor. */}
+                                {isVolleyballRefereeReview && (
+                                    <View style={{ gap:11, marginBottom:16 }}>
+                                        {REFEREE_QUESTIONS.map(q => (
+                                            <View key={q.key} style={{ gap:5 }}>
+                                                <Text style={s.fieldLabel}>{q.label}</Text>
+                                                <View style={{ flexDirection:'row', gap:6 }}>
+                                                    {[1,2,3,4,5].map(n => (
+                                                        <TouchableOpacity key={n} onPress={() => setRefereeReviewAnswers(p => ({ ...p, [q.key]: n }))}>
+                                                            <Text style={{ fontSize:22, color: n <= (refereeReviewAnswers[q.key] || 0) ? '#a78bfa' : colors.border }}>★</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+                                {isVolleyballRefereeReview && <Text style={[s.fieldLabel, { textAlign:'center' }]}>Genel Puan</Text>}
+                                <View style={{ flexDirection:'row', justifyContent:'center', gap:6, marginBottom:14, marginTop: isVolleyballRefereeReview ? 6 : 0 }}>
+                                    {[1,2,3,4,5].map(n => (
+                                        <TouchableOpacity key={n} onPress={() => setRefereeReviewRating(n)}>
+                                            <Text style={{ fontSize:30, color: n <= refereeReviewRating ? '#fbbf24' : colors.border }}>★</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                                <TextInput
+                                    style={[s.fieldInput, { height:90, textAlignVertical:'top' }]}
+                                    value={refereeReviewComment}
+                                    onChangeText={setRefereeReviewComment}
+                                    placeholder="Hakemlik hakkında yorumun (isteğe bağlı)"
+                                    placeholderTextColor={colors.textMuted}
+                                    multiline
+                                />
+                                <TouchableOpacity
+                                    onPress={submitRefereeReview}
+                                    disabled={!refereeReviewRating || !refereeReviewAnswersComplete || submittingRefereeReview}
+                                    style={{ marginTop:2, backgroundColor: (refereeReviewRating && refereeReviewAnswersComplete) ? '#fbbf24' : colors.surface2, borderRadius:10, paddingVertical:12, alignItems:'center', opacity: submittingRefereeReview ? 0.6 : 1 }}>
+                                    <Text style={{ color: (refereeReviewRating && refereeReviewAnswersComplete) ? '#111827' : colors.textMuted, fontWeight:'800', fontSize:14 }}>
+                                        {submittingRefereeReview ? '…' : 'Gönder'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </ScrollView>
                         </View>
-                        <TextInput
-                            style={[s.fieldInput, { height:90, textAlignVertical:'top' }]}
-                            value={refereeReviewComment}
-                            onChangeText={setRefereeReviewComment}
-                            placeholder="Hakemlik hakkında yorumun (isteğe bağlı)"
-                            placeholderTextColor={colors.textMuted}
-                            multiline
-                        />
-                        <TouchableOpacity
-                            onPress={submitRefereeReview}
-                            disabled={!refereeReviewRating || submittingRefereeReview}
-                            style={{ marginTop:12, backgroundColor: refereeReviewRating ? '#fbbf24' : colors.surface2, borderRadius:10, paddingVertical:12, alignItems:'center', opacity: submittingRefereeReview ? 0.6 : 1 }}>
-                            <Text style={{ color: refereeReviewRating ? '#111827' : colors.textMuted, fontWeight:'800', fontSize:14 }}>
-                                {submittingRefereeReview ? '…' : 'Gönder'}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
+                    </KeyboardAvoidingView>
                 </View>
             </Modal>
 
@@ -22146,7 +22195,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                         {/* Sub-tabs */}
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:10 }}>
                             <View style={{ flexDirection:'row', gap:3 }}>
-                                {['rivals','tournaments','equipment','referee'].map(st => (
+                                {/* Kullanıcı isteği: "Hakemlik" sekmesi sadece admin tarafından onaylanmış
+                                    hakemlere görünsün — onaysız/hiç hakemlik yapmamış kullanıcıda hiç çıkmaz. */}
+                                {['rivals','tournaments','equipment', ...(refereeApproved ? ['referee'] : [])].map(st => (
                                     <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
                                         style={{ paddingVertical:4, paddingHorizontal:12, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? cfg.color : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? cfg.color : colors.border }}>
                                         <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>
@@ -22325,29 +22376,50 @@ export default function SubCategoryScreen({ route, navigation }) {
                             )
                         )}
 
-                        {/* Hakemlik arşivi (hakemlik yapılan tamamlanmış maçlar) */}
+                        {/* Hakemlik arşivi (hakemlik yapılan tamamlanmış maçlar) — kullanıcı isteği:
+                            genel ortalama en üstte, her maçta o maça özel yıldız ortalaması ve
+                            açılınca anket cevapları + yorumlar tek tek görülebiliyor. */}
                         {archiveSubTab === 'referee' && (
                             loadingArchive ? (
                                 <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
-                            ) : archiveRefereedMatches.length === 0 ? (
-                                <EmptyState emoji="🟨" text="Henüz hakemlik yaptığın tamamlanmış maç yok" />
                             ) : (
-                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingVertical:5 }}>
-                                    {archiveRefereedMatches.map(m => {
+                                <View style={{ paddingVertical:5, gap:8 }}>
+                                    {refereeTotalReviews > 0 && (
+                                        <View style={[s.card, { alignItems:'center', paddingVertical:14 }]}>
+                                            <Text style={{ color:'#facc15', fontSize:28, fontWeight:'900' }}>{Number(refereeOverallAvgRating).toFixed(2)} ★</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:12, marginTop:2 }}>
+                                                Genel Hakemlik Puanı · {refereeTotalReviews} değerlendirme
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {archiveRefereedMatches.length === 0 ? (
+                                        <EmptyState emoji="🟨" text="Henüz hakemlik yaptığın tamamlanmış maç yok" />
+                                    ) : archiveRefereedMatches.map(m => {
                                         const parts = Array.isArray(m.participants) ? m.participants : [];
                                         const allP = [m.sender, ...parts].filter(Boolean);
+                                        const expanded = expandedRefereedMatchId === m.id;
                                         return (
-                                            <View key={m.id} style={[s.card, { width:'48%' }]}>
-                                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                    {m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
-                                                    {m.matchTime ? ` ${m.matchTime}` : ''}
-                                                </Text>
-                                                {(m.courtName || m.location) ? (
-                                                    <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                        🏟️ {m.courtName || m.location}
-                                                    </Text>
-                                                ) : null}
-                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                            <TouchableOpacity key={m.id} activeOpacity={0.85} style={s.card}
+                                                onPress={() => setExpandedRefereedMatchId(expanded ? null : m.id)}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                            {m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' }) : ''}
+                                                            {m.matchTime ? ` · 🕐 ${m.matchTime}` : ''}
+                                                        </Text>
+                                                        {(m.courtName || m.location) ? (
+                                                            <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                                🏟️ {m.courtName || m.location}
+                                                            </Text>
+                                                        ) : null}
+                                                    </View>
+                                                    {m.avgRating != null ? (
+                                                        <Text style={{ color:'#facc15', fontSize:15, fontWeight:'900' }}>{m.avgRating.toFixed(2)} ★</Text>
+                                                    ) : (
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Henüz oy yok</Text>
+                                                    )}
+                                                </View>
+                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:6 }}>
                                                     {allP.map(p => (
                                                         <TouchableOpacity key={p.id || p.username} onPress={() => p.id && setProfileUserId(p.id)}
                                                             style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:5, paddingVertical:2 }}>
@@ -22355,7 +22427,29 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         </TouchableOpacity>
                                                     ))}
                                                 </View>
-                                            </View>
+                                                {expanded && (m.reviewCount > 0) && (
+                                                    <View style={{ marginTop:10, gap:8, borderTopWidth:1, borderTopColor: colors.border, paddingTop:10 }}>
+                                                        {(m.refereeReviews || []).map(rv => (
+                                                            <View key={rv.id} style={{ backgroundColor: colors.surface2, borderRadius:10, padding:9, gap:4 }}>
+                                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{rv.reviewer?.fullName || rv.reviewer?.username || '?'}</Text>
+                                                                    <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{'★'.repeat(rv.rating)}{'☆'.repeat(5 - rv.rating)}</Text>
+                                                                </View>
+                                                                {rv.ruleKnowledge != null && (
+                                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:2 }}>
+                                                                        <Text style={s.refQChip}>Kurallara Hakimiyet: {rv.ruleKnowledge}/5</Text>
+                                                                        <Text style={s.refQChip}>Karar Tutarlılığı: {rv.decisionConsistency}/5</Text>
+                                                                        <Text style={s.refQChip}>Tarafsızlık: {rv.fairness}/5</Text>
+                                                                        <Text style={s.refQChip}>İletişim/Otorite: {rv.communication}/5</Text>
+                                                                        <Text style={s.refQChip}>Maç Temposu: {rv.gameManagement}/5</Text>
+                                                                    </View>
+                                                                )}
+                                                                {rv.comment ? <Text style={{ color: colors.textSecondary, fontSize:12, lineHeight:17, marginTop:2 }}>{rv.comment}</Text> : null}
+                                                            </View>
+                                                        ))}
+                                                    </View>
+                                                )}
+                                            </TouchableOpacity>
                                         );
                                     })}
                                 </View>
@@ -24139,6 +24233,7 @@ const s = StyleSheet.create({
     fieldLabelRed:    { color: '#ef4444', fontSize:12, fontWeight:'700', marginBottom:6 },
     fieldHint:        { color: colors.textMuted, fontSize:10, marginBottom:8 },
     fieldInput:       { backgroundColor: colors.surface2, color:'#fff', borderRadius:12, paddingHorizontal:11, paddingVertical:9, borderWidth:1, borderColor: colors.border, fontSize:14, marginBottom:14 },
+    refQChip:         { color: colors.textSecondary, fontSize:11, backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor: colors.border },
     compactLocInput:  { height:32, paddingVertical:0, paddingHorizontal:7, fontSize:11, marginBottom:0, borderRadius:8 },
     chipRow:          { flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:14 },
     chipBtn:          { paddingHorizontal:7, paddingVertical:3, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
