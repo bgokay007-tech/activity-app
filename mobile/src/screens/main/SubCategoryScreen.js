@@ -15504,12 +15504,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </View>
                     )}
                     {TOURN_TYPES.includes(item.type) && (
-                        <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
-                            {['matches','standings'].map(tab => (
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>
+                            {/* Kullanıcı isteği: Play-Off'lar sekmesi turnuva grup aşamasından çıkıp
+                                play-off'a geçince (en az bir PLAYOFF fazlı maç oluşunca) beliriyor —
+                                grup aşamasındayken gösterilecek bir bilgi henüz yok. */}
+                            {['matches','standings', ...(tournMatches.some(m => m.phase === 'PLAYOFF') ? ['playoffs'] : [])].map(tab => (
                                 <TouchableOpacity key={tab} onPress={() => setMatchTab(tab)}
                                     style={{ paddingHorizontal:11, paddingVertical:3, borderRadius:8, backgroundColor: matchTab===tab ? '#16a34a40' : 'transparent', borderWidth:1, borderColor: matchTab===tab ? '#16a34a60' : colors.border }}>
                                     <Text style={{ color: matchTab===tab ? '#4ade80' : colors.textMuted, fontSize:12, fontWeight:'700' }}>
-                                        {tab === 'matches' ? 'Maçlar' : 'Puan Tablosu'}
+                                        {tab === 'matches' ? 'Maçlar' : tab === 'standings' ? 'Puan Tablosu' : "Play-Off'lar"}
                                     </Text>
                                 </TouchableOpacity>
                             ))}
@@ -15546,7 +15549,89 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </View>
                             ))}
                           </View>
-                ) : (
+                ) : matchTab === 'playoffs' ? (() => {
+                    // Kullanıcı isteği: Play-Off'lar sekmesi — en üstte kaç kişi/takım play-off'a
+                    // kaldıysa (playoffQualifiers) 1'den başlayarak sıralı liste, altında turlar
+                    // (Çeyrek Final/Yarı Final/Final) alt alta — sekme değiştirmeden aşağı
+                    // kaydırarak tüm play-off ilerleyişi görülsün. Salt-okunur bir özet — skor
+                    // girişi hâlâ "Maçlar" sekmesindeki tur seçicisinden yapılır.
+                    const playoffMs = tournMatches.filter(m => m.phase === 'PLAYOFF');
+                    if (playoffMs.length === 0) {
+                        return <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>Henüz play-off turu başlamadı</Text>;
+                    }
+                    const playoffMaxRound = Math.max(...playoffMs.map(m => m.round));
+                    const minRound = Math.min(...playoffMs.map(m => m.round));
+                    const getPlayoffRoundLabel = (round) => {
+                        const fromEnd = playoffMaxRound - round;
+                        if (fromEnd === 0) return 'Final';
+                        if (fromEnd === 1) return 'Yarı Final';
+                        if (fromEnd === 2) return 'Çeyrek Final';
+                        return `Playoff - Tur ${round}`;
+                    };
+                    // Seed (kura) sırası standings'ten DEĞİL, gerçek 1. tur eşleşmelerinden
+                    // (matchIndex 0 = seed1 vs seedN, matchIndex 1 = seed2 vs seed(N-1)...)
+                    // türetilir — backend seed sırasını standings puanına göre değil güncel ELO'ya
+                    // göre belirliyor (bkz. singleElimMatches), ikisi farklı sonuç verebilir.
+                    const round1Matches = playoffMs.filter(m => m.round === minRound).sort((a,b) => (a.matchIndex||0)-(b.matchIndex||0));
+                    const bracketSize = round1Matches.length * 2;
+                    const seeds = new Array(bracketSize).fill(null);
+                    round1Matches.forEach((m, idx) => {
+                        if (m.p1Id) seeds[idx] = { id:m.p1Id, name:m.p1Name };
+                        if (m.p2Id) seeds[bracketSize-1-idx] = { id:m.p2Id, name:m.p2Name };
+                    });
+                    const rounds = [];
+                    for (let r = minRound; r <= playoffMaxRound; r++) {
+                        rounds.push({ round:r, matches: playoffMs.filter(m => m.round === r).sort((a,b) => (a.matchIndex||0)-(b.matchIndex||0)) });
+                    }
+                    return (
+                        <View>
+                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:6 }}>🏆 Play-Off'a Kalanlar</Text>
+                            <View style={{ marginBottom:16 }}>
+                                {seeds.map((sd, i) => sd && (
+                                    <View key={sd.id || i} style={{ flexDirection:'row', alignItems:'center', paddingVertical:3, borderBottomWidth:1, borderBottomColor: colors.border+'30' }}>
+                                        <Text style={{ color: infoColor, fontSize:11, fontWeight:'900', width:22 }}>{i+1}.</Text>
+                                        <Text style={{ color:'#fff', fontSize:12, flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                            {sd.name}{skillRatingMap[sd.id] != null ? `  ${starEmoji(Number(skillRatingMap[sd.id]))} ${Number(skillRatingMap[sd.id]).toFixed(2)}` : ''}
+                                        </Text>
+                                    </View>
+                                ))}
+                            </View>
+                            {rounds.map(({ round, matches }) => (
+                                <View key={round} style={{ marginBottom:14 }}>
+                                    <Text style={{ color: infoColor, fontSize:12, fontWeight:'800', marginBottom:6 }}>{getPlayoffRoundLabel(round)}</Text>
+                                    {matches.map(match => {
+                                        const isDone = match.status === 'COMPLETED';
+                                        const isBye = match.status === 'BYE';
+                                        const p1Win = isDone && match.winnerId === match.p1Id;
+                                        const p2Win = isDone && match.winnerId === match.p2Id;
+                                        const mSets = match.score?.sets || [];
+                                        return (
+                                            <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:6, borderWidth:1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : '#334155' }}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                                                    <Text style={{ color: p1Win ? '#4ade80' : '#fff', fontSize:12, fontWeight: p1Win ? '800' : '600', flex:1 }} numberOfLines={1}>{match.p1Name || 'TBD'}</Text>
+                                                    {isDone && mSets.length > 0 && (
+                                                        <View style={{ flexDirection:'row', gap:4 }}>
+                                                            {mSets.map((set,i) => <Text key={i} style={{ color: p1Win ? '#4ade80' : '#94a3b8', fontSize:11, fontWeight:'800' }}>{set.p1}</Text>)}
+                                                        </View>
+                                                    )}
+                                                </View>
+                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:3 }}>
+                                                    <Text style={{ color: p2Win ? '#4ade80' : '#fff', fontSize:12, fontWeight: p2Win ? '800' : '600', flex:1 }} numberOfLines={1}>{match.p2Name || 'TBD'}</Text>
+                                                    {isDone && mSets.length > 0 && (
+                                                        <View style={{ flexDirection:'row', gap:4 }}>
+                                                            {mSets.map((set,i) => <Text key={i} style={{ color: p2Win ? '#4ade80' : '#94a3b8', fontSize:11, fontWeight:'800' }}>{set.p2}</Text>)}
+                                                        </View>
+                                                    )}
+                                                </View>
+                                                {isBye && <Text style={{ color: colors.textMuted, fontSize:9, marginTop:3 }}>BYE</Text>}
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            ))}
+                        </View>
+                    );
+                })() : (
                     tournMatches.length === 0
                         ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>Maç yok</Text>
                         : (() => {
