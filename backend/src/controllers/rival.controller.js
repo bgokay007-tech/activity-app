@@ -5357,6 +5357,49 @@ export const disputeReferee = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Kullanıcı isteği: ilan sahibi, kadro çoğunluğunun oyuna ihtiyaç duyan disputeReferee'nin
+// aksine, atanmış hakemi TEK BAŞINA (oy toplamadan) çıkarabilsin — ör. hakem yanıt vermiyor/
+// uygun değilse başka birine davet göndermek için çıkmasını beklemek zorunda kalmasın.
+export const removeReferee = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const match = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!match) return res.status(404).json({ message: 'Maç bulunamadı' });
+        if (match.senderId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
+        if (!match.refereeId) return res.status(400).json({ message: 'Bu maçta çıkarılacak bir hakem yok' });
+
+        const removedRefereeId = match.refereeId;
+        // disputeReferee'deki aynı mantık: sırada bekleyen (refereeQueue) bir yedek hakem
+        // varsa otomatik olarak ilk sıradaki yeni hakem olur, yoksa slot aranıyor durumuna döner.
+        const queue = Array.isArray(match.refereeQueue) ? match.refereeQueue : [];
+        const [promoted, ...restQueue] = queue;
+        await prisma.activityRequest.update({
+            where: { id },
+            data: promoted
+                ? { refereeId: promoted.userId, refereeDisputeVoterIds: [], refereeQueue: restQueue }
+                : { refereeId: null, refereeDisputeVoterIds: [] },
+        });
+
+        res.json({ removed: true, promoted: promoted || null });
+
+        createNotification(
+            removedRefereeId, 'REFEREE_REMOVED_BY_OWNER', '🚫 Hakemlikten Çıkarıldınız',
+            `İlan sahibi sizi "${subCategoryTR(match.subCategory)}" maçındaki hakemlik görevinden çıkardı.`,
+            { rivalId: id, category: match.category, subCategory: match.subCategory }
+        ).catch(() => {});
+        emitToUser(removedRefereeId, 'notification', {});
+
+        if (promoted) {
+            createNotification(
+                promoted.userId, 'MATCH_CONFIRMED', '✅ Hakemliğe Terfi Ettiniz',
+                `"${subCategoryTR(match.subCategory)}" maçında sırada beklediğiniz hakemlik şimdi size geçti.`,
+                { rivalId: id, category: match.category, subCategory: match.subCategory }
+            ).catch(() => {});
+            emitToUser(promoted.userId, 'notification', {});
+        }
+    } catch (error) { next(error); }
+};
+
 export const archiveMatch = async (req, res, next) => {
     try {
         const { id } = req.params;
