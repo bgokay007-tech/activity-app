@@ -9997,14 +9997,13 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                     style={{ position:'absolute', top:'100%', left:0, right:0, maxHeight:160, zIndex:50, elevation:20, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, marginTop:2 }}>
                     {results.map(u => (
                         <TouchableOpacity key={u.id}
-                            // onPress DEĞİL onPressIn — Android'de klavye açıkken bazı cihazlarda
-                            // dokunuş bu görünüme hiç ulaşmıyordu (klavye kapatılınca aynı dokunuş
-                            // çalışıyordu, kullanıcı raporu). onPressIn dokunuşun en başında
-                            // ateşlendiği için (showDropdown artık focus/blur'a değil text/results'a
-                            // bağlı olduğundan bu görünüm klavye kapanırken sökülmüyor) daha güvenilir.
-                            // NOT: focusable={false} denendi, dokunuşu TAMAMEN işlevsiz hale
-                            // getirdiği için (kullanıcı raporu) geri alındı.
-                            onPressIn={() => {
+                            // onPressIn DEĞİL onPress — keyboardShouldPersistTaps="always" React
+                            // Native'in KENDİ dokümantasyonunda onPress ile birlikte kullanılıyor;
+                            // bu prop'un iç mekanizması dokunuşun TAMAMLANMASINA (release) göre
+                            // çalışıyor, onPressIn (dokunuşun EN başı) ile aynı zamanlamada
+                            // garantili tetiklenmeyebiliyor — "ilk dokunuş sadece klavyeyi
+                            // indiriyor" sorununun asıl kaynağı bu zamanlama uyuşmazlığıydı.
+                            onPress={() => {
                                 // Formanın cinsiyet kısıtlaması varsa (genderReq), seçilen kişinin
                                 // cinsiyeti uymuyorsa daveti/atamayı hiç başlatmadan uyar — backend
                                 // zaten aynı kontrolü yapıyor ama ilan OLUŞTURMA formunda (onPick)
@@ -10048,7 +10047,9 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                         tutarlı sayılabilsin diye ekleme onayıyla birlikte isteniyor. */}
                     {onAddManual && text.trim().length >= 3 && (
                         <TouchableOpacity
-                            onPressIn={() => {
+                            // Yukarıdaki öneri satırıyla aynı sebep — onPress, keyboardShouldPersistTaps
+                            // ile birlikte güvenilir çalışan, RN dokümantasyonunun kendi kullandığı olay.
+                            onPress={() => {
                                 const manualName = text.trim();
                                 setText(''); setResults([]);
                                 Alert.alert(
