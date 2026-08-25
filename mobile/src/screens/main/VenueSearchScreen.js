@@ -861,6 +861,7 @@ export default function VenueSearchScreen({ navigation, route }) {
 
             {!availMode && searched && !loading && (
                 <FlatList
+                    style={{ flex: 1 }}
                     data={venues}
                     keyExtractor={v => v.id}
                     contentContainerStyle={s.list}
@@ -887,6 +888,7 @@ export default function VenueSearchScreen({ navigation, route }) {
 
             {availMode && availSearched && !availLoading && (
                 <FlatList
+                    style={{ flex: 1 }}
                     data={availResults}
                     keyExtractor={r => r.venue.id}
                     contentContainerStyle={s.list}
