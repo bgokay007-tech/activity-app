@@ -825,16 +825,36 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             .catch(() => {});
     };
 
+    const [respondingAppId, setRespondingAppId] = useState(null);
     const respondRefereeApplication = async (jrId, action, price, message) => {
+        // Kullanıcı isteği: reddet/kabul et sonrası liste sadece reloadRefereeApplications'ın
+        // ağ turu tamamlanınca güncelleniyordu — bu gecikme sırasında aynı butona tekrar
+        // dokununca (kullanıcı "gitmedi" sanıp tekrar deniyordu) backend "bu istek artık
+        // bekleyen durumda değil" hatası veriyordu. respondingAppId ile istek sürerken aynı
+        // başvurunun butonları devre dışı bırakılır, başarı sonrası da state anında (ağ
+        // turunu beklemeden) güncellenir.
+        if (respondingAppId) return;
+        setRespondingAppId(jrId);
         try {
             await api.patch(`/rivals/join/${jrId}`, { action, price, message });
             setCounterInputFor(null);
             setCounterPriceInput('');
             setCounterMessageInput('');
+            if (action === 'reject') {
+                setRefereeApplications(prev => prev.filter(app => app.id !== jrId));
+            } else if (action === 'accept') {
+                setRefereeApplications(prev => prev.map(app => app.id === jrId ? { ...app, status: 'ACCEPTED' } : app));
+            } else if (action === 'counter') {
+                setRefereeApplications(prev => prev.map(app => app.id === jrId ? { ...app, status: 'COUNTERED', counterPrice: price, counterMessage: message } : app));
+            }
+            // Diğer bekleyen başvurular (ör. hakem kabul edilince otomatik reddedilenler)
+            // ile senkron kalmak için arka planda tam bir yeniden çekme de yapılır.
             reloadRefereeApplications();
             onRefresh();
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setRespondingAppId(null);
         }
     };
 
@@ -3071,10 +3091,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     {/* Hakem Slotu — ilan sahibi + katılımcılar için özet, kimin hakem olduğunu gösterir.
                         Hakemler sekmesinden ilanın kendi detayı açıldığında da (isRefereeAd) görünür. */}
                     {(() => {
-                        const canSeeRefereeSlot = (item.refereeRequested || isRefereeAd) && (isOwner || isParticipant || isLinkedMatchPlayer);
+                        // Kullanıcı isteği: hakem slotunu SADECE ilan sahibi/oyuncular değil, o maçın
+                        // hakemi (atanmış ya da sırada bekleyen) da görebilsin — önceden hakemler
+                        // (kadroda hiç yer almadıkları için isParticipant/isOwner asla true olmuyordu)
+                        // kendi atandıkları/sıraya girdikleri maçta bu kutuyu hiç göremiyordu.
+                        const iAmQueuedReferee = Array.isArray(item.refereeQueue) && item.refereeQueue.some(q => q.userId === myId);
+                        const canSeeRefereeSlot = (item.refereeRequested || isRefereeAd)
+                            && (isMatchRosterMember || isLinkedMatchPlayer || item.refereeId === myId || iAmQueuedReferee);
                         if (!canSeeRefereeSlot) return null;
                         return (
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8, backgroundColor:'#f59e0b0d', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b30', paddingHorizontal:9, paddingVertical:6 }}>
+                            <View style={{ marginBottom:8, backgroundColor:'#f59e0b0d', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b30', paddingHorizontal:9, paddingVertical:6 }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
                                 {item.refereeUser ? (
                                     <>
                                         <Avatar name={item.refereeUser.username} avatar={item.refereeUser.avatar} size={moderateScale(24)} color="#f59e0b" />
@@ -3112,6 +3139,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         {t.refereeSlotLabel}: {t.refereeSlotSearching}{item.refereePayment ? `  ·  ${item.refereePayment}` : ''}
                                     </Text>
                                 )}
+                            </View>
+                            {/* Kullanıcı isteği: kabul edilip sıraya giren yedek hakemler burada
+                                listelensin — kendisi sıradaysa "(Sen)" ile ayrıca belirtiliyor,
+                                yoksa hiç göremeyip "hiçbir şey olmadı" sanıyordu. */}
+                            {Array.isArray(item.refereeQueue) && item.refereeQueue.length > 0 && (
+                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'600', marginTop:6, paddingTop:6, borderTopWidth:1, borderTopColor:'#f59e0b30' }}>
+                                    🕓 Yedek Sırası: {item.refereeQueue.map((q, i) => `${i + 1}. ${q.fullName || q.username}${q.userId === myId ? ' (Sen)' : ''}`).join('  ·  ')}
+                                </Text>
+                            )}
                             </View>
                         );
                     })()}
@@ -3166,10 +3202,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         pasif "onay bekleniyor" metni gösterilir, davet edilen kişiye butonlar. */}
                                     {app.initiatedBy === 'OWNER' && app.status === 'PENDING' && app.userId === myId && (
                                         <View style={{ flexDirection:'row', gap:4, marginTop:4 }}>
-                                            <TouchableOpacity style={{ flex:1, backgroundColor:'#16a34a', borderRadius:6, paddingVertical:3, alignItems:'center' }} onPress={() => respondRefereeApplication(app.id, 'accept')}>
+                                            <TouchableOpacity disabled={respondingAppId === app.id} style={{ flex:1, backgroundColor:'#16a34a', borderRadius:6, paddingVertical:3, alignItems:'center', opacity: respondingAppId === app.id ? 0.6 : 1 }} onPress={() => respondRefereeApplication(app.id, 'accept')}>
                                                 <Text style={{ color:'#fff', fontSize:moderateScale(9), fontWeight:'700' }}>{t.inviteAcceptBtn}</Text>
                                             </TouchableOpacity>
-                                            <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius:6, paddingVertical:3 }]} onPress={() => respondRefereeApplication(app.id, 'reject')}>
+                                            <TouchableOpacity disabled={respondingAppId === app.id} style={[s.cancelBtn, { flex:1, borderRadius:6, paddingVertical:3, opacity: respondingAppId === app.id ? 0.6 : 1 }]} onPress={() => respondRefereeApplication(app.id, 'reject')}>
                                                 <Text style={[s.cancelBtnText, { fontSize:moderateScale(9) }]}>{t.inviteRejectBtn}</Text>
                                             </TouchableOpacity>
                                         </View>
@@ -3179,13 +3215,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     )}
                                     {isOwner && app.initiatedBy !== 'OWNER' && app.status === 'PENDING' && counterInputFor !== app.id && (
                                         <View style={{ flexDirection:'row', gap:4, marginTop:4 }}>
-                                            <TouchableOpacity style={{ flex:1, backgroundColor:'#16a34a', borderRadius:6, paddingVertical:3, alignItems:'center' }} onPress={() => respondRefereeApplication(app.id, 'accept')}>
+                                            <TouchableOpacity disabled={respondingAppId === app.id} style={{ flex:1, backgroundColor:'#16a34a', borderRadius:6, paddingVertical:3, alignItems:'center', opacity: respondingAppId === app.id ? 0.6 : 1 }} onPress={() => respondRefereeApplication(app.id, 'accept')}>
                                                 <Text style={{ color:'#fff', fontSize:moderateScale(9), fontWeight:'700' }}>{t.inviteAcceptBtn}</Text>
                                             </TouchableOpacity>
-                                            <TouchableOpacity style={{ flex:1, backgroundColor:'#f59e0b20', borderRadius:6, paddingVertical:3, alignItems:'center', borderWidth:1, borderColor:'#f59e0b60' }} onPress={() => { setCounterInputFor(app.id); setCounterPriceInput(''); }}>
+                                            <TouchableOpacity disabled={respondingAppId === app.id} style={{ flex:1, backgroundColor:'#f59e0b20', borderRadius:6, paddingVertical:3, alignItems:'center', borderWidth:1, borderColor:'#f59e0b60', opacity: respondingAppId === app.id ? 0.6 : 1 }} onPress={() => { setCounterInputFor(app.id); setCounterPriceInput(''); }}>
                                                 <Text style={{ color:'#f59e0b', fontSize:moderateScale(9), fontWeight:'700' }}>{t.refereeCounterBtn}</Text>
                                             </TouchableOpacity>
-                                            <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius:6, paddingVertical:3 }]} onPress={() => respondRefereeApplication(app.id, 'reject')}>
+                                            <TouchableOpacity disabled={respondingAppId === app.id} style={[s.cancelBtn, { flex:1, borderRadius:6, paddingVertical:3, opacity: respondingAppId === app.id ? 0.6 : 1 }]} onPress={() => respondRefereeApplication(app.id, 'reject')}>
                                                 <Text style={[s.cancelBtnText, { fontSize:moderateScale(9) }]}>{t.inviteRejectBtn}</Text>
                                             </TouchableOpacity>
                                         </View>
@@ -3484,9 +3520,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         ) : isFull ? (
                             <View style={{ gap:6 }}>
                                 <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}><Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>{t.ilanFull || 'İlan doldu'}</Text></View>
-                                {/* Kullanıcı isteği: ilan sahibi hakem istemese bile, bu sporda
-                                    onaylı hakemliği olan biri yine de hakem olarak başvurabilsin. */}
-                                {(item.refereeRequested || myRefereeListing?.approved) && !item.refereeUser && (
+                                {item.refereeRequested && !item.refereeUser && (
                                     <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
                                         <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>{t.refereeApplyBtn}</Text>
                                     </TouchableOpacity>
@@ -3530,10 +3564,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(handleJoin, 300); }}>
                                     <Text style={[s.joinBtnText, { fontSize: moderateScale(12) }]}>{t.joinBtn}</Text>
                                 </TouchableOpacity>
-                                {/* Kullanıcı isteği: ilan sahibi hakem istemese bile, bu sporda
-                                    onaylı hakemliği olan biri Katıl ile aynı satırda hakem olarak
-                                    başvurabilsin. */}
-                                {(item.refereeRequested || myRefereeListing?.approved) && !item.refereeUser && (
+                                {item.refereeRequested && !item.refereeUser && (
                                     <TouchableOpacity style={{ flex:1, backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', justifyContent:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
                                         <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeApplyBtn}</Text>
                                     </TouchableOpacity>
@@ -3541,6 +3572,20 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             </View>
                         )}
                     </View>
+
+                    {/* Kullanıcı isteği: bu sporda onaylı hakemliği olan biri, ilan sahibi hakem
+                        istemese bile ilan detayından hakem olarak başvurabilsin. Yukarıdaki uzun
+                        ternary zincirinde (isOwner/isFull/mySentReq PENDING-COUNTERED-ACCEPTED/
+                        takım sporu roster'ı vb.) HER dala ayrı ayrı eklemek yerine, tüm dallardan
+                        bağımsız TEK bir yerde gösteriliyor — böylece hangi dal aktif olursa olsun
+                        (ör. voleybolde teamSize>1 roster akışı) kaybolmuyor. isOwner ve zaten
+                        hakemi atanmış/kendi başvurusu olan durumlar hariç tutulur. */}
+                    {!isOwner && !item.refereeUser && myRefereeListing?.approved &&
+                     !refereeApplications.some(app => app.userId === myId) && (
+                        <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70', marginBottom:14 }} onPress={() => setRefereeApplyVisible(true)}>
+                            <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>{t.refereeApplyBtn}</Text>
+                        </TouchableOpacity>
+                    )}
 
                     {/* Açıklama + Ödül — kullanıcı isteği: buraya, Yorumlar'ın hemen üstüne taşındı
                         (önceden üst bilgi satırının hemen altında, header'a yakın gösteriliyordu). */}
