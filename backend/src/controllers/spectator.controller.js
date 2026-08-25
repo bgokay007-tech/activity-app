@@ -1,8 +1,30 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
-import { applyBlendedVolleyballRating } from '../utils/volleyballRating.js';
+import { applyBlendedVolleyballRating, isApprovedVolleyballCoach } from '../utils/volleyballRating.js';
 
 const SPECTATOR_SELECT = { id: true, username: true, fullName: true, avatar: true };
+
+// Kullanıcı isteği: seyirci listesinde antrenör olan kişinin ad soyadı, olmayanın ise
+// voleybol dalındaki (varsa) takma adı gösterilsin — isCoach/alias burada hesaplanıp
+// mobile'a bırakılır, hangi metnin gösterileceğine orada karar verilir.
+async function enrichSpectators(rows) {
+    const userIds = [...new Set(rows.map(r => r.userId))];
+    if (userIds.length === 0) return [];
+    const [interests, coachFlags] = await Promise.all([
+        prisma.userInterest.findMany({
+            where: { userId: { in: userIds }, subCategory: 'volleyball' },
+            select: { userId: true, alias: true },
+        }),
+        Promise.all(userIds.map(async uid => [uid, await isApprovedVolleyballCoach(uid)])),
+    ]);
+    const aliasByUser = Object.fromEntries(interests.map(i => [i.userId, i.alias]));
+    const coachByUser = Object.fromEntries(coachFlags);
+    return rows.map(r => ({
+        id: r.id, user: r.user, createdAt: r.createdAt,
+        isCoach: !!coachByUser[r.userId],
+        alias: aliasByUser[r.userId] || null,
+    }));
+}
 
 // Seyirci olarak katılım şimdilik sadece voleybolda açık — amaç onaylı antrenörlerin
 // izledikleri maçlardaki oyuncuları değerlendirebilmesi (bkz. resolveRaterRole,
@@ -46,7 +68,7 @@ export const getSpectators = async (req, res, next) => {
         rows = await pruneRosterSpectators(rival, rows);
 
         res.json({
-            spectators: rows.map(r => ({ id: r.id, user: r.user, createdAt: r.createdAt })),
+            spectators: await enrichSpectators(rows),
             amISpectator: rows.some(r => r.userId === req.userId),
             canJoin: true,
         });
@@ -91,7 +113,7 @@ export const joinSpectator = async (req, res, next) => {
             include: { user: { select: SPECTATOR_SELECT } },
         });
         res.json({
-            spectators: rows.map(r => ({ id: r.id, user: r.user, createdAt: r.createdAt })),
+            spectators: await enrichSpectators(rows),
             amISpectator: true,
             canJoin: true,
         });
@@ -110,7 +132,7 @@ export const leaveSpectator = async (req, res, next) => {
             include: { user: { select: SPECTATOR_SELECT } },
         });
         res.json({
-            spectators: rows.map(r => ({ id: r.id, user: r.user, createdAt: r.createdAt })),
+            spectators: await enrichSpectators(rows),
             amISpectator: false,
             canJoin: true,
         });

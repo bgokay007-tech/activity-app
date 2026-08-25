@@ -3561,7 +3561,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             ) : (
                                 spectators.map(sp => (
                                     <View key={sp.id} style={[det.playerRow, { justifyContent:'space-between' }]}>
-                                        <Text style={det.playerName}>{sp.user?.username || sp.user?.fullName}</Text>
+                                        {/* Kullanıcı isteği: antrenörse ad soyad, değilse voleybol dalındaki
+                                            takma adı (alias) — yoksa kullanıcı adına düşer. */}
+                                        <Text style={det.playerName}>{sp.isCoach ? (sp.user?.fullName || sp.user?.username) : (sp.alias || sp.user?.username)}</Text>
                                         {isMatchRosterMember && sp.user?.id !== myId && (
                                             <TouchableOpacity
                                                 disabled={disputingSpectatorId === sp.user?.id}
@@ -7332,7 +7334,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             ) : (
                                 spectators.map(sp => (
                                     <View key={sp.id} style={[det.playerRow, { justifyContent:'space-between' }]}>
-                                        <Text style={det.playerName}>{sp.user?.username || sp.user?.fullName}</Text>
+                                        {/* Kullanıcı isteği: antrenörse ad soyad, değilse voleybol dalındaki
+                                            takma adı (alias) — yoksa kullanıcı adına düşer. */}
+                                        <Text style={det.playerName}>{sp.isCoach ? (sp.user?.fullName || sp.user?.username) : (sp.alias || sp.user?.username)}</Text>
                                         {isMatchRosterMember && sp.user?.id !== myId && (
                                             <TouchableOpacity
                                                 disabled={disputingSpectatorId === sp.user?.id}
