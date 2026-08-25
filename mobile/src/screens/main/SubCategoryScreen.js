@@ -23,6 +23,7 @@ import { moderateScale } from '../../theme/scale';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 import CityAutocomplete from '../../components/CityAutocomplete';
+import MultiCityAutocomplete from '../../components/MultiCityAutocomplete';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
 import DateRangePickerModal from '../../components/DateRangePickerModal';
 import TimePickerModal from '../../components/TimePickerModal';
@@ -737,11 +738,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [amISpectator, setAmISpectator] = useState(false);
     const [spectatorActionLoading, setSpectatorActionLoading] = useState(false);
     const [disputingSpectatorId, setDisputingSpectatorId] = useState(null);
+    const [disputingReferee, setDisputingReferee] = useState(false);
     const [inviteModalVisible, setInviteModalVisible] = useState(false);
-    // Kullanıcı isteği: kadro kartındaki forma arama kutusuna yazarken, ekranın en altındaki
-    // "Yorum yaz" satırı klavyenin hemen üstünde alakasızca duruyor, kafa karıştırıyordu — yazı
-    // yazılan forma ile hiç ilgisi yok. O forma odaktayken bu satır gizlenir.
-    const [rosterSearchActive, setRosterSearchActive] = useState(false);
     const [inviteQuery, setInviteQuery] = useState('');
     const [inviteResults, setInviteResults] = useState([]);
     const [inviteSearching, setInviteSearching] = useState(false);
@@ -917,6 +915,31 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         })
                         .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed))
                         .finally(() => setDisputingSpectatorId(null));
+                },
+            },
+        ]);
+    };
+
+    // Kullanıcı isteği: maç kadrosundan biri mevcut hakeme itiraz eder — kadronun yarısından
+    // fazlası aynı hakeme itiraz edince hakem maçtan otomatik çıkarılır ve kendisine bilgi
+    // gider (bkz. disputeReferee, backend/rival.controller.js).
+    const disputeRefereeUser = () => {
+        Alert.alert(t.refereeDisputeConfirmTitle, t.refereeDisputeConfirmMsg, [
+            { text: t.cancelBtn, style: 'cancel' },
+            {
+                text: t.refereeDisputeConfirmBtn, style: 'destructive', onPress: () => {
+                    setDisputingReferee(true);
+                    api.post(`/rivals/${item.id}/referee/dispute`)
+                        .then(({ data }) => {
+                            if (data?.resolved) {
+                                Alert.alert(t.refereeDisputeResolvedTitle, t.refereeDisputeResolvedMsg);
+                                onRefresh();
+                            } else {
+                                Alert.alert(t.refereeDisputeRecordedTitle, t.refereeDisputeRecordedMsg(data.voteCount, data.majorityNeeded));
+                            }
+                        })
+                        .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed))
+                        .finally(() => setDisputingReferee(false));
                 },
             },
         ]);
@@ -1915,7 +1938,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t} placeholder={fallback}
                                                 genderReq={gReqValue}
                                                 onInvite={(u) => inviteToDoubleSlot(u, slot)}
-                                                onActiveChange={setRosterSearchActive}
                                                 onOpenPicker={() => { setDoubleInviteFromSlot(slot); setShowDoubleFriendsPicker(true); }} />
                                         </View>
                                     );
@@ -2503,8 +2525,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     {isOwner && side ? (
                                                         <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t}
                                                             placeholder={t.teamSlotPh(i + 1)}
-                                                            onInvite={(u) => inviteToTeamSlot(u, side, i)}
-                                                            onActiveChange={setRosterSearchActive} />
+                                                            onInvite={(u) => inviteToTeamSlot(u, side, i)} />
                                                     ) : isHighlighted ? (
                                                         <Animated.View style={{ flexDirection:'row', alignItems:'center', gap:3, borderWidth:2, borderColor: cfg.color, borderRadius:8, padding:2, opacity: highlightPulse }}>
                                                             <Text style={{ fontSize:12 }}>👉</Text>
@@ -3469,6 +3490,33 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </View>
                     )}
 
+                    {/* Yorum yaz — kullanıcı isteği: eskiden ekranın en altına, klavyenin hemen
+                        üstüne SABİT olarak yapıştırılmıştı; kadro kartındaki forma arama kutusuna
+                        yazarken de alakasızca orada duruyordu. Artık normal kaydırılan akışın
+                        içinde, doğrudan "Yorumlar" başlığının ÜSTÜNDE — sadece kullanıcı buraya
+                        kadar kaydırınca görünür. */}
+                    {item.refereeUser?.id !== myId && (
+                        <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
+                            <TextInput
+                                style={[s.fieldInput, { flex:1, height:moderateScale(44), marginBottom:0, fontSize:moderateScale(14) }]}
+                                placeholder={t.matchCommentPlaceholder}
+                                placeholderTextColor={colors.textMuted}
+                                value={commentText}
+                                onChangeText={setCommentText}
+                                multiline={false}
+                                returnKeyType="send"
+                                onSubmitEditing={sendComment}
+                            />
+                            <TouchableOpacity
+                                style={[s.joinBtn, { paddingHorizontal:15, height:moderateScale(44), justifyContent:'center', alignSelf:'center', borderRadius: moderateScale(10) }, sendingComment && { opacity:0.6 }]}
+                                onPress={sendComment}
+                                disabled={sendingComment}
+                            >
+                                <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{t.matchCommentSend}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
                     {/* Yorumlar bölümü */}
                     <Text style={{ color:'#fff', fontSize:moderateScale(15), fontWeight:'800', marginBottom:14 }}>
                         💬 {t.matchCommentsTitle}{comments.length > 0 ? ` (${comments.length})` : ''}
@@ -3498,33 +3546,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         ))
                     )}
                 </ScrollView>
-
-                {/* Yorum yaz — bottom. Kadro kartındaki forma arama kutusu odaktayken bu satır
-                    gizlenir (bkz. rosterSearchActive) — klavyenin hemen üstünde alakasız bir
-                    "Yorum yaz" kutusu durup kafa karıştırmasın diye. */}
-                {!rosterSearchActive && (
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={0}>
-                    <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7, paddingBottom: insets.bottom + (Platform.OS==='ios' ? 8 : 10), borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
-                        <TextInput
-                            style={[s.fieldInput, { flex:1, height:moderateScale(44), marginBottom:0, fontSize:moderateScale(14) }]}
-                            placeholder={t.matchCommentPlaceholder}
-                            placeholderTextColor={colors.textMuted}
-                            value={commentText}
-                            onChangeText={setCommentText}
-                            multiline={false}
-                            returnKeyType="send"
-                            onSubmitEditing={sendComment}
-                        />
-                        <TouchableOpacity
-                            style={[s.joinBtn, { paddingHorizontal:15, height:moderateScale(44), justifyContent:'center', alignSelf:'center', borderRadius: moderateScale(10) }, sendingComment && { opacity:0.6 }]}
-                            onPress={sendComment}
-                            disabled={sendingComment}
-                        >
-                            <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{t.matchCommentSend}</Text>
-                        </TouchableOpacity>
-                    </View>
-                </KeyboardAvoidingView>
-                )}
 
                 {/* Oyuncu Davet Et — arama paneli. Ayrı bir <Modal> DEĞİL: bu View zaten
                     dış Modal'ın (yukarıdaki, visible={visible}) içinde — Android'de iç içe
@@ -4916,9 +4937,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [loadingLocalComments, setLoadingLocalComments] = useState(false);
     const [localCommentsLoaded, setLocalCommentsLoaded] = useState(false);
     const [localCommentText, setLocalCommentText] = useState('');
-    // Kullanıcı isteği: kadro kartındaki forma arama kutusuna yazarken alttaki "Yorum yaz"
-    // satırı klavyenin üstünde alakasızca durup kafa karıştırıyordu — o forma odaktayken gizlenir.
-    const [rosterSearchActive, setRosterSearchActive] = useState(false);
     const [sendingLocalComment, setSendingLocalComment] = useState(false);
     // Seyirci listesi — sadece voleybolda: onaylı antrenörlerin izledikleri maçlardaki
     // oyuncuları değerlendirebilmesi için (bkz. resolveRaterRole, backend/utils/volleyballRating.js).
@@ -6128,7 +6146,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             placeholder={SLOT_LABEL[slot]}
                                             genderReq={slotGReq[slot]}
                                             onInvite={(u) => onInviteDoubleSlot(u, slot)}
-                                            onActiveChange={setRosterSearchActive}
                                             onOpenPicker={() => { setDoubleInviteFromSlot(slot); setShowDoubleFriendsPicker(true); }}
                                         />
                                     </View>
@@ -7209,6 +7226,30 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </View>
                     )}
 
+                    {/* Yorum yaz — kullanıcı isteği: eskiden ekranın en altına, klavyenin hemen
+                        üstüne SABİT yapıştırılmıştı; artık normal kaydırılan akışın içinde,
+                        doğrudan "Yorumlar" başlığının ÜSTÜNDE. */}
+                    {match.refereeUser?.id !== myId && (
+                        <View style={{ flexDirection:'row', gap:3, marginBottom:12 }}>
+                            <TextInput
+                                style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:9,
+                                    paddingVertical:5, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
+                                placeholder="Yorum yaz..."
+                                placeholderTextColor={colors.textMuted}
+                                value={localCommentText}
+                                onChangeText={setLocalCommentText}
+                                multiline
+                            />
+                            <TouchableOpacity
+                                style={{ backgroundColor: sendingLocalComment || !localCommentText.trim() ? colors.surface2 : colors.purple,
+                                    borderRadius:10, paddingHorizontal:11, justifyContent:'center', alignItems:'center' }}
+                                onPress={sendLocalComment}
+                                disabled={sendingLocalComment || !localCommentText.trim()}>
+                                <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Gönder</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
                     {/* Comments section */}
                     <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:12 }}>
                         💬 Yorumlar{localComments.length > 0 ? ` (${localComments.length})` : ''}
@@ -7231,32 +7272,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         ))
                     )}
                 </ScrollView>
-
-                {/* Comment input — kadro kartındaki forma odaktayken gizlenir (bkz. rosterSearchActive) */}
-                {!rosterSearchActive && (
-                <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding' : undefined}>
-                    <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7,
-                        paddingBottom: insets.bottom + (Platform.OS==='ios' ? 8 : 10),
-                        borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
-                        <TextInput
-                            style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:9,
-                                paddingVertical:5, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
-                            placeholder="Yorum yaz..."
-                            placeholderTextColor={colors.textMuted}
-                            value={localCommentText}
-                            onChangeText={setLocalCommentText}
-                            multiline
-                        />
-                        <TouchableOpacity
-                            style={{ backgroundColor: sendingLocalComment || !localCommentText.trim() ? colors.surface2 : colors.purple,
-                                borderRadius:10, paddingHorizontal:11, justifyContent:'center', alignItems:'center' }}
-                            onPress={sendLocalComment}
-                            disabled={sendingLocalComment || !localCommentText.trim()}>
-                            <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Gönder</Text>
-                        </TouchableOpacity>
-                    </View>
-                </KeyboardAvoidingView>
-                )}
             </View>
         </Modal>
 
@@ -9866,7 +9881,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
 // aynı mantık (kullanıcı isteği: "form a yazarak davet edicem açık ilandaki gibi"), sadece
 // burada ilan zaten var (açık ya da eşleşmiş) ve davet backend'e gidiyor (bkz. inviteToRival'daki
 // side parametresi), form state'ine değil.
-function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onOpenPicker, cfg, t, placeholder, genderReq, genderFitsCheck, onActiveChange }) {
+function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onOpenPicker, cfg, t, placeholder, genderReq, genderFitsCheck }) {
     const [text, setText] = useState('');
     const [results, setResults] = useState([]);
     const [searching, setSearching] = useState(false);
@@ -9907,8 +9922,6 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                         onChangeText={setText}
                         placeholder={placeholder || (t.teamSlotPh ? t.teamSlotPh(1) : 'İsim yaz...')}
                         placeholderTextColor={colors.textMuted}
-                        onFocus={() => onActiveChange?.(true)}
-                        onBlur={() => onActiveChange?.(false)}
                     />
                     {searching && <ActivityIndicator size="small" color={cfg.color} style={{ position:'absolute', right:5, top:3 }} />}
                 </View>
@@ -9947,13 +9960,8 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                             // çalışıyordu, kullanıcı raporu). onPressIn dokunuşun en başında
                             // ateşlendiği için (showDropdown artık focus/blur'a değil text/results'a
                             // bağlı olduğundan bu görünüm klavye kapanırken sökülmüyor) daha güvenilir.
-                            // focusable={false} (Android): dokunulan satır NATIVE odağı ÜZERİNE
-                            // ALMASIN — aldığında Android'in kendi "odak değişince klavyeyi gizle"
-                            // davranışı bu AYNI dokunuşu iptal ediyordu (RN'in kendi keyboardShould-
-                            // PersistTaps'i bunu önleyemiyor, çünkü bu native seviyede oluyor —
-                            // "ilk tıklama klavyeyi indiriyor, ikinci tıklama davet gönderiyor"
-                            // raporunun asıl kaynağı buydu).
-                            focusable={false}
+                            // NOT: focusable={false} denendi, dokunuşu TAMAMEN işlevsiz hale
+                            // getirdiği için (kullanıcı raporu) geri alındı.
                             onPressIn={() => {
                                 // Formanın cinsiyet kısıtlaması varsa (genderReq), seçilen kişinin
                                 // cinsiyeti uymuyorsa daveti/atamayı hiç başlatmadan uyar — backend
@@ -9998,7 +10006,6 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                         tutarlı sayılabilsin diye ekleme onayıyla birlikte isteniyor. */}
                     {onAddManual && text.trim().length >= 3 && (
                         <TouchableOpacity
-                            focusable={false}
                             onPressIn={() => {
                                 const manualName = text.trim();
                                 setText(''); setResults([]);
@@ -18483,7 +18490,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         credentialLevel: 'INDEPENDENT', certName: '', experience: '',
         achievements: '', individual: true, group: false,
         priceIndividual: '', priceGroup: '', maxGroupSize: '4',
-        location: '', city: '', days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
+        location: '', cities: [], days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
         locationMutual: false,
     });
     const [coachCertImage, setCoachCertImage] = useState(null);
@@ -19058,18 +19065,20 @@ export default function SubCategoryScreen({ route, navigation }) {
             credentialLevel: 'INDEPENDENT', certName: '', experience: '',
             achievements: '', individual: true, group: false,
             priceIndividual: '', priceGroup: '', maxGroupSize: '4',
-            location: '', city: '', days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
+            location: '', cities: [], days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
         });
         setCoachCertImage(null);
         setCoachCvImage(null);
         setCoachAchievementImages([]);
     };
 
+    // Kullanıcı isteği: konum artık zorunlu değil, onun yerine bir/birden fazla şehir
+    // zorunlu; CV/admin onayı zorunluluğu voleybol dışında tenis ve padelde de geçerli.
+    const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+
     const submitCoach = async () => {
-        if (!coachForm.locationMutual && !coachForm.location.trim()) return Alert.alert('', 'Konum zorunludur');
-        // Kullanıcı isteği: voleybolde antrenörlük başvurusu admin onayıyla değerlendirildiği
-        // için CV'siz gönderilemez — CV eksikse admin neye göre onaylayacağını bilemez.
-        if (sub === 'volleyball' && !coachCvImage) return Alert.alert('', 'Voleybolde antrenörlük başvurusu için CV yüklemeniz zorunludur.');
+        if (coachForm.cities.length === 0) return Alert.alert('', 'En az bir şehir seçmelisiniz');
+        if (COACH_APPROVAL_SPORTS.includes(sub) && !coachCvImage) return Alert.alert('', 'Bu dalda antrenörlük başvurusu için CV yüklemeniz zorunludur.');
         setSubmittingCoach(true);
         try {
             setUploadingCoachMedia(true);
@@ -21630,7 +21639,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
                             <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
-                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>{category === 'ARTS' ? '🎓 Kurs Oluştur' : '🎓 Destek İlanı Oluştur'}</Text>
+                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>
+                                        {category === 'ARTS' ? '🎓 Kurs Oluştur' : COACH_APPROVAL_SPORTS.includes(sub) ? '🎓 Antrenörlük Başvurusu' : '🎓 Destek İlanı Oluştur'}
+                                    </Text>
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kimlik / Belge</Text>
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>
@@ -21647,7 +21658,17 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </TouchableOpacity>
                                         ))}
                                     </View>
-                                    <TextInput placeholder="Belge/Sertifika adı (örn. ITF Level 2)" placeholderTextColor={colors.textMuted} value={coachForm.certName} onChangeText={v => setCoachForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                    {/* Kullanıcı isteği: sertifika alanı her spor dalı için kendi dalıyla ilgili
+                                        olsun — sabit bir enum yerine (gerçek federasyon/sertifika isimleri dala
+                                        göre çok değişken) her dala özel örnek metinle yönlendiriliyor. */}
+                                    <TextInput
+                                        placeholder={
+                                            sub === 'tennis' ? 'Belge/Sertifika adı (örn. ITF Level 1/2/3, TTF Antrenör Belgesi)'
+                                            : sub === 'padel' ? 'Belge/Sertifika adı (örn. TPF Antrenör Belgesi, Padel Pro)'
+                                            : sub === 'volleyball' ? 'Belge/Sertifika adı (örn. TVF Antrenör Belgesi, FIVB Coaching Certificate)'
+                                            : 'Belge/Sertifika adı (örn. ITF Level 2)'
+                                        }
+                                        placeholderTextColor={colors.textMuted} value={coachForm.certName} onChangeText={v => setCoachForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                     <TouchableOpacity onPress={() => pickCoachSingleImage(setCoachCertImage)}
                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
                                         <Text style={{ fontSize:14 }}>📜</Text>
@@ -21693,11 +21714,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </TouchableOpacity>
                                         ))}
                                     </View>
-                                    {!coachForm.locationMutual && <TextInput placeholder="Konum (kort/tesis adı) *" placeholderTextColor={colors.textMuted} value={coachForm.location} onChangeText={v => setCoachForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />}
-                                    <CityAutocomplete
-                                        value={coachForm.city || ''}
-                                        onChangeText={v => setCoachForm(f=>({...f,city:v}))}
-                                        placeholder="Şehir"
+                                    {/* Kullanıcı isteği: konum artık zorunlu değil (opsiyonel bilgi), onun
+                                        yerine aşağıdaki şehir(ler) alanı zorunlu. */}
+                                    {!coachForm.locationMutual && <TextInput placeholder="Konum (kort/tesis adı, opsiyonel)" placeholderTextColor={colors.textMuted} value={coachForm.location} onChangeText={v => setCoachForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />}
+                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Şehir(ler) *</Text>
+                                    <MultiCityAutocomplete
+                                        values={coachForm.cities}
+                                        onChange={v => setCoachForm(f=>({...f,cities:v}))}
+                                        placeholder="Şehir ekle..."
                                         style={{ marginBottom: 8 }}
                                     />
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
@@ -21732,11 +21756,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TouchableOpacity onPress={() => pickCoachSingleImage(setCoachCvImage)}
                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
                                         <Text style={{ fontSize:14 }}>📄</Text>
-                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{coachCvImage ? 'CV Fotoğrafı Seçildi ✓' : `CV Fotoğrafı Yükle${sub === 'volleyball' ? ' *' : ' (opsiyonel)'}`}</Text>
+                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{coachCvImage ? 'CV Fotoğrafı Seçildi ✓' : `CV Fotoğrafı Yükle${COACH_APPROVAL_SPORTS.includes(sub) ? ' *' : ' (opsiyonel)'}`}</Text>
                                     </TouchableOpacity>
-                                    {sub === 'volleyball' && (
+                                    {COACH_APPROVAL_SPORTS.includes(sub) && (
                                         <Text style={{ color:'#f59e0b', fontSize:11, marginBottom:8 }}>
-                                            Voleybolde antrenörlük başvurunuz admin onayına gönderilir — CV'niz incelenip onaylandıktan sonra ilanınız herkese görünür.
+                                            Bu dalda antrenörlük başvurunuz admin onayına gönderilir — CV'niz incelenip onaylandıktan sonra ilanınız herkese görünür.
                                         </Text>
                                     )}
 
@@ -21746,9 +21770,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <TouchableOpacity onPress={() => { setShowCreateCoach(false); resetCoachForm(); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
                                             <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
                                         </TouchableOpacity>
+                                        {/* Kullanıcı isteği: bu dallarda gönderilen şey aslında admin onayı
+                                            bekleyen bir BAŞVURU — "İlanı Yayınla" yanıltıcı, buton bunu
+                                            netleştiriyor. Onay gerekmeyen dallarda eski metin korunuyor. */}
                                         <TouchableOpacity onPress={submitCoach} disabled={submittingCoach || uploadingCoachMedia} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
                                             <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
-                                                {uploadingCoachMedia ? 'Yükleniyor...' : submittingCoach ? '...' : 'İlanı Yayınla'}
+                                                {uploadingCoachMedia ? 'Yükleniyor...' : submittingCoach ? '...' : COACH_APPROVAL_SPORTS.includes(sub) ? 'Antrenörlüğe Başvur' : 'İlanı Yayınla'}
                                             </Text>
                                         </TouchableOpacity>
                                     </View>
