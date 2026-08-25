@@ -3249,6 +3249,11 @@ export const inviteToRival = async (req, res, next) => {
                     if (gUser.gender !== gReq) return res.status(400).json({ message: `Bu slot için ilan yalnızca ${gReq === 'MALE' ? 'erkek' : 'kadın'} oyuncular kabul ediyor.` });
                 }
             }
+        } else if (isRefereeAd) {
+            // Kullanıcı isteği: hakem ilanına bir hakem zaten kabul edilmiş (status artık
+            // MATCHED) olsa bile yedek/değiştirme amacıyla başka bir hakem davet edilebilsin —
+            // ilan sahibi/katılımcılar "bu ilan artık açık değil" hatasıyla engellenmemeli.
+            // Kabul edilirse respondToJoin zaten mevcut hakemin yerine yenisini yazıyor.
         } else if (rival.status !== 'OPEN') {
             return res.status(400).json({ message: 'Bu ilan artık açık değil' });
         }
