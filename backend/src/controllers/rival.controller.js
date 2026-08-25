@@ -985,30 +985,6 @@ async function resolveDoubleAcceptance({ rival, joinReq, joiningTeam, partnerJoi
     return { updatedParticipants: participants, updatedUnassignedPlayers: [...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []), joinerEntry] };
 }
 
-// Hakem pazarlığı adımlarını (başvuru/karşı teklif/kabul/red) asıl maçın mevcut yorum
-// akışına yazar — ilan sahibi, maça katılan oyuncular VE hakem aynı ortak alanda görür/yazar
-// (yorum akışının kendisi zaten herkese açık, ekstra bir yetki kontrolüne gerek yok).
-async function postRefereeComment(mainRivalId, userId, content) {
-    if (!mainRivalId) return;
-    try {
-        const comment = await prisma.matchComment.create({
-            data: { rivalId: mainRivalId, userId, content },
-            include: { user: { select: { id: true, username: true, avatar: true } } },
-        });
-        emitToUser(userId, 'newComment', { rivalId: mainRivalId, comment });
-        const mainRival = await prisma.activityRequest.findUnique({
-            where: { id: mainRivalId },
-            select: { senderId: true, participants: true },
-        });
-        if (mainRival) {
-            const parts = Array.isArray(mainRival.participants) ? mainRival.participants : [];
-            const notifyIds = new Set([mainRival.senderId, ...parts.filter(p => p?.id).map(p => p.id)]);
-            notifyIds.delete(userId);
-            for (const uid of notifyIds) emitToUser(uid, 'newComment', { rivalId: mainRivalId, comment });
-        }
-    } catch {}
-}
-
 export const swapMatchPositions = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -3073,15 +3049,6 @@ export const sendJoinRequest = async (req, res, next) => {
             { rivalId: isRefereeAd ? (request.linkedRivalId || id) : id, category: request.category, subCategory: request.subCategory, ...(isRefereeAd && !request.linkedRivalId && { refereeAd: true }) }
         ).catch(() => {});
 
-        // Hakem başvurusu: fiyat teklifi/mesaj, asıl maçın ortak yorum akışına da düşer —
-        // ilan sahibi VE maça katılan oyuncular görsün, hakem de aynı akışta yazışabilsin.
-        if (isRefereeAd && request.linkedRivalId) {
-            const parts = [`🟨 Hakemlik başvurusu`];
-            if (offerPrice) parts.push(`— Teklif: ${offerPrice}`);
-            if (offerMessage) parts.push(`: "${offerMessage}"`);
-            postRefereeComment(request.linkedRivalId, req.userId, parts.join(' '));
-        }
-
         if (partnerId) {
             const partnerReq = await prisma.rivalJoinRequest.findUnique({
                 where: { rivalId_userId: { rivalId: id, userId: partnerId } },
@@ -4072,7 +4039,6 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                     : `"${subCategoryTR(joinReq.rival.subCategory)}" maçı için hakemlik başvurunuz reddedildi.`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory, refereeAd: true }
             ).catch(() => {});
-            postRefereeComment(joinReq.rival.linkedRivalId, req.userId, '❌ Hakemlik teklifi reddedildi.');
             return;
         }
 
@@ -4089,7 +4055,6 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                 `"${subCategoryTR(joinReq.rival.subCategory)}" maçı için hakemlik teklifine karşılık ${counterPrice} karşı teklif geldi.${counterMessage ? ` "${counterMessage}"` : ''}`,
                 { rivalId: joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory, refereeAd: true }
             ).catch(() => {});
-            postRefereeComment(joinReq.rival.linkedRivalId, req.userId, `↔️ Karşı teklif: ${counterPrice}${counterMessage ? ` — ${counterMessage}` : ''}`);
             return;
         }
 
@@ -4102,7 +4067,6 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                 `"${subCategoryTR(joinReq.rival.subCategory)}" maçı için verdiğiniz karşı teklif reddedildi.`,
                 { rivalId: joinReq.rival.linkedRivalId || joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
-            postRefereeComment(joinReq.rival.linkedRivalId, req.userId, '❌ Karşı teklif reddedildi.');
             return;
         }
 
@@ -4118,7 +4082,6 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                 `"${subCategoryTR(joinReq.rival.subCategory)}" maçı için verdiğiniz ${joinReq.counterPrice} karşı teklif kabul edildi — onay bekleniyor.`,
                 { rivalId: joinReq.rival.linkedRivalId || joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory, refereeAd: true }
             ).catch(() => {});
-            postRefereeComment(joinReq.rival.linkedRivalId, req.userId, `✅ Karşı teklif kabul edildi: ${joinReq.counterPrice}`);
             return;
         }
 
