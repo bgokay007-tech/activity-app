@@ -1137,10 +1137,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
     useEffect(() => {
         if (!inviteModalVisible) return;
-        if (!inviteQuery.trim() || inviteQuery.trim().length < 2) { setInviteResults([]); return; }
+        const q = inviteQuery.trim();
+        // Kullanıcı isteği: hakem davetinde bir şey yazmayı beklemeden bu dalda kayıtlı TÜM
+        // hakemlerin listesi ("hakem listesi") görünsün — /users/by-sport boş q ile de tüm
+        // kayıtları döner. Normal oyuncu davetinde eskisi gibi en az 2 karakter gerekiyor.
+        if (!inviteForReferee && (!q || q.length < 2)) { setInviteResults([]); return; }
         setInviteSearching(true);
         const task = setTimeout(() => {
-            api.get(`/users/search?q=${encodeURIComponent(inviteQuery.trim())}&subCategory=${sub}&category=${item.category}${inviteForReferee ? '&refereeOnly=true' : ''}`)
+            const url = inviteForReferee
+                ? `/users/by-sport?subCategory=${sub}&category=${item.category}&refereeOnly=true${q ? `&q=${encodeURIComponent(q)}` : ''}`
+                : `/users/search?q=${encodeURIComponent(q)}&subCategory=${sub}&category=${item.category}`;
+            api.get(url)
                 .then(res => setInviteResults(Array.isArray(res.data) ? res.data : []))
                 .catch(() => setInviteResults([]))
                 .finally(() => setInviteSearching(false));
@@ -3073,6 +3080,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <>
                                         <Avatar name={item.refereeUser.username} avatar={item.refereeUser.avatar} size={moderateScale(24)} color="#f59e0b" />
                                         <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeSlotLabel}: {item.refereeUser.fullName || item.refereeUser.username} ✓</Text>
+                                        {/* Kullanıcı isteği: hakem zaten atanmışken bile yedek/değişiklik için
+                                            başka bir hakem davet edilebilsin — İtiraz Et'in SOLUNA eklendi.
+                                            Kabul edilirse respondToJoin (rival.controller.js) mevcut hakemin
+                                            yerine yenisini yazıyor ve itiraz oylarını sıfırlıyor, bu yüzden
+                                            burada ayrı bir "çıkar" adımına gerek yok — davet kabul edilince
+                                            otomatik değişiyor. */}
+                                        {!!refereeAdId && (isOwner || ((isParticipant || isLinkedMatchPlayer) && (item.participantsCanInvite || item.linkedRival?.participantsCanInvite))) && (
+                                            <TouchableOpacity onPress={() => { setInviteForReferee(true); setInviteModalVisible(true); }} style={{ marginRight:2 }}>
+                                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>{noEmojiStr(t.inviteRefereeBtn)}</Text>
+                                            </TouchableOpacity>
+                                        )}
                                         {/* Kullanıcı isteği: kadro çoğunluğu itiraz ederse hakem otomatik
                                             çıkarılır (bkz. disputeRefereeUser). */}
                                         {isMatchRosterMember && (
