@@ -965,6 +965,24 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         ]);
     };
 
+    // Kullanıcı isteği: "hakemi çıkarmak istiyorum ama çıkar yok" — disputeRefereeUser kadro
+    // çoğunluğunun oyuna ihtiyaç duyuyor, ilan sahibinin TEK BAŞINA hakemi çıkarabileceği bir
+    // yol yoktu. removeReferee (backend) sadece sahibi yetkilendirir, oy toplamadan hemen uygular.
+    const removeAssignedReferee = () => {
+        Alert.alert(t.refereeRemoveConfirmTitle, t.refereeRemoveConfirmMsg, [
+            { text: t.cancelBtn, style: 'cancel' },
+            {
+                text: t.refereeRemoveConfirmBtn, style: 'destructive', onPress: () => {
+                    setDisputingReferee(true);
+                    api.delete(`/rivals/${item.id}/referee`)
+                        .then(() => onRefresh())
+                        .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed))
+                        .finally(() => setDisputingReferee(false));
+                },
+            },
+        ]);
+    };
+
     useEffect(() => {
         if (!visible || !item?.id) return;
         const off = onSocket('newComment', ({ rivalId, comment }) => {
@@ -3117,9 +3135,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>{noEmojiStr(t.inviteRefereeBtn)}</Text>
                                             </TouchableOpacity>
                                         )}
-                                        {/* Kullanıcı isteği: kadro çoğunluğu itiraz ederse hakem otomatik
-                                            çıkarılır (bkz. disputeRefereeUser). */}
-                                        {isMatchRosterMember && (
+                                        {/* Kullanıcı isteği: "hakemi çıkarmak istiyorum ama çıkar yok" —
+                                            ilan sahibi kadro oyu toplamadan TEK BAŞINA hakemi çıkarabilsin
+                                            (removeAssignedReferee). Diğer kadro üyeleri için oylamalı
+                                            İtiraz Et (disputeRefereeUser) aynen kalıyor. */}
+                                        {isOwner ? (
+                                            <TouchableOpacity disabled={disputingReferee} onPress={removeAssignedReferee} style={{ opacity: disputingReferee ? 0.5 : 1 }}>
+                                                <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>✕ {t.refereeRemoveBtn}</Text>
+                                            </TouchableOpacity>
+                                        ) : isMatchRosterMember && (
                                             <TouchableOpacity disabled={disputingReferee} onPress={disputeRefereeUser} style={{ opacity: disputingReferee ? 0.5 : 1 }}>
                                                 <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>🚩 {t.refereeDisputeBtn}</Text>
                                             </TouchableOpacity>
@@ -5929,6 +5953,24 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         ]);
     };
 
+    // Kullanıcı isteği: "hakemi çıkarmak istiyorum ama çıkar yok" — disputeRefereeUser kadro
+    // çoğunluğunun oyuna ihtiyaç duyuyor, ilan sahibinin TEK BAŞINA hakemi çıkarabileceği bir
+    // yol yoktu. removeReferee (backend) sadece sahibi yetkilendirir, oy toplamadan hemen uygular.
+    const removeAssignedReferee = () => {
+        Alert.alert(t.refereeRemoveConfirmTitle, t.refereeRemoveConfirmMsg, [
+            { text: t.cancelBtn, style: 'cancel' },
+            {
+                text: t.refereeRemoveConfirmBtn, style: 'destructive', onPress: () => {
+                    setDisputingReferee(true);
+                    api.delete(`/rivals/${match.id}/referee`)
+                        .then(() => onRefresh())
+                        .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed))
+                        .finally(() => setDisputingReferee(false));
+                },
+            },
+        ]);
+    };
+
     // Kullanıcı isteği: bildirimden (ör. "Sipariş Güncellendi") gelindiğinde bu maç
     // Yaklaşan Maçlar'daysa detay otomatik açılsın — RivalCard'daki autoOpen ile aynı desen,
     // önceden UpcomingCard'da hiç yoktu (bildirimle gelen highlightRivalId'nin MATCHED bir
@@ -6224,13 +6266,19 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         : match.manualRefereeName ? `${t.refereeSlotLabel}: ${match.manualRefereeName}`
                                         : t.refereeOnlyMissingLabel}
                                 </Text>
-                                {/* Kullanıcı isteği: kadro çoğunluğu itiraz ederse hakem otomatik
-                                    çıkarılır (bkz. disputeRefereeUser). */}
-                                {match.refereeUser && isMatchRosterMember && (
+                                {/* Kullanıcı isteği: "hakemi çıkarmak istiyorum ama çıkar yok" — ilan
+                                    sahibi kadro oyu toplamadan TEK BAŞINA hakemi çıkarabilsin
+                                    (removeAssignedReferee). Diğer kadro üyeleri için oylamalı
+                                    İtiraz Et (disputeRefereeUser) aynen kalıyor. */}
+                                {match.refereeUser && (isOwner ? (
+                                    <TouchableOpacity disabled={disputingReferee} onPress={removeAssignedReferee} style={{ opacity: disputingReferee ? 0.5 : 1 }}>
+                                        <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>✕ {t.refereeRemoveBtn}</Text>
+                                    </TouchableOpacity>
+                                ) : isMatchRosterMember && (
                                     <TouchableOpacity disabled={disputingReferee} onPress={disputeRefereeUser} style={{ opacity: disputingReferee ? 0.5 : 1 }}>
                                         <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>🚩 {t.refereeDisputeBtn}</Text>
                                     </TouchableOpacity>
-                                )}
+                                ))}
                             </View>
                         )}
                         {match.level && (

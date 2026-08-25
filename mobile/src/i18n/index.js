@@ -745,6 +745,10 @@ const en = {
     refereeDisputeConfirmBtn: 'Report',
     refereeDisputeRecordedTitle: 'Report Recorded',
     refereeDisputeRecordedMsg: (n, needed) => `Your report was recorded (${n}/${needed}). Once more than half of the roster reports this referee, they will be removed from the match.`,
+    refereeRemoveBtn: 'Remove',
+    refereeRemoveConfirmTitle: 'Remove Referee',
+    refereeRemoveConfirmMsg: 'Remove the current referee from this match? This happens immediately, no vote needed — if another referee is waiting in the queue they take over right away.',
+    refereeRemoveConfirmBtn: 'Remove',
     refereeDisputeResolvedTitle: 'Referee Removed',
     refereeDisputeResolvedMsg: 'The majority of the match roster reported the referee — they have been removed from this match and notified.',
 
@@ -2211,6 +2215,10 @@ const tr = {
     refereeDisputeConfirmBtn: 'İtiraz Et',
     refereeDisputeRecordedTitle: 'İtiraz Kaydedildi',
     refereeDisputeRecordedMsg: (n, needed) => `İtirazınız kaydedildi (${n}/${needed}). Kadronun yarısından fazlası itiraz edince hakem maçtan çıkarılacak.`,
+    refereeRemoveBtn: 'Çıkar',
+    refereeRemoveConfirmTitle: 'Hakemi Çıkar',
+    refereeRemoveConfirmMsg: 'Bu maçtaki mevcut hakem çıkarılsın mı? Bu işlem oylamaya gerek kalmadan hemen uygulanır — sırada bekleyen bir yedek hakem varsa hemen onun yerine geçer.',
+    refereeRemoveConfirmBtn: 'Çıkar',
     refereeDisputeResolvedTitle: 'Hakem Maçtan Çıkarıldı',
     refereeDisputeResolvedMsg: 'Maç kadrosunun çoğunluğu hakeme itiraz etti — hakem bu maçtan çıkarıldı ve kendisine bilgi verildi.',
 
