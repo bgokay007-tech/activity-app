@@ -22,6 +22,7 @@ const TABS = [
     { key: 'coachRating',      label: '🏐 Antrenör Onayı' },
     { key: 'coachListingApproval', label: '🎓 Antrenörlük İlanı Onayı' },
     { key: 'refereeApproval',  label: '🟨 Hakem Onayı' },
+    { key: 'teamNameApproval', label: '🏆 Takım Adı Onayı' },
     { key: 'flagged',          label: '🚩 İlanlar' },
     { key: 'profilechanges',   label: '🪪 Profil' },
     { key: 'subscriptions',    label: '💳 Abonelik' },
@@ -977,6 +978,107 @@ function RefereeApprovalTab() {
     );
 }
 
+// ── Team Name Approvals (voleybol "Resmi Takım Adı") ──────────────────────────────
+function TeamNameApprovalTab() {
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [filter, setFilter] = useState('PENDING');
+    const [refreshing, setRefreshing] = useState(false);
+    const [rejectId, setRejectId] = useState(null);
+    const [rejectNote, setRejectNote] = useState('');
+
+    const load = useCallback(async (st, isRefresh = false) => {
+        if (isRefresh) setRefreshing(true); else setLoading(true);
+        try {
+            const { data } = await api.get(`/admin/team-name-approvals?status=${st}`);
+            setItems(Array.isArray(data) ? data : []);
+        } catch {}
+        if (isRefresh) setRefreshing(false); else setLoading(false);
+    }, []);
+
+    useEffect(() => { load(filter); }, [filter, load]);
+
+    const approve = async (id) => {
+        try {
+            await api.patch(`/admin/team-name-approvals/${id}`, { action: 'APPROVE' });
+            load(filter);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'İşlem başarısız.'); }
+    };
+
+    const reject = async () => {
+        try {
+            await api.patch(`/admin/team-name-approvals/${rejectId}`, { action: 'REJECT', adminNote: rejectNote || undefined });
+            setItems(prev => prev.filter(r => r.id !== rejectId));
+            setRejectId(null);
+            setRejectNote('');
+        } catch { Alert.alert('Hata', 'Reddedilemedi.'); }
+    };
+
+    if (loading) return <LoadingView />;
+
+    return (
+        <View style={{ flex: 1 }}>
+            <FilterRow
+                options={[
+                    { key: 'PENDING',  label: '⏳ Bekleyen' },
+                    { key: 'APPROVED', label: '✅ Onaylılar' },
+                    { key: 'REJECTED', label: '❌ Reddedilenler' },
+                ]}
+                active={filter}
+                onChange={setFilter}
+            />
+            <FlatList
+                data={items}
+                keyExtractor={r => r.id}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(filter, true)} tintColor={colors.purple} />}
+                renderItem={({ item: r }) => (
+                    <View style={s.card}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={s.cardTitle}>@{r.user?.username || '?'}</Text>
+                            {r.user?.fullName ? <Text style={s.cardMeta}>{r.user.fullName}</Text> : null}
+                            <Text style={[s.cardMeta, { color: colors.purple, fontWeight: '700' }]}>🏆 "{r.teamName}"</Text>
+                            <TouchableOpacity onPress={() => Linking.openURL(r.receiptUrl)}>
+                                <Text style={[s.cardMeta, { color: '#10b981', fontWeight: '700' }]}>📎 Dekontu Aç</Text>
+                            </TouchableOpacity>
+                            {r.status === 'REJECTED' && r.adminNote ? (
+                                <Text style={[s.cardMeta, { color: '#ef4444' }]}>Not: {r.adminNote}</Text>
+                            ) : null}
+                            <Text style={s.cardMeta}>{new Date(r.createdAt).toLocaleDateString('tr-TR')}</Text>
+                        </View>
+                        {filter === 'PENDING' && (
+                            <View style={s.actionCol}>
+                                <Btn label="✓ Onayla" onPress={() => approve(r.id)} color="#10b981" small />
+                                <Btn label="✕ Reddet" onPress={() => setRejectId(r.id)} color="#ef4444" small />
+                            </View>
+                        )}
+                    </View>
+                )}
+                ListEmptyComponent={<EmptyView text={filter === 'PENDING' ? 'Onay bekleyen takım adı başvurusu yok. ✅' : 'Kayıt bulunamadı.'} />}
+            />
+
+            <Modal visible={!!rejectId} transparent animationType="fade" onRequestClose={() => setRejectId(null)}>
+                <View style={s.overlay}>
+                    <View style={s.modalBox}>
+                        <Text style={s.modalTitle}>Ret Nedeni</Text>
+                        <TextInput
+                            style={s.textArea}
+                            placeholder="Ret notu (opsiyonel)..."
+                            placeholderTextColor={colors.textMuted}
+                            value={rejectNote}
+                            onChangeText={setRejectNote}
+                            multiline
+                        />
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                            <Btn label="Vazgeç" onPress={() => setRejectId(null)} color={colors.textMuted} flex />
+                            <Btn label="Reddet" onPress={reject} color="#ef4444" flex />
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+        </View>
+    );
+}
+
 // ── Flagged Listings ──────────────────────────────────────────────────────────────
 function FlaggedTab() {
     const [items, setItems] = useState([]);
@@ -1446,6 +1548,7 @@ export default function AdminPortalScreen({ navigation, route }) {
             case 'coachRating':    return <CoachRatingApprovalTab />;
             case 'coachListingApproval': return <CoachListingApprovalTab />;
             case 'refereeApproval': return <RefereeApprovalTab />;
+            case 'teamNameApproval': return <TeamNameApprovalTab />;
             case 'flagged':        return <FlaggedTab />;
             case 'profilechanges': return <ProfileChangesTab />;
             case 'subscriptions':  return <SubscriptionsTab />;

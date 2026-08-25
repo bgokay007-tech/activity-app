@@ -18894,6 +18894,15 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [playingExpanded, setPlayingExpanded] = useState(true);
     const [openRivalsExpanded, setOpenRivalsExpanded] = useState(true);
     const [showCreatePW, setShowCreatePW] = useState(false);
+    // Voleybol "Resmi Takım Adı" — kullanıcı isteği: Rakip Bul'daki "Rakip Aranıyor" ilanının
+    // sağına, bağış dekontu karşılığı admin onaylı, tek başına sahibine ait bir takım adı
+    // başvuru/gösterim butonu.
+    const [showTeamNameModal, setShowTeamNameModal] = useState(false);
+    const [myTeamNameRequest, setMyTeamNameRequest] = useState(null);
+    const [loadingTeamNameRequest, setLoadingTeamNameRequest] = useState(false);
+    const [teamNameInput, setTeamNameInput] = useState('');
+    const [teamNameReceiptUri, setTeamNameReceiptUri] = useState(null);
+    const [submittingTeamName, setSubmittingTeamName] = useState(false);
     const [showCreateTournament, setShowCreateTournament] = useState(false);
     const [showTournamentPermission, setShowTournamentPermission] = useState(false);
     const [tournamentPermStatus, setTournamentPermStatus] = useState(null);
@@ -19387,6 +19396,48 @@ export default function SubCategoryScreen({ route, navigation }) {
         const task = InteractionManager.runAfterInteractions(() => { loadReferees(); });
         return () => task.cancel();
     }, [loadReferees]);
+
+    // Voleybol "Resmi Takım Adı" — buton hem onaylı ismi göstermek hem de PENDING durumunu
+    // bilmek zorunda olduğu için (loadReferees'daki aynı sebep) sadece modal açılınca değil,
+    // ekran açılır açılmaz çekiliyor.
+    const loadMyTeamNameRequest = useCallback(async () => {
+        if (sub !== 'volleyball') return;
+        setLoadingTeamNameRequest(true);
+        try {
+            const { data } = await api.get('/team-names/mine');
+            setMyTeamNameRequest(data?.request || null);
+        } catch { /* silent */ }
+        finally { setLoadingTeamNameRequest(false); }
+    }, [sub]);
+
+    useEffect(() => { loadMyTeamNameRequest(); }, [loadMyTeamNameRequest]);
+
+    const pickTeamNameReceipt = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') return Alert.alert('', t.mediaPermissionDenied);
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+        if (!result.canceled && result.assets?.[0]) setTeamNameReceiptUri(result.assets[0].uri);
+    };
+
+    const submitTeamNameRequest = async () => {
+        if (!teamNameInput.trim()) return Alert.alert('', t.teamNameRequiredMsg);
+        if (!teamNameReceiptUri) return Alert.alert('', t.teamNameReceiptRequiredMsg);
+        setSubmittingTeamName(true);
+        try {
+            const ext = teamNameReceiptUri.split('.').pop() || 'jpg';
+            const form = new FormData();
+            form.append('file', { uri: teamNameReceiptUri, name: `bagis-dekontu.${ext}`, type: `image/${ext}` });
+            const { data: upload } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+            const { data } = await api.post('/team-names', { teamName: teamNameInput.trim(), receiptUrl: upload.url });
+            setMyTeamNameRequest(data.request);
+            setTeamNameInput(''); setTeamNameReceiptUri(null);
+            Alert.alert('', t.teamNameSubmittedMsg);
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setSubmittingTeamName(false);
+        }
+    };
 
     const pickRefereeAchievementImages = async () => {
         if (refereeAchievementImages.length >= 5) return Alert.alert('', 'En fazla 5 görsel ekleyebilirsiniz');
@@ -21020,6 +21071,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     onPress={() => sub === 'volleyball' ? setShowCreateRival(true) : setShowCreatePW(true)}>
                                     <Text style={[s.createBtnText, { color: cfg.color }]}>{sub === 'volleyball' ? t.createOpponentWantedBtn : t.createPlayerWantedBtn}</Text>
                                 </TouchableOpacity>
+                                {/* Kullanıcı isteği: "Rakip Aranıyor" ilanının sağına, sadece voleybolde,
+                                    bağış dekontu karşılığı admin onaylı "Resmi Takım Adı" butonu — onaylıysa
+                                    isim burada rozet gibi gösterilir. */}
+                                {sub === 'volleyball' && (
+                                    <TouchableOpacity style={[s.createBtn, { borderColor:'#f59e0b60', marginBottom:0 }]}
+                                        onPress={() => setShowTeamNameModal(true)}>
+                                        <Text style={[s.createBtnText, { color:'#f59e0b' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                            {myTeamNameRequest?.status === 'APPROVED' ? `🏆 ${myTeamNameRequest.teamName}`
+                                                : myTeamNameRequest?.status === 'PENDING' ? t.teamNamePendingBtn
+                                                : t.createTeamNameBtn}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
                             </CityAlertRow>
                             {playerWanted.length === 0
                                 ? <EmptyState emoji="👤" text={sub === 'volleyball' ? t.emptyOpponentWanted : t.emptyPlayerWanted} />
@@ -23662,6 +23726,54 @@ export default function SubCategoryScreen({ route, navigation }) {
                 </Modal>
             )}
             {showCreatePW && <CreatePlayerWantedModal visible onClose={() => setShowCreatePW(false)} category={category} sub={sub} onCreated={load} />}
+            {/* Voleybol "Resmi Takım Adı" başvuru/durum modalı */}
+            <Modal visible={showTeamNameModal} animationType="slide" transparent onRequestClose={() => setShowTeamNameModal(false)} android_keyboardInputMode="adjustNothing">
+                <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
+                    <KeyboardAvoidingView behavior="padding">
+                        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'85%' }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', marginBottom:10 }}>
+                                <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800', flex:1 }}>🏆 {t.teamNameModalTitle}</Text>
+                                <TouchableOpacity onPress={() => setShowTeamNameModal(false)}><Text style={{ color: colors.textMuted, fontSize:moderateScale(20) }}>✕</Text></TouchableOpacity>
+                            </View>
+                            <ScrollView keyboardShouldPersistTaps="handled">
+                                <Text style={{ color: colors.textSecondary, fontSize:moderateScale(12), marginBottom:14, lineHeight:18 }}>{t.teamNameModalDesc}</Text>
+                                {loadingTeamNameRequest ? (
+                                    <ActivityIndicator color={cfg.color} />
+                                ) : myTeamNameRequest?.status === 'APPROVED' ? (
+                                    <View style={{ backgroundColor:'#f59e0b15', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b50', padding:12 }}>
+                                        <Text style={{ color:'#f59e0b', fontSize:moderateScale(14), fontWeight:'800', textAlign:'center' }}>{t.teamNameStatusApprovedMsg(myTeamNameRequest.teamName)}</Text>
+                                    </View>
+                                ) : myTeamNameRequest?.status === 'PENDING' ? (
+                                    <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(10) }]}>
+                                        <Text style={[s.waitingText, { fontSize: moderateScale(13) }]}>⏳ {t.teamNameStatusPendingMsg(myTeamNameRequest.teamName)}</Text>
+                                    </View>
+                                ) : (
+                                    <>
+                                        {myTeamNameRequest?.status === 'REJECTED' && (
+                                            <View style={{ backgroundColor:'#ef444415', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#ef444450', padding:10, marginBottom:12 }}>
+                                                <Text style={{ color:'#f87171', fontSize:moderateScale(12) }}>{t.teamNameStatusRejectedMsg(myTeamNameRequest.teamName, myTeamNameRequest.adminNote)}</Text>
+                                            </View>
+                                        )}
+                                        <Text style={s.fieldLabel}>{t.teamNameInputLabel}</Text>
+                                        <TextInput style={s.fieldInput} value={teamNameInput} onChangeText={setTeamNameInput}
+                                            placeholder={t.teamNameInputPlaceholder} placeholderTextColor={colors.textMuted} maxLength={40} />
+                                        <Text style={[s.fieldLabel, { marginTop:6 }]}>{t.teamNameReceiptLabel}</Text>
+                                        <TouchableOpacity onPress={pickTeamNameReceipt} style={{ flexDirection:'row', alignItems:'center', gap:6, backgroundColor: colors.surface2, borderRadius: moderateScale(8), borderWidth:1, borderColor: colors.border, paddingVertical:10, paddingHorizontal:12, marginBottom:14 }}>
+                                            <Text style={{ color: teamNameReceiptUri ? '#4ade80' : cfg.color, fontSize:moderateScale(13), fontWeight:'700' }}>
+                                                {teamNameReceiptUri ? t.teamNameReceiptSelectedMsg : t.teamNamePickReceiptBtn}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={[s.submitBtn, { backgroundColor:'#f59e0b' }, submittingTeamName && { opacity:0.6 }]}
+                                            onPress={submitTeamNameRequest} disabled={submittingTeamName}>
+                                            <Text style={s.submitBtnText}>{submittingTeamName ? t.submittingBtn : t.teamNameSubmitBtn}</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                )}
+                            </ScrollView>
+                        </View>
+                    </KeyboardAvoidingView>
+                </View>
+            </Modal>
             {showCreateTournament && <CreateTournamentModal visible onClose={() => setShowCreateTournament(false)} category={category} sub={sub} onCreated={loadTournaments} />}
             {showTournamentPermission && <TournamentPermissionModal visible onClose={() => setShowTournamentPermission(false)} onStatusChange={setTournamentPermStatus} />}
             {!!profileUserId && <UserProfileModal visible userId={profileUserId} onClose={() => setProfileUserId(null)} navigation={navigation} />}
