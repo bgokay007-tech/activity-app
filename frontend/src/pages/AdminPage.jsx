@@ -24,6 +24,25 @@ const TAB_LABEL = {
     'venue-reviews':    '⭐ Tesis Yorumu',
 };
 
+// Kullanıcı isteği: sidebar'daki her onay kuyruğu sekmesinin yanında bekleyen kayıt sayısı
+// parantez içinde görünsün, sayı > 0 iken yanıp sönerek adminin dikkatini çeksin (onaylar
+// bekletilmesin). İnaktif sekmeler mount olmadığı için (bkz. içerik alanı, sadece activeTab
+// render ediliyor) her panelin kendi fetch'ine güvenemeyiz — tek bir toplu endpoint'ten
+// (bkz. backend admin.controller.js getPendingCounts) periyodik çekiliyor.
+function usePendingCounts() {
+    const [counts, setCounts] = useState({});
+    useEffect(() => {
+        let cancelled = false;
+        const load = () => {
+            api.get('/admin/pending-counts').then(r => { if (!cancelled) setCounts(r.data); }).catch(() => {});
+        };
+        load();
+        const interval = setInterval(load, 30000);
+        return () => { cancelled = true; clearInterval(interval); };
+    }, []);
+    return counts;
+}
+
 // Spor dalına göre filtre çipleri — kort/salon listeleri büyüdükçe (binlerce kayıt)
 // tenis/padel/voleybol vb. birbirine karışmasın diye Courts/Pending Venues/İşletme
 // Tesisleri panellerinin üçünde de kullanılıyor. Sabit bir dal listesi tutmak yerine
@@ -1365,6 +1384,7 @@ export default function AdminPage() {
     const [searchParams] = useSearchParams();
     const user = useSelector(s => s.auth.user);
     const [activeTab, setActiveTab] = useState(TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'dashboard');
+    const pendingCounts = usePendingCounts();
 
     useEffect(() => {
         if (user && !user.isAdmin) navigate('/home');
@@ -1391,12 +1411,22 @@ export default function AdminPage() {
                         <p className="text-yellow-400 font-black text-sm">👑 Admin Panel</p>
                         <p className="text-gray-600 text-[10px]">@{user?.username}</p>
                     </div>
-                    {TABS.map(tab => (
-                        <button key={tab} onClick={() => setActiveTab(tab)}
-                            className={`w-full text-left px-3 py-2 rounded-xl text-sm font-bold transition ${activeTab === tab ? 'bg-purple-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>
-                            {dynamicTabLabels[tab]}
-                        </button>
-                    ))}
+                    {TABS.map(tab => {
+                        const count = pendingCounts[tab] || 0;
+                        return (
+                            <button key={tab} onClick={() => setActiveTab(tab)}
+                                className={`w-full text-left px-3 py-2 rounded-xl text-sm font-bold transition ${activeTab === tab ? 'bg-purple-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>
+                                {dynamicTabLabels[tab]}
+                                {/* Kullanıcı isteği: bekleyen sayısı parantez içinde, > 0 iken
+                                    yanıp sönerek dikkat çeksin — onaylar bekletilmesin. */}
+                                {count > 0 && (
+                                    <span className="ml-1.5 text-red-400 font-black animate-pulse">
+                                        ({count > 99 ? '99+' : count})
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {/* Content */}

@@ -24,6 +24,47 @@ export const getStats = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+// Kullanıcı isteği: web admin panelindeki sidebar sekmelerinin yanında bekleyen kayıt
+// sayısı (parantez içinde) ve yeni bir şey varken yanıp sönen bir rozet gösterilsin —
+// onaylar bekletilmesin. Tek çağrıda TÜM onay kuyruklarının sayısını dönen bu endpoint,
+// AdminPage'in sidebar'ı periyodik olarak buradan besliyor (her panelin kendi listesini
+// ayrıca çekmesine gerek kalmadan — inaktif sekmeler zaten mount olmuyor).
+export const getPendingCounts = async (req, res, next) => {
+    try {
+        const [
+            courts, venues, bizVenues, disputes, noshow, cities,
+            tournamentPerms, flaggedEquipment, flaggedCoaches,
+            profileChanges, subscriptions, venueReviews,
+        ] = await Promise.all([
+            prisma.court.count({ where: { pending: true } }),
+            prisma.court.count({ where: { pending: true, verified: false } }),
+            prisma.businessVenue.count({ where: { status: 'PENDING' } }),
+            prisma.activityRequest.count({ where: { OR: [{ scoreStatus: 'DISPUTED' }, { scoreAppeal: true }] } }),
+            prisma.noShowReport.count({ where: { status: 'PENDING' } }),
+            prisma.city.count({ where: { status: 'PENDING' } }),
+            prisma.tournamentPermissionRequest.count({ where: { status: 'PENDING' } }),
+            prisma.equipmentListing.count({ where: { status: 'FLAGGED' } }),
+            prisma.coachListing.count({ where: { status: 'FLAGGED' } }),
+            prisma.profileChangeRequest.count({ where: { status: 'PENDING' } }),
+            prisma.subscriptionRequest.count({ where: { status: 'PENDING' } }),
+            prisma.venueReview.count({ where: { status: 'PENDING' } }),
+        ]);
+        res.json({
+            courts,
+            venues,
+            'biz-venues': bizVenues,
+            disputes,
+            noshow,
+            cities,
+            'tournament-perms': tournamentPerms,
+            'flagged-listings': flaggedEquipment + flaggedCoaches,
+            'profile-changes': profileChanges,
+            subscriptions,
+            'venue-reviews': venueReviews,
+        });
+    } catch (e) { next(e); }
+};
+
 export const getUsers = async (req, res, next) => {
     try {
         const users = await prisma.user.findMany({

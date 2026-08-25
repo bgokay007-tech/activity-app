@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/admin.middleware.js';
 import {
-    getStats, getUsers, updateUser, deleteUser,
+    getStats, getPendingCounts, getUsers, updateUser, deleteUser,
     getDisputes, resolveDispute, resolveAppeal,
     getAllCourts, deleteCourt, adminUpdateCourt,
     getAllPosts, deletePost,
@@ -22,6 +22,7 @@ const router = Router();
 router.use(authenticate, requireAdmin);
 
 router.get('/stats',              getStats);
+router.get('/pending-counts',     getPendingCounts);
 router.get('/users',              getUsers);
 router.patch('/users/:id',        updateUser);
 router.delete('/users/:id',       deleteUser);
