@@ -809,6 +809,7 @@ model ActivityRequest {
   refereeFeePerPerson Int?                        // hakemle fiyatta anlaşıldığında, hakem ücretinin oyuncu sayısına eşit bölünmüş payı (asıl maç ilanında tutulur)
   refereeId       String?                         // asıl maç ilanında: onaylanmış hakemin userId'si (hakem slotu)
   refereeDisputeVoterIds Json @default("[]")      // mevcut hakeme itiraz eden kadro üyelerinin userId listesi — çoğunluğa ulaşınca hakem çıkarılır (bkz. disputeReferee), refereeId her değiştiğinde sıfırlanır
+  refereeQueue    Json         @default("[]")     // [{userId, username, fullName, avatar, offerPrice}] — refereeId zaten doluyken kabul edilen yeni hakem davetleri buraya sıraya girer, hemen atanmaz; mevcut hakem çıkınca (bkz. disputeReferee) ilk sıradaki otomatik refereeId olur
   minRating       Float?                          // min skill rating to join
   maxRating       Float?                          // max skill rating to join
   ratingGenderSplit Boolean   @default(false)      // true ise minRating/maxRating yerine cinsiyete göre ayrı aralıklar (aşağıda) kullanılır

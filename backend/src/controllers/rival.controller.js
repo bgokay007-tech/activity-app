@@ -1189,7 +1189,6 @@ export const getRefereeApplications = async (req, res, next) => {
         const isInvolved = mainMatch.senderId === req.userId
             || participants.some(p => p?.id === req.userId)
             || senderTeamArr.some(p => p?.id === req.userId);
-        if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
         const refAd = await prisma.activityRequest.findFirst({
             where: { linkedRivalId: id },
@@ -1201,6 +1200,11 @@ export const getRefereeApplications = async (req, res, next) => {
                 },
             },
         });
+        // Kullanıcı isteği: kadroda olmayan ama bu hakem ilanına davet edilmiş/başvurmuş biri
+        // de kendi davetini/başvurusunu görüp kabul/red edebilsin diye bu kişiler de erişebilir.
+        const isInvitedOrApplied = (refAd?.joinRequests || []).some(jr => jr.userId === req.userId);
+        if (!isInvolved && !isInvitedOrApplied) return res.status(403).json({ message: 'Forbidden' });
+
         res.json({ refereeAdId: refAd?.id || null, applications: refAd?.joinRequests || [] });
     } catch (error) { next(error); }
 };
@@ -3318,7 +3322,14 @@ export const inviteToRival = async (req, res, next) => {
                 : isDoubleSlotInvite ? `@${me?.username} sizi ${doubleSlotLabel} olmaya davet etti.${doubleStrictNote}`
                 : `@${me?.username} sizi bir maça davet etti.`,
             {
-                category: rival.category, subCategory: rival.subCategory, rivalId: rival.id, ...(isRefereeAd && { refereeAd: true }),
+                category: rival.category, subCategory: rival.subCategory,
+                // Kullanıcı isteği: hakemlik daveti bağlı bir maça aitse (linkedRivalId) bildirim
+                // Hakemler sekmesine değil DOĞRUDAN o maçın detayına yönlendirmeli — kabul/red
+                // orada "Hakem Başvuruları" bölümünden yapılabiliyor (bkz. sendJoinRequest'teki
+                // aynı desen). Bağımsız bir hakem ilanıysa (linkedRivalId yok) eskisi gibi
+                // Hakemler sekmesine gider.
+                rivalId: isRefereeAd ? (rival.linkedRivalId || rival.id) : rival.id,
+                ...(isRefereeAd && !rival.linkedRivalId && { refereeAd: true }),
                 // Bildirime tıklayınca kadro kartının arka yüzü hangi slotu vurgulayarak
                 // açılsın diye (bkz. mobil navigateFromNotif) — sadece doğrudan slota
                 // davet edildiyse (isTeamSlotInvite/isDoubleSlotInvite) anlamlı.
@@ -4115,30 +4126,51 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
 
             let updatedMain = null;
             let refereeShare = null;
+            let queuedNotAssigned = false;
             if (joinReq.rival.linkedRivalId) {
                 const mainMatch = await prisma.activityRequest.findUnique({ where: { id: joinReq.rival.linkedRivalId } });
                 if (mainMatch) {
                     const feeNum = parseInt(String(joinReq.offerPrice || '').replace(/[^0-9]/g, ''), 10);
                     refereeShare = feeNum ? Math.round(feeNum / totalPlayerCount(mainMatch)) : null;
-                    updatedMain = await prisma.activityRequest.update({
-                        where: { id: mainMatch.id },
-                        // Yeni hakem atanınca önceki hakeme dair itiraz oyları sıfırlanır — yoksa
-                        // eski hakem hakkında birikmiş oylar yanlışlıkla yeni hakeme devrolurdu.
-                        data: { refereeId: joinReq.userId, refereeDisputeVoterIds: [], ...(refereeShare && { refereeFeePerPerson: refereeShare }) },
-                        include: { sender: { select: SENDER_SELECT }, refereeUser: { select: SENDER_SELECT } },
-                    });
-                    broadcast('rivalUpdate', updatedMain);
+                    // Kullanıcı isteği: maçın zaten onaylı bir hakemi varsa, yeni kabul edilen
+                    // hakem HEMEN atanmaz — mevcut hakem çıkana kadar (bkz. disputeReferee)
+                    // sıraya (refereeQueue) girer, ilk boşalınca otomatik terfi eder.
+                    if (mainMatch.refereeId && mainMatch.refereeId !== joinReq.userId) {
+                        const queue = Array.isArray(mainMatch.refereeQueue) ? mainMatch.refereeQueue : [];
+                        if (!queue.some(q => q.userId === joinReq.userId)) {
+                            updatedMain = await prisma.activityRequest.update({
+                                where: { id: mainMatch.id },
+                                data: { refereeQueue: [...queue, { userId: refUser.id, username: refUser.username, fullName: refUser.fullName, avatar: refUser.avatar, offerPrice: joinReq.offerPrice || null }] },
+                                include: { sender: { select: SENDER_SELECT }, refereeUser: { select: SENDER_SELECT } },
+                            });
+                            broadcast('rivalUpdate', updatedMain);
+                        } else {
+                            updatedMain = mainMatch;
+                        }
+                        queuedNotAssigned = true;
+                    } else {
+                        updatedMain = await prisma.activityRequest.update({
+                            where: { id: mainMatch.id },
+                            // Yeni hakem atanınca önceki hakeme dair itiraz oyları sıfırlanır — yoksa
+                            // eski hakem hakkında birikmiş oylar yanlışlıkla yeni hakeme devrolurdu.
+                            data: { refereeId: joinReq.userId, refereeDisputeVoterIds: [], ...(refereeShare && { refereeFeePerPerson: refereeShare }) },
+                            include: { sender: { select: SENDER_SELECT }, refereeUser: { select: SENDER_SELECT } },
+                        });
+                        broadcast('rivalUpdate', updatedMain);
+                    }
                 }
             }
 
             emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: true });
-            res.json({ message: 'Hakem onaylandı', request: updatedMain });
+            res.json({ message: queuedNotAssigned ? 'Hakemlik sırasına alındı' : 'Hakem onaylandı', request: updatedMain });
             createNotification(
-                notifyPending, 'MATCH_CONFIRMED',
-                isOwnerInitiated ? '✅ Hakemlik Daveti Kabul Edildi' : '✅ Hakemlik Başvurunuz Onaylandı',
-                isOwnerInitiated
-                    ? `${refUser.fullName || refUser.username}, "${subCategoryTR(joinReq.rival.subCategory)}" maçında hakemlik davetinizi kabul etti.`
-                    : `"${subCategoryTR(joinReq.rival.subCategory)}" maçı için hakemlik başvurunuz onaylandı.`,
+                notifyPending,
+                queuedNotAssigned ? '🟨 Hakemlik Sırasına Alındınız' : (isOwnerInitiated ? '✅ Hakemlik Daveti Kabul Edildi' : '✅ Hakemlik Başvurunuz Onaylandı'),
+                queuedNotAssigned
+                    ? `"${subCategoryTR(joinReq.rival.subCategory)}" maçında zaten onaylı bir hakem var — kabulünüz yedek sıraya alındı, mevcut hakem çıkarsa otomatik olarak siz atanacaksınız.`
+                    : isOwnerInitiated
+                        ? `${refUser.fullName || refUser.username}, "${subCategoryTR(joinReq.rival.subCategory)}" maçında hakemlik davetinizi kabul etti.`
+                        : `"${subCategoryTR(joinReq.rival.subCategory)}" maçı için hakemlik başvurunuz onaylandı.`,
                 { rivalId: joinReq.rival.linkedRivalId || joinReq.rivalId, category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }
             ).catch(() => {});
             // Kullanıcı isteği: hakem onaylanınca aynı bilgi zaten "Hakem Slotu" özet kutusunda
@@ -5282,12 +5314,19 @@ export const disputeReferee = async (req, res, next) => {
         }
 
         const removedRefereeId = match.refereeId;
+        // Kullanıcı isteği: hakem çıkarılınca, kabul edilmiş ama sırada bekleyen (refereeQueue)
+        // bir yedek hakem varsa otomatik olarak ilk sıradaki yeni hakem olur — sırada kimse
+        // yoksa hakem slotu eskisi gibi boşa düşer (aranıyor durumuna döner).
+        const queue = Array.isArray(match.refereeQueue) ? match.refereeQueue : [];
+        const [promoted, ...restQueue] = queue;
         await prisma.activityRequest.update({
             where: { id },
-            data: { refereeId: null, refereeDisputeVoterIds: [] },
+            data: promoted
+                ? { refereeId: promoted.userId, refereeDisputeVoterIds: [], refereeQueue: restQueue }
+                : { refereeId: null, refereeDisputeVoterIds: [] },
         });
 
-        res.json({ resolved: true });
+        res.json({ resolved: true, promoted: promoted || null });
 
         createNotification(
             removedRefereeId, 'REFEREE_REMOVED_BY_DISPUTE', '🚫 Hakemlikten Çıkarıldınız',
@@ -5295,6 +5334,15 @@ export const disputeReferee = async (req, res, next) => {
             { rivalId: id, category: match.category, subCategory: match.subCategory }
         ).catch(() => {});
         emitToUser(removedRefereeId, 'notification', {});
+
+        if (promoted) {
+            createNotification(
+                promoted.userId, 'MATCH_CONFIRMED', '✅ Hakemliğe Terfi Ettiniz',
+                `"${subCategoryTR(match.subCategory)}" maçında sırada beklediğiniz hakemlik şimdi size geçti.`,
+                { rivalId: id, category: match.category, subCategory: match.subCategory }
+            ).catch(() => {});
+            emitToUser(promoted.userId, 'notification', {});
+        }
     } catch (error) { next(error); }
 };
 

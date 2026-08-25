@@ -3123,7 +3123,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         (bekleyen/karşı teklifli) başvurular kalır. */}
                     {(() => {
                         const pendingRefereeApplications = refereeApplications.filter(app => app.status !== 'ACCEPTED');
-                        return (item.refereeRequested || isRefereeAd) && (isOwner || isParticipant || isLinkedMatchPlayer) && pendingRefereeApplications.length > 0 && (
+                        // Kullanıcı isteği: kadroda olmasa bile, kendisine bu maç için hakemlik
+                        // daveti gelmiş/başvurmuş biri de bu bölümü görüp kendi davetine kabul/red
+                        // verebilsin — bildirime tıklayınca doğrudan burada işlem yapabilmeli.
+                        const iAmInvitedOrApplied = refereeApplications.some(app => app.userId === myId);
+                        return (item.refereeRequested || isRefereeAd) && (isOwner || isParticipant || isLinkedMatchPlayer || iAmInvitedOrApplied) && pendingRefereeApplications.length > 0 && (
                         <View style={{ marginBottom:10, backgroundColor:'#f59e0b0d', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b30', padding:6 }}>
                             <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'800', marginBottom:4 }}>{t.refereeApplicationsTitle}</Text>
                             {pendingRefereeApplications.map(app => (
@@ -3157,7 +3161,20 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     {isOwner && app.status === 'COUNTERED' && (
                                         <Text style={{ color: colors.textMuted, fontSize:moderateScale(9), marginTop:2, fontStyle:'italic' }}>{t.refereeCounterPendingMsg}</Text>
                                     )}
-                                    {app.initiatedBy === 'OWNER' && app.status === 'PENDING' && (
+                                    {/* Kullanıcı isteği: davet edilen kişi bildirimden buraya gelince kendi
+                                        davetine burada doğrudan kabul/red verebilsin — sadece sahibe/kadroya
+                                        pasif "onay bekleniyor" metni gösterilir, davet edilen kişiye butonlar. */}
+                                    {app.initiatedBy === 'OWNER' && app.status === 'PENDING' && app.userId === myId && (
+                                        <View style={{ flexDirection:'row', gap:4, marginTop:4 }}>
+                                            <TouchableOpacity style={{ flex:1, backgroundColor:'#16a34a', borderRadius:6, paddingVertical:3, alignItems:'center' }} onPress={() => respondRefereeApplication(app.id, 'accept')}>
+                                                <Text style={{ color:'#fff', fontSize:moderateScale(9), fontWeight:'700' }}>{t.inviteAcceptBtn}</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius:6, paddingVertical:3 }]} onPress={() => respondRefereeApplication(app.id, 'reject')}>
+                                                <Text style={[s.cancelBtnText, { fontSize:moderateScale(9) }]}>{t.inviteRejectBtn}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                    {app.initiatedBy === 'OWNER' && app.status === 'PENDING' && app.userId !== myId && (
                                         <Text style={{ color: colors.textMuted, fontSize:moderateScale(9), marginTop:2, fontStyle:'italic' }}>Davet gönderildi — onay bekleniyor</Text>
                                     )}
                                     {isOwner && app.initiatedBy !== 'OWNER' && app.status === 'PENDING' && counterInputFor !== app.id && (
@@ -21608,7 +21625,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             )}
                                                         </View>
                                                         <TouchableOpacity onPress={() => setProfileUserId(r.userId)}>
-                                                            <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{r.user?.username}</Text>
+                                                            {/* Kullanıcı isteği: hakemlik ücretli olduğu için sadece kullanıcı
+                                                                adı değil, gerçek isim soyisim de görünsün. */}
+                                                            <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:4 }}>
