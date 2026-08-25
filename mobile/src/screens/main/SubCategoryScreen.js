@@ -2554,8 +2554,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:3 }}>
                                             <Text style={{ color, fontSize:10, fontWeight:'800' }} numberOfLines={1}>{label}</Text>
                                             {isOwner && onEditName && (
-                                                <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }} style={{ flexDirection:'row', alignItems:'center', gap:2 }}>
-                                                    <Text style={{ fontSize:10 }}>✎</Text>
+                                                <TouchableOpacity onPress={onEditName} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
                                                     <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.teamNameChangeBtn}</Text>
                                                 </TouchableOpacity>
                                             )}
@@ -2655,9 +2654,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </>
                                     ) : (
                                         <View style={{ flexDirection:'row', gap:6 }}>
-                                            <TeamColBack label={`👑 ${item.founderTeamName || t.myTeamLabel}`} color={cfg.color} peoplePositional={[{ ...item.sender, position: item.founderPosition }, ...senderTeamArr]} total={teamSizeN} allowRemove={isOwner}
+                                            <TeamColBack label={item.founderTeamName || t.myTeamLabel} color={cfg.color} peoplePositional={[{ ...item.sender, position: item.founderPosition }, ...senderTeamArr]} total={teamSizeN} allowRemove={isOwner}
                                                 side="my" onEditName={() => setTeamNameEdit({ side:'founder', value: item.founderTeamName || '' })} />
-                                            <TeamColBack label={`⚔️ ${item.opponentTeamName || t.oppTeamLabel}`} color="#f87171" peoplePositional={participants} legacyManualExtra={oppManualNames.map(n => ({ manualName: n }))} total={teamSizeN} allowRemove={isOwner}
+                                            <TeamColBack label={item.opponentTeamName || t.oppTeamLabel} color="#f87171" peoplePositional={participants} legacyManualExtra={oppManualNames.map(n => ({ manualName: n }))} total={teamSizeN} allowRemove={isOwner}
                                                 side="opp" onEditName={() => setTeamNameEdit({ side:'opponent', value: item.opponentTeamName || '' })} />
                                         </View>
                                     )}
