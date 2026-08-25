@@ -3467,7 +3467,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         ) : isFull ? (
                             <View style={{ gap:6 }}>
                                 <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}><Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>{t.ilanFull || 'İlan doldu'}</Text></View>
-                                {item.refereeRequested && !item.refereeUser && (
+                                {/* Kullanıcı isteği: ilan sahibi hakem istemese bile, bu sporda
+                                    onaylı hakemliği olan biri yine de hakem olarak başvurabilsin. */}
+                                {(item.refereeRequested || myRefereeListing?.approved) && !item.refereeUser && (
                                     <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
                                         <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>{t.refereeApplyBtn}</Text>
                                     </TouchableOpacity>
@@ -3511,7 +3513,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(handleJoin, 300); }}>
                                     <Text style={[s.joinBtnText, { fontSize: moderateScale(12) }]}>{t.joinBtn}</Text>
                                 </TouchableOpacity>
-                                {item.refereeRequested && !item.refereeUser && (
+                                {/* Kullanıcı isteği: ilan sahibi hakem istemese bile, bu sporda
+                                    onaylı hakemliği olan biri Katıl ile aynı satırda hakem olarak
+                                    başvurabilsin. */}
+                                {(item.refereeRequested || myRefereeListing?.approved) && !item.refereeUser && (
                                     <TouchableOpacity style={{ flex:1, backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', justifyContent:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
                                         <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeApplyBtn}</Text>
                                     </TouchableOpacity>
@@ -19252,14 +19257,17 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const loadReferees = useCallback(async () => {
-        if (activeTab !== 'coaches' || coachSubTab !== 'referees') return;
+        // Kullanıcı isteği: hakemliği olan biri, Hakemler alt-sekmesine hiç girmeden bir ilan
+        // detayını açtığında da "Hakem Olarak Başvur" seçeneğini görebilsin (bkz. myRefereeListing
+        // ile kapılı RivalDetailModal butonları) — önceden bu liste SADECE o alt-sekme aktifken
+        // çekiliyordu, bu yüzden ilan detayındaki buton her zaman item.refereeRequested'a bağlıydı.
         setLoadingReferees(true);
         try {
             const { data } = await api.get(`/referees?category=${category}&subCategory=${sub}`);
             setRefereeListings(Array.isArray(data) ? data : []);
         } catch { /* silent */ }
         finally { setLoadingReferees(false); }
-    }, [activeTab, coachSubTab, category, sub]);
+    }, [category, sub]);
 
     useEffect(() => {
         const task = InteractionManager.runAfterInteractions(() => { loadReferees(); });
