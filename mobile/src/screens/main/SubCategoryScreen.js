@@ -3235,18 +3235,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 participants.some(p => p?.id === myId) || senderTeamArr.some(p => p?.id === myId)
                                 || unassignedArr.some(p => p?.id === myId) || item.receiverId === myId
                             );
-                            return (canInviteHere || canInviteRefereeBtn || canShareHere || canOrderNonOwner) && (
+                            // Kullanıcı isteği: maça zaten katılmış (mySentReq==='ACCEPTED') biri için
+                            // Oyuncu Davet Et/Paylaş/Maçtan Ayrıl artık ayrı ayrı satırlarda değil,
+                            // TEK satırda birlikte gösterilir — ayrıca "Kabul edildiniz" rozetine de
+                            // gerek yok (aşağıdaki bu üçü zaten sadece kabul edilmiş birine çıkıyor).
+                            const canLeaveHere = mySentReq === 'ACCEPTED';
+                            return (canInviteHere || canInviteRefereeBtn || canShareHere || canOrderNonOwner || canLeaveHere) && (
                                 <>
-                                    {(canInviteHere || canInviteRefereeBtn || canOrderNonOwner) && (
+                                    {(canInviteRefereeBtn || canOrderNonOwner) && (
                                         <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
-                                            {canInviteHere && (
-                                                <TouchableOpacity
-                                                    style={[s.joinBtn, { flex:1, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
-                                                    onPress={() => setInviteModalVisible(true)}
-                                                >
-                                                    <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteBtn}</Text>
-                                                </TouchableOpacity>
-                                            )}
                                             {canInviteRefereeBtn && (
                                                 <TouchableOpacity
                                                     style={{ flex:1, backgroundColor:'#f59e0b20', borderWidth:1, borderColor:'#f59e0b50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5), alignItems:'center' }}
@@ -3265,14 +3262,30 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             )}
                                         </View>
                                     )}
-                                    {canShareHere && (
+                                    {(canInviteHere || canShareHere || canLeaveHere) && (
                                         <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
-                                            <TouchableOpacity
-                                                style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
-                                                onPress={() => shareRival(item, t)}
-                                            >
-                                                <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || '📤 Paylaş'}</Text>
-                                            </TouchableOpacity>
+                                            {canInviteHere && (
+                                                <TouchableOpacity
+                                                    style={[s.joinBtn, { flex:1, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                                    onPress={() => setInviteModalVisible(true)}
+                                                >
+                                                    <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteBtn}</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            {canShareHere && (
+                                                <TouchableOpacity
+                                                    style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                                    onPress={() => shareRival(item, t)}
+                                                >
+                                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || '📤 Paylaş'}</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            {canLeaveHere && (
+                                                <TouchableOpacity disabled={leavingMatch} onPress={handleLeaveMatch}
+                                                    style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5), opacity: leavingMatch ? 0.6 : 1 }]}>
+                                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>✕ {t.leaveMatchBtn}{leaveWithinPenaltyWindow ? ' ⚠️' : ''}</Text>
+                                                </TouchableOpacity>
+                                            )}
                                         </View>
                                     )}
                                 </>
@@ -3448,17 +3461,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 </View>
                             </View>
                         ) : mySentReq === 'ACCEPTED' ? (
-                            <View style={{ gap:6 }}>
-                                <View style={[s.waitingBox, { backgroundColor:'#16a34a20', borderColor:'#16a34a40', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}>
-                                    <Text style={[s.waitingText, { color:'#4ade80', fontSize: moderateScale(12) }]}>{t.requestAccepted || '✓ Kabul edildiniz!'}</Text>
-                                </View>
-                                {/* Kullanıcı isteği: kadroya katılmış biri maçtan ayrılabilsin —
-                                    cancelMatch'teki aynı geç iptal ceza penceresi burada da uygulanır. */}
-                                <TouchableOpacity disabled={leavingMatch} onPress={handleLeaveMatch}
-                                    style={[s.cancelBtn, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5), opacity: leavingMatch ? 0.6 : 1 }]}>
-                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>✕ {t.leaveMatchBtn}{leaveWithinPenaltyWindow ? ' ⚠️' : ''}</Text>
-                                </TouchableOpacity>
-                            </View>
+                            // Kullanıcı isteği: "Kabul edildiniz" rozeti kaldırıldı, Maçtan Ayrıl
+                            // butonu artık yukarıda Oyuncu Davet Et/Paylaş ile aynı satırda
+                            // (bkz. canLeaveHere) — burada tekrar göstermeye gerek yok.
+                            null
                         ) : isFull ? (
                             <View style={{ gap:6 }}>
                                 <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}><Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>{t.ilanFull || 'İlan doldu'}</Text></View>
