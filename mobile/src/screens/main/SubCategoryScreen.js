@@ -2190,6 +2190,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                                 <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
                                                             </TouchableOpacity>
                                                         )}
+                                                        {/* Kullanıcı isteği: derece puanı (elo) kurucu dahil herkeste görünsün. */}
+                                                        {item.sender?.interests?.[0]?.skillRating != null && (
+                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{Number(item.sender.interests[0].skillRating).toFixed(2)}★</Text>
+                                                        )}
                                                     </View>
                                                     <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
                                                 </View>
@@ -2321,7 +2325,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:5, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800', marginBottom:4 }}>👑 Kurucu Takımı</Text>
                                             {/* Kurucu sabit — taşınamaz */}
-                                            <SlotBox slot="__owner" locked p={item.sender} fallback="" />
+                                            {/* Kullanıcı isteği: derece puanı (elo) kurucu dahil herkeste görünsün —
+                                                item.sender'da düz skillRating yok, interests[0]'dan taşınıyor
+                                                (SlotBox zaten p.skillRating'i gösteriyor, bkz. teamSlots). */}
+                                            <SlotBox slot="__owner" locked p={{ ...item.sender, skillRating: item.sender?.interests?.[0]?.skillRating }} fallback="" />
                                             <View style={{ flexDirection:'row', alignItems:'center', marginVertical:2 }}>
                                                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', flex:1, textAlign:'center' }}>+</Text>
                                                 {genderLabel(partnerGenderReq) && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700' }}>{genderLabel(partnerGenderReq)}</Text>}
@@ -4205,9 +4212,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                     <View key={p.id || i} style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
                                         <Avatar name={p.username} avatar={p.avatar} size={moderateScale(20)} color={cfg.color} />
                                         <Text style={{ color:'#fff', fontSize:moderateScale(11), flex:1, minWidth:0 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(p)}</Text>
-                                        {/* Kullanıcı isteği: ilan sahibi kadro puanlarını görmesin (kimi kabul edeceğine
-                                            puana göre karar vermesin diye), diğer tüm katılımcılar görebilsin. */}
-                                        {!isOwner && r != null && <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800' }}>{Number(r).toFixed(2)} ★</Text>}
+                                        {/* Kullanıcı isteği: elo/derece puanı artık ilan sahibi dahil HERKESE
+                                            görünsün — önceki "sahip görmesin" kısıtı kaldırıldı. */}
+                                        {r != null && <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800' }}>{Number(r).toFixed(2)} ★</Text>}
                                     </View>
                                 );
                             })}
@@ -6034,9 +6041,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             <Animated.Text style={{ fontSize:12, opacity: orderBlink }}>📋</Animated.Text>
                                         </TouchableOpacity>
                                     )}
-                                    {/* Kullanıcı isteği: ilan sahibi kadro puanlarını görmesin, diğer tüm
-                                        katılımcılar görebilsin. */}
-                                    {!isOwner && p.skillRating != null && <Text style={{ color:'#facc15', fontSize:10, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>}
+                                    {/* Kullanıcı isteği: elo/derece puanı artık ilan sahibi dahil HERKESE
+                                        görünsün (katılsın katılmasın) — önceki "sahip görmesin" kısıtı
+                                        kaldırıldı. */}
+                                    {p.skillRating != null && <Text style={{ color:'#facc15', fontSize:10, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>}
                                 </View>
                             ))}
                         </ScrollView>
@@ -6709,7 +6717,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <View key={jr.id} style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6 }}>
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={26} color={cfg.color} />
                                     <View style={{ flex:1 }}>
-                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>{playerDisplayName(jr.user)}</Text>
+                                        {/* Kullanıcı isteği: derece puanı (elo) burada da herkese görünsün. */}
+                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>
+                                            {playerDisplayName(jr.user)}
+                                            {jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}
+                                        </Text>
                                         {/* Kullanıcı isteği: hangi takıma davet edildiği burada ayrıca yazılmasın —
                                             hem gereksiz tekrar hem de takım ismi sonradan değiştirilince burada
                                             hâlâ eski/genel etiket kalıyordu. Sınıflandırma zaten kadro kartının
