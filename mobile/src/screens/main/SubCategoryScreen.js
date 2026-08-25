@@ -20805,7 +20805,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 seçim yapılınca o katman kapanıp bu modal açık kalıyor. */}
             <Modal visible={showFilterModal} transparent animationType="slide" onRequestClose={() => setShowFilterModal(false)}>
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
-                    <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:16, paddingTop:17, paddingBottom:30 }}>
+                    <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:16, paddingTop:17, paddingBottom: Math.max(20, insets.bottom + 16) }}>
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🔍 {lang==='tr' ? 'Filtrele' : 'Filter'}</Text>
                             <TouchableOpacity onPress={() => setShowFilterModal(false)}><Text style={{ color:colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
@@ -20890,6 +20890,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 {filterDate === 'custom' ? dateFilterLabel() : (lang==='tr' ? 'Özel Tarih Aralığı Seç' : 'Pick Custom Range')}
                             </Text>
                             <Text style={{ color:colors.textMuted, fontSize:12 }}>▾</Text>
+                        </TouchableOpacity>
+
+                        {/* Kullanıcı isteği: filtre değişiklikleri zaten anlık uygulanıyor ama
+                            en altta bir "Onayla" butonu olması daha anlaşılır — dokununca
+                            filtreyi kapatır. Telefonun alt dokunmatik gezinme çubuğuyla
+                            çakışmasın diye insets.bottom ile taşıyıcı View'ın alt boşluğu
+                            zaten ayarlandı (bkz. yukarıdaki paddingBottom). */}
+                        <TouchableOpacity
+                            onPress={() => setShowFilterModal(false)}
+                            style={{ backgroundColor: cfg.color, borderRadius:12, paddingVertical:13, alignItems:'center', marginTop:20 }}
+                        >
+                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>✓ {lang==='tr' ? 'Onayla' : 'Apply'}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
