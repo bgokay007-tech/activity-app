@@ -47,6 +47,27 @@ async function pruneRosterSpectators(rival, rows) {
     return rows.filter(r => !removedIds.has(r.id));
 }
 
+// Kullanıcı isteği: yedek kadro/yedek hakem sırasında olan biri aynı zamanda seyirci olarak
+// kayıtlıysa (yedekken izin veriliyordu, henüz maçın parçası değildi) — asıl kadroya/asıl
+// hakemliğe TERFİ ettiği anda artık maçın gerçek bir parçası oluyor, seyirci kalamaz. Bu
+// terfi anlarının HER birinden (removeRivalParticipant/leaveAsPromotedSubstitute/disputeReferee/
+// removeReferee) çağrılır — pruneRosterSpectators'ın aksine (o sadece liste her okunduğunda
+// sessizce temizliyordu) burada kullanıcıya NEDEN çıkarıldığını açıklayan bir bildirim de gider.
+export async function removeSpectatorOnPromotion(rivalId, userId, promotionLabel) {
+    try {
+        const existing = await prisma.matchSpectator.findUnique({
+            where: { activityRequestId_userId: { activityRequestId: rivalId, userId } },
+        });
+        if (!existing) return;
+        await prisma.matchSpectator.delete({ where: { id: existing.id } });
+        createNotification(
+            userId, 'SPECTATOR_REMOVED_PROMOTED', '👀 Seyirci Kaydınız Kaldırıldı',
+            `Bu maçta ${promotionLabel} terfi ettiğiniz için artık aynı zamanda seyirci olarak kayıtlı kalamazsınız — seyirci listesinden otomatik çıkarıldınız.`,
+            { rivalId }
+        ).catch(() => {});
+    } catch { /* best-effort — seyirci kaydı yoksa/silme başarısız olursa terfi işlemini engellemez */ }
+}
+
 // GET /rivals/:id/spectators
 export const getSpectators = async (req, res, next) => {
     try {
