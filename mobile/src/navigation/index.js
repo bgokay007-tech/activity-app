@@ -300,18 +300,12 @@ function AppTabs() {
     const [unreadMessages, setUnreadMessages] = useState(0);
     const pollRef = useRef(null);
     const messagesPollRef = useRef(null);
-    const shownNotifIdsRef = useRef(new Set());
 
     // Fetch unread count from backend — source of truth
     const syncBadge = useCallback(async () => {
         try {
             const { data } = await api.get('/notifications');
             const count = data.unreadCount || 0;
-            // Her fetch edilen bildirim (okunmuş dahil) "zaten görüldü" sayılır — sadece
-            // okunmamışlarla değiştirilirse, okunan bir bildirim bir sonraki sync'te bu
-            // setten düşüyor ve soket olayı tekrar/gecikmeli gelirse yeniymiş gibi tekrar
-            // yerel bildirim (toast) tetikleniyordu.
-            (data.notifications || []).forEach(n => shownNotifIdsRef.current.add(n.id));
             dispatch(setUnreadCount(count));
         } catch { /* silent */ }
     }, [dispatch]);
@@ -348,13 +342,13 @@ function AppTabs() {
             // event'i sayıp rozeti çift artırmasın diye burada da id şart koşuluyor.
             if (!notif?.id) return;
             dispatch(incrementUnread());
-            if (!shownNotifIdsRef.current.has(notif.id)) {
-                shownNotifIdsRef.current.add(notif.id);
-                Notifications.scheduleNotificationAsync({
-                    content: { title: notif.title, body: notif.body, sound: 'default', data: { ...(notif.data || {}), type: notif.type } },
-                    trigger: null,
-                }).catch(() => {});
-            }
+            // Kullanıcı raporu: davet kabul edildiğinde telefona AYNI bildirim 2 kez
+            // düşüyordu. Sebep: push bildirimleri (FCM V1) çalışmadığı dönemde burada
+            // soket olayı geldiğinde MANUEL olarak yerel bir bildirim (scheduleNotificationAsync)
+            // gösteriliyordu — gerçek push hiç ulaşmadığı için bu tek bildirim gibi
+            // görünüyordu. Push artık düzgün çalıştığı için (bkz. createNotification/sendPush)
+            // gerçek push zaten native bildirimi gösteriyor; bu yerel kopya kaldırıldı, aksi
+            // halde aynı bildirim hem push'tan hem buradan olmak üzere iki kez görünüyordu.
         });
         const offMsg = onSocket('newMessage', ({ message }) => {
             if (message?.senderId && message.senderId !== userId) setUnreadMessages(c => c + 1);
