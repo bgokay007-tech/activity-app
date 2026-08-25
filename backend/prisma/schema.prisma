@@ -792,6 +792,7 @@ model ActivityRequest {
   linkedRivalId   String?                         // hakem-arama ilanıysa (matchType PLAYER_WANTED, positions:['REFEREE']) bağlı olduğu asıl maç ilanının id'si
   refereeFeePerPerson Int?                        // hakemle fiyatta anlaşıldığında, hakem ücretinin oyuncu sayısına eşit bölünmüş payı (asıl maç ilanında tutulur)
   refereeId       String?                         // asıl maç ilanında: onaylanmış hakemin userId'si (hakem slotu)
+  refereeDisputeVoterIds Json @default("[]")      // mevcut hakeme itiraz eden kadro üyelerinin userId listesi — çoğunluğa ulaşınca hakem çıkarılır (bkz. disputeReferee), refereeId her değiştiğinde sıfırlanır
   minRating       Float?                          // min skill rating to join
   maxRating       Float?                          // max skill rating to join
   ratingGenderSplit Boolean   @default(false)      // true ise minRating/maxRating yerine cinsiyete göre ayrı aralıklar (aşağıda) kullanılır

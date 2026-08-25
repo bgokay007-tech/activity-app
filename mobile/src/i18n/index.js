@@ -738,6 +738,15 @@ const en = {
     spectatorDisputeResolvedTitle: 'Spectator Removed',
     spectatorDisputeResolvedMsg: 'The majority of the match roster reported this spectator — their spectator record (and any coach rating based on it) has been voided. Admins have been notified.',
 
+    refereeDisputeBtn: 'Report',
+    refereeDisputeConfirmTitle: 'Report Referee',
+    refereeDisputeConfirmMsg: 'Are you sure you want to object to the current referee? If more than half of the match roster reports the same referee, they will be automatically removed from this match and notified.',
+    refereeDisputeConfirmBtn: 'Report',
+    refereeDisputeRecordedTitle: 'Report Recorded',
+    refereeDisputeRecordedMsg: (n, needed) => `Your report was recorded (${n}/${needed}). Once more than half of the roster reports this referee, they will be removed from the match.`,
+    refereeDisputeResolvedTitle: 'Referee Removed',
+    refereeDisputeResolvedMsg: 'The majority of the match roster reported the referee — they have been removed from this match and notified.',
+
     // SubCategory — tournament creation
     createTournamentBtn: '+ Create Tournament',
     createTournamentTitle: '🏆 Create Tournament',
@@ -2193,6 +2202,15 @@ const tr = {
     spectatorDisputeRecordedMsg: (n, needed) => `İtirazınız kaydedildi (${n}/${needed}). İki takımın yarısından fazlası itiraz edince bu seyircinin kaydı geçersiz sayılacak.`,
     spectatorDisputeResolvedTitle: 'Seyirci Kaydı Silindi',
     spectatorDisputeResolvedMsg: 'Maç kadrosunun çoğunluğu bu seyirciye itiraz etti — seyirci kaydı ve varsa buna dayanan antrenör değerlendirmesi geçersiz kılındı. Admine bildirim gönderildi.',
+
+    refereeDisputeBtn: 'İtiraz Et',
+    refereeDisputeConfirmTitle: 'Hakeme İtiraz Et',
+    refereeDisputeConfirmMsg: 'Mevcut hakeme itiraz etmek istediğinizden emin misiniz? Maç kadrosunun yarısından fazlası aynı hakeme itiraz ederse, hakem bu maçtan otomatik çıkarılır ve kendisine bilgi verilir.',
+    refereeDisputeConfirmBtn: 'İtiraz Et',
+    refereeDisputeRecordedTitle: 'İtiraz Kaydedildi',
+    refereeDisputeRecordedMsg: (n, needed) => `İtirazınız kaydedildi (${n}/${needed}). Kadronun yarısından fazlası itiraz edince hakem maçtan çıkarılacak.`,
+    refereeDisputeResolvedTitle: 'Hakem Maçtan Çıkarıldı',
+    refereeDisputeResolvedMsg: 'Maç kadrosunun çoğunluğu hakeme itiraz etti — hakem bu maçtan çıkarıldı ve kendisine bilgi verildi.',
 
     // SubCategory — tournament creation
     createTournamentBtn: '+ Turnuva Oluştur',

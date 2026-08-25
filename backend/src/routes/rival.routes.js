@@ -11,7 +11,7 @@ import {
     getMyUpcomingMatches, getMyMatchHistory,
     proposeSchedule, acceptSchedule, updateRivalRequest,
     getForReservation, getRefereeApplications, submitRefereeReview, getRivalBill, getMyRivalOrders,
-    requestBillPayment, reportBillUnpaid,
+    requestBillPayment, reportBillUnpaid, disputeReferee,
 } from '../controllers/rival.controller.js';
 import { reportNoShow } from '../controllers/noshow.controller.js';
 import { getPeerReviewTargets, submitPeerReview } from '../controllers/peerReview.controller.js';
@@ -50,6 +50,7 @@ router.patch('/:id/dispute-score',   authenticate, disputeScore);
 router.post('/:id/report-dispute',   authenticate, reportDispute);
 router.post('/:id/appeal-score',     authenticate, appealScore);
 router.post('/:id/referee-review',   authenticate, submitRefereeReview);
+router.post('/:id/referee/dispute',  authenticate, disputeReferee);
 router.patch('/:id/archive',         authenticate, archiveMatch);
 router.patch('/:id/extend-score',    authenticate, extendScoreDeadline);
 router.patch('/:id/abandon',         authenticate, abandonMatch);

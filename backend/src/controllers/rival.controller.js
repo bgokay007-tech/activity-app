@@ -4143,7 +4143,9 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                     refereeShare = feeNum ? Math.round(feeNum / totalPlayerCount(mainMatch)) : null;
                     updatedMain = await prisma.activityRequest.update({
                         where: { id: mainMatch.id },
-                        data: { refereeId: joinReq.userId, ...(refereeShare && { refereeFeePerPerson: refereeShare }) },
+                        // Yeni hakem atanınca önceki hakeme dair itiraz oyları sıfırlanır — yoksa
+                        // eski hakem hakkında birikmiş oylar yanlışlıkla yeni hakeme devrolurdu.
+                        data: { refereeId: joinReq.userId, refereeDisputeVoterIds: [], ...(refereeShare && { refereeFeePerPerson: refereeShare }) },
                         include: { sender: { select: SENDER_SELECT }, refereeUser: { select: SENDER_SELECT } },
                     });
                     broadcast('rivalUpdate', updatedMain);
@@ -5258,6 +5260,48 @@ export const submitRefereeReview = async (req, res, next) => {
         ).catch(() => {});
 
         res.status(201).json(review);
+    } catch (error) { next(error); }
+};
+
+// POST /rivals/:id/referee/dispute — kullanıcı isteği: kadronun çoğunluğu (aynı çoğunluk
+// formülü — bkz. disputeSpectator/spectator.controller.js) mevcut hakeme itiraz ederse hakem
+// maçtan otomatik çıkarılır ve hakeme bilgi verilir.
+export const disputeReferee = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const match = await prisma.activityRequest.findUnique({ where: { id } });
+        if (!match) return res.status(404).json({ message: 'Maç bulunamadı' });
+        if (!match.refereeId) return res.status(400).json({ message: 'Bu maçta itiraz edilecek bir hakem yok' });
+        if (match.refereeId === req.userId) return res.status(403).json({ message: 'Kendi hakemliğinize itiraz edemezsiniz' });
+
+        const participants = Array.isArray(match.participants) ? match.participants : [];
+        const senderTeamArr = Array.isArray(match.senderTeam) ? match.senderTeam : [];
+        const rosterIds = [...new Set([match.senderId, ...participants.map(p => p?.id), ...senderTeamArr.map(m => m?.id)].filter(Boolean))];
+        if (!rosterIds.includes(req.userId)) return res.status(403).json({ message: 'Bu maçın kadrosunda değilsiniz.' });
+
+        const voterIds = new Set(Array.isArray(match.refereeDisputeVoterIds) ? match.refereeDisputeVoterIds : []);
+        voterIds.add(req.userId);
+        const majorityNeeded = Math.floor(rosterIds.length / 2) + 1;
+
+        if (voterIds.size < majorityNeeded) {
+            await prisma.activityRequest.update({ where: { id }, data: { refereeDisputeVoterIds: [...voterIds] } });
+            return res.json({ resolved: false, voteCount: voterIds.size, majorityNeeded });
+        }
+
+        const removedRefereeId = match.refereeId;
+        await prisma.activityRequest.update({
+            where: { id },
+            data: { refereeId: null, refereeDisputeVoterIds: [] },
+        });
+
+        res.json({ resolved: true });
+
+        createNotification(
+            removedRefereeId, 'REFEREE_REMOVED_BY_DISPUTE', '🚫 Hakemlikten Çıkarıldınız',
+            'Bir maçta kadronun çoğunluğu hakemliğinize itiraz etti, bu maçtaki hakemlik göreviniz kaldırıldı.',
+            { rivalId: id, category: match.category, subCategory: match.subCategory }
+        ).catch(() => {});
+        emitToUser(removedRefereeId, 'notification', {});
     } catch (error) { next(error); }
 };
 

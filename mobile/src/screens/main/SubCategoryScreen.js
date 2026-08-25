@@ -3029,6 +3029,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <>
                                         <Avatar name={item.refereeUser.username} avatar={item.refereeUser.avatar} size={moderateScale(24)} color="#f59e0b" />
                                         <Text style={{ color:'#f59e0b', fontSize:moderateScale(12), fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeSlotLabel}: {item.refereeUser.fullName || item.refereeUser.username} ✓</Text>
+                                        {/* Kullanıcı isteği: kadro çoğunluğu itiraz ederse hakem otomatik
+                                            çıkarılır (bkz. disputeRefereeUser). */}
+                                        {isMatchRosterMember && (
+                                            <TouchableOpacity disabled={disputingReferee} onPress={disputeRefereeUser} style={{ opacity: disputingReferee ? 0.5 : 1 }}>
+                                                <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>🚩 {t.refereeDisputeBtn}</Text>
+                                            </TouchableOpacity>
+                                        )}
                                     </>
                                 ) : item.manualRefereeName ? (
                                     <>
@@ -4944,6 +4951,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [amISpectator, setAmISpectator] = useState(false);
     const [spectatorActionLoading, setSpectatorActionLoading] = useState(false);
     const [disputingSpectatorId, setDisputingSpectatorId] = useState(null);
+    const [disputingReferee, setDisputingReferee] = useState(false);
     const [orderVenueId, setOrderVenueId] = useState(null);
     const [showMyOrder, setShowMyOrder] = useState(false);
     const [billView, setBillView] = useState(null); // { bill, courtFeePaid } | null
@@ -5752,6 +5760,31 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         ]);
     };
 
+    // Kullanıcı isteği: maç kadrosundan biri mevcut hakeme itiraz eder — kadronun yarısından
+    // fazlası aynı hakeme itiraz edince hakem maçtan otomatik çıkarılır ve kendisine bilgi
+    // gider (bkz. disputeReferee, backend/rival.controller.js).
+    const disputeRefereeUser = () => {
+        Alert.alert(t.refereeDisputeConfirmTitle, t.refereeDisputeConfirmMsg, [
+            { text: t.cancelBtn, style: 'cancel' },
+            {
+                text: t.refereeDisputeConfirmBtn, style: 'destructive', onPress: () => {
+                    setDisputingReferee(true);
+                    api.post(`/rivals/${match.id}/referee/dispute`)
+                        .then(({ data }) => {
+                            if (data?.resolved) {
+                                Alert.alert(t.refereeDisputeResolvedTitle, t.refereeDisputeResolvedMsg);
+                                onRefresh();
+                            } else {
+                                Alert.alert(t.refereeDisputeRecordedTitle, t.refereeDisputeRecordedMsg(data.voteCount, data.majorityNeeded));
+                            }
+                        })
+                        .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed))
+                        .finally(() => setDisputingReferee(false));
+                },
+            },
+        ]);
+    };
+
     // Kullanıcı isteği: bildirimden (ör. "Sipariş Güncellendi") gelindiğinde bu maç
     // Yaklaşan Maçlar'daysa detay otomatik açılsın — RivalCard'daki autoOpen ile aynı desen,
     // önceden UpcomingCard'da hiç yoktu (bildirimle gelen highlightRivalId'nin MATCHED bir
@@ -6041,11 +6074,20 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             </TouchableOpacity>
                         )}
                         {match.refereeRequested && (match.refereeUser || match.manualRefereeName || !matchEnded) && (
-                            <Text style={{ color:'#f59e0b', fontSize:13, fontWeight:'600', marginTop:6 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {match.refereeUser ? `${t.refereeSlotLabel}: ${match.refereeUser.fullName || match.refereeUser.username} ✓`
-                                    : match.manualRefereeName ? `${t.refereeSlotLabel}: ${match.manualRefereeName}`
-                                    : t.refereeOnlyMissingLabel}
-                            </Text>
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:6 }}>
+                                <Text style={{ color:'#f59e0b', fontSize:13, fontWeight:'600', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    {match.refereeUser ? `${t.refereeSlotLabel}: ${match.refereeUser.fullName || match.refereeUser.username} ✓`
+                                        : match.manualRefereeName ? `${t.refereeSlotLabel}: ${match.manualRefereeName}`
+                                        : t.refereeOnlyMissingLabel}
+                                </Text>
+                                {/* Kullanıcı isteği: kadro çoğunluğu itiraz ederse hakem otomatik
+                                    çıkarılır (bkz. disputeRefereeUser). */}
+                                {match.refereeUser && isMatchRosterMember && (
+                                    <TouchableOpacity disabled={disputingReferee} onPress={disputeRefereeUser} style={{ opacity: disputingReferee ? 0.5 : 1 }}>
+                                        <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>🚩 {t.refereeDisputeBtn}</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
                         )}
                         {match.level && (
                             <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4 }}>
