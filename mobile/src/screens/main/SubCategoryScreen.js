@@ -738,6 +738,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [spectatorActionLoading, setSpectatorActionLoading] = useState(false);
     const [disputingSpectatorId, setDisputingSpectatorId] = useState(null);
     const [inviteModalVisible, setInviteModalVisible] = useState(false);
+    // Kullanıcı isteği: kadro kartındaki forma arama kutusuna yazarken, ekranın en altındaki
+    // "Yorum yaz" satırı klavyenin hemen üstünde alakasızca duruyor, kafa karıştırıyordu — yazı
+    // yazılan forma ile hiç ilgisi yok. O forma odaktayken bu satır gizlenir.
+    const [rosterSearchActive, setRosterSearchActive] = useState(false);
     const [inviteQuery, setInviteQuery] = useState('');
     const [inviteResults, setInviteResults] = useState([]);
     const [inviteSearching, setInviteSearching] = useState(false);
@@ -1911,6 +1915,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t} placeholder={fallback}
                                                 genderReq={gReqValue}
                                                 onInvite={(u) => inviteToDoubleSlot(u, slot)}
+                                                onActiveChange={setRosterSearchActive}
                                                 onOpenPicker={() => { setDoubleInviteFromSlot(slot); setShowDoubleFriendsPicker(true); }} />
                                         </View>
                                     );
@@ -2498,7 +2503,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     {isOwner && side ? (
                                                         <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t}
                                                             placeholder={t.teamSlotPh(i + 1)}
-                                                            onInvite={(u) => inviteToTeamSlot(u, side, i)} />
+                                                            onInvite={(u) => inviteToTeamSlot(u, side, i)}
+                                                            onActiveChange={setRosterSearchActive} />
                                                     ) : isHighlighted ? (
                                                         <Animated.View style={{ flexDirection:'row', alignItems:'center', gap:3, borderWidth:2, borderColor: cfg.color, borderRadius:8, padding:2, opacity: highlightPulse }}>
                                                             <Text style={{ fontSize:12 }}>👉</Text>
@@ -3493,7 +3499,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     )}
                 </ScrollView>
 
-                {/* Yorum yaz — bottom */}
+                {/* Yorum yaz — bottom. Kadro kartındaki forma arama kutusu odaktayken bu satır
+                    gizlenir (bkz. rosterSearchActive) — klavyenin hemen üstünde alakasız bir
+                    "Yorum yaz" kutusu durup kafa karıştırmasın diye. */}
+                {!rosterSearchActive && (
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={0}>
                     <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7, paddingBottom: insets.bottom + (Platform.OS==='ios' ? 8 : 10), borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
                         <TextInput
@@ -3515,6 +3524,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>
+                )}
 
                 {/* Oyuncu Davet Et — arama paneli. Ayrı bir <Modal> DEĞİL: bu View zaten
                     dış Modal'ın (yukarıdaki, visible={visible}) içinde — Android'de iç içe
@@ -4906,6 +4916,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [loadingLocalComments, setLoadingLocalComments] = useState(false);
     const [localCommentsLoaded, setLocalCommentsLoaded] = useState(false);
     const [localCommentText, setLocalCommentText] = useState('');
+    // Kullanıcı isteği: kadro kartındaki forma arama kutusuna yazarken alttaki "Yorum yaz"
+    // satırı klavyenin üstünde alakasızca durup kafa karıştırıyordu — o forma odaktayken gizlenir.
+    const [rosterSearchActive, setRosterSearchActive] = useState(false);
     const [sendingLocalComment, setSendingLocalComment] = useState(false);
     // Seyirci listesi — sadece voleybolda: onaylı antrenörlerin izledikleri maçlardaki
     // oyuncuları değerlendirebilmesi için (bkz. resolveRaterRole, backend/utils/volleyballRating.js).
@@ -6115,6 +6128,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             placeholder={SLOT_LABEL[slot]}
                                             genderReq={slotGReq[slot]}
                                             onInvite={(u) => onInviteDoubleSlot(u, slot)}
+                                            onActiveChange={setRosterSearchActive}
                                             onOpenPicker={() => { setDoubleInviteFromSlot(slot); setShowDoubleFriendsPicker(true); }}
                                         />
                                     </View>
@@ -7218,7 +7232,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     )}
                 </ScrollView>
 
-                {/* Comment input */}
+                {/* Comment input — kadro kartındaki forma odaktayken gizlenir (bkz. rosterSearchActive) */}
+                {!rosterSearchActive && (
                 <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding' : undefined}>
                     <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7,
                         paddingBottom: insets.bottom + (Platform.OS==='ios' ? 8 : 10),
@@ -7241,6 +7256,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>
+                )}
             </View>
         </Modal>
 
@@ -9850,7 +9866,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
 // aynı mantık (kullanıcı isteği: "form a yazarak davet edicem açık ilandaki gibi"), sadece
 // burada ilan zaten var (açık ya da eşleşmiş) ve davet backend'e gidiyor (bkz. inviteToRival'daki
 // side parametresi), form state'ine değil.
-function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onOpenPicker, cfg, t, placeholder, genderReq, genderFitsCheck }) {
+function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onOpenPicker, cfg, t, placeholder, genderReq, genderFitsCheck, onActiveChange }) {
     const [text, setText] = useState('');
     const [results, setResults] = useState([]);
     const [searching, setSearching] = useState(false);
@@ -9891,6 +9907,8 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                         onChangeText={setText}
                         placeholder={placeholder || (t.teamSlotPh ? t.teamSlotPh(1) : 'İsim yaz...')}
                         placeholderTextColor={colors.textMuted}
+                        onFocus={() => onActiveChange?.(true)}
+                        onBlur={() => onActiveChange?.(false)}
                     />
                     {searching && <ActivityIndicator size="small" color={cfg.color} style={{ position:'absolute', right:5, top:3 }} />}
                 </View>
@@ -9929,6 +9947,13 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                             // çalışıyordu, kullanıcı raporu). onPressIn dokunuşun en başında
                             // ateşlendiği için (showDropdown artık focus/blur'a değil text/results'a
                             // bağlı olduğundan bu görünüm klavye kapanırken sökülmüyor) daha güvenilir.
+                            // focusable={false} (Android): dokunulan satır NATIVE odağı ÜZERİNE
+                            // ALMASIN — aldığında Android'in kendi "odak değişince klavyeyi gizle"
+                            // davranışı bu AYNI dokunuşu iptal ediyordu (RN'in kendi keyboardShould-
+                            // PersistTaps'i bunu önleyemiyor, çünkü bu native seviyede oluyor —
+                            // "ilk tıklama klavyeyi indiriyor, ikinci tıklama davet gönderiyor"
+                            // raporunun asıl kaynağı buydu).
+                            focusable={false}
                             onPressIn={() => {
                                 // Formanın cinsiyet kısıtlaması varsa (genderReq), seçilen kişinin
                                 // cinsiyeti uymuyorsa daveti/atamayı hiç başlatmadan uyar — backend
@@ -9940,6 +9965,9 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                                 // genderReq yerine, adayın ÜÇ slottan EN AZ birine uyup uymadığı
                                 // kontrol edilir (bkz. DoubleRosterCard).
                                 if (genderFitsCheck ? !genderFitsCheck(u.gender) : (genderReq && genderReq !== 'MIX' && u.gender !== 'OTHER' && u.gender !== genderReq)) {
+                                    // Kullanıcı raporu: cinsiyet uymayınca uyarı doğru çıkıyordu ama
+                                    // text/results temizlenmediği için öneri kutusu "takılı" kalıyordu.
+                                    setText(''); setResults([]);
                                     Alert.alert(t.genderMismatchTitle, genderFitsCheck ? t.genderMismatchAnyMsg : t.genderMismatchMsg(genderReq));
                                     return;
                                 }
@@ -9970,6 +9998,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                         tutarlı sayılabilsin diye ekleme onayıyla birlikte isteniyor. */}
                     {onAddManual && text.trim().length >= 3 && (
                         <TouchableOpacity
+                            focusable={false}
                             onPressIn={() => {
                                 const manualName = text.trim();
                                 setText(''); setResults([]);
