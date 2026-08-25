@@ -18682,7 +18682,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [refereeForm, setRefereeForm] = useState({
         credentialLevel: 'INDEPENDENT', certName: '', experience: '',
         achievements: '', pricePerMatch: '',
-        location: '', city: '', days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
+        location: '', cities: [], days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
         locationMutual: false,
     });
     const [refereeCertImage, setRefereeCertImage] = useState(null);
@@ -19208,18 +19208,21 @@ export default function SubCategoryScreen({ route, navigation }) {
         setRefereeForm({
             credentialLevel: 'INDEPENDENT', certName: '', experience: '',
             achievements: '', pricePerMatch: '',
-            location: '', city: '', days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
+            location: '', cities: [], days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
         });
         setRefereeCertImage(null);
         setRefereeCvImage(null);
         setRefereeAchievementImages([]);
     };
 
+    // Kullanıcı isteği: konum artık zorunlu değil, onun yerine bir/birden fazla şehir zorunlu;
+    // CV/admin onayı zorunluluğu voleybol dışında tenis ve padelde de geçerli (bkz. coach
+    // formundaki COACH_APPROVAL_SPORTS ile aynı desen).
+    const REFEREE_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+
     const submitReferee = async () => {
-        if (!refereeForm.locationMutual && !refereeForm.location.trim()) return Alert.alert('', 'Konum zorunludur');
-        // Kullanıcı isteği: voleybolde hakemlik başvurusu admin onayıyla değerlendirildiği
-        // için CV'siz gönderilemez — CV eksikse admin neye göre onaylayacağını bilemez.
-        if (sub === 'volleyball' && !refereeCvImage) return Alert.alert('', 'Voleybolde hakemlik başvurusu için CV yüklemeniz zorunludur.');
+        if (refereeForm.cities.length === 0) return Alert.alert('', 'En az bir şehir seçmelisiniz');
+        if (REFEREE_APPROVAL_SPORTS.includes(sub) && !refereeCvImage) return Alert.alert('', 'Bu dalda hakemlik başvurusu için CV yüklemeniz zorunludur.');
         setSubmittingReferee(true);
         try {
             setUploadingRefereeMedia(true);
@@ -21509,10 +21512,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             {r.reviewCount > 0 && (
                                                                 <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>★ {r.avgRating.toFixed(1)} ({r.reviewCount})</Text>
                                                             )}
-                                                            {/* Kullanıcı isteği: voleybolde admin onayı olmadan hakemlik yapılamaz —
-                                                                başvuru sahibi kendi ilanının durumunu görebilsin diye (bkz. getListings,
-                                                                onaylanmamış ilanlar başkalarına zaten hiç gösterilmiyor). */}
-                                                            {r.subCategory === 'volleyball' && !r.approved && (
+                                                            {/* Kullanıcı isteği: voleybol/tenis/padelde admin onayı olmadan
+                                                                hakemlik yapılamaz — başvuru sahibi kendi ilanının durumunu
+                                                                görebilsin diye (bkz. getListings, onaylanmamış ilanlar
+                                                                başkalarına zaten hiç gösterilmiyor). */}
+                                                            {REFEREE_APPROVAL_SPORTS.includes(r.subCategory) && !r.approved && (
                                                                 <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>⏳ Admin Onayı Bekleniyor</Text>
                                                             )}
                                                         </View>
@@ -21525,7 +21529,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         {r.experience > 0 && <Text style={{ color:colors.textMuted, fontSize:11 }}>{r.experience} yıl deneyim</Text>}
                                                     </View>
                                                     {(r.timeFrom || r.timeTo) && <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {r.timeFrom} - {r.timeTo}</Text>}
-                                                    {r.city && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {r.city}{r.location ? ` / ${r.location}` : ''}</Text>}
+                                                    {(r.city || (Array.isArray(r.cities) && r.cities.length > 0)) && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {Array.isArray(r.cities) && r.cities.length > 0 ? r.cities.join(', ') : r.city}{r.location ? ` / ${r.location}` : ''}</Text>}
                                                     {r.description && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={2}>{r.description}</Text>}
                                                     {r.achievements && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {r.achievements}</Text>}
                                                     {r.userId !== myId && (
@@ -22072,7 +22076,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
                             <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
-                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🟨 Hakem İlanı Oluştur</Text>
+                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>
+                                        {REFEREE_APPROVAL_SPORTS.includes(sub) ? '🟨 Hakemlik Başvurusu' : '🟨 Hakem İlanı Oluştur'}
+                                    </Text>
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kimlik / Belge</Text>
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>
@@ -22089,7 +22095,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </TouchableOpacity>
                                         ))}
                                     </View>
-                                    <TextInput placeholder="Belge/Sertifika adı (örn. TFF Hakem Lisansı)" placeholderTextColor={colors.textMuted} value={refereeForm.certName} onChangeText={v => setRefereeForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                    {/* Kullanıcı isteği: sertifika alanı her spor dalı için kendi dalıyla ilgili
+                                        olsun — hakem sertifikaları da dala göre farklı federasyonlardan geliyor. */}
+                                    <TextInput
+                                        placeholder={
+                                            sub === 'tennis' ? 'Belge/Sertifika adı (örn. ITF Beyaz Rozet, TTF Hakem Lisansı)'
+                                            : sub === 'padel' ? 'Belge/Sertifika adı (örn. TPF Hakem Lisansı)'
+                                            : sub === 'volleyball' ? 'Belge/Sertifika adı (örn. TVF Hakem Lisansı, FIVB Hakem Sertifikası)'
+                                            : 'Belge/Sertifika adı (örn. TFF Hakem Lisansı)'
+                                        }
+                                        placeholderTextColor={colors.textMuted} value={refereeForm.certName} onChangeText={v => setRefereeForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                     <TouchableOpacity onPress={() => pickCoachSingleImage(setRefereeCertImage)}
                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
                                         <Text style={{ fontSize:14 }}>📜</Text>
@@ -22117,11 +22132,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </TouchableOpacity>
                                         ))}
                                     </View>
-                                    {!refereeForm.locationMutual && <TextInput placeholder="Konum (kort/tesis adı) *" placeholderTextColor={colors.textMuted} value={refereeForm.location} onChangeText={v => setRefereeForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />}
-                                    <CityAutocomplete
-                                        value={refereeForm.city || ''}
-                                        onChangeText={v => setRefereeForm(f=>({...f,city:v}))}
-                                        placeholder="Şehir"
+                                    {/* Kullanıcı isteği: konum artık zorunlu değil (opsiyonel bilgi), onun
+                                        yerine aşağıdaki şehir(ler) alanı zorunlu. */}
+                                    {!refereeForm.locationMutual && <TextInput placeholder="Konum (kort/tesis adı, opsiyonel)" placeholderTextColor={colors.textMuted} value={refereeForm.location} onChangeText={v => setRefereeForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />}
+                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Şehir(ler) *</Text>
+                                    <MultiCityAutocomplete
+                                        values={refereeForm.cities}
+                                        onChange={v => setRefereeForm(f=>({...f,cities:v}))}
+                                        placeholder="Şehir ekle..."
                                         style={{ marginBottom: 8 }}
                                     />
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
@@ -22156,11 +22174,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TouchableOpacity onPress={() => pickCoachSingleImage(setRefereeCvImage)}
                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
                                         <Text style={{ fontSize:14 }}>📄</Text>
-                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{refereeCvImage ? 'CV Fotoğrafı Seçildi ✓' : `CV Fotoğrafı Yükle${sub === 'volleyball' ? ' *' : ' (opsiyonel)'}`}</Text>
+                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{refereeCvImage ? 'CV Fotoğrafı Seçildi ✓' : `CV Fotoğrafı Yükle${REFEREE_APPROVAL_SPORTS.includes(sub) ? ' *' : ' (opsiyonel)'}`}</Text>
                                     </TouchableOpacity>
-                                    {sub === 'volleyball' && (
+                                    {REFEREE_APPROVAL_SPORTS.includes(sub) && (
                                         <Text style={{ color:'#f59e0b', fontSize:11, marginBottom:8 }}>
-                                            Voleybolde hakemlik başvurunuz admin onayına gönderilir — CV'niz incelenip onaylandıktan sonra maçlara hakem olarak davet edilebilir/atanabilirsiniz.
+                                            Bu dalda hakemlik başvurunuz admin onayına gönderilir — CV'niz incelenip onaylandıktan sonra maçlara hakem olarak davet edilebilir/atanabilirsiniz.
                                         </Text>
                                     )}
 
@@ -22172,7 +22190,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </TouchableOpacity>
                                         <TouchableOpacity onPress={submitReferee} disabled={submittingReferee || uploadingRefereeMedia} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: '#f59e0b' }}>
                                             <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
-                                                {uploadingRefereeMedia ? 'Yükleniyor...' : submittingReferee ? '...' : 'İlanı Yayınla'}
+                                                {uploadingRefereeMedia ? 'Yükleniyor...' : submittingReferee ? '...' : REFEREE_APPROVAL_SPORTS.includes(sub) ? 'Hakemliğe Başvur' : 'İlanı Yayınla'}
                                             </Text>
                                         </TouchableOpacity>
                                     </View>

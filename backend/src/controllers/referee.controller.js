@@ -5,6 +5,10 @@ import { createNotification } from './notification.controller.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
+// coach.controller.js'deki COACH_APPROVAL_SPORTS ile aynı desen — kullanıcı isteği: voleybolde
+// zaten çalışan CV + admin onayı zorunluluğu artık tenis ve padelde de geçerli.
+const REFEREE_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+
 export const getListings = async (req, res, next) => {
     try {
         const { category, subCategory } = req.query;
@@ -13,11 +17,11 @@ export const getListings = async (req, res, next) => {
                 status: 'ACTIVE',
                 category: category || undefined,
                 subCategory: subCategory || undefined,
-                // Voleybolde admin onayı olmayan bir ilan başkalarına GÖRÜNMEZ — sadece
-                // sahibi kendi başvurusunun durumunu (onay bekliyor) takip edebilsin diye
-                // kendi ilanını her zaman görür. Diğer dallarda approved hiç kontrol edilmez.
+                // Voleybol/tenis/padelde admin onayı olmayan bir ilan başkalarına GÖRÜNMEZ —
+                // sadece sahibi kendi başvurusunun durumunu (onay bekliyor) takip edebilsin
+                // diye kendi ilanını her zaman görür. Diğer dallarda approved kontrol edilmez.
                 OR: [
-                    { subCategory: { not: 'volleyball' } },
+                    { subCategory: { notIn: REFEREE_APPROVAL_SPORTS } },
                     { approved: true },
                     { userId: req.userId },
                 ],
@@ -108,15 +112,20 @@ export const createListing = async (req, res, next) => {
             credentialLevel, certName, certificateUrl, experience,
             achievements, achievementUrls, cvUrl,
             pricePerMatch,
-            location, city, days, timeFrom, timeTo, description,
+            location, cities, days, timeFrom, timeTo, description,
         } = req.body;
 
-        if (!credentialLevel || !location || !category || !subCategory)
+        const citiesArr = Array.isArray(cities) ? cities.filter(Boolean) : [];
+        if (!credentialLevel || !category || !subCategory)
             return res.status(400).json({ message: 'Missing required fields' });
-        // Kullanıcı isteği: voleybolde hakemlik başvurusu CV'siz gönderilemez — admin onayı
-        // CV'ye bakarak veriliyor, CV eksikse başvuru zaten değerlendirilemez.
-        if (subCategory === 'volleyball' && !cvUrl)
-            return res.status(400).json({ message: 'Voleybolde hakemlik başvurusu için CV yüklemeniz zorunludur.' });
+        // Kullanıcı isteği: konum artık zorunlu değil, onun yerine bir/birden fazla şehir
+        // zorunlu — hakem hangi şehir(ler)de hakemlik yapabildiğini belirtmek zorunda.
+        if (citiesArr.length === 0)
+            return res.status(400).json({ message: 'En az bir şehir seçmelisiniz' });
+        // Kullanıcı isteği: voleybol/tenis/padelde hakemlik başvurusu CV'siz gönderilemez —
+        // admin onayı CV'ye bakarak veriliyor, CV eksikse başvuru zaten değerlendirilemez.
+        if (REFEREE_APPROVAL_SPORTS.includes(subCategory) && !cvUrl)
+            return res.status(400).json({ message: 'Bu dalda hakemlik başvurusu için CV yüklemeniz zorunludur.' });
 
         const listing = await prisma.refereeListing.create({
             data: {
@@ -126,34 +135,38 @@ export const createListing = async (req, res, next) => {
                 experience: Number(experience) || 0,
                 achievements, achievementUrls: achievementUrls || [], cvUrl,
                 pricePerMatch: Number(pricePerMatch) || 0,
-                location, city,
+                location: location || null, cities: citiesArr,
                 days: days || [],
                 timeFrom: timeFrom || '09:00',
                 timeTo: timeTo || '21:00',
                 description,
-                // Voleybolde admin onayı gerekiyor (approved varsayılan false kalır); diğer
-                // dallarda hiç kontrol edilmediği için baştan onaylı sayılır — davranış
-                // değişmesin diye (bkz. resolveRefereeEligibility).
-                approved: subCategory !== 'volleyball',
+                // Voleybol/tenis/padelde admin onayı gerekiyor (approved varsayılan false
+                // kalır); diğer dallarda hiç kontrol edilmediği için baştan onaylı sayılır —
+                // davranış değişmesin diye (bkz. resolveRefereeEligibility).
+                approved: !REFEREE_APPROVAL_SPORTS.includes(subCategory),
             },
             include: { user: { select: USER_SELECT } },
         });
         res.status(201).json(listing);
 
-        // Notify city-alert subscribers for referees tab (async, non-blocking)
-        notifyCitySubscribers({
-            subCategory: listing.subCategory,
-            category: listing.category,
-            senderCity: listing.city || null,
-            senderUsername: listing.user?.username || '',
-            senderId: req.userId,
-            itemId: listing.id,
-            tab: 'referees',
-        });
+        // Notify city-alert subscribers for referees tab (async, non-blocking) — artık
+        // birden fazla şehir olabildiği için her şehir için ayrı ayrı bildirim taranıyor.
+        const notifyCities = citiesArr.length > 0 ? citiesArr : [listing.city || null];
+        for (const c of notifyCities) {
+            notifyCitySubscribers({
+                subCategory: listing.subCategory,
+                category: listing.category,
+                senderCity: c,
+                senderUsername: listing.user?.username || '',
+                senderId: req.userId,
+                itemId: listing.id,
+                tab: 'referees',
+            });
+        }
         notifyActivityAlertSubscribers({
             subCategory: listing.subCategory,
             category: listing.category,
-            senderCity: listing.city || null,
+            senderCity: citiesArr[0] || listing.city || null,
             senderUsername: listing.user?.username || '',
             senderId: req.userId,
             itemId: listing.id,
@@ -173,13 +186,13 @@ export const updateListing = async (req, res, next) => {
             credentialLevel, certName, certificateUrl, experience,
             achievements, achievementUrls, cvUrl,
             pricePerMatch,
-            location, city, days, timeFrom, timeTo, description,
+            location, cities, days, timeFrom, timeTo, description,
         } = req.body;
 
-        // Voleybolde onaylı bir hakem CV'sini değiştirirse onay otomatik düşer — admin
-        // hangi CV'yi onayladığını biliyor, sessizce farklı bir CV'yle onaylı kalınamaz.
+        // Voleybol/tenis/padelde onaylı bir hakem CV'sini değiştirirse onay otomatik düşer —
+        // admin hangi CV'yi onayladığını biliyor, sessizce farklı bir CV'yle onaylı kalınamaz.
         const cvChanged = cvUrl !== undefined && cvUrl !== listing.cvUrl;
-        const revokeApproval = listing.subCategory === 'volleyball' && listing.approved && cvChanged;
+        const revokeApproval = REFEREE_APPROVAL_SPORTS.includes(listing.subCategory) && listing.approved && cvChanged;
 
         const updated = await prisma.refereeListing.update({
             where: { id },
@@ -192,8 +205,8 @@ export const updateListing = async (req, res, next) => {
                 ...(achievementUrls !== undefined && { achievementUrls }),
                 ...(cvUrl !== undefined && { cvUrl }),
                 ...(pricePerMatch !== undefined && { pricePerMatch: Number(pricePerMatch) || 0 }),
-                ...(location !== undefined && { location }),
-                ...(city !== undefined && { city }),
+                ...(location !== undefined && { location: location || null }),
+                ...(cities !== undefined && { cities: Array.isArray(cities) ? cities.filter(Boolean) : [] }),
                 ...(days !== undefined && { days }),
                 ...(timeFrom !== undefined && { timeFrom }),
                 ...(timeTo !== undefined && { timeTo }),

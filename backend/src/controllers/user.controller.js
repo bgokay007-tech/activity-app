@@ -444,11 +444,11 @@ export const searchUsers = async (req, res, next) => {
                 ],
                 // Kullanıcı isteği: "Hakem Davet Et" araması sadece bu dalda aktif bir hakem
                 // kaydı (RefereeListing) olan kişileri önersin — kayıtsız biri hakem olarak
-                // atanamaz/davet edilemez zaten, önceki davranış herkesi öneriyordu. Voleybolde
-                // ayrıca admin onayı (approved) şart — CV başvurusu onaylanmadan hakem olarak
-                // önerilmez (bkz. RefereeListing.approved, resolveRefereeEligibility).
+                // atanamaz/davet edilemez zaten, önceki davranış herkesi öneriyordu. Voleybol/
+                // tenis/padelde ayrıca admin onayı (approved) şart — CV başvurusu onaylanmadan
+                // hakem olarak önerilmez (bkz. RefereeListing.approved, resolveRefereeEligibility).
                 ...(refereeOnly === 'true' && subCategory && {
-                    refereeListings: { some: { subCategory, ...(category && { category }), status: 'ACTIVE', ...(subCategory === 'volleyball' && { approved: true }) } },
+                    refereeListings: { some: { subCategory, ...(category && { category }), status: 'ACTIVE', ...(['volleyball', 'tennis', 'padel'].includes(subCategory) && { approved: true }) } },
                 }),
             },
             select: {
@@ -492,7 +492,7 @@ export const getUsersBySport = async (req, res, next) => {
         // aktif bir hakem kaydı (RefereeListing) olanlar olmalı — davet edilemeyecek/hakem
         // olarak atanamayacak biri öneri olarak hiç çıkmasın.
         const membershipFilter = refereeOnly === 'true'
-            ? { refereeListings: { some: { subCategory, ...(category && { category }), status: 'ACTIVE', ...(subCategory === 'volleyball' && { approved: true }) } } }
+            ? { refereeListings: { some: { subCategory, ...(category && { category }), status: 'ACTIVE', ...(['volleyball', 'tennis', 'padel'].includes(subCategory) && { approved: true }) } } }
             : { interests: { some: { subCategory, ...(category && { category }) } } };
 
         const users = await prisma.user.findMany({

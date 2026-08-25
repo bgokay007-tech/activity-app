@@ -950,7 +950,10 @@ function RefereeApprovalTab() {
                         <View style={{ flex: 1 }}>
                             <Text style={s.cardTitle}>@{c.user?.username || '?'}</Text>
                             {c.user?.fullName ? <Text style={s.cardMeta}>{c.user.fullName}</Text> : null}
-                            <Text style={s.cardMeta}>{c.credentialLevel} · {c.city || c.location}</Text>
+                            <Text style={s.cardMeta}>{c.subCategory} · {c.credentialLevel}</Text>
+                            <Text style={s.cardMeta}>
+                                {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : (c.city || c.location || '—')}
+                            </Text>
                             {c.cvUrl ? (
                                 <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)}>
                                     <Text style={[s.cardMeta, { color: colors.purple, fontWeight: '700' }]}>📄 CV'yi Aç</Text>

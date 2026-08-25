@@ -481,8 +481,11 @@ model RefereeListing {
 
   pricePerMatch   Int      @default(0)
 
-  location        String
-  city            String?
+  location        String?  // kort/tesis adı — artık zorunlu değil, bkz. cities
+  city            String?  // eski tekil alan — geriye dönük uyumluluk için duruyor, yeni
+  // kayıtlarda kullanılmıyor, bkz. cities
+  cities          Json?    // string[] — kullanıcı isteği: konum yerine bir/birden fazla şehir
+  // zorunlu (CoachListing.cities ile aynı desen)
   days            Json     @default("[]")
   timeFrom        String   @default("09:00")
   timeTo          String   @default("21:00")
@@ -490,10 +493,10 @@ model RefereeListing {
   description     String?
   status          String   @default("ACTIVE")  // ACTIVE | FLAGGED | REMOVED
   reportCount     Int      @default(0)
-  // Voleybolde admin onayı olmadan hakemlik yapılamaz (bkz. resolveRefereeEligibility,
-  // rival.controller.js) — CoachListing.approvedForRating ile aynı desen. Diğer dallarda
-  // (tenis/padel/badminton/masa tenisi/airsoft) bu alan kontrol edilmez, ilan yayınlanır
-  // yayınlanmaz hakem olarak davet edilebilir — sadece voleybol için admin onay şartı var.
+  // Voleybol/tenis/padelde admin onayı olmadan hakemlik yapılamaz (bkz.
+  // resolveRefereeEligibility, rival.controller.js) — CoachListing.approved ile aynı desen.
+  // Diğer dallarda (badminton/masa tenisi/airsoft) bu alan kontrol edilmez, ilan yayınlanır
+  // yayınlanmaz hakem olarak davet edilebilir.
   approved        Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

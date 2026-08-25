@@ -2236,7 +2236,7 @@ export const createRivalRequest = async (req, res, next) => {
                 let invites = rawInvites;
                 if (rawInvites.length > 0) {
                     const eligible = await prisma.refereeListing.findMany({
-                        where: { userId: { in: rawInvites.map(inv => inv.userId) }, subCategory, category, status: 'ACTIVE', ...(subCategory === 'volleyball' && { approved: true }) },
+                        where: { userId: { in: rawInvites.map(inv => inv.userId) }, subCategory, category, status: 'ACTIVE', ...(['volleyball', 'tennis', 'padel'].includes(subCategory) && { approved: true }) },
                         select: { userId: true },
                     });
                     const eligibleIds = new Set(eligible.map(l => l.userId));
@@ -3269,10 +3269,11 @@ export const inviteToRival = async (req, res, next) => {
         // olan kişi davet edilebilsin/atanabilsin — arama zaten sadece kayıtlıları öneriyor
         // (bkz. searchUsers refereeOnly), burası doğrudan API çağrısıyla atlatılmasını önler.
         if (isRefereeAd) {
+            const refApprovalRequired = ['volleyball', 'tennis', 'padel'].includes(rival.subCategory);
             const refListing = await prisma.refereeListing.findFirst({
-                where: { userId, subCategory: rival.subCategory, category: rival.category, status: 'ACTIVE', ...(rival.subCategory === 'volleyball' && { approved: true }) },
+                where: { userId, subCategory: rival.subCategory, category: rival.category, status: 'ACTIVE', ...(refApprovalRequired && { approved: true }) },
             });
-            if (!refListing) return res.status(400).json({ message: rival.subCategory === 'volleyball' ? 'Bu kullanıcının onaylı bir hakem kaydı yok, hakem olarak davet edilemez.' : 'Bu kullanıcının bu dalda aktif bir hakem kaydı yok, hakem olarak davet edilemez.' });
+            if (!refListing) return res.status(400).json({ message: refApprovalRequired ? 'Bu kullanıcının onaylı bir hakem kaydı yok, hakem olarak davet edilemez.' : 'Bu kullanıcının bu dalda aktif bir hakem kaydı yok, hakem olarak davet edilemez.' });
         }
 
         const teamSlotFlags = isTeamSlotInvite

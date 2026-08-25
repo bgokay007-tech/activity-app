@@ -5,6 +5,9 @@ import { emitToUser } from '../config/socket.js';
 // coach.controller.js'deki COACH_APPROVAL_SPORTS ile aynı liste — antrenörlük ilan onayı
 // artık voleybol dışında tenis ve padelde de gerekiyor (kullanıcı isteği).
 const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+// referee.controller.js'deki REFEREE_APPROVAL_SPORTS ile aynı liste — hakemlik onayı da
+// aynı mantıkla voleybol dışında tenis ve padelde de gerekiyor.
+const REFEREE_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
 
 export const getStats = async (req, res, next) => {
     try {
@@ -303,14 +306,15 @@ export const setCoachRatingApproval = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
-// Voleybol "onaylı hakem" onayı — bir maçta hakem olarak davet edilebilmek/atanabilmek için
-// admin tek tek onaylamalı (RefereeListing kendi kendine eklendiği için, CV ile birlikte
-// başvurulur). CoachRatingApproval ile birebir aynı desen — bkz. resolveRefereeEligibility.
+// Voleybol/tenis/padel "onaylı hakem" onayı — bir maçta hakem olarak davet edilebilmek/
+// atanabilmek için admin tek tek onaylamalı (RefereeListing kendi kendine eklendiği için, CV
+// ile birlikte başvurulur). CoachListingApproval ile birebir aynı desen — bkz.
+// resolveRefereeEligibility.
 export const getRefereeApprovals = async (req, res, next) => {
     try {
         const { status } = req.query; // PENDING | APPROVED
         const listings = await prisma.refereeListing.findMany({
-            where: { subCategory: 'volleyball', status: 'ACTIVE', approved: status === 'APPROVED' },
+            where: { subCategory: { in: REFEREE_APPROVAL_SPORTS }, status: 'ACTIVE', approved: status === 'APPROVED' },
             include: { user: { select: RATING_APPROVAL_USER_SELECT } },
             orderBy: { createdAt: 'desc' },
         });
@@ -330,8 +334,8 @@ export const setRefereeApproval = async (req, res, next) => {
             action === 'APPROVE' ? 'REFEREE_APPROVED' : 'REFEREE_APPROVAL_REVOKED',
             action === 'APPROVE' ? '✅ Hakemlik Başvurunuz Onaylandı' : '🚫 Hakemlik Onayınız Kaldırıldı',
             action === 'APPROVE'
-                ? 'Voleybol hakemlik başvurunuz admin tarafından onaylandı — artık maçlara hakem olarak davet edilebilir/atanabilirsiniz.'
-                : 'Voleybol hakemlik onayınız admin tarafından kaldırıldı, maçlara hakem olarak davet edilemezsiniz.',
+                ? 'Hakemlik başvurunuz admin tarafından onaylandı — artık maçlara hakem olarak davet edilebilir/atanabilirsiniz.'
+                : 'Hakemlik onayınız admin tarafından kaldırıldı, maçlara hakem olarak davet edilemezsiniz.',
             {}
         ).catch(() => {});
         res.json({ ok: true });
