@@ -666,6 +666,22 @@
     "reject_reason_prompt": "Red nedeni (isteğe bağlı):",
     "loading": "Yükleniyor..."
   },
+  "disputes": {
+    "loading": "Yükleniyor...",
+    "no_disputes": "İtirazlı maç yok",
+    "score_disputed": "⚠️ Skor İtirazlı",
+    "appealed": "🚩 İtiraz Edildi",
+    "sender": "Gönderen",
+    "receiver": "Alıcı",
+    "score_label": "Skor",
+    "claimed_winner": "İddia edilen kazanan",
+    "category_label": "Kategori",
+    "appeal_reason": "İtiraz sebebi",
+    "wins": "{{name}} Kazandı",
+    "draw": "Berabere",
+    "reset_score": "🔄 Skoru Sıfırla",
+    "reject_appeal": "❌ İtirazı Reddet"
+  },
   "batak": {
     "createTable": "Masa Kur",
     "browseTitle": "Açık Masalar",

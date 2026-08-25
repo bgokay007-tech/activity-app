@@ -666,6 +666,22 @@
     "reject_reason_prompt": "Rejection reason (optional):",
     "loading": "Loading..."
   },
+  "disputes": {
+    "loading": "Loading...",
+    "no_disputes": "No disputed matches",
+    "score_disputed": "⚠️ Score Disputed",
+    "appealed": "🚩 Appealed",
+    "sender": "Sender",
+    "receiver": "Receiver",
+    "score_label": "Score",
+    "claimed_winner": "Claimed winner",
+    "category_label": "Category",
+    "appeal_reason": "Appeal reason",
+    "wins": "{{name}} Wins",
+    "draw": "Draw",
+    "reset_score": "🔄 Reset Score",
+    "reject_appeal": "❌ Reject Appeal"
+  },
   "batak": {
     "createTable": "Set Up a Table",
     "browseTitle": "Open Tables",

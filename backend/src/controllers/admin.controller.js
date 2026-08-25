@@ -35,6 +35,7 @@ export const getPendingCounts = async (req, res, next) => {
             courts, venues, bizVenues, disputes, noshow, cities,
             tournamentPerms, flaggedEquipment, flaggedCoaches,
             profileChanges, subscriptions, venueReviews,
+            coachListingApproval, refereeApproval, coachRatingApproval,
         ] = await Promise.all([
             prisma.court.count({ where: { pending: true } }),
             prisma.court.count({ where: { pending: true, verified: false } }),
@@ -48,6 +49,9 @@ export const getPendingCounts = async (req, res, next) => {
             prisma.profileChangeRequest.count({ where: { status: 'PENDING' } }),
             prisma.subscriptionRequest.count({ where: { status: 'PENDING' } }),
             prisma.venueReview.count({ where: { status: 'PENDING' } }),
+            prisma.coachListing.count({ where: { subCategory: { in: COACH_APPROVAL_SPORTS }, status: 'ACTIVE', approved: false } }),
+            prisma.refereeListing.count({ where: { subCategory: { in: REFEREE_APPROVAL_SPORTS }, status: 'ACTIVE', approved: false } }),
+            prisma.coachListing.count({ where: { subCategory: 'volleyball', status: 'ACTIVE', approvedForRating: false } }),
         ]);
         res.json({
             courts,
@@ -61,6 +65,9 @@ export const getPendingCounts = async (req, res, next) => {
             'profile-changes': profileChanges,
             subscriptions,
             'venue-reviews': venueReviews,
+            'coach-listing-approval': coachListingApproval,
+            'referee-approval': refereeApproval,
+            'coach-rating-approval': coachRatingApproval,
         });
     } catch (e) { next(e); }
 };

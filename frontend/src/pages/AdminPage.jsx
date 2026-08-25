@@ -5,7 +5,7 @@ import api from '../services/api';
 import Navbar from '../components/Navbar';
 import { useTranslation } from 'react-i18next';
 
-const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'biz-venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'subscriptions', 'venue-reviews'];
+const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'biz-venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'subscriptions', 'venue-reviews', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval'];
 
 const TAB_LABEL = {
     dashboard:          '📊 Dashboard',
@@ -22,6 +22,12 @@ const TAB_LABEL = {
     'profile-changes':  '🪪 Profil Değişiklik',
     'subscriptions':    '💳 Abonelik Talepleri',
     'venue-reviews':    '⭐ Tesis Yorumu',
+    // Kullanıcı isteği: bu 3 onay kuyruğu mobil admin panelinde vardı ama web'de hiç
+    // sekmesi yoktu — antrenörlük/hakemlik CV başvurusu onaya düşünce admin bunu web'den
+    // hiç göremiyordu.
+    'coach-listing-approval': '🎓 Antrenörlük İlanı Onayı',
+    'referee-approval':       '🟨 Hakem Onayı',
+    'coach-rating-approval':  '🏐 Antrenör Değerlendirme Onayı',
 };
 
 // Kullanıcı isteği: sidebar'daki her onay kuyruğu sekmesinin yanında bekleyen kayıt sayısı
@@ -378,6 +384,7 @@ function CourtsPanel() {
 
 // ── DISPUTES ───────────────────────────────────────────────────────────────
 function DisputesPanel() {
+    const { t } = useTranslation();
     const [disputes, setDisputes] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -392,11 +399,25 @@ function DisputesPanel() {
         } catch (e) { alert(e?.response?.data?.message || 'Error'); }
     };
 
-    if (loading) return <p className="text-gray-500 text-center py-16">Loading...</p>;
+    // Kullanıcı raporu: liste hem skoru DIŞARIDAN itirazlı (scoreStatus:DISPUTED) hem de
+    // kullanıcı tarafından İTİRAZ EDİLMİŞ (scoreAppeal:true) maçları birlikte gösteriyordu
+    // ama sadece "kazananı seç" (resolveDispute) butonları vardı — bu, scoreStatus'u
+    // CONFIRMED yapıyor ama scoreAppeal'i hiç değiştirmiyor, dolayısıyla itiraz edilen bir
+    // maç "çözüldükten" sonra bile listede/sayaçta kalmaya devam ediyordu (sayfa
+    // yenilense bile aynı kayıt tekrar dönüyordu). İtiraz için ayrı resolveAppeal
+    // (RESET/REJECTED) eylemi eklendi.
+    const resolveAppeal = async (id, resolution) => {
+        try {
+            await api.patch(`/admin/disputes/${id}/resolve-appeal`, { resolution });
+            setDisputes(prev => prev.filter(d => d.id !== id));
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+    };
+
+    if (loading) return <p className="text-gray-500 text-center py-16">{t('disputes.loading')}</p>;
     if (disputes.length === 0) return (
         <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
             <p className="text-4xl mb-3">✅</p>
-            <p className="text-white font-bold">No disputed matches</p>
+            <p className="text-white font-bold">{t('disputes.no_disputes')}</p>
         </div>
     );
 
@@ -404,44 +425,63 @@ function DisputesPanel() {
         <div className="space-y-4">
             {disputes.map(d => {
                 const score = d.score || {};
+                const isAppeal = d.scoreAppeal;
+                const isDisputed = d.scoreStatus === 'DISPUTED';
                 return (
                     <div key={d.id} className="bg-red-500/5 border border-red-500/30 rounded-2xl p-5">
                         <div className="flex items-center justify-between mb-3">
-                            <span className="text-red-400 font-bold text-sm">⚠️ Score Disputed</span>
+                            <span className="text-red-400 font-bold text-sm">{isAppeal ? t('disputes.appealed') : t('disputes.score_disputed')}</span>
                             <span className="text-gray-500 text-xs">{new Date(d.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                         </div>
                         <div className="flex items-center gap-4 mb-4">
                             <div className="text-center flex-1">
                                 <p className="text-white font-black">{d.sender?.username}</p>
-                                <p className="text-gray-500 text-xs">Sender</p>
+                                <p className="text-gray-500 text-xs">{t('disputes.sender')}</p>
                             </div>
                             <span className="text-gray-600 font-black text-lg">vs</span>
                             <div className="text-center flex-1">
                                 <p className="text-white font-black">{d.receiver?.username}</p>
-                                <p className="text-gray-500 text-xs">Receiver</p>
+                                <p className="text-gray-500 text-xs">{t('disputes.receiver')}</p>
                             </div>
                         </div>
                         {score.sets?.length > 0 && (
                             <p className="text-gray-400 text-xs text-center mb-4">
-                                Score: {score.sets.map(s => `${s.s}–${s.r}`).join(', ')}
-                                {score.winner && ` · Claimed winner: ${score.winner}`}
+                                {t('disputes.score_label')}: {score.sets.map(s => `${s.s}–${s.r}`).join(', ')}
+                                {score.winner && ` · ${t('disputes.claimed_winner')}: ${score.winner}`}
                             </p>
                         )}
-                        <p className="text-gray-500 text-xs mb-3">Category: {d.category} / {d.subCategory}</p>
-                        <div className="flex gap-2">
-                            <button onClick={() => resolve(d.id, 'sender')}
-                                className="flex-1 bg-blue-600/80 hover:bg-blue-600 text-white font-bold py-2 rounded-xl text-sm transition">
-                                🏆 {d.sender?.username} Wins
-                            </button>
-                            <button onClick={() => resolve(d.id, 'draw')}
-                                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 rounded-xl text-sm transition">
-                                🤝 Draw
-                            </button>
-                            <button onClick={() => resolve(d.id, 'receiver')}
-                                className="flex-1 bg-purple-600/80 hover:bg-purple-600 text-white font-bold py-2 rounded-xl text-sm transition">
-                                🏆 {d.receiver?.username} Wins
-                            </button>
-                        </div>
+                        <p className="text-gray-500 text-xs mb-3">{t('disputes.category_label')}: {d.category} / {d.subCategory}</p>
+                        {isAppeal && d.scoreAppealReason && (
+                            <p className="text-yellow-400 text-xs mb-3">{t('disputes.appeal_reason')}: {d.scoreAppealReason}</p>
+                        )}
+                        {isAppeal && (
+                            <div className="flex gap-2 mb-2">
+                                <button onClick={() => resolveAppeal(d.id, 'RESET')}
+                                    className="flex-1 bg-yellow-600/80 hover:bg-yellow-600 text-white font-bold py-2 rounded-xl text-sm transition">
+                                    {t('disputes.reset_score')}
+                                </button>
+                                <button onClick={() => resolveAppeal(d.id, 'REJECTED')}
+                                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 rounded-xl text-sm transition">
+                                    {t('disputes.reject_appeal')}
+                                </button>
+                            </div>
+                        )}
+                        {isDisputed && (
+                            <div className="flex gap-2">
+                                <button onClick={() => resolve(d.id, 'sender')}
+                                    className="flex-1 bg-blue-600/80 hover:bg-blue-600 text-white font-bold py-2 rounded-xl text-sm transition">
+                                    🏆 {t('disputes.wins', { name: d.sender?.username })}
+                                </button>
+                                <button onClick={() => resolve(d.id, 'draw')}
+                                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 rounded-xl text-sm transition">
+                                    🤝 {t('disputes.draw')}
+                                </button>
+                                <button onClick={() => resolve(d.id, 'receiver')}
+                                    className="flex-1 bg-purple-600/80 hover:bg-purple-600 text-white font-bold py-2 rounded-xl text-sm transition">
+                                    🏆 {t('disputes.wins', { name: d.receiver?.username })}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 );
             })}
@@ -1377,6 +1417,98 @@ function BusinessVenuesPanel() {
     );
 }
 
+// ── ANTRENÖRLÜK / HAKEMLİK ONAY KUYRUKLARI ──────────────────────────────────
+// Mobil AdminPortalScreen.js'deki CoachListingApprovalTab/RefereeApprovalTab/
+// CoachRatingApprovalTab ile aynı davranış — üçü de PENDING/APPROVED filtresine göre
+// backend'den liste çekip Onayla/Onayı Kaldır eylemi sunuyor, tek şablonla paylaşılıyor.
+function ApprovalQueuePanel({ endpoint, showCv = true, emptyPendingText, emptyOtherText }) {
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [filter, setFilter] = useState('PENDING');
+
+    const load = useCallback(() => {
+        setLoading(true);
+        api.get(`${endpoint}?status=${filter}`).then(r => setItems(Array.isArray(r.data) ? r.data : [])).finally(() => setLoading(false));
+    }, [endpoint, filter]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const setApproval = async (id, action) => {
+        try {
+            await api.patch(`${endpoint}/${id}`, { action });
+            load();
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="flex gap-2 mb-4">
+                {['PENDING', 'APPROVED'].map(s => (
+                    <button key={s} onClick={() => setFilter(s)}
+                        className={`px-4 py-1.5 rounded-xl text-sm font-bold transition border ${filter === s ? 'bg-purple-600 border-purple-500 text-white' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}>
+                        {s === 'PENDING' ? '⏳ Bekleyen' : '✅ Onaylılar'}
+                    </button>
+                ))}
+            </div>
+
+            {loading && <p className="text-gray-500 text-center py-16">Yükleniyor...</p>}
+            {!loading && items.length === 0 && (
+                <p className="text-gray-500 text-center py-16">{filter === 'PENDING' ? emptyPendingText : emptyOtherText}</p>
+            )}
+
+            {items.map(c => (
+                <div key={c.id} className="bg-gray-900 border border-purple-700/30 rounded-2xl p-5 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                        <p className="text-white font-bold text-sm">@{c.user?.username || '?'}</p>
+                        {c.user?.fullName && <p className="text-gray-500 text-xs">{c.user.fullName}</p>}
+                        <p className="text-gray-400 text-xs">{c.subCategory} · {c.credentialLevel}</p>
+                        <p className="text-gray-500 text-xs">
+                            {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : (c.city || c.location || '—')}
+                        </p>
+                        {showCv && (
+                            c.cvUrl ? (
+                                <a href={c.cvUrl} target="_blank" rel="noreferrer" className="text-purple-400 text-xs font-bold hover:underline">📄 CV'yi Aç</a>
+                            ) : (
+                                <p className="text-red-400 text-xs">CV yok</p>
+                            )
+                        )}
+                    </div>
+                    <div className="shrink-0">
+                        {filter === 'PENDING' ? (
+                            <button onClick={() => setApproval(c.id, 'APPROVE')}
+                                className="px-3 py-1.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-xs transition">
+                                ✓ Onayla
+                            </button>
+                        ) : (
+                            <button onClick={() => setApproval(c.id, 'REVOKE')}
+                                className="px-3 py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-xs transition">
+                                ✕ Onayı Kaldır
+                            </button>
+                        )}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function CoachListingApprovalPanel() {
+    return <ApprovalQueuePanel endpoint="/admin/coach-listing-approvals"
+        emptyPendingText="Onay bekleyen antrenörlük ilanı yok. ✅" emptyOtherText="Onaylı antrenörlük ilanı bulunamadı." />;
+}
+
+function RefereeApprovalPanel() {
+    return <ApprovalQueuePanel endpoint="/admin/referee-approvals"
+        emptyPendingText="Onay bekleyen hakem yok. ✅" emptyOtherText="Onaylı hakem bulunamadı." />;
+}
+
+function CoachRatingApprovalPanel() {
+    // Bu onay diğer ikisinden farklı — CV'ye bakılmıyor, "bu antrenör oyuncu
+    // değerlendirmesi verebilir mi" onayı (bkz. VolleyballRating, approvedForRating).
+    return <ApprovalQueuePanel endpoint="/admin/coach-rating-approvals" showCv={false}
+        emptyPendingText="Onay bekleyen antrenör yok. ✅" emptyOtherText="Onaylı antrenör bulunamadı." />;
+}
+
 // ── MAIN ───────────────────────────────────────────────────────────────────
 export default function AdminPage() {
     const { t } = useTranslation();
@@ -1446,6 +1578,9 @@ export default function AdminPage() {
                     {activeTab === 'profile-changes'  && <ProfileChangesPanel />}
                     {activeTab === 'subscriptions'    && <SubscriptionsPanel />}
                     {activeTab === 'venue-reviews'    && <VenueReviewsPanel />}
+                    {activeTab === 'coach-listing-approval' && <CoachListingApprovalPanel />}
+                    {activeTab === 'referee-approval'       && <RefereeApprovalPanel />}
+                    {activeTab === 'coach-rating-approval'  && <CoachRatingApprovalPanel />}
                 </div>
             </div>
         </div>
