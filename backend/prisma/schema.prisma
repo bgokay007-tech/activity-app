@@ -382,8 +382,12 @@ model CoachListing {
   maxGroupSize    Int      @default(4)
 
   // Yer / Zaman
-  location        String
-  city            String?
+  location        String?  // kort/tesis adı — artık zorunlu değil, birden fazla şehirde ders
+  // veren antrenörler için tek bir sabit mekan anlamlı olmayabiliyor (bkz. cities)
+  city            String?  // eski tekil alan — geriye dönük uyumluluk için duruyor, yeni
+  // kayıtlarda kullanılmıyor, bkz. cities
+  cities          Json?    // string[] — kullanıcı isteği: konum yerine bir/birden fazla şehir
+  // zorunlu (voleybol/tenis/padelde antrenörlük başvurusu artık şehir(ler) ister)
   days            Json     @default("[]") // ["MON","TUE",...]
   timeFrom        String   @default("09:00")
   timeTo          String   @default("21:00")
@@ -506,7 +510,14 @@ model RefereeReview {
   refereeUserId    String   // asıl bağ: hakemlik yapan kişi (ActivityRequest.refereeId) — ilanı olmasa da yorum alabilir
   rivalId          String   // hangi maçın hakemliği değerlendiriliyor — maç başına 1 yorum
   reviewerId       String
-  rating           Int      // 1-5
+  // Anket soruları (1-5) — sadece voleybolde soruluyor, diğer dallarda null kalır (sadece
+  // rating+comment ile devam ederler, geriye dönük uyumluluk bozulmasın diye).
+  ruleKnowledge       Int?  // Kurallara hakimiyet
+  decisionConsistency Int?  // Karar tutarlılığı
+  fairness            Int?  // Tarafsızlık
+  communication       Int?  // İletişim ve otorite
+  gameManagement      Int?  // Maç temposunu yönetme
+  rating           Int      // 1-5 — anketin sonundaki genel yıldız, maç/hakem ortalamasına giren asıl değer
   comment          String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

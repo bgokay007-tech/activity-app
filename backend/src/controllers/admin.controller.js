@@ -2,6 +2,10 @@ import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 
+// coach.controller.js'deki COACH_APPROVAL_SPORTS ile aynı liste — antrenörlük ilan onayı
+// artık voleybol dışında tenis ve padelde de gerekiyor (kullanıcı isteği).
+const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+
 export const getStats = async (req, res, next) => {
     try {
         const [users, matches, courts, disputes, posts] = await Promise.all([
@@ -342,7 +346,7 @@ export const getCoachListingApprovals = async (req, res, next) => {
     try {
         const { status } = req.query; // PENDING | APPROVED
         const listings = await prisma.coachListing.findMany({
-            where: { subCategory: 'volleyball', status: 'ACTIVE', approved: status === 'APPROVED' },
+            where: { subCategory: { in: COACH_APPROVAL_SPORTS }, status: 'ACTIVE', approved: status === 'APPROVED' },
             include: { user: { select: RATING_APPROVAL_USER_SELECT } },
             orderBy: { createdAt: 'desc' },
         });
@@ -362,8 +366,8 @@ export const setCoachListingApproval = async (req, res, next) => {
             action === 'APPROVE' ? 'COACH_LISTING_APPROVED' : 'COACH_APPROVAL_REVOKED',
             action === 'APPROVE' ? '✅ Antrenörlük İlanınız Onaylandı' : '🚫 Antrenörlük Onayınız Kaldırıldı',
             action === 'APPROVE'
-                ? 'Voleybol antrenörlük başvurunuz admin tarafından onaylandı — ilanınız artık herkese görünüyor.'
-                : 'Voleybol antrenörlük ilan onayınız admin tarafından kaldırıldı, ilanınız başkalarına görünmüyor.',
+                ? 'Antrenörlük başvurunuz admin tarafından onaylandı — ilanınız artık herkese görünüyor.'
+                : 'Antrenörlük ilan onayınız admin tarafından kaldırıldı, ilanınız başkalarına görünmüyor.',
             {}
         ).catch(() => {});
         res.json({ ok: true });

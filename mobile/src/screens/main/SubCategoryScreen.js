@@ -20133,7 +20133,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const filteredCoaches = coachListings.filter(c => {
         if (!filterCity) return true;
         const q = filterCity.trim().toLowerCase();
-        return (c.city || '').toLowerCase().includes(q) || (c.location || '').toLowerCase().includes(q);
+        return (c.city || '').toLowerCase().includes(q) || (c.location || '').toLowerCase().includes(q)
+            || (Array.isArray(c.cities) && c.cities.some(city => (city || '').toLowerCase().includes(q)));
     });
 
     // Compact filter bar rendered in each tab (single row)
@@ -21547,11 +21548,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     {c.reviewCount > 0 && (
                                                         <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>★ {c.avgRating.toFixed(1)} ({c.reviewCount})</Text>
                                                     )}
-                                                    {/* Kullanıcı isteği: voleybolde admin onayı olmadan antrenörlük ilanı
-                                                        başkalarına görünmez — başvuru sahibi kendi ilanının durumunu
-                                                        görebilsin diye (bkz. getListings, onaylanmamış ilanlar zaten
-                                                        başkalarına hiç gösterilmiyor). */}
-                                                    {c.subCategory === 'volleyball' && !c.approved && (
+                                                    {/* Kullanıcı isteği: voleybol/tenis/padelde admin onayı olmadan
+                                                        antrenörlük ilanı başkalarına görünmez — başvuru sahibi kendi
+                                                        ilanının durumunu görebilsin diye (bkz. getListings, onaylanmamış
+                                                        ilanlar zaten başkalarına hiç gösterilmiyor). */}
+                                                    {COACH_APPROVAL_SPORTS.includes(c.subCategory) && !c.approved && (
                                                         <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>⏳ Admin Onayı Bekleniyor</Text>
                                                     )}
                                                 </View>
@@ -21565,7 +21566,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 {c.experience > 0 && <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.experience} yıl deneyim</Text>}
                                             </View>
                                             {(c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
-                                            {c.city && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
+                                            {(c.city || (Array.isArray(c.cities) && c.cities.length > 0)) && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={2}>{c.description}</Text>}
                                             {c.achievements && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {c.achievements}</Text>}
                                             {c.userId !== myId && (
@@ -21642,7 +21643,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </View>
                                             {(c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
                                             {(c.days || []).length > 0 && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>📆 {c.days.join(', ')}</Text>}
-                                            {c.city && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>📍 {c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
+                                            {(c.city || (Array.isArray(c.cities) && c.cities.length > 0)) && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>📍 {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:13, marginTop:8, lineHeight:19 }}>{c.description}</Text>}
                                             {c.achievements && <Text style={{ color:'#fbbf24', fontSize:13, marginTop:8, lineHeight:19 }}>🏆 {c.achievements}</Text>}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:12 }}>

@@ -5,6 +5,12 @@ import { createNotification } from './notification.controller.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
+// Kullanıcı isteği: voleybolde zaten çalışan CV + admin onayı zorunluluğu artık tenis ve
+// padelde de geçerli — bu dallardaki antrenörlük başvurusu da CV'siz gönderilemiyor, admin
+// onaylamadan ilan başkalarına görünmüyor. Diğer dallarda (badminton, masa tenisi, airsoft vb.)
+// önceki davranış (CV isteğe bağlı, yayınlanır yayınlanmaz görünür) değişmedi.
+const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+
 export const getListings = async (req, res, next) => {
     try {
         const { category, subCategory } = req.query;
@@ -13,11 +19,11 @@ export const getListings = async (req, res, next) => {
                 status: 'ACTIVE',
                 category: category || undefined,
                 subCategory: subCategory || undefined,
-                // Voleybolde admin onayı olmayan bir ilan başkalarına GÖRÜNMEZ — sahibi
-                // kendi başvurusunun durumunu takip edebilsin diye kendi ilanını her zaman
-                // görür (bkz. RefereeListing.approved ile aynı desen).
+                // Voleybol/tenis/padelde admin onayı olmayan bir ilan başkalarına GÖRÜNMEZ —
+                // sahibi kendi başvurusunun durumunu takip edebilsin diye kendi ilanını her
+                // zaman görür (bkz. RefereeListing.approved ile aynı desen).
                 OR: [
-                    { subCategory: { not: 'volleyball' } },
+                    { subCategory: { notIn: COACH_APPROVAL_SPORTS } },
                     { approved: true },
                     { userId: req.userId },
                 ],
@@ -51,7 +57,7 @@ export const getListing = async (req, res, next) => {
             include: { user: { select: USER_SELECT } },
         });
         if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
-        if (listing.subCategory === 'volleyball' && !listing.approved && listing.userId !== req.userId) {
+        if (COACH_APPROVAL_SPORTS.includes(listing.subCategory) && !listing.approved && listing.userId !== req.userId) {
             return res.status(404).json({ message: 'İlan bulunamadı' });
         }
         const agg = await prisma.coachReview.aggregate({
@@ -178,15 +184,20 @@ export const createListing = async (req, res, next) => {
             credentialLevel, certName, certificateUrl, experience,
             achievements, achievementUrls, cvUrl,
             individual, group, priceIndividual, priceGroup, maxGroupSize,
-            location, city, days, timeFrom, timeTo, description,
+            location, cities, days, timeFrom, timeTo, description,
         } = req.body;
 
-        if (!credentialLevel || !location || !category || !subCategory)
+        const citiesArr = Array.isArray(cities) ? cities.filter(Boolean) : [];
+        if (!credentialLevel || !category || !subCategory)
             return res.status(400).json({ message: 'Missing required fields' });
-        // Kullanıcı isteği: voleybolde antrenörlük başvurusu CV'siz gönderilemez — admin
-        // onayı CV'ye bakarak veriliyor, CV eksikse başvuru zaten değerlendirilemez.
-        if (subCategory === 'volleyball' && !cvUrl)
-            return res.status(400).json({ message: 'Voleybolde antrenörlük başvurusu için CV yüklemeniz zorunludur.' });
+        // Kullanıcı isteği: konum artık zorunlu değil, onun yerine bir/birden fazla şehir
+        // zorunlu — antrenör hangi şehir(ler)de ders verdiğini belirtmek zorunda.
+        if (citiesArr.length === 0)
+            return res.status(400).json({ message: 'En az bir şehir seçmelisiniz' });
+        // Kullanıcı isteği: voleybol/tenis/padelde antrenörlük başvurusu CV'siz gönderilemez —
+        // admin onayı CV'ye bakarak veriliyor, CV eksikse başvuru zaten değerlendirilemez.
+        if (COACH_APPROVAL_SPORTS.includes(subCategory) && !cvUrl)
+            return res.status(400).json({ message: 'Bu dalda antrenörlük başvurusu için CV yüklemeniz zorunludur.' });
 
         const listing = await prisma.coachListing.create({
             data: {
@@ -200,34 +211,38 @@ export const createListing = async (req, res, next) => {
                 priceIndividual: Number(priceIndividual) || 0,
                 priceGroup: Number(priceGroup) || 0,
                 maxGroupSize: Number(maxGroupSize) || 4,
-                location, city,
+                location: location || null, cities: citiesArr,
                 days: days || [],
                 timeFrom: timeFrom || '09:00',
                 timeTo: timeTo || '21:00',
                 description,
-                // Voleybolde admin onayı gerekiyor (approved varsayılan false kalır); diğer
-                // dallarda hiç kontrol edilmediği için baştan onaylı sayılır — davranış
-                // değişmesin diye.
-                approved: subCategory !== 'volleyball',
+                // Voleybol/tenis/padelde admin onayı gerekiyor (approved varsayılan false
+                // kalır); diğer dallarda hiç kontrol edilmediği için baştan onaylı sayılır —
+                // davranış değişmesin diye.
+                approved: !COACH_APPROVAL_SPORTS.includes(subCategory),
             },
             include: { user: { select: USER_SELECT } },
         });
         res.status(201).json(listing);
 
-        // Notify city-alert subscribers for coaches tab (async, non-blocking)
-        notifyCitySubscribers({
-            subCategory: listing.subCategory,
-            category: listing.category,
-            senderCity: listing.city || null,
-            senderUsername: listing.user?.username || '',
-            senderId: req.userId,
-            itemId: listing.id,
-            tab: 'coaches',
-        });
+        // Notify city-alert subscribers for coaches tab (async, non-blocking) — artık
+        // birden fazla şehir olabildiği için her şehir için ayrı ayrı bildirim taranıyor.
+        const notifyCities = citiesArr.length > 0 ? citiesArr : [listing.city || null];
+        for (const c of notifyCities) {
+            notifyCitySubscribers({
+                subCategory: listing.subCategory,
+                category: listing.category,
+                senderCity: c,
+                senderUsername: listing.user?.username || '',
+                senderId: req.userId,
+                itemId: listing.id,
+                tab: 'coaches',
+            });
+        }
         notifyActivityAlertSubscribers({
             subCategory: listing.subCategory,
             category: listing.category,
-            senderCity: listing.city || null,
+            senderCity: citiesArr[0] || listing.city || null,
             senderUsername: listing.user?.username || '',
             senderId: req.userId,
             itemId: listing.id,
@@ -247,13 +262,14 @@ export const updateListing = async (req, res, next) => {
             credentialLevel, certName, certificateUrl, experience,
             achievements, achievementUrls, cvUrl,
             individual, group, priceIndividual, priceGroup, maxGroupSize,
-            location, city, days, timeFrom, timeTo, description,
+            location, cities, days, timeFrom, timeTo, description,
         } = req.body;
 
-        // Voleybolde onaylı bir antrenör CV'sini değiştirirse onay otomatik düşer — admin
-        // hangi CV'yi onayladığını biliyor, sessizce farklı bir CV'yle onaylı kalınamaz.
+        // Voleybol/tenis/padelde onaylı bir antrenör CV'sini değiştirirse onay otomatik
+        // düşer — admin hangi CV'yi onayladığını biliyor, sessizce farklı bir CV'yle onaylı
+        // kalınamaz.
         const cvChanged = cvUrl !== undefined && cvUrl !== listing.cvUrl;
-        const revokeApproval = listing.subCategory === 'volleyball' && listing.approved && cvChanged;
+        const revokeApproval = COACH_APPROVAL_SPORTS.includes(listing.subCategory) && listing.approved && cvChanged;
 
         const updated = await prisma.coachListing.update({
             where: { id },
@@ -270,8 +286,8 @@ export const updateListing = async (req, res, next) => {
                 ...(priceIndividual !== undefined && { priceIndividual: Number(priceIndividual) || 0 }),
                 ...(priceGroup !== undefined && { priceGroup: Number(priceGroup) || 0 }),
                 ...(maxGroupSize !== undefined && { maxGroupSize: Number(maxGroupSize) || 4 }),
-                ...(location !== undefined && { location }),
-                ...(city !== undefined && { city }),
+                ...(location !== undefined && { location: location || null }),
+                ...(cities !== undefined && { cities: Array.isArray(cities) ? cities.filter(Boolean) : [] }),
                 ...(days !== undefined && { days }),
                 ...(timeFrom !== undefined && { timeFrom }),
                 ...(timeTo !== undefined && { timeTo }),
