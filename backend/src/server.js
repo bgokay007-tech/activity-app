@@ -69,6 +69,23 @@ async function ensureTables() {
     } catch (e) {
         console.error('❌ ensureTables error:', e.message);
     }
+
+    // "Resmi Takım Adı" (TeamNameRequest) — onaylanan bir isim büyük/küçük harf farksız tek
+    // başına bir kullanıcıya ait olmalı. Bu kısmi (partial) + fonksiyonel (LOWER) unique index
+    // schema.prisma'nın @@unique/@@index sözdiziminde ifade edilemiyor (prisma db push bunu
+    // hiç oluşturmaz, migration.sql'deki tanım production'da OTOMATİK uygulanmıyor — bu
+    // repo'da migration'lar sadece kayıt amaçlı, gerçek DB senkronu db push ile schema.prisma'dan
+    // yapılıyor). O yüzden TournamentPermissionRequest tablosuyla aynı şekilde burada elle
+    // garanti ediliyor.
+    try {
+        await prisma.$executeRawUnsafe(`
+            CREATE UNIQUE INDEX IF NOT EXISTS "TeamNameRequest_approved_teamName_lower_key"
+            ON "TeamNameRequest" (LOWER("teamName")) WHERE "status" = 'APPROVED';
+        `);
+        console.log('✅ TeamNameRequest unique index ready');
+    } catch (e) {
+        console.error('❌ TeamNameRequest index error:', e.message);
+    }
 }
 
 const httpServer = createServer(app);
