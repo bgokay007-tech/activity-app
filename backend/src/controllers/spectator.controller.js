@@ -9,21 +9,41 @@ const SPECTATOR_SELECT = { id: true, username: true, fullName: true, avatar: tru
 // backend/src/utils/volleyballRating.js). Başka dala genişletilirse burası güncellenir.
 const SPECTATOR_SUBCATEGORIES = ['volleyball'];
 
+// Kullanıcı isteği: maça katılım sağlayan (kadroda olan) ya da hakemi olan biri aynı maça
+// ayrıca seyirci olamaz — joinSpectator bunu YENİ katılımlar için engelliyor, ama bir
+// seyirci SONRADAN o maça oyuncu/hakem olarak katılırsa (spectator kaydı zaten varken)
+// bu fonksiyon liste her okunduğunda o çelişkili kaydı temizler.
+async function pruneRosterSpectators(rival, rows) {
+    const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+    const participantsArr = Array.isArray(rival.participants) ? rival.participants : [];
+    const rosterIds = new Set([rival.senderId, ...senderTeamArr.map(p => p?.id), ...participantsArr.map(p => p?.id)].filter(Boolean));
+    const toRemove = rows.filter(r => rosterIds.has(r.userId) || r.userId === rival.refereeId);
+    if (toRemove.length > 0) {
+        await prisma.matchSpectator.deleteMany({ where: { id: { in: toRemove.map(r => r.id) } } });
+    }
+    const removedIds = new Set(toRemove.map(r => r.id));
+    return rows.filter(r => !removedIds.has(r.id));
+}
+
 // GET /rivals/:id/spectators
 export const getSpectators = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const rival = await prisma.activityRequest.findUnique({ where: { id }, select: { id: true, subCategory: true } });
+        const rival = await prisma.activityRequest.findUnique({
+            where: { id },
+            select: { id: true, subCategory: true, senderId: true, senderTeam: true, participants: true, refereeId: true },
+        });
         if (!rival) return res.status(404).json({ message: 'Bulunamadı' });
         if (!SPECTATOR_SUBCATEGORIES.includes(rival.subCategory)) {
             return res.json({ spectators: [], amISpectator: false, canJoin: false });
         }
 
-        const rows = await prisma.matchSpectator.findMany({
+        let rows = await prisma.matchSpectator.findMany({
             where: { activityRequestId: id },
             orderBy: { createdAt: 'asc' },
             include: { user: { select: SPECTATOR_SELECT } },
         });
+        rows = await pruneRosterSpectators(rival, rows);
 
         res.json({
             spectators: rows.map(r => ({ id: r.id, user: r.user, createdAt: r.createdAt })),
@@ -37,7 +57,10 @@ export const getSpectators = async (req, res, next) => {
 export const joinSpectator = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const rival = await prisma.activityRequest.findUnique({ where: { id }, select: { id: true, subCategory: true, status: true } });
+        const rival = await prisma.activityRequest.findUnique({
+            where: { id },
+            select: { id: true, subCategory: true, status: true, senderId: true, senderTeam: true, participants: true, refereeId: true },
+        });
         if (!rival) return res.status(404).json({ message: 'Bulunamadı' });
         if (!SPECTATOR_SUBCATEGORIES.includes(rival.subCategory)) {
             return res.status(400).json({ message: 'Bu dalda seyirci olarak katılım açık değil.' });
@@ -46,6 +69,14 @@ export const joinSpectator = async (req, res, next) => {
         // seyirci olarak katılınabilir — biten/iptal edilen bir maça sonradan "seyirci" olunamaz.
         if (rival.status !== 'OPEN' && rival.status !== 'MATCHED') {
             return res.status(400).json({ message: 'Bu maça artık seyirci olarak katılamazsınız.' });
+        }
+        // Kullanıcı isteği: maça katılım sağlayan (kadroda olan) ya da hakemi olan biri aynı
+        // maça ayrıca seyirci olarak katılamaz — zaten maçın bir parçası.
+        const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+        const participantsArr = Array.isArray(rival.participants) ? rival.participants : [];
+        const rosterIds = [rival.senderId, ...senderTeamArr.map(p => p?.id), ...participantsArr.map(p => p?.id)].filter(Boolean);
+        if (rosterIds.includes(req.userId) || rival.refereeId === req.userId) {
+            return res.status(400).json({ message: 'Bu maçta zaten oyuncu/hakem olarak yer alıyorsunuz, ayrıca seyirci olamazsınız.' });
         }
 
         try {

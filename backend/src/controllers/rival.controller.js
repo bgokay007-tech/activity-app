@@ -6019,7 +6019,11 @@ export const removeRivalParticipant = async (req, res, next) => {
         const { id, userId } = req.params;
         const rival = await prisma.activityRequest.findUnique({ where: { id }, include: { sender: { select: SENDER_SELECT } } });
         if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
-        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi katılımcı çıkarabilir' });
+        // Kullanıcı isteği: sadece ilan sahibi değil, kadrodaki oyuncu kendi isteğiyle de
+        // maçtan ayrılabilmeli — "Ayrıl" butonu bu ucu userId=kendi id'si ile çağırır. Sahip
+        // dışı ayrılmalarda aşağıda cancelMatch'teki AYNI iptal cezası algoritması uygulanır.
+        const isSelfLeave = userId === req.userId && rival.senderId !== req.userId;
+        if (rival.senderId !== req.userId && !isSelfLeave) return res.status(403).json({ message: 'Sadece ilan sahibi katılımcı çıkarabilir' });
 
         const participants = Array.isArray(rival.participants) ? rival.participants : [];
         const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
@@ -6052,11 +6056,22 @@ export const removeRivalParticipant = async (req, res, next) => {
             broadcast('rivalUpdate', updated);
             emitToUser(userId, 'rivalUpdate', updated);
             res.json({ removed: [userId], request: updated });
-            createNotification(userId, 'MATCH_CANCELLED',
-                '⚠️ Katılımınız Kaldırıldı',
-                `${rival.sender?.username || 'İlan sahibi'} sizi "${subCategoryTR(rival.subCategory)}" ilanının yedek listesinden çıkardı.`,
-                { rivalId: id, subCategory: rival.subCategory }
-            ).catch(() => {});
+            // Yedek listesinden ayrılan/çıkarılan henüz asıl kadroda oynamayı taahhüt etmediği
+            // için burada ceza yok — sadece owner'a mı katılımcının kendisine mi bildirim
+            // gideceği isSelfLeave'e göre değişir.
+            if (isSelfLeave) {
+                createNotification(rival.senderId, 'MATCH_CANCELLED',
+                    '⚠️ Bir Yedek Ayrıldı',
+                    `Bir oyuncu "${subCategoryTR(rival.subCategory)}" ilanınızın yedek listesinden ayrıldı.`,
+                    { rivalId: id, subCategory: rival.subCategory }
+                ).catch(() => {});
+            } else {
+                createNotification(userId, 'MATCH_CANCELLED',
+                    '⚠️ Katılımınız Kaldırıldı',
+                    `${rival.sender?.username || 'İlan sahibi'} sizi "${subCategoryTR(rival.subCategory)}" ilanının yedek listesinden çıkardı.`,
+                    { rivalId: id, subCategory: rival.subCategory }
+                ).catch(() => {});
+            }
             return;
         }
 
@@ -6070,6 +6085,22 @@ export const removeRivalParticipant = async (req, res, next) => {
         const updatedUnassigned  = inUnassigned  ? unassignedArr.filter(p => p?.id !== userId) : unassignedArr;
 
         const wasMatched = rival.status === 'MATCHED';
+
+        // Kullanıcı isteği: kendi isteğiyle ayrılan bir oyuncuya, cancelMatch'teki AYNI
+        // "geç iptal" ceza penceresi/miktarı uygulanır (owner tarafından çıkarılanlara ceza
+        // uygulanmaz — o kendi tercihi değil). Voleybolde ilan sahibinin belirlediği
+        // cancelPenaltyHours (belirlemediyse ceza yok), diğer dallarda sabit 5 saat/-0.20.
+        const isVolleyballLeave = rival.subCategory === 'volleyball';
+        const leavePenaltyWindowHours = isVolleyballLeave ? rival.cancelPenaltyHours : 5;
+        const leavePenaltyAmount = isVolleyballLeave ? 0.10 : 0.20;
+        let leaveWithinPenaltyWindow = false;
+        if (isSelfLeave && leavePenaltyWindowHours != null && rival.matchDate && rival.matchTime) {
+            const [lh, lm] = rival.matchTime.split(':').map(Number);
+            const matchStart = new Date(rival.matchDate);
+            matchStart.setUTCHours(lh, lm, 0, 0);
+            const hoursUntil = (matchStart - new Date()) / (1000 * 60 * 60);
+            leaveWithinPenaltyWindow = hoursUntil > 0 && hoursUntil <= leavePenaltyWindowHours;
+        }
 
         // Voleybol: dolu bir maçtan biri çıkarılınca, bekleyen bir Yedek varsa (kullanıcı
         // isteği) ilan tekrar açılıp herkese sunulmak yerine sırada bekleyen ilk yedek
@@ -6137,6 +6168,31 @@ export const removeRivalParticipant = async (req, res, next) => {
             include: { sender: { select: SENDER_SELECT } },
         });
 
+        // cancelMatch'teki AYNI ceza uygulaması — sadece kendi isteğiyle ayrılan kişiye.
+        if (leaveWithinPenaltyWindow) {
+            const interest = await prisma.userInterest.findFirst({
+                where: { userId: req.userId, category: rival.category, subCategory: rival.subCategory },
+            });
+            if (interest) {
+                const newCount = interest.lateCancelCount + 1;
+                await prisma.userInterest.update({
+                    where: { id: interest.id },
+                    data: {
+                        skillRating: Math.max(0, parseFloat((interest.skillRating - leavePenaltyAmount).toFixed(2))),
+                        totalPoints: Math.max(0, interest.totalPoints - Math.round(leavePenaltyAmount * 20)),
+                        lateCancelCount: newCount,
+                    },
+                });
+                if (newCount === 5) {
+                    createNotification(req.userId, 'LATE_CANCEL_WARNING',
+                        '⚠️ Son Dakika İptal Uyarısı',
+                        `${subCategoryTR(rival.subCategory)} dalında 5 kez maçı son ${leavePenaltyWindowHours} saat içinde iptal ettiniz. Bu durum profilinizde görünür ve güvenilirliğinizi olumsuz etkiler.`,
+                        { subCategory: rival.subCategory }
+                    ).catch(() => {});
+                }
+            }
+        }
+
         await prisma.rivalJoinRequest.updateMany({
             where: { rivalId: id, userId: { in: removeIds }, status: 'ACCEPTED' },
             data: { status: 'REJECTED' },
@@ -6154,15 +6210,27 @@ export const removeRivalParticipant = async (req, res, next) => {
         for (const uid of removeIds) emitToUser(uid, 'rivalUpdate', updated);
         if (promoted?.id) emitToUser(promoted.id, 'rivalUpdate', updated);
 
-        res.json({ removed: removeIds, request: updated });
+        res.json({ removed: removeIds, request: updated, penaltyApplied: leaveWithinPenaltyWindow, penaltyAmount: leaveWithinPenaltyWindow ? leavePenaltyAmount : undefined });
 
         const senderName = rival.sender?.username || 'İlan sahibi';
-        for (const uid of removeIds) {
-            createNotification(uid, 'MATCH_CANCELLED',
-                '⚠️ Katılımınız Kaldırıldı',
+        // Kendi isteğiyle ayrılana kendi ayrılışını "çıkarıldı" diye bildirmeye gerek yok —
+        // o zaten aksiyonu kendi yaptı, sadece owner'a ve kadroya haber verilir.
+        if (!isSelfLeave) {
+            for (const uid of removeIds) {
+                createNotification(uid, 'MATCH_CANCELLED',
+                    '⚠️ Katılımınız Kaldırıldı',
+                    staysMatched
+                        ? `${senderName} sizi "${subCategoryTR(rival.subCategory)}" ilanından çıkardı. Yerinize bir yedek oyuncu geçti, maç dolu kaldı.`
+                        : `${senderName} sizi "${subCategoryTR(rival.subCategory)}" ilanından çıkardı. İlan tekrar açık hâle geldi.`,
+                    { rivalId: id, subCategory: rival.subCategory }
+                ).catch(() => {});
+            }
+        } else {
+            createNotification(rival.senderId, 'MATCH_CANCELLED',
+                '⚠️ Bir Oyuncu Ayrıldı',
                 staysMatched
-                    ? `${senderName} sizi "${subCategoryTR(rival.subCategory)}" ilanından çıkardı. Yerinize bir yedek oyuncu geçti, maç dolu kaldı.`
-                    : `${senderName} sizi "${subCategoryTR(rival.subCategory)}" ilanından çıkardı. İlan tekrar açık hâle geldi.`,
+                    ? `Bir oyuncu "${subCategoryTR(rival.subCategory)}" ilanınızdan ayrıldı. Yerine bir yedek oyuncu geçti, maç dolu kaldı.`
+                    : `Bir oyuncu "${subCategoryTR(rival.subCategory)}" ilanınızdan ayrıldı. İlan tekrar açık hâle geldi.`,
                 { rivalId: id, subCategory: rival.subCategory }
             ).catch(() => {});
         }

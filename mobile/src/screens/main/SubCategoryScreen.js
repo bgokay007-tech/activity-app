@@ -997,6 +997,50 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // Seyirci itirazı: sadece bu maçın kadrosundaki (iki takım) oyuncular itiraz edebilir.
     const isMatchRosterMember = isOwner || senderTeamArr.some(p => p?.id === myId) || participants.some(p => p?.id === myId);
     const joinRequests = localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []);
+
+    // Kullanıcı isteği: kadroya katılmış (owner olmayan) biri maçtan ayrılabilsin — cancelMatch'teki
+    // AYNI geç iptal ceza penceresi (backend removeRivalParticipant'ta da aynı hesap tekrarlanır).
+    const getItemMatchStart = () => {
+        if (!item.matchDate || !item.matchTime) return null;
+        const [h, min] = item.matchTime.split(':').map(Number);
+        const d = new Date(item.matchDate);
+        d.setHours(h, min, 0, 0);
+        return d;
+    };
+    const itemMatchStart = getItemMatchStart();
+    const itemHoursUntilMatch = itemMatchStart ? (itemMatchStart - new Date()) / (1000 * 60 * 60) : null;
+    const isVolleyballItem = item.subCategory === 'volleyball';
+    const leaveCancelPenaltyWindowHours = isVolleyballItem ? item.cancelPenaltyHours : 5;
+    const leaveCancelPenaltyAmount = isVolleyballItem ? 0.10 : 0.20;
+    const leaveWithinPenaltyWindow = leaveCancelPenaltyWindowHours != null && itemHoursUntilMatch !== null && itemHoursUntilMatch > 0 && itemHoursUntilMatch <= leaveCancelPenaltyWindowHours;
+    const [leavingMatch, setLeavingMatch] = useState(false);
+    const handleLeaveMatch = () => {
+        const msg = leaveWithinPenaltyWindow
+            ? t.cancelMatchPenaltyWarning(leaveCancelPenaltyWindowHours, leaveCancelPenaltyAmount)
+            : t.cancelMatchConfirmMsg;
+        Alert.alert(t.cancelMatchTitle, msg, [
+            { text: 'Vazgeç', style: 'cancel' },
+            {
+                text: leaveWithinPenaltyWindow ? `${t.cancelMatchBtn} (-${leaveCancelPenaltyAmount.toFixed(2)})` : t.cancelMatchBtn,
+                style: 'destructive',
+                onPress: async () => {
+                    setLeavingMatch(true);
+                    try {
+                        const { data } = await api.delete(`/rivals/${item.id}/participants/${myId}`);
+                        if (Array.isArray(data?.request?.participants)) setLocalParticipants(data.request.participants);
+                        if (Array.isArray(data?.request?.senderTeam)) setLocalSenderTeam(data.request.senderTeam);
+                        if (Array.isArray(data?.request?.unassignedPlayers)) setLocalUnassigned(data.request.unassignedPlayers);
+                        onClose();
+                        onRefresh();
+                    } catch (e) {
+                        Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+                    } finally {
+                        setLeavingMatch(false);
+                    }
+                },
+            },
+        ]);
+    };
     useEffect(() => {
         [participants, senderTeamArr, unassignedArr].forEach(arr => {
             (Array.isArray(arr) ? arr : []).forEach(p => {
@@ -3386,8 +3430,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 </View>
                             </View>
                         ) : mySentReq === 'ACCEPTED' ? (
-                            <View style={[s.waitingBox, { backgroundColor:'#16a34a20', borderColor:'#16a34a40', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}>
-                                <Text style={[s.waitingText, { color:'#4ade80', fontSize: moderateScale(12) }]}>{t.requestAccepted || '✓ Kabul edildiniz!'}</Text>
+                            <View style={{ gap:6 }}>
+                                <View style={[s.waitingBox, { backgroundColor:'#16a34a20', borderColor:'#16a34a40', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}>
+                                    <Text style={[s.waitingText, { color:'#4ade80', fontSize: moderateScale(12) }]}>{t.requestAccepted || '✓ Kabul edildiniz!'}</Text>
+                                </View>
+                                {/* Kullanıcı isteği: kadroya katılmış biri maçtan ayrılabilsin —
+                                    cancelMatch'teki aynı geç iptal ceza penceresi burada da uygulanır. */}
+                                <TouchableOpacity disabled={leavingMatch} onPress={handleLeaveMatch}
+                                    style={[s.cancelBtn, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5), opacity: leavingMatch ? 0.6 : 1 }]}>
+                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>✕ {t.leaveMatchBtn}{leaveWithinPenaltyWindow ? ' ⚠️' : ''}</Text>
+                                </TouchableOpacity>
                             </View>
                         ) : isFull ? (
                             <View style={{ gap:6 }}>
