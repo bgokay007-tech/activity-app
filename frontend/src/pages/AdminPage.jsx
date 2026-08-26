@@ -1357,6 +1357,23 @@ function BusinessVenuesPanel() {
         finally { setActionId(null); }
     };
 
+    // Mobil "Eksik Bilgileri Tamamla" formundan (suggestVenueEdit) gelen, zaten onaylı bir
+    // tesisin eksik bilgisini tamamlayan öneriler burada onaylanıp gerçek alanlara uygulanır.
+    const approveEdit = async (id) => {
+        setActionId(id);
+        try { await api.patch(`/venues/${id}/approve-edit`); load(); }
+        catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+        finally { setActionId(null); }
+    };
+    const rejectEdit = async (id) => {
+        const note = window.prompt('Ret nedeni (opsiyonel):');
+        if (note === null) return;
+        setActionId(id);
+        try { await api.patch(`/venues/${id}/reject-edit`, { adminNote: note || null }); load(); }
+        catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+        finally { setActionId(null); }
+    };
+
     const SLOT_LABELS = { FULL_HOUR: 'Tam Saatler', HALF_HOUR: 'Buçuklu Saatler', FLEXIBLE: 'Serbest Süre' };
     const DAY_NAMES = ['', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 
@@ -1434,6 +1451,31 @@ function BusinessVenuesPanel() {
                             ))}
                         </div>
                     </div>
+
+                    {v.pendingEdit && (
+                        <div className="bg-purple-950/30 border border-purple-500/40 rounded-xl p-3 space-y-1.5">
+                            <p className="text-purple-300 text-xs font-bold">✏️ Bilgi Güncelleme Önerisi</p>
+                            <div className="text-gray-300 text-xs space-y-0.5">
+                                {v.pendingEdit.name && <p>İsim: {v.pendingEdit.name}</p>}
+                                {v.pendingEdit.district && <p>İlçe: {v.pendingEdit.district}</p>}
+                                {v.pendingEdit.address && <p>Adres: {v.pendingEdit.address}</p>}
+                                {v.pendingEdit.phone && <p>Telefon: {v.pendingEdit.phone}</p>}
+                                {v.pendingEdit.courtCount != null && <p>Kort Sayısı: {v.pendingEdit.courtCount}</p>}
+                                {(v.pendingEdit.openTime || v.pendingEdit.closeTime) && <p>Saat: {v.pendingEdit.openTime || v.openTime} – {v.pendingEdit.closeTime || v.closeTime}</p>}
+                                {v.pendingEdit.openDays && <p>Günler: {v.pendingEdit.openDays.join(', ')}</p>}
+                            </div>
+                            <div className="flex gap-2 pt-1">
+                                <button onClick={() => approveEdit(v.id)} disabled={actionId === v.id}
+                                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg border bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20 transition disabled:opacity-50">
+                                    ✅ Düzenlemeyi Onayla
+                                </button>
+                                <button onClick={() => rejectEdit(v.id)} disabled={actionId === v.id}
+                                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 transition disabled:opacity-50">
+                                    ✕ Reddet
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     <p className="text-gray-500 text-xs">Başvuru: {new Date(v.createdAt).toLocaleString('tr-TR')}</p>
 

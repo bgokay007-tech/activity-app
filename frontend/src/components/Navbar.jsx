@@ -59,7 +59,13 @@ function NotificationPanel({ notifications, onMarkAll, onMarkOne, onClose }) {
     const navigate = useNavigate();
 
     const ADMIN_TAB_BY_TYPE = {
-        VENUE_REQUEST: 'venues',
+        // VENUE_REQUEST: yeni İŞLETME tesisi başvurusu (createVenue/suggestVenue) — Court
+        // modeliyle karışan eski 'venues' hedefi yanlıştı, doğrusu 'biz-venues' (İşletme
+        // Tesisleri). VENUE_SUBMISSION ise yeni bir topluluk Court kaydı (rival ilanındaki
+        // "Kort Adı" alanından) — o gerçekten 'venues' (Salon/Kort/Saha bekleyenler) sekmesine gider.
+        VENUE_REQUEST: 'biz-venues',
+        VENUE_EDIT_REQUEST: 'biz-venues',
+        COURT_EDIT_REQUEST: 'courts',
         VENUE_SUBMISSION: 'venues',
         SUBSCRIPTION_REQUEST: 'subscriptions',
         SUBSCRIPTION_RECEIPT: 'subscriptions',

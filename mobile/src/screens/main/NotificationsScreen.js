@@ -329,8 +329,10 @@ export default function NotificationsScreen({ navigation }) {
             } else {
                 navigation.navigate('HomeTab', { screen: 'MyReservations' });
             }
-        } else if (type === 'VENUE_REQUEST') {
+        } else if (type === 'VENUE_REQUEST' || type === 'VENUE_EDIT_REQUEST') {
             navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'venues' } });
+        } else if (type === 'COURT_EDIT_REQUEST') {
+            navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'courts' } });
         } else if (type === 'SUBSCRIPTION_REQUEST' || type === 'SUBSCRIPTION_RECEIPT') {
             navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'subscriptions' } });
         } else if (type === 'VENUE_REVIEW_PENDING') {

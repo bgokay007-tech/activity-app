@@ -667,7 +667,7 @@ export const suggestVenueEdit = async (req, res, next) => {
         prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } }).then(async admins => {
             const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, businessName: true } });
             await Promise.all(admins.map(a =>
-                createNotification(a.id, 'VENUE_REQUEST', '✏️ Tesis Bilgi Güncelleme Önerisi',
+                createNotification(a.id, 'VENUE_EDIT_REQUEST', '✏️ Tesis Bilgi Güncelleme Önerisi',
                     `${user?.businessName || user?.username} tarafından "${venue.name}" tesisi için bilgi güncellemesi önerildi. Onay bekliyor.`,
                     { venueId: id }
                 ).then(() => emitToUser(a.id, 'notification', {})).catch(() => {})

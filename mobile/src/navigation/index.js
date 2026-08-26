@@ -49,8 +49,10 @@ function navigateFromNotif(data) {
         // reservationId varsa (ör. iptal talebi) takvimde o saat kutucuğu yanıp söner ve
         // dokununca doğrudan Onayla/Reddet sorulur (kullanıcı isteği).
         navigationRef.navigate('BusinessApp', { openReservations: true, venueId: data.venueId || null, highlightReservationId: data.reservationId || null, highlightDate: data.date || null });
-    } else if (type === 'VENUE_REQUEST') {
+    } else if (type === 'VENUE_REQUEST' || type === 'VENUE_EDIT_REQUEST') {
         navigationRef.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'venues' } });
+    } else if (type === 'COURT_EDIT_REQUEST') {
+        navigationRef.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'courts' } });
     } else if (type === 'SUBSCRIPTION_REQUEST' || type === 'SUBSCRIPTION_RECEIPT') {
         navigationRef.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'subscriptions' } });
     } else if (data.category && data.subCategory) {
