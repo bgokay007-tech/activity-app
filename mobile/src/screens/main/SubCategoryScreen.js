@@ -19058,6 +19058,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [coachCertImage, setCoachCertImage] = useState(null);
     const [coachCvImage, setCoachCvImage] = useState(null);
     const [coachAchievementImages, setCoachAchievementImages] = useState([]);
+    // Kullanıcı isteği: daha önce CV yüklemiş bir antrenör yeni ilan oluştururken bu
+    // "başvuru" yeniden CV istemesin — mevcut ilanındaki kimlik/belge bilgisi otomatik
+    // gelsin. İlan oluştur butonuna basılınca doldurulur, resetCoachForm ile temizlenir.
+    const [existingCoachCv, setExistingCoachCv] = useState(null);
     const [showCvUploadModal, setShowCvUploadModal] = useState(false);
     const [cvUploadListingId, setCvUploadListingId] = useState(null);
     const [cvUploadType, setCvUploadType] = useState(null); // 'coach' | 'referee' — seçilene kadar modal seçim ekranını gösterir
@@ -19664,24 +19668,50 @@ export default function SubCategoryScreen({ route, navigation }) {
         setCoachCertImage(null);
         setCoachCvImage(null);
         setCoachAchievementImages([]);
+        setExistingCoachCv(null);
     };
 
     // Kullanıcı isteği: konum artık zorunlu değil, onun yerine bir/birden fazla şehir
     // zorunlu; CV/admin onayı zorunluluğu voleybol dışında tenis ve padelde de geçerli.
     const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
 
+    const DAY_OPTIONS = [
+        { key:'Pzt', label:'Pzt' }, { key:'Sal', label:'Sal' }, { key:'Çar', label:'Çar' },
+        { key:'Per', label:'Per' }, { key:'Cum', label:'Cum' }, { key:'Cmt', label:'Cmt' }, { key:'Paz', label:'Paz' },
+    ];
+
+    // Kullanıcı isteği: "İlan Oluştur"a basınca daha önce CV yüklemiş bir antrenörün
+    // kimlik/belge bilgisi otomatik dolsun, yeniden başvuru gibi davranmasın.
+    const openCreateCoachModal = () => {
+        const existing = coachListings.find(c => c.userId === myId && c.cvUrl);
+        if (existing) {
+            setExistingCoachCv(existing);
+            setCoachForm(f => ({
+                ...f,
+                credentialLevel: existing.credentialLevel || f.credentialLevel,
+                certName: existing.certName || f.certName,
+                experience: existing.experience ? String(existing.experience) : f.experience,
+                achievements: existing.achievements || f.achievements,
+            }));
+        } else {
+            setExistingCoachCv(null);
+        }
+        setShowCreateCoach(true);
+    };
+
     const submitCoach = async () => {
         if (coachForm.cities.length === 0) return Alert.alert('', 'En az bir şehir seçmelisiniz');
-        if (COACH_APPROVAL_SPORTS.includes(sub) && !coachCvImage) return Alert.alert('', 'Bu dalda antrenörlük başvurusu için CV yüklemeniz zorunludur.');
+        if (COACH_APPROVAL_SPORTS.includes(sub) && !coachCvImage && !existingCoachCv?.cvUrl) return Alert.alert('', 'Bu dalda antrenörlük için CV yüklemeniz zorunludur.');
         setSubmittingCoach(true);
         try {
             setUploadingCoachMedia(true);
-            const certificateUrl = coachCertImage ? await uploadCoachImage(coachCertImage, 'cert.jpg') : undefined;
-            const cvUrl = coachCvImage ? await uploadCoachImage(coachCvImage, 'cv.jpg') : undefined;
+            const certificateUrl = coachCertImage ? await uploadCoachImage(coachCertImage, 'cert.jpg') : (existingCoachCv?.certificateUrl || undefined);
+            const cvUrl = coachCvImage ? await uploadCoachImage(coachCvImage, 'cv.jpg') : (existingCoachCv?.cvUrl || undefined);
             const achievementUrls = [];
             for (const uri of coachAchievementImages) {
                 achievementUrls.push(await uploadCoachImage(uri, 'achievement.jpg'));
             }
+            const finalAchievementUrls = achievementUrls.length > 0 ? achievementUrls : (existingCoachCv?.achievementUrls || []);
             setUploadingCoachMedia(false);
 
             await api.post('/coaches', {
@@ -19692,7 +19722,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 priceIndividual: parseInt(coachForm.priceIndividual) || 0,
                 priceGroup: parseInt(coachForm.priceGroup) || 0,
                 maxGroupSize: parseInt(coachForm.maxGroupSize) || 4,
-                certificateUrl, cvUrl, achievementUrls,
+                certificateUrl, cvUrl, achievementUrls: finalAchievementUrls,
             });
             setShowCreateCoach(false);
             resetCoachForm();
@@ -22056,16 +22086,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                         const individualCoaches = filteredCoaches.filter(c => c.individual);
                         const groupCourses = filteredCoaches.filter(c => c.group);
                         const coachesWithCv = filteredCoaches.filter(c => c.cvUrl);
+                        // Kullanıcı isteği: CVler sekmesi antrenör ve hakem CV'lerini AYRI iki
+                        // başlık altında göstersin — önceden sadece antrenör CV'leri vardı, hakem
+                        // CV'leri hiç görünmüyordu.
+                        const refereesWithCv = refereeListings.filter(r => r.cvUrl);
                         const subTabs = isCoachExpanded
                             ? [
                                 { key:'listings', label: t.coachesSubTab,  count: individualCoaches.length },
                                 { key:'courses',  label: t.coursesSubTab,  count: groupCourses.length },
                                 { key:'referees', label: t.refereesSubTab, count: refereeListings.length + refereeMatches.length },
-                                { key:'cvs',      label: t.coachCvsTab,    count: coachesWithCv.length },
+                                { key:'cvs',      label: t.coachCvsTab,    count: coachesWithCv.length + refereesWithCv.length },
                               ]
                             : [
                                 { key:'listings', label: t.coachListingsTab, count: filteredCoaches.length },
-                                { key:'cvs',      label: t.coachCvsTab,      count: coachesWithCv.length },
+                                { key:'cvs',      label: t.coachCvsTab,      count: coachesWithCv.length + refereesWithCv.length },
                               ];
                         const shown = coachSubTab === 'cvs' ? coachesWithCv
                             : coachSubTab === 'courses' ? groupCourses
@@ -22087,7 +22121,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 ))}
                             </View>
 
-                            {coachSubTab === 'referees' ? (
+                            {/* Kullanıcı isteği: CVler sekmesi sadece yüklenmiş CV'leri LİSTELESİN —
+                                "İlan Oluştur"/"CV Yükle" eylemleri orada gösterilmesin, kafa karıştırıyordu. */}
+                            {coachSubTab === 'cvs' ? null : coachSubTab === 'referees' ? (
                                 <CityAlertRow tab="referees">
                                     <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
@@ -22111,7 +22147,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
                                         onPress={() => {
                                             if (coachSubTab === 'courses') setCoachForm(f => ({ ...f, individual:false, group:true }));
-                                            setShowCreateCoach(true);
+                                            openCreateCoachModal();
                                         }}>
                                         <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{category === 'ARTS' || coachSubTab === 'courses' ? (t.createCourseBtn || '🎓 Kurs Oluştur') : t.createCoachBtn}</Text>
                                     </TouchableOpacity>
@@ -22208,22 +22244,48 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </>
                             ) : loadingCoaches
                                 ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
-                                : shown.length === 0
-                                    ? <EmptyState emoji="🎓" text={coachSubTab === 'cvs' ? t.noCvYet : (coachListings.length > 0 ? t.noFilterMatch : t.emptyCoaches)} />
-                                    : coachSubTab === 'cvs'
-                                        ? shown.map(c => (
-                                            <View key={c.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:colors.surface2, borderRadius:12, padding:9, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
-                                                <Text style={{ fontSize:22, marginRight:8 }}>📄</Text>
-                                                <View style={{ flex:1 }}>
-                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{c.user?.fullName || c.user?.username}</Text>
-                                                    <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.credentialLevel}{c.experience > 0 ? ` · ${c.experience} yıl deneyim` : ''}</Text>
-                                                </View>
-                                                <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)} style={{ backgroundColor: cfg.color+'20', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>CV'yi Aç</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        ))
-                                        : shown.map(c => (
+                                : coachSubTab === 'cvs'
+                                    ? (coachesWithCv.length === 0 && refereesWithCv.length === 0)
+                                        ? <EmptyState emoji="🎓" text={t.noCvYet} />
+                                        : (
+                                            <>
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8 }}>Antrenör CV'leri</Text>
+                                                {coachesWithCv.length === 0
+                                                    ? <EmptyState emoji="🎓" text={t.noCvYet} />
+                                                    : coachesWithCv.map(c => (
+                                                        <View key={c.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:colors.surface2, borderRadius:12, padding:9, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
+                                                            <Text style={{ fontSize:22, marginRight:8 }}>📄</Text>
+                                                            <View style={{ flex:1 }}>
+                                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{c.user?.fullName || c.user?.username}</Text>
+                                                                <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.credentialLevel}{c.experience > 0 ? ` · ${c.experience} yıl deneyim` : ''}</Text>
+                                                            </View>
+                                                            <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)} style={{ backgroundColor: cfg.color+'20', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor: cfg.color+'50' }}>
+                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>CV'yi Aç</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    ))
+                                                }
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginTop:14, marginBottom:8 }}>Hakemlik CV'leri</Text>
+                                                {refereesWithCv.length === 0
+                                                    ? <EmptyState emoji="🟨" text={t.noCvYet} />
+                                                    : refereesWithCv.map(r => (
+                                                        <View key={r.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:colors.surface2, borderRadius:12, padding:9, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
+                                                            <Text style={{ fontSize:22, marginRight:8 }}>📄</Text>
+                                                            <View style={{ flex:1 }}>
+                                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{r.user?.fullName || r.user?.username}</Text>
+                                                                <Text style={{ color:colors.textMuted, fontSize:11 }}>{r.credentialLevel}{r.experience > 0 ? ` · ${r.experience} yıl deneyim` : ''}</Text>
+                                                            </View>
+                                                            <TouchableOpacity onPress={() => Linking.openURL(r.cvUrl)} style={{ backgroundColor: cfg.color+'20', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor: cfg.color+'50' }}>
+                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>CV'yi Aç</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    ))
+                                                }
+                                            </>
+                                        )
+                                    : shown.length === 0
+                                    ? <EmptyState emoji="🎓" text={coachListings.length > 0 ? t.noFilterMatch : t.emptyCoaches} />
+                                    : shown.map(c => (
                                         <View key={c.id} style={{ backgroundColor:colors.surface2, borderRadius:12, padding:9, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
                                                 <Text style={{ fontSize:22 }}>🎓</Text>
@@ -22250,7 +22312,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 {c.group && <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}><Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Grup {c.priceGroup > 0 ? `${c.priceGroup}₺` : ''}</Text></View>}
                                                 {c.experience > 0 && <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.experience} yıl deneyim</Text>}
                                             </View>
-                                            {(c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
+                                            {Array.isArray(c.days) && c.days.length > 0 && typeof c.days[0] === 'object'
+                                                ? <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {c.days.map(d => `${d.day} ${d.timeFrom}-${d.timeTo}`).join(', ')}</Text>
+                                                : (c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
                                             {(c.city || (Array.isArray(c.cities) && c.cities.length > 0)) && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={2}>{c.description}</Text>}
                                             {c.achievements && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {c.achievements}</Text>}
@@ -22326,8 +22390,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 {c.group && <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:8, paddingVertical:4 }}><Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>Grup {c.priceGroup > 0 ? `${c.priceGroup}₺ (max ${c.maxGroupSize})` : ''}</Text></View>}
                                                 {c.experience > 0 && <View style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:4 }}><Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>{c.experience} yıl deneyim</Text></View>}
                                             </View>
-                                            {(c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
-                                            {(c.days || []).length > 0 && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>📆 {c.days.join(', ')}</Text>}
+                                            {Array.isArray(c.days) && c.days.length > 0 && typeof c.days[0] === 'object'
+                                                ? <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>📆 {c.days.map(d => `${d.day} ${d.timeFrom}-${d.timeTo}`).join(', ')}</Text>
+                                                : (c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
                                             {(c.city || (Array.isArray(c.cities) && c.cities.length > 0)) && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>📍 {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:13, marginTop:8, lineHeight:19 }}>{c.description}</Text>}
                                             {c.achievements && <Text style={{ color:'#fbbf24', fontSize:13, marginTop:8, lineHeight:19 }}>🏆 {c.achievements}</Text>}
@@ -22368,8 +22433,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
                                     <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>
-                                        {category === 'ARTS' ? '🎓 Kurs Oluştur' : COACH_APPROVAL_SPORTS.includes(sub) ? '🎓 Antrenörlük Başvurusu' : '🎓 Destek İlanı Oluştur'}
+                                        {category === 'ARTS' ? '🎓 Kurs Oluştur' : existingCoachCv ? '🎓 İlan Oluştur' : COACH_APPROVAL_SPORTS.includes(sub) ? '🎓 Antrenörlük Başvurusu' : '🎓 Destek İlanı Oluştur'}
                                     </Text>
+                                    {/* Kullanıcı isteği: daha önce CV yüklemiş bir antrenör için bu artık
+                                        sıfırdan bir "başvuru" değil — kimlik/belge bilgisi mevcut CV'den
+                                        otomatik geldiğini açıkça belirtiyoruz. */}
+                                    {existingCoachCv && (
+                                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700', marginBottom:10 }}>
+                                            ✓ Kimlik/Belge bilgileriniz mevcut CV'nizden otomatik dolduruldu, sadece kalan alanları doldurun.
+                                        </Text>
+                                    )}
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kimlik / Belge</Text>
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>
@@ -22400,7 +22473,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TouchableOpacity onPress={() => pickCoachSingleImage(setCoachCertImage)}
                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
                                         <Text style={{ fontSize:14 }}>📜</Text>
-                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{coachCertImage ? 'Belge Fotoğrafı Seçildi ✓' : 'Belge Fotoğrafı Yükle (opsiyonel)'}</Text>
+                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                            {coachCertImage ? 'Belge Fotoğrafı Seçildi ✓'
+                                                : existingCoachCv?.certificateUrl ? 'Mevcut Belgeniz Kullanılacak ✓ (değiştirmek için dokunun)'
+                                                : 'Belge Fotoğrafı Yükle (opsiyonel)'}
+                                        </Text>
                                     </TouchableOpacity>
                                     <TextInput placeholder="Deneyim (yıl)" placeholderTextColor={colors.textMuted} value={coachForm.experience} onChangeText={v => setCoachForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
 
@@ -22452,10 +22529,46 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         placeholder="Şehir ekle..."
                                         style={{ marginBottom: 8 }}
                                     />
-                                    <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
-                                        <TextInput placeholder="Başlangıç saati (09:00)" placeholderTextColor={colors.textMuted} value={coachForm.timeFrom} onChangeText={v => setCoachForm(f=>({...f,timeFrom:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
-                                        <TextInput placeholder="Bitiş saati (21:00)" placeholderTextColor={colors.textMuted} value={coachForm.timeTo} onChangeText={v => setCoachForm(f=>({...f,timeTo:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                    {/* Kullanıcı isteği: hangi gün müsaitse o gün seçilsin, her seçilen günün
+                                        KENDİ saat aralığı olsun — tek bir global saat aralığı yerine. */}
+                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Müsait Günler</Text>
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
+                                        {DAY_OPTIONS.map(d => {
+                                            const active = coachForm.days.some(x => x.day === d.key);
+                                            return (
+                                                <TouchableOpacity key={d.key}
+                                                    onPress={() => setCoachForm(f => ({
+                                                        ...f,
+                                                        days: f.days.some(x => x.day === d.key)
+                                                            ? f.days.filter(x => x.day !== d.key)
+                                                            : [...f.days, { day: d.key, timeFrom: '09:00', timeTo: '21:00' }],
+                                                    }))}
+                                                    style={{ paddingHorizontal:9, paddingVertical:5, borderRadius:8, backgroundColor: active ? cfg.color : colors.surface2, borderWidth:1, borderColor: active ? cfg.color : colors.border }}>
+                                                    <Text style={{ color: active ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>{d.label}</Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
                                     </View>
+                                    {coachForm.days.length === 0 ? (
+                                        <Text style={{ color:'#f59e0b', fontSize:10, marginBottom:14 }}>Gün seçmezseniz her gün 09:00-21:00 müsait sayılırsınız.</Text>
+                                    ) : (
+                                        <View style={{ marginBottom:14 }}>
+                                            {coachForm.days.map(d => (
+                                                <View key={d.day} style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
+                                                    <Text style={{ color:colors.textSecondary, fontSize:11, fontWeight:'700', width:30 }}>{d.day}</Text>
+                                                    <TextInput placeholder="09:00" placeholderTextColor={colors.textMuted} value={d.timeFrom}
+                                                        onChangeText={v => setCoachForm(f => ({ ...f, days: f.days.map(x => x.day === d.day ? { ...x, timeFrom: v } : x) }))}
+                                                        style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:4, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                                    <TextInput placeholder="21:00" placeholderTextColor={colors.textMuted} value={d.timeTo}
+                                                        onChangeText={v => setCoachForm(f => ({ ...f, days: f.days.map(x => x.day === d.day ? { ...x, timeTo: v } : x) }))}
+                                                        style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:4, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                                    <TouchableOpacity onPress={() => setCoachForm(f => ({ ...f, days: f.days.filter(x => x.day !== d.day) }))} style={{ paddingHorizontal:6 }}>
+                                                        <Text style={{ color:'#ef4444', fontSize:14, fontWeight:'900' }}>✕</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Başarılar</Text>
                                     <TextInput placeholder="Başarılarınız (örn. 2023 Bölge Şampiyonu)" placeholderTextColor={colors.textMuted} value={coachForm.achievements} onChangeText={v => setCoachForm(f=>({...f,achievements:v}))} multiline numberOfLines={2} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:50, textAlignVertical:'top' }} />
@@ -22484,9 +22597,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TouchableOpacity onPress={() => pickCoachSingleImage(setCoachCvImage)}
                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
                                         <Text style={{ fontSize:14 }}>📄</Text>
-                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{coachCvImage ? 'CV Fotoğrafı Seçildi ✓' : `CV Fotoğrafı Yükle${COACH_APPROVAL_SPORTS.includes(sub) ? ' *' : ' (opsiyonel)'}`}</Text>
+                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                            {coachCvImage ? 'CV Fotoğrafı Seçildi ✓'
+                                                : existingCoachCv?.cvUrl ? 'Mevcut CV\'niz Kullanılacak ✓ (değiştirmek için dokunun)'
+                                                : `CV Fotoğrafı Yükle${COACH_APPROVAL_SPORTS.includes(sub) ? ' *' : ' (opsiyonel)'}`}
+                                        </Text>
                                     </TouchableOpacity>
-                                    {COACH_APPROVAL_SPORTS.includes(sub) && (
+                                    {COACH_APPROVAL_SPORTS.includes(sub) && !existingCoachCv && (
                                         <Text style={{ color:'#f59e0b', fontSize:11, marginBottom:8 }}>
                                             Bu dalda antrenörlük başvurunuz admin onayına gönderilir — CV'niz incelenip onaylandıktan sonra ilanınız herkese görünür.
                                         </Text>
@@ -22503,7 +22620,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             netleştiriyor. Onay gerekmeyen dallarda eski metin korunuyor. */}
                                         <TouchableOpacity onPress={submitCoach} disabled={submittingCoach || uploadingCoachMedia} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
                                             <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
-                                                {uploadingCoachMedia ? 'Yükleniyor...' : submittingCoach ? '...' : COACH_APPROVAL_SPORTS.includes(sub) ? 'Antrenörlüğe Başvur' : 'İlanı Yayınla'}
+                                                {uploadingCoachMedia ? 'Yükleniyor...' : submittingCoach ? '...' : (COACH_APPROVAL_SPORTS.includes(sub) && !existingCoachCv) ? 'Antrenörlüğe Başvur' : 'İlanı Yayınla'}
                                             </Text>
                                         </TouchableOpacity>
                                     </View>
