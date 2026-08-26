@@ -18866,6 +18866,15 @@ export default function SubCategoryScreen({ route, navigation }) {
         else AsyncStorage.removeItem(`filter_city_${sub}`).catch(() => {});
     }, [filterCity, sub]);
     const [filterVenueName, setFilterVenueName] = useState(''); // kort/salon/mekan adına göre ayrı arama — dala göre etiketi değişir
+    // Kullanıcı isteği: kort adı filtresi artık BİRDEN FAZLA kort seçilebilir (çip listesi) —
+    // sadece Rakip Bul listesinde filtre uygular, turnuvalar/diğer sekmeler etkilenmez.
+    const [filterVenueNames, setFilterVenueNames] = useState([]);
+    const matchesVenueNameFilter = (name) => {
+        const n = (name || '').toLowerCase();
+        if (filterVenueNames.length > 0) return filterVenueNames.some(sel => n.includes(sel.toLowerCase()));
+        if (filterVenueName.trim()) return n.includes(filterVenueName.trim().toLowerCase());
+        return true;
+    };
     // Voleybol Türü (Salon/Plaj/Çim/Mahalle/Toprak) — önceden ayrı sekmeler halindeydi,
     // kullanıcı isteğiyle kaldırılıp diğer filtrelerle (il, tarih vb.) aynı "Filtrele"
     // modalına taşındı. null = Tümü. Sadece sub==='volleyball' iken anlamlı.
@@ -20500,11 +20509,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             const senderCity = item.flexibleSchedule ? (item.sender?.city || '').toLowerCase() : '';
             if (!loc.includes(q) && !court.includes(q) && !addr.includes(q) && !senderCity.includes(q)) return false;
         }
-        if (filterVenueName.trim()) {
-            const q = filterVenueName.trim().toLowerCase();
-            const court = (item.courtName || '').toLowerCase();
-            if (!court.includes(q)) return false;
-        }
+        if (!matchesVenueNameFilter(item.courtName)) return false;
         if (item.matchDate && !matchesDateFilter(item.matchDate)) return false;
         return true;
     };
@@ -20572,10 +20577,8 @@ export default function SubCategoryScreen({ route, navigation }) {
             const inLoc = (tourn.location || '').toLowerCase().includes(q);
             if (!inCity && !inLoc) return false;
         }
-        if (filterVenueName.trim()) {
-            const q = filterVenueName.trim().toLowerCase();
-            if (!(tourn.location || '').toLowerCase().includes(q)) return false;
-        }
+        // Kullanıcı isteği: kort adı filtresi SADECE Rakip Bul listesinde uygulanır,
+        // turnuvalar (ve diğer sekmeler) bundan etkilenmez.
         if (!matchesDateFilter(tourn.startDate || tourn.eventDate)) return false;
         return true;
     });
@@ -20642,7 +20645,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             {children}
             <CityAlertBtn tab={tab} />
             {dateFilter ? (() => {
-                const hasActiveFilter = filterCity || filterVenueName || filterDate!=='all' || (sub === 'volleyball' && filterVolleyballType);
+                const hasActiveFilter = filterCity || filterVenueName || filterVenueNames.length > 0 || filterDate!=='all' || (sub === 'volleyball' && filterVolleyballType);
                 return (
                 <TouchableOpacity
                     onPress={() => setShowFilterModal(true)}
@@ -20697,7 +20700,8 @@ export default function SubCategoryScreen({ route, navigation }) {
             if (v) parts.push(lang === 'tr' ? v.label : v.labelEn);
         }
         if (filterCity) parts.push(filterCity);
-        if (filterVenueName) parts.push(filterVenueName);
+        if (filterVenueNames.length > 0) parts.push(filterVenueNames.join(', '));
+        else if (filterVenueName) parts.push(filterVenueName);
         if (filterDate !== 'all') parts.push(dateFilterLabel());
         return parts.length ? parts.join(' · ') : (lang==='tr' ? 'Filtrele' : 'Filter');
     };
@@ -21009,7 +21013,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                             </>
                         )}
 
-                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>📍 {lang==='tr' ? 'Konum' : 'Location'}</Text>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📍 {lang==='tr' ? 'Konum' : 'Location'}</Text>
+                            {filterCity ? (
+                                <TouchableOpacity onPress={() => setFilterCity('')}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
                         <TouchableOpacity
                             onPress={() => setShowCityFilter(true)}
                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, marginBottom:18 }}
@@ -21027,21 +21038,53 @@ export default function SubCategoryScreen({ route, navigation }) {
                             </View>
                         </TouchableOpacity>
 
-                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>🏟️ {venueWord()} {lang==='tr' ? 'Adı' : 'Name'}</Text>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>🏟️ {venueWord()} {lang==='tr' ? 'Adı' : 'Name'}</Text>
+                            {(filterVenueNames.length > 0 || filterVenueName) ? (
+                                <TouchableOpacity onPress={() => { setFilterVenueNames([]); setFilterVenueName(''); }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
                         {/* Kullanıcı isteği: yazarken veritabanındaki admin onaylı kortlar öneri
-                            olarak çıksın — CreateRivalModal'daki mekan-adı alanıyla aynı, zaten
-                            var olan VenueNameAutocomplete (bkz. /courts/search?verifiedOnly=true). */}
+                            olarak çıksın (CreateRivalModal'daki gibi VenueNameAutocomplete) — ayrıca
+                            1'den fazla kort seçilebilsin (çip listesi), sadece Rakip Bul listesinde
+                            filtre uygular, turnuvalar/diğer sekmeler etkilenmez (bkz. matchesVenueNameFilter). */}
+                        {filterVenueNames.length > 0 && (
+                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+                                {filterVenueNames.map(name => (
+                                    <View key={name} style={{ flexDirection:'row', alignItems:'center', gap:5, backgroundColor: cfg.color+'20', borderRadius:8, paddingVertical:5, paddingHorizontal:9, borderWidth:1, borderColor: cfg.color+'50' }}>
+                                        <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>{name}</Text>
+                                        <TouchableOpacity onPress={() => setFilterVenueNames(prev => prev.filter(n => n !== name))} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:12, fontWeight:'900' }}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
                         <View style={{ marginBottom:18 }}>
                             <VenueNameAutocomplete
                                 value={filterVenueName}
                                 onChangeText={setFilterVenueName}
+                                onSelect={(court) => {
+                                    const name = court?.name?.trim();
+                                    if (name) setFilterVenueNames(prev => prev.includes(name) ? prev : [...prev, name]);
+                                    setFilterVenueName('');
+                                }}
                                 sport={sub}
                                 placeholder={lang==='tr' ? `${venueWord()} adı ara...` : `Search ${venueWord().toLowerCase()} name...`}
                                 inputStyle={{ backgroundColor:colors.surface2, borderColor: filterVenueName ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
                             />
                         </View>
 
-                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>📅 {lang==='tr' ? 'Zaman Aralığı' : 'Time Range'}</Text>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📅 {lang==='tr' ? 'Zaman Aralığı' : 'Time Range'}</Text>
+                            {filterDate !== 'all' ? (
+                                <TouchableOpacity onPress={() => { setFilterDate('all'); setFilterDateFrom(null); setFilterDateTo(null); }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10 }}>
                             {DATE_FILTER_OPTS.map(([val,label]) => (
                                 <TouchableOpacity
