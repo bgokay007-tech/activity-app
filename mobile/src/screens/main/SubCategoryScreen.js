@@ -1694,6 +1694,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     };
 
     const sendComment = async () => {
+        // Kullanıcı isteği: "1 kez basıyorum ama yazdığımı iki defa gönderiyor" — tek dokunuş
+        // bazı cihazlarda TouchableOpacity'yi iki kez tetikleyebiliyor (bkz. respondRefereeApplication'daki
+        // aynı düzeltme); setSendingComment(true) React'te SENKRON işlemediği için disabled prop'u
+        // ikinci tetiklemeyi önceden yakalayamıyordu. sendingComment burada da AYRICA en başta kontrol edilir.
+        if (sendingComment) return;
         if (!commentText.trim()) return;
         setSendingComment(true);
         try {
@@ -5997,6 +6002,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     }, [showDetail, autoOpenOrder]);
 
     const sendLocalComment = async () => {
+        // bkz. sendComment'teki aynı çift-gönderim düzeltmesi (kullanıcı raporu).
+        if (sendingLocalComment) return;
         if (!localCommentText.trim()) return;
         setSendingLocalComment(true);
         try {
@@ -19287,6 +19294,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     }, []);
 
     const sendComment = useCallback(async () => {
+        // bkz. RivalDetailModal'daki sendComment'teki aynı çift-gönderim düzeltmesi (kullanıcı raporu).
+        if (sendingComment) return;
         if (!commentText.trim() || !commentMatch) return;
         setSendingComment(true);
         try {
@@ -19299,7 +19308,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Yorum gönderilemedi');
         }
         finally { setSendingComment(false); }
-    }, [commentText, commentMatch]);
+    }, [commentText, commentMatch, sendingComment]);
 
     const deleteComment = useCallback(async (commentId) => {
         try {
