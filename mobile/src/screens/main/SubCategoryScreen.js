@@ -23,6 +23,7 @@ import { moderateScale } from '../../theme/scale';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 import CityAutocomplete from '../../components/CityAutocomplete';
+import VenueNameAutocomplete from '../../components/VenueNameAutocomplete';
 import MultiCityAutocomplete from '../../components/MultiCityAutocomplete';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
 import DateRangePickerModal from '../../components/DateRangePickerModal';
@@ -21027,19 +21028,17 @@ export default function SubCategoryScreen({ route, navigation }) {
                         </TouchableOpacity>
 
                         <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>🏟️ {venueWord()} {lang==='tr' ? 'Adı' : 'Name'}</Text>
-                        <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterVenueName ? cfg.color+'60' : colors.border, paddingHorizontal:13, marginBottom:18 }}>
-                            <TextInput
+                        {/* Kullanıcı isteği: yazarken veritabanındaki admin onaylı kortlar öneri
+                            olarak çıksın — CreateRivalModal'daki mekan-adı alanıyla aynı, zaten
+                            var olan VenueNameAutocomplete (bkz. /courts/search?verifiedOnly=true). */}
+                        <View style={{ marginBottom:18 }}>
+                            <VenueNameAutocomplete
                                 value={filterVenueName}
                                 onChangeText={setFilterVenueName}
+                                sport={sub}
                                 placeholder={lang==='tr' ? `${venueWord()} adı ara...` : `Search ${venueWord().toLowerCase()} name...`}
-                                placeholderTextColor={colors.textMuted}
-                                style={{ flex:1, color:'#fff', fontSize:14, fontWeight:'700', paddingVertical:11 }}
+                                inputStyle={{ backgroundColor:colors.surface2, borderColor: filterVenueName ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
                             />
-                            {filterVenueName ? (
-                                <TouchableOpacity onPress={() => setFilterVenueName('')} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                                    <Text style={{ color:colors.textMuted, fontSize:12 }}>✕</Text>
-                                </TouchableOpacity>
-                            ) : null}
                         </View>
 
                         <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>📅 {lang==='tr' ? 'Zaman Aralığı' : 'Time Range'}</Text>
