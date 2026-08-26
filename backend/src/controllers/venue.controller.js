@@ -489,6 +489,9 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
 // ─── İşletme sahibi ───────────────────────────────────────────────────────────
 
 const VENUE_ALLOWED_PACKAGES = ['RAHATLATICI', 'PRO', 'PREMIUM'];
+const VALID_BRANCHES = ['football','tennis','padel','basketball','volleyball','badminton','swimming','boxing','martial_arts','wellness','cycling','running',
+    'table_tennis','climbing','archery','walking','foot_tennis','sup_kano','handball','shooting_hunting','equestrian','golf',
+    'fitness_gym','skiing_snowboard','ice_skating','hiking','camping','motorcycle','extreme_sports','paintball','airsoft'];
 
 export const createVenue = async (req, res, next) => {
     try {
@@ -519,9 +522,6 @@ export const createVenue = async (req, res, next) => {
             }
         }
 
-        const VALID_BRANCHES = ['football','tennis','padel','basketball','volleyball','badminton','swimming','boxing','martial_arts','wellness','cycling','running',
-            'table_tennis','climbing','archery','walking','foot_tennis','sup_kano','handball','shooting_hunting','equestrian','golf',
-            'fitness_gym','skiing_snowboard','ice_skating','hiking','camping','motorcycle','extreme_sports','paintball','airsoft'];
         if (!name || !branch || !city) return res.status(400).json({ message: 'İsim, spor dalı ve şehir zorunludur' });
         if (!VALID_BRANCHES.includes(branch)) return res.status(400).json({ message: 'Geçersiz spor dalı. Lütfen listeden seçin.' });
         if (!courts?.length) return res.status(400).json({ message: 'En az bir kort/saha girmelisiniz' });
@@ -551,6 +551,49 @@ export const createVenue = async (req, res, next) => {
             await Promise.all(admins.map(a =>
                 createNotification(a.id, 'VENUE_REQUEST', '🏟️ Yeni Tesis Başvurusu',
                     `${user?.businessName || user?.username} tarafından "${name}" tesisi eklendi. Onay bekliyor.`,
+                    { venueId: venue.id }
+                ).then(() => emitToUser(a.id, 'notification', {})).catch(() => {})
+            ));
+        }).catch(() => {});
+    } catch (error) { next(error); }
+};
+
+// Abonelik/işletme hesabı ŞARTI OLMADAN, herhangi bir kullanıcının bildiği bir tesisi
+// öneri olarak eklemesini sağlar (tesis arama ekranındaki "Ekle" butonu). createVenue'den
+// farkı: paket/limit kontrolü yok, kort isimleri yerine sadece kort SAYISI istenir. Kayıt
+// PENDING statüsüyle oluşur, admin mevcut "🏗️ Tesis" onay akışından (getPendingVenues/
+// approveVenue/rejectVenue) onaylar/reddeder — o taraf zaten hazır, burada değişiklik yok.
+export const suggestVenue = async (req, res, next) => {
+    try {
+        const { name, branch, city, district, address, phone, courtCount, openTime, closeTime, openDays } = req.body;
+        if (!name || !branch || !city || !address || !phone) return res.status(400).json({ message: 'İsim, spor dalı, şehir, adres ve telefon zorunludur' });
+        if (!VALID_BRANCHES.includes(branch)) return res.status(400).json({ message: 'Geçersiz spor dalı' });
+
+        const count = parseInt(courtCount);
+        if (!Number.isInteger(count) || count < 1 || count > 20) return res.status(400).json({ message: 'Kort sayısı 1-20 arasında olmalıdır' });
+
+        const days = Array.isArray(openDays) && openDays.length ? openDays.filter(d => Number.isInteger(d) && d >= 1 && d <= 7) : [1, 2, 3, 4, 5, 6, 7];
+
+        const venue = await prisma.businessVenue.create({
+            data: {
+                userId: req.userId, name, branch, city,
+                district: district || null,
+                address, phone,
+                openTime: openTime || '08:00',
+                closeTime: closeTime || '22:00',
+                openDays: days,
+                courts: { create: Array.from({ length: count }, (_, i) => ({ name: `Kort ${i + 1}`, ...(branch === 'padel' ? { surface: 'SYNTHETIC' } : {}) })) },
+            },
+            include: { courts: true },
+        });
+
+        res.status(201).json({ venue });
+
+        prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } }).then(async admins => {
+            const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, businessName: true } });
+            await Promise.all(admins.map(a =>
+                createNotification(a.id, 'VENUE_REQUEST', '🏟️ Yeni Tesis Önerisi',
+                    `${user?.businessName || user?.username} tarafından "${name}" tesisi önerildi. Onay bekliyor.`,
                     { venueId: venue.id }
                 ).then(() => emitToUser(a.id, 'notification', {})).catch(() => {})
             ));
@@ -1854,28 +1897,43 @@ export const searchVenues = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
-// Tarih + saat aralığı verilince o aralıkta müsait (boş) kort/slotu olan tesisleri bulur —
-// sadece Pro ve üstü paketli işletmeler bu aramada görünür (searchVenues'daki proFilter ile
-// aynı mantık). Her kort için computeSlots aynı motoru kullanır, sonuçlar istenen aralıkla
-// kesişen boş slot/pencerelere daraltılır.
+// Tarih (veya tarih ARALIĞI) + saat aralığı verilince o aralıkta müsait (boş) kort/slotu olan
+// tesisleri bulur. Pro/Premium işletmeler için gerçek rezervasyon verisiyle kort/slot bazında
+// eşleştirme yapılır (dateMatches); Pro olmayan işletmelerin gerçek slot verisi yok — bunlar
+// için sadece çalışma günü (openDays) + çalışma saati (openTime/closeTime) istenen aralıkla
+// kesişiyor mu diye yaklaşık bir eşleştirme yapılıp approxDates döner (rezervasyon YAPILAMAZ,
+// telefonla teyit gerekir).
 export const searchVenueAvailability = async (req, res, next) => {
     try {
-        const { date, timeFrom, timeTo, city, branch, name } = req.query;
-        if (!date || !timeFrom || !timeTo) return res.status(400).json({ message: 'date, timeFrom ve timeTo parametreleri gerekli' });
+        const { date, dateFrom, dateTo, timeFrom, timeTo, city, branch, name } = req.query;
+        const df = dateFrom || date, dt = dateTo || date;
+        if (!df || !dt || !timeFrom || !timeTo) return res.status(400).json({ message: 'dateFrom, dateTo ve timeFrom, timeTo parametreleri gerekli' });
         const rangeFrom = toMins(timeFrom), rangeTo = toMins(timeTo);
         if (rangeTo <= rangeFrom) return res.status(400).json({ message: 'Bitiş saati başlangıçtan sonra olmalı' });
 
+        // Tarih aralığını gün dizisine aç — makul bir üst sınırla sınırlandırılır.
+        const dates = [];
+        {
+            const [y1, m1, d1] = df.split('-').map(Number);
+            const [y2, m2, d2] = dt.split('-').map(Number);
+            const cur = new Date(Date.UTC(y1, m1 - 1, d1));
+            const end = new Date(Date.UTC(y2, m2 - 1, d2));
+            if (end < cur) return res.status(400).json({ message: 'Bitiş tarihi başlangıçtan önce olamaz' });
+            while (cur <= end && dates.length < 14) {
+                dates.push(`${cur.getUTCFullYear()}-${String(cur.getUTCMonth() + 1).padStart(2, '0')}-${String(cur.getUTCDate()).padStart(2, '0')}`);
+                cur.setUTCDate(cur.getUTCDate() + 1);
+            }
+        }
+
         const now = new Date();
         const proSubs = await prisma.businessSubscription.findMany({
-            where: { status: 'ACTIVE', endDate: { gt: now }, packageType: { in: ['PRO', 'PREMIUM'] } },
+            where: { status: 'ACTIVE', endDate: { gt: now }, packageType: { in: PRO_PACKAGES } },
             select: { userId: true },
         });
-        const proUserIds = proSubs.map(s => s.userId);
-        if (proUserIds.length === 0) return res.json({ items: [] });
+        const proUserIdSet = new Set(proSubs.map(s => s.userId));
 
         const where = {
             status: 'APPROVED',
-            userId: { in: proUserIds },
             ...(branch ? { branch: { contains: branch, mode: 'insensitive' } } : {}),
             ...(city ? { OR: [
                 { city:     { contains: city, mode: 'insensitive' } },
@@ -1898,57 +1956,80 @@ export const searchVenueAvailability = async (req, res, next) => {
         const results = [];
         for (const venue of venues) {
             if (venue.courts.length === 0) continue;
-            const opensAt = getReservationOpensAt(venue, date);
-            if (opensAt && new Date() < opensAt) continue;
+            const isProVenue = proUserIdSet.has(venue.userId);
 
-            const courtIds = venue.courts.map(c => c.id);
-            const reservations = await prisma.courtReservation.findMany({
-                where: { venueId: venue.id, courtId: { in: courtIds }, date },
-            });
-            const reservationsByCourtId = {};
-            for (const r of reservations) (reservationsByCourtId[r.courtId] ??= []).push(r);
-
-            const matchingCourts = [];
-            for (const court of venue.courts) {
-                const maintDates = (Array.isArray(court.maintenanceDates) ? court.maintenanceDates : []).map(normMaint);
-                const fullDayMaint = maintDates.some(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && !m.fromTime && !m.toTime);
-                if (fullDayMaint) continue;
-                const maintWindows = maintDates
-                    .filter(m => m.fromDate && m.toDate && date >= m.fromDate && date <= m.toDate && m.fromTime && m.toTime)
-                    .map(m => ({ s: toMins(m.fromTime), e: toMins(m.toTime) }));
-
-                const courtSlotType = VALID_SLOT_TYPES.includes(court.slotType) ? court.slotType : null;
-                const venueSlotFallback = venue.slotType === 'VAR_DURATION' ? 'FULL_HOUR' : (venue.slotType || 'FULL_HOUR');
-                const effectiveVenue = { ...venue, slotType: courtSlotType || venueSlotFallback };
-                const slotsResult = computeSlots(effectiveVenue, reservationsByCourtId[court.id] || [], date, court.id, maintWindows);
-
-                let matchingSlots = [];
-                if (slotsResult.slots) {
-                    matchingSlots = slotsResult.slots
-                        .filter(s => s.free && toMins(s.start) < rangeTo && toMins(s.end) > rangeFrom)
-                        .map(s => {
-                            const d = toMins(s.end) - toMins(s.start);
-                            const dur = d > 0 ? d : d + 1440;
-                            return { start: s.start, end: s.end, price: getSlotPrice(venue, court, s.start, dur) };
-                        });
-                } else if (slotsResult.windows) {
-                    matchingSlots = slotsResult.windows
-                        .filter(w => toMins(w.start) < rangeTo && toMins(w.end) > rangeFrom)
-                        .map(w => {
-                            const overlapStart = Math.max(toMins(w.start), rangeFrom);
-                            const overlapEnd = Math.min(toMins(w.end), rangeTo);
-                            return { start: toTime(overlapStart), end: toTime(overlapEnd), flexible: true };
-                        })
-                        .filter(w => toMins(w.end) - toMins(w.start) >= 30);
-                }
-                if (matchingSlots.length > 0) {
-                    matchingCourts.push({ court: { id: court.id, name: court.name, surface: court.surface, indoor: court.indoor }, slots: matchingSlots });
-                }
+            if (!isProVenue) {
+                // Gerçek slot/rezervasyon verisi yok — sadece çalışma günü + saat aralığı kesişimine bakılır.
+                const openDays = Array.isArray(venue.openDays) ? venue.openDays : [1, 2, 3, 4, 5, 6, 7];
+                const venueOpen = toMins(venue.openTime || '08:00'), venueClose = toMins(venue.closeTime || '22:00');
+                const hoursOverlap = venueClose > venueOpen
+                    ? (venueOpen < rangeTo && venueClose > rangeFrom)
+                    : true; // gece yarısını geçen çalışma saatleri (ör. 20:00-05:00) — basit yaklaşıklıkta her zaman uygun say
+                if (!hoursOverlap) continue;
+                const approxDates = dates.filter(d => {
+                    const dow = new Date(d + 'T12:00:00').getDay();
+                    const key = dow === 0 ? 7 : dow;
+                    return openDays.includes(key);
+                });
+                if (approxDates.length > 0) results.push({ venue, isProVenue: false, approxDates });
+                continue;
             }
-            if (matchingCourts.length > 0) {
+
+            const dateMatches = [];
+            for (const d of dates) {
+                const opensAt = getReservationOpensAt(venue, d);
+                if (opensAt && new Date() < opensAt) continue;
+
+                const courtIds = venue.courts.map(c => c.id);
+                const reservations = await prisma.courtReservation.findMany({
+                    where: { venueId: venue.id, courtId: { in: courtIds }, date: d },
+                });
+                const reservationsByCourtId = {};
+                for (const r of reservations) (reservationsByCourtId[r.courtId] ??= []).push(r);
+
+                const matchingCourts = [];
+                for (const court of venue.courts) {
+                    const maintDates = (Array.isArray(court.maintenanceDates) ? court.maintenanceDates : []).map(normMaint);
+                    const fullDayMaint = maintDates.some(m => m.fromDate && m.toDate && d >= m.fromDate && d <= m.toDate && !m.fromTime && !m.toTime);
+                    if (fullDayMaint) continue;
+                    const maintWindows = maintDates
+                        .filter(m => m.fromDate && m.toDate && d >= m.fromDate && d <= m.toDate && m.fromTime && m.toTime)
+                        .map(m => ({ s: toMins(m.fromTime), e: toMins(m.toTime) }));
+
+                    const courtSlotType = VALID_SLOT_TYPES.includes(court.slotType) ? court.slotType : null;
+                    const venueSlotFallback = venue.slotType === 'VAR_DURATION' ? 'FULL_HOUR' : (venue.slotType || 'FULL_HOUR');
+                    const effectiveVenue = { ...venue, slotType: courtSlotType || venueSlotFallback };
+                    const slotsResult = computeSlots(effectiveVenue, reservationsByCourtId[court.id] || [], d, court.id, maintWindows);
+
+                    let matchingSlots = [];
+                    if (slotsResult.slots) {
+                        matchingSlots = slotsResult.slots
+                            .filter(s => s.free && toMins(s.start) < rangeTo && toMins(s.end) > rangeFrom)
+                            .map(s => {
+                                const dd = toMins(s.end) - toMins(s.start);
+                                const dur = dd > 0 ? dd : dd + 1440;
+                                return { start: s.start, end: s.end, price: getSlotPrice(venue, court, s.start, dur) };
+                            });
+                    } else if (slotsResult.windows) {
+                        matchingSlots = slotsResult.windows
+                            .filter(w => toMins(w.start) < rangeTo && toMins(w.end) > rangeFrom)
+                            .map(w => {
+                                const overlapStart = Math.max(toMins(w.start), rangeFrom);
+                                const overlapEnd = Math.min(toMins(w.end), rangeTo);
+                                return { start: toTime(overlapStart), end: toTime(overlapEnd), flexible: true };
+                            })
+                            .filter(w => toMins(w.end) - toMins(w.start) >= 30);
+                    }
+                    if (matchingSlots.length > 0) {
+                        matchingCourts.push({ court: { id: court.id, name: court.name, surface: court.surface, indoor: court.indoor }, slots: matchingSlots });
+                    }
+                }
+                if (matchingCourts.length > 0) dateMatches.push({ date: d, matchingCourts });
+            }
+            if (dateMatches.length > 0) {
                 // Tam venue nesnesi (courts dahil) döner — mobil sonuca dokununca aynı
                 // VenueBookingSheet'i ekstra fetch olmadan doğrudan açabilsin diye.
-                results.push({ venue, matchingCourts });
+                results.push({ venue, isProVenue: true, dateMatches });
             }
         }
         res.json(fixMidnightLabels({ items: results }));

@@ -27,6 +27,10 @@ function formatDateLabel(dateStr, locale = 'tr-TR') {
 }
 
 const DATE_OPTIONS = Array.from({ length: 14 }, (_, i) => getDateStr(i));
+const DAY_ITEMS = [
+    { num: 1, key: 'vsDayMon' }, { num: 2, key: 'vsDayTue' }, { num: 3, key: 'vsDayWed' },
+    { num: 4, key: 'vsDayThu' }, { num: 5, key: 'vsDayFri' }, { num: 6, key: 'vsDaySat' }, { num: 7, key: 'vsDaySun' },
+];
 const SLOT_LABEL_KEY = { FULL_HOUR: 'vsSlotFull', HALF_HOUR: 'vsSlotHalf', NINETY_MIN: 'vsSlot90', VAR_DURATION: 'vsSlotFlex', FLEXIBLE: 'vsSlotFlex' };
 const SLOT_SHORT_KEY = { FULL_HOUR: 'vsSlotFullShort', HALF_HOUR: 'vsSlotHalf', NINETY_MIN: 'vsSlot90Short', VAR_DURATION: 'vsSlotFlexShort', FLEXIBLE: 'vsSlotFlexShort' };
 const VALID_ST   = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION', 'FLEXIBLE'];
@@ -163,6 +167,68 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
                                     : <Text style={cm.confirmBtnText}>{t.vsCartCheckout}</Text>}
                             </TouchableOpacity>
                         )}
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
+// ─── Tesis Öner Modalı (en üst seviyede, nested modal sorunu yok — CartModal ile aynı gerekçe) ─
+function VenueSuggestModal({ visible, form, onChangeField, onToggleDay, onOpenTimePicker, onSubmit, onClose, saving }) {
+    const t = useT();
+    return (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <View style={cm.overlay}>
+                <View style={[cm.box, { maxHeight: '88%' }]}>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        <Text style={cm.title}>🏟️ {t.vsSuggestTitle}</Text>
+                        <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 12, lineHeight: 17 }}>{t.vsSuggestDesc}</Text>
+
+                        <TextInput style={s.input} placeholder={t.vsSuggestNamePh} placeholderTextColor={colors.textMuted} value={form.name} onChangeText={v => onChangeField('name', v)} />
+                        <View style={{ height: 8 }} />
+                        <TextInput style={s.input} placeholder={t.vsSuggestCityPh} placeholderTextColor={colors.textMuted} value={form.city} onChangeText={v => onChangeField('city', v)} />
+                        <View style={{ height: 8 }} />
+                        <TextInput style={s.input} placeholder={t.vsSuggestDistrictPh} placeholderTextColor={colors.textMuted} value={form.district} onChangeText={v => onChangeField('district', v)} />
+                        <View style={{ height: 8 }} />
+                        <TextInput style={[s.input, { height: 60, textAlignVertical: 'top' }]} placeholder={t.vsSuggestAddressPh} placeholderTextColor={colors.textMuted} value={form.address} onChangeText={v => onChangeField('address', v)} multiline />
+                        <View style={{ height: 8 }} />
+                        <TextInput style={s.input} placeholder={t.vsSuggestPhonePh} placeholderTextColor={colors.textMuted} value={form.phone} onChangeText={v => onChangeField('phone', v)} keyboardType="phone-pad" />
+                        <View style={{ height: 8 }} />
+                        <TextInput style={s.input} placeholder={t.vsSuggestCourtCountPh} placeholderTextColor={colors.textMuted} value={form.courtCount} onChangeText={v => onChangeField('courtCount', v.replace(/[^0-9]/g, ''))} keyboardType="number-pad" maxLength={2} />
+
+                        <Text style={[cm.payLabel, { marginTop: 12 }]}>{t.vsSuggestDaysLabel}</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                            {DAY_ITEMS.map(di => {
+                                const active = form.openDays.includes(di.num);
+                                return (
+                                    <TouchableOpacity key={di.num} onPress={() => onToggleDay(di.num)}
+                                        style={[s.availDateChip, active && s.availDateChipActive]} activeOpacity={0.7}>
+                                        <Text style={[s.availDateChipText, active && s.availDateChipTextActive]}>{t[di.key]}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+
+                        <Text style={[cm.payLabel, { marginTop: 12 }]}>{t.vsSuggestHoursLabel}</Text>
+                        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                            <TouchableOpacity style={s.availTimeField} onPress={() => onOpenTimePicker('open')}>
+                                <Text style={s.availTimeFieldText}>{form.openTime}</Text>
+                            </TouchableOpacity>
+                            <Text style={{ color: colors.textMuted }}>–</Text>
+                            <TouchableOpacity style={s.availTimeField} onPress={() => onOpenTimePicker('close')}>
+                                <Text style={s.availTimeFieldText}>{form.closeTime}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </ScrollView>
+
+                    <View style={[cm.btnRow, { marginTop: 14 }]}>
+                        <TouchableOpacity style={cm.cancelBtn} onPress={onClose} activeOpacity={0.8}>
+                            <Text style={cm.cancelBtnText}>{t.vsCartClose}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[cm.confirmBtn, saving && { opacity: 0.6 }]} onPress={onSubmit} disabled={saving} activeOpacity={0.8}>
+                            {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={cm.confirmBtnText}>{t.vsSuggestSubmitBtn}</Text>}
+                        </TouchableOpacity>
                     </View>
                 </View>
             </View>
@@ -680,9 +746,12 @@ export default function VenueSearchScreen({ navigation, route }) {
     const [loading,  setLoading]  = useState(false);
     const [searched, setSearched] = useState(false);
 
-    // Müsaitliğe göre arama (tarih + saat aralığı) — sadece Pro+ paketli tesisler görünür
+    // Müsaitliğe göre arama (tarih ARALIĞI + saat aralığı) — Pro+ tesislerde gerçek slot verisiyle,
+    // diğer tesislerde çalışma günü/saatine göre yaklaşık eşleştirmeyle sonuç döner.
     const [availMode,   setAvailMode]   = useState(false);
-    const [availDate,   setAvailDate]   = useState(getDateStr(0));
+    const [availDateFrom, setAvailDateFrom] = useState(getDateStr(0));
+    const [availDateTo,   setAvailDateTo]   = useState(getDateStr(0));
+    const [rangePicking,  setRangePicking]  = useState(false); // aralık seçimi: ilk tık başlangıcı sabitler, ikinci tık bitişi belirler
     const [availFrom,   setAvailFrom]   = useState('');
     const [availTo,     setAvailTo]     = useState('');
     const [showFromPicker, setShowFromPicker] = useState(false);
@@ -692,13 +761,23 @@ export default function VenueSearchScreen({ navigation, route }) {
     const [availSearched, setAvailSearched] = useState(false);
     const AVAIL_DATE_OPTIONS = Array.from({ length: 14 }, (_, i) => getDateStr(i));
 
+    const onPickAvailDate = (d) => {
+        if (!rangePicking) {
+            setAvailDateFrom(d); setAvailDateTo(d); setRangePicking(true);
+        } else {
+            setAvailDateFrom(d < availDateFrom ? d : availDateFrom);
+            setAvailDateTo(d < availDateFrom ? availDateFrom : d);
+            setRangePicking(false);
+        }
+    };
+
     const searchAvailability = useCallback(async () => {
         if (!availFrom || !availTo) { Alert.alert('', t.vsAvailTimeRequired || 'Başlangıç ve bitiş saati seçin'); return; }
         if (availFrom >= availTo) { Alert.alert('', t.vsAvailRangeInvalid || 'Bitiş saati başlangıçtan sonra olmalı'); return; }
         setAvailLoading(true);
         setAvailSearched(true);
         try {
-            const params = { date: availDate, timeFrom: availFrom, timeTo: availTo };
+            const params = { dateFrom: availDateFrom, dateTo: availDateTo, timeFrom: availFrom, timeTo: availTo };
             if (city.trim())      params.city   = city.trim();
             if (rawBranch)        params.branch = rawBranch;
             if (venueName.trim()) params.name   = venueName.trim();
@@ -707,7 +786,48 @@ export default function VenueSearchScreen({ navigation, route }) {
         } catch {
             setAvailResults([]);
         } finally { setAvailLoading(false); }
-    }, [availDate, availFrom, availTo, city, venueName, rawBranch]);
+    }, [availDateFrom, availDateTo, availFrom, availTo, city, venueName, rawBranch]);
+
+    // Tesis Öner formu — abonelik şartsız, herkes bildiği bir tesisi admin onayına gönderebilir.
+    const [suggestOpen, setSuggestOpen] = useState(false);
+    const [suggestSaving, setSuggestSaving] = useState(false);
+    const [suggestForm, setSuggestForm] = useState({
+        name: '', city: '', district: '', address: '', phone: '',
+        courtCount: '', openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7],
+    });
+    const [showSuggestOpenPicker, setShowSuggestOpenPicker] = useState(false);
+    const [showSuggestClosePicker, setShowSuggestClosePicker] = useState(false);
+
+    const setSuggestField = (key, val) => setSuggestForm(p => ({ ...p, [key]: val }));
+    const toggleSuggestDay = (d) => setSuggestForm(p => ({
+        ...p, openDays: p.openDays.includes(d) ? p.openDays.filter(x => x !== d) : [...p.openDays, d].sort((a, b) => a - b),
+    }));
+    const openSuggestTimePicker = (which) => which === 'open' ? setShowSuggestOpenPicker(true) : setShowSuggestClosePicker(true);
+
+    const handleSuggestSubmit = async () => {
+        const f = suggestForm;
+        if (!f.name.trim() || !f.city.trim() || !f.address.trim() || !f.phone.trim() || f.openDays.length === 0) {
+            Alert.alert('', t.fillAll); return;
+        }
+        const count = parseInt(f.courtCount, 10);
+        if (!Number.isInteger(count) || count < 1 || count > 20) {
+            Alert.alert('', t.vsSuggestInvalidCourtCount); return;
+        }
+        setSuggestSaving(true);
+        try {
+            await api.post('/venues/suggest', {
+                name: f.name.trim(), branch: rawBranch, city: f.city.trim(),
+                district: f.district.trim() || undefined,
+                address: f.address.trim(), phone: f.phone.trim(),
+                courtCount: count, openTime: f.openTime, closeTime: f.closeTime, openDays: f.openDays,
+            });
+            setSuggestOpen(false);
+            setSuggestForm({ name: '', city: '', district: '', address: '', phone: '', courtCount: '', openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7] });
+            Alert.alert(t.vsSuggestSuccessTitle, t.vsSuggestSuccessMsg);
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.vsSuggestFailed);
+        } finally { setSuggestSaving(false); }
+    };
 
     // Tesis sayfası modalı
     const [activeVenue, setActive] = useState(null);
@@ -806,9 +926,15 @@ export default function VenueSearchScreen({ navigation, route }) {
         <>
             <View style={s.filters}>
                 {lockedBranch && (
-                    <View style={s.branchBadge}>
-                        <Text style={s.branchBadgeIcon}>🏅</Text>
-                        <Text style={s.branchBadgeText}>{lockedBranch.charAt(0).toUpperCase() + lockedBranch.slice(1)} {t.vsBranchSuffix}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={s.branchBadge}>
+                            <Text style={s.branchBadgeIcon}>🏅</Text>
+                            <Text style={s.branchBadgeText}>{lockedBranch.charAt(0).toUpperCase() + lockedBranch.slice(1)} {t.vsBranchSuffix}</Text>
+                        </View>
+                        <View style={{ flex: 1 }} />
+                        <TouchableOpacity style={s.addVenueBtn} onPress={() => setSuggestOpen(true)} activeOpacity={0.8}>
+                            <Text style={s.addVenueBtnText}>➕ {t.vsAddVenueBtn}</Text>
+                        </TouchableOpacity>
                     </View>
                 )}
                 <TextInput
@@ -841,22 +967,26 @@ export default function VenueSearchScreen({ navigation, route }) {
                     activeOpacity={0.8}
                 >
                     <Text style={[s.availToggleText, availMode && s.availToggleTextActive]}>
-                        🕐 {t.vsAvailToggle || 'Belirli saat aralığında müsait olanları bul'}
+                        🕐 {t.vsAvailToggle}
                     </Text>
                 </TouchableOpacity>
 
                 {availMode && (
                     <View style={s.availBox}>
+                        <Text style={s.availRangeHint}>{t.vsAvailRangeHint}</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
-                            {AVAIL_DATE_OPTIONS.map(d => (
-                                <TouchableOpacity
-                                    key={d}
-                                    onPress={() => setAvailDate(d)}
-                                    style={[s.availDateChip, availDate === d && s.availDateChipActive]}
-                                >
-                                    <Text style={[s.availDateChipText, availDate === d && s.availDateChipTextActive]}>{formatDateLabel(d, t.dateLocale)}</Text>
-                                </TouchableOpacity>
-                            ))}
+                            {AVAIL_DATE_OPTIONS.map(d => {
+                                const inRange = d >= availDateFrom && d <= availDateTo;
+                                return (
+                                    <TouchableOpacity
+                                        key={d}
+                                        onPress={() => onPickAvailDate(d)}
+                                        style={[s.availDateChip, inRange && s.availDateChipActive]}
+                                    >
+                                        <Text style={[s.availDateChipText, inRange && s.availDateChipTextActive]}>{formatDateLabel(d, t.dateLocale)}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
                         </ScrollView>
                         <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                             <TouchableOpacity style={s.availTimeField} onPress={() => setShowFromPicker(true)}>
@@ -876,7 +1006,7 @@ export default function VenueSearchScreen({ navigation, route }) {
                                     : <Text style={s.searchBtnText}>{t.vsSearchBtn}</Text>}
                             </TouchableOpacity>
                         </View>
-                        <Text style={s.availHint}>{t.vsAvailHint || '📋 Yalnızca Pro ve üstü paketli tesisler bu aramada listelenir.'}</Text>
+                        <Text style={s.availHint}>{t.vsAvailHint}</Text>
                     </View>
                 )}
             </View>
@@ -944,18 +1074,41 @@ export default function VenueSearchScreen({ navigation, route }) {
                         <TouchableOpacity style={s.availResultCard} onPress={() => setActive(item.venue)} activeOpacity={0.85}>
                             <Text style={s.availResultName} numberOfLines={1}>{item.venue.name}</Text>
                             <Text style={s.availResultCity}>📍 {item.venue.city}{item.venue.district ? ` / ${item.venue.district}` : ''}</Text>
-                            {item.matchingCourts.map(mc => (
-                                <View key={mc.court.id} style={{ marginTop: 6 }}>
-                                    <Text style={s.availResultCourt}>🏟️ {mc.court.name}</Text>
+                            {item.isProVenue === false ? (
+                                <>
+                                    <View style={[s.tag, { backgroundColor: '#f59e0b20', borderColor: '#f59e0b50', alignSelf: 'flex-start', marginTop: 6 }]}>
+                                        <Text style={[s.tagText, { color: '#f59e0b' }]}>📵 {t.vsNotBookableTag}</Text>
+                                    </View>
+                                    {item.venue.phone ? <Text style={[s.availResultCity, { color: colors.purple, marginTop: 4 }]}>📞 {item.venue.phone}</Text> : null}
+                                    {item.venue.address ? <Text style={s.availResultCity}>📍 {item.venue.address}</Text> : null}
+                                    <Text style={[s.availResultCourt, { marginTop: 6 }]}>{t.vsApproxDatesLabel}</Text>
                                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 3 }}>
-                                        {mc.slots.map((sl, i) => (
-                                            <View key={i} style={s.availSlotChip}>
-                                                <Text style={s.availSlotChipText}>{sl.start}–{sl.end}{sl.price != null ? ` · ${sl.price}₺` : ''}</Text>
+                                        {item.approxDates.map(d => (
+                                            <View key={d} style={s.availSlotChip}>
+                                                <Text style={s.availSlotChipText}>{formatDateLabel(d, t.dateLocale)}</Text>
                                             </View>
                                         ))}
                                     </View>
-                                </View>
-                            ))}
+                                </>
+                            ) : (
+                                item.dateMatches.map(dm => (
+                                    <View key={dm.date} style={{ marginTop: 6 }}>
+                                        <Text style={s.availResultCourt}>📅 {formatDateLabel(dm.date, t.dateLocale)}</Text>
+                                        {dm.matchingCourts.map(mc => (
+                                            <View key={mc.court.id} style={{ marginTop: 4, marginLeft: 8 }}>
+                                                <Text style={[s.availResultCourt, { fontSize: 11 }]}>🏟️ {mc.court.name}</Text>
+                                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 3 }}>
+                                                    {mc.slots.map((sl, i) => (
+                                                        <View key={i} style={s.availSlotChip}>
+                                                            <Text style={s.availSlotChipText}>{sl.start}–{sl.end}{sl.price != null ? ` · ${sl.price}₺` : ''}</Text>
+                                                        </View>
+                                                    ))}
+                                                </View>
+                                            </View>
+                                        ))}
+                                    </View>
+                                ))
+                            )}
                         </TouchableOpacity>
                     )}
                 />
@@ -1007,6 +1160,32 @@ export default function VenueSearchScreen({ navigation, route }) {
                 onSelect={setAvailTo}
                 onClose={() => setShowToPicker(false)}
             />
+
+            {/* Tesis Öner modalı — abonelik şartsız, herkes kullanabilir */}
+            <VenueSuggestModal
+                visible={suggestOpen}
+                form={suggestForm}
+                onChangeField={setSuggestField}
+                onToggleDay={toggleSuggestDay}
+                onOpenTimePicker={openSuggestTimePicker}
+                onSubmit={handleSuggestSubmit}
+                onClose={() => setSuggestOpen(false)}
+                saving={suggestSaving}
+            />
+            <TimePickerModal
+                visible={showSuggestOpenPicker}
+                title={t.vsSuggestOpenTime}
+                value={suggestForm.openTime}
+                onSelect={(v) => setSuggestField('openTime', v)}
+                onClose={() => setShowSuggestOpenPicker(false)}
+            />
+            <TimePickerModal
+                visible={showSuggestClosePicker}
+                title={t.vsSuggestCloseTime}
+                value={suggestForm.closeTime}
+                onSelect={(v) => setSuggestField('closeTime', v)}
+                onClose={() => setShowSuggestClosePicker(false)}
+            />
         </View>
     );
 }
@@ -1023,6 +1202,8 @@ const s = StyleSheet.create({
     branchBadge:  { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#9333ea22', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#9333ea50' },
     branchBadgeIcon: { fontSize: 14 },
     branchBadgeText: { color: '#c084fc', fontWeight: '700', fontSize: 13 },
+    addVenueBtn:     { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.purple, borderRadius: 20, paddingVertical: 5, paddingHorizontal: 12 },
+    addVenueBtnText: { color: '#fff', fontWeight: '800', fontSize: 12 },
     input:        { backgroundColor: colors.surface, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: colors.border },
     searchBtn:    { backgroundColor: colors.purple, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
     searchBtnText:{ color: '#fff', fontWeight: '900', fontSize: 15 },
@@ -1032,6 +1213,7 @@ const s = StyleSheet.create({
     availToggleText:      { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
     availToggleTextActive:{ color: colors.purpleLight || colors.purple },
     availBox:         { backgroundColor: colors.surface, borderRadius: 10, padding: 8, borderWidth: 1, borderColor: colors.border, gap: 4 },
+    availRangeHint:   { color: colors.textMuted, fontSize: 10, marginBottom: 2 },
     availDateChip:        { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
     availDateChipActive:  { backgroundColor: colors.purple, borderColor: colors.purple },
     availDateChipText:      { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },

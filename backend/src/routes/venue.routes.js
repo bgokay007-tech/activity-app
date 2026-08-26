@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/admin.middleware.js';
 import {
-    createVenue, getMyVenues, deleteVenue, updateIban,
+    createVenue, suggestVenue, getMyVenues, deleteVenue, updateIban,
     getVenueSlots, validateSlot, makeReservation, createManualReservation, getVenueReservations, cancelReservation,
     updateReservationStatus, rescheduleReservation,
     getMyReservations, getUnlistedReservations, getOwnerSchedule, getVenueAnalytics, updateVenueSettings,
@@ -56,6 +56,7 @@ router.delete('/bills/:billId/items/:itemId',removeBillItem);
 router.patch('/bills/:billId/pay',           markBillPaid);
 
 // Genel (tüm kullanıcılar)
+router.post('/suggest',                  suggestVenue);
 router.get('/search',                    searchVenues);
 router.get('/search-availability',       searchVenueAvailability);
 router.get('/reservations/mine',         getMyReservations);
