@@ -956,6 +956,7 @@ function TournamentPermsPanel() {
 
 // ── FLAGGED LISTINGS ──────────────────────────────────────────────────────
 function FlaggedListingsPanel() {
+    const { t } = useTranslation();
     const [data, setData] = useState({ equipment: [], coaches: [] });
     const [loading, setLoading] = useState(true);
 
@@ -970,17 +971,17 @@ function FlaggedListingsPanel() {
         try {
             await api.patch(`/admin/listings/${type}/${id}`, { action });
             load();
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
-    if (loading) return <p className="text-gray-500 text-center py-16">Yükleniyor...</p>;
+    if (loading) return <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>;
 
     const all = [
-        ...data.equipment.map(e => ({ ...e, _type: 'equipment', _label: '🎾 Ekipman' })),
-        ...data.coaches.map(c => ({ ...c, _type: 'coach', _label: '🎓 Antrenör' })),
+        ...data.equipment.map(e => ({ ...e, _type: 'equipment', _label: t('admin.flaggedListings.equipment_label') })),
+        ...data.coaches.map(c => ({ ...c, _type: 'coach', _label: t('admin.flaggedListings.coach_label') })),
     ].sort((a, b) => b.reportCount - a.reportCount);
 
-    if (all.length === 0) return <p className="text-gray-500 text-center py-16">Şüpheli ilan yok ✅</p>;
+    if (all.length === 0) return <p className="text-gray-500 text-center py-16">{t('admin.flaggedListings.none')}</p>;
 
     return (
         <div className="space-y-3">
@@ -990,7 +991,7 @@ function FlaggedListingsPanel() {
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                                 <span className="text-xs font-black text-yellow-400 bg-yellow-900/40 border border-yellow-700/50 rounded-lg px-2 py-0.5">{item._label}</span>
-                                <span className="text-red-400 text-xs font-black">🚩 {item.reportCount} rapor</span>
+                                <span className="text-red-400 text-xs font-black">{t('admin.flaggedListings.report_count', { count: item.reportCount })}</span>
                             </div>
                             <p className="text-white font-bold text-sm truncate">{item.title || item.credentialLevel || '—'}</p>
                             <p className="text-gray-500 text-xs">@{item.user?.username}</p>
@@ -1001,11 +1002,11 @@ function FlaggedListingsPanel() {
                         <div className="flex flex-col gap-2 shrink-0">
                             <button onClick={() => moderate(item._type, item.id, 'RESTORE')}
                                 className="px-3 py-1.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-xs transition">
-                                ✓ Temizle
+                                {t('admin.flaggedListings.clean')}
                             </button>
-                            <button onClick={() => window.confirm('İlanı kaldırmak istediğinizden emin misiniz?') && moderate(item._type, item.id, 'REMOVE')}
+                            <button onClick={() => window.confirm(t('admin.flaggedListings.confirm_remove')) && moderate(item._type, item.id, 'REMOVE')}
                                 className="px-3 py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-xs transition">
-                                🗑️ Kaldır
+                                {t('admin.flaggedListings.remove')}
                             </button>
                         </div>
                     </div>
