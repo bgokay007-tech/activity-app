@@ -236,12 +236,78 @@ function VenueSuggestModal({ visible, form, onChangeField, onToggleDay, onOpenTi
     );
 }
 
+// ─── Tesis Bilgisi Düzenleme Önerisi Modalı (en üst seviyede, nested modal sorunu yok) ────
+// Zaten onaylı ama eksik bilgisi olan bir tesisin (ör. Nashira'nın adresi/telefonu boşsa)
+// bilgisini herhangi bir kullanıcının tamamlayıp admin onayına göndermesini sağlar. Sadece
+// doldurulan alanlar gönderilir — hepsini doldurma zorunluluğu yok.
+function VenueEditSuggestModal({ visible, venue, form, onChangeField, onToggleDay, onOpenTimePicker, onSubmit, onClose, saving }) {
+    const t = useT();
+    if (!venue) return null;
+    return (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <View style={cm.overlay}>
+                <View style={[cm.box, { maxHeight: '88%' }]}>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        <Text style={cm.title}>✏️ {t.vsSuggestEditTitle}</Text>
+                        <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 12, lineHeight: 17 }}>
+                            {venue.name} — {t.vsSuggestEditDesc}
+                        </Text>
+
+                        <TextInput style={s.input} placeholder={t.vsSuggestNamePh} placeholderTextColor={colors.textMuted} value={form.name} onChangeText={v => onChangeField('name', v)} />
+                        <View style={{ height: 8 }} />
+                        <TextInput style={s.input} placeholder={t.vsSuggestDistrictPh} placeholderTextColor={colors.textMuted} value={form.district} onChangeText={v => onChangeField('district', v)} />
+                        <View style={{ height: 8 }} />
+                        <TextInput style={[s.input, { height: 60, textAlignVertical: 'top' }]} placeholder={t.vsSuggestAddressPh} placeholderTextColor={colors.textMuted} value={form.address} onChangeText={v => onChangeField('address', v)} multiline />
+                        <View style={{ height: 8 }} />
+                        <TextInput style={s.input} placeholder={t.vsSuggestPhonePh} placeholderTextColor={colors.textMuted} value={form.phone} onChangeText={v => onChangeField('phone', v)} keyboardType="phone-pad" />
+                        <View style={{ height: 8 }} />
+                        <TextInput style={s.input} placeholder={t.vsSuggestCourtCountPh} placeholderTextColor={colors.textMuted} value={form.courtCount} onChangeText={v => onChangeField('courtCount', v.replace(/[^0-9]/g, ''))} keyboardType="number-pad" maxLength={2} />
+
+                        <Text style={[cm.payLabel, { marginTop: 12 }]}>{t.vsSuggestDaysLabel}</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                            {DAY_ITEMS.map(di => {
+                                const active = form.openDays.includes(di.num);
+                                return (
+                                    <TouchableOpacity key={di.num} onPress={() => onToggleDay(di.num)}
+                                        style={[s.availDateChip, active && s.availDateChipActive]} activeOpacity={0.7}>
+                                        <Text style={[s.availDateChipText, active && s.availDateChipTextActive]}>{t[di.key]}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+
+                        <Text style={[cm.payLabel, { marginTop: 12 }]}>{t.vsSuggestHoursLabel}</Text>
+                        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                            <TouchableOpacity style={s.availTimeField} onPress={() => onOpenTimePicker('open')}>
+                                <Text style={s.availTimeFieldText}>{form.openTime}</Text>
+                            </TouchableOpacity>
+                            <Text style={{ color: colors.textMuted }}>–</Text>
+                            <TouchableOpacity style={s.availTimeField} onPress={() => onOpenTimePicker('close')}>
+                                <Text style={s.availTimeFieldText}>{form.closeTime}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </ScrollView>
+
+                    <View style={[cm.btnRow, { marginTop: 14 }]}>
+                        <TouchableOpacity style={cm.cancelBtn} onPress={onClose} activeOpacity={0.8}>
+                            <Text style={cm.cancelBtnText}>{t.vsCartClose}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[cm.confirmBtn, saving && { opacity: 0.6 }]} onPress={onSubmit} disabled={saving} activeOpacity={0.8}>
+                            {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={cm.confirmBtnText}>{t.vsSuggestSubmitBtn}</Text>}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 // ─── Tesis Rezervasyon Sayfası (Bottom Sheet) ─────────────────────────────────
 const toM = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 const toT = m => `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
 
 
-function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onOpenCart, cartCount, cartTotal }) {
+function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onOpenCart, cartCount, cartTotal, onSuggestEdit }) {
     const t = useT();
     const insets = useSafeAreaInsets();
     const [date,        setDate]        = useState(DATE_OPTIONS[0]);
@@ -356,6 +422,12 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                         <Text style={bm.tagText}>📲</Text>
                                     </TouchableOpacity>
                                 ) : null}
+                                {/* Kullanıcı isteği: eksik/hatalı tesis bilgisini (adres, telefon, kort sayısı,
+                                    çalışma saatleri) herkes doldurup admin onayına gönderebilsin — tesis kartına
+                                    dokununca açılan bu sayfadan erişilir. */}
+                                <TouchableOpacity style={bm.tag} onPress={() => onSuggestEdit(venue)}>
+                                    <Text style={bm.tagText}>✏️ {t.vsSuggestEditBtn}</Text>
+                                </TouchableOpacity>
                             </View>
                         );
                     })()}
@@ -829,6 +901,59 @@ export default function VenueSearchScreen({ navigation, route }) {
         } finally { setSuggestSaving(false); }
     };
 
+    // Zaten listede olan ama eksik bilgisi olan bir tesisin (ör. adres/telefon/kort sayısı boş)
+    // bilgisini herhangi bir kullanıcının tamamlayıp admin onayına gönderebilmesi.
+    const [editSuggestVenue, setEditSuggestVenue] = useState(null);
+    const [editSuggestForm, setEditSuggestForm] = useState({
+        name: '', district: '', address: '', phone: '', courtCount: '', openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7],
+    });
+    const [editSuggestSaving, setEditSuggestSaving] = useState(false);
+    const [showEditOpenPicker, setShowEditOpenPicker] = useState(false);
+    const [showEditClosePicker, setShowEditClosePicker] = useState(false);
+
+    const openEditSuggest = (venue) => {
+        setActive(null);
+        setEditSuggestVenue(venue);
+        setEditSuggestForm({
+            name: venue.name || '',
+            district: venue.district || '',
+            address: venue.address || '',
+            phone: venue.phone || '',
+            courtCount: venue.courts?.length ? String(venue.courts.length) : '',
+            openTime: venue.openTime || '08:00',
+            closeTime: venue.closeTime || '22:00',
+            openDays: Array.isArray(venue.openDays) && venue.openDays.length ? venue.openDays : [1, 2, 3, 4, 5, 6, 7],
+        });
+    };
+    const setEditSuggestField = (key, val) => setEditSuggestForm(p => ({ ...p, [key]: val }));
+    const toggleEditSuggestDay = (d) => setEditSuggestForm(p => ({
+        ...p, openDays: p.openDays.includes(d) ? p.openDays.filter(x => x !== d) : [...p.openDays, d].sort((a, b) => a - b),
+    }));
+    const openEditTimePicker = (which) => which === 'open' ? setShowEditOpenPicker(true) : setShowEditClosePicker(true);
+
+    const handleEditSuggestSubmit = async () => {
+        if (!editSuggestVenue) return;
+        const f = editSuggestForm;
+        const body = {};
+        if (f.name.trim())      body.name = f.name.trim();
+        if (f.district.trim())  body.district = f.district.trim();
+        if (f.address.trim())   body.address = f.address.trim();
+        if (f.phone.trim())     body.phone = f.phone.trim();
+        if (f.courtCount.trim()) body.courtCount = parseInt(f.courtCount, 10);
+        if (f.openTime)  body.openTime = f.openTime;
+        if (f.closeTime) body.closeTime = f.closeTime;
+        if (f.openDays.length) body.openDays = f.openDays;
+        if (Object.keys(body).length === 0) { Alert.alert('', t.vsSuggestEditEmpty); return; }
+        setEditSuggestSaving(true);
+        try {
+            await api.post(`/venues/${editSuggestVenue.id}/suggest-edit`, body);
+            setEditSuggestVenue(null);
+            Alert.alert(t.vsSuggestEditSuccessTitle, t.vsSuggestEditSuccessMsg);
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.vsSuggestFailed);
+        } finally { setEditSuggestSaving(false); }
+    };
+
     // Tesis sayfası modalı
     const [activeVenue, setActive] = useState(null);
 
@@ -1133,6 +1258,7 @@ export default function VenueSearchScreen({ navigation, route }) {
                 onOpenCart={() => setCartOpen(true)}
                 cartCount={cart.length}
                 cartTotal={cartTotal}
+                onSuggestEdit={openEditSuggest}
             />
 
             {/* Sepet modalı — ayrı (nested değil) */}
@@ -1185,6 +1311,33 @@ export default function VenueSearchScreen({ navigation, route }) {
                 value={suggestForm.closeTime}
                 onSelect={(v) => setSuggestField('closeTime', v)}
                 onClose={() => setShowSuggestClosePicker(false)}
+            />
+
+            {/* Tesis bilgisi düzenleme önerisi modalı — eksik/hatalı bilgiyi tamamlayıp admin onayına gönderir */}
+            <VenueEditSuggestModal
+                visible={!!editSuggestVenue}
+                venue={editSuggestVenue}
+                form={editSuggestForm}
+                onChangeField={setEditSuggestField}
+                onToggleDay={toggleEditSuggestDay}
+                onOpenTimePicker={openEditTimePicker}
+                onSubmit={handleEditSuggestSubmit}
+                onClose={() => setEditSuggestVenue(null)}
+                saving={editSuggestSaving}
+            />
+            <TimePickerModal
+                visible={showEditOpenPicker}
+                title={t.vsSuggestOpenTime}
+                value={editSuggestForm.openTime}
+                onSelect={(v) => setEditSuggestField('openTime', v)}
+                onClose={() => setShowEditOpenPicker(false)}
+            />
+            <TimePickerModal
+                visible={showEditClosePicker}
+                title={t.vsSuggestCloseTime}
+                value={editSuggestForm.closeTime}
+                onSelect={(v) => setEditSuggestField('closeTime', v)}
+                onClose={() => setShowEditClosePicker(false)}
             />
         </View>
     );

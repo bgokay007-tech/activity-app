@@ -1591,6 +1591,7 @@ model BusinessVenue {
   lng                   Float?                             // Google Maps boylam
   status       String   @default("PENDING")   // PENDING | APPROVED | REJECTED
   adminNote   String?
+  pendingEdit  Json?                              // eksik/hatalı bilgiyi tamamlamak için herhangi bir kullanıcının gönderdiği, admin onayı bekleyen alan güncellemesi — {name?,district?,address?,phone?,courtCount?,openTime?,closeTime?,openDays?,submittedBy,submittedAt}
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

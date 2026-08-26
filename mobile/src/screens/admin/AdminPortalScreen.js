@@ -457,6 +457,7 @@ function VenuesTab() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [rejectId, setRejectId] = useState(null);
+    const [rejectIsEdit, setRejectIsEdit] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
     const [sportFilter, setSportFilter] = useState('all');
     // Eskiden sadece PENDING (onay bekleyen) tesisler dönüyordu — onaylanmış (PRO paket
@@ -485,11 +486,19 @@ function VenuesTab() {
 
     const reject = async () => {
         try {
-            await api.patch(`/venues/${rejectId}/reject`, { adminNote: rejectReason });
+            await api.patch(`/venues/${rejectId}/${rejectIsEdit ? 'reject-edit' : 'reject'}`, { adminNote: rejectReason });
             setRejectId(null);
+            setRejectIsEdit(false);
             setRejectReason('');
             load();
         } catch { Alert.alert('Hata', 'Reddedilemedi.'); }
+    };
+
+    const approveEdit = async (v) => {
+        try {
+            await api.patch(`/venues/${v.id}/approve-edit`);
+            load();
+        } catch { Alert.alert('Hata', 'Onaylanamadı.'); }
     };
 
     if (loading) return <LoadingView />;
@@ -534,14 +543,34 @@ function VenuesTab() {
                         {v.status === 'PENDING' && (
                             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                                 <Btn label="✅ Onayla" onPress={() => approve(v)} color="#10b981" small />
-                                <Btn label="✕ Reddet" onPress={() => setRejectId(v.id)} color="#ef4444" small />
+                                <Btn label="✕ Reddet" onPress={() => { setRejectId(v.id); setRejectIsEdit(false); }} color="#ef4444" small />
+                            </View>
+                        )}
+                        {v.pendingEdit && (
+                            <View style={{ backgroundColor: '#8b5cf620', borderRadius: 8, padding: 8, gap: 3, borderWidth: 1, borderColor: '#8b5cf650' }}>
+                                <Text style={{ color: '#c4b5fd', fontSize: 11, fontWeight: '800' }}>
+                                    ✏️ Bilgi Güncelleme Önerisi — {v.pendingEditSubmitter?.businessName || (v.pendingEditSubmitter?.username ? '@' + v.pendingEditSubmitter.username : '?')}
+                                </Text>
+                                {v.pendingEdit.name && <Text style={s.cardMeta}>İsim: {v.pendingEdit.name}</Text>}
+                                {v.pendingEdit.district && <Text style={s.cardMeta}>İlçe: {v.pendingEdit.district}</Text>}
+                                {v.pendingEdit.address && <Text style={s.cardMeta}>Adres: {v.pendingEdit.address}</Text>}
+                                {v.pendingEdit.phone && <Text style={s.cardMeta}>Telefon: {v.pendingEdit.phone}</Text>}
+                                {v.pendingEdit.courtCount != null && <Text style={s.cardMeta}>Kort Sayısı: {v.pendingEdit.courtCount}</Text>}
+                                {(v.pendingEdit.openTime || v.pendingEdit.closeTime) && (
+                                    <Text style={s.cardMeta}>Saat: {v.pendingEdit.openTime || v.openTime} – {v.pendingEdit.closeTime || v.closeTime}</Text>
+                                )}
+                                {v.pendingEdit.openDays && <Text style={s.cardMeta}>Günler: {v.pendingEdit.openDays.join(', ')}</Text>}
+                                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 3 }}>
+                                    <Btn label="✅ Düzenlemeyi Onayla" onPress={() => approveEdit(v)} color="#10b981" small />
+                                    <Btn label="✕ Reddet" onPress={() => { setRejectId(v.id); setRejectIsEdit(true); }} color="#ef4444" small />
+                                </View>
                             </View>
                         )}
                     </View>
                 )}
                 ListEmptyComponent={<EmptyView text="Bu filtrede tesis yok." />}
             />
-            <Modal visible={!!rejectId} transparent animationType="fade" onRequestClose={() => setRejectId(null)}>
+            <Modal visible={!!rejectId} transparent animationType="fade" onRequestClose={() => { setRejectId(null); setRejectIsEdit(false); }}>
                 <View style={s.overlay}>
                     <View style={s.modalBox}>
                         <Text style={s.modalTitle}>Ret Nedeni</Text>
@@ -554,7 +583,7 @@ function VenuesTab() {
                             multiline
                         />
                         <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-                            <Btn label="Vazgeç" onPress={() => setRejectId(null)} color={colors.textMuted} flex />
+                            <Btn label="Vazgeç" onPress={() => { setRejectId(null); setRejectIsEdit(false); }} color={colors.textMuted} flex />
                             <Btn label="Reddet" onPress={reject} color="#ef4444" flex />
                         </View>
                     </View>

@@ -2,12 +2,12 @@ import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAdmin } from '../middlewares/admin.middleware.js';
 import {
-    createVenue, suggestVenue, getMyVenues, deleteVenue, updateIban,
+    createVenue, suggestVenue, suggestVenueEdit, getMyVenues, deleteVenue, updateIban,
     getVenueSlots, validateSlot, makeReservation, createManualReservation, getVenueReservations, cancelReservation,
     updateReservationStatus, rescheduleReservation,
     getMyReservations, getUnlistedReservations, getOwnerSchedule, getVenueAnalytics, updateVenueSettings,
     updateCourtSettings, searchVenues, searchVenueAvailability, getVenueById,
-    getPendingVenues, approveVenue, rejectVenue,
+    getPendingVenues, approveVenue, rejectVenue, approveVenueEdit, rejectVenueEdit,
     blockUser, unblockUser, getBlockedUsers,
     addMenuItem, updateMenuItem, deleteMenuItem, getVenueMenu,
     placeOrder, getVenueOrders, getUserOrders, updateOrderStatus,
@@ -57,6 +57,7 @@ router.patch('/bills/:billId/pay',           markBillPaid);
 
 // Genel (tüm kullanıcılar)
 router.post('/suggest',                  suggestVenue);
+router.post('/:id/suggest-edit',         suggestVenueEdit);
 router.get('/search',                    searchVenues);
 router.get('/search-availability',       searchVenueAvailability);
 router.get('/reservations/mine',         getMyReservations);
@@ -89,5 +90,7 @@ router.get('/:id', getVenueById);
 router.get('/admin/pending',   requireAdmin, getPendingVenues);
 router.patch('/:id/approve',   requireAdmin, approveVenue);
 router.patch('/:id/reject',    requireAdmin, rejectVenue);
+router.patch('/:id/approve-edit', requireAdmin, approveVenueEdit);
+router.patch('/:id/reject-edit',  requireAdmin, rejectVenueEdit);
 
 export default router;
