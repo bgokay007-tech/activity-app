@@ -804,14 +804,6 @@ export default function VenueSearchScreen({ navigation, route }) {
     // zaman aşağı doğru kaydırılabiliyor.
     const filtersHeader = (
         <>
-            {/* Bilgilendirme banner'ı */}
-            <View style={s.infoBanner}>
-                <Text style={s.infoBannerIcon}>🏅</Text>
-                <Text style={s.infoBannerText}>
-                    {t.vsInfoBanner}
-                </Text>
-            </View>
-
             <View style={s.filters}>
                 {lockedBranch && (
                     <View style={s.branchBadge}>
@@ -1027,41 +1019,37 @@ const s = StyleSheet.create({
     backBtnText:{ color: colors.textSecondary, fontSize: 26, fontWeight: '300' },
     title:  { color: '#fff', fontSize: 17, fontWeight: '900' },
 
-    infoBanner:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginHorizontal: 14, marginTop: 12, marginBottom: 4, backgroundColor: '#9333ea14', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#9333ea30' },
-    infoBannerIcon: { fontSize: 18, lineHeight: 22 },
-    infoBannerText: { flex: 1, color: colors.textSecondary, fontSize: 12, lineHeight: 18 },
-
-    filters:      { padding: 14, gap: 8 },
-    branchBadge:  { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#9333ea22', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#9333ea50' },
+    filters:      { paddingHorizontal: 4, paddingVertical: 8, gap: 6 },
+    branchBadge:  { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#9333ea22', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#9333ea50' },
     branchBadgeIcon: { fontSize: 14 },
     branchBadgeText: { color: '#c084fc', fontWeight: '700', fontSize: 13 },
-    input:        { backgroundColor: colors.surface, borderRadius: 10, padding: 12, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: colors.border },
-    searchBtn:    { backgroundColor: colors.purple, borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
+    input:        { backgroundColor: colors.surface, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: colors.border },
+    searchBtn:    { backgroundColor: colors.purple, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
     searchBtnText:{ color: '#fff', fontWeight: '900', fontSize: 15 },
 
-    availToggle:      { borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    availToggle:      { borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     availToggleActive:{ borderColor: colors.purple, backgroundColor: colors.purple + '18' },
     availToggleText:      { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
     availToggleTextActive:{ color: colors.purpleLight || colors.purple },
-    availBox:         { backgroundColor: colors.surface, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: colors.border, gap: 4 },
-    availDateChip:        { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+    availBox:         { backgroundColor: colors.surface, borderRadius: 10, padding: 8, borderWidth: 1, borderColor: colors.border, gap: 4 },
+    availDateChip:        { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
     availDateChipActive:  { backgroundColor: colors.purple, borderColor: colors.purple },
     availDateChipText:      { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
     availDateChipTextActive:{ color: '#fff' },
-    availTimeField:     { flex: 1, backgroundColor: colors.surface2, borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    availTimeField:     { flex: 1, backgroundColor: colors.surface2, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
     availTimeFieldText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
-    availSearchBtn:     { backgroundColor: colors.purple, borderRadius: 8, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+    availSearchBtn:     { backgroundColor: colors.purple, borderRadius: 8, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
     availHint:          { color: colors.textMuted, fontSize: 10, marginTop: 6 },
 
-    availResultCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border },
+    availResultCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: colors.border },
     availResultName: { color: '#fff', fontSize: 15, fontWeight: '900' },
     availResultCity: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
     availResultCourt:{ color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
     availSlotChip:      { backgroundColor: colors.purple + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: colors.purple + '40' },
     availSlotChipText:  { color: colors.purpleLight || colors.purple, fontSize: 11, fontWeight: '700' },
 
-    list:     { padding: 14, gap: 10 },
-    card:     { backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border },
+    list:     { paddingHorizontal: 4, paddingVertical: 8, gap: 8 },
+    card:     { backgroundColor: colors.surface, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: colors.border },
     cardHeader:{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
     cardName: { color: '#fff', fontSize: 15, fontWeight: '900' },
     cardMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
