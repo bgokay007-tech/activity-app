@@ -1318,6 +1318,7 @@ function SubscriptionsPanel() {
 
 // ── İŞLETME TESİSLERİ ─────────────────────────────────────────────────────
 function BusinessVenuesPanel() {
+    const { t } = useTranslation();
     const [venues, setVenues] = useState([]);
     const [loading, setLoading] = useState(true);
     const [actionId, setActionId] = useState(null);
@@ -1337,16 +1338,16 @@ function BusinessVenuesPanel() {
     const approve = async (id) => {
         setActionId(id);
         try { await api.patch(`/venues/${id}/approve`); load(); }
-        catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+        catch (e) { alert(e?.response?.data?.message || t('admin.bizVenues.action_failed')); }
         finally { setActionId(null); }
     };
 
     const reject = async (id) => {
-        const note = window.prompt('Red nedeni (isteğe bağlı):');
+        const note = window.prompt(t('admin.bizVenues.reject_note_ph'));
         if (note === null) return;
         setActionId(id);
         try { await api.patch(`/venues/${id}/reject`, { adminNote: note || null }); load(); }
-        catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+        catch (e) { alert(e?.response?.data?.message || t('admin.bizVenues.action_failed')); }
         finally { setActionId(null); }
     };
 
@@ -1355,29 +1356,29 @@ function BusinessVenuesPanel() {
     const approveEdit = async (id) => {
         setActionId(id);
         try { await api.patch(`/venues/${id}/approve-edit`); load(); }
-        catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+        catch (e) { alert(e?.response?.data?.message || t('admin.bizVenues.action_failed')); }
         finally { setActionId(null); }
     };
     const rejectEdit = async (id) => {
-        const note = window.prompt('Ret nedeni (opsiyonel):');
+        const note = window.prompt(t('admin.common.reject_note_placeholder'));
         if (note === null) return;
         setActionId(id);
         try { await api.patch(`/venues/${id}/reject-edit`, { adminNote: note || null }); load(); }
-        catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+        catch (e) { alert(e?.response?.data?.message || t('admin.bizVenues.action_failed')); }
         finally { setActionId(null); }
     };
 
-    const SLOT_LABELS = { FULL_HOUR: 'Tam Saatler', HALF_HOUR: 'Buçuklu Saatler', FLEXIBLE: 'Serbest Süre' };
+    const SLOT_LABELS = { FULL_HOUR: t('admin.bizVenues.slot_full_hour'), HALF_HOUR: t('admin.bizVenues.slot_half_hour'), FLEXIBLE: t('admin.bizVenues.slot_flexible') };
     const DAY_NAMES = ['', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 
-    const STATUS_LABEL = { PENDING: '⏳ Bekleyen', APPROVED: '✅ Onaylı', REJECTED: '❌ Reddedilen', ALL: 'Tümü' };
+    const STATUS_LABEL = { PENDING: t('admin.bizVenues.status_pending'), APPROVED: t('admin.bizVenues.status_approved'), REJECTED: t('admin.bizVenues.status_rejected'), ALL: t('admin.bizVenues.status_all') };
     const statusBadge = (status) => ({
         PENDING:  'bg-yellow-900/40 border border-yellow-700/50 text-yellow-400',
         APPROVED: 'bg-green-900/40 border border-green-700/50 text-green-400',
         REJECTED: 'bg-red-900/40 border border-red-700/50 text-red-400',
     }[status] || 'bg-gray-800 border border-gray-700 text-gray-400');
 
-    if (loading) return <p className="text-gray-500 text-center py-16">Yükleniyor...</p>;
+    if (loading) return <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>;
 
     const filtered = sportFilter === 'all' ? venues : venues.filter(v => v.branch === sportFilter);
 
@@ -1395,11 +1396,11 @@ function BusinessVenuesPanel() {
             {!venues.length ? (
                 <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
                     <p className="text-4xl mb-3">✅</p>
-                    <p className="text-white font-bold">Bu filtrede tesis yok</p>
+                    <p className="text-white font-bold">{t('admin.bizVenues.none_in_filter')}</p>
                 </div>
             ) : (
             <>
-            <p className="text-gray-400 text-sm">{filtered.length} tesis</p>
+            <p className="text-gray-400 text-sm">{t('admin.bizVenues.count_label', { count: filtered.length })}</p>
             {filtered.map(v => (
                 <div key={v.id} className="bg-gray-900 border border-gray-700 rounded-2xl p-5 space-y-4">
                     <div className="flex justify-between items-start">
@@ -1407,7 +1408,7 @@ function BusinessVenuesPanel() {
                             <p className="text-white font-black text-lg">{v.name}</p>
                             <p className="text-amber-400 text-xs font-bold">{v.branch} · {v.city}{v.district ? ` / ${v.district}` : ''}</p>
                             <p className="text-gray-400 text-xs mt-1">
-                                İşletme: <span className="text-white font-bold">{v.user?.businessName || v.user?.username}</span>
+                                {t('admin.bizVenues.business_label')} <span className="text-white font-bold">{v.user?.businessName || v.user?.username}</span>
                                 {' · '}{v.user?.email}
                             </p>
                         </div>
@@ -1416,19 +1417,19 @@ function BusinessVenuesPanel() {
 
                     <div className="grid grid-cols-2 gap-3 text-sm">
                         <div className="bg-gray-800 rounded-xl p-3">
-                            <p className="text-gray-500 text-xs font-bold mb-1">Adres</p>
+                            <p className="text-gray-500 text-xs font-bold mb-1">{t('admin.bizVenues.address_label')}</p>
                             <p className="text-white">{v.address || '—'}</p>
                             {v.phone && <p className="text-gray-400 text-xs mt-1">📞 {v.phone}</p>}
                         </div>
                         <div className="bg-gray-800 rounded-xl p-3">
-                            <p className="text-gray-500 text-xs font-bold mb-1">Saatler & Tip</p>
+                            <p className="text-gray-500 text-xs font-bold mb-1">{t('admin.bizVenues.hours_type_label')}</p>
                             <p className="text-white">{v.openTime} – {v.closeTime}</p>
                             <p className="text-amber-400 text-xs mt-1">{SLOT_LABELS[v.slotType] || v.slotType}</p>
                         </div>
                     </div>
 
                     <div className="bg-gray-800 rounded-xl p-3">
-                        <p className="text-gray-500 text-xs font-bold mb-2">Açık Günler</p>
+                        <p className="text-gray-500 text-xs font-bold mb-2">{t('admin.bizVenues.open_days_label')}</p>
                         <div className="flex gap-2 flex-wrap">
                             {(v.openDays || []).map(d => (
                                 <span key={d} className="bg-amber-900/40 border border-amber-700/50 text-amber-400 text-xs font-bold px-2 py-1 rounded-lg">{DAY_NAMES[d]}</span>
@@ -1437,7 +1438,7 @@ function BusinessVenuesPanel() {
                     </div>
 
                     <div className="bg-gray-800 rounded-xl p-3">
-                        <p className="text-gray-500 text-xs font-bold mb-2">Kortlar / Sahalar ({v.courts?.length || 0})</p>
+                        <p className="text-gray-500 text-xs font-bold mb-2">{t('admin.bizVenues.courts_label', { count: v.courts?.length || 0 })}</p>
                         <div className="flex gap-2 flex-wrap">
                             {(v.courts || []).map(c => (
                                 <span key={c.id} className="bg-gray-700 text-gray-200 text-xs px-2 py-1 rounded-lg">{c.name}</span>
@@ -1447,30 +1448,30 @@ function BusinessVenuesPanel() {
 
                     {v.pendingEdit && (
                         <div className="bg-purple-950/30 border border-purple-500/40 rounded-xl p-3 space-y-1.5">
-                            <p className="text-purple-300 text-xs font-bold">✏️ Bilgi Güncelleme Önerisi</p>
+                            <p className="text-purple-300 text-xs font-bold">{t('admin.bizVenues.pending_edit_title')}</p>
                             <div className="text-gray-300 text-xs space-y-0.5">
-                                {v.pendingEdit.name && <p>İsim: {v.pendingEdit.name}</p>}
-                                {v.pendingEdit.district && <p>İlçe: {v.pendingEdit.district}</p>}
-                                {v.pendingEdit.address && <p>Adres: {v.pendingEdit.address}</p>}
-                                {v.pendingEdit.phone && <p>Telefon: {v.pendingEdit.phone}</p>}
-                                {v.pendingEdit.courtCount != null && <p>Kort Sayısı: {v.pendingEdit.courtCount}</p>}
-                                {(v.pendingEdit.openTime || v.pendingEdit.closeTime) && <p>Saat: {v.pendingEdit.openTime || v.openTime} – {v.pendingEdit.closeTime || v.closeTime}</p>}
-                                {v.pendingEdit.openDays && <p>Günler: {v.pendingEdit.openDays.join(', ')}</p>}
+                                {v.pendingEdit.name && <p>{t('admin.bizVenues.field_name')}: {v.pendingEdit.name}</p>}
+                                {v.pendingEdit.district && <p>{t('admin.bizVenues.field_district')}: {v.pendingEdit.district}</p>}
+                                {v.pendingEdit.address && <p>{t('admin.bizVenues.field_address')}: {v.pendingEdit.address}</p>}
+                                {v.pendingEdit.phone && <p>{t('admin.bizVenues.field_phone')}: {v.pendingEdit.phone}</p>}
+                                {v.pendingEdit.courtCount != null && <p>{t('admin.bizVenues.field_court_count')}: {v.pendingEdit.courtCount}</p>}
+                                {(v.pendingEdit.openTime || v.pendingEdit.closeTime) && <p>{t('admin.bizVenues.field_hours')}: {v.pendingEdit.openTime || v.openTime} – {v.pendingEdit.closeTime || v.closeTime}</p>}
+                                {v.pendingEdit.openDays && <p>{t('admin.bizVenues.field_days')}: {v.pendingEdit.openDays.join(', ')}</p>}
                             </div>
                             <div className="flex gap-2 pt-1">
                                 <button onClick={() => approveEdit(v.id)} disabled={actionId === v.id}
                                     className="text-[11px] font-bold px-3 py-1.5 rounded-lg border bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20 transition disabled:opacity-50">
-                                    ✅ Düzenlemeyi Onayla
+                                    {t('admin.bizVenues.approve_edit')}
                                 </button>
                                 <button onClick={() => rejectEdit(v.id)} disabled={actionId === v.id}
                                     className="text-[11px] font-bold px-3 py-1.5 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 transition disabled:opacity-50">
-                                    ✕ Reddet
+                                    {t('admin.bizVenues.reject_edit')}
                                 </button>
                             </div>
                         </div>
                     )}
 
-                    <p className="text-gray-500 text-xs">Başvuru: {new Date(v.createdAt).toLocaleString('tr-TR')}</p>
+                    <p className="text-gray-500 text-xs">{t('admin.bizVenues.application_date', { date: new Date(v.createdAt).toLocaleString('tr-TR') })}</p>
 
                     {v.status === 'PENDING' && (
                         <div className="flex gap-3">
@@ -1478,13 +1479,13 @@ function BusinessVenuesPanel() {
                                 onClick={() => approve(v.id)}
                                 disabled={actionId === v.id}
                                 className="flex-1 py-2.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-sm transition disabled:opacity-50">
-                                ✅ Onayla
+                                {t('admin.bizVenues.approve')}
                             </button>
                             <button
                                 onClick={() => reject(v.id)}
                                 disabled={actionId === v.id}
                                 className="flex-1 py-2.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-sm transition disabled:opacity-50">
-                                ❌ Reddet
+                                {t('admin.bizVenues.reject')}
                             </button>
                         </div>
                     )}

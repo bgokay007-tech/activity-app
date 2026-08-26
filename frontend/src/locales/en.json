@@ -890,7 +890,17 @@
       "slot_full_hour": "Full Hours",
       "slot_half_hour": "Half Hours",
       "slot_flexible": "Flexible Duration",
-      "action_failed": "Error"
+      "action_failed": "Error",
+      "pending_edit_title": "✏️ Update Suggestion",
+      "field_name": "Name",
+      "field_district": "District",
+      "field_address": "Address",
+      "field_phone": "Phone",
+      "field_court_count": "Court Count",
+      "field_hours": "Hours",
+      "field_days": "Days",
+      "approve_edit": "✅ Approve Update",
+      "reject_edit": "✕ Reject"
     },
     "approvalQueue": {
       "pending_tab": "⏳ Pending",

@@ -890,7 +890,17 @@
       "slot_full_hour": "Tam Saatler",
       "slot_half_hour": "Buçuklu Saatler",
       "slot_flexible": "Serbest Süre",
-      "action_failed": "Hata"
+      "action_failed": "Hata",
+      "pending_edit_title": "✏️ Bilgi Güncelleme Önerisi",
+      "field_name": "İsim",
+      "field_district": "İlçe",
+      "field_address": "Adres",
+      "field_phone": "Telefon",
+      "field_court_count": "Kort Sayısı",
+      "field_hours": "Saat",
+      "field_days": "Günler",
+      "approve_edit": "✅ Düzenlemeyi Onayla",
+      "reject_edit": "✕ Reddet"
     },
     "approvalQueue": {
       "pending_tab": "⏳ Bekleyen",
