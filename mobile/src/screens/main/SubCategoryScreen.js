@@ -18871,31 +18871,50 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveModalLoading, setArchiveModalLoading] = useState(false);
     const [archiveModalTab, setArchiveModalTab] = useState('details');
 
-    const [filterCity, setFilterCity] = useState('');
-    // Kullanıcı isteği: sadece "Konum" filtresi dalına göre hafızada kalıcı olsun — uygulama
-    // kapatılıp açılsa, ya da başka bir dala gidip geri dönülse bile son seçilen il aynı
-    // kalır, kullanıcı isterse tekrar filtreye dokunup değiştirir. Diğer filtreler (zaman
-    // aralığı, kort/mekan adı vb.) BİLEREK kalıcı yapılmadı — her ekrana yeniden girişte
-    // sıfırlanmaları isteniyor.
+    // Kullanıcı isteği: her sekme (Rakip Bul/Turnuvalar/Antrenörler vb.) kendi filtresini
+    // kendi sekmesinde uygulasın — bir sekmede seçilen il/kort/tarih diğer sekmenin
+    // listesini ETKİLEMESİN. Bunun için tüm filtre değerleri aktif sekmeye göre ayrı ayrı
+    // (bir map içinde) tutuluyor; aşağıdaki filterCity/filterVenueName(s)/filterDate...
+    // isimleri PROJENİN GERİ KALANINDA hiç değişmedi (sadece aktif sekmeye göre okuyup
+    // yazan ince bir katman), böylece onlarca mevcut kullanım yerini tek tek değiştirmeye
+    // gerek kalmadı.
+    const [tabFilterCity, setTabFilterCity] = useState({});
+    const [tabFilterVenueName, setTabFilterVenueName] = useState({});
+    const [tabFilterVenueNames, setTabFilterVenueNames] = useState({});
+    const [tabFilterVolleyballType, setTabFilterVolleyballType] = useState({});
+    const [tabFilterDate, setTabFilterDate] = useState({});
+    const [tabFilterDateFrom, setTabFilterDateFrom] = useState({});
+    const [tabFilterDateTo, setTabFilterDateTo] = useState({});
+
+    const filterCity = tabFilterCity[activeTab] || '';
+    const setFilterCity = (v) => setTabFilterCity(p => ({ ...p, [activeTab]: v }));
+    // Kullanıcı isteği: sadece "Konum" filtresi hafızada kalıcı olsun — uygulama kapatılıp
+    // açılsa bile son seçilen il aynı kalır (artık sekmeye göre AYRI ayrı hatırlanır).
+    // Diğer filtreler (zaman aralığı, kort/mekan adı vb.) BİLEREK kalıcı yapılmadı.
     const filterCityLoadedRef = useRef(false);
     useEffect(() => {
         filterCityLoadedRef.current = false;
-        AsyncStorage.getItem(`filter_city_${sub}`).then(v => {
+        AsyncStorage.getItem(`filter_city_${sub}_${activeTab}`).then(v => {
             filterCityLoadedRef.current = true;
-            if (v) setFilterCity(v);
+            if (v) setTabFilterCity(p => ({ ...p, [activeTab]: v }));
         }).catch(() => { filterCityLoadedRef.current = true; });
-    }, [sub]);
+    }, [sub, activeTab]);
     useEffect(() => {
         // Depolamadan yüklenen değeri kendi kendine geri yazmasın diye (zararsız olurdu ama
         // gereksiz) — sadece kullanıcı değişikliğinden sonra kaydeder.
         if (!filterCityLoadedRef.current) return;
-        if (filterCity) AsyncStorage.setItem(`filter_city_${sub}`, filterCity).catch(() => {});
-        else AsyncStorage.removeItem(`filter_city_${sub}`).catch(() => {});
-    }, [filterCity, sub]);
-    const [filterVenueName, setFilterVenueName] = useState(''); // kort/salon/mekan adına göre ayrı arama — dala göre etiketi değişir
-    // Kullanıcı isteği: kort adı filtresi artık BİRDEN FAZLA kort seçilebilir (çip listesi) —
-    // sadece Rakip Bul listesinde filtre uygular, turnuvalar/diğer sekmeler etkilenmez.
-    const [filterVenueNames, setFilterVenueNames] = useState([]);
+        if (filterCity) AsyncStorage.setItem(`filter_city_${sub}_${activeTab}`, filterCity).catch(() => {});
+        else AsyncStorage.removeItem(`filter_city_${sub}_${activeTab}`).catch(() => {});
+    }, [filterCity, sub, activeTab]);
+
+    const filterVenueName = tabFilterVenueName[activeTab] || ''; // kort/salon/mekan adına göre ayrı arama — dala göre etiketi değişir
+    const setFilterVenueName = (v) => setTabFilterVenueName(p => ({ ...p, [activeTab]: v }));
+    // Kullanıcı isteği: kort adı filtresi artık BİRDEN FAZLA kort seçilebilir (çip listesi).
+    const filterVenueNames = tabFilterVenueNames[activeTab] || [];
+    const setFilterVenueNames = (updater) => setTabFilterVenueNames(p => ({
+        ...p,
+        [activeTab]: typeof updater === 'function' ? updater(p[activeTab] || []) : updater,
+    }));
     const matchesVenueNameFilter = (name) => {
         const n = (name || '').toLowerCase();
         if (filterVenueNames.length > 0) return filterVenueNames.some(sel => n.includes(sel.toLowerCase()));
@@ -18905,10 +18924,14 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Voleybol Türü (Salon/Plaj/Çim/Mahalle/Toprak) — önceden ayrı sekmeler halindeydi,
     // kullanıcı isteğiyle kaldırılıp diğer filtrelerle (il, tarih vb.) aynı "Filtrele"
     // modalına taşındı. null = Tümü. Sadece sub==='volleyball' iken anlamlı.
-    const [filterVolleyballType, setFilterVolleyballType] = useState(null);
-    const [filterDate, setFilterDate] = useState('all'); // 'all' | 'today' | 'week' | 'month' | 'custom'
-    const [filterDateFrom, setFilterDateFrom] = useState(null);
-    const [filterDateTo, setFilterDateTo] = useState(null);
+    const filterVolleyballType = tabFilterVolleyballType[activeTab] ?? null;
+    const setFilterVolleyballType = (v) => setTabFilterVolleyballType(p => ({ ...p, [activeTab]: v }));
+    const filterDate = tabFilterDate[activeTab] || 'all'; // 'all' | 'today' | 'week' | 'month' | 'custom'
+    const setFilterDate = (v) => setTabFilterDate(p => ({ ...p, [activeTab]: v }));
+    const filterDateFrom = tabFilterDateFrom[activeTab] || null;
+    const setFilterDateFrom = (v) => setTabFilterDateFrom(p => ({ ...p, [activeTab]: v }));
+    const filterDateTo = tabFilterDateTo[activeTab] || null;
+    const setFilterDateTo = (v) => setTabFilterDateTo(p => ({ ...p, [activeTab]: v }));
     const [showCityFilter, setShowCityFilter] = useState(false);
     const [showDateFilter, setShowDateFilter] = useState(false);
     const [showFilterModal, setShowFilterModal] = useState(false);
