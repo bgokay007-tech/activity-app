@@ -1018,6 +1018,7 @@ function FlaggedListingsPanel() {
 
 // ── PROFİL DEĞİŞİKLİK TALEPLERİ ──────────────────────────────────────────
 function ProfileChangesPanel() {
+    const { t } = useTranslation();
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('PENDING');
@@ -1036,10 +1037,10 @@ function ProfileChangesPanel() {
         try {
             await api.patch(`/admin/profile-changes/${id}`, { action, adminNote: notes[id] || '' });
             load();
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
-    const FIELD_LABEL = { fullName: '👤 Ad Soyad', gender: 'Cinsiyet', birthDate: '🎂 Doğum Tarihi' };
+    const FIELD_LABEL = { fullName: t('admin.profileChanges.field_fullName'), gender: t('admin.profileChanges.field_gender'), birthDate: t('admin.profileChanges.field_birthDate') };
 
     return (
         <div className="space-y-4">
@@ -1047,15 +1048,15 @@ function ProfileChangesPanel() {
                 {['PENDING', 'APPROVED', 'REJECTED'].map(s => (
                     <button key={s} onClick={() => setStatusFilter(s)}
                         className={`px-4 py-1.5 rounded-xl text-sm font-bold transition border ${statusFilter === s ? 'bg-purple-600 border-purple-500 text-white' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}>
-                        {s === 'PENDING' ? '⏳ Bekleyen' : s === 'APPROVED' ? '✅ Onaylanan' : '❌ Reddedilen'}
+                        {s === 'PENDING' ? t('admin.profileChanges.pending_tab') : s === 'APPROVED' ? t('admin.profileChanges.approved_tab') : t('admin.profileChanges.rejected_tab')}
                     </button>
                 ))}
             </div>
 
-            {loading && <p className="text-gray-500 text-center py-16">Yükleniyor...</p>}
+            {loading && <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>}
             {!loading && requests.length === 0 && (
                 <p className="text-gray-500 text-center py-16">
-                    {statusFilter === 'PENDING' ? '✅ Bekleyen talep yok' : 'Kayıt bulunamadı'}
+                    {statusFilter === 'PENDING' ? t('admin.profileChanges.none_pending') : t('admin.profileChanges.none_found')}
                 </p>
             )}
 
@@ -1079,11 +1080,11 @@ function ProfileChangesPanel() {
 
                             <div className="grid grid-cols-2 gap-3 mb-3">
                                 <div className="bg-gray-800 rounded-xl p-3">
-                                    <p className="text-gray-500 text-xs mb-1">Mevcut Değer</p>
+                                    <p className="text-gray-500 text-xs mb-1">{t('admin.profileChanges.current_value')}</p>
                                     <p className="text-gray-300 text-sm font-bold">{req.currentValue || '—'}</p>
                                 </div>
                                 <div className="bg-gray-800 rounded-xl p-3">
-                                    <p className="text-gray-500 text-xs mb-1">Yeni Değer</p>
+                                    <p className="text-gray-500 text-xs mb-1">{t('admin.profileChanges.new_value')}</p>
                                     <p className="text-white text-sm font-black">{req.newValue || '—'}</p>
                                 </div>
                             </div>
@@ -1091,7 +1092,7 @@ function ProfileChangesPanel() {
                             {req.documentUrl && (
                                 <a href={req.documentUrl} target="_blank" rel="noreferrer"
                                     className="inline-flex items-center gap-1.5 text-blue-400 text-xs font-bold hover:text-blue-300 mb-3">
-                                    📎 Belgeyi Görüntüle ↗
+                                    {t('admin.profileChanges.view_document')}
                                 </a>
                             )}
 
@@ -1104,23 +1105,23 @@ function ProfileChangesPanel() {
                                     <input
                                         value={notes[req.id] || ''}
                                         onChange={e => setNotes(n => ({ ...n, [req.id]: e.target.value }))}
-                                        placeholder="Red notu (isteğe bağlı)..."
+                                        placeholder={t('admin.profileChanges.reject_note_ph')}
                                         className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
                                     />
                                     <div className="flex gap-2">
                                         <button onClick={() => review(req.id, 'APPROVE')}
                                             className="flex-1 py-2 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-sm transition">
-                                            ✅ Onayla
+                                            {t('admin.profileChanges.approve')}
                                         </button>
                                         <button onClick={() => review(req.id, 'REJECT')}
                                             className="flex-1 py-2 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-sm transition">
-                                            ❌ Reddet
+                                            {t('admin.profileChanges.reject')}
                                         </button>
                                     </div>
                                 </div>
                             )}
                             {req.adminNote && (
-                                <p className="text-gray-500 text-xs mt-2 italic">Not: {req.adminNote}</p>
+                                <p className="text-gray-500 text-xs mt-2 italic">{t('admin.common.note_prefix')} {req.adminNote}</p>
                             )}
                         </div>
                     </div>
