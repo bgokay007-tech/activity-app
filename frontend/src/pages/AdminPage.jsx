@@ -1502,6 +1502,7 @@ function BusinessVenuesPanel() {
 // CoachRatingApprovalTab ile aynı davranış — üçü de PENDING/APPROVED filtresine göre
 // backend'den liste çekip Onayla/Onayı Kaldır eylemi sunuyor, tek şablonla paylaşılıyor.
 function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, emptyPendingText, emptyOtherText }) {
+    const { t } = useTranslation();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('PENDING');
@@ -1520,7 +1521,7 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
         try {
             await api.patch(`${endpoint}/${id}`, { action, adminNote: notes[id] || '' });
             load();
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     return (
@@ -1529,12 +1530,12 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
                 {['PENDING', 'APPROVED'].map(s => (
                     <button key={s} onClick={() => setFilter(s)}
                         className={`px-4 py-1.5 rounded-xl text-sm font-bold transition border ${filter === s ? 'bg-purple-600 border-purple-500 text-white' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}>
-                        {s === 'PENDING' ? '⏳ Bekleyen' : '✅ Onaylılar'}
+                        {s === 'PENDING' ? t('admin.approvalQueue.pending_tab') : t('admin.approvalQueue.approved_tab')}
                     </button>
                 ))}
             </div>
 
-            {loading && <p className="text-gray-500 text-center py-16">Yükleniyor...</p>}
+            {loading && <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>}
             {!loading && items.length === 0 && (
                 <p className="text-gray-500 text-center py-16">{filter === 'PENDING' ? emptyPendingText : emptyOtherText}</p>
             )}
@@ -1551,9 +1552,9 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
                             </p>
                             {showCv && (
                                 c.cvUrl ? (
-                                    <a href={c.cvUrl} target="_blank" rel="noreferrer" className="text-purple-400 text-xs font-bold hover:underline">📄 CV'yi Aç</a>
+                                    <a href={c.cvUrl} target="_blank" rel="noreferrer" className="text-purple-400 text-xs font-bold hover:underline">{t('admin.approvalQueue.view_cv')}</a>
                                 ) : (
-                                    <p className="text-red-400 text-xs">CV yok</p>
+                                    <p className="text-red-400 text-xs">{t('admin.approvalQueue.no_cv')}</p>
                                 )
                             )}
                         </div>
@@ -1562,12 +1563,12 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
                                 {filter === 'PENDING' ? (
                                     <button onClick={() => setApproval(c.id, 'APPROVE')}
                                         className="px-3 py-1.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-xs transition">
-                                        ✓ Onayla
+                                        {t('admin.approvalQueue.approve')}
                                     </button>
                                 ) : (
                                     <button onClick={() => setApproval(c.id, 'REVOKE')}
                                         className="px-3 py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-xs transition">
-                                        ✕ Onayı Kaldır
+                                        {t('admin.approvalQueue.revoke')}
                                     </button>
                                 )}
                             </div>
@@ -1578,23 +1579,23 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
                             <input
                                 value={notes[c.id] || ''}
                                 onChange={e => setNotes(n => ({ ...n, [c.id]: e.target.value }))}
-                                placeholder="Red notu (isteğe bağlı)..."
+                                placeholder={t('admin.approvalQueue.reject_note_ph')}
                                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
                             />
                             <div className="flex gap-2">
                                 <button onClick={() => setApproval(c.id, 'APPROVE')}
                                     className="flex-1 py-2 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-sm transition">
-                                    ✓ Onayla
+                                    {t('admin.approvalQueue.approve')}
                                 </button>
                                 <button onClick={() => setApproval(c.id, 'REJECT')}
                                     className="flex-1 py-2 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-sm transition">
-                                    ❌ Reddet
+                                    {t('admin.approvalQueue.reject')}
                                 </button>
                             </div>
                         </div>
                     )}
                     {c.adminNote && (
-                        <p className="text-gray-500 text-xs mt-2 italic">Not: {c.adminNote}</p>
+                        <p className="text-gray-500 text-xs mt-2 italic">{t('admin.common.note_prefix')} {c.adminNote}</p>
                     )}
                 </div>
             ))}
@@ -1603,20 +1604,23 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
 }
 
 function CoachListingApprovalPanel() {
+    const { t } = useTranslation();
     return <ApprovalQueuePanel endpoint="/admin/coach-listing-approvals" allowReject
-        emptyPendingText="Onay bekleyen antrenörlük ilanı yok. ✅" emptyOtherText="Onaylı antrenörlük ilanı bulunamadı." />;
+        emptyPendingText={t('admin.approvalQueue.coachListing_empty_pending')} emptyOtherText={t('admin.approvalQueue.coachListing_empty_other')} />;
 }
 
 function RefereeApprovalPanel() {
+    const { t } = useTranslation();
     return <ApprovalQueuePanel endpoint="/admin/referee-approvals"
-        emptyPendingText="Onay bekleyen hakem yok. ✅" emptyOtherText="Onaylı hakem bulunamadı." />;
+        emptyPendingText={t('admin.approvalQueue.referee_empty_pending')} emptyOtherText={t('admin.approvalQueue.referee_empty_other')} />;
 }
 
 function CoachRatingApprovalPanel() {
+    const { t } = useTranslation();
     // Bu onay diğer ikisinden farklı — CV'ye bakılmıyor, "bu antrenör oyuncu
     // değerlendirmesi verebilir mi" onayı (bkz. VolleyballRating, approvedForRating).
     return <ApprovalQueuePanel endpoint="/admin/coach-rating-approvals" showCv={false}
-        emptyPendingText="Onay bekleyen antrenör yok. ✅" emptyOtherText="Onaylı antrenör bulunamadı." />;
+        emptyPendingText={t('admin.approvalQueue.coachRating_empty_pending')} emptyOtherText={t('admin.approvalQueue.coachRating_empty_other')} />;
 }
 
 // ── MAIN ───────────────────────────────────────────────────────────────────
