@@ -520,6 +520,7 @@ function DisputesPanel() {
 
 // ── POSTS ──────────────────────────────────────────────────────────────────
 function PostsPanel() {
+    const { t } = useTranslation();
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -529,11 +530,11 @@ function PostsPanel() {
     }, []);
 
     const del = async (id) => {
-        if (!window.confirm('Delete this post?')) return;
+        if (!window.confirm(t('admin.common.delete') + '?')) return;
         try {
             await api.delete(`/admin/posts/${id}`);
             setPosts(prev => prev.filter(p => p.id !== id));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     const filtered = posts.filter(p =>
@@ -541,14 +542,14 @@ function PostsPanel() {
         (p.user?.username || '').toLowerCase().includes(search.toLowerCase())
     );
 
-    if (loading) return <p className="text-gray-500 text-center py-16">Loading...</p>;
+    if (loading) return <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>;
 
     return (
         <div className="space-y-4">
             <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search by content or username..."
+                placeholder={t('admin.posts.search_placeholder')}
                 className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500" />
-            <p className="text-gray-500 text-xs">{filtered.length} posts</p>
+            <p className="text-gray-500 text-xs">{t('admin.posts.count_label', { count: filtered.length })}</p>
             <div className="space-y-2">
                 {filtered.map(p => (
                     <div key={p.id} className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 flex items-start gap-3">
@@ -557,14 +558,14 @@ function PostsPanel() {
                             <div className="flex items-center gap-2 mb-1">
                                 <span className="text-purple-400 text-xs font-bold">@{p.user?.username}</span>
                                 <span className="text-gray-700 text-[10px]">{p.type}</span>
-                                {p.hidden && <span className="text-[10px] text-gray-600">🙈 Hidden</span>}
+                                {p.hidden && <span className="text-[10px] text-gray-600">{t('admin.posts.hidden_badge')}</span>}
                             </div>
                             <p className="text-gray-200 text-sm line-clamp-2">{p.content}</p>
                             <p className="text-gray-600 text-[10px] mt-1">{new Date(p.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                         </div>
                         <button onClick={() => del(p.id)}
                             className="flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 transition mt-1">
-                            Delete
+                            {t('admin.common.delete')}
                         </button>
                     </div>
                 ))}
