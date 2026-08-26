@@ -696,6 +696,7 @@ function VenuesPanel() {
 
 // ── NO-SHOW REPORTS ────────────────────────────────────────────────────────
 function NoShowPanel() {
+    const { t } = useTranslation();
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -705,34 +706,34 @@ function NoShowPanel() {
         setError(null);
         api.get('/admin/no-show-reports')
             .then(r => setReports(r.data))
-            .catch(e => setError(e?.response?.data?.message || e?.message || 'API hatası'))
+            .catch(e => setError(e?.response?.data?.message || e?.message || t('admin.noshow.api_error')))
             .finally(() => setLoading(false));
     };
     useEffect(() => { load(); }, []);
 
     const approve = async (id) => {
-        if (!window.confirm('Onayla ve 0.40 puan kes?')) return;
+        if (!window.confirm(t('admin.noshow.confirm_approve'))) return;
         try {
             await api.patch(`/admin/no-show-reports/${id}/approve`);
             setReports(prev => prev.filter(r => r.id !== id));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     const reject = async (id) => {
-        if (!window.confirm('Reddet?')) return;
+        if (!window.confirm(t('admin.noshow.confirm_reject'))) return;
         try {
             await api.patch(`/admin/no-show-reports/${id}/reject`);
             setReports(prev => prev.filter(r => r.id !== id));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
-    if (loading) return <p className="text-gray-500 text-center py-16">Loading...</p>;
-    if (error) return <p className="text-red-400 text-center py-16 font-bold">Hata: {error}</p>;
-    if (!reports.length) return <p className="text-gray-500 text-center py-16">Bekleyen bildirim yok.</p>;
+    if (loading) return <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>;
+    if (error) return <p className="text-red-400 text-center py-16 font-bold">{t('admin.common.error_prefix')} {error}</p>;
+    if (!reports.length) return <p className="text-gray-500 text-center py-16">{t('admin.noshow.none_pending')}</p>;
 
     return (
         <div className="space-y-4">
-            <p className="text-gray-500 text-xs">{reports.length} bekleyen bildirim</p>
+            <p className="text-gray-500 text-xs">{t('admin.noshow.pending_count', { count: reports.length })}</p>
             {reports.map(r => (
                 <div key={r.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3">
                     <div className="flex items-start justify-between gap-4">
@@ -740,9 +741,9 @@ function NoShowPanel() {
                             <p className="text-white font-bold text-sm">
                                 🏅 {r.rival?.subCategory} · {r.rival?.matchDate ? new Date(r.rival.matchDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) : '—'} {r.rival?.matchTime || ''}
                             </p>
-                            <p className="text-gray-500 text-xs mt-0.5">Bildiren: @{r.reporter?.username}</p>
+                            <p className="text-gray-500 text-xs mt-0.5">{t('admin.noshow.reporter', { username: r.reporter?.username })}</p>
                             <div className="flex flex-wrap gap-1.5 mt-2">
-                                <span className="text-[10px] text-gray-400">Gelenmeyen:</span>
+                                <span className="text-[10px] text-gray-400">{t('admin.noshow.absent_label')}</span>
                                 {(r.absentUsers || []).map(u => (
                                     <span key={u.id} className="text-[11px] bg-orange-500/15 border border-orange-500/30 text-orange-400 px-2 py-0.5 rounded-full font-bold">
                                         @{u.username}
@@ -760,11 +761,11 @@ function NoShowPanel() {
                     <div className="flex gap-2">
                         <button onClick={() => approve(r.id)}
                             className="flex-1 bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black py-2 rounded-xl text-sm transition">
-                            ✓ Onayla (-0.40 puan)
+                            {t('admin.noshow.approve_penalty')}
                         </button>
                         <button onClick={() => reject(r.id)}
                             className="flex-1 bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black py-2 rounded-xl text-sm transition">
-                            ✕ Reddet
+                            {t('admin.noshow.reject')}
                         </button>
                     </div>
                 </div>

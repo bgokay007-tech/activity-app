@@ -807,6 +807,7 @@
       "api_error": "API error"
     },
     "noshow": {
+      "api_error": "API error",
       "none_pending": "No pending reports.",
       "pending_count": "{{count}} pending reports",
       "reporter": "Reported by: @{{username}}",

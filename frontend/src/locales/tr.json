@@ -807,6 +807,7 @@
       "api_error": "API hatası"
     },
     "noshow": {
+      "api_error": "API hatası",
       "none_pending": "Bekleyen bildirim yok.",
       "pending_count": "{{count}} bekleyen bildirim",
       "reporter": "Bildiren: @{{username}}",
