@@ -6,6 +6,12 @@ import Navbar from '../components/Navbar';
 import { useTranslation } from 'react-i18next';
 
 const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'biz-venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'subscriptions', 'venue-reviews', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval'];
+// Kullanıcı isteği: sol panel ŞAHIS (bireysel kullanıcı/maç moderasyonu) ve KURUMSAL
+// (tesis/işletme onayları) olarak iki katlanır gruba ayrıldı.
+const SIDEBAR_GROUPS = [
+    { key: 'individual', tabs: ['dashboard', 'users', 'disputes', 'posts', 'noshow', 'tournament-perms', 'flagged-listings', 'profile-changes', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval'] },
+    { key: 'corporate', tabs: ['courts', 'venues', 'biz-venues', 'cities', 'subscriptions', 'venue-reviews'] },
+];
 // Kullanıcı isteği: admin panelinin TAMAMI (sekme etiketleri dahil) TR/EN dil
 // değişimine uysun — önceden bu etiketler sabit (çoğu Türkçe/İngilizce karışık)
 // bir objeydi, dil değiştirince hiç değişmiyordu. Artık AdminPage içinde
@@ -1631,6 +1637,9 @@ export default function AdminPage() {
     const user = useSelector(s => s.auth.user);
     const [activeTab, setActiveTab] = useState(TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'dashboard');
     const pendingCounts = usePendingCounts();
+    // Kullanıcı isteği: sol panel artık iki katlanır grup halinde — ŞAHIS (bireysel
+    // kullanıcı/maç moderasyonu) ve KURUMSAL (tesis/işletme ile ilgili onaylar).
+    const [openGroups, setOpenGroups] = useState({ individual: true, corporate: true });
 
     useEffect(() => {
         if (user && !user.isAdmin) navigate('/home');
@@ -1654,22 +1663,31 @@ export default function AdminPage() {
                         <p className="text-yellow-400 font-black text-sm">{t('admin.sidebar_title')}</p>
                         <p className="text-gray-600 text-[10px]">@{user?.username}</p>
                     </div>
-                    {TABS.map(tab => {
-                        const count = pendingCounts[tab] || 0;
-                        return (
-                            <button key={tab} onClick={() => setActiveTab(tab)}
-                                className={`w-full text-left px-3 py-2 rounded-xl text-sm font-bold transition ${activeTab === tab ? 'bg-purple-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>
-                                {dynamicTabLabels[tab]}
-                                {/* Kullanıcı isteği: bekleyen sayısı parantez içinde, > 0 iken
-                                    yanıp sönerek dikkat çeksin — onaylar bekletilmesin. */}
-                                {count > 0 && (
-                                    <span className="ml-1.5 text-red-400 font-black animate-pulse">
-                                        ({count > 99 ? '99+' : count})
-                                    </span>
-                                )}
+                    {SIDEBAR_GROUPS.map(group => (
+                        <div key={group.key} className="mb-1">
+                            <button onClick={() => setOpenGroups(p => ({ ...p, [group.key]: !p[group.key] }))}
+                                className="w-full flex items-center justify-between px-3 py-2 text-gray-500 text-[11px] font-black tracking-wide hover:text-gray-300 transition">
+                                <span>{t(`admin.sidebar_group_${group.key}`)}</span>
+                                <span className={`transition-transform ${openGroups[group.key] ? 'rotate-90' : ''}`}>▶</span>
                             </button>
-                        );
-                    })}
+                            {openGroups[group.key] && group.tabs.map(tab => {
+                                const count = pendingCounts[tab] || 0;
+                                return (
+                                    <button key={tab} onClick={() => setActiveTab(tab)}
+                                        className={`w-full text-left px-3 py-2 rounded-xl text-sm font-bold transition ${activeTab === tab ? 'bg-purple-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>
+                                        {dynamicTabLabels[tab]}
+                                        {/* Kullanıcı isteği: bekleyen sayısı parantez içinde, > 0 iken
+                                            yanıp sönerek dikkat çeksin — onaylar bekletilmesin. */}
+                                        {count > 0 && (
+                                            <span className="ml-1.5 text-red-400 font-black animate-pulse">
+                                                ({count > 99 ? '99+' : count})
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ))}
                 </div>
 
                 {/* Content */}

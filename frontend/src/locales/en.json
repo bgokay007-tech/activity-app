@@ -703,6 +703,8 @@
       "coach-rating-approval": "🏐 Coach Rating Approval"
     },
     "sidebar_title": "👑 Admin Panel",
+    "sidebar_group_individual": "INDIVIDUAL",
+    "sidebar_group_corporate": "CORPORATE",
     "common": {
       "loading": "Loading...",
       "error_prefix": "Error:",

@@ -703,6 +703,8 @@
       "coach-rating-approval": "🏐 Antrenör Değerlendirme Onayı"
     },
     "sidebar_title": "👑 Admin Panel",
+    "sidebar_group_individual": "ŞAHIS",
+    "sidebar_group_corporate": "KURUMSAL",
     "common": {
       "loading": "Yükleniyor...",
       "error_prefix": "Hata:",

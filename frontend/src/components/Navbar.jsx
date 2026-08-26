@@ -22,7 +22,11 @@ const LETTER_STEP    = CYCLE_DURATION / 8; // offset between each letter
 
 function RainbowTitle() {
     const navigate = useNavigate();
-    const letters  = 'AcTiViTy'.split('');
+    // Kullanıcı isteği: dil Türkçe'ye çevrilince başlık "AcTiViTy" yerine aynı harf-bazlı
+    // büyük/küçük deseniyle (pozisyon 0,2,4,6 büyük — 1,3,5,7 küçük) "AkTiViTe" olarak
+    // görünsün, aynı gökkuşağı renk döngüsü animasyonuyla.
+    const lang = useSelector(state => state.lang.lang);
+    const letters = (lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy').split('');
     return (
         <>
             <style>{`
