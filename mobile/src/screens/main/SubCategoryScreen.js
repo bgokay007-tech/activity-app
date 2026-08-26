@@ -15586,36 +15586,157 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     // tamamlanınca o turun kaybedenleri kendi pozisyon aralığına (ör. 8 kişilik
                     // bracket'ta çeyrek final kaybedenleri 5-8, yarı final kaybedenleri 3-4,
                     // final kaybedeni 2, final kazananı 1) düşer. Aynı tur içindeki kaybedenler
-                    // gerçekten eşit sırada olduğu için aralarındaki sıra maçın bitiş zamanına
-                    // (scoreSubmittedAt, yoksa matchIndex) göre belirlenir — "1.2.3.4 biten
-                    // maçlara göre yerleştir" isteği.
-                    const round1Matches = playoffMs.filter(m => m.round === minRound);
+                    // arasındaki sıra, o turdaki KENDİ maçlarının averajına (yüksekten düşüğe)
+                    // göre belirlenir — "5.6.7.8'i çeyrek finalde yaptıkları maçın averajına
+                    // göre sırala" isteği. İSTİSNA: 3./4. sıra (yarı final kaybedenleri) averaj
+                    // yerine opsiyonel 3.'lük maçının sonucuna göre belirlenir — bkz. aşağıdaki
+                    // thirdPlaceMatch bloğu; taraflar kabul etmezse (FORFEIT) ancak o zaman
+                    // yarı finaldeki averaja düşülür.
+                    const playoffMsReal = playoffMs.filter(m => !m.isThirdPlaceMatch);
+                    const thirdPlaceMatch = playoffMs.find(m => m.isThirdPlaceMatch) || null;
+                    const round1Matches = playoffMsReal.filter(m => m.round === minRound);
                     const bracketSize = round1Matches.length * 2;
                     const placements = new Array(bracketSize + 1).fill(null); // 1-indeksli
-                    for (const round of [...new Set(playoffMs.map(m => m.round))].sort((a,b) => a-b)) {
+                    const matchAveraj = (m, side) => {
+                        const sets = m.score?.sets || [];
+                        let mine = 0, total = 0;
+                        for (const s of sets) { mine += (side === 'p1' ? s.p1 : s.p2) || 0; total += (s.p1||0) + (s.p2||0); }
+                        return total === 0 ? 0 : mine / total;
+                    };
+                    const loserOf = (m) => {
+                        const loserIsP1 = m.winnerId === m.p2Id;
+                        return { id: loserIsP1 ? m.p1Id : m.p2Id, name: loserIsP1 ? m.p1Name : m.p2Name, av: matchAveraj(m, loserIsP1 ? 'p1' : 'p2') };
+                    };
+                    for (const round of [...new Set(playoffMsReal.map(m => m.round))].sort((a,b) => a-b)) {
                         const roundIndex = round - minRound + 1; // 1 = ilk play-off turu
                         const matchesInRound = bracketSize / Math.pow(2, roundIndex);
                         const bandStart = matchesInRound + 1;
-                        const doneInRound = playoffMs
-                            .filter(m => m.round === round && m.status === 'COMPLETED')
-                            .sort((a,b) => (a.scoreSubmittedAt ? new Date(a.scoreSubmittedAt).getTime() : (a.matchIndex||0)) - (b.scoreSubmittedAt ? new Date(b.scoreSubmittedAt).getTime() : (b.matchIndex||0)));
-                        let pos = bandStart;
-                        for (const m of doneInRound) {
-                            const loserIsP1 = m.winnerId === m.p2Id;
-                            const loserId = loserIsP1 ? m.p1Id : m.p2Id;
-                            const loserName = loserIsP1 ? m.p1Name : m.p2Name;
-                            if (loserId) { placements[pos] = { id: loserId, name: loserName }; pos++; }
-                            // Final (son tur) aynı zamanda kazananı 1. sıraya yerleştirir.
-                            if (round === playoffMaxRound) {
-                                const winnerName = m.winnerId === m.p1Id ? m.p1Name : m.p2Name;
-                                placements[1] = { id: m.winnerId, name: winnerName };
+                        const isSemifinalBand = bandStart === 3;
+                        const doneInRound = playoffMsReal.filter(m => m.round === round && m.status === 'COMPLETED');
+                        if (isSemifinalBand) {
+                            if (thirdPlaceMatch?.status === 'COMPLETED') {
+                                const winnerName = thirdPlaceMatch.winnerId === thirdPlaceMatch.p1Id ? thirdPlaceMatch.p1Name : thirdPlaceMatch.p2Name;
+                                const l = loserOf(thirdPlaceMatch);
+                                placements[3] = { id: thirdPlaceMatch.winnerId, name: winnerName };
+                                placements[4] = { id: l.id, name: l.name };
+                            } else if (thirdPlaceMatch?.status === 'FORFEIT' && doneInRound.length === 2) {
+                                const withAveraj = doneInRound.map(loserOf).sort((a,b) => b.av - a.av);
+                                if (withAveraj[0]) placements[3] = withAveraj[0];
+                                if (withAveraj[1]) placements[4] = withAveraj[1];
+                            }
+                            // thirdPlaceMatch henüz yok/PENDING ise 3-4 kasıtlı boş bırakılır —
+                            // durum aşağıda ayrı bir kartla gösterilir.
+                        } else {
+                            const withAveraj = doneInRound.map(loserOf).sort((a,b) => b.av - a.av);
+                            withAveraj.forEach((entry, i) => { placements[bandStart + i] = entry; });
+                            if (round === playoffMaxRound && doneInRound[0]) {
+                                const finalMatch = doneInRound[0];
+                                const winnerName = finalMatch.winnerId === finalMatch.p1Id ? finalMatch.p1Name : finalMatch.p2Name;
+                                placements[1] = { id: finalMatch.winnerId, name: winnerName };
                             }
                         }
                     }
                     const rounds = [];
                     for (let r = playoffMaxRound; r >= minRound; r--) {
-                        rounds.push({ round:r, matches: playoffMs.filter(m => m.round === r).sort((a,b) => (a.matchIndex||0)-(b.matchIndex||0)) });
+                        rounds.push({ round:r, matches: playoffMsReal.filter(m => m.round === r).sort((a,b) => (a.matchIndex||0)-(b.matchIndex||0)) });
                     }
+                    // 3.'lük maçı da (kabul edildiyse) AYNI kart görünümüyle oynanabiliyor —
+                    // normal tur kartlarıyla tek fonksiyon paylaşılır.
+                    const renderPlayoffMatchCard = (match) => {
+                        const isDone = match.status === 'COMPLETED';
+                        const isBye = match.status === 'BYE';
+                        const isReady = match.status === 'PENDING' && match.p1Id && match.p2Id
+                            && (!match.isThirdPlaceMatch || (match.p1ThirdPlaceAccepted && match.p2ThirdPlaceAccepted));
+                        const isEntering = scoreEntry?.matchId === match.id;
+                        const p1Win = isDone && match.winnerId === match.p1Id;
+                        const p2Win = isDone && match.winnerId === match.p2Id;
+                        const mSets = match.score?.sets || [];
+                        const bothConfirmed = match.p1Confirmed && match.p2Confirmed;
+                        const myUnconfirmedSide = (match.p1Id === mySideId && !match.p1Confirmed) ? 'p1'
+                            : (match.p2Id === mySideId && !match.p2Confirmed) ? 'p2' : null;
+                        return (
+                            <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:6, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : '#334155' }}>
+                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                                    <Text style={{ color: p1Win ? '#4ade80' : '#fff', fontSize:12, fontWeight: p1Win ? '800' : '600', flex:1 }} numberOfLines={1}>{match.p1Name || 'TBD'}</Text>
+                                    {isDone && mSets.length > 0 && (
+                                        <View style={{ flexDirection:'row', gap:4 }}>
+                                            {mSets.map((set,i) => <Text key={i} style={{ color: p1Win ? '#4ade80' : '#94a3b8', fontSize:11, fontWeight:'800' }}>{set.p1}</Text>)}
+                                        </View>
+                                    )}
+                                </View>
+                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:3 }}>
+                                    <Text style={{ color: p2Win ? '#4ade80' : '#fff', fontSize:12, fontWeight: p2Win ? '800' : '600', flex:1 }} numberOfLines={1}>{match.p2Name || 'TBD'}</Text>
+                                    {isDone && mSets.length > 0 && (
+                                        <View style={{ flexDirection:'row', gap:4 }}>
+                                            {mSets.map((set,i) => <Text key={i} style={{ color: p2Win ? '#4ade80' : '#94a3b8', fontSize:11, fontWeight:'800' }}>{set.p2}</Text>)}
+                                        </View>
+                                    )}
+                                </View>
+                                {isBye && <Text style={{ color: colors.textMuted, fontSize:9, marginTop:3 }}>BYE</Text>}
+                                {/* Kullanıcı isteği: skor girişi artık "Maçlar" sekmesine gitmeden
+                                    doğrudan burada — openScoreEntry/submitScore/confirmTournamentScore
+                                    üstteki "Maçlar" sekmesindeki kartla AYNI fonksiyonlar. */}
+                                {!isEntering && (
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:6, marginTop:6 }}>
+                                        {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && (
+                                            <TouchableOpacity onPress={() => openScoreEntry(match)}
+                                                style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor: infoColor+'50' }}>
+                                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Skor Gir</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        {isDone && !bothConfirmed && myUnconfirmedSide && (
+                                            <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
+                                                style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#16a34a60' }}>
+                                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>✓ Onayla</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        {isDone && !bothConfirmed && (isCreator || myIsAdmin) && (
+                                            <TouchableOpacity onPress={() => openScoreEntry(match)}
+                                                style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}>
+                                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>✏️ Düzelt</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                )}
+                                {isEntering && (
+                                    <View style={{ marginTop:8, borderTopWidth:1, borderTopColor: colors.border, paddingTop:5 }}>
+                                        <View style={{ flexDirection:'row', marginBottom:4 }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:10, width:54 }}>Set</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'center' }}>{match.p1Name}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'center' }}>{match.p2Name}</Text>
+                                        </View>
+                                        {scoreSets.map((set, si) => (
+                                            <View key={si} style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
+                                                <Text style={{ color: si === 2 ? '#f59e0b' : colors.textMuted, fontSize:11, width:54 }}>{si === 2 ? '🔥 3.' : `${si+1}.`} Set</Text>
+                                                <TextInput
+                                                    style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center', marginRight:6 }}
+                                                    value={set.p1} onChangeText={v => updateTournSet(si, 'p1', v)}
+                                                    keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
+                                                <TextInput
+                                                    style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center' }}
+                                                    value={set.p2} onChangeText={v => updateTournSet(si, 'p2', v)}
+                                                    keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
+                                            </View>
+                                        ))}
+                                        <View style={{ flexDirection:'row', gap:3, marginTop:6 }}>
+                                            <TouchableOpacity onPress={submitScore} disabled={submittingScore}
+                                                style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:5, borderWidth:1, borderColor:'#16a34a60' }}>
+                                                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{submittingScore ? '...' : 'Kaydet'}</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => setScoreEntry(null)} style={{ paddingHorizontal:7, paddingVertical:5 }}>
+                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕ İptal</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                )}
+                            </View>
+                        );
+                    };
+                    const respondThirdPlace = (accept) => {
+                        api.patch(`/tournaments/${item.id}/matches/${thirdPlaceMatch.id}/third-place-response`, { accept })
+                            .then(() => fetchMatches())
+                            .catch(e => Alert.alert('', e?.response?.data?.message || t.actionFailed));
+                    };
                     return (
                         <View>
                             <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:6 }}>🏆 Play-Off Sıralaması</Text>
@@ -15636,98 +15757,59 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     );
                                 })}
                             </View>
+                            {/* Kullanıcı isteği: 3./4. sıra opsiyonel bir "3.'lük maçı" ile belirlenir
+                                — yarı final kaybedenleri kabul ederse oynanır, kabul etmezse yarı
+                                finaldeki averajlarına göre otomatik belirlenir (yukarıdaki placements
+                                hesabı zaten bunu uyguluyor). Bu bilgi Play-Off'lar sekmesi oluşur
+                                oluşmaz (en az bir yarı final maçı tamamlandığında) görünür olsun diye
+                                thirdPlaceMatch her zaman burada gösterilir. */}
+                            {thirdPlaceMatch && (
+                                <View style={{ marginBottom:16 }}>
+                                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'800', marginBottom:6 }}>🥉 3.'lük Maçı</Text>
+                                    {thirdPlaceMatch.status === 'FORFEIT' ? (
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Taraflardan biri kabul etmedi — 3./4. sıra yarı finaldeki averaja göre belirlendi.</Text>
+                                    ) : (thirdPlaceMatch.p1ThirdPlaceAccepted && thirdPlaceMatch.p2ThirdPlaceAccepted) || thirdPlaceMatch.status === 'COMPLETED' ? (
+                                        renderPlayoffMatchCard(thirdPlaceMatch)
+                                    ) : (
+                                        <View style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:2 }}>{thirdPlaceMatch.p1Name} vs {thirdPlaceMatch.p2Name}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:6 }}>İkisi de kabul ederse oynanır — aksi halde 3./4. sıra yarı finaldeki averaja göre belirlenir.</Text>
+                                            {[
+                                                { side:'p1', id: thirdPlaceMatch.p1Id, name: thirdPlaceMatch.p1Name, accepted: thirdPlaceMatch.p1ThirdPlaceAccepted },
+                                                { side:'p2', id: thirdPlaceMatch.p2Id, name: thirdPlaceMatch.p2Name, accepted: thirdPlaceMatch.p2ThirdPlaceAccepted },
+                                            ].map(side => (
+                                                <View key={side.side} style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:3 }}>
+                                                    <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>{side.name}</Text>
+                                                    {side.id === myId ? (
+                                                        side.accepted === true ? (
+                                                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>✓ Kabul Ettin</Text>
+                                                        ) : side.accepted === false ? (
+                                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>✕ Reddettin</Text>
+                                                        ) : (
+                                                            <View style={{ flexDirection:'row', gap:4 }}>
+                                                                <TouchableOpacity onPress={() => respondThirdPlace(true)} style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:7, paddingVertical:2, borderWidth:1, borderColor:'#16a34a60' }}>
+                                                                    <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>Kabul Et</Text>
+                                                                </TouchableOpacity>
+                                                                <TouchableOpacity onPress={() => respondThirdPlace(false)} style={{ backgroundColor:'#ef444420', borderRadius:6, paddingHorizontal:7, paddingVertical:2, borderWidth:1, borderColor:'#ef444460' }}>
+                                                                    <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Reddet</Text>
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                        )
+                                                    ) : (
+                                                        <Text style={{ color: colors.textMuted, fontSize:10 }}>
+                                                            {side.accepted === true ? '✓ Kabul etti' : side.accepted === false ? '✕ Reddetti' : '⏳ Bekleniyor'}
+                                                        </Text>
+                                                    )}
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
+                                </View>
+                            )}
                             {rounds.map(({ round, matches }) => (
                                 <View key={round} style={{ marginBottom:14 }}>
                                     <Text style={{ color: infoColor, fontSize:12, fontWeight:'800', marginBottom:6 }}>{getPlayoffRoundLabel(round)}</Text>
-                                    {matches.map(match => {
-                                        const isDone = match.status === 'COMPLETED';
-                                        const isBye = match.status === 'BYE';
-                                        const isReady = match.status === 'PENDING' && match.p1Id && match.p2Id;
-                                        const isEntering = scoreEntry?.matchId === match.id;
-                                        const p1Win = isDone && match.winnerId === match.p1Id;
-                                        const p2Win = isDone && match.winnerId === match.p2Id;
-                                        const mSets = match.score?.sets || [];
-                                        const bothConfirmed = match.p1Confirmed && match.p2Confirmed;
-                                        const myUnconfirmedSide = (match.p1Id === mySideId && !match.p1Confirmed) ? 'p1'
-                                            : (match.p2Id === mySideId && !match.p2Confirmed) ? 'p2' : null;
-                                        return (
-                                            <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:6, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : '#334155' }}>
-                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-                                                    <Text style={{ color: p1Win ? '#4ade80' : '#fff', fontSize:12, fontWeight: p1Win ? '800' : '600', flex:1 }} numberOfLines={1}>{match.p1Name || 'TBD'}</Text>
-                                                    {isDone && mSets.length > 0 && (
-                                                        <View style={{ flexDirection:'row', gap:4 }}>
-                                                            {mSets.map((set,i) => <Text key={i} style={{ color: p1Win ? '#4ade80' : '#94a3b8', fontSize:11, fontWeight:'800' }}>{set.p1}</Text>)}
-                                                        </View>
-                                                    )}
-                                                </View>
-                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:3 }}>
-                                                    <Text style={{ color: p2Win ? '#4ade80' : '#fff', fontSize:12, fontWeight: p2Win ? '800' : '600', flex:1 }} numberOfLines={1}>{match.p2Name || 'TBD'}</Text>
-                                                    {isDone && mSets.length > 0 && (
-                                                        <View style={{ flexDirection:'row', gap:4 }}>
-                                                            {mSets.map((set,i) => <Text key={i} style={{ color: p2Win ? '#4ade80' : '#94a3b8', fontSize:11, fontWeight:'800' }}>{set.p2}</Text>)}
-                                                        </View>
-                                                    )}
-                                                </View>
-                                                {isBye && <Text style={{ color: colors.textMuted, fontSize:9, marginTop:3 }}>BYE</Text>}
-                                                {/* Kullanıcı isteği: skor girişi artık "Maçlar" sekmesine gitmeden
-                                                    doğrudan burada — openScoreEntry/submitScore/confirmTournamentScore
-                                                    üstteki "Maçlar" sekmesindeki kartla AYNI fonksiyonlar. */}
-                                                {!isEntering && (
-                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:6, marginTop:6 }}>
-                                                        {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && (
-                                                            <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                                style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor: infoColor+'50' }}>
-                                                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Skor Gir</Text>
-                                                            </TouchableOpacity>
-                                                        )}
-                                                        {isDone && !bothConfirmed && myUnconfirmedSide && (
-                                                            <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
-                                                                style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#16a34a60' }}>
-                                                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>✓ Onayla</Text>
-                                                            </TouchableOpacity>
-                                                        )}
-                                                        {isDone && !bothConfirmed && (isCreator || myIsAdmin) && (
-                                                            <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                                style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}>
-                                                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>✏️ Düzelt</Text>
-                                                            </TouchableOpacity>
-                                                        )}
-                                                    </View>
-                                                )}
-                                                {isEntering && (
-                                                    <View style={{ marginTop:8, borderTopWidth:1, borderTopColor: colors.border, paddingTop:5 }}>
-                                                        <View style={{ flexDirection:'row', marginBottom:4 }}>
-                                                            <Text style={{ color: colors.textMuted, fontSize:10, width:54 }}>Set</Text>
-                                                            <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'center' }}>{match.p1Name}</Text>
-                                                            <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'center' }}>{match.p2Name}</Text>
-                                                        </View>
-                                                        {scoreSets.map((set, si) => (
-                                                            <View key={si} style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
-                                                                <Text style={{ color: si === 2 ? '#f59e0b' : colors.textMuted, fontSize:11, width:54 }}>{si === 2 ? '🔥 3.' : `${si+1}.`} Set</Text>
-                                                                <TextInput
-                                                                    style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center', marginRight:6 }}
-                                                                    value={set.p1} onChangeText={v => updateTournSet(si, 'p1', v)}
-                                                                    keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
-                                                                <TextInput
-                                                                    style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center' }}
-                                                                    value={set.p2} onChangeText={v => updateTournSet(si, 'p2', v)}
-                                                                    keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
-                                                            </View>
-                                                        ))}
-                                                        <View style={{ flexDirection:'row', gap:3, marginTop:6 }}>
-                                                            <TouchableOpacity onPress={submitScore} disabled={submittingScore}
-                                                                style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:5, borderWidth:1, borderColor:'#16a34a60' }}>
-                                                                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{submittingScore ? '...' : 'Kaydet'}</Text>
-                                                            </TouchableOpacity>
-                                                            <TouchableOpacity onPress={() => setScoreEntry(null)} style={{ paddingHorizontal:7, paddingVertical:5 }}>
-                                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕ İptal</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    </View>
-                                                )}
-                                            </View>
-                                        );
-                                    })}
+                                    {matches.map(renderPlayoffMatchCard)}
                                 </View>
                             ))}
                         </View>
