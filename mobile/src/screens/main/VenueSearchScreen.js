@@ -27,6 +27,7 @@ function formatDateLabel(dateStr, locale = 'tr-TR') {
 }
 
 const DATE_OPTIONS = Array.from({ length: 14 }, (_, i) => getDateStr(i));
+const SURFACE_OPTIONS = ['HARD', 'CLAY', 'GRASS', 'CARPET', 'ARTIFICIAL'];
 const DAY_ITEMS = [
     { num: 1, key: 'vsDayMon' }, { num: 2, key: 'vsDayTue' }, { num: 3, key: 'vsDayWed' },
     { num: 4, key: 'vsDayThu' }, { num: 5, key: 'vsDayFri' }, { num: 6, key: 'vsDaySat' }, { num: 7, key: 'vsDaySun' },
@@ -175,7 +176,7 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
 }
 
 // ─── Tesis Öner Modalı (en üst seviyede, nested modal sorunu yok — CartModal ile aynı gerekçe) ─
-function VenueSuggestModal({ visible, form, onChangeField, onToggleDay, onOpenTimePicker, onSubmit, onClose, saving }) {
+function VenueSuggestModal({ visible, form, onChangeField, onToggleDay, onOpenTimePicker, onChangeCourtGroup, onAddCourtGroup, onRemoveCourtGroup, onSubmit, onClose, saving }) {
     const t = useT();
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -194,8 +195,49 @@ function VenueSuggestModal({ visible, form, onChangeField, onToggleDay, onOpenTi
                         <TextInput style={[s.input, { height: 60, textAlignVertical: 'top' }]} placeholder={t.vsSuggestAddressPh} placeholderTextColor={colors.textMuted} value={form.address} onChangeText={v => onChangeField('address', v)} multiline />
                         <View style={{ height: 8 }} />
                         <TextInput style={s.input} placeholder={t.vsSuggestPhonePh} placeholderTextColor={colors.textMuted} value={form.phone} onChangeText={v => onChangeField('phone', v)} keyboardType="phone-pad" />
-                        <View style={{ height: 8 }} />
-                        <TextInput style={s.input} placeholder={t.vsSuggestCourtCountPh} placeholderTextColor={colors.textMuted} value={form.courtCount} onChangeText={v => onChangeField('courtCount', v.replace(/[^0-9]/g, ''))} keyboardType="number-pad" maxLength={2} />
+
+                        {/* Kullanıcı isteği: tek bir "kaç kort" sayısı yerine, kaç kortun hangi
+                            zeminde ve açık/kapalı olduğu grup grup girilebilsin (ör. 3 kort toprak
+                            açık, 2 kort sert zemin kapalı). */}
+                        <Text style={[cm.payLabel, { marginTop: 12 }]}>{t.vsSuggestCourtGroupsLabel}</Text>
+                        {form.courtGroups.map((g, i) => (
+                            <View key={i} style={{ backgroundColor: colors.surface2, borderRadius: 10, padding: 8, marginBottom: 6, gap: 6 }}>
+                                <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                                    <TextInput
+                                        style={[s.input, { flex: 1 }]}
+                                        placeholder={t.vsSuggestGroupCountPh}
+                                        placeholderTextColor={colors.textMuted}
+                                        value={g.count}
+                                        onChangeText={v => onChangeCourtGroup(i, 'count', v.replace(/[^0-9]/g, ''))}
+                                        keyboardType="number-pad"
+                                        maxLength={2}
+                                    />
+                                    {form.courtGroups.length > 1 && (
+                                        <TouchableOpacity onPress={() => onRemoveCourtGroup(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                            <Text style={{ color: colors.red, fontSize: 18, fontWeight: '900' }}>✕</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                    {SURFACE_OPTIONS.map(sf => {
+                                        const active = g.surface === sf;
+                                        return (
+                                            <TouchableOpacity key={sf} onPress={() => onChangeCourtGroup(i, 'surface', active ? '' : sf)}
+                                                style={[s.availDateChip, active && s.availDateChipActive]} activeOpacity={0.7}>
+                                                <Text style={[s.availDateChipText, active && s.availDateChipTextActive]}>{t['surface' + sf] || sf}</Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                                <TouchableOpacity onPress={() => onChangeCourtGroup(i, 'indoor', !g.indoor)}
+                                    style={[s.availDateChip, { alignSelf: 'flex-start' }, g.indoor && s.availDateChipActive]} activeOpacity={0.7}>
+                                    <Text style={[s.availDateChipText, g.indoor && s.availDateChipTextActive]}>{g.indoor ? t.indoor : t.outdoor}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ))}
+                        <TouchableOpacity onPress={onAddCourtGroup} style={{ alignSelf: 'flex-start', paddingVertical: 4 }} activeOpacity={0.7}>
+                            <Text style={{ color: colors.purple, fontWeight: '800', fontSize: 12 }}>+ {t.vsSuggestAddGroupBtn}</Text>
+                        </TouchableOpacity>
 
                         <Text style={[cm.payLabel, { marginTop: 12 }]}>{t.vsSuggestDaysLabel}</Text>
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
@@ -904,9 +946,10 @@ export default function VenueSearchScreen({ navigation, route }) {
     // Tesis Öner formu — abonelik şartsız, herkes bildiği bir tesisi admin onayına gönderebilir.
     const [suggestOpen, setSuggestOpen] = useState(false);
     const [suggestSaving, setSuggestSaving] = useState(false);
+    const EMPTY_COURT_GROUP = { count: '', surface: '', indoor: false };
     const [suggestForm, setSuggestForm] = useState({
         name: '', city: '', district: '', address: '', phone: '',
-        courtCount: '', openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7],
+        courtGroups: [{ ...EMPTY_COURT_GROUP }], openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7],
     });
     const [showSuggestOpenPicker, setShowSuggestOpenPicker] = useState(false);
     const [showSuggestClosePicker, setShowSuggestClosePicker] = useState(false);
@@ -916,14 +959,30 @@ export default function VenueSearchScreen({ navigation, route }) {
         ...p, openDays: p.openDays.includes(d) ? p.openDays.filter(x => x !== d) : [...p.openDays, d].sort((a, b) => a - b),
     }));
     const openSuggestTimePicker = (which) => which === 'open' ? setShowSuggestOpenPicker(true) : setShowSuggestClosePicker(true);
+    const changeSuggestCourtGroup = (i, key, val) => setSuggestForm(p => {
+        const groups = [...p.courtGroups];
+        groups[i] = { ...groups[i], [key]: val };
+        return { ...p, courtGroups: groups };
+    });
+    const addSuggestCourtGroup = () => setSuggestForm(p => ({ ...p, courtGroups: [...p.courtGroups, { ...EMPTY_COURT_GROUP }] }));
+    const removeSuggestCourtGroup = (i) => setSuggestForm(p => ({
+        ...p, courtGroups: p.courtGroups.length <= 1 ? p.courtGroups : p.courtGroups.filter((_, idx) => idx !== i),
+    }));
 
     const handleSuggestSubmit = async () => {
         const f = suggestForm;
-        if (!f.name.trim() || !f.city.trim() || !f.address.trim() || !f.phone.trim() || f.openDays.length === 0) {
+        // Kullanıcı isteği: bilinmeyen alanlar (adres/telefon/kort bilgisi dahil) boş
+        // bırakılabilsin — sadece isim/şehir zorunlu, backend'deki suggestVenue ile aynı kural.
+        if (!f.name.trim() || !f.city.trim() || f.openDays.length === 0) {
             Alert.alert('', t.fillAll); return;
         }
-        const count = parseInt(f.courtCount, 10);
-        if (!Number.isInteger(count) || count < 1 || count > 20) {
+        const courtGroups = f.courtGroups
+            .filter(g => g.count.trim())
+            .map(g => ({ count: parseInt(g.count, 10), surface: g.surface || undefined, indoor: g.indoor }));
+        if (courtGroups.some(g => !Number.isInteger(g.count) || g.count < 1)) {
+            Alert.alert('', t.vsSuggestInvalidCourtCount); return;
+        }
+        if (courtGroups.reduce((sum, g) => sum + g.count, 0) > 20) {
             Alert.alert('', t.vsSuggestInvalidCourtCount); return;
         }
         setSuggestSaving(true);
@@ -931,11 +990,12 @@ export default function VenueSearchScreen({ navigation, route }) {
             await api.post('/venues/suggest', {
                 name: f.name.trim(), branch: rawBranch, city: f.city.trim(),
                 district: f.district.trim() || undefined,
-                address: f.address.trim(), phone: f.phone.trim(),
-                courtCount: count, openTime: f.openTime, closeTime: f.closeTime, openDays: f.openDays,
+                address: f.address.trim() || undefined, phone: f.phone.trim() || undefined,
+                ...(courtGroups.length ? { courtGroups } : {}),
+                openTime: f.openTime, closeTime: f.closeTime, openDays: f.openDays,
             });
             setSuggestOpen(false);
-            setSuggestForm({ name: '', city: '', district: '', address: '', phone: '', courtCount: '', openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7] });
+            setSuggestForm({ name: '', city: '', district: '', address: '', phone: '', courtGroups: [{ ...EMPTY_COURT_GROUP }], openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7] });
             Alert.alert(t.vsSuggestSuccessTitle, t.vsSuggestSuccessMsg);
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.vsSuggestFailed);
@@ -1343,6 +1403,9 @@ export default function VenueSearchScreen({ navigation, route }) {
                 onChangeField={setSuggestField}
                 onToggleDay={toggleSuggestDay}
                 onOpenTimePicker={openSuggestTimePicker}
+                onChangeCourtGroup={changeSuggestCourtGroup}
+                onAddCourtGroup={addSuggestCourtGroup}
+                onRemoveCourtGroup={removeSuggestCourtGroup}
                 onSubmit={handleSuggestSubmit}
                 onClose={() => setSuggestOpen(false)}
                 saving={suggestSaving}

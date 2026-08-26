@@ -354,6 +354,33 @@ function CourtsPanel() {
                 className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500" />
             <p className="text-gray-500 text-xs">{filtered.length} courts</p>
             <div className="space-y-2">
+                {/* Bekleyen bilgi güncelleme önerileri en üstte — listenin altına gizlenip
+                    fark edilmemesin diye. */}
+                {filtered.filter(c => c.pendingEdit).map(c => (
+                    <div key={c.id + '_edit'} className="bg-purple-950/30 border border-purple-500/40 rounded-2xl px-4 py-3 space-y-1.5">
+                        <p className="text-purple-300 text-xs font-bold">✏️ Bilgi Güncelleme Önerisi — {c.name}</p>
+                        <div className="text-gray-300 text-xs space-y-0.5">
+                            {c.pendingEdit.name && <p>İsim: {c.pendingEdit.name}</p>}
+                            {c.pendingEdit.city && <p>İl: {c.pendingEdit.city}</p>}
+                            {c.pendingEdit.district && <p>İlçe: {c.pendingEdit.district}</p>}
+                            {c.pendingEdit.address && <p>Adres: {c.pendingEdit.address}</p>}
+                            {c.pendingEdit.phone && <p>Telefon: {c.pendingEdit.phone}</p>}
+                            {c.pendingEdit.courtCount != null && <p>Kort Sayısı: {c.pendingEdit.courtCount}</p>}
+                            {(c.pendingEdit.openTime || c.pendingEdit.closeTime) && <p>Saat: {c.pendingEdit.openTime || c.openTime || '—'} – {c.pendingEdit.closeTime || c.closeTime || '—'}</p>}
+                            {c.pendingEdit.openDays && <p>Günler: {c.pendingEdit.openDays.join(', ')}</p>}
+                        </div>
+                        <div className="flex gap-1.5 pt-1">
+                            <button onClick={() => approveEdit(c.id)}
+                                className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20 transition">
+                                ✅ Düzenlemeyi Onayla
+                            </button>
+                            <button onClick={() => rejectEdit(c.id)}
+                                className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 transition">
+                                ✕ Reddet
+                            </button>
+                        </div>
+                    </div>
+                ))}
                 {filtered.map(c => (
                     <div key={c.id} onClick={() => setEditingCourt(c)}
                         className="bg-gray-900 border border-gray-800 hover:border-purple-500/50 rounded-2xl px-4 py-3 flex items-center gap-3 cursor-pointer transition">
@@ -383,31 +410,6 @@ function CourtsPanel() {
                             <button onClick={() => del(c.id)}
                                 className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 transition">
                                 Delete
-                            </button>
-                        </div>
-                    </div>
-                ))}
-                {filtered.filter(c => c.pendingEdit).map(c => (
-                    <div key={c.id + '_edit'} className="bg-purple-950/30 border border-purple-500/40 rounded-2xl px-4 py-3 space-y-1.5">
-                        <p className="text-purple-300 text-xs font-bold">✏️ Bilgi Güncelleme Önerisi — {c.name}</p>
-                        <div className="text-gray-300 text-xs space-y-0.5">
-                            {c.pendingEdit.name && <p>İsim: {c.pendingEdit.name}</p>}
-                            {c.pendingEdit.city && <p>İl: {c.pendingEdit.city}</p>}
-                            {c.pendingEdit.district && <p>İlçe: {c.pendingEdit.district}</p>}
-                            {c.pendingEdit.address && <p>Adres: {c.pendingEdit.address}</p>}
-                            {c.pendingEdit.phone && <p>Telefon: {c.pendingEdit.phone}</p>}
-                            {c.pendingEdit.courtCount != null && <p>Kort Sayısı: {c.pendingEdit.courtCount}</p>}
-                            {(c.pendingEdit.openTime || c.pendingEdit.closeTime) && <p>Saat: {c.pendingEdit.openTime || c.openTime || '—'} – {c.pendingEdit.closeTime || c.closeTime || '—'}</p>}
-                            {c.pendingEdit.openDays && <p>Günler: {c.pendingEdit.openDays.join(', ')}</p>}
-                        </div>
-                        <div className="flex gap-1.5 pt-1">
-                            <button onClick={() => approveEdit(c.id)}
-                                className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20 transition">
-                                ✅ Düzenlemeyi Onayla
-                            </button>
-                            <button onClick={() => rejectEdit(c.id)}
-                                className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 transition">
-                                ✕ Reddet
                             </button>
                         </div>
                     </div>

@@ -566,15 +566,35 @@ export const createVenue = async (req, res, next) => {
 // approveVenue/rejectVenue) onaylar/reddeder — o taraf zaten hazır, burada değişiklik yok.
 export const suggestVenue = async (req, res, next) => {
     try {
-        const { name, branch, city, district, address, phone, courtCount, openTime, closeTime, openDays } = req.body;
+        const { name, branch, city, district, address, phone, courtCount, courtGroups, openTime, closeTime, openDays } = req.body;
         // Kullanıcı isteği: bilinmeyen alanlar boş bırakılabilsin, admin veya başka bir kullanıcı
         // sonradan "Tesis Öner" ekranındaki düzenleme akışıyla (suggestVenueEdit) tamamlayabilir —
         // sadece isim/spor dalı/şehir zorunlu (şehir şema gereği NOT NULL).
         if (!name || !branch || !city) return res.status(400).json({ message: 'İsim, spor dalı ve şehir zorunludur' });
         if (!VALID_BRANCHES.includes(branch)) return res.status(400).json({ message: 'Geçersiz spor dalı' });
 
+        // courtGroups: [{ count, surface?, indoor? }] — kullanıcı "3 toprak açık, 2 sert kapalı"
+        // gibi zemin/açık-kapalı bazında kort grupları girebilsin diye courtCount'un yerine geçen,
+        // daha ayrıntılı biçim. courtGroups yoksa eskisi gibi düz courtCount (tek zemin, hepsi
+        // varsayılan açık/kapalı) ile geriye dönük uyumluluk korunur.
         let courts = [];
-        if (courtCount !== undefined && courtCount !== null && courtCount !== '') {
+        if (Array.isArray(courtGroups) && courtGroups.length) {
+            let n = 0;
+            for (const g of courtGroups) {
+                const gc = parseInt(g?.count, 10);
+                if (!Number.isInteger(gc) || gc < 1) continue;
+                for (let i = 0; i < gc; i++) {
+                    n++;
+                    courts.push({
+                        name: `Kort ${n}`,
+                        surface: g.surface || (branch === 'padel' ? 'SYNTHETIC' : null),
+                        indoor: typeof g.indoor === 'boolean' ? g.indoor : null,
+                    });
+                }
+            }
+            if (courts.length === 0) return res.status(400).json({ message: 'En az bir kort grubuna geçerli bir sayı girin' });
+            if (courts.length > 20) return res.status(400).json({ message: 'Toplam kort sayısı en fazla 20 olabilir' });
+        } else if (courtCount !== undefined && courtCount !== null && courtCount !== '') {
             const count = parseInt(courtCount, 10);
             if (!Number.isInteger(count) || count < 1 || count > 20) return res.status(400).json({ message: 'Kort sayısı 1-20 arasında olmalıdır' });
             courts = Array.from({ length: count }, (_, i) => ({ name: `Kort ${i + 1}`, ...(branch === 'padel' ? { surface: 'SYNTHETIC' } : {}) }));
