@@ -1120,6 +1120,13 @@ model TournamentMatch {
   scoreSubmittedAt   DateTime? // skor en son ne zaman girildi — karşı taraf 1 saat içinde onaylamazsa otomatik onaylanır
   courtId            String?
   createdAt          DateTime  @default(now())
+  // 3.'lük maçı — her iki yarı final bitince otomatik oluşturulur (round=final'in round'u,
+  // matchIndex=1, final her zaman matchIndex=0 olduğu için asla çakışmaz). İki taraf da
+  // p*ThirdPlaceAccepted=true olmadan oynanmaz; biri false derse maç status='FORFEIT' olur
+  // ve 3./4. sıra yarı final averajından belirlenir (bkz. tournament.controller.js).
+  isThirdPlaceMatch     Boolean  @default(false)
+  p1ThirdPlaceAccepted  Boolean?
+  p2ThirdPlaceAccepted  Boolean?
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   court        Court?     @relation(fields: [courtId], references: [id], onDelete: SetNull)

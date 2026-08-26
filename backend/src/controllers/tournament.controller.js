@@ -2495,7 +2495,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         });
 
         // Advance winner through PLAYOFF bracket
-        if (match.phase === 'PLAYOFF') {
+        if (match.phase === 'PLAYOFF' && !match.isThirdPlaceMatch) {
             const winnerName = winner === 'p1' ? match.p1Name : match.p2Name;
             const slot = match.matchIndex % 2 === 0 ? 'p1' : 'p2';
             const nextMatch = await prisma.tournamentMatch.findFirst({
@@ -2507,6 +2507,49 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     data: slot === 'p1' ? { p1Id: winnerId, p1Name: winnerName } : { p2Id: winnerId, p2Name: winnerName },
                 });
                 await markPlayoffMatchReadyDeadline(nextMatch.id);
+            }
+
+            // Kullanıcı isteği: her iki yarı final de bitince, kaybeden 2 taraf için 3.'lük
+            // maçı "teklifi" (opsiyonel, kabul gerektiren bir slot) otomatik oluşturulur.
+            // round = final'in round'u, matchIndex = 1 (final her zaman matchIndex 0 kullanır,
+            // bu yüzden yukarıdaki round+1 kazanan-ilerletme sorgusuyla ASLA çakışmaz — final'den
+            // sonra zaten bir round yok, o sorgu orada da hep boş döner).
+            const nextRoundMatches = await prisma.tournamentMatch.findMany({
+                where: { tournamentId: id, phase: 'PLAYOFF', round: match.round + 1 },
+            });
+            const isSemifinalRound = nextRoundMatches.length === 1 && !nextRoundMatches[0].isThirdPlaceMatch;
+            if (isSemifinalRound) {
+                const semifinalMatches = await prisma.tournamentMatch.findMany({
+                    where: { tournamentId: id, phase: 'PLAYOFF', round: match.round, isThirdPlaceMatch: false },
+                });
+                const allSemisDone = semifinalMatches.length === 2 && semifinalMatches.every(m => m.status === 'COMPLETED');
+                if (allSemisDone) {
+                    const existingThirdPlace = await prisma.tournamentMatch.findFirst({
+                        where: { tournamentId: id, phase: 'PLAYOFF', isThirdPlaceMatch: true },
+                    });
+                    if (!existingThirdPlace) {
+                        const losers = semifinalMatches.map(m => ({
+                            id: m.winnerId === m.p1Id ? m.p2Id : m.p1Id,
+                            name: m.winnerId === m.p1Id ? m.p2Name : m.p1Name,
+                        }));
+                        if (losers[0].id && losers[1].id) {
+                            await prisma.tournamentMatch.create({
+                                data: {
+                                    tournamentId: id, phase: 'PLAYOFF', round: match.round + 1, matchIndex: 1,
+                                    p1Id: losers[0].id, p1Name: losers[0].name,
+                                    p2Id: losers[1].id, p2Name: losers[1].name,
+                                    status: 'PENDING', isThirdPlaceMatch: true,
+                                },
+                            });
+                            for (const l of losers) {
+                                createNotification(l.id, 'THIRD_PLACE_MATCH_OFFER', "🥉 3.'lük Maçı Teklifi",
+                                    `${tournament.name}: yarı finalde elendiniz ama 3.'lük maçı oynamak ister misiniz? Play-Off'lar sekmesinden kabul/red verebilirsiniz. İkiniz de kabul etmezseniz 3./4. sıra yarı finaldeki averajınıza göre belirlenecek.`,
+                                    { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory }
+                                ).catch(() => {});
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -2533,6 +2576,48 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                     }
                 }).catch(() => {});
         }
+    } catch (e) { next(e); }
+};
+
+/** Yarı final kaybedeni, otomatik oluşturulan 3.'lük maçı teklifine kabul/red verir
+ *  (bkz. enterTournamentMatchScore — allSemisDone bloğu). İkisi de kabul edince maç normal
+ *  bir PLAYOFF maçı gibi oynanabilir (Skor Gir); biri reddederse maç FORFEIT'e düşer ve
+ *  3./4. sıra yarı final averajından belirlenir (bkz. mobil Play-Off'lar sekmesi).
+ */
+export const respondThirdPlaceMatch = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const { accept } = req.body; // boolean
+        const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+        if (!match || match.tournamentId !== id || !match.isThirdPlaceMatch) return res.status(404).json({ message: 'Maç bulunamadı' });
+        if (match.status !== 'PENDING') return res.status(400).json({ message: 'Bu maç için işlem yapılamaz' });
+        const isP1 = match.p1Id === req.userId, isP2 = match.p2Id === req.userId;
+        if (!isP1 && !isP2) return res.status(403).json({ message: 'Bu maçın tarafı değilsiniz' });
+
+        let updated = await prisma.tournamentMatch.update({
+            where: { id: matchId },
+            data: isP1 ? { p1ThirdPlaceAccepted: !!accept } : { p2ThirdPlaceAccepted: !!accept },
+        });
+
+        const tournament = await prisma.tournament.findUnique({ where: { id }, select: { name: true, category: true, subCategory: true } });
+        const otherId = isP1 ? match.p2Id : match.p1Id;
+
+        if (accept === false) {
+            // Biri reddettiyse maç asla oynanmayacak — PENDING kalırsa turnuvanın "bekleyen
+            // maç kalmadı mı" otomatik tamamlanma kontrolünü (advanceTournamentAfterMatch)
+            // sonsuza dek bloklardı.
+            updated = await prisma.tournamentMatch.update({ where: { id: matchId }, data: { status: 'FORFEIT' } });
+            createNotification(otherId, 'THIRD_PLACE_MATCH_DECLINED', "🥉 3.'lük Maçı İptal",
+                "Rakibiniz 3.'lük maçını oynamayı kabul etmedi — 3./4. sıra yarı final averajınıza göre belirlenecek.",
+                { tournamentId: id, category: tournament?.category, subCategory: tournament?.subCategory }
+            ).catch(() => {});
+        } else if (updated.p1ThirdPlaceAccepted && updated.p2ThirdPlaceAccepted) {
+            createNotification(otherId, 'THIRD_PLACE_MATCH_ACCEPTED', "🥉 3.'lük Maçı Onaylandı",
+                "Rakibiniz de 3.'lük maçını kabul etti — skoru girdiğinizde sıralamaya işlenecek.",
+                { tournamentId: id, category: tournament?.category, subCategory: tournament?.subCategory }
+            ).catch(() => {});
+        }
+        res.json(updated);
     } catch (e) { next(e); }
 };
 
