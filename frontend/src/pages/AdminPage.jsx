@@ -576,6 +576,7 @@ function PostsPanel() {
 
 // ── PENDING VENUES (existing logic, improved UI) ───────────────────────────
 function VenuesPanel() {
+    const { t } = useTranslation();
     const [courts, setCourts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState({});
@@ -587,7 +588,7 @@ function VenuesPanel() {
     useEffect(() => {
         api.get('/courts/admin/pending')
             .then(r => setCourts(r.data))
-            .catch(e => setError(e?.response?.data?.message || e?.message || 'API hatası'))
+            .catch(e => setError(e?.response?.data?.message || e?.message || t('admin.venues.api_error')))
             .finally(() => setLoading(false));
     }, []);
 
@@ -604,23 +605,23 @@ function VenuesPanel() {
         try {
             await api.patch(`/courts/admin/${court.id}/verify`, editing[court.id] || {});
             setCourts(prev => prev.filter(c => c.id !== court.id));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     const reject = async (id) => {
         try {
             await api.patch(`/courts/admin/${id}/reject`, { reason: rejectReason[id] || '' });
             setCourts(prev => prev.filter(c => c.id !== id));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
-    if (loading) return <p className="text-gray-500 text-center py-16">Loading...</p>;
-    if (error) return <p className="text-red-400 text-center py-16 font-bold">Hata: {error}</p>;
+    if (loading) return <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>;
+    if (error) return <p className="text-red-400 text-center py-16 font-bold">{t('admin.common.error_prefix')} {error}</p>;
     if (courts.length === 0) return (
         <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
             <p className="text-4xl mb-3">✅</p>
-            <p className="text-white font-bold">No pending venues</p>
-            <p className="text-gray-400 text-sm mt-1">All submissions reviewed.</p>
+            <p className="text-white font-bold">{t('admin.venues.empty_title')}</p>
+            <p className="text-gray-400 text-sm mt-1">{t('admin.venues.empty_subtitle')}</p>
         </div>
     );
 
@@ -637,54 +638,54 @@ function VenuesPanel() {
                         </div>
                         <div className="flex-1">
                             <p className="text-white text-sm font-bold">{court.user?.fullName || court.user?.username}</p>
-                            <p className="text-gray-500 text-xs">Submitted {new Date(court.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                            <p className="text-gray-500 text-xs">{t('admin.venues.submitted_label', { date: new Date(court.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) })}</p>
                         </div>
                         {court.sport && <span className="text-xs font-bold text-purple-300 bg-purple-500/10 border border-purple-500/30 px-2 py-0.5 rounded-full">{court.sport}</span>}
-                        <span className="text-xs font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-2 py-0.5 rounded-full">⏳ Pending</span>
+                        <span className="text-xs font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-2 py-0.5 rounded-full">{t('admin.courts.pending_badge')}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                        <div><label className="text-gray-500 text-xs block mb-1">Name</label>{field(court.id, 'name', 'Venue name', court.name)}</div>
-                        <div><label className="text-gray-500 text-xs block mb-1">City</label>{field(court.id, 'city', 'City', court.city)}</div>
-                        <div><label className="text-gray-500 text-xs block mb-1">District</label>{field(court.id, 'district', 'District', court.district)}</div>
-                        <div className="col-span-2"><label className="text-gray-500 text-xs block mb-1">Address</label>{field(court.id, 'address', 'Address', court.address)}</div>
+                        <div><label className="text-gray-500 text-xs block mb-1">{t('admin.venues.name_col')}</label>{field(court.id, 'name', t('admin.venues.name_ph'), court.name)}</div>
+                        <div><label className="text-gray-500 text-xs block mb-1">{t('admin.venues.city_col')}</label>{field(court.id, 'city', t('admin.venues.city_ph'), court.city)}</div>
+                        <div><label className="text-gray-500 text-xs block mb-1">{t('admin.venues.district_col')}</label>{field(court.id, 'district', t('admin.venues.district_ph'), court.district)}</div>
+                        <div className="col-span-2"><label className="text-gray-500 text-xs block mb-1">{t('admin.venues.address_col')}</label>{field(court.id, 'address', t('admin.venues.address_ph'), court.address)}</div>
                         <div>
-                            <label className="text-gray-500 text-xs block mb-1">Zemin</label>
+                            <label className="text-gray-500 text-xs block mb-1">{t('admin.venues.surface_col')}</label>
                             <select
                                 value={editing[court.id]?.surface ?? court.surface ?? ''}
                                 onChange={e => setEditing(prev => ({ ...prev, [court.id]: { ...prev[court.id], surface: e.target.value || null } }))}
                                 className="w-full bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm border border-gray-700 focus:outline-none focus:border-purple-500">
-                                <option value="">— Belirtilmemiş —</option>
-                                <option value="HARD">Hard</option>
-                                <option value="CLAY">Toprak</option>
-                                <option value="GRASS">Çim</option>
-                                <option value="CARPET">Halı</option>
-                                <option value="ARTIFICIAL">Suni Çim</option>
-                                <option value="SAND">Kum</option>
-                                <option value="WOOD">Parke</option>
+                                <option value="">{t('admin.common.unspecified_option')}</option>
+                                <option value="HARD">{t('admin.common.surface_hard')}</option>
+                                <option value="CLAY">{t('admin.common.surface_clay')}</option>
+                                <option value="GRASS">{t('admin.common.surface_grass')}</option>
+                                <option value="CARPET">{t('admin.common.surface_carpet')}</option>
+                                <option value="ARTIFICIAL">{t('admin.common.surface_artificial')}</option>
+                                <option value="SAND">{t('admin.common.surface_sand')}</option>
+                                <option value="WOOD">{t('admin.common.surface_wood')}</option>
                             </select>
                         </div>
                         <div>
-                            <label className="text-gray-500 text-xs block mb-1">Açık / Kapalı</label>
+                            <label className="text-gray-500 text-xs block mb-1">{t('admin.venues.indoor_col')}</label>
                             <select
                                 value={editing[court.id]?.indoor !== undefined ? String(editing[court.id].indoor) : court.indoor !== undefined ? String(court.indoor) : ''}
                                 onChange={e => setEditing(prev => ({ ...prev, [court.id]: { ...prev[court.id], indoor: e.target.value === '' ? null : e.target.value === 'true' } }))}
                                 className="w-full bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm border border-gray-700 focus:outline-none focus:border-purple-500">
-                                <option value="">— Belirtilmemiş —</option>
-                                <option value="false">Açık (Outdoor)</option>
-                                <option value="true">Kapalı (Indoor)</option>
+                                <option value="">{t('admin.common.unspecified_option')}</option>
+                                <option value="false">{t('admin.common.outdoor_option')}</option>
+                                <option value="true">{t('admin.common.indoor_option')}</option>
                             </select>
                         </div>
                     </div>
                     <div className="flex gap-2">
-                        <button onClick={() => verify(court)} className="flex-1 bg-green-600 hover:bg-green-500 text-white font-black py-2.5 rounded-xl text-sm transition">✅ Approve</button>
-                        <button onClick={() => setShowReject(p => ({ ...p, [court.id]: !p[court.id] }))} className="flex-1 bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black py-2.5 rounded-xl text-sm transition">✕ Reject</button>
+                        <button onClick={() => verify(court)} className="flex-1 bg-green-600 hover:bg-green-500 text-white font-black py-2.5 rounded-xl text-sm transition">{t('admin.venues.approve')}</button>
+                        <button onClick={() => setShowReject(p => ({ ...p, [court.id]: !p[court.id] }))} className="flex-1 bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black py-2.5 rounded-xl text-sm transition">{t('admin.venues.reject')}</button>
                     </div>
                     {showReject[court.id] && (
                         <div className="space-y-2">
                             <input value={rejectReason[court.id] || ''} onChange={e => setRejectReason(p => ({ ...p, [court.id]: e.target.value }))}
-                                placeholder="Rejection reason (optional)"
+                                placeholder={t('admin.venues.reject_reason_ph')}
                                 className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-red-700/40 focus:outline-none" />
-                            <button onClick={() => reject(court.id)} className="w-full bg-red-700 hover:bg-red-600 text-white font-bold py-2 rounded-xl text-sm transition">Confirm Rejection</button>
+                            <button onClick={() => reject(court.id)} className="w-full bg-red-700 hover:bg-red-600 text-white font-bold py-2 rounded-xl text-sm transition">{t('admin.venues.confirm_rejection')}</button>
                         </div>
                     )}
                 </div>
