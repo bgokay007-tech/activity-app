@@ -776,6 +776,7 @@ function NoShowPanel() {
 
 // ── CITIES ────────────────────────────────────────────────────────────────
 function CitiesPanel() {
+    const { t } = useTranslation();
     const [cities, setCities] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('PENDING');
@@ -790,15 +791,15 @@ function CitiesPanel() {
         try {
             await api.patch(`/admin/cities/${id}`, { status: 'APPROVED' });
             setCities(prev => prev.filter(c => c.id !== id));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     const reject = async (id) => {
-        if (!window.confirm('Reddet ve sil?')) return;
+        if (!window.confirm(t('admin.cities.confirm_reject'))) return;
         try {
             await api.patch(`/admin/cities/${id}`, { status: 'REJECTED' });
             setCities(prev => prev.filter(c => c.id !== id));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     return (
@@ -807,15 +808,15 @@ function CitiesPanel() {
                 {['PENDING', 'APPROVED'].map(s => (
                     <button key={s} onClick={() => setFilter(s)}
                         className={`px-4 py-1.5 rounded-xl text-sm font-bold transition border ${filter === s ? 'bg-purple-600 border-purple-500 text-white' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}>
-                        {s === 'PENDING' ? '⏳ Bekleyenler' : '✅ Onaylananlar'}
+                        {s === 'PENDING' ? t('admin.cities.pending_tab') : t('admin.cities.approved_tab')}
                     </button>
                 ))}
             </div>
-            {loading ? <p className="text-gray-500 text-center py-16">Loading...</p> :
+            {loading ? <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p> :
              cities.length === 0 ? (
                 <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
                     <p className="text-4xl mb-3">✅</p>
-                    <p className="text-white font-bold">Bekleyen il/ilçe yok</p>
+                    <p className="text-white font-bold">{t('admin.cities.none_pending')}</p>
                 </div>
             ) : (
                 <div className="space-y-2">
@@ -831,11 +832,11 @@ function CitiesPanel() {
                                 <div className="flex gap-2">
                                     <button onClick={() => approve(c.id)}
                                         className="px-3 py-1.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-xs transition">
-                                        ✓ Onayla
+                                        {t('admin.cities.approve')}
                                     </button>
                                     <button onClick={() => reject(c.id)}
                                         className="px-3 py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-xs transition">
-                                        ✕ Reddet
+                                        {t('admin.cities.reject')}
                                     </button>
                                 </div>
                             )}
