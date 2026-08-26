@@ -850,6 +850,7 @@ function CitiesPanel() {
 
 // ── TOURNAMENT PERMISSIONS ────────────────────────────────────────────────
 function TournamentPermsPanel() {
+    const { t } = useTranslation();
     const [tab, setTab] = useState('PENDING');
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -867,22 +868,22 @@ function TournamentPermsPanel() {
         try {
             await api.patch(`/admin/tournament-permissions/${userId}/approve`);
             setRequests(prev => prev.map(r => r.userId === userId ? { ...r, status: 'APPROVED' } : r));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     const reject = async (userId) => {
         try {
             await api.patch(`/admin/tournament-permissions/${userId}/reject`);
             setRequests(prev => prev.filter(r => r.userId !== userId));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     const revoke = async (userId) => {
-        if (!window.confirm('Bu kullanıcının turnuva iznini iptal etmek istediğinizden emin misiniz?')) return;
+        if (!window.confirm(t('admin.tournamentPerms.confirm_revoke'))) return;
         try {
             await api.delete(`/admin/tournament-permissions/${userId}/revoke`);
             setRequests(prev => prev.filter(r => r.userId !== userId));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     const filtered = requests.filter(r => r.status === tab);
@@ -891,7 +892,7 @@ function TournamentPermsPanel() {
         <div className="space-y-4">
             {/* Tabs */}
             <div className="flex gap-2">
-                {[['PENDING', '⏳ Bekleyenler'], ['APPROVED', '✅ İzin Verilenler']].map(([s, label]) => (
+                {[['PENDING', t('admin.tournamentPerms.pending_tab')], ['APPROVED', t('admin.tournamentPerms.approved_tab')]].map(([s, label]) => (
                     <button key={s} onClick={() => setTab(s)}
                         className={`px-4 py-2 rounded-xl text-xs font-black transition border ${
                             tab === s
@@ -907,17 +908,17 @@ function TournamentPermsPanel() {
             </div>
 
             {loading ? (
-                <p className="text-gray-500 text-center py-16">Yükleniyor...</p>
+                <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>
             ) : filtered.length === 0 ? (
                 <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
                     <p className="text-4xl mb-3">{tab === 'PENDING' ? '✅' : '📭'}</p>
                     <p className="text-white font-bold">
-                        {tab === 'PENDING' ? 'Bekleyen izin talebi yok' : 'İzin verilen kullanıcı yok'}
+                        {tab === 'PENDING' ? t('admin.tournamentPerms.none_pending') : t('admin.tournamentPerms.none_approved')}
                     </p>
                 </div>
             ) : (
                 <div className="space-y-3">
-                    <p className="text-gray-500 text-xs">{filtered.length} kayıt</p>
+                    <p className="text-gray-500 text-xs">{t('admin.tournamentPerms.count_label', { count: filtered.length })}</p>
                     {filtered.map(r => (
                         <div key={r.id} className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-b from-purple-500 to-blue-500 flex items-center justify-center text-white text-sm font-black flex-shrink-0">
@@ -932,16 +933,16 @@ function TournamentPermsPanel() {
                                 {tab === 'PENDING' ? (<>
                                     <button onClick={() => approve(r.userId)}
                                         className="px-3 py-1.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-xs transition">
-                                        ✓ Onayla
+                                        {t('admin.tournamentPerms.approve')}
                                     </button>
                                     <button onClick={() => reject(r.userId)}
                                         className="px-3 py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-xs transition">
-                                        ✕ Reddet
+                                        {t('admin.tournamentPerms.reject')}
                                     </button>
                                 </>) : (
                                     <button onClick={() => revoke(r.userId)}
                                         className="px-3 py-1.5 rounded-xl bg-orange-900/40 hover:bg-orange-900/60 border border-orange-700/50 text-orange-400 font-black text-xs transition">
-                                        🚫 İzni İptal Et
+                                        {t('admin.tournamentPerms.revoke')}
                                     </button>
                                 )}
                             </div>
