@@ -57,12 +57,17 @@ export async function cleanupExpiredRivals() {
                 for (const uid of involvedIds) {
                     emitToUser(uid, 'rivalDeleted', { rivalId: r.id, subCategory: r.subCategory });
                 }
+                // priority:'high' — Android'de 'default' öncelikli push'lar uygulama kapalıyken/
+                // arka plandayken Doze moduna takılıp ertelenebiliyor, kullanıcı ancak uygulamayı
+                // açınca (soket yeniden bağlanınca) bildirimi görüyordu. İlanın kaldırıldığını hemen
+                // bilmesi gerektiği için (kaçırdığı maç gibi) bu 'high' öncelik hak ediyor.
                 createNotification(
                     r.senderId,
                     'MATCH_EXPIRED',
                     '⏰ İlanınız Kaldırıldı',
                     `${r.subCategory} ilanınız için yeterli oyuncu bulunamadı ve maç saati geldiği için otomatik kaldırıldı.`,
                     { rivalId: r.id, category: r.category, subCategory: r.subCategory },
+                    'high',
                 ).catch(() => {});
                 for (const uid of involvedIds) {
                     if (uid === r.senderId) continue;
@@ -72,6 +77,7 @@ export async function cleanupExpiredRivals() {
                         '⏰ Maç İptal Edildi',
                         `Katıldığınız ${r.subCategory} maçı için yeterli oyuncu bulunamadı ve maç saati geldiği için otomatik iptal edildi.`,
                         { rivalId: r.id, category: r.category, subCategory: r.subCategory },
+                        'high',
                     ).catch(() => {});
                 }
             }
@@ -133,6 +139,7 @@ export async function cleanupExpiredRivals() {
                     // category/subCategory olmadan bildirim ekranı hicbir yere yonlendiremiyordu
                     // ("ortada mac yok" gibi görünüyordu) - asil macin (linkedRivalId) bilgileri.
                     { rivalId: r.linkedRivalId, category: r.category, subCategory: r.subCategory },
+                    'high',
                 ).catch(() => {});
             }
         }

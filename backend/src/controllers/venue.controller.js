@@ -1987,7 +1987,12 @@ export const searchVenues = async (req, res, next) => {
                 city: c.city,
                 district: c.district,
                 address: c.address,
-                phone: null,
+                phone: c.phone || null,
+                courtId: c.id, // suggest-edit çağrısı gerçek Court id'sine gider — id alanı yukarıda 'court_' önekli
+                courtCount: c.courtCount ?? null,
+                openDays: c.openDays ?? null,
+                openTime: c.openTime ?? null,
+                closeTime: c.closeTime ?? null,
                 courts: [{ id: c.id, name: c.name }],
                 surface: c.surface,
                 indoor: c.indoor,

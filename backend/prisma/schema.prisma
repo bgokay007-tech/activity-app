@@ -1231,10 +1231,16 @@ model Court {
   feeAmount   String?
   lights      Boolean  @default(false)
   description String?
+  phone       String?                            // topluluk kaydında opsiyonel — çoğu zaman boş, herhangi bir kullanıcı sonradan tamamlayıp önerebilir
+  courtCount  Int?                               // kaç kort/saha olduğu (bilgi amaçlı)
+  openDays    Json?                              // [1..7] (1=Pzt..7=Paz) — bilinmiyorsa null
+  openTime    String?
+  closeTime   String?
   addedBy     String
   verified      Boolean  @default(false)
   pending       Boolean  @default(true)   // true until admin reviews
   rejectedReason String?
+  pendingEdit    Json?                              // eksik/hatalı bilgiyi tamamlamak için herhangi bir kullanıcının gönderdiği, admin onayı bekleyen alan güncellemesi
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

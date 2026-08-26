@@ -320,6 +320,23 @@ function CourtsPanel() {
         } catch (e) { alert(e?.response?.data?.message || 'Error'); }
     };
 
+    // Kullanıcı isteği: mobil taraftaki "Eksik Bilgileri Tamamla" formundan (suggestCourtEdit)
+    // gelen, zaten onaylı bir kortun telefon/kort sayısı/çalışma günü-saati gibi eksik
+    // bilgisini tamamlayan öneriler burada onaylanıp gerçek alanlara uygulanır.
+    const approveEdit = async (id) => {
+        try {
+            const { data } = await api.patch(`/courts/admin/${id}/approve-edit`);
+            setCourts(prev => prev.map(c => c.id === id ? data.court || { ...c, pendingEdit: null } : c));
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+    };
+    const rejectEdit = async (id) => {
+        const adminNote = window.prompt('Ret nedeni (opsiyonel):') || undefined;
+        try {
+            await api.patch(`/courts/admin/${id}/reject-edit`, { adminNote });
+            setCourts(prev => prev.map(c => c.id === id ? { ...c, pendingEdit: null } : c));
+        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+    };
+
     const filtered = courts.filter(c =>
         (sportFilter === 'all' || c.sport === sportFilter) &&
         ((c.name || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -366,6 +383,31 @@ function CourtsPanel() {
                             <button onClick={() => del(c.id)}
                                 className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 transition">
                                 Delete
+                            </button>
+                        </div>
+                    </div>
+                ))}
+                {filtered.filter(c => c.pendingEdit).map(c => (
+                    <div key={c.id + '_edit'} className="bg-purple-950/30 border border-purple-500/40 rounded-2xl px-4 py-3 space-y-1.5">
+                        <p className="text-purple-300 text-xs font-bold">✏️ Bilgi Güncelleme Önerisi — {c.name}</p>
+                        <div className="text-gray-300 text-xs space-y-0.5">
+                            {c.pendingEdit.name && <p>İsim: {c.pendingEdit.name}</p>}
+                            {c.pendingEdit.city && <p>İl: {c.pendingEdit.city}</p>}
+                            {c.pendingEdit.district && <p>İlçe: {c.pendingEdit.district}</p>}
+                            {c.pendingEdit.address && <p>Adres: {c.pendingEdit.address}</p>}
+                            {c.pendingEdit.phone && <p>Telefon: {c.pendingEdit.phone}</p>}
+                            {c.pendingEdit.courtCount != null && <p>Kort Sayısı: {c.pendingEdit.courtCount}</p>}
+                            {(c.pendingEdit.openTime || c.pendingEdit.closeTime) && <p>Saat: {c.pendingEdit.openTime || c.openTime || '—'} – {c.pendingEdit.closeTime || c.closeTime || '—'}</p>}
+                            {c.pendingEdit.openDays && <p>Günler: {c.pendingEdit.openDays.join(', ')}</p>}
+                        </div>
+                        <div className="flex gap-1.5 pt-1">
+                            <button onClick={() => approveEdit(c.id)}
+                                className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20 transition">
+                                ✅ Düzenlemeyi Onayla
+                            </button>
+                            <button onClick={() => rejectEdit(c.id)}
+                                className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 transition">
+                                ✕ Reddet
                             </button>
                         </div>
                     </div>

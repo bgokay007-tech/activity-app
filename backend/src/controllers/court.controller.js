@@ -1,4 +1,7 @@
 import prisma from '../config/prisma.js';
+import { Prisma } from '@prisma/client';
+import { createNotification } from './notification.controller.js';
+import { emitToUser } from '../config/socket.js';
 
 export const addCourt = async (req, res, next) => {
     try {
@@ -297,6 +300,104 @@ export const rejectCourt = async (req, res, next) => {
             data: { pending: false, verified: false, rejectedReason: reason || 'Rejected by admin' },
         });
         res.json(court);
+    } catch (error) { next(error); }
+};
+
+// Zaten onaylı (aramada görünen) ama eksik/hatalı bilgisi olan bir topluluk Court kaydının
+// (telefon, kort sayısı, çalışma günü/saati genelde hiç girilmemiş olur) bilgisini herhangi
+// bir kullanıcının tamamlayıp admin onayına sunmasını sağlar — BusinessVenue.suggestVenueEdit
+// ile aynı mantık, burada Court modeline uygulanıyor.
+export const suggestCourtEdit = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { name, city, district, address, phone, courtCount, openTime, closeTime, openDays } = req.body;
+        const court = await prisma.court.findUnique({ where: { id } });
+        if (!court) return res.status(404).json({ message: 'Bulunamadı' });
+
+        const edit = {};
+        if (name?.trim())     edit.name     = name.trim();
+        if (city?.trim())     edit.city     = city.trim();
+        if (district?.trim()) edit.district = district.trim();
+        if (address?.trim())  edit.address  = address.trim();
+        if (phone?.trim())    edit.phone    = phone.trim();
+        if (openTime)          edit.openTime  = openTime;
+        if (closeTime)         edit.closeTime = closeTime;
+        if (Array.isArray(openDays) && openDays.length) {
+            const days = openDays.filter(d => Number.isInteger(d) && d >= 1 && d <= 7);
+            if (days.length) edit.openDays = days;
+        }
+        if (courtCount !== undefined && courtCount !== null && courtCount !== '') {
+            const count = parseInt(courtCount, 10);
+            if (!Number.isInteger(count) || count < 1 || count > 20) return res.status(400).json({ message: 'Kort sayısı 1-20 arasında olmalıdır' });
+            edit.courtCount = count;
+        }
+        if (Object.keys(edit).length === 0) return res.status(400).json({ message: 'En az bir alan doldurulmalı' });
+        edit.submittedBy = req.userId;
+        edit.submittedAt = new Date().toISOString();
+
+        await prisma.court.update({ where: { id }, data: { pendingEdit: edit } });
+        res.json({ message: 'Gönderildi' });
+
+        prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } }).then(async admins => {
+            const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, businessName: true } });
+            await Promise.all(admins.map(a =>
+                createNotification(a.id, 'VENUE_REQUEST', '✏️ Kort Bilgi Güncelleme Önerisi',
+                    `${user?.businessName || user?.username} tarafından "${court.name}" kortu için bilgi güncellemesi önerildi. Onay bekliyor.`,
+                    { courtId: id }
+                ).then(() => emitToUser(a.id, 'notification', {})).catch(() => {})
+            ));
+        }).catch(() => {});
+    } catch (error) { next(error); }
+};
+
+export const approveCourtEdit = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const court = await prisma.court.findUnique({ where: { id } });
+        if (!court) return res.status(404).json({ message: 'Bulunamadı' });
+        const edit = court.pendingEdit;
+        if (!edit || typeof edit !== 'object') return res.status(400).json({ message: 'Bekleyen düzenleme yok' });
+
+        const data = { pendingEdit: Prisma.DbNull };
+        if (edit.name)      data.name      = edit.name;
+        if (edit.city)      data.city      = edit.city;
+        if (edit.district)  data.district  = edit.district;
+        if (edit.address)   data.address   = edit.address;
+        if (edit.phone)     data.phone     = edit.phone;
+        if (edit.openTime)  data.openTime  = edit.openTime;
+        if (edit.closeTime) data.closeTime = edit.closeTime;
+        if (Array.isArray(edit.openDays) && edit.openDays.length) data.openDays = edit.openDays;
+        if (Number.isInteger(edit.courtCount)) data.courtCount = edit.courtCount;
+
+        const updated = await prisma.court.update({ where: { id }, data });
+
+        const submitterId = edit.submittedBy || court.addedBy;
+        await createNotification(submitterId, 'VENUE_APPROVED', '✅ Kort Bilgisi Güncellendi',
+            `"${court.name}" kortu için gönderdiğiniz bilgi güncellemesi onaylandı.`,
+            { courtId: id }
+        );
+        emitToUser(submitterId, 'notification', {});
+        res.json({ message: 'Onaylandı', court: updated });
+    } catch (error) { next(error); }
+};
+
+export const rejectCourtEdit = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { adminNote } = req.body;
+        const court = await prisma.court.findUnique({ where: { id } });
+        if (!court) return res.status(404).json({ message: 'Bulunamadı' });
+        const edit = court.pendingEdit;
+        await prisma.court.update({ where: { id }, data: { pendingEdit: Prisma.DbNull } });
+        const submitterId = edit?.submittedBy;
+        if (submitterId) {
+            await createNotification(submitterId, 'VENUE_REJECTED', '❌ Kort Bilgisi Reddedildi',
+                adminNote || `"${court.name}" kortu için gönderdiğiniz bilgi güncellemesi reddedildi.`,
+                { courtId: id }
+            );
+            emitToUser(submitterId, 'notification', {});
+        }
+        res.json({ message: 'Reddedildi' });
     } catch (error) { next(error); }
 };
 

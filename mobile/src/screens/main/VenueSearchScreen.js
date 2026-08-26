@@ -255,6 +255,13 @@ function VenueEditSuggestModal({ visible, venue, form, onChangeField, onToggleDa
 
                         <TextInput style={s.input} placeholder={t.vsSuggestNamePh} placeholderTextColor={colors.textMuted} value={form.name} onChangeText={v => onChangeField('name', v)} />
                         <View style={{ height: 8 }} />
+                        {/* Şehir sadece topluluk kort kayıtlarında (Court) düzenlenebilir. */}
+                        {venue.isCommunityCourt && (
+                            <>
+                                <TextInput style={s.input} placeholder={t.vsSuggestCityPh} placeholderTextColor={colors.textMuted} value={form.city} onChangeText={v => onChangeField('city', v)} />
+                                <View style={{ height: 8 }} />
+                            </>
+                        )}
                         <TextInput style={s.input} placeholder={t.vsSuggestDistrictPh} placeholderTextColor={colors.textMuted} value={form.district} onChangeText={v => onChangeField('district', v)} />
                         <View style={{ height: 8 }} />
                         <TextInput style={[s.input, { height: 60, textAlignVertical: 'top' }]} placeholder={t.vsSuggestAddressPh} placeholderTextColor={colors.textMuted} value={form.address} onChangeText={v => onChangeField('address', v)} multiline />
@@ -417,6 +424,10 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                         <View style={bm.tag}><Text style={bm.tagText}>{venue.indoor ? t.indoor : t.outdoor}</Text></View>
                                         {venue.lights ? <View style={[bm.tag, { borderColor: '#fbbf2460', backgroundColor: '#fbbf2410' }]}><Text style={[bm.tagText, { color: '#fbbf24' }]}>💡</Text></View> : null}
                                         <View style={bm.tag}><Text style={bm.tagText}>{venue.fee ? `💰 ${venue.feeAmount || t.vsPaid}` : t.vsFree}</Text></View>
+                                        {/* Gerçek veri varsa (birileri Eksik Bilgileri Tamamla ile doldurup admin
+                                            onayladıysa) gösterilir — yoksa uydurma varsayılan saat gösterilmez. */}
+                                        {venue.openTime && venue.closeTime ? <View style={bm.tag}><Text style={bm.tagText}>⏰ {venue.openTime}–{venue.closeTime}</Text></View> : null}
+                                        {venue.courtCount ? <View style={bm.tag}><Text style={bm.tagText}>🏟️ {venue.courtCount} {t.vsCourtSuffix}</Text></View> : null}
                                     </>
                                 ) : (
                                     <>
@@ -437,15 +448,13 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                         <Text style={bm.tagText}>📲</Text>
                                     </TouchableOpacity>
                                 ) : null}
-                                {/* Kullanıcı isteği: eksik/hatalı tesis bilgisini (adres, telefon, kort sayısı,
-                                    çalışma saatleri) herkes doldurup admin onayına gönderebilsin — tesis kartına
-                                    dokununca açılan bu sayfadan erişilir. Topluluk kort kayıtları BusinessVenue
-                                    değil (bkz. suggestVenueEdit — BusinessVenue.id bekler), bu akış onlara uygulanmaz. */}
-                                {!venue.isCommunityCourt && (
-                                    <TouchableOpacity style={bm.tag} onPress={() => onSuggestEdit(venue)}>
-                                        <Text style={bm.tagText}>✏️ {t.vsSuggestEditBtn}</Text>
-                                    </TouchableOpacity>
-                                )}
+                                {/* Kullanıcı isteği: eksik/hatalı tesis bilgisini (isim, şehir, ilçe, adres,
+                                    telefon, kort sayısı, çalışma günleri/saatleri) herkes doldurup admin
+                                    onayına gönderebilsin — hem BusinessVenue hem topluluk Court kayıtları için,
+                                    tesis kartına dokununca açılan bu sayfadan erişilir. */}
+                                <TouchableOpacity style={bm.tag} onPress={() => onSuggestEdit(venue)}>
+                                    <Text style={bm.tagText}>✏️ {t.vsSuggestEditBtn}</Text>
+                                </TouchableOpacity>
                             </View>
                         );
                     })()}
@@ -779,6 +788,8 @@ function VenueCard({ venue, onPress }) {
                         {venue.surface ? <View style={s.tag}><Text style={s.tagText}>⬜ {t['surface' + venue.surface] || venue.surface}</Text></View> : null}
                         <View style={s.tag}><Text style={s.tagText}>{venue.indoor ? t.indoor : t.outdoor}</Text></View>
                         {venue.lights ? <View style={s.tag}><Text style={s.tagText}>💡</Text></View> : null}
+                        {venue.courtCount ? <View style={s.tag}><Text style={s.tagText}>🏟️ {venue.courtCount} {t.vsCourtSuffix}</Text></View> : null}
+                        {venue.openTime && venue.closeTime ? <View style={s.tag}><Text style={s.tagText}>⏰ {venue.openTime}–{venue.closeTime}</Text></View> : null}
                     </>
                 ) : (
                     <>
@@ -935,7 +946,7 @@ export default function VenueSearchScreen({ navigation, route }) {
     // bilgisini herhangi bir kullanıcının tamamlayıp admin onayına gönderebilmesi.
     const [editSuggestVenue, setEditSuggestVenue] = useState(null);
     const [editSuggestForm, setEditSuggestForm] = useState({
-        name: '', district: '', address: '', phone: '', courtCount: '', openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7],
+        name: '', city: '', district: '', address: '', phone: '', courtCount: '', openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7],
     });
     const [editSuggestSaving, setEditSuggestSaving] = useState(false);
     const [showEditOpenPicker, setShowEditOpenPicker] = useState(false);
@@ -946,10 +957,13 @@ export default function VenueSearchScreen({ navigation, route }) {
         setEditSuggestVenue(venue);
         setEditSuggestForm({
             name: venue.name || '',
+            city: venue.city || '',
             district: venue.district || '',
             address: venue.address || '',
             phone: venue.phone || '',
-            courtCount: venue.courts?.length ? String(venue.courts.length) : '',
+            courtCount: venue.isCommunityCourt
+                ? (venue.courtCount ? String(venue.courtCount) : '')
+                : (venue.courts?.length ? String(venue.courts.length) : ''),
             openTime: venue.openTime || '08:00',
             closeTime: venue.closeTime || '22:00',
             openDays: Array.isArray(venue.openDays) && venue.openDays.length ? venue.openDays : [1, 2, 3, 4, 5, 6, 7],
@@ -963,9 +977,13 @@ export default function VenueSearchScreen({ navigation, route }) {
 
     const handleEditSuggestSubmit = async () => {
         if (!editSuggestVenue) return;
+        const isCommunity = editSuggestVenue.isCommunityCourt;
         const f = editSuggestForm;
         const body = {};
         if (f.name.trim())      body.name = f.name.trim();
+        // Şehir sadece topluluk kort kayıtlarında (Court) düzenlenebilir — BusinessVenue'de
+        // şehir işletmenin kimliğine daha yakın bir alan, bu akıştan hariç tutuldu.
+        if (isCommunity && f.city.trim()) body.city = f.city.trim();
         if (f.district.trim())  body.district = f.district.trim();
         if (f.address.trim())   body.address = f.address.trim();
         if (f.phone.trim())     body.phone = f.phone.trim();
@@ -976,7 +994,8 @@ export default function VenueSearchScreen({ navigation, route }) {
         if (Object.keys(body).length === 0) { Alert.alert('', t.vsSuggestEditEmpty); return; }
         setEditSuggestSaving(true);
         try {
-            await api.post(`/venues/${editSuggestVenue.id}/suggest-edit`, body);
+            const url = isCommunity ? `/courts/${editSuggestVenue.courtId}/suggest-edit` : `/venues/${editSuggestVenue.id}/suggest-edit`;
+            await api.post(url, body);
             setEditSuggestVenue(null);
             Alert.alert(t.vsSuggestEditSuccessTitle, t.vsSuggestEditSuccessMsg);
         } catch (e) {
