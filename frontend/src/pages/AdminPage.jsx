@@ -264,6 +264,7 @@ function CourtEditModal({ court, onClose, onSave }) {
 }
 
 function CourtsPanel() {
+    const { t } = useTranslation();
     const [courts, setCourts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -274,16 +275,16 @@ function CourtsPanel() {
     useEffect(() => {
         api.get('/admin/courts')
             .then(r => setCourts(r.data))
-            .catch(e => setError(e?.response?.data?.message || e?.message || 'API hatası'))
+            .catch(e => setError(e?.response?.data?.message || e?.message || t('admin.courts.api_error')))
             .finally(() => setLoading(false));
     }, []);
 
     const del = async (id) => {
-        if (!window.confirm('Delete this court?')) return;
+        if (!window.confirm(t('admin.common.delete') + '?')) return;
         try {
             await api.delete(`/admin/courts/${id}`);
             setCourts(prev => prev.filter(c => c.id !== id));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     // Onayla/Reddet — /admin/courts sadece listeleme+silme yapıyordu, gerçek onay akışı
@@ -294,14 +295,14 @@ function CourtsPanel() {
         try {
             const { data } = await api.patch(`/courts/admin/${id}/verify`);
             setCourts(prev => prev.map(c => c.id === id ? data : c));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
     const reject = async (id) => {
-        const reason = window.prompt('Reject reason (optional):') || undefined;
+        const reason = window.prompt(t('admin.venues.reject_reason_ph')) || undefined;
         try {
             const { data } = await api.patch(`/courts/admin/${id}/reject`, { reason });
             setCourts(prev => prev.map(c => c.id === id ? data : c));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     // Kullanıcı isteği: mobil taraftaki "Eksik Bilgileri Tamamla" formundan (suggestCourtEdit)
@@ -311,14 +312,14 @@ function CourtsPanel() {
         try {
             const { data } = await api.patch(`/courts/admin/${id}/approve-edit`);
             setCourts(prev => prev.map(c => c.id === id ? data.court || { ...c, pendingEdit: null } : c));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
     const rejectEdit = async (id) => {
-        const adminNote = window.prompt('Ret nedeni (opsiyonel):') || undefined;
+        const adminNote = window.prompt(t('admin.common.reject_note_placeholder')) || undefined;
         try {
             await api.patch(`/courts/admin/${id}/reject-edit`, { adminNote });
             setCourts(prev => prev.map(c => c.id === id ? { ...c, pendingEdit: null } : c));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     const filtered = courts.filter(c =>
@@ -327,40 +328,40 @@ function CourtsPanel() {
         (c.city || '').toLowerCase().includes(search.toLowerCase()))
     );
 
-    if (loading) return <p className="text-gray-500 text-center py-16">Loading...</p>;
-    if (error) return <p className="text-red-400 text-center py-16 font-bold">Hata: {error}</p>;
+    if (loading) return <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>;
+    if (error) return <p className="text-red-400 text-center py-16 font-bold">{t('admin.common.error_prefix')} {error}</p>;
 
     return (
         <div className="space-y-4">
             <SportFilterChips items={courts} getSport={c => c.sport} value={sportFilter} onChange={setSportFilter} />
             <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search by name or city..."
+                placeholder={t('admin.courts.search_placeholder')}
                 className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500" />
-            <p className="text-gray-500 text-xs">{filtered.length} courts</p>
+            <p className="text-gray-500 text-xs">{t('admin.courts.count_label', { count: filtered.length })}</p>
             <div className="space-y-2">
                 {/* Bekleyen bilgi güncelleme önerileri en üstte — listenin altına gizlenip
                     fark edilmemesin diye. */}
                 {filtered.filter(c => c.pendingEdit).map(c => (
                     <div key={c.id + '_edit'} className="bg-purple-950/30 border border-purple-500/40 rounded-2xl px-4 py-3 space-y-1.5">
-                        <p className="text-purple-300 text-xs font-bold">✏️ Bilgi Güncelleme Önerisi — {c.name}</p>
+                        <p className="text-purple-300 text-xs font-bold">{t('admin.courts.pending_edit_title', { name: c.name })}</p>
                         <div className="text-gray-300 text-xs space-y-0.5">
-                            {c.pendingEdit.name && <p>İsim: {c.pendingEdit.name}</p>}
-                            {c.pendingEdit.city && <p>İl: {c.pendingEdit.city}</p>}
-                            {c.pendingEdit.district && <p>İlçe: {c.pendingEdit.district}</p>}
-                            {c.pendingEdit.address && <p>Adres: {c.pendingEdit.address}</p>}
-                            {c.pendingEdit.phone && <p>Telefon: {c.pendingEdit.phone}</p>}
-                            {c.pendingEdit.courtCount != null && <p>Kort Sayısı: {c.pendingEdit.courtCount}</p>}
-                            {(c.pendingEdit.openTime || c.pendingEdit.closeTime) && <p>Saat: {c.pendingEdit.openTime || c.openTime || '—'} – {c.pendingEdit.closeTime || c.closeTime || '—'}</p>}
-                            {c.pendingEdit.openDays && <p>Günler: {c.pendingEdit.openDays.join(', ')}</p>}
+                            {c.pendingEdit.name && <p>{t('admin.courts.field_name')}: {c.pendingEdit.name}</p>}
+                            {c.pendingEdit.city && <p>{t('admin.courts.field_city')}: {c.pendingEdit.city}</p>}
+                            {c.pendingEdit.district && <p>{t('admin.courts.field_district')}: {c.pendingEdit.district}</p>}
+                            {c.pendingEdit.address && <p>{t('admin.courts.field_address')}: {c.pendingEdit.address}</p>}
+                            {c.pendingEdit.phone && <p>{t('admin.courts.field_phone')}: {c.pendingEdit.phone}</p>}
+                            {c.pendingEdit.courtCount != null && <p>{t('admin.courts.field_court_count')}: {c.pendingEdit.courtCount}</p>}
+                            {(c.pendingEdit.openTime || c.pendingEdit.closeTime) && <p>{t('admin.courts.field_hours')}: {c.pendingEdit.openTime || c.openTime || '—'} – {c.pendingEdit.closeTime || c.closeTime || '—'}</p>}
+                            {c.pendingEdit.openDays && <p>{t('admin.courts.field_days')}: {c.pendingEdit.openDays.join(', ')}</p>}
                         </div>
                         <div className="flex gap-1.5 pt-1">
                             <button onClick={() => approveEdit(c.id)}
                                 className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20 transition">
-                                ✅ Düzenlemeyi Onayla
+                                {t('admin.courts.approve_edit')}
                             </button>
                             <button onClick={() => rejectEdit(c.id)}
                                 className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 transition">
-                                ✕ Reddet
+                                {t('admin.courts.reject_edit')}
                             </button>
                         </div>
                     </div>
@@ -371,29 +372,29 @@ function CourtsPanel() {
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                                 <p className="text-white font-bold text-sm">{c.name || '—'}</p>
-                                {c.verified && <span className="text-[10px] bg-green-500/20 text-green-400 border border-green-500/30 px-1.5 py-0.5 rounded-full">✓ Verified</span>}
-                                {c.pending  && <span className="text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-1.5 py-0.5 rounded-full">⏳ Pending</span>}
+                                {c.verified && <span className="text-[10px] bg-green-500/20 text-green-400 border border-green-500/30 px-1.5 py-0.5 rounded-full">{t('admin.courts.verified_badge')}</span>}
+                                {c.pending  && <span className="text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-1.5 py-0.5 rounded-full">{t('admin.courts.pending_badge')}</span>}
                             </div>
                             <p className="text-gray-400 text-xs">{[c.sport, c.surface, c.city, c.address].filter(Boolean).join(' · ')}</p>
-                            {c.feeAmount && <p className="text-gray-500 text-[10px]">Fee: {c.feeAmount}₺ · {c.hasLights ? '💡 Lights' : 'No lights'} · {c.isIndoor ? '🏠 Indoor' : '☀️ Outdoor'}</p>}
-                            <p className="text-gray-600 text-[10px]">Submitted by @{c.user?.username} · {new Date(c.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                            {c.feeAmount && <p className="text-gray-500 text-[10px]">{t('admin.courts.fee_label', { amount: c.feeAmount })} · {c.hasLights ? t('admin.courts.lights_on') : t('admin.courts.lights_off')} · {c.isIndoor ? t('admin.courts.indoor_badge') : t('admin.courts.outdoor_badge')}</p>}
+                            <p className="text-gray-600 text-[10px]">{t('admin.courts.submitted_by', { username: c.user?.username, date: new Date(c.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) })}</p>
                         </div>
                         <div className="flex-shrink-0 flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                             {c.pending && (
                                 <>
                                     <button onClick={() => approve(c.id)}
                                         className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20 transition">
-                                        Approve
+                                        {t('admin.common.approve')}
                                     </button>
                                     <button onClick={() => reject(c.id)}
                                         className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 transition">
-                                        Reject
+                                        {t('admin.common.reject')}
                                     </button>
                                 </>
                             )}
                             <button onClick={() => del(c.id)}
                                 className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 transition">
-                                Delete
+                                {t('admin.common.delete')}
                             </button>
                         </div>
                     </div>
