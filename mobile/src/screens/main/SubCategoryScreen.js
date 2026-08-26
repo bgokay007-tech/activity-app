@@ -15581,33 +15581,60 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         if (fromEnd === 2) return 'Çeyrek Final';
                         return `Playoff - Tur ${round}`;
                     };
-                    // Seed (kura) sırası standings'ten DEĞİL, gerçek 1. tur eşleşmelerinden
-                    // (matchIndex 0 = seed1 vs seedN, matchIndex 1 = seed2 vs seed(N-1)...)
-                    // türetilir — backend seed sırasını standings puanına göre değil güncel ELO'ya
-                    // göre belirliyor (bkz. singleElimMatches), ikisi farklı sonuç verebilir.
-                    const round1Matches = playoffMs.filter(m => m.round === minRound).sort((a,b) => (a.matchIndex||0)-(b.matchIndex||0));
+                    // Kullanıcı isteği: burası "kim play-off'a kaldı" listesi DEĞİL, maçlar
+                    // bittikçe dolan bir NİHAİ SIRALAMA — başta tüm pozisyonlar boş, bir tur
+                    // tamamlanınca o turun kaybedenleri kendi pozisyon aralığına (ör. 8 kişilik
+                    // bracket'ta çeyrek final kaybedenleri 5-8, yarı final kaybedenleri 3-4,
+                    // final kaybedeni 2, final kazananı 1) düşer. Aynı tur içindeki kaybedenler
+                    // gerçekten eşit sırada olduğu için aralarındaki sıra maçın bitiş zamanına
+                    // (scoreSubmittedAt, yoksa matchIndex) göre belirlenir — "1.2.3.4 biten
+                    // maçlara göre yerleştir" isteği.
+                    const round1Matches = playoffMs.filter(m => m.round === minRound);
                     const bracketSize = round1Matches.length * 2;
-                    const seeds = new Array(bracketSize).fill(null);
-                    round1Matches.forEach((m, idx) => {
-                        if (m.p1Id) seeds[idx] = { id:m.p1Id, name:m.p1Name };
-                        if (m.p2Id) seeds[bracketSize-1-idx] = { id:m.p2Id, name:m.p2Name };
-                    });
+                    const placements = new Array(bracketSize + 1).fill(null); // 1-indeksli
+                    for (const round of [...new Set(playoffMs.map(m => m.round))].sort((a,b) => a-b)) {
+                        const roundIndex = round - minRound + 1; // 1 = ilk play-off turu
+                        const matchesInRound = bracketSize / Math.pow(2, roundIndex);
+                        const bandStart = matchesInRound + 1;
+                        const doneInRound = playoffMs
+                            .filter(m => m.round === round && m.status === 'COMPLETED')
+                            .sort((a,b) => (a.scoreSubmittedAt ? new Date(a.scoreSubmittedAt).getTime() : (a.matchIndex||0)) - (b.scoreSubmittedAt ? new Date(b.scoreSubmittedAt).getTime() : (b.matchIndex||0)));
+                        let pos = bandStart;
+                        for (const m of doneInRound) {
+                            const loserIsP1 = m.winnerId === m.p2Id;
+                            const loserId = loserIsP1 ? m.p1Id : m.p2Id;
+                            const loserName = loserIsP1 ? m.p1Name : m.p2Name;
+                            if (loserId) { placements[pos] = { id: loserId, name: loserName }; pos++; }
+                            // Final (son tur) aynı zamanda kazananı 1. sıraya yerleştirir.
+                            if (round === playoffMaxRound) {
+                                const winnerName = m.winnerId === m.p1Id ? m.p1Name : m.p2Name;
+                                placements[1] = { id: m.winnerId, name: winnerName };
+                            }
+                        }
+                    }
                     const rounds = [];
                     for (let r = playoffMaxRound; r >= minRound; r--) {
                         rounds.push({ round:r, matches: playoffMs.filter(m => m.round === r).sort((a,b) => (a.matchIndex||0)-(b.matchIndex||0)) });
                     }
                     return (
                         <View>
-                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:6 }}>🏆 Play-Off'a Kalanlar</Text>
+                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:6 }}>🏆 Play-Off Sıralaması</Text>
                             <View style={{ marginBottom:16 }}>
-                                {seeds.map((sd, i) => sd && (
-                                    <View key={sd.id || i} style={{ flexDirection:'row', alignItems:'center', paddingVertical:3, borderBottomWidth:1, borderBottomColor: colors.border+'30' }}>
-                                        <Text style={{ color: infoColor, fontSize:11, fontWeight:'900', width:22 }}>{i+1}.</Text>
-                                        <Text style={{ color:'#fff', fontSize:12, flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                            {sd.name}{skillRatingMap[sd.id] != null ? `  ${starEmoji(Number(skillRatingMap[sd.id]))} ${Number(skillRatingMap[sd.id]).toFixed(2)}` : ''}
-                                        </Text>
-                                    </View>
-                                ))}
+                                {Array.from({ length: bracketSize }, (_, i) => i + 1).map(pos => {
+                                    const p = placements[pos];
+                                    return (
+                                        <View key={pos} style={{ flexDirection:'row', alignItems:'center', paddingVertical:3, borderBottomWidth:1, borderBottomColor: colors.border+'30' }}>
+                                            <Text style={{ color: infoColor, fontSize:11, fontWeight:'900', width:22 }}>{pos}.</Text>
+                                            {p ? (
+                                                <Text style={{ color:'#fff', fontSize:12, flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                    {p.name}{skillRatingMap[p.id] != null ? `  ${starEmoji(Number(skillRatingMap[p.id]))} ${Number(skillRatingMap[p.id]).toFixed(2)}` : ''}
+                                                </Text>
+                                            ) : (
+                                                <Text style={{ color: colors.textMuted, fontSize:12, flex:1 }}>—</Text>
+                                            )}
+                                        </View>
+                                    );
+                                })}
                             </View>
                             {rounds.map(({ round, matches }) => (
                                 <View key={round} style={{ marginBottom:14 }}>
