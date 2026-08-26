@@ -866,6 +866,14 @@ export const makeReservation = async (req, res, next) => {
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
         if (!venue || venue.status !== 'APPROVED') return res.status(404).json({ message: 'Tesis bulunamadı' });
 
+        // Kullanıcı isteği: arama artık Pro+ olmayan tesisleri de listeliyor (bilgi amaçlı,
+        // "kayıtlı olduğunu bilsin" diye) — ama uygulama içinden rezervasyon SADECE Pro+
+        // paketli tesislerde yapılabilir, diğerleri telefonla aranarak manuel rezerve edilir.
+        const proSub = await prisma.businessSubscription.findFirst({
+            where: { userId: venue.userId, status: 'ACTIVE', endDate: { gt: new Date() }, packageType: { in: PRO_PACKAGES } },
+        });
+        if (!proSub) return res.status(403).json({ message: 'Bu tesis uygulama içinden rezervasyon almıyor. Varsa telefon numarasından işletmeyi arayarak rezervasyon yapabilirsiniz.' });
+
         const isBlocked = await prisma.venueBlock.findUnique({
             where: { venueId_userId: { venueId: id, userId: req.userId } },
         });
@@ -1782,19 +1790,22 @@ export const searchVenues = async (req, res, next) => {
         const skip = parseInt(skipStr) || 0;
         const take = parseInt(takeStr) || (ratingMode ? 20 : 100);
 
-        let proFilter = {};
+        // Kullanıcı isteği: arama artık Pro+ paketli tesislerle sınırlı değil — tüm onaylı
+        // tesisler listelenir. Pro olmayanlarda uygulama içinden rezervasyon yapılamaz (bkz.
+        // makeReservation), mobil taraf bunun yerine varsa telefonla arama seçeneği gösterir.
+        // isProVenue burada sadece hesaplanıp sonuçlara eklenir, WHERE filtresi olarak KULLANILMAZ.
+        let proUserIdSet = new Set();
         if (!ratingMode) {
             const now = new Date();
             const proSubs = await prisma.businessSubscription.findMany({
                 where: { status: 'ACTIVE', endDate: { gt: now }, packageType: { in: ['PRO', 'PREMIUM'] } },
                 select: { userId: true },
             });
-            proFilter = { userId: { in: proSubs.map(s => s.userId) } };
+            proUserIdSet = new Set(proSubs.map(s => s.userId));
         }
 
         const where = {
             ...(ratingMode ? {} : { status: 'APPROVED' }),
-            ...proFilter,
             // ratingMode'da branch filtresi yok (tenis/tenis/tennis eşleşmesi sorunu)
             ...(!ratingMode && branch ? { branch: { contains: branch, mode: 'insensitive' } } : {}),
             ...(city ? { OR: [
@@ -1835,6 +1846,7 @@ export const searchVenues = async (req, res, next) => {
                 ...v,
                 avgRating:   ratingMap[v.id]?.avg   ?? null,
                 reviewCount: ratingMap[v.id]?.count  ?? 0,
+                isProVenue:  ratingMode ? undefined : proUserIdSet.has(v.userId),
             })),
             total,
             hasMore: skip + take < total,

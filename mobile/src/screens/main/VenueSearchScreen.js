@@ -205,7 +205,9 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
     }, [venue, t]);
 
     useEffect(() => {
-        if (visible && venue) {
+        // Kullanıcı isteği: Pro+ olmayan tesislerde uygulama içinden rezervasyon yok — slot
+        // verisi hiç gösterilmeyeceği için gereksiz istek atılmasın.
+        if (visible && venue && venue.isProVenue !== false) {
             const today = DATE_OPTIONS[0];
             setDate(today);
             setPicked(null);
@@ -340,6 +342,26 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                         );
                     })()}
 
+                    {/* Kullanıcı isteği: arama artık Pro+ olmayan tesisleri de listeliyor — bunlarda
+                        tarih/kort/slot seçme akışı (uygulama içi rezervasyon) hiç gösterilmez,
+                        yukarıdaki rozetlerde zaten görünen telefon/adres bilgisiyle arayarak
+                        rezervasyon yapılması gerektiği belirtilir. */}
+                    {venue.isProVenue === false && (
+                        <View style={{ padding: 14, alignItems: 'center' }}>
+                            <Text style={{ fontSize: 28, marginBottom: 6 }}>📵</Text>
+                            <Text style={{ color: '#f59e0b', fontSize: 14, fontWeight: '800', textAlign: 'center', marginBottom: 4 }}>
+                                {t.vsNotBookableTitle || 'Bu tesis uygulama içinden rezervasyon almıyor'}
+                            </Text>
+                            <Text style={{ color: colors.textMuted, fontSize: 12, textAlign: 'center', lineHeight: 18 }}>
+                                {venue.phone
+                                    ? (t.vsNotBookableWithPhoneMsg || 'Yukarıdaki telefon numarasından işletmeyi arayarak manuel rezervasyon yapabilirsiniz.')
+                                    : (t.vsNotBookableMsg || 'Bu tesisle rezervasyon için doğrudan iletişime geçmeniz gerekiyor.')}
+                            </Text>
+                        </View>
+                    )}
+
+                    {venue.isProVenue !== false && (
+                    <>
                     {/* Tarih Seçici — sabit yükseklikli sarmalayıcı + overflow:hidden ile
                         gerçek yükseklik zorlanıyor (bazı cihazlarda ScrollView'a doğrudan
                         verilen height, ScrollView'ın kendi ölçümüyle çakışıp fazladan boşluk
@@ -563,6 +585,8 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                             </TouchableOpacity>
                         </View>
                     )}
+                    </>
+                    )}
 
                     {/* Sepet toplamı — sepette ürün varken her zaman altta görünür */}
                     {cartCount > 0 && (
@@ -598,8 +622,18 @@ function VenueCard({ venue, onPress }) {
                 {venue.pricePerSlot > 0 && (
                     <View style={s.tag}><Text style={s.tagText}>💰 {venue.pricePerSlot}₺/slot</Text></View>
                 )}
+                {/* Kullanıcı isteği: arama artık Pro+ olmayan tesisleri de listeliyor — bunlarda
+                    uygulama içinden rezervasyon yapılamadığı açıkça belirtilir. */}
+                {venue.isProVenue === false && (
+                    <View style={[s.tag, { backgroundColor: '#f59e0b20', borderColor: '#f59e0b50' }]}>
+                        <Text style={[s.tagText, { color: '#f59e0b' }]}>📵 {t.vsNotBookableTag || 'Uygulama içi rezervasyon yok'}</Text>
+                    </View>
+                )}
             </View>
             {venue.address ? <Text style={s.cardAddr}>📍 {venue.address}</Text> : null}
+            {venue.isProVenue === false && venue.phone ? (
+                <Text style={[s.cardAddr, { color: colors.purple }]}>📞 {venue.phone}</Text>
+            ) : null}
         </TouchableOpacity>
     );
 }
@@ -764,16 +798,12 @@ export default function VenueSearchScreen({ navigation, route }) {
         }
     };
 
-    return (
-        <View style={s.root}>
-            <StatusBar barStyle="light-content" />
-            <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-                    <Text style={s.backBtnText}>‹</Text>
-                </TouchableOpacity>
-                <Text style={s.title}>{t.vsHeaderTitle}</Text>
-            </View>
-
+    // Kullanıcı isteği: arama yapınca liste uzayınca ekranın altı sığmıyordu — bilgi bandı +
+    // filtreler + availBox artık sabit üstte değil, sonuç listesiyle (FlatList) AYNI
+    // kaydırılabilir alanda (ListHeaderComponent). Böylece filtreler açıkken bile liste her
+    // zaman aşağı doğru kaydırılabiliyor.
+    const filtersHeader = (
+        <>
             {/* Bilgilendirme banner'ı */}
             <View style={s.infoBanner}>
                 <Text style={s.infoBannerIcon}>🏅</Text>
@@ -858,18 +888,42 @@ export default function VenueSearchScreen({ navigation, route }) {
                     </View>
                 )}
             </View>
+        </>
+    );
 
-            {!availMode && searched && !loading && (
+    return (
+        <View style={s.root}>
+            <StatusBar barStyle="light-content" />
+            <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+                    <Text style={s.backBtnText}>‹</Text>
+                </TouchableOpacity>
+                <Text style={s.title}>{t.vsHeaderTitle}</Text>
+            </View>
+
+            {!availMode && (
                 <FlatList
                     style={{ flex: 1 }}
-                    data={venues}
+                    data={searched && !loading ? venues : []}
                     keyExtractor={v => v.id}
                     contentContainerStyle={s.list}
+                    ListHeaderComponent={filtersHeader}
                     ListEmptyComponent={
-                        <View style={s.empty}>
-                            <Text style={s.emptyIcon}>🔍</Text>
-                            <Text style={s.emptyText}>{t.vsNoResults}</Text>
-                        </View>
+                        loading ? (
+                            <ActivityIndicator style={{ marginTop: 24 }} color={colors.purple} />
+                        ) : searched ? (
+                            <View style={s.empty}>
+                                <Text style={s.emptyIcon}>🔍</Text>
+                                <Text style={s.emptyText}>{t.vsNoResults}</Text>
+                            </View>
+                        ) : (
+                            <View style={s.hint}>
+                                <Text style={s.hintIcon}>🏓</Text>
+                                <Text style={s.hintText}>
+                                    {t.vsHint}
+                                </Text>
+                            </View>
+                        )
                     }
                     renderItem={({ item }) => (
                         <VenueCard venue={item} onPress={() => setActive(item)} />
@@ -877,26 +931,22 @@ export default function VenueSearchScreen({ navigation, route }) {
                 />
             )}
 
-            {!availMode && !searched && !loading && (
-                <View style={s.hint}>
-                    <Text style={s.hintIcon}>🏓</Text>
-                    <Text style={s.hintText}>
-                        {t.vsHint}
-                    </Text>
-                </View>
-            )}
-
-            {availMode && availSearched && !availLoading && (
+            {availMode && (
                 <FlatList
                     style={{ flex: 1 }}
-                    data={availResults}
+                    data={availSearched && !availLoading ? availResults : []}
                     keyExtractor={r => r.venue.id}
                     contentContainerStyle={s.list}
+                    ListHeaderComponent={filtersHeader}
                     ListEmptyComponent={
-                        <View style={s.empty}>
-                            <Text style={s.emptyIcon}>🔍</Text>
-                            <Text style={s.emptyText}>{t.vsNoResults}</Text>
-                        </View>
+                        availLoading ? (
+                            <ActivityIndicator style={{ marginTop: 24 }} color={colors.purple} />
+                        ) : availSearched ? (
+                            <View style={s.empty}>
+                                <Text style={s.emptyIcon}>🔍</Text>
+                                <Text style={s.emptyText}>{t.vsNoResults}</Text>
+                            </View>
+                        ) : null
                     }
                     renderItem={({ item }) => (
                         <TouchableOpacity style={s.availResultCard} onPress={() => setActive(item.venue)} activeOpacity={0.85}>
