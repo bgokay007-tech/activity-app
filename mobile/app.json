@@ -53,7 +53,21 @@
         "googleMaps": {
           "apiKey": "AIzaSyBPx1coqo46Ge1eS2b4rZ_UpCAoTcQC_KM"
         }
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "activity-app-production-f4c2.up.railway.app",
+              "pathPrefix": "/share"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

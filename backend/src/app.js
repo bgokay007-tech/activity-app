@@ -118,6 +118,30 @@ app.get('/download/activity.apk', (req, res) => {
     res.download(apkPath, 'activity.apk');
 });
 
+// Android App Links doğrulaması — WhatsApp/Instagram gibi uygulamalar paylaşım linkini
+// kendi iç tarayıcılarında açıp özel şema (activityapp://) yönlendirmesini engelliyordu,
+// uygulama telefonda kurulu olsa bile paylaşım sayfası hep tarayıcıda kalıyordu (kullanıcı
+// raporu). App Links, işletim sisteminin linki tarayıcıya hiç düşürmeden doğrudan uygulamaya
+// yönlendirmesini sağlıyor ama bunun için bu dosyanın TAM OLARAK bu yoldan, doğru
+// content-type ile servis edilmesi gerekiyor — express.static varsayılan olarak nokta ile
+// başlayan yolları (.well-known) yok saydığı için (bkz. public/ static middleware, aşağıda)
+// bu route'un elle eklenmesi şart, aksi halde SPA fallback'i (app.get('*')) devreye girip
+// index.html dönerdi.
+app.get('/.well-known/assetlinks.json', (req, res) => {
+    res.type('application/json').json([
+        {
+            relation: ['delegate_permission/common.handle_all_urls'],
+            target: {
+                namespace: 'android_app',
+                package_name: 'com.activity.app',
+                sha256_cert_fingerprints: [
+                    '56:66:D7:E3:7A:54:C8:15:A2:08:7C:9C:9D:0B:C1:AB:8C:6F:3A:31:3E:0B:D3:5C:20:A8:07:F7:1D:B4:3E:5F',
+                ],
+            },
+        },
+    ]);
+});
+
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'AcTiViTy API is running 🎯' });
 });

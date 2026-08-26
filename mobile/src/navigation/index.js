@@ -93,14 +93,19 @@ function navigateFromNotif(data) {
     }
 }
 
-// Paylaşılan link (activityapp://rival/<id> veya activityapp://tournament/<id>) ile
-// açılış: id üzerinden category/subCategory çözülüp mevcut bildirim navigasyonuyla
-// aynı hedefe (SubCategory ekranı, ilgili ilan/turnuva vurgulanmış halde) gidilir.
+// Paylaşılan link ile açılış: hem özel şema (activityapp://rival/<id>) hem de Android App
+// Links ile gelen gerçek paylaşım linki (https://.../share/rival/<id>) desteklenir — ikincisi
+// olmadan, WhatsApp/Instagram gibi uygulamalar linki kendi iç tarayıcısında açıp özel şema
+// yönlendirmesini engellediği için uygulama kuruluyken bile paylaşım hep tarayıcıda kalıyordu
+// (kullanıcı raporu). Son iki path segmenti (kind/id) alınır — böylece "share/" öneki olsun
+// olmasın aynı şekilde çözülür. id üzerinden category/subCategory çözülüp mevcut bildirim
+// navigasyonuyla aynı hedefe (SubCategory ekranı, ilgili ilan/turnuva vurgulanmış halde) gidilir.
 async function resolveDeepLinkAndNavigate(url) {
     if (!url) return;
     try {
         const { path } = ExpoLinking.parse(url);
-        const [kind, id] = (path || '').replace(/^\/+/, '').split('/');
+        const segments = (path || '').replace(/^\/+/, '').split('/').filter(Boolean);
+        const [kind, id] = segments.slice(-2);
         if (!id) return;
         if (kind === 'rival') {
             const { data } = await api.get(`/rivals/${id}`);

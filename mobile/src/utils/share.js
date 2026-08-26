@@ -28,16 +28,19 @@ export async function shareRival(rival, t) {
     const label = (n) => t?.cardParticipantLabel ? t.cardParticipantLabel(n) : `Katılımcı ${n}`;
     const confirmed = [];
     if (rival.matchType === 'DOUBLE') {
+        // Kullanıcı isteği: ilanı açan kişi de zaten oynayacak oyunculardan biri — paylaşım
+        // metnindeki listede o da görünmeli, önceden sadece partner/rakiplere bakılıp
+        // rival.sender hiç eklenmiyordu.
         const partner = Array.isArray(rival.senderTeam) ? rival.senderTeam[0] : null;
-        const slots = [partner, rival.participants?.[0], rival.participants?.[1]].filter(p => p?.id);
+        const slots = [rival.sender, partner, rival.participants?.[0], rival.participants?.[1]].filter(p => p?.id);
         slots.forEach((p, i) => confirmed.push(`${label(i + 1)}: ${nameOf(p)}`));
     } else {
-        // Takım sporları (voleybol vb.): kurucunun takım arkadaşları + rakip tarafa atananlar +
-        // henüz bir tarafa atanmamış ama katılımı kabul edilmiş oyuncular — kullanıcı isteği:
-        // "katılan oyuncular varsa paylaşımda da gözüksün" (önceden sadece rival.participants
-        // gösteriliyordu, "Oyuncu Ara" ilanlarında kabul edilenler çoğunlukla senderTeam/
-        // unassignedPlayers'a düştüğü için hiç görünmüyordu).
+        // Takım sporları (voleybol vb.): ilanı açan kişi + kurucunun takım arkadaşları + rakip
+        // tarafa atananlar + henüz bir tarafa atanmamış ama katılımı kabul edilmiş oyuncular —
+        // kullanıcı isteği: "katılan oyuncular varsa paylaşımda da gözüksün" (önceden sadece
+        // rival.participants gösteriliyordu, ilan sahibi de dahil hiç eklenmiyordu).
         const teamPlayers = [
+            rival.sender,
             ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []),
             ...(Array.isArray(rival.participants) ? rival.participants : []),
             ...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []),
