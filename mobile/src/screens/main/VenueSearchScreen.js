@@ -405,11 +405,26 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                         const cl = (venue.contactLinks && typeof venue.contactLinks === 'object') ? venue.contactLinks : {};
                         const whatsappV = cl.whatsapp || venue.phone || null;
                         const callV     = cl.phone    || venue.phone || null;
+                        // Topluluk kort kayıtlarının (isCommunityCourt) çalışma saati/slot tipi gibi
+                        // gerçek işletme verisi yok — bunları göstermek yanıltıcı olur, bunun yerine
+                        // Court modelindeki zemin/açık-kapalı/ışıklandırma/ücret bilgisi gösterilir.
                         return (
                             <View style={bm.tagRow}>
-                                <View style={bm.tag}><Text style={bm.tagText}>⏰ {getVenueHoursLabel(venue, date, t)}</Text></View>
-                                {lightsFrom ? <View style={[bm.tag, { borderColor: '#fbbf2460', backgroundColor: '#fbbf2410' }]}><Text style={[bm.tagText, { color: '#fbbf24' }]}>💡 {t.vsLightsFrom(lightsFrom)}</Text></View> : null}
-                                <View style={bm.tag}><Text style={bm.tagText}>📅 {venueSlotChip(venue, t)}</Text></View>
+                                {venue.isCommunityCourt ? (
+                                    <>
+                                        <View style={bm.tag}><Text style={bm.tagText}>🏘️ {t.vsCommunityCourtTag}</Text></View>
+                                        {venue.surface ? <View style={bm.tag}><Text style={bm.tagText}>⬜ {t['surface' + venue.surface] || venue.surface}</Text></View> : null}
+                                        <View style={bm.tag}><Text style={bm.tagText}>{venue.indoor ? t.indoor : t.outdoor}</Text></View>
+                                        {venue.lights ? <View style={[bm.tag, { borderColor: '#fbbf2460', backgroundColor: '#fbbf2410' }]}><Text style={[bm.tagText, { color: '#fbbf24' }]}>💡</Text></View> : null}
+                                        <View style={bm.tag}><Text style={bm.tagText}>{venue.fee ? `💰 ${venue.feeAmount || t.vsPaid}` : t.vsFree}</Text></View>
+                                    </>
+                                ) : (
+                                    <>
+                                        <View style={bm.tag}><Text style={bm.tagText}>⏰ {getVenueHoursLabel(venue, date, t)}</Text></View>
+                                        {lightsFrom ? <View style={[bm.tag, { borderColor: '#fbbf2460', backgroundColor: '#fbbf2410' }]}><Text style={[bm.tagText, { color: '#fbbf24' }]}>💡 {t.vsLightsFrom(lightsFrom)}</Text></View> : null}
+                                        <View style={bm.tag}><Text style={bm.tagText}>📅 {venueSlotChip(venue, t)}</Text></View>
+                                    </>
+                                )}
                                 {venue.phone ? <View style={bm.tag}><Text style={bm.tagText}>📞 {venue.phone}</Text></View> : null}
                                 {whatsappV ? (
                                     <TouchableOpacity style={bm.tag}
@@ -424,10 +439,13 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                 ) : null}
                                 {/* Kullanıcı isteği: eksik/hatalı tesis bilgisini (adres, telefon, kort sayısı,
                                     çalışma saatleri) herkes doldurup admin onayına gönderebilsin — tesis kartına
-                                    dokununca açılan bu sayfadan erişilir. */}
-                                <TouchableOpacity style={bm.tag} onPress={() => onSuggestEdit(venue)}>
-                                    <Text style={bm.tagText}>✏️ {t.vsSuggestEditBtn}</Text>
-                                </TouchableOpacity>
+                                    dokununca açılan bu sayfadan erişilir. Topluluk kort kayıtları BusinessVenue
+                                    değil (bkz. suggestVenueEdit — BusinessVenue.id bekler), bu akış onlara uygulanmaz. */}
+                                {!venue.isCommunityCourt && (
+                                    <TouchableOpacity style={bm.tag} onPress={() => onSuggestEdit(venue)}>
+                                        <Text style={bm.tagText}>✏️ {t.vsSuggestEditBtn}</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         );
                     })()}
@@ -755,13 +773,25 @@ function VenueCard({ venue, onPress }) {
                 <Text style={s.arrow}>›</Text>
             </View>
             <View style={s.cardTags}>
-                <View style={s.tag}><Text style={s.tagText}>🏟️ {venue.courts?.length || 0} {t.vsCourtSuffix}</Text></View>
-                <View style={s.tag}><Text style={s.tagText}>⏰ {getVenueHoursLabel(venue, getDateStr(0), t)}</Text></View>
-                {venue.pricePerSlot > 0 && (
-                    <View style={s.tag}><Text style={s.tagText}>💰 {venue.pricePerSlot}₺/slot</Text></View>
+                {venue.isCommunityCourt ? (
+                    <>
+                        <View style={s.tag}><Text style={s.tagText}>🏘️ {t.vsCommunityCourtTag}</Text></View>
+                        {venue.surface ? <View style={s.tag}><Text style={s.tagText}>⬜ {t['surface' + venue.surface] || venue.surface}</Text></View> : null}
+                        <View style={s.tag}><Text style={s.tagText}>{venue.indoor ? t.indoor : t.outdoor}</Text></View>
+                        {venue.lights ? <View style={s.tag}><Text style={s.tagText}>💡</Text></View> : null}
+                    </>
+                ) : (
+                    <>
+                        <View style={s.tag}><Text style={s.tagText}>🏟️ {venue.courts?.length || 0} {t.vsCourtSuffix}</Text></View>
+                        <View style={s.tag}><Text style={s.tagText}>⏰ {getVenueHoursLabel(venue, getDateStr(0), t)}</Text></View>
+                        {venue.pricePerSlot > 0 && (
+                            <View style={s.tag}><Text style={s.tagText}>💰 {venue.pricePerSlot}₺/slot</Text></View>
+                        )}
+                    </>
                 )}
-                {/* Kullanıcı isteği: arama artık Pro+ olmayan tesisleri de listeliyor — bunlarda
-                    uygulama içinden rezervasyon yapılamadığı açıkça belirtilir. */}
+                {/* Kullanıcı isteği: arama artık Pro+ olmayan tesisleri (ve topluluk kort
+                    kayıtlarını) de listeliyor — bunlarda uygulama içinden rezervasyon
+                    yapılamadığı açıkça belirtilir. */}
                 {venue.isProVenue === false && (
                     <View style={[s.tag, { backgroundColor: '#f59e0b20', borderColor: '#f59e0b50' }]}>
                         <Text style={[s.tagText, { color: '#f59e0b' }]}>📵 {t.vsNotBookableTag || 'Uygulama içi rezervasyon yok'}</Text>

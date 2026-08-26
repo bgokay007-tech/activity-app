@@ -1939,13 +1939,71 @@ export const searchVenues = async (req, res, next) => {
         }) : [];
         const ratingMap = Object.fromEntries(ratings.map(r => [r.venueId, { avg: r._avg.rating, count: r._count.id }]));
 
+        const venueItems = venues.map(v => ({
+            ...v,
+            avgRating:   ratingMap[v.id]?.avg   ?? null,
+            reviewCount: ratingMap[v.id]?.count  ?? 0,
+            isProVenue:  ratingMode ? undefined : proUserIdSet.has(v.userId),
+        }));
+
+        // Kullanıcı isteği: burada sadece BusinessVenue değil, "Kort Adı" alanından (ilan
+        // oluştururken) admin onayından geçmiş topluluk Court kayıtları da görünsün — bunlar
+        // zaten yıllardır var olan, aynı /courts/search'te (bkz. court.controller.js) kullanılan
+        // mekanizma; burada da aynı şekilde eklenip bilgi amaçlı (rezervasyon YAPILAMAZ, telefon
+        // bile tutulmuyor) kart olarak gösterilir. ratingMode'da (tesis puanlama akışı) dahil
+        // edilmez. Sayfalama (skip/take) sadece BusinessVenue tarafına uygulanır — community
+        // kort sayısı az olduğu için tamamı (üst sınır 100) her sayfada eklenir.
+        let courtItems = [];
+        if (!ratingMode) {
+            const courts = await prisma.court.findMany({
+                where: {
+                    verified: true,
+                    ...(branch ? { sport: { equals: branch, mode: 'insensitive' } } : {}),
+                    ...(city ? { city: { contains: city, mode: 'insensitive' } } : {}),
+                    ...(name ? { name: { contains: name, mode: 'insensitive' } } : {}),
+                },
+                orderBy: { createdAt: 'desc' },
+                take: 100,
+            });
+            // Onaylı bir BusinessVenue ile aynı/çakışan community Court kayıtlarını gizle (bkz.
+            // court.controller.js'teki aynı isimli mantık — burada da tekrarlandı, dosyalar arası
+            // paylaşımlı bir helper'a taşımak bu küçük fonksiyon için gerekli değil).
+            const normalize = (s) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+            const isDuplicateOfVenue = (courtName) => {
+                const c = normalize(courtName);
+                return venues.some(v => {
+                    const vn = normalize(v.name);
+                    if (!vn) return false;
+                    if (c === vn) return true;
+                    if (!c.startsWith(vn)) return false;
+                    const rest = c.slice(vn.length);
+                    return /^[^a-z0-9çğıöşü]/i.test(rest);
+                });
+            };
+            courtItems = courts.filter(c => !isDuplicateOfVenue(c.name)).map(c => ({
+                id: `court_${c.id}`,
+                name: c.name,
+                branch: c.sport,
+                city: c.city,
+                district: c.district,
+                address: c.address,
+                phone: null,
+                courts: [{ id: c.id, name: c.name }],
+                surface: c.surface,
+                indoor: c.indoor,
+                lights: c.lights,
+                fee: c.fee,
+                feeAmount: c.feeAmount,
+                pricePerSlot: 0,
+                isProVenue: false,
+                isCommunityCourt: true,
+                avgRating: null,
+                reviewCount: 0,
+            }));
+        }
+
         res.json({
-            items: venues.map(v => ({
-                ...v,
-                avgRating:   ratingMap[v.id]?.avg   ?? null,
-                reviewCount: ratingMap[v.id]?.count  ?? 0,
-                isProVenue:  ratingMode ? undefined : proUserIdSet.has(v.userId),
-            })),
+            items: [...venueItems, ...courtItems],
             total,
             hasMore: skip + take < total,
         });
