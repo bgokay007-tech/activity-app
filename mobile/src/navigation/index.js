@@ -21,23 +21,34 @@ const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnviron
 
 export const navigationRef = createNavigationContainerRef();
 
-function navigateFromNotif(data) {
+// İşletme hesaplarında uygulama açılışta ilk yüklenen ekran "BusinessApp"tir; "App" (HomeTab/
+// MessagesTab/ProfileTab içeren tab navigator) henüz hiç ziyaret edilmediyse React Navigation
+// ağacında kayıtlı DEĞİLDİR — bu yüzden navigationRef.navigate('HomeTab', ...) gibi doğrudan
+// bir çağrı, işletme hesabı için sessizce hiçbir şey yapmıyordu (kullanıcı raporu: "işletme
+// sahibine oyun daveti geldiğinde bildirime tıklayınca ilana değil işletme hesabına gidiyor").
+// Çözüm: önce açıkça 'App' ekranına, oradan da hedef tab'a iç içe (nested) navigate edilir.
+function goToAppScreen(isBusiness, screen, params) {
+    if (isBusiness) navigationRef.navigate('App', { screen, params });
+    else navigationRef.navigate(screen, params);
+}
+
+function navigateFromNotif(data, isBusiness) {
     if (!navigationRef.isReady() || !data) return;
     const type = data.type;
     if (type === 'MESSAGE') {
         if (data.senderId) {
-            navigationRef.navigate('MessagesTab', {
+            goToAppScreen(isBusiness, 'MessagesTab', {
                 screen: 'Chat',
                 params: { other: { id: data.senderId, username: data.senderUsername }, conversation: { id: data.conversationId || null } },
             });
         } else {
-            navigationRef.navigate('MessagesTab');
+            goToAppScreen(isBusiness, 'MessagesTab');
         }
     } else if (type === 'FRIEND_REQUEST' || type === 'FRIEND_ACCEPTED') {
         if (data.senderId) {
-            navigationRef.navigate('HomeTab', { screen: 'Profile', params: { userId: data.senderId } });
+            goToAppScreen(isBusiness, 'HomeTab', { screen: 'Profile', params: { userId: data.senderId } });
         } else {
-            navigationRef.navigate('ProfileTab');
+            goToAppScreen(isBusiness, 'ProfileTab');
         }
     } else if (type === 'VENUE_ORDER') {
         // Kullanıcı raporu: sipariş bildirimine dokununca rezervasyon takvimi açılıyordu —
@@ -50,11 +61,11 @@ function navigateFromNotif(data) {
         // dokununca doğrudan Onayla/Reddet sorulur (kullanıcı isteği).
         navigationRef.navigate('BusinessApp', { openReservations: true, venueId: data.venueId || null, highlightReservationId: data.reservationId || null, highlightDate: data.date || null });
     } else if (type === 'VENUE_REQUEST' || type === 'VENUE_EDIT_REQUEST') {
-        navigationRef.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'venues' } });
+        goToAppScreen(isBusiness, 'ProfileTab', { screen: 'AdminPortal', params: { tab: 'venues' } });
     } else if (type === 'COURT_EDIT_REQUEST') {
-        navigationRef.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'courts' } });
+        goToAppScreen(isBusiness, 'ProfileTab', { screen: 'AdminPortal', params: { tab: 'courts' } });
     } else if (type === 'SUBSCRIPTION_REQUEST' || type === 'SUBSCRIPTION_RECEIPT') {
-        navigationRef.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'subscriptions' } });
+        goToAppScreen(isBusiness, 'ProfileTab', { screen: 'AdminPortal', params: { tab: 'subscriptions' } });
     } else if (data.category && data.subCategory) {
         let initialTab = 'rivals';
         // Tamamlanmış turnuvalar Turnuvalar sekmesinde (Açık İlanlar/Devam Eden) hiç
@@ -71,7 +82,7 @@ function navigateFromNotif(data) {
         // tepsisinden tıklanınca yanlışlıkla Açık İlanlar açılıyordu — NotificationsScreen'deki
         // uygulama-içi listede bu case zaten vardı, burada hiç eklenmemiş olduğu ortaya çıktı).
         else if (type === 'PEER_REVIEW_PROMPT') initialTab = 'archive';
-        navigationRef.navigate('HomeTab', {
+        goToAppScreen(isBusiness, 'HomeTab', {
             screen: 'SubCategory',
             params: {
                 category: data.category, sub: data.subCategory, initialTab, highlightRivalId: data.rivalId || null,
@@ -102,7 +113,7 @@ function navigateFromNotif(data) {
 // (kullanıcı raporu). Son iki path segmenti (kind/id) alınır — böylece "share/" öneki olsun
 // olmasın aynı şekilde çözülür. id üzerinden category/subCategory çözülüp mevcut bildirim
 // navigasyonuyla aynı hedefe (SubCategory ekranı, ilgili ilan/turnuva vurgulanmış halde) gidilir.
-async function resolveDeepLinkAndNavigate(url) {
+async function resolveDeepLinkAndNavigate(url, isBusiness) {
     if (!url) return;
     try {
         const { path } = ExpoLinking.parse(url);
@@ -112,14 +123,14 @@ async function resolveDeepLinkAndNavigate(url) {
         if (kind === 'rival') {
             const { data } = await api.get(`/rivals/${id}`);
             if (!navigationRef.isReady()) return;
-            navigationRef.navigate('HomeTab', {
+            goToAppScreen(isBusiness, 'HomeTab', {
                 screen: 'SubCategory',
                 params: { category: data.category, sub: data.subCategory, initialTab: 'rivals', highlightRivalId: id },
             });
         } else if (kind === 'tournament') {
             const { data } = await api.get(`/tournaments/${id}`);
             if (!navigationRef.isReady()) return;
-            navigationRef.navigate('HomeTab', {
+            goToAppScreen(isBusiness, 'HomeTab', {
                 screen: 'SubCategory',
                 params: { category: data.category, sub: data.subCategory, initialTab: 'tournaments', openMatchTournamentId: id, openMatchId: null },
             });
@@ -462,7 +473,7 @@ export default function Navigation() {
             // onReady bu promise'ten önce zaten çalışmış olabilir (bootstrapping daha hızlı
             // bittiyse) — o durumda pendingNavRef'e yazmak hiç tüketilmezdi, burada navigator
             // zaten hazırsa direkt deneniyor.
-            if (navigationRef.isReady()) navigateFromNotif(data);
+            if (navigationRef.isReady()) navigateFromNotif(data, isBusiness);
             else pendingNavRef.current = data;
         }).catch(() => {});
         const sub = Notifications.addNotificationResponseReceivedListener(response => {
@@ -472,19 +483,22 @@ export default function Navigation() {
             // bu durumda veriyi sessizce atlıyordu (kullanıcı raporu: "ana ekrandan bildirime
             // tıklayınca ilan detayına gitmiyor"). Hazır değilse pendingNavRef'e yazılıp onReady
             // tüketsin, veri kaybolmasın.
-            if (navigationRef.isReady()) navigateFromNotif(data);
+            if (navigationRef.isReady()) navigateFromNotif(data, isBusiness);
             else pendingNavRef.current = data;
         });
         return () => sub.remove();
-    }, []);
+        // isBusiness dependency: kullanıcı bilgisi /auth/me'den geç yüklendiği için, effect ilk
+        // mount'ta isBusiness=undefined ile kapanmasın diye — değiştiğinde listener güncel
+        // değerle yeniden kurulur (navigateFromNotif işletme/normal hesap ayrımını doğru yapsın).
+    }, [isBusiness]);
 
     useEffect(() => {
         ExpoLinking.getInitialURL().then(url => {
             if (url) pendingDeepLinkRef.current = url;
         }).catch(() => {});
-        const sub = ExpoLinking.addEventListener('url', ({ url }) => resolveDeepLinkAndNavigate(url));
+        const sub = ExpoLinking.addEventListener('url', ({ url }) => resolveDeepLinkAndNavigate(url, isBusiness));
         return () => sub.remove();
-    }, []);
+    }, [isBusiness]);
 
     useEffect(() => {
         Promise.all([
@@ -534,11 +548,11 @@ export default function Navigation() {
     return (
         <NavigationContainer ref={navigationRef} onReady={() => {
             if (pendingNavRef.current) {
-                navigateFromNotif(pendingNavRef.current);
+                navigateFromNotif(pendingNavRef.current, isBusiness);
                 pendingNavRef.current = null;
             }
             if (pendingDeepLinkRef.current) {
-                resolveDeepLinkAndNavigate(pendingDeepLinkRef.current);
+                resolveDeepLinkAndNavigate(pendingDeepLinkRef.current, isBusiness);
                 pendingDeepLinkRef.current = null;
             }
         }}>
