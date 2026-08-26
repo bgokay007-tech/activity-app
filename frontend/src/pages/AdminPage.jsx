@@ -425,7 +425,7 @@ function DisputesPanel() {
         try {
             await api.patch(`/admin/disputes/${id}/resolve`, { winner });
             setDisputes(prev => prev.filter(d => d.id !== id));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     // Kullanıcı raporu: liste hem skoru DIŞARIDAN itirazlı (scoreStatus:DISPUTED) hem de
@@ -439,7 +439,7 @@ function DisputesPanel() {
         try {
             await api.patch(`/admin/disputes/${id}/resolve-appeal`, { resolution });
             setDisputes(prev => prev.filter(d => d.id !== id));
-        } catch (e) { alert(e?.response?.data?.message || 'Error'); }
+        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
     };
 
     if (loading) return <p className="text-gray-500 text-center py-16">{t('disputes.loading')}</p>;
@@ -1231,7 +1231,7 @@ function SubscriptionsPanel() {
     const approve = async (id) => {
         setActionId(id);
         try { await api.patch(`/subscriptions/requests/${id}/approve`); load(); }
-        catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+        catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
         finally { setActionId(null); }
     };
 
@@ -1240,7 +1240,7 @@ function SubscriptionsPanel() {
         if (note === null) return;
         setActionId(id);
         try { await api.patch(`/subscriptions/requests/${id}/reject`, { adminNote: note || null }); load(); }
-        catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+        catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
         finally { setActionId(null); }
     };
 
