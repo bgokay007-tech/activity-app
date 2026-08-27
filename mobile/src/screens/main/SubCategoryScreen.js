@@ -19046,6 +19046,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [coachListings, setCoachListings] = useState([]);
     const [loadingCoaches, setLoadingCoaches] = useState(false);
     const [coachSubTab, setCoachSubTab] = useState(initialCoachSubTab || 'listings'); // 'listings' | 'courses' | 'referees' | 'cvs'
+    // Kullanıcı isteği: CVler sekmesinin kendi içinde 3 alt-sekmesi olsun —
+    // Antrenörler / Hakemler / CV Yükle (CV Yükle burada iki seçenekli: antrenör CV'si mi
+    // hakem CV'si mi). "İlan Oluştur" akışlarından CV yükleme tamamen kaldırıldı.
+    const [cvInnerTab, setCvInnerTab] = useState('coaches'); // 'coaches' | 'referees' | 'upload'
 
     useEffect(() => {
         if (route.params?.initialCoachSubTab) setCoachSubTab(route.params.initialCoachSubTab);
@@ -19070,6 +19074,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showCvUploadModal, setShowCvUploadModal] = useState(false);
     const [cvUploadListingId, setCvUploadListingId] = useState(null);
     const [cvUploadType, setCvUploadType] = useState(null); // 'coach' | 'referee' — seçilene kadar modal seçim ekranını gösterir
+    // Kullanıcı isteği: "CV Yükle" artık CVler sekmesinin kendi alt-sekmesinden açılıyor
+    // (Antrenör CV Yükle / Hakem CV'si Yükle butonları) — hangi tür seçildiği coachSubTab'a
+    // değil doğrudan bu butona bağlı olmalı.
+    const [cvUploadContext, setCvUploadContext] = useState(null); // 'coach' | 'referee'
     const [standaloneCvImage, setStandaloneCvImage] = useState(null);
     const [uploadingStandaloneCv, setUploadingStandaloneCv] = useState(false);
 
@@ -19211,6 +19219,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [refereeCertImage, setRefereeCertImage] = useState(null);
     const [refereeCvImage, setRefereeCvImage] = useState(null);
     const [refereeAchievementImages, setRefereeAchievementImages] = useState([]);
+    // Kullanıcı isteği: daha önce CV yüklemiş bir hakem yeni ilan oluştururken bu yeniden
+    // CV istemesin — mevcut ilanındaki kimlik/belge bilgisi otomatik gelsin (bkz. coach
+    // formundaki existingCoachCv ile aynı desen).
+    const [existingRefereeCv, setExistingRefereeCv] = useState(null);
 
     // Maç için hakem ilanları — ActivityRequest.positions (REFEREE/REFEREE_OFFER) kullanır,
     // "Oyuncu Aranıyor" listesinden ayrıca bu state'e ayrılır (bkz. load())
@@ -19821,6 +19833,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         setRefereeCertImage(null);
         setRefereeCvImage(null);
         setRefereeAchievementImages([]);
+        setExistingRefereeCv(null);
     };
 
     // Kullanıcı isteği: konum artık zorunlu değil, onun yerine bir/birden fazla şehir zorunlu;
@@ -19828,18 +19841,39 @@ export default function SubCategoryScreen({ route, navigation }) {
     // formundaki COACH_APPROVAL_SPORTS ile aynı desen).
     const REFEREE_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
 
+    // Kullanıcı isteği: "İlan Oluştur"a basınca daha önce CV yüklemiş bir hakemin
+    // kimlik/belge bilgisi otomatik dolsun, yeniden başvuru gibi davranmasın (bkz.
+    // openCreateCoachModal ile aynı desen).
+    const openCreateRefereeModal = () => {
+        const existing = refereeListings.find(r => r.userId === myId && r.cvUrl);
+        if (existing) {
+            setExistingRefereeCv(existing);
+            setRefereeForm(f => ({
+                ...f,
+                credentialLevel: existing.credentialLevel || f.credentialLevel,
+                certName: existing.certName || f.certName,
+                experience: existing.experience ? String(existing.experience) : f.experience,
+                achievements: existing.achievements || f.achievements,
+            }));
+        } else {
+            setExistingRefereeCv(null);
+        }
+        setShowCreateReferee(true);
+    };
+
     const submitReferee = async () => {
         if (refereeForm.cities.length === 0) return Alert.alert('', 'En az bir şehir seçmelisiniz');
-        if (REFEREE_APPROVAL_SPORTS.includes(sub) && !refereeCvImage) return Alert.alert('', 'Bu dalda hakemlik başvurusu için CV yüklemeniz zorunludur.');
+        if (REFEREE_APPROVAL_SPORTS.includes(sub) && !refereeCvImage && !existingRefereeCv?.cvUrl) return Alert.alert('', 'Bu dalda hakemlik için CV yüklemeniz zorunludur.');
         setSubmittingReferee(true);
         try {
             setUploadingRefereeMedia(true);
-            const certificateUrl = refereeCertImage ? await uploadCoachImage(refereeCertImage, 'cert.jpg') : undefined;
-            const cvUrl = refereeCvImage ? await uploadCoachImage(refereeCvImage, 'cv.jpg') : undefined;
+            const certificateUrl = refereeCertImage ? await uploadCoachImage(refereeCertImage, 'cert.jpg') : (existingRefereeCv?.certificateUrl || undefined);
+            const cvUrl = refereeCvImage ? await uploadCoachImage(refereeCvImage, 'cv.jpg') : (existingRefereeCv?.cvUrl || undefined);
             const achievementUrls = [];
             for (const uri of refereeAchievementImages) {
                 achievementUrls.push(await uploadCoachImage(uri, 'achievement.jpg'));
             }
+            const finalAchievementUrls = achievementUrls.length > 0 ? achievementUrls : (existingRefereeCv?.achievementUrls || []);
             setUploadingRefereeMedia(false);
 
             await api.post('/referees', {
@@ -19848,7 +19882,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 category, subCategory: sub,
                 experience: parseInt(refereeForm.experience) || 0,
                 pricePerMatch: parseInt(refereeForm.pricePerMatch) || 0,
-                certificateUrl, cvUrl, achievementUrls,
+                certificateUrl, cvUrl, achievementUrls: finalAchievementUrls,
             });
             setShowCreateReferee(false);
             resetRefereeForm();
@@ -22129,24 +22163,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 ))}
                             </View>
 
-                            {/* Kullanıcı isteği: CVler sekmesi sadece yüklenmiş CV'leri LİSTELESİN —
-                                "İlan Oluştur"/"CV Yükle" eylemleri orada gösterilmesin, kafa karıştırıyordu. */}
+                            {/* Kullanıcı isteği: "CV Yükle" artık burada değil — sadece CVler sekmesinin
+                                kendi "CV Yükle" alt-sekmesinde yaşıyor. Burada sadece ilan/maç oluşturma
+                                kalıyor, ilan oluştururken mevcut CV zaten otomatik entegre oluyor. */}
                             {coachSubTab === 'cvs' ? null : coachSubTab === 'referees' ? (
                                 <CityAlertRow tab="referees">
                                     <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
-                                        onPress={() => setShowCreateReferee(true)}>
+                                        onPress={openCreateRefereeModal}>
                                         <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.createRefereeListingBtn}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, borderColor:'#f59e0b60' }]}
                                         onPress={() => setShowCreateRefereeMatch(true)}>
                                         <Text style={[s.createBtnText, { color:'#f59e0b' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.createRefereeMatchBtn}</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[s.createBtn, { marginBottom:0, borderColor:'#16a34a60' }]}
-                                        onPress={() => setShowCvUploadModal(true)}>
-                                        <Text style={[s.createBtnText, { color:'#4ade80' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.uploadCvBtn}</Text>
                                     </TouchableOpacity>
                                 </CityAlertRow>
                             ) : (
@@ -22158,11 +22188,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             openCreateCoachModal();
                                         }}>
                                         <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{category === 'ARTS' || coachSubTab === 'courses' ? (t.createCourseBtn || '🎓 Kurs Oluştur') : t.createCoachBtn}</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[s.createBtn, { marginBottom:0, borderColor:'#16a34a60' }]}
-                                        onPress={() => setShowCvUploadModal(true)}>
-                                        <Text style={[s.createBtnText, { color:'#4ade80' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.uploadCvBtn}</Text>
                                     </TouchableOpacity>
                                 </CityAlertRow>
                             )}
@@ -22253,44 +22278,58 @@ export default function SubCategoryScreen({ route, navigation }) {
                             ) : loadingCoaches
                                 ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
                                 : coachSubTab === 'cvs'
-                                    ? (coachesWithCv.length === 0 && refereesWithCv.length === 0)
-                                        ? <EmptyState emoji="🎓" text={t.noCvYet} />
-                                        : (
+                                    ? (() => {
+                                        const cvRow = (item, cvColor) => (
+                                            <View key={item.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:colors.surface2, borderRadius:12, padding:9, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
+                                                <Text style={{ fontSize:22, marginRight:8 }}>📄</Text>
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{item.user?.fullName || item.user?.username}</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:11 }}>{item.credentialLevel}{item.experience > 0 ? ` · ${item.experience} yıl deneyim` : ''}</Text>
+                                                </View>
+                                                <TouchableOpacity onPress={() => Linking.openURL(item.cvUrl)} style={{ backgroundColor: cvColor+'20', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor: cvColor+'50' }}>
+                                                    <Text style={{ color: cvColor, fontSize:11, fontWeight:'700' }}>CV'yi Aç</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        );
+                                        return (
                                             <>
-                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8 }}>Antrenör CV'leri</Text>
-                                                {coachesWithCv.length === 0
-                                                    ? <EmptyState emoji="🎓" text={t.noCvYet} />
-                                                    : coachesWithCv.map(c => (
-                                                        <View key={c.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:colors.surface2, borderRadius:12, padding:9, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
-                                                            <Text style={{ fontSize:22, marginRight:8 }}>📄</Text>
-                                                            <View style={{ flex:1 }}>
-                                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{c.user?.fullName || c.user?.username}</Text>
-                                                                <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.credentialLevel}{c.experience > 0 ? ` · ${c.experience} yıl deneyim` : ''}</Text>
-                                                            </View>
-                                                            <TouchableOpacity onPress={() => Linking.openURL(c.cvUrl)} style={{ backgroundColor: cfg.color+'20', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>CV'yi Aç</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    ))
-                                                }
-                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginTop:14, marginBottom:8 }}>Hakemlik CV'leri</Text>
-                                                {refereesWithCv.length === 0
-                                                    ? <EmptyState emoji="🟨" text={t.noCvYet} />
-                                                    : refereesWithCv.map(r => (
-                                                        <View key={r.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:colors.surface2, borderRadius:12, padding:9, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
-                                                            <Text style={{ fontSize:22, marginRight:8 }}>📄</Text>
-                                                            <View style={{ flex:1 }}>
-                                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{r.user?.fullName || r.user?.username}</Text>
-                                                                <Text style={{ color:colors.textMuted, fontSize:11 }}>{r.credentialLevel}{r.experience > 0 ? ` · ${r.experience} yıl deneyim` : ''}</Text>
-                                                            </View>
-                                                            <TouchableOpacity onPress={() => Linking.openURL(r.cvUrl)} style={{ backgroundColor: cfg.color+'20', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>CV'yi Aç</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    ))
-                                                }
+                                                <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
+                                                    {[
+                                                        { key:'coaches',  label:'Antrenörler' },
+                                                        { key:'referees', label:'Hakemler' },
+                                                        { key:'upload',   label:'CV Yükle' },
+                                                    ].map(it => (
+                                                        <TouchableOpacity key={it.key} onPress={() => setCvInnerTab(it.key)}
+                                                            style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center', backgroundColor: cvInnerTab===it.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: cvInnerTab===it.key ? cfg.color : colors.border }}>
+                                                            <Text style={{ color: cvInnerTab===it.key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }}>{it.label}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                                {cvInnerTab === 'coaches' ? (
+                                                    coachesWithCv.length === 0
+                                                        ? <EmptyState emoji="🎓" text={t.noCvYet} />
+                                                        : coachesWithCv.map(c => cvRow(c, cfg.color))
+                                                ) : cvInnerTab === 'referees' ? (
+                                                    refereesWithCv.length === 0
+                                                        ? <EmptyState emoji="🟨" text={t.noCvYet} />
+                                                        : refereesWithCv.map(r => cvRow(r, '#f59e0b'))
+                                                ) : (
+                                                    <View style={{ gap:8 }}>
+                                                        <TouchableOpacity onPress={() => { setCvUploadContext('coach'); setShowCvUploadModal(true); }}
+                                                            style={{ paddingVertical:10, paddingHorizontal:12, borderRadius:10, backgroundColor: cfg.color+'15', borderWidth:1, borderColor: cfg.color+'50', flexDirection:'row', alignItems:'center', gap:6 }}>
+                                                            <Text style={{ fontSize:16 }}>🎓</Text>
+                                                            <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }}>Antrenör CV Yükle</Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity onPress={() => { setCvUploadContext('referee'); setShowCvUploadModal(true); }}
+                                                            style={{ paddingVertical:10, paddingHorizontal:12, borderRadius:10, backgroundColor:'#f59e0b15', borderWidth:1, borderColor:'#f59e0b50', flexDirection:'row', alignItems:'center', gap:6 }}>
+                                                            <Text style={{ fontSize:16 }}>🟨</Text>
+                                                            <Text style={{ color:'#f59e0b', fontSize:13, fontWeight:'800' }}>Hakem CV'si Yükle</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                )}
                                             </>
-                                        )
+                                        );
+                                    })()
                                     : shown.length === 0
                                     ? <EmptyState emoji="🎓" text={coachListings.length > 0 ? t.noFilterMatch : t.emptyCoaches} />
                                     : shown.map(c => (
@@ -22659,9 +22698,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     // Hakemler) açıldıysa SADECE o türle ilgili alan gösterilir — önceden
                                     // ikisi birden gösteriliyordu, hakemlikten CV yükle derken antrenörlük
                                     // seçeneği de çıkıyordu (kullanıcı raporu).
-                                    const startCoachApplication = () => { setShowCvUploadModal(false); setShowCreateCoach(true); };
-                                    const startRefereeApplication = () => { setShowCvUploadModal(false); setShowCreateReferee(true); };
-                                    const isRefereeContext = coachSubTab === 'referees';
+                                    const startCoachApplication = () => { setShowCvUploadModal(false); openCreateCoachModal(); };
+                                    const startRefereeApplication = () => { setShowCvUploadModal(false); openCreateRefereeModal(); };
+                                    const isRefereeContext = cvUploadContext === 'referee';
                                     return (
                                         <ScrollView showsVerticalScrollIndicator={false}>
                                             <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:12 }}>{isRefereeContext ? 'Hakemlik CV Yükle' : 'Antrenörlük CV Yükle'}</Text>
@@ -22833,8 +22872,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
                                     <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>
-                                        {REFEREE_APPROVAL_SPORTS.includes(sub) ? '🟨 Hakemlik Başvurusu' : '🟨 Hakem İlanı Oluştur'}
+                                        {existingRefereeCv ? '🟨 Hakem İlanı Oluştur' : REFEREE_APPROVAL_SPORTS.includes(sub) ? '🟨 Hakemlik Başvurusu' : '🟨 Hakem İlanı Oluştur'}
                                     </Text>
+                                    {existingRefereeCv && (
+                                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700', marginBottom:10 }}>
+                                            ✓ Kimlik/Belge bilgileriniz mevcut CV'nizden otomatik dolduruldu, sadece kalan alanları doldurun.
+                                        </Text>
+                                    )}
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kimlik / Belge</Text>
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>
@@ -22864,7 +22908,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TouchableOpacity onPress={() => pickCoachSingleImage(setRefereeCertImage)}
                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
                                         <Text style={{ fontSize:14 }}>📜</Text>
-                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{refereeCertImage ? 'Belge Fotoğrafı Seçildi ✓' : 'Belge Fotoğrafı Yükle (opsiyonel)'}</Text>
+                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                            {refereeCertImage ? 'Belge Fotoğrafı Seçildi ✓'
+                                                : existingRefereeCv?.certificateUrl ? 'Mevcut Belgeniz Kullanılacak ✓ (değiştirmek için dokunun)'
+                                                : 'Belge Fotoğrafı Yükle (opsiyonel)'}
+                                        </Text>
                                     </TouchableOpacity>
                                     <TextInput placeholder="Deneyim (yıl)" placeholderTextColor={colors.textMuted} value={refereeForm.experience} onChangeText={v => setRefereeForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
 
@@ -22930,9 +22978,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TouchableOpacity onPress={() => pickCoachSingleImage(setRefereeCvImage)}
                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
                                         <Text style={{ fontSize:14 }}>📄</Text>
-                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{refereeCvImage ? 'CV Fotoğrafı Seçildi ✓' : `CV Fotoğrafı Yükle${REFEREE_APPROVAL_SPORTS.includes(sub) ? ' *' : ' (opsiyonel)'}`}</Text>
+                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                            {refereeCvImage ? 'CV Fotoğrafı Seçildi ✓'
+                                                : existingRefereeCv?.cvUrl ? 'Mevcut CV\'niz Kullanılacak ✓ (değiştirmek için dokunun)'
+                                                : `CV Fotoğrafı Yükle${REFEREE_APPROVAL_SPORTS.includes(sub) ? ' *' : ' (opsiyonel)'}`}
+                                        </Text>
                                     </TouchableOpacity>
-                                    {REFEREE_APPROVAL_SPORTS.includes(sub) && (
+                                    {REFEREE_APPROVAL_SPORTS.includes(sub) && !existingRefereeCv && (
                                         <Text style={{ color:'#f59e0b', fontSize:11, marginBottom:8 }}>
                                             Bu dalda hakemlik başvurunuz admin onayına gönderilir — CV'niz incelenip onaylandıktan sonra maçlara hakem olarak davet edilebilir/atanabilirsiniz.
                                         </Text>
@@ -22946,7 +22998,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </TouchableOpacity>
                                         <TouchableOpacity onPress={submitReferee} disabled={submittingReferee || uploadingRefereeMedia} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: '#f59e0b' }}>
                                             <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
-                                                {uploadingRefereeMedia ? 'Yükleniyor...' : submittingReferee ? '...' : REFEREE_APPROVAL_SPORTS.includes(sub) ? 'Hakemliğe Başvur' : 'İlanı Yayınla'}
+                                                {uploadingRefereeMedia ? 'Yükleniyor...' : submittingReferee ? '...' : (REFEREE_APPROVAL_SPORTS.includes(sub) && !existingRefereeCv) ? 'Hakemliğe Başvur' : 'İlanı Yayınla'}
                                             </Text>
                                         </TouchableOpacity>
                                     </View>
