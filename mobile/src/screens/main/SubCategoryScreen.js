@@ -1703,7 +1703,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         setSendingComment(true);
         try {
             const res = await api.post(`/rivals/${item.id}/comments`, { content: commentText.trim() });
-            setComments(p => [...p, res.data]);
+            // Backend, yorum sayacı anlık artsın diye 'newComment' socket olayını yorumu atan
+            // kullanıcıya da (kendisine) ayrıca gönderiyor — bu, HTTP cevabıyla yarışıp aynı
+            // yorumun buradan bir kez, socket dinleyicisinden bir kez daha eklenmesine yol
+            // açıyordu (kullanıcı raporu: "kendi ekranımda 2 yorum, başkasında 1"). Socket
+            // dinleyicisiyle AYNI id-bazlı tekrar kontrolü burada da yapılmalı.
+            setComments(p => p.some(c => c.id === res.data.id) ? p : [...p, res.data]);
             setCommentText('');
         } catch(e) { Alert.alert('Hata', e?.response?.data?.message || 'Yorum gönderilemedi'); }
         finally { setSendingComment(false); }
@@ -19304,7 +19309,10 @@ export default function SubCategoryScreen({ route, navigation }) {
         setSendingComment(true);
         try {
             const res = await api.post(`/rivals/${commentMatch.id}/comments`, { content: commentText.trim() });
-            setComments(p => [...p, res.data]);
+            // bkz. RivalDetailModal'daki sendComment'teki aynı id-bazlı tekrar kontrolü — backend
+            // 'newComment' socket olayını yorumu atan kullanıcıya da gönderdiği için HTTP cevabıyla
+            // yarışıp aynı yorum iki kez ekleniyordu (kullanıcı raporu).
+            setComments(p => p.some(c => c.id === res.data.id) ? p : [...p, res.data]);
             setCommentText('');
             // Update local count on the card
             setCommentMatch(prev => prev ? { ...prev, _count: { ...prev._count, matchComments: (prev._count?.matchComments ?? 0) + 1 } } : prev);
