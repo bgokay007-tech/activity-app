@@ -19751,6 +19751,21 @@ export default function SubCategoryScreen({ route, navigation }) {
         finally { setSubmittingCoach(false); setUploadingCoachMedia(false); }
     };
 
+    // Kullanıcı isteği: antrenör kendi açtığı ilanı kaldırabilsin.
+    const deleteCoachListing = (id) => {
+        Alert.alert('İlanı Kaldır', 'Bu ilanı kaldırmak istediğinize emin misiniz?', [
+            { text: 'Vazgeç', style: 'cancel' },
+            {
+                text: 'Kaldır', style: 'destructive', onPress: async () => {
+                    try {
+                        await api.delete(`/coaches/${id}`);
+                        setCoachListings(prev => prev.filter(c => c.id !== id));
+                    } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+                }
+            },
+        ]);
+    };
+
     const loadReferees = useCallback(async () => {
         // Kullanıcı isteği: hakemliği olan biri, Hakemler alt-sekmesine hiç girmeden bir ilan
         // detayını açtığında da "Hakem Olarak Başvur" seçeneğini görebilsin (bkz. myRefereeListing
@@ -22380,11 +22395,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700' }}>🚩 Bildir</Text>
                                                 </TouchableOpacity>
                                             ) : (
-                                                <TouchableOpacity
-                                                    onPress={() => openLessonRequests(c.id)}
-                                                    style={{ alignSelf:'flex-end', marginTop:6, paddingHorizontal:7, paddingVertical:1, borderRadius:6, backgroundColor: cfg.color+'15', borderWidth:1, borderColor: cfg.color+'40' }}>
-                                                    <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>Ders İstekleri</Text>
-                                                </TouchableOpacity>
+                                                <View style={{ flexDirection:'row', justifyContent:'flex-end', gap:6, marginTop:6 }}>
+                                                    <TouchableOpacity
+                                                        onPress={() => deleteCoachListing(c.id)}
+                                                        style={{ paddingHorizontal:7, paddingVertical:1, borderRadius:6, backgroundColor:'#ef444415', borderWidth:1, borderColor:'#ef444440' }}>
+                                                        <Text style={{ color:'#ef4444', fontSize:10, fontWeight:'700' }}>🗑 Kaldır</Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        onPress={() => openLessonRequests(c.id)}
+                                                        style={{ paddingHorizontal:7, paddingVertical:1, borderRadius:6, backgroundColor: cfg.color+'15', borderWidth:1, borderColor: cfg.color+'40' }}>
+                                                        <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>Ders İstekleri</Text>
+                                                    </TouchableOpacity>
+                                                </View>
                                             )}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:6 }}>
                                                 {c.certificateUrl && (
@@ -22480,7 +22502,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
                                     <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>
-                                        {category === 'ARTS' ? '🎓 Kurs Oluştur' : existingCoachCv ? '🎓 İlan Oluştur' : COACH_APPROVAL_SPORTS.includes(sub) ? '🎓 Antrenörlük Başvurusu' : '🎓 Destek İlanı Oluştur'}
+                                        {category === 'ARTS' ? '🎓 Kurs Oluştur' : '🎓 Ders İlanı Oluştur'}
                                     </Text>
                                     {/* Kullanıcı isteği: daha önce CV yüklemiş bir antrenör için bu artık
                                         sıfırdan bir "başvuru" değil — kimlik/belge bilgisi mevcut CV'den
@@ -22652,7 +22674,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                     {COACH_APPROVAL_SPORTS.includes(sub) && !existingCoachCv && (
                                         <Text style={{ color:'#f59e0b', fontSize:11, marginBottom:8 }}>
-                                            Bu dalda antrenörlük başvurunuz admin onayına gönderilir — CV'niz incelenip onaylandıktan sonra ilanınız herkese görünür.
+                                            Bu dalda ilanınız admin onayına gönderilir — CV'niz incelenip onaylandıktan sonra ilanınız herkese görünür.
                                         </Text>
                                     )}
 
@@ -22667,7 +22689,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             netleştiriyor. Onay gerekmeyen dallarda eski metin korunuyor. */}
                                         <TouchableOpacity onPress={submitCoach} disabled={submittingCoach || uploadingCoachMedia} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
                                             <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
-                                                {uploadingCoachMedia ? 'Yükleniyor...' : submittingCoach ? '...' : (COACH_APPROVAL_SPORTS.includes(sub) && !existingCoachCv) ? 'Antrenörlüğe Başvur' : 'İlanı Yayınla'}
+                                                {uploadingCoachMedia ? 'Yükleniyor...' : submittingCoach ? '...' : 'İlanı Yayınla'}
                                             </Text>
                                         </TouchableOpacity>
                                     </View>
