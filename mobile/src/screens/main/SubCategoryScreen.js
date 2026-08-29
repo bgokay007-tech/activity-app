@@ -1750,6 +1750,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     görünür alanın ÜSTÜNDEKİ içeriğin (İstekler listesi, kadro kartı vb.) boyutunu
                     değiştirince, kullanıcı hâlâ aynı yeri okurken ekran alakasız bir yere kayıyordu
                     (kullanıcı raporu: "yukarı kayıyor ne alaka") — bu prop kaydırma konumunu korur. */}
+                {/* KeyboardAvoidingView: bu Modal'da android_keyboardInputMode="adjustNothing" bilinçli
+                    olarak Android'in klavye açılınca kendiliğinden kaydırmasını/yeniden boyutlandırmasını
+                    kapatıyor (yukarıdaki not) — ama yerine JS tarafında hiçbir telafi yoktu, klavye
+                    Yorum yaz alanının üstüne biniyordu (kullanıcı raporu: "klavye yazdığım alanı
+                    kapatıyor, ne yazdığımı göremiyorum"). behavior="padding" hem iOS'ta hem Android'de
+                    kullanılır (bkz. ekran-guvenli-alan.md — "height" bu projede kullanılmaz). */}
+                <KeyboardAvoidingView behavior="padding" style={{ flex:1 }}>
                 <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom:5 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" maintainVisibleContentPosition={{ minIndexForVisible: 0 }}>
 
                     {/* Kurucu (sol) + Tarih/Saat/Kort/Fiyat (sağ, küçük) — tek satırda */}
@@ -3739,6 +3746,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         ))
                     )}
                 </ScrollView>
+                </KeyboardAvoidingView>
 
                 {/* Oyuncu Davet Et — arama paneli. Ayrı bir <Modal> DEĞİL: bu View zaten
                     dış Modal'ın (yukarıdaki, visible={visible}) içinde — Android'de iç içe
@@ -19026,6 +19034,35 @@ export default function SubCategoryScreen({ route, navigation }) {
     const setFilterDateFrom = (v) => setTabFilterDateFrom(p => ({ ...p, [activeTab]: v }));
     const filterDateTo = tabFilterDateTo[activeTab] || null;
     const setFilterDateTo = (v) => setTabFilterDateTo(p => ({ ...p, [activeTab]: v }));
+    // Kullanıcı isteği: Rakip Bul'daki "Filtrele" paneline derece, herkes/arkadaşlarım, boş
+    // kontenjanda aranan cinsiyet ve fiyat aralığı filtreleri eklendi — diğer filtreler gibi
+    // (kort/mekan adı, tarih vb.) bilerek kalıcı yapılmadı, sadece sekme bazlı tutulur.
+    const [tabFilterMinRating, setTabFilterMinRating] = useState({});
+    const [tabFilterMaxRating, setTabFilterMaxRating] = useState({});
+    const [tabFilterFriendsOnly, setTabFilterFriendsOnly] = useState({});
+    const [tabFilterGenderSought, setTabFilterGenderSought] = useState({}); // null | 'MALE' | 'FEMALE'
+    const [tabFilterMinPrice, setTabFilterMinPrice] = useState({});
+    const [tabFilterMaxPrice, setTabFilterMaxPrice] = useState({});
+    const filterMinRating = tabFilterMinRating[activeTab] ?? null;
+    const setFilterMinRating = (v) => setTabFilterMinRating(p => ({ ...p, [activeTab]: v }));
+    const filterMaxRating = tabFilterMaxRating[activeTab] ?? null;
+    const setFilterMaxRating = (v) => setTabFilterMaxRating(p => ({ ...p, [activeTab]: v }));
+    const filterFriendsOnly = tabFilterFriendsOnly[activeTab] || false;
+    const setFilterFriendsOnly = (v) => setTabFilterFriendsOnly(p => ({ ...p, [activeTab]: v }));
+    const filterGenderSought = tabFilterGenderSought[activeTab] || null;
+    const setFilterGenderSought = (v) => setTabFilterGenderSought(p => ({ ...p, [activeTab]: v }));
+    const filterMinPrice = tabFilterMinPrice[activeTab] || '';
+    const setFilterMinPrice = (v) => setTabFilterMinPrice(p => ({ ...p, [activeTab]: v }));
+    const filterMaxPrice = tabFilterMaxPrice[activeTab] || '';
+    const setFilterMaxPrice = (v) => setTabFilterMaxPrice(p => ({ ...p, [activeTab]: v }));
+    // "Arkadaşlarım" filtresi için — sadece filtre panelinde kullanılıyor, bir kez çekilip
+    // Set olarak tutuluyor (arkadaş sayısı yüzlerce olsa bile applyFilter içinde O(1) bakış).
+    const [myFriendIds, setMyFriendIds] = useState(() => new Set());
+    useEffect(() => {
+        api.get('/friends').then(({ data }) => {
+            setMyFriendIds(new Set((Array.isArray(data) ? data : []).map(f => f.id)));
+        }).catch(() => {});
+    }, []);
     const [showCityFilter, setShowCityFilter] = useState(false);
     const [showDateFilter, setShowDateFilter] = useState(false);
     const [showFilterModal, setShowFilterModal] = useState(false);
