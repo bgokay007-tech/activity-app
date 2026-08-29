@@ -19746,8 +19746,14 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     // Kullanıcı isteği: "İlan Oluştur"a basınca daha önce CV yüklemiş bir antrenörün
     // kimlik/belge bilgisi otomatik dolsun, yeniden başvuru gibi davranmasın.
+    // Kullanıcı isteği: CV/onay eksikse uyarı formu AÇMADAN önce, "İlan Oluştur"a
+    // basar basmaz gelsin — kullanıcı koca formu doldurup sona kadar uğraşmasın.
     const openCreateCoachModal = () => {
         const existing = coachListings.find(c => c.userId === myId && c.cvUrl);
+        if (COACH_APPROVAL_SPORTS.includes(sub)) {
+            if (!existing) return Alert.alert('', 'Bu dalda antrenörlük için önce kimlik/belge bilgilerinizi CV Yükle ekranından göndermeniz gerekiyor.');
+            if (!existing.approved) return Alert.alert('', 'Antrenörlük onayınız bulunmamaktadır. CVler\'den antrenörlük için başvurabilirsiniz.');
+        }
         if (existing) {
             setExistingCoachCv(existing);
             setCoachForm(f => ({
