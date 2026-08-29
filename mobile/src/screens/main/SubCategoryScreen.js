@@ -19770,6 +19770,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         // profesyonel seviye seçilmişse CV Yükle ekranı zaten belge/deneyim istiyor.
         // Bu dallarda hiç kimlik/belge kaydı (existingCoachCv) yoksa önce oraya gitmesi gerekiyor.
         if (COACH_APPROVAL_SPORTS.includes(sub) && !existingCoachCv) return Alert.alert('', 'Bu dalda antrenörlük için önce kimlik/belge bilgilerinizi CV Yükle ekranından göndermeniz gerekiyor.');
+        // Kullanıcı isteği: CV yüklenmiş ama admin onayı henüz gelmemişse ilan oluşturmaya
+        // çalışırken bunu açıkça belirten bir uyarı versin.
+        if (COACH_APPROVAL_SPORTS.includes(sub) && existingCoachCv && !existingCoachCv.approved) return Alert.alert('', 'Antrenörlük onayınız bulunmamaktadır. CVler\'den antrenörlük için başvurabilirsiniz.');
         setSubmittingCoach(true);
         try {
             const certificateUrls = existingCoachCv?.certificateUrls?.length
