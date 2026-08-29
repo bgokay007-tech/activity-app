@@ -284,6 +284,20 @@ const starEmoji = (rating) => rating > 5 ? '⭐⭐⭐' : '⭐';
 // Handles both the sender shape ({interests:[{alias}]}) and the participant snapshot shape ({alias})
 const senderAlias = (p) => p?.alias || p?.interests?.[0]?.alias || `${p?.username}`;
 const playerDisplayName = (p) => p?.alias || p?.interests?.[0]?.alias || p?.fullName || p?.username || '';
+// Kullanıcı isteği: antrenör CV'sinde doğum tarihi artık gün/ay/yıl — GG.AA.YYYY olarak
+// gösterilir (bkz. CoachListing.personalBirthDate, eskiden sadece yıldı).
+const formatBirthDate = (dateStr) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    return `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth()+1).padStart(2,'0')}.${d.getUTCFullYear()}`;
+};
+// Kullanıcı isteği: "daha önce çalıştığı yerler" artık [{workplace,position,period}] dizisi —
+// kompakt tek satırlık gösterim için "Yer (Pozisyon, Dönem)" formatına çevrilir.
+const formatPriorExperience = (arr) => Array.isArray(arr) ? arr
+    .filter(p => p?.workplace || p?.position || p?.period)
+    .map(p => [p.workplace, [p.position, p.period].filter(Boolean).join(', ')].filter(Boolean).join(' — '))
+    .join(' · ') : '';
 
 // Çiftler Rekabetçi: katılımcı/başvuru satırlarını karşılıklı partnerId'ye göre
 // ikili (pairs) ve bireysel (solos) olarak gruplar — backend formTeamsForTournament
@@ -19116,10 +19130,16 @@ export default function SubCategoryScreen({ route, navigation }) {
     // kimlik/belge + deneyim + başarılar + CV bilgisini toplayan kendi formu — İlan Oluştur'dan
     // tamamen bağımsız state, iki modal arasında veri sızmasın diye.
     const [cvProfileForm, setCvProfileForm] = useState({
-        credentialLevel: 'INDEPENDENT', certName: '', experience: '', achievements: '',
+        // Kullanıcı isteği: başarılar birden fazla "Ekle" ile eklenebilsin — tek string yerine
+        // dizi. Boş bir satırla başlar, kullanıcı doldurmazsa gönderimde filtrelenir.
+        credentialLevel: 'INDEPENDENT', certName: '', experience: '', achievements: [''],
         // Kullanıcı isteği: antrenörlük CV'sinde kişisel bilgiler + daha önce nerede/ne zaman
-        // antrenörlük yaptığı — sadece antrenörlük için, hakemlikte kullanılmıyor.
-        personalFullName: '', personalGender: '', personalBirthYear: '', priorExperience: '',
+        // antrenörlük yaptığı — sadece antrenörlük için, hakemlikte kullanılmıyor. Doğum
+        // tarihi artık sadece yıl değil gün/ay/yıl; çalıştığı yerler de "Ekle" ile birden
+        // fazla satır olarak (workplace/position/period) girilebiliyor.
+        personalFullName: '', personalGender: '',
+        personalBirthDay: '', personalBirthMonth: '', personalBirthYear: '',
+        priorExperience: [{ workplace: '', position: '', period: '' }],
     });
     const [cvProfileCertImages, setCvProfileCertImages] = useState([]);
     const [cvProfileAchievementImages, setCvProfileAchievementImages] = useState([]);
@@ -19771,7 +19791,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 // gösterilsin — CV Yükle'de girilmiş olan bilgiler gerçek ilana da taşınır.
                 personalFullName: existingCoachCv?.personalFullName || undefined,
                 personalGender: existingCoachCv?.personalGender || undefined,
-                personalBirthYear: existingCoachCv?.personalBirthYear || undefined,
+                personalBirthDate: existingCoachCv?.personalBirthDate || undefined,
                 priorExperience: existingCoachCv?.priorExperience || undefined,
             });
             setShowCreateCoach(false);
@@ -19946,8 +19966,10 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const resetCvProfileForm = () => {
         setCvProfileForm({
-            credentialLevel: 'INDEPENDENT', certName: '', experience: '', achievements: '',
-            personalFullName: '', personalGender: '', personalBirthYear: '', priorExperience: '',
+            credentialLevel: 'INDEPENDENT', certName: '', experience: '', achievements: [''],
+            personalFullName: '', personalGender: '',
+            personalBirthDay: '', personalBirthMonth: '', personalBirthYear: '',
+            priorExperience: [{ workplace: '', position: '', period: '' }],
         });
         setCvProfileCertImages([]);
         setCvProfileAchievementImages([]);
@@ -19980,6 +20002,21 @@ export default function SubCategoryScreen({ route, navigation }) {
             if (!hasCertPhoto) return Alert.alert('', 'Bu seviyede belge fotoğrafı yüklemeniz zorunludur.');
             if (!cvProfileForm.experience || parseInt(cvProfileForm.experience) <= 0) return Alert.alert('', 'Bu seviyede deneyim yılını girmeniz zorunludur.');
         }
+        // Kullanıcı isteği: doğum tarihi gün/ay/yıl olarak giriliyor — üçü de doluysa geçerli
+        // bir tarihe birleştirilir, hiçbiri girilmediyse atlanır; kısmi doldurulmuşsa uyarılır.
+        const { personalBirthDay: bDay, personalBirthMonth: bMonth, personalBirthYear: bYear } = cvProfileForm;
+        const birthFieldsFilled = [bDay, bMonth, bYear].filter(v => v && v.trim()).length;
+        if (!isReferee && birthFieldsFilled > 0 && birthFieldsFilled < 3) {
+            return Alert.alert('', 'Doğum tarihini girecekseniz gün/ay/yıl üçünü de doldurun.');
+        }
+        let personalBirthDate;
+        if (!isReferee && birthFieldsFilled === 3) {
+            const d = parseInt(bDay, 10), m = parseInt(bMonth, 10), y = parseInt(bYear, 10);
+            if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1900 || y > new Date().getFullYear()) {
+                return Alert.alert('', 'Geçerli bir doğum tarihi girin.');
+            }
+            personalBirthDate = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        }
         setSubmittingCvProfile(true);
         try {
             const newCertUrls = [];
@@ -19999,13 +20036,15 @@ export default function SubCategoryScreen({ route, navigation }) {
                 credentialLevel: cvProfileForm.credentialLevel,
                 certName: cvProfileForm.certName,
                 experience: parseInt(cvProfileForm.experience) || 0,
-                achievements: cvProfileForm.achievements,
+                achievements: cvProfileForm.achievements.map(a => a.trim()).filter(Boolean),
                 certificateUrls, achievementUrls, cvUrl,
                 ...(!isReferee && {
                     personalFullName: cvProfileForm.personalFullName,
                     personalGender: cvProfileForm.personalGender,
-                    personalBirthYear: parseInt(cvProfileForm.personalBirthYear) || undefined,
-                    priorExperience: cvProfileForm.priorExperience,
+                    personalBirthDate,
+                    priorExperience: cvProfileForm.priorExperience
+                        .map(p => ({ workplace: p.workplace.trim(), position: p.position.trim(), period: p.period.trim() }))
+                        .filter(p => p.workplace || p.position || p.period),
                 }),
             };
 
@@ -22528,7 +22567,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     {(r.timeFrom || r.timeTo) && <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {r.timeFrom} - {r.timeTo}</Text>}
                                                     {(r.city || (Array.isArray(r.cities) && r.cities.length > 0)) && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {Array.isArray(r.cities) && r.cities.length > 0 ? r.cities.join(', ') : r.city}{r.location ? ` / ${r.location}` : ''}</Text>}
                                                     {r.description && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={2}>{r.description}</Text>}
-                                                    {r.achievements && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {r.achievements}</Text>}
+                                                    {Array.isArray(r.achievements) && r.achievements.length > 0 && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {r.achievements.join(' · ')}</Text>}
                                                     {r.userId !== myId && (
                                                         <TouchableOpacity
                                                             onPress={() => reportListing('referees', r.id)}
@@ -22662,7 +22701,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {(c.city || (Array.isArray(c.cities) && c.cities.length > 0)) && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
                                             {c.includedEquipment && <Text style={{ color:colors.textMuted, fontSize:11 }}>🎒 Fiyata dahil: {c.includedEquipment}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={2}>{c.description}</Text>}
-                                            {c.achievements && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {c.achievements}</Text>}
+                                            {Array.isArray(c.achievements) && c.achievements.length > 0 && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {c.achievements.join(' · ')}</Text>}
                                             {c.userId !== myId && (
                                                 <TouchableOpacity
                                                     onPress={() => setCoachDetailListing(c)}
@@ -22731,9 +22770,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     {/* Kullanıcı isteği: ilan detayında kullanıcı adı değil kişisel
                                                         bilgiler (isim soyisim, cinsiyet, doğum yılı) gösterilsin. */}
                                                     <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>{c.personalFullName || c.user?.fullName || c.user?.username}</Text>
-                                                    {(c.personalGender || c.personalBirthYear) && (
+                                                    {(c.personalGender || c.personalBirthDate) && (
                                                         <Text style={{ color:colors.textMuted, fontSize:12 }}>
-                                                            {[c.personalGender === 'MALE' ? 'Erkek' : c.personalGender === 'FEMALE' ? 'Kadın' : c.personalGender === 'OTHER' ? 'Diğer' : null, c.personalBirthYear].filter(Boolean).join(' · ')}
+                                                            {[c.personalGender === 'MALE' ? 'Erkek' : c.personalGender === 'FEMALE' ? 'Kadın' : c.personalGender === 'OTHER' ? 'Diğer' : null, formatBirthDate(c.personalBirthDate)].filter(Boolean).join(' · ')}
                                                         </Text>
                                                     )}
                                                     <Text style={{ color:colors.textMuted, fontSize:12 }}>{c.credentialLevel}{c.certName ? ` · ${c.certName}` : ''}</Text>
@@ -22757,8 +22796,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:13, marginTop:8, lineHeight:19 }}>{c.description}</Text>}
                                             {/* Kullanıcı isteği: daha önce nerede/ne zaman antrenörlük yaptığı,
                                                 başarıların ÜSTÜNDE gösterilsin. */}
-                                            {c.priorExperience && <Text style={{ color:colors.textSecondary, fontSize:13, marginTop:8, lineHeight:19 }}>📋 {c.priorExperience}</Text>}
-                                            {c.achievements && <Text style={{ color:'#fbbf24', fontSize:13, marginTop:8, lineHeight:19 }}>🏆 {c.achievements}</Text>}
+                                            {formatPriorExperience(c.priorExperience) ? <Text style={{ color:colors.textSecondary, fontSize:13, marginTop:8, lineHeight:19 }}>📋 {formatPriorExperience(c.priorExperience)}</Text> : null}
+                                            {Array.isArray(c.achievements) && c.achievements.length > 0 && <Text style={{ color:'#fbbf24', fontSize:13, marginTop:8, lineHeight:19 }}>🏆 {c.achievements.join(' · ')}</Text>}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:12 }}>
                                                 {(c.certificateUrls?.length > 0 || c.certificateUrl) && (
                                                     <TouchableOpacity onPress={() => Linking.openURL(c.certificateUrls?.[0] || c.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor:'#1e40af50' }}>
@@ -22813,9 +22852,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         : <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>⏳ Onay Bekliyor</Text>
                                                 )}
                                             </View>
-                                            {(existingCoachCv.personalFullName || existingCoachCv.personalGender || existingCoachCv.personalBirthYear) && (
+                                            {(existingCoachCv.personalFullName || existingCoachCv.personalGender || existingCoachCv.personalBirthDate) && (
                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:2 }}>
-                                                    {[existingCoachCv.personalFullName, existingCoachCv.personalGender === 'MALE' ? 'Erkek' : existingCoachCv.personalGender === 'FEMALE' ? 'Kadın' : existingCoachCv.personalGender === 'OTHER' ? 'Diğer' : null, existingCoachCv.personalBirthYear].filter(Boolean).join(' · ')}
+                                                    {[existingCoachCv.personalFullName, existingCoachCv.personalGender === 'MALE' ? 'Erkek' : existingCoachCv.personalGender === 'FEMALE' ? 'Kadın' : existingCoachCv.personalGender === 'OTHER' ? 'Diğer' : null, formatBirthDate(existingCoachCv.personalBirthDate)].filter(Boolean).join(' · ')}
                                                 </Text>
                                             )}
                                             <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:2 }}>
@@ -22823,8 +22862,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 {existingCoachCv.experience > 0 ? ` · ${existingCoachCv.experience} yıl deneyim` : ''}
                                             </Text>
                                             {existingCoachCv.certName ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:2 }}>{existingCoachCv.certName}</Text> : null}
-                                            {existingCoachCv.priorExperience ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:2 }}>📋 {existingCoachCv.priorExperience}</Text> : null}
-                                            {existingCoachCv.achievements ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:6 }}>🏆 {existingCoachCv.achievements}</Text> : null}
+                                            {formatPriorExperience(existingCoachCv.priorExperience) ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:2 }}>📋 {formatPriorExperience(existingCoachCv.priorExperience)}</Text> : null}
+                                            {Array.isArray(existingCoachCv.achievements) && existingCoachCv.achievements.length > 0 ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:6 }}>🏆 {existingCoachCv.achievements.join(' · ')}</Text> : null}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
                                                 {existingCoachCv.cvUrl && (
                                                     <TouchableOpacity onPress={() => Linking.openURL(existingCoachCv.cvUrl)} style={{ backgroundColor: cfg.color+'20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor: cfg.color+'50' }}>
@@ -22966,15 +23005,22 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     const openCvForm = (l, type) => {
                                         setCvUploadListingId(l ? l.id : null);
                                         setCvUploadType(type);
+                                        // Kullanıcı isteği: doğum tarihi artık gün/ay/yıl ayrı ayrı girilir —
+                                        // mevcut kayıttaki ISO tarihten (varsa) 3 alana ayrıştırılır.
+                                        const bd = l?.personalBirthDate ? new Date(l.personalBirthDate) : null;
                                         setCvProfileForm({
                                             credentialLevel: l?.credentialLevel || 'INDEPENDENT',
                                             certName: l?.certName || '',
                                             experience: l?.experience ? String(l.experience) : '',
-                                            achievements: l?.achievements || '',
+                                            achievements: Array.isArray(l?.achievements) && l.achievements.length > 0 ? l.achievements : [''],
                                             personalFullName: l?.personalFullName || '',
                                             personalGender: l?.personalGender || '',
-                                            personalBirthYear: l?.personalBirthYear ? String(l.personalBirthYear) : '',
-                                            priorExperience: l?.priorExperience || '',
+                                            personalBirthDay: bd ? String(bd.getUTCDate()).padStart(2, '0') : '',
+                                            personalBirthMonth: bd ? String(bd.getUTCMonth() + 1).padStart(2, '0') : '',
+                                            personalBirthYear: bd ? String(bd.getUTCFullYear()) : '',
+                                            priorExperience: Array.isArray(l?.priorExperience) && l.priorExperience.length > 0
+                                                ? l.priorExperience.map(p => ({ workplace: p?.workplace || '', position: p?.position || '', period: p?.period || '' }))
+                                                : [{ workplace: '', position: '', period: '' }],
                                         });
                                         setCvProfileCertImages([]);
                                         setCvProfileAchievementImages([]);
@@ -23050,7 +23096,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             </TouchableOpacity>
                                                         ))}
                                                     </View>
-                                                    <TextInput placeholder="Doğum Yılı (örn. 1995)" placeholderTextColor={colors.textMuted} value={cvProfileForm.personalBirthYear} onChangeText={v => setCvProfileForm(f=>({...f,personalBirthYear:v.replace(/[^0-9]/,'').slice(0,4)}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+                                                    {/* Kullanıcı isteği: doğum tarihi sadece yıl değil gün/ay/yıl olarak girilebilsin. */}
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Doğum Tarihi</Text>
+                                                    <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
+                                                        <TextInput placeholder="Gün" placeholderTextColor={colors.textMuted} value={cvProfileForm.personalBirthDay} onChangeText={v => setCvProfileForm(f=>({...f,personalBirthDay:v.replace(/[^0-9]/,'').slice(0,2)}))} keyboardType="numeric" maxLength={2} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, textAlign:'center' }} />
+                                                        <TextInput placeholder="Ay" placeholderTextColor={colors.textMuted} value={cvProfileForm.personalBirthMonth} onChangeText={v => setCvProfileForm(f=>({...f,personalBirthMonth:v.replace(/[^0-9]/,'').slice(0,2)}))} keyboardType="numeric" maxLength={2} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, textAlign:'center' }} />
+                                                        <TextInput placeholder="Yıl" placeholderTextColor={colors.textMuted} value={cvProfileForm.personalBirthYear} onChangeText={v => setCvProfileForm(f=>({...f,personalBirthYear:v.replace(/[^0-9]/,'').slice(0,4)}))} keyboardType="numeric" maxLength={4} style={{ flex:1.4, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, textAlign:'center' }} />
+                                                    </View>
                                                 </>
                                             )}
 
@@ -23098,15 +23150,56 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                                             {/* Kullanıcı isteği: daha önce nerede/ne zaman antrenörlük yaptığı,
                                                 başarıların ÜSTÜNDE gösterilsin — sadece antrenörlükte. */}
+                                            {/* Kullanıcı isteği: "Ekle" dedikçe aynı satırda 3 form (çalıştığı
+                                                yer/firma, pozisyon, çalıştığı zaman aralığı) — istediği kadar
+                                                satır ekleyebilir. */}
                                             {!isReferee && (
                                                 <>
-                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Daha Önce Çalıştığı Yerler / Zamanlar</Text>
-                                                    <TextInput placeholder="Örn. 2019-2021 X Kulübü, 2021-2023 Y Tesisleri (opsiyonel)" placeholderTextColor={colors.textMuted} value={cvProfileForm.priorExperience} onChangeText={v => setCvProfileForm(f=>({...f,priorExperience:v}))} multiline numberOfLines={2} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:50, textAlignVertical:'top' }} />
+                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Daha Önce Çalıştığı Yerler</Text>
+                                                    {cvProfileForm.priorExperience.map((row, idx) => (
+                                                        <View key={idx} style={{ flexDirection:'row', gap:3, marginBottom:6, alignItems:'center' }}>
+                                                            <TextInput placeholder="Çalıştığı yer/firma" placeholderTextColor={colors.textMuted} value={row.workplace}
+                                                                onChangeText={v => setCvProfileForm(f => ({ ...f, priorExperience: f.priorExperience.map((r,i) => i===idx ? {...r, workplace:v} : r) }))}
+                                                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:7, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, fontSize:11 }} />
+                                                            <TextInput placeholder="Pozisyon" placeholderTextColor={colors.textMuted} value={row.position}
+                                                                onChangeText={v => setCvProfileForm(f => ({ ...f, priorExperience: f.priorExperience.map((r,i) => i===idx ? {...r, position:v} : r) }))}
+                                                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:7, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, fontSize:11 }} />
+                                                            <TextInput placeholder="Tarih aralığı" placeholderTextColor={colors.textMuted} value={row.period}
+                                                                onChangeText={v => setCvProfileForm(f => ({ ...f, priorExperience: f.priorExperience.map((r,i) => i===idx ? {...r, period:v} : r) }))}
+                                                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:7, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, fontSize:11 }} />
+                                                            {cvProfileForm.priorExperience.length > 1 && (
+                                                                <TouchableOpacity onPress={() => setCvProfileForm(f => ({ ...f, priorExperience: f.priorExperience.filter((_,i) => i !== idx) }))} style={{ paddingHorizontal:2 }}>
+                                                                    <Text style={{ color:'#ef4444', fontSize:14, fontWeight:'900' }}>✕</Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                        </View>
+                                                    ))}
+                                                    <TouchableOpacity onPress={() => setCvProfileForm(f => ({ ...f, priorExperience: [...f.priorExperience, { workplace:'', position:'', period:'' }] }))}
+                                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
+                                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>+ Ekle</Text>
+                                                    </TouchableOpacity>
                                                 </>
                                             )}
 
+                                            {/* Kullanıcı isteği: başarılarda da "Ekle" olsun, birden fazla
+                                                başarı girilebilsin. */}
                                             <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Başarılar</Text>
-                                            <TextInput placeholder="Başarılarınız (opsiyonel)" placeholderTextColor={colors.textMuted} value={cvProfileForm.achievements} onChangeText={v => setCvProfileForm(f=>({...f,achievements:v}))} multiline numberOfLines={2} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:50, textAlignVertical:'top' }} />
+                                            {cvProfileForm.achievements.map((ach, idx) => (
+                                                <View key={idx} style={{ flexDirection:'row', gap:3, marginBottom:6, alignItems:'center' }}>
+                                                    <TextInput placeholder="Başarınız (örn. 2023 Bölge Şampiyonu)" placeholderTextColor={colors.textMuted} value={ach}
+                                                        onChangeText={v => setCvProfileForm(f => ({ ...f, achievements: f.achievements.map((a,i) => i===idx ? v : a) }))}
+                                                        style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, fontSize:12 }} />
+                                                    {cvProfileForm.achievements.length > 1 && (
+                                                        <TouchableOpacity onPress={() => setCvProfileForm(f => ({ ...f, achievements: f.achievements.filter((_,i) => i !== idx) }))} style={{ paddingHorizontal:2 }}>
+                                                            <Text style={{ color:'#ef4444', fontSize:14, fontWeight:'900' }}>✕</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
+                                            ))}
+                                            <TouchableOpacity onPress={() => setCvProfileForm(f => ({ ...f, achievements: [...f.achievements, ''] }))}
+                                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
+                                                <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>+ Ekle</Text>
+                                            </TouchableOpacity>
                                             {cvProfileAchievementImages.length > 0 && (
                                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
                                                     {cvProfileAchievementImages.map((uri, idx) => (
@@ -23298,7 +23391,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 {existingRefereeCv.experience > 0 ? ` · ${existingRefereeCv.experience} yıl deneyim` : ''}
                                             </Text>
                                             {existingRefereeCv.certName ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:2 }}>{existingRefereeCv.certName}</Text> : null}
-                                            {existingRefereeCv.achievements ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:6 }}>🏆 {existingRefereeCv.achievements}</Text> : null}
+                                            {Array.isArray(existingRefereeCv.achievements) && existingRefereeCv.achievements.length > 0 ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:6 }}>🏆 {existingRefereeCv.achievements.join(' · ')}</Text> : null}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
                                                 {existingRefereeCv.cvUrl && (
                                                     <TouchableOpacity onPress={() => Linking.openURL(existingRefereeCv.cvUrl)} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}>
