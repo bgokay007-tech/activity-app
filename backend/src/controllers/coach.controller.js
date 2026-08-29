@@ -189,7 +189,7 @@ export const createListing = async (req, res, next) => {
             category, subCategory,
             credentialLevel, certName, certificateUrl, certificateUrls, experience,
             achievements, achievementUrls, cvUrl,
-            individual, group, priceIndividual, priceGroup, maxGroupSize,
+            individual, group, priceIndividual, priceGroup, maxGroupSize, includedEquipment,
             location, cities, days, timeFrom, timeTo, description,
             personalFullName, personalGender, personalBirthYear, priorExperience,
             // Kullanıcı isteği: CV Yükle ekranı artık ders tipi/ücret/yer-zaman istemeden
@@ -235,6 +235,7 @@ export const createListing = async (req, res, next) => {
                 priceIndividual: Number(priceIndividual) || 0,
                 priceGroup: Number(priceGroup) || 0,
                 maxGroupSize: Number(maxGroupSize) || 4,
+                includedEquipment: includedEquipment || null,
                 location: location || null, cities: citiesArr,
                 days: days || [],
                 timeFrom: timeFrom || '09:00',
@@ -291,7 +292,7 @@ export const updateListing = async (req, res, next) => {
         const {
             credentialLevel, certName, certificateUrl, certificateUrls, experience,
             achievements, achievementUrls, cvUrl,
-            individual, group, priceIndividual, priceGroup, maxGroupSize,
+            individual, group, priceIndividual, priceGroup, maxGroupSize, includedEquipment,
             location, cities, days, timeFrom, timeTo, description,
             personalFullName, personalGender, personalBirthYear, priorExperience,
         } = req.body;
@@ -325,6 +326,7 @@ export const updateListing = async (req, res, next) => {
                 ...(priceIndividual !== undefined && { priceIndividual: Number(priceIndividual) || 0 }),
                 ...(priceGroup !== undefined && { priceGroup: Number(priceGroup) || 0 }),
                 ...(maxGroupSize !== undefined && { maxGroupSize: Number(maxGroupSize) || 4 }),
+                ...(includedEquipment !== undefined && { includedEquipment: includedEquipment || null }),
                 ...(location !== undefined && { location: location || null }),
                 ...(cities !== undefined && { cities: Array.isArray(cities) ? cities.filter(Boolean) : [] }),
                 ...(days !== undefined && { days }),

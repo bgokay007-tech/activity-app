@@ -19059,7 +19059,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [coachForm, setCoachForm] = useState({
         credentialLevel: 'INDEPENDENT', certName: '', experience: '',
         achievements: '', individual: true, group: false,
-        priceIndividual: '', priceGroup: '', maxGroupSize: '4',
+        priceIndividual: '', priceGroup: '', maxGroupSize: '4', includedEquipment: '',
         location: '', cities: [], days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
         locationMutual: false,
     });
@@ -19672,7 +19672,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         setCoachForm({
             credentialLevel: 'INDEPENDENT', certName: '', experience: '',
             achievements: '', individual: true, group: false,
-            priceIndividual: '', priceGroup: '', maxGroupSize: '4',
+            priceIndividual: '', priceGroup: '', maxGroupSize: '4', includedEquipment: '',
             location: '', cities: [], days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
         });
         setExistingCoachCv(null);
@@ -22448,6 +22448,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 ? <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {c.days.map(d => `${d.day} ${d.timeFrom}-${d.timeTo}`).join(', ')}</Text>
                                                 : (c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
                                             {(c.city || (Array.isArray(c.cities) && c.cities.length > 0)) && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
+                                            {c.includedEquipment && <Text style={{ color:colors.textMuted, fontSize:11 }}>🎒 Fiyata dahil: {c.includedEquipment}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={2}>{c.description}</Text>}
                                             {c.achievements && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {c.achievements}</Text>}
                                             {c.userId !== myId && (
@@ -22540,6 +22541,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 ? <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>📆 {c.days.map(d => `${d.day} ${d.timeFrom}-${d.timeTo}`).join(', ')}</Text>
                                                 : (c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
                                             {(c.city || (Array.isArray(c.cities) && c.cities.length > 0)) && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>📍 {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
+                                            {c.includedEquipment && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>🎒 Fiyata dahil: {c.includedEquipment}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:13, marginTop:8, lineHeight:19 }}>{c.description}</Text>}
                                             {/* Kullanıcı isteği: daha önce nerede/ne zaman antrenörlük yaptığı,
                                                 başarıların ÜSTÜNDE gösterilsin. */}
@@ -22585,29 +22587,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         {category === 'ARTS' ? '🎓 Kurs Oluştur' : '🎓 Ders İlanı Oluştur'}
                                     </Text>
                                     {/* Kullanıcı isteği: kimlik/belge/CV bilgileri artık bu formda
-                                        DOLDURULMUYOR — o bilgi ayrı "CV Yükle" akışının işi (bkz.
-                                        showCvUploadModal). CV/kimlik bilgisi yoksa (özellikle admin
-                                        onayı gereken dallarda) formu göstermeden önce oraya yönlendirilir;
-                                        varsa mevcut CV bilgisi salt-okunur olarak en altta gösterilir. */}
-                                    {!existingCoachCv && COACH_APPROVAL_SPORTS.includes(sub) ? (
-                                        <View style={{ backgroundColor:'#f59e0b15', borderRadius:12, borderWidth:1, borderColor:'#f59e0b50', padding:14, alignItems:'center', gap:8 }}>
-                                            <Text style={{ fontSize:28 }}>📄</Text>
-                                            <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800', textAlign:'center' }}>
-                                                Önce CV/Kimlik Bilgilerinizi Yükleyin
-                                            </Text>
-                                            <Text style={{ color: colors.textSecondary, fontSize:11, textAlign:'center' }}>
-                                                Bu dalda ilan oluşturabilmek için önce kimlik/belge/CV bilgilerinizi göndermeniz ve admin onayı almanız gerekiyor.
-                                            </Text>
-                                            <TouchableOpacity onPress={() => { setShowCreateCoach(false); setCvUploadContext('coach'); setShowCvUploadModal(true); }}
-                                                style={{ backgroundColor: cfg.color, borderRadius:10, paddingHorizontal:16, paddingVertical:8, marginTop:4 }}>
-                                                <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>CV Yükle</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    ) : (
-                                    <>
-                                    {/* Kullanıcı isteği: yüklenen CV bilgisi ilanın EN ÜSTÜNDE otomatik
-                                        dolu gösterilsin, sonra ücret/müsaitlik/açıklama doldurulup ilan
-                                        açılsın — salt-okunur, değiştirmek için CV Yükle'ye gidilir. */}
+                                        DOLDURULMUYOR — o bilgi ayrı "CV Yükle" akışının işi. Form HER
+                                        ZAMAN gösterilir (CV yoksa engellenmez) — yüklenen CV bilgisi
+                                        ilanın EN ÜSTÜNDE otomatik dolu gösterilsin, sonra ücret/ders
+                                        tipi/müsaitlik/ekipman/açıklama doldurulup ilan açılsın. */}
                                     {existingCoachCv && (
                                         <View style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor:colors.border, padding:12, marginBottom:14 }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
@@ -22737,6 +22720,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </View>
                                     )}
 
+                                    {/* Kullanıcı isteği: fiyata dahil olan ekipmanlar (örn. raket, top) belirtilebilsin. */}
+                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Fiyata Dahil Ekipmanlar</Text>
+                                    <TextInput placeholder="Örn. Raket, Top (opsiyonel)" placeholderTextColor={colors.textMuted} value={coachForm.includedEquipment} onChangeText={v => setCoachForm(f=>({...f,includedEquipment:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+
                                     <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={coachForm.description} onChangeText={v => setCoachForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
 
                                     <View style={{ flexDirection:'row', gap:3 }}>
@@ -22749,8 +22736,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </Text>
                                         </TouchableOpacity>
                                     </View>
-                                    </>
-                                    )}
                                 </ScrollView>
                             </View>
                         </View>
@@ -23083,25 +23068,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🟨 Hakem İlanı Oluştur</Text>
                                     {/* Kullanıcı isteği: kimlik/belge/CV bilgileri artık bu formda
                                         DOLDURULMUYOR — o bilgi ayrı "CV Yükle" akışının işi (bkz. coach
-                                        formundaki aynı desen). CV/kimlik bilgisi yoksa (admin onayı
-                                        gereken dallarda) formu göstermeden önce oraya yönlendirilir;
-                                        varsa mevcut CV bilgisi salt-okunur olarak en üstte gösterilir. */}
-                                    {!existingRefereeCv && REFEREE_APPROVAL_SPORTS.includes(sub) ? (
-                                        <View style={{ backgroundColor:'#f59e0b15', borderRadius:12, borderWidth:1, borderColor:'#f59e0b50', padding:14, alignItems:'center', gap:8 }}>
-                                            <Text style={{ fontSize:28 }}>📄</Text>
-                                            <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800', textAlign:'center' }}>
-                                                Önce CV/Kimlik Bilgilerinizi Yükleyin
-                                            </Text>
-                                            <Text style={{ color: colors.textSecondary, fontSize:11, textAlign:'center' }}>
-                                                Bu dalda ilan oluşturabilmek için önce kimlik/belge/CV bilgilerinizi göndermeniz ve admin onayı almanız gerekiyor.
-                                            </Text>
-                                            <TouchableOpacity onPress={() => { setShowCreateReferee(false); setCvUploadContext('referee'); setShowCvUploadModal(true); }}
-                                                style={{ backgroundColor:'#f59e0b', borderRadius:10, paddingHorizontal:16, paddingVertical:8, marginTop:4 }}>
-                                                <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>CV Yükle</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    ) : (
-                                    <>
+                                        formundaki aynı desen). Form HER ZAMAN gösterilir (CV yoksa
+                                        engellenmez); varsa mevcut CV bilgisi salt-okunur olarak en
+                                        üstte gösterilir. */}
                                     {existingRefereeCv && (
                                         <View style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor:colors.border, padding:12, marginBottom:14 }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
@@ -23183,8 +23152,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </Text>
                                         </TouchableOpacity>
                                     </View>
-                                    </>
-                                    )}
                                 </ScrollView>
                             </View>
                         </View>

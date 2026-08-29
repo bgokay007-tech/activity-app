@@ -394,6 +394,7 @@ model CoachListing {
   priceIndividual Int      @default(0)   // per hour, local currency
   priceGroup      Int      @default(0)   // per person per session
   maxGroupSize    Int      @default(4)
+  includedEquipment String? // Kullanici istegi: fiyata dahil olan ekipmanlar (orn. Raket, Top)
 
   // Yer / Zaman
   location        String?  // kort/tesis adı — artık zorunlu değil, birden fazla şehirde ders
