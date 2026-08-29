@@ -20,9 +20,11 @@ export const getListings = async (req, res, next) => {
                 // Voleybol/tenis/padelde admin onayı olmayan bir ilan başkalarına GÖRÜNMEZ —
                 // sadece sahibi kendi başvurusunun durumunu (onay bekliyor) takip edebilsin
                 // diye kendi ilanını her zaman görür. Diğer dallarda approved kontrol edilmez.
+                // Ayrıca "sadece CV/kimlik-belge" kaydı (profileOnly) gerçek bir hakemlik
+                // teklifi değil, sahibi dışında kimseye görünmemeli.
                 OR: [
-                    { subCategory: { notIn: REFEREE_APPROVAL_SPORTS } },
-                    { approved: true },
+                    { subCategory: { notIn: REFEREE_APPROVAL_SPORTS }, profileOnly: false },
+                    { approved: true, profileOnly: false },
                     { userId: req.userId },
                 ],
             },
@@ -109,32 +111,40 @@ export const createListing = async (req, res, next) => {
     try {
         const {
             category, subCategory,
-            credentialLevel, certName, certificateUrl, experience,
+            credentialLevel, certName, certificateUrl, certificateUrls, experience,
             achievements, achievementUrls, cvUrl,
             pricePerMatch,
             location, cities, days, timeFrom, timeTo, description,
+            // Kullanıcı isteği: CV Yükle ekranı artık yer/zaman/ücret istemeden sadece
+            // kimlik/belge/CV/başarı bilgisini kaydedebiliyor (bkz. coach.controller.js).
+            profileOnly,
         } = req.body;
 
         const citiesArr = Array.isArray(cities) ? cities.filter(Boolean) : [];
+        const certUrlsArr = Array.isArray(certificateUrls) ? certificateUrls.filter(Boolean) : [];
         if (!credentialLevel || !category || !subCategory)
             return res.status(400).json({ message: 'Missing required fields' });
         // Kullanıcı isteği: konum artık zorunlu değil, onun yerine bir/birden fazla şehir
         // zorunlu — hakem hangi şehir(ler)de hakemlik yapabildiğini belirtmek zorunda.
-        if (citiesArr.length === 0)
+        // Sadece CV/kimlik-belge kaydeden (profileOnly) bir gönderi henüz gerçek bir
+        // hakemlik teklifi olmadığı için şehir istenmiyor.
+        if (!profileOnly && citiesArr.length === 0)
             return res.status(400).json({ message: 'En az bir şehir seçmelisiniz' });
         // Kullanıcı isteği: voleybol/tenis/padelde hakemlik başvurusu CV'siz gönderilemez —
         // admin onayı CV'ye bakarak veriliyor, CV eksikse başvuru zaten değerlendirilemez.
         if (REFEREE_APPROVAL_SPORTS.includes(subCategory) && !cvUrl)
-            return res.status(400).json({ message: 'Bu dalda hakemlik başvurusu için CV yüklemeniz zorunludur.' });
+            return res.status(400).json({ message: 'Bu dalda hakemlik için CV yüklemeniz zorunludur.' });
 
         const listing = await prisma.refereeListing.create({
             data: {
                 userId: req.userId,
                 category, subCategory,
-                credentialLevel, certName, certificateUrl,
+                credentialLevel, certName,
+                certificateUrl: certUrlsArr[0] || certificateUrl,
+                certificateUrls: certUrlsArr,
                 experience: Number(experience) || 0,
                 achievements, achievementUrls: achievementUrls || [], cvUrl,
-                pricePerMatch: Number(pricePerMatch) || 0,
+                pricePerMatch: profileOnly ? 0 : (Number(pricePerMatch) || 0),
                 location: location || null, cities: citiesArr,
                 days: days || [],
                 timeFrom: timeFrom || '09:00',
@@ -144,10 +154,15 @@ export const createListing = async (req, res, next) => {
                 // kalır); diğer dallarda hiç kontrol edilmediği için baştan onaylı sayılır —
                 // davranış değişmesin diye (bkz. resolveRefereeEligibility).
                 approved: !REFEREE_APPROVAL_SPORTS.includes(subCategory),
+                profileOnly: Boolean(profileOnly),
             },
             include: { user: { select: USER_SELECT } },
         });
         res.status(201).json(listing);
+
+        // Bir "sadece CV/kimlik-belge" gönderisi henüz gerçek bir hakemlik teklifi değil,
+        // kimseye bildirim gitmemeli.
+        if (profileOnly) return;
 
         // Notify city-alert subscribers for referees tab (async, non-blocking) — artık
         // birden fazla şehir olabildiği için her şehir için ayrı ayrı bildirim taranıyor.
@@ -183,7 +198,7 @@ export const updateListing = async (req, res, next) => {
             return res.status(403).json({ message: 'Forbidden' });
 
         const {
-            credentialLevel, certName, certificateUrl, experience,
+            credentialLevel, certName, certificateUrl, certificateUrls, experience,
             achievements, achievementUrls, cvUrl,
             pricePerMatch,
             location, cities, days, timeFrom, timeTo, description,
@@ -199,7 +214,11 @@ export const updateListing = async (req, res, next) => {
             data: {
                 ...(credentialLevel !== undefined && { credentialLevel }),
                 ...(certName !== undefined && { certName }),
-                ...(certificateUrl !== undefined && { certificateUrl }),
+                ...(certificateUrls !== undefined && {
+                    certificateUrls: Array.isArray(certificateUrls) ? certificateUrls.filter(Boolean) : [],
+                    certificateUrl: (Array.isArray(certificateUrls) ? certificateUrls.filter(Boolean) : [])[0] || certificateUrl,
+                }),
+                ...(certificateUrls === undefined && certificateUrl !== undefined && { certificateUrl }),
                 ...(experience !== undefined && { experience: Number(experience) || 0 }),
                 ...(achievements !== undefined && { achievements }),
                 ...(achievementUrls !== undefined && { achievementUrls }),

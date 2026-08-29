@@ -369,11 +369,16 @@ model CoachListing {
   // Kimlik / Belge
   credentialLevel String   // CERTIFIED | LICENSED | CLUB_COACH | INDEPENDENT | AMATEUR
   certName        String?  // "ITF Level 2", "PTR Professional" vb.
-  certificateUrl  String?  // yuklenen belge/sertifika dosyasi (pdf veya foto)
+  certificateUrl  String?  // yuklenen belge/sertifika dosyasi (pdf veya foto) — geriye donuk uyumluluk icin duruyor, yeni kayitlarda certificateUrls[0] ile ayni tutulur
+  certificateUrls Json     @default("[]") // birden fazla belge/sertifika fotografi
   experience      Int      @default(0) // years
   achievements    String?  // basarilar - yazili bilgi
   achievementUrls Json     @default("[]") // basari belgesi/foto dosyalari
   cvUrl           String?  // yuklenen CV dosyasi
+  // Kullanici istegi: CV Yukle ekrani ders tipi/ucret/sehir istemeden sadece kimlik/belge/CV
+  // kaydedebiliyor — boyle bir "kabuk" kayit gercek bir ders teklifi olmadigi icin baskalarina
+  // hic gorunmemeli, sadece sahibi kendi CV'sini gormek icin gorur (bkz. getListings).
+  profileOnly     Boolean  @default(false)
 
   // Ders tipleri
   individual      Boolean  @default(true)
@@ -476,11 +481,13 @@ model RefereeListing {
 
   credentialLevel String   // CERTIFIED | LICENSED | CLUB_REFEREE | INDEPENDENT | AMATEUR
   certName        String?
-  certificateUrl  String?
+  certificateUrl  String?  // geriye donuk uyumluluk icin duruyor, bkz. CoachListing.certificateUrl
+  certificateUrls Json     @default("[]")
   experience      Int      @default(0) // years
   achievements    String?
   achievementUrls Json     @default("[]")
   cvUrl           String?
+  profileOnly     Boolean  @default(false) // bkz. CoachListing.profileOnly ile ayni desen
 
   pricePerMatch   Int      @default(0)
 

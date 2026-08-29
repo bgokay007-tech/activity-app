@@ -19064,7 +19064,8 @@ export default function SubCategoryScreen({ route, navigation }) {
         location: '', cities: [], days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
         locationMutual: false,
     });
-    const [coachCertImage, setCoachCertImage] = useState(null);
+    // Kullanıcı isteği: belge/sertifika fotoğrafı da başarılar gibi birden fazla olabilsin.
+    const [coachCertImages, setCoachCertImages] = useState([]);
     const [coachCvImage, setCoachCvImage] = useState(null);
     const [coachAchievementImages, setCoachAchievementImages] = useState([]);
     // Kullanıcı isteği: daha önce CV yüklemiş bir antrenör yeni ilan oluştururken bu
@@ -19079,7 +19080,13 @@ export default function SubCategoryScreen({ route, navigation }) {
     // değil doğrudan bu butona bağlı olmalı.
     const [cvUploadContext, setCvUploadContext] = useState(null); // 'coach' | 'referee'
     const [standaloneCvImage, setStandaloneCvImage] = useState(null);
-    const [uploadingStandaloneCv, setUploadingStandaloneCv] = useState(false);
+    // Kullanıcı isteği: CV Yükle artık yer/zaman ve ders tipleri/ücret istemeden SADECE
+    // kimlik/belge + deneyim + başarılar + CV bilgisini toplayan kendi formu — İlan Oluştur'dan
+    // tamamen bağımsız state, iki modal arasında veri sızmasın diye.
+    const [cvProfileForm, setCvProfileForm] = useState({ credentialLevel: 'INDEPENDENT', certName: '', experience: '', achievements: '' });
+    const [cvProfileCertImages, setCvProfileCertImages] = useState([]);
+    const [cvProfileAchievementImages, setCvProfileAchievementImages] = useState([]);
+    const [submittingCvProfile, setSubmittingCvProfile] = useState(false);
 
     // Antrenör/hakem yorum + yıldız puanlama
     const [reviewModal, setReviewModal] = useState({ visible:false, type:null, listingId:null, targetLabel:'', isOwn:false });
@@ -19216,7 +19223,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         location: '', cities: [], days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
         locationMutual: false,
     });
-    const [refereeCertImage, setRefereeCertImage] = useState(null);
+    const [refereeCertImages, setRefereeCertImages] = useState([]);
     const [refereeCvImage, setRefereeCvImage] = useState(null);
     const [refereeAchievementImages, setRefereeAchievementImages] = useState([]);
     // Kullanıcı isteği: daha önce CV yüklemiş bir hakem yeni ilan oluştururken bu yeniden
@@ -19671,6 +19678,20 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
     };
 
+    // Kullanıcı isteği: belge/sertifika fotoğrafı da başarılar gibi birden fazla eklenebilsin.
+    const pickCoachCertImages = async () => {
+        if (coachCertImages.length >= 5) return Alert.alert('', 'En fazla 5 görsel ekleyebilirsiniz');
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.85,
+            selectionLimit: 5 - coachCertImages.length,
+        });
+        if (!result.canceled) {
+            setCoachCertImages(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+        }
+    };
+
     const uploadCoachImage = async (uri, name) => {
         const form = new FormData();
         form.append('file', { uri, name, type: 'image/jpeg' });
@@ -19685,7 +19706,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             priceIndividual: '', priceGroup: '', maxGroupSize: '4',
             location: '', cities: [], days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
         });
-        setCoachCertImage(null);
+        setCoachCertImages([]);
         setCoachCvImage(null);
         setCoachAchievementImages([]);
         setExistingCoachCv(null);
@@ -19725,7 +19746,14 @@ export default function SubCategoryScreen({ route, navigation }) {
         setSubmittingCoach(true);
         try {
             setUploadingCoachMedia(true);
-            const certificateUrl = coachCertImage ? await uploadCoachImage(coachCertImage, 'cert.jpg') : (existingCoachCv?.certificateUrl || undefined);
+            const newCertUrls = [];
+            for (const uri of coachCertImages) {
+                newCertUrls.push(await uploadCoachImage(uri, 'cert.jpg'));
+            }
+            const existingCertUrls = existingCoachCv?.certificateUrls?.length
+                ? existingCoachCv.certificateUrls
+                : (existingCoachCv?.certificateUrl ? [existingCoachCv.certificateUrl] : []);
+            const certificateUrls = [...existingCertUrls, ...newCertUrls];
             const cvUrl = coachCvImage ? await uploadCoachImage(coachCvImage, 'cv.jpg') : (existingCoachCv?.cvUrl || undefined);
             const achievementUrls = [];
             for (const uri of coachAchievementImages) {
@@ -19742,7 +19770,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 priceIndividual: parseInt(coachForm.priceIndividual) || 0,
                 priceGroup: parseInt(coachForm.priceGroup) || 0,
                 maxGroupSize: parseInt(coachForm.maxGroupSize) || 4,
-                certificateUrl, cvUrl, achievementUrls: finalAchievementUrls,
+                certificateUrls, cvUrl, achievementUrls: finalAchievementUrls,
             });
             setShowCreateCoach(false);
             resetCoachForm();
@@ -19839,13 +19867,27 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
     };
 
+    // Kullanıcı isteği: belge/sertifika fotoğrafı da başarılar gibi birden fazla eklenebilsin.
+    const pickRefereeCertImages = async () => {
+        if (refereeCertImages.length >= 5) return Alert.alert('', 'En fazla 5 görsel ekleyebilirsiniz');
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.85,
+            selectionLimit: 5 - refereeCertImages.length,
+        });
+        if (!result.canceled) {
+            setRefereeCertImages(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+        }
+    };
+
     const resetRefereeForm = () => {
         setRefereeForm({
             credentialLevel: 'INDEPENDENT', certName: '', experience: '',
             achievements: '', pricePerMatch: '',
             location: '', cities: [], days: [], timeFrom: '09:00', timeTo: '21:00', description: '',
         });
-        setRefereeCertImage(null);
+        setRefereeCertImages([]);
         setRefereeCvImage(null);
         setRefereeAchievementImages([]);
         setExistingRefereeCv(null);
@@ -19882,7 +19924,14 @@ export default function SubCategoryScreen({ route, navigation }) {
         setSubmittingReferee(true);
         try {
             setUploadingRefereeMedia(true);
-            const certificateUrl = refereeCertImage ? await uploadCoachImage(refereeCertImage, 'cert.jpg') : (existingRefereeCv?.certificateUrl || undefined);
+            const newCertUrls = [];
+            for (const uri of refereeCertImages) {
+                newCertUrls.push(await uploadCoachImage(uri, 'cert.jpg'));
+            }
+            const existingCertUrls = existingRefereeCv?.certificateUrls?.length
+                ? existingRefereeCv.certificateUrls
+                : (existingRefereeCv?.certificateUrl ? [existingRefereeCv.certificateUrl] : []);
+            const certificateUrls = [...existingCertUrls, ...newCertUrls];
             const cvUrl = refereeCvImage ? await uploadCoachImage(refereeCvImage, 'cv.jpg') : (existingRefereeCv?.cvUrl || undefined);
             const achievementUrls = [];
             for (const uri of refereeAchievementImages) {
@@ -19897,7 +19946,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 category, subCategory: sub,
                 experience: parseInt(refereeForm.experience) || 0,
                 pricePerMatch: parseInt(refereeForm.pricePerMatch) || 0,
-                certificateUrl, cvUrl, achievementUrls: finalAchievementUrls,
+                certificateUrls, cvUrl, achievementUrls: finalAchievementUrls,
             });
             setShowCreateReferee(false);
             resetRefereeForm();
@@ -19906,20 +19955,94 @@ export default function SubCategoryScreen({ route, navigation }) {
         finally { setSubmittingReferee(false); setUploadingRefereeMedia(false); }
     };
 
-    const submitStandaloneCv = async () => {
-        if (!standaloneCvImage || !cvUploadListingId || !cvUploadType) return;
-        setUploadingStandaloneCv(true);
+    const pickCvProfileCertImages = async () => {
+        if (cvProfileCertImages.length >= 5) return Alert.alert('', 'En fazla 5 görsel ekleyebilirsiniz');
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.85,
+            selectionLimit: 5 - cvProfileCertImages.length,
+        });
+        if (!result.canceled) {
+            setCvProfileCertImages(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+        }
+    };
+
+    const pickCvProfileAchievementImages = async () => {
+        if (cvProfileAchievementImages.length >= 5) return Alert.alert('', 'En fazla 5 görsel ekleyebilirsiniz');
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.85,
+            selectionLimit: 5 - cvProfileAchievementImages.length,
+        });
+        if (!result.canceled) {
+            setCvProfileAchievementImages(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+        }
+    };
+
+    const resetCvProfileForm = () => {
+        setCvProfileForm({ credentialLevel: 'INDEPENDENT', certName: '', experience: '', achievements: '' });
+        setCvProfileCertImages([]);
+        setCvProfileAchievementImages([]);
+        setStandaloneCvImage(null);
+    };
+
+    // Kullanıcı isteği: CV Yükle artık yer/zaman ve ders tipleri/ücret istemiyor, sadece
+    // kimlik/belge + deneyim + başarılar + CV'yi kaydediyor. Hiç ilanı olmayan biri için
+    // (cvUploadListingId boş) "sadece CV" (profileOnly) bir kayıt oluşturulur — bu kayıt
+    // gerçek bir teklif olmadığı için başkalarına görünmez, ama antrenör/hakem daha sonra
+    // gerçek bir ilan oluşturduğunda kimlik/belge/CV oradan otomatik gelir.
+    const submitCvProfile = async () => {
+        const isReferee = cvUploadType === 'referee';
+        const approvalSports = isReferee ? REFEREE_APPROVAL_SPORTS : COACH_APPROVAL_SPORTS;
+        const targetListing = cvUploadListingId
+            ? (isReferee ? refereeListings : coachListings).find(x => x.id === cvUploadListingId)
+            : null;
+        if (approvalSports.includes(sub) && !standaloneCvImage && !targetListing?.cvUrl) {
+            return Alert.alert('', `Bu dalda ${isReferee ? 'hakemlik' : 'antrenörlük'} için CV yüklemeniz zorunludur.`);
+        }
+        setSubmittingCvProfile(true);
         try {
-            const cvUrl = await uploadCoachImage(standaloneCvImage, 'cv.jpg');
-            await api.patch(`/${cvUploadType === 'referee' ? 'referees' : 'coaches'}/${cvUploadListingId}`, { cvUrl });
+            const newCertUrls = [];
+            for (const uri of cvProfileCertImages) newCertUrls.push(await uploadCoachImage(uri, 'cert.jpg'));
+            const existingCertUrls = targetListing?.certificateUrls?.length
+                ? targetListing.certificateUrls
+                : (targetListing?.certificateUrl ? [targetListing.certificateUrl] : []);
+            const certificateUrls = [...existingCertUrls, ...newCertUrls];
+
+            const newAchievementUrls = [];
+            for (const uri of cvProfileAchievementImages) newAchievementUrls.push(await uploadCoachImage(uri, 'achievement.jpg'));
+            const achievementUrls = [...(targetListing?.achievementUrls || []), ...newAchievementUrls];
+
+            const cvUrl = standaloneCvImage ? await uploadCoachImage(standaloneCvImage, 'cv.jpg') : (targetListing?.cvUrl || undefined);
+
+            const payload = {
+                credentialLevel: cvProfileForm.credentialLevel,
+                certName: cvProfileForm.certName,
+                experience: parseInt(cvProfileForm.experience) || 0,
+                achievements: cvProfileForm.achievements,
+                certificateUrls, achievementUrls, cvUrl,
+            };
+
+            if (cvUploadListingId) {
+                await api.patch(`/${isReferee ? 'referees' : 'coaches'}/${cvUploadListingId}`, payload);
+            } else {
+                await api.post(`/${isReferee ? 'referees' : 'coaches'}`, {
+                    ...payload,
+                    category, subCategory: sub,
+                    cities: [], profileOnly: true,
+                });
+            }
             setShowCvUploadModal(false);
-            setStandaloneCvImage(null);
             setCvUploadListingId(null);
             setCvUploadType(null);
-            if (cvUploadType === 'referee') loadReferees(); else loadCoaches();
-            Alert.alert('', 'CV yüklendi.');
+            setCvUploadContext(null);
+            resetCvProfileForm();
+            if (isReferee) loadReferees(); else loadCoaches();
+            Alert.alert('', 'CV bilgileriniz kaydedildi.');
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
-        finally { setUploadingStandaloneCv(false); }
+        finally { setSubmittingCvProfile(false); }
     };
 
     const loadEquipment = useCallback(async () => {
@@ -22256,9 +22379,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         </TouchableOpacity>
                                                     )}
                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:6 }}>
-                                                        {r.certificateUrl && (
-                                                            <TouchableOpacity onPress={() => Linking.openURL(r.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#1e40af50' }}>
-                                                                <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>📜 Belge</Text>
+                                                        {(r.certificateUrls?.length > 0 || r.certificateUrl) && (
+                                                            <TouchableOpacity onPress={() => Linking.openURL(r.certificateUrls?.[0] || r.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#1e40af50' }}>
+                                                                <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>📜 Belge{r.certificateUrls?.length > 1 ? ` (${r.certificateUrls.length})` : ''}</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                         {(r.achievementUrls || []).length > 0 && (
@@ -22409,9 +22532,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 </View>
                                             )}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:6 }}>
-                                                {c.certificateUrl && (
-                                                    <TouchableOpacity onPress={() => Linking.openURL(c.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#1e40af50' }}>
-                                                        <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>📜 Belge</Text>
+                                                {(c.certificateUrls?.length > 0 || c.certificateUrl) && (
+                                                    <TouchableOpacity onPress={() => Linking.openURL(c.certificateUrls?.[0] || c.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#1e40af50' }}>
+                                                        <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>📜 Belge{c.certificateUrls?.length > 1 ? ` (${c.certificateUrls.length})` : ''}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                                 {(c.achievementUrls || []).length > 0 && (
@@ -22466,9 +22589,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:13, marginTop:8, lineHeight:19 }}>{c.description}</Text>}
                                             {c.achievements && <Text style={{ color:'#fbbf24', fontSize:13, marginTop:8, lineHeight:19 }}>🏆 {c.achievements}</Text>}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:12 }}>
-                                                {c.certificateUrl && (
-                                                    <TouchableOpacity onPress={() => Linking.openURL(c.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor:'#1e40af50' }}>
-                                                        <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>📜 Belge</Text>
+                                                {(c.certificateUrls?.length > 0 || c.certificateUrl) && (
+                                                    <TouchableOpacity onPress={() => Linking.openURL(c.certificateUrls?.[0] || c.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor:'#1e40af50' }}>
+                                                        <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>📜 Belge{c.certificateUrls?.length > 1 ? ` (${c.certificateUrls.length})` : ''}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                                 {(c.achievementUrls || []).length > 0 && (
@@ -22539,15 +22662,30 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             : 'Belge/Sertifika adı (örn. ITF Level 2)'
                                         }
                                         placeholderTextColor={colors.textMuted} value={coachForm.certName} onChangeText={v => setCoachForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
-                                    <TouchableOpacity onPress={() => pickCoachSingleImage(setCoachCertImage)}
-                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
-                                        <Text style={{ fontSize:14 }}>📜</Text>
-                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                            {coachCertImage ? 'Belge Fotoğrafı Seçildi ✓'
-                                                : existingCoachCv?.certificateUrl ? 'Mevcut Belgeniz Kullanılacak ✓ (değiştirmek için dokunun)'
-                                                : 'Belge Fotoğrafı Yükle (opsiyonel)'}
-                                        </Text>
-                                    </TouchableOpacity>
+                                    {coachCertImages.length > 0 && (
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
+                                            {coachCertImages.map((uri, idx) => (
+                                                <View key={idx} style={{ marginRight:8, position:'relative' }}>
+                                                    <Image source={{ uri }} style={{ width:80, height:80, borderRadius:8 }} resizeMode="cover" />
+                                                    <TouchableOpacity onPress={() => setCoachCertImages(prev => prev.filter((_,i) => i !== idx))}
+                                                        style={{ position:'absolute', top:-6, right:-6, backgroundColor:'#ef4444', borderRadius:10, width:20, height:20, justifyContent:'center', alignItems:'center' }}>
+                                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'900' }}>✕</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            ))}
+                                        </ScrollView>
+                                    )}
+                                    {coachCertImages.length < 5 && (
+                                        <TouchableOpacity onPress={pickCoachCertImages}
+                                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
+                                            <Text style={{ fontSize:14 }}>📜</Text>
+                                            <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                                {coachCertImages.length > 0 ? `Belge Fotoğrafı Ekle (${coachCertImages.length}/5)`
+                                                    : (existingCoachCv?.certificateUrls?.length || existingCoachCv?.certificateUrl) ? 'Mevcut Belgeniz Kullanılacak ✓ (eklemek için dokunun)'
+                                                    : 'Belge Fotoğrafı Yükle (opsiyonel)'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
                                     <TextInput placeholder="Deneyim (yıl)" placeholderTextColor={colors.textMuted} value={coachForm.experience} onChangeText={v => setCoachForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Ders Tipleri & Ücret</Text>
@@ -22701,43 +22839,50 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {/* ── CV Yükle (antrenörlük / hakemlik ayrımıyla) ── */}
                     <Modal visible={showCvUploadModal} animationType="fade" transparent onRequestClose={() => setShowCvUploadModal(false)}>
                         <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', padding:21 }}>
-                            <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:17, maxHeight:'80%' }}>
+                            <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:17, maxHeight:'88%' }}>
                                 {!cvUploadType ? (() => {
                                     const myCoachListings = coachListings.filter(c => c.userId === myId);
                                     const myRefereeListingsOwn = refereeListings.filter(r => r.userId === myId);
+                                    // Kullanıcı isteği: CV Yükle artık kendi başına yer/zaman/ders tipi
+                                    // istemeyen, sadece kimlik/belge/CV/başarı bilgisini toplayan bir form —
+                                    // seçilen ilan (varsa) buradan doldurulur.
+                                    const openCvForm = (l, type) => {
+                                        setCvUploadListingId(l ? l.id : null);
+                                        setCvUploadType(type);
+                                        setCvProfileForm({
+                                            credentialLevel: l?.credentialLevel || 'INDEPENDENT',
+                                            certName: l?.certName || '',
+                                            experience: l?.experience ? String(l.experience) : '',
+                                            achievements: l?.achievements || '',
+                                        });
+                                        setCvProfileCertImages([]);
+                                        setCvProfileAchievementImages([]);
+                                        setStandaloneCvImage(null);
+                                    };
                                     const pickRow = (l, type) => (
                                         <TouchableOpacity key={l.id}
-                                            onPress={() => { setCvUploadListingId(l.id); setCvUploadType(type); }}
+                                            onPress={() => openCvForm(l, type)}
                                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:9, paddingHorizontal:10, backgroundColor:colors.surface2, borderRadius:8, borderWidth:1, borderColor:colors.border, marginBottom:6 }}>
                                             <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{getSubCategoryLabel(l.subCategory, t.lang)}{l.cvUrl ? '  ✓' : ''}</Text>
-                                            <Text style={{ color: l.cvUrl ? '#4ade80' : cfg.color, fontSize:11, fontWeight:'700' }}>{l.cvUrl ? 'Değiştir' : 'CV Yükle'}</Text>
+                                            <Text style={{ color: l.cvUrl ? '#4ade80' : cfg.color, fontSize:11, fontWeight:'700' }}>{l.cvUrl ? 'Düzenle' : 'CV Yükle'}</Text>
                                         </TouchableOpacity>
                                     );
-                                    // Kullanıcı isteği: "CV Yükle"nin amacı zaten bir ilanı olup olmamasına
-                                    // bağlı olmamalı — hiç ilanı yoksa burada ölü bir metinle bırakmak
-                                    // yerine, gerekli tüm bilgileri (CV dahil) isteyen asıl başvuru
-                                    // formu doğrudan buradan açılabilsin. Ayrıca hangi sekmeden (Antrenörler/
-                                    // Hakemler) açıldıysa SADECE o türle ilgili alan gösterilir — önceden
-                                    // ikisi birden gösteriliyordu, hakemlikten CV yükle derken antrenörlük
-                                    // seçeneği de çıkıyordu (kullanıcı raporu).
-                                    const startCoachApplication = () => { setShowCvUploadModal(false); openCreateCoachModal(); };
-                                    const startRefereeApplication = () => { setShowCvUploadModal(false); openCreateRefereeModal(); };
                                     const isRefereeContext = cvUploadContext === 'referee';
                                     return (
                                         <ScrollView showsVerticalScrollIndicator={false}>
                                             <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:12 }}>{isRefereeContext ? 'Hakemlik CV Yükle' : 'Antrenörlük CV Yükle'}</Text>
                                             {isRefereeContext ? (
                                                 myRefereeListingsOwn.length === 0 ? (
-                                                    <TouchableOpacity onPress={startRefereeApplication} style={{ paddingVertical:9, paddingHorizontal:10, backgroundColor:'#f59e0b15', borderRadius:8, borderWidth:1, borderColor:'#f59e0b50', marginBottom:14 }}>
-                                                        <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>+ Hakemlik Başvurusu Oluştur (CV dahil)</Text>
+                                                    <TouchableOpacity onPress={() => openCvForm(null, 'referee')} style={{ paddingVertical:9, paddingHorizontal:10, backgroundColor:'#f59e0b15', borderRadius:8, borderWidth:1, borderColor:'#f59e0b50', marginBottom:14 }}>
+                                                        <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>+ Hakemlik CV'si Yükle</Text>
                                                     </TouchableOpacity>
                                                 ) : (
                                                     <View style={{ marginBottom:14 }}>{myRefereeListingsOwn.map(l => pickRow(l, 'referee'))}</View>
                                                 )
                                             ) : (
                                                 myCoachListings.length === 0 ? (
-                                                    <TouchableOpacity onPress={startCoachApplication} style={{ paddingVertical:9, paddingHorizontal:10, backgroundColor: cfg.color+'15', borderRadius:8, borderWidth:1, borderColor: cfg.color+'50', marginBottom:14 }}>
-                                                        <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>+ Antrenörlük Başvurusu Oluştur (CV dahil)</Text>
+                                                    <TouchableOpacity onPress={() => openCvForm(null, 'coach')} style={{ paddingVertical:9, paddingHorizontal:10, backgroundColor: cfg.color+'15', borderRadius:8, borderWidth:1, borderColor: cfg.color+'50', marginBottom:14 }}>
+                                                        <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>+ Antrenör CV'si Yükle</Text>
                                                     </TouchableOpacity>
                                                 ) : (
                                                     <View style={{ marginBottom:14 }}>{myCoachListings.map(l => pickRow(l, 'coach'))}</View>
@@ -22748,31 +22893,114 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </TouchableOpacity>
                                         </ScrollView>
                                     );
-                                })() : (
-                                    <>
-                                        <TouchableOpacity onPress={() => { setCvUploadType(null); setCvUploadListingId(null); setStandaloneCvImage(null); }} style={{ marginBottom:10, alignSelf:'flex-start' }}>
-                                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>‹ Geri</Text>
-                                        </TouchableOpacity>
-                                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:10 }}>{cvUploadType === 'referee' ? 'Hakemlik' : 'Antrenörlük'} CV'si</Text>
-                                        <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:14 }}>İlanınıza eklenecek CV fotoğrafını seçin.</Text>
-                                        {standaloneCvImage ? (
-                                            <Image source={{ uri: standaloneCvImage }} style={{ width:'100%', height:160, borderRadius:10, marginBottom:10 }} resizeMode="cover" />
-                                        ) : null}
-                                        <TouchableOpacity onPress={() => pickCoachSingleImage(setStandaloneCvImage)}
-                                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
-                                            <Text style={{ fontSize:14 }}>📷</Text>
-                                            <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{standaloneCvImage ? 'Fotoğrafı Değiştir' : 'CV Fotoğrafı Seç'}</Text>
-                                        </TouchableOpacity>
-                                        <View style={{ flexDirection:'row', gap:3 }}>
-                                            <TouchableOpacity onPress={() => { setShowCvUploadModal(false); setStandaloneCvImage(null); setCvUploadType(null); setCvUploadListingId(null); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
-                                                <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
+                                })() : (() => {
+                                    const isReferee = cvUploadType === 'referee';
+                                    const approvalSports = isReferee ? REFEREE_APPROVAL_SPORTS : COACH_APPROVAL_SPORTS;
+                                    const targetListing = cvUploadListingId
+                                        ? (isReferee ? refereeListings : coachListings).find(x => x.id === cvUploadListingId)
+                                        : null;
+                                    const closeForm = () => { setCvUploadType(null); setCvUploadListingId(null); resetCvProfileForm(); };
+                                    return (
+                                        <ScrollView showsVerticalScrollIndicator={false}>
+                                            <TouchableOpacity onPress={closeForm} style={{ marginBottom:10, alignSelf:'flex-start' }}>
+                                                <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>‹ Geri</Text>
                                             </TouchableOpacity>
-                                            <TouchableOpacity onPress={submitStandaloneCv} disabled={!standaloneCvImage || uploadingStandaloneCv} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: standaloneCvImage ? '#16a34a' : colors.surface2 }}>
-                                                <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>{uploadingStandaloneCv ? 'Yükleniyor...' : 'CV\'yi Kaydet'}</Text>
+                                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:12 }}>{isReferee ? 'Hakemlik' : 'Antrenörlük'} CV'si</Text>
+
+                                            <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kimlik / Belge</Text>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>
+                                                {[
+                                                    { key:'CERTIFIED',   label: t.credCertified },
+                                                    { key:'LICENSED',    label: t.credLicensed },
+                                                    { key: isReferee ? 'CLUB_REFEREE' : 'CLUB_COACH', label: isReferee ? t.credClubReferee : t.credClubCoach },
+                                                    { key:'INDEPENDENT', label: t.credIndependent },
+                                                    { key:'AMATEUR',     label: t.credAmateur },
+                                                ].map(lvl => (
+                                                    <TouchableOpacity key={lvl.key} onPress={() => setCvProfileForm(f => ({...f, credentialLevel:lvl.key}))}
+                                                        style={{ paddingHorizontal:7, paddingVertical:3, borderRadius:8, backgroundColor: cvProfileForm.credentialLevel===lvl.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: cvProfileForm.credentialLevel===lvl.key ? cfg.color : colors.border }}>
+                                                        <Text style={{ color: cvProfileForm.credentialLevel===lvl.key ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>{lvl.label}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                            <TextInput placeholder="Belge/Sertifika adı (opsiyonel)" placeholderTextColor={colors.textMuted} value={cvProfileForm.certName} onChangeText={v => setCvProfileForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            {cvProfileCertImages.length > 0 && (
+                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
+                                                    {cvProfileCertImages.map((uri, idx) => (
+                                                        <View key={idx} style={{ marginRight:8, position:'relative' }}>
+                                                            <Image source={{ uri }} style={{ width:80, height:80, borderRadius:8 }} resizeMode="cover" />
+                                                            <TouchableOpacity onPress={() => setCvProfileCertImages(prev => prev.filter((_,i) => i !== idx))}
+                                                                style={{ position:'absolute', top:-6, right:-6, backgroundColor:'#ef4444', borderRadius:10, width:20, height:20, justifyContent:'center', alignItems:'center' }}>
+                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'900' }}>✕</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    ))}
+                                                </ScrollView>
+                                            )}
+                                            {cvProfileCertImages.length < 5 && (
+                                                <TouchableOpacity onPress={pickCvProfileCertImages}
+                                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
+                                                    <Text style={{ fontSize:14 }}>📜</Text>
+                                                    <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                                        {cvProfileCertImages.length > 0 ? `Belge Fotoğrafı Ekle (${cvProfileCertImages.length}/5)`
+                                                            : (targetListing?.certificateUrls?.length || targetListing?.certificateUrl) ? 'Mevcut Belgeniz Kullanılacak ✓ (eklemek için dokunun)'
+                                                            : 'Belge Fotoğrafı Yükle (opsiyonel)'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            <TextInput placeholder="Deneyim (yıl)" placeholderTextColor={colors.textMuted} value={cvProfileForm.experience} onChangeText={v => setCvProfileForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+
+                                            <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Başarılar</Text>
+                                            <TextInput placeholder="Başarılarınız (opsiyonel)" placeholderTextColor={colors.textMuted} value={cvProfileForm.achievements} onChangeText={v => setCvProfileForm(f=>({...f,achievements:v}))} multiline numberOfLines={2} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:50, textAlignVertical:'top' }} />
+                                            {cvProfileAchievementImages.length > 0 && (
+                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
+                                                    {cvProfileAchievementImages.map((uri, idx) => (
+                                                        <View key={idx} style={{ marginRight:8, position:'relative' }}>
+                                                            <Image source={{ uri }} style={{ width:80, height:80, borderRadius:8 }} resizeMode="cover" />
+                                                            <TouchableOpacity onPress={() => setCvProfileAchievementImages(prev => prev.filter((_,i) => i !== idx))}
+                                                                style={{ position:'absolute', top:-6, right:-6, backgroundColor:'#ef4444', borderRadius:10, width:20, height:20, justifyContent:'center', alignItems:'center' }}>
+                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'900' }}>✕</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    ))}
+                                                </ScrollView>
+                                            )}
+                                            {cvProfileAchievementImages.length < 5 && (
+                                                <TouchableOpacity onPress={pickCvProfileAchievementImages}
+                                                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
+                                                    <Text style={{ fontSize:14 }}>🏆</Text>
+                                                    <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                                        {targetListing?.achievementUrls?.length > 0 && cvProfileAchievementImages.length === 0
+                                                            ? `Başarı Fotoğrafı Ekle (mevcut ${targetListing.achievementUrls.length} tane var)`
+                                                            : `Başarı Fotoğrafı Ekle ${cvProfileAchievementImages.length > 0 ? `(${cvProfileAchievementImages.length}/5)` : ''}`}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            )}
+
+                                            <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>CV</Text>
+                                            {standaloneCvImage ? (
+                                                <Image source={{ uri: standaloneCvImage }} style={{ width:'100%', height:160, borderRadius:10, marginBottom:10 }} resizeMode="cover" />
+                                            ) : null}
+                                            <TouchableOpacity onPress={() => pickCoachSingleImage(setStandaloneCvImage)}
+                                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
+                                                <Text style={{ fontSize:14 }}>📷</Text>
+                                                <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                                    {standaloneCvImage ? 'Fotoğrafı Değiştir'
+                                                        : targetListing?.cvUrl ? 'Mevcut CV\'niz Var ✓ (değiştirmek için dokunun)'
+                                                        : `CV Fotoğrafı Seç${approvalSports.includes(sub) ? ' *' : ' (opsiyonel)'}`}
+                                                </Text>
                                             </TouchableOpacity>
-                                        </View>
-                                    </>
-                                )}
+
+                                            <View style={{ flexDirection:'row', gap:3 }}>
+                                                <TouchableOpacity onPress={() => { setShowCvUploadModal(false); closeForm(); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                                    <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={submitCvProfile} disabled={submittingCvProfile} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: '#16a34a' }}>
+                                                    <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>{submittingCvProfile ? 'Yükleniyor...' : 'CV\'yi Kaydet'}</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </ScrollView>
+                                    );
+                                })()}
                             </View>
                         </View>
                     </Modal>
@@ -22927,15 +23155,30 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             : 'Belge/Sertifika adı (örn. TFF Hakem Lisansı)'
                                         }
                                         placeholderTextColor={colors.textMuted} value={refereeForm.certName} onChangeText={v => setRefereeForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
-                                    <TouchableOpacity onPress={() => pickCoachSingleImage(setRefereeCertImage)}
-                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
-                                        <Text style={{ fontSize:14 }}>📜</Text>
-                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                            {refereeCertImage ? 'Belge Fotoğrafı Seçildi ✓'
-                                                : existingRefereeCv?.certificateUrl ? 'Mevcut Belgeniz Kullanılacak ✓ (değiştirmek için dokunun)'
-                                                : 'Belge Fotoğrafı Yükle (opsiyonel)'}
-                                        </Text>
-                                    </TouchableOpacity>
+                                    {refereeCertImages.length > 0 && (
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
+                                            {refereeCertImages.map((uri, idx) => (
+                                                <View key={idx} style={{ marginRight:8, position:'relative' }}>
+                                                    <Image source={{ uri }} style={{ width:80, height:80, borderRadius:8 }} resizeMode="cover" />
+                                                    <TouchableOpacity onPress={() => setRefereeCertImages(prev => prev.filter((_,i) => i !== idx))}
+                                                        style={{ position:'absolute', top:-6, right:-6, backgroundColor:'#ef4444', borderRadius:10, width:20, height:20, justifyContent:'center', alignItems:'center' }}>
+                                                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'900' }}>✕</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            ))}
+                                        </ScrollView>
+                                    )}
+                                    {refereeCertImages.length < 5 && (
+                                        <TouchableOpacity onPress={pickRefereeCertImages}
+                                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
+                                            <Text style={{ fontSize:14 }}>📜</Text>
+                                            <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                                {refereeCertImages.length > 0 ? `Belge Fotoğrafı Ekle (${refereeCertImages.length}/5)`
+                                                    : (existingRefereeCv?.certificateUrls?.length || existingRefereeCv?.certificateUrl) ? 'Mevcut Belgeniz Kullanılacak ✓ (eklemek için dokunun)'
+                                                    : 'Belge Fotoğrafı Yükle (opsiyonel)'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
                                     <TextInput placeholder="Deneyim (yıl)" placeholderTextColor={colors.textMuted} value={refereeForm.experience} onChangeText={v => setRefereeForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.pricePerMatchLabel}</Text>

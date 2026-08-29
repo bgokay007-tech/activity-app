@@ -21,10 +21,12 @@ export const getListings = async (req, res, next) => {
                 subCategory: subCategory || undefined,
                 // Voleybol/tenis/padelde admin onayı olmayan bir ilan başkalarına GÖRÜNMEZ —
                 // sahibi kendi başvurusunun durumunu takip edebilsin diye kendi ilanını her
-                // zaman görür (bkz. RefereeListing.approved ile aynı desen).
+                // zaman görür (bkz. RefereeListing.approved ile aynı desen). Ayrıca "sadece
+                // CV/kimlik-belge" kaydı (profileOnly) gerçek bir ders teklifi değil, sahibi
+                // dışında kimseye görünmemeli.
                 OR: [
-                    { subCategory: { notIn: COACH_APPROVAL_SPORTS } },
-                    { approved: true },
+                    { subCategory: { notIn: COACH_APPROVAL_SPORTS }, profileOnly: false },
+                    { approved: true, profileOnly: false },
                     { userId: req.userId },
                 ],
             },
@@ -181,33 +183,42 @@ export const createListing = async (req, res, next) => {
     try {
         const {
             category, subCategory,
-            credentialLevel, certName, certificateUrl, experience,
+            credentialLevel, certName, certificateUrl, certificateUrls, experience,
             achievements, achievementUrls, cvUrl,
             individual, group, priceIndividual, priceGroup, maxGroupSize,
             location, cities, days, timeFrom, timeTo, description,
+            // Kullanıcı isteği: CV Yükle ekranı artık ders tipi/ücret/yer-zaman istemeden
+            // sadece kimlik/belge/CV/başarı bilgisini kaydedebiliyor — henüz hiç ilanı
+            // olmayan biri önce sadece bunları yükler, gerçek ilanı sonra oluşturur.
+            profileOnly,
         } = req.body;
 
         const citiesArr = Array.isArray(cities) ? cities.filter(Boolean) : [];
+        const certUrlsArr = Array.isArray(certificateUrls) ? certificateUrls.filter(Boolean) : [];
         if (!credentialLevel || !category || !subCategory)
             return res.status(400).json({ message: 'Missing required fields' });
         // Kullanıcı isteği: konum artık zorunlu değil, onun yerine bir/birden fazla şehir
-        // zorunlu — antrenör hangi şehir(ler)de ders verdiğini belirtmek zorunda.
-        if (citiesArr.length === 0)
+        // zorunlu — antrenör hangi şehir(ler)de ders verdiğini belirtmek zorunda. Sadece
+        // CV/kimlik-belge kaydeden (profileOnly) bir gönderi henüz gerçek bir ders teklifi
+        // olmadığı için şehir istenmiyor.
+        if (!profileOnly && citiesArr.length === 0)
             return res.status(400).json({ message: 'En az bir şehir seçmelisiniz' });
         // Kullanıcı isteği: voleybol/tenis/padelde antrenörlük başvurusu CV'siz gönderilemez —
         // admin onayı CV'ye bakarak veriliyor, CV eksikse başvuru zaten değerlendirilemez.
         if (COACH_APPROVAL_SPORTS.includes(subCategory) && !cvUrl)
-            return res.status(400).json({ message: 'Bu dalda antrenörlük başvurusu için CV yüklemeniz zorunludur.' });
+            return res.status(400).json({ message: 'Bu dalda antrenörlük için CV yüklemeniz zorunludur.' });
 
         const listing = await prisma.coachListing.create({
             data: {
                 userId: req.userId,
                 category, subCategory,
-                credentialLevel, certName, certificateUrl,
+                credentialLevel, certName,
+                certificateUrl: certUrlsArr[0] || certificateUrl,
+                certificateUrls: certUrlsArr,
                 experience: Number(experience) || 0,
                 achievements, achievementUrls: achievementUrls || [], cvUrl,
-                individual: Boolean(individual),
-                group: Boolean(group),
+                individual: profileOnly ? false : Boolean(individual),
+                group: profileOnly ? false : Boolean(group),
                 priceIndividual: Number(priceIndividual) || 0,
                 priceGroup: Number(priceGroup) || 0,
                 maxGroupSize: Number(maxGroupSize) || 4,
@@ -220,10 +231,16 @@ export const createListing = async (req, res, next) => {
                 // kalır); diğer dallarda hiç kontrol edilmediği için baştan onaylı sayılır —
                 // davranış değişmesin diye.
                 approved: !COACH_APPROVAL_SPORTS.includes(subCategory),
+                profileOnly: Boolean(profileOnly),
             },
             include: { user: { select: USER_SELECT } },
         });
         res.status(201).json(listing);
+
+        // Bir "sadece CV/kimlik-belge" gönderisi henüz gerçek bir ders teklifi değil,
+        // kimseye bildirim gitmemeli — asıl ilan (ders tipi/şehir dolu) oluşunca zaten
+        // gidiyor (bkz. profileOnly kontrolü yukarıda).
+        if (profileOnly) return;
 
         // Notify city-alert subscribers for coaches tab (async, non-blocking) — artık
         // birden fazla şehir olabildiği için her şehir için ayrı ayrı bildirim taranıyor.
@@ -259,7 +276,7 @@ export const updateListing = async (req, res, next) => {
             return res.status(403).json({ message: 'Forbidden' });
 
         const {
-            credentialLevel, certName, certificateUrl, experience,
+            credentialLevel, certName, certificateUrl, certificateUrls, experience,
             achievements, achievementUrls, cvUrl,
             individual, group, priceIndividual, priceGroup, maxGroupSize,
             location, cities, days, timeFrom, timeTo, description,
@@ -276,7 +293,11 @@ export const updateListing = async (req, res, next) => {
             data: {
                 ...(credentialLevel !== undefined && { credentialLevel }),
                 ...(certName !== undefined && { certName }),
-                ...(certificateUrl !== undefined && { certificateUrl }),
+                ...(certificateUrls !== undefined && {
+                    certificateUrls: Array.isArray(certificateUrls) ? certificateUrls.filter(Boolean) : [],
+                    certificateUrl: (Array.isArray(certificateUrls) ? certificateUrls.filter(Boolean) : [])[0] || certificateUrl,
+                }),
+                ...(certificateUrls === undefined && certificateUrl !== undefined && { certificateUrl }),
                 ...(experience !== undefined && { experience: Number(experience) || 0 }),
                 ...(achievements !== undefined && { achievements }),
                 ...(achievementUrls !== undefined && { achievementUrls }),
