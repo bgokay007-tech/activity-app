@@ -19713,9 +19713,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const submitCoach = async () => {
         if (coachForm.cities.length === 0) return Alert.alert('', 'En az bir şehir seçmelisiniz');
         // Kullanıcı isteği: kimlik/belge/CV artık bu formda toplanmıyor, sadece mevcut
-        // (varsa) CV kaydından okunuyor — bu dallarda CV yoksa modal zaten formu değil
-        // "önce CV yükleyin" uyarısını gösteriyor, bu kontrol son bir güvenlik.
-        if (COACH_APPROVAL_SPORTS.includes(sub) && !existingCoachCv?.cvUrl) return Alert.alert('', 'Bu dalda antrenörlük için önce CV yüklemeniz zorunludur.');
+        // (varsa) CV kaydından okunuyor — CV fotoğrafı artık opsiyonel, bunun yerine
+        // profesyonel seviye seçilmişse CV Yükle ekranı zaten belge/deneyim istiyor.
+        // Bu dallarda hiç kimlik/belge kaydı (existingCoachCv) yoksa önce oraya gitmesi gerekiyor.
+        if (COACH_APPROVAL_SPORTS.includes(sub) && !existingCoachCv) return Alert.alert('', 'Bu dalda antrenörlük için önce kimlik/belge bilgilerinizi CV Yükle ekranından göndermeniz gerekiyor.');
         setSubmittingCoach(true);
         try {
             const certificateUrls = existingCoachCv?.certificateUrls?.length
@@ -19733,6 +19734,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                 priceGroup: parseInt(coachForm.priceGroup) || 0,
                 maxGroupSize: parseInt(coachForm.maxGroupSize) || 4,
                 certificateUrls, cvUrl, achievementUrls,
+                // Kullanıcı isteği: ilan detayında kullanıcı adı değil bu kişisel bilgiler
+                // gösterilsin — CV Yükle'de girilmiş olan bilgiler gerçek ilana da taşınır.
+                personalFullName: existingCoachCv?.personalFullName || undefined,
+                personalGender: existingCoachCv?.personalGender || undefined,
+                personalBirthYear: existingCoachCv?.personalBirthYear || undefined,
+                priorExperience: existingCoachCv?.priorExperience || undefined,
             });
             setShowCreateCoach(false);
             resetCoachForm();
@@ -22551,7 +22558,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:10 }}>
                                                 <Text style={{ fontSize:28 }}>🎓</Text>
                                                 <View style={{ flex:1 }}>
-                                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>{c.user?.fullName || c.user?.username}</Text>
+                                                    {/* Kullanıcı isteği: ilan detayında kullanıcı adı değil kişisel
+                                                        bilgiler (isim soyisim, cinsiyet, doğum yılı) gösterilsin. */}
+                                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>{c.personalFullName || c.user?.fullName || c.user?.username}</Text>
+                                                    {(c.personalGender || c.personalBirthYear) && (
+                                                        <Text style={{ color:colors.textMuted, fontSize:12 }}>
+                                                            {[c.personalGender === 'MALE' ? 'Erkek' : c.personalGender === 'FEMALE' ? 'Kadın' : c.personalGender === 'OTHER' ? 'Diğer' : null, c.personalBirthYear].filter(Boolean).join(' · ')}
+                                                        </Text>
+                                                    )}
                                                     <Text style={{ color:colors.textMuted, fontSize:12 }}>{c.credentialLevel}{c.certName ? ` · ${c.certName}` : ''}</Text>
                                                 </View>
                                             </View>
@@ -22570,6 +22584,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 : (c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
                                             {(c.city || (Array.isArray(c.cities) && c.cities.length > 0)) && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>📍 {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:13, marginTop:8, lineHeight:19 }}>{c.description}</Text>}
+                                            {/* Kullanıcı isteği: daha önce nerede/ne zaman antrenörlük yaptığı,
+                                                başarıların ÜSTÜNDE gösterilsin. */}
+                                            {c.priorExperience && <Text style={{ color:colors.textSecondary, fontSize:13, marginTop:8, lineHeight:19 }}>📋 {c.priorExperience}</Text>}
                                             {c.achievements && <Text style={{ color:'#fbbf24', fontSize:13, marginTop:8, lineHeight:19 }}>🏆 {c.achievements}</Text>}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:12 }}>
                                                 {(c.certificateUrls?.length > 0 || c.certificateUrl) && (
@@ -22845,6 +22862,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         ? (isReferee ? refereeListings : coachListings).find(x => x.id === cvUploadListingId)
                                         : null;
                                     const closeForm = () => { setCvUploadType(null); setCvUploadListingId(null); resetCvProfileForm(); };
+                                    // Kullanıcı isteği: Sertifikalı/Lisanslı/Kulüp Antrenörü seçilirse belge
+                                    // adı/fotoğrafı/deneyim zorunlu — sadece antrenörlükte.
+                                    const isProfessionalLevel = !isReferee && COACH_PROFESSIONAL_LEVELS.includes(cvProfileForm.credentialLevel);
                                     return (
                                         <ScrollView showsVerticalScrollIndicator={false}>
                                             <TouchableOpacity onPress={closeForm} style={{ marginBottom:10, alignSelf:'flex-start' }}>
@@ -22890,7 +22910,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     </TouchableOpacity>
                                                 ))}
                                             </View>
-                                            <TextInput placeholder="Belge/Sertifika adı (opsiyonel)" placeholderTextColor={colors.textMuted} value={cvProfileForm.certName} onChangeText={v => setCvProfileForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder={`Belge/Sertifika adı${isProfessionalLevel ? ' *' : ' (opsiyonel)'}`} placeholderTextColor={colors.textMuted} value={cvProfileForm.certName} onChangeText={v => setCvProfileForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                             {cvProfileCertImages.length > 0 && (
                                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
                                                     {cvProfileCertImages.map((uri, idx) => (
@@ -22911,11 +22931,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
                                                         {cvProfileCertImages.length > 0 ? `Belge Fotoğrafı Ekle (${cvProfileCertImages.length}/5)`
                                                             : (targetListing?.certificateUrls?.length || targetListing?.certificateUrl) ? 'Mevcut Belgeniz Kullanılacak ✓ (eklemek için dokunun)'
-                                                            : 'Belge Fotoğrafı Yükle (opsiyonel)'}
+                                                            : `Belge Fotoğrafı Yükle${isProfessionalLevel ? ' *' : ' (opsiyonel)'}`}
                                                     </Text>
                                                 </TouchableOpacity>
                                             )}
-                                            <TextInput placeholder="Deneyim (yıl)" placeholderTextColor={colors.textMuted} value={cvProfileForm.experience} onChangeText={v => setCvProfileForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder={`Deneyim (yıl)${isProfessionalLevel ? ' *' : ''}`} placeholderTextColor={colors.textMuted} value={cvProfileForm.experience} onChangeText={v => setCvProfileForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+
+                                            {/* Kullanıcı isteği: daha önce nerede/ne zaman antrenörlük yaptığı,
+                                                başarıların ÜSTÜNDE gösterilsin — sadece antrenörlükte. */}
+                                            {!isReferee && (
+                                                <>
+                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Daha Önce Çalıştığı Yerler / Zamanlar</Text>
+                                                    <TextInput placeholder="Örn. 2019-2021 X Kulübü, 2021-2023 Y Tesisleri (opsiyonel)" placeholderTextColor={colors.textMuted} value={cvProfileForm.priorExperience} onChangeText={v => setCvProfileForm(f=>({...f,priorExperience:v}))} multiline numberOfLines={2} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:50, textAlignVertical:'top' }} />
+                                                </>
+                                            )}
 
                                             <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Başarılar</Text>
                                             <TextInput placeholder="Başarılarınız (opsiyonel)" placeholderTextColor={colors.textMuted} value={cvProfileForm.achievements} onChangeText={v => setCvProfileForm(f=>({...f,achievements:v}))} multiline numberOfLines={2} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:50, textAlignVertical:'top' }} />
@@ -22954,7 +22983,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
                                                     {standaloneCvImage ? 'Fotoğrafı Değiştir'
                                                         : targetListing?.cvUrl ? 'Mevcut CV\'niz Var ✓ (değiştirmek için dokunun)'
-                                                        : `CV Fotoğrafı Seç${approvalSports.includes(sub) ? ' *' : ' (opsiyonel)'}`}
+                                                        : `CV Fotoğrafı Seç${!isReferee ? ' (opsiyonel)' : approvalSports.includes(sub) ? ' *' : ' (opsiyonel)'}`}
                                                 </Text>
                                             </TouchableOpacity>
 

@@ -379,6 +379,14 @@ model CoachListing {
   // kaydedebiliyor — boyle bir "kabuk" kayit gercek bir ders teklifi olmadigi icin baskalarina
   // hic gorunmemeli, sadece sahibi kendi CV'sini gormek icin gorur (bkz. getListings).
   profileOnly     Boolean  @default(false)
+  // Kullanici istegi: antrenorluk ilani kullanici adiyla degil bu kisisel bilgilerle
+  // gorunsun — genel hesap profilinden bagimsiz, ozellikle bu CV icin girilir.
+  personalFullName  String?
+  personalGender    String?  // MALE | FEMALE | OTHER
+  personalBirthYear Int?
+  // Kullanici istegi: daha once nerede/ne zaman antrenorluk yaptigi (serbest metin),
+  // basarilarin ustunde gosterilir.
+  priorExperience   String?
 
   // Ders tipleri
   individual      Boolean  @default(true)

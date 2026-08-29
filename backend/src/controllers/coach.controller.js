@@ -11,6 +11,10 @@ const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 // önceki davranış (CV isteğe bağlı, yayınlanır yayınlanmaz görünür) değişmedi.
 const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
 
+// Kullanıcı isteği: bu seviyelerden biri seçilirse belge adı/fotoğrafı/deneyim yılı
+// zorunlu hale geliyor — iddia edilen krendansiyeli belge doğruluyor (bkz. createListing).
+const COACH_PROFESSIONAL_LEVELS = ['CERTIFIED', 'LICENSED', 'CLUB_COACH'];
+
 export const getListings = async (req, res, next) => {
     try {
         const { category, subCategory } = req.query;
@@ -187,6 +191,7 @@ export const createListing = async (req, res, next) => {
             achievements, achievementUrls, cvUrl,
             individual, group, priceIndividual, priceGroup, maxGroupSize,
             location, cities, days, timeFrom, timeTo, description,
+            personalFullName, personalGender, personalBirthYear, priorExperience,
             // Kullanıcı isteği: CV Yükle ekranı artık ders tipi/ücret/yer-zaman istemeden
             // sadece kimlik/belge/CV/başarı bilgisini kaydedebiliyor — henüz hiç ilanı
             // olmayan biri önce sadece bunları yükler, gerçek ilanı sonra oluşturur.
@@ -203,10 +208,14 @@ export const createListing = async (req, res, next) => {
         // olmadığı için şehir istenmiyor.
         if (!profileOnly && citiesArr.length === 0)
             return res.status(400).json({ message: 'En az bir şehir seçmelisiniz' });
-        // Kullanıcı isteği: voleybol/tenis/padelde antrenörlük başvurusu CV'siz gönderilemez —
-        // admin onayı CV'ye bakarak veriliyor, CV eksikse başvuru zaten değerlendirilemez.
-        if (COACH_APPROVAL_SPORTS.includes(subCategory) && !cvUrl)
-            return res.status(400).json({ message: 'Bu dalda antrenörlük için CV yüklemeniz zorunludur.' });
+        // Kullanıcı isteği: CV fotoğrafı artık opsiyonel — bunun yerine "Sertifikalı/Lisanslı/
+        // Kulüp Antrenörü" gibi profesyonel bir seviye seçilirse belge adı + belge fotoğrafı +
+        // deneyim yılı zorunlu (iddia edilen krendansiyeli doğrulayacak somut belge bu).
+        if (COACH_PROFESSIONAL_LEVELS.includes(credentialLevel)) {
+            if (!certName) return res.status(400).json({ message: 'Bu seviyede belge adını girmeniz zorunludur.' });
+            if (certUrlsArr.length === 0 && !certificateUrl) return res.status(400).json({ message: 'Bu seviyede belge fotoğrafı yüklemeniz zorunludur.' });
+            if (!experience || Number(experience) <= 0) return res.status(400).json({ message: 'Bu seviyede deneyim yılını girmeniz zorunludur.' });
+        }
 
         const listing = await prisma.coachListing.create({
             data: {
@@ -217,6 +226,10 @@ export const createListing = async (req, res, next) => {
                 certificateUrls: certUrlsArr,
                 experience: Number(experience) || 0,
                 achievements, achievementUrls: achievementUrls || [], cvUrl,
+                personalFullName: personalFullName || null,
+                personalGender: personalGender || null,
+                personalBirthYear: personalBirthYear ? Number(personalBirthYear) : null,
+                priorExperience: priorExperience || null,
                 individual: profileOnly ? false : Boolean(individual),
                 group: profileOnly ? false : Boolean(group),
                 priceIndividual: Number(priceIndividual) || 0,
@@ -280,6 +293,7 @@ export const updateListing = async (req, res, next) => {
             achievements, achievementUrls, cvUrl,
             individual, group, priceIndividual, priceGroup, maxGroupSize,
             location, cities, days, timeFrom, timeTo, description,
+            personalFullName, personalGender, personalBirthYear, priorExperience,
         } = req.body;
 
         // Voleybol/tenis/padelde onaylı bir antrenör CV'sini değiştirirse onay otomatik
@@ -302,6 +316,10 @@ export const updateListing = async (req, res, next) => {
                 ...(achievements !== undefined && { achievements }),
                 ...(achievementUrls !== undefined && { achievementUrls }),
                 ...(cvUrl !== undefined && { cvUrl }),
+                ...(personalFullName !== undefined && { personalFullName: personalFullName || null }),
+                ...(personalGender !== undefined && { personalGender: personalGender || null }),
+                ...(personalBirthYear !== undefined && { personalBirthYear: personalBirthYear ? Number(personalBirthYear) : null }),
+                ...(priorExperience !== undefined && { priorExperience: priorExperience || null }),
                 ...(individual !== undefined && { individual: Boolean(individual) }),
                 ...(group !== undefined && { group: Boolean(group) }),
                 ...(priceIndividual !== undefined && { priceIndividual: Number(priceIndividual) || 0 }),
