@@ -20833,6 +20833,80 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
         return true;
     };
+    // Kullanıcı isteği: ilanın kendi istediği derece aralığı (minRating/maxRating, cinsiyete
+    // göre ayrılmışsa minRatingMale/Female'in en genişi) kullanıcının seçtiği aralıkla
+    // kesişiyorsa gösterilir. İlanın hiç derece şartı yoksa herkese açıktır, her aralıkla eşleşir.
+    const matchesRatingFilter = (item) => {
+        if (filterMinRating == null && filterMaxRating == null) return true;
+        let adMin = item.minRating, adMax = item.maxRating;
+        if (item.ratingGenderSplit) {
+            const mins = [item.minRatingMale, item.minRatingFemale].filter(v => v != null);
+            const maxs = [item.maxRatingMale, item.maxRatingFemale].filter(v => v != null);
+            adMin = mins.length ? Math.min(...mins) : null;
+            adMax = maxs.length ? Math.max(...maxs) : null;
+        }
+        if (adMin == null && adMax == null) return true;
+        const lo = adMin ?? 0, hi = adMax ?? 5;
+        const fLo = filterMinRating ?? 0, fHi = filterMaxRating ?? 5;
+        return lo <= fHi && hi >= fLo;
+    };
+    // Kullanıcı isteği: "Arkadaşlarım" seçiliyken sadece kendi arkadaşlarının (veya kendi)
+    // açtığı ilanlar gösterilsin.
+    const matchesFriendsFilter = (item) => {
+        if (!filterFriendsOnly) return true;
+        return item.senderId === myId || myFriendIds.has(item.senderId);
+    };
+    // Kullanıcı isteği: "boş kontenjanda aranan cinsiyet" filtresi — DOUBLE'da hâlâ boş olan
+    // partner/rakip1/rakip2 formalarının cinsiyet şartına, takım sporlarında (voleybol vb.)
+    // requiredMaleCount/genderCountMode'daki eksik cinsiyete, SINGLE'da genderReq'e bakar.
+    // Şart yoksa (MIX/boş) herkese açık sayılır, iki filtre seçeneğiyle de eşleşir.
+    const matchesGenderFilter = (item, wanted) => {
+        if (!wanted) return true;
+        if (item.matchType === 'DOUBLE') {
+            const slots = [
+                { filled: !!item.senderTeam?.[0]?.id, req: item.partnerGenderReq },
+                { filled: !!item.participants?.[0]?.id, req: item.opp1GenderReq },
+                { filled: !!item.participants?.[1]?.id, req: item.opp2GenderReq },
+            ];
+            return slots.some(s => !s.filled && (!s.req || s.req === 'MIX' || s.req === wanted));
+        }
+        if ((item.teamSize || 1) > 1) {
+            if (!hasGenderCountInfo(item)) return true;
+            const roster = [
+                item.sender,
+                ...(Array.isArray(item.senderTeam) ? item.senderTeam : []),
+                ...(Array.isArray(item.participants) ? item.participants : []),
+                ...(Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []),
+            ].filter(p => p?.id);
+            const maleCount = roster.filter(p => p.gender === 'MALE').length;
+            const femaleCount = roster.filter(p => p.gender === 'FEMALE').length;
+            if (item.genderCountMode === 'MIN' || item.genderCountMode === 'MIN_PER_TEAM') {
+                const have = item.minGenderReq === 'MALE' ? maleCount : femaleCount;
+                // Minimum henüz karşılanmadıysa o cinsiyet aktif olarak aranıyor sayılır;
+                // MIN modu genel kontenjanı kapatmadığı için diğer cinsiyet de yine olası kabul edilir.
+                return have < (item.minGenderCount || 0) ? wanted === item.minGenderReq : true;
+            }
+            // EXACT (ya da eski kayıtlarda genderCountMode boşken requiredMaleCount varsa EXACT sayılır)
+            const poolSize = 2 * (item.teamSize || 1);
+            const neededMale = item.requiredMaleCount ?? 0;
+            const neededFemale = poolSize - neededMale;
+            if (wanted === 'MALE') return maleCount < neededMale;
+            if (wanted === 'FEMALE') return femaleCount < neededFemale;
+            return true;
+        }
+        return !item.genderReq || item.genderReq === 'MIX' || item.genderReq === wanted;
+    };
+    // Kullanıcı isteği: kişi başı ücret aralığına göre filtreleme. Ücretsiz/ortaklaşa
+    // kararlaştırılan ilanlarda alan boş olur — sadece "en az" belirtilmemişse gösterilir
+    // (birileri "en az 50₺" derse ücretsiz bir ilan zaten aradığı şeyi karşılamıyordur).
+    const matchesPriceFilter = (item) => {
+        if (!filterMinPrice && !filterMaxPrice) return true;
+        const fee = item.courtFeePerPerson;
+        if (fee == null) return !filterMinPrice;
+        if (filterMinPrice && fee < parseInt(filterMinPrice, 10)) return false;
+        if (filterMaxPrice && fee > parseInt(filterMaxPrice, 10)) return false;
+        return true;
+    };
     const applyFilter = (item) => {
         if (sub === 'volleyball' && filterVolleyballType && item.surface !== filterVolleyballType) return false;
         if (filterCity.trim()) {
@@ -20846,6 +20920,10 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
         if (!matchesVenueNameFilter(item.courtName)) return false;
         if (item.matchDate && !matchesDateFilter(item.matchDate)) return false;
+        if (!matchesRatingFilter(item)) return false;
+        if (!matchesFriendsFilter(item)) return false;
+        if (!matchesGenderFilter(item, filterGenderSought)) return false;
+        if (!matchesPriceFilter(item)) return false;
         return true;
     };
     // Maçın başlama zamanına göre en yakından en uzağa sıralanır — esnek programlı
@@ -21317,11 +21395,12 @@ export default function SubCategoryScreen({ route, navigation }) {
             <Modal visible={showFilterModal} transparent animationType="slide" onRequestClose={() => setShowFilterModal(false)} android_keyboardInputMode="adjustNothing">
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
                     <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
-                    <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:16, paddingTop:17, paddingBottom: Math.max(20, insets.bottom + 16) }}>
+                    <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:16, paddingTop:17, paddingBottom: Math.max(20, insets.bottom + 16), maxHeight:'88%' }}>
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🔍 {lang==='tr' ? 'Filtrele' : 'Filter'}</Text>
                             <TouchableOpacity onPress={() => setShowFilterModal(false)}><Text style={{ color:colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
+                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
                         {sub === 'volleyball' && (
                             <>
@@ -21441,6 +21520,102 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <Text style={{ color:colors.textMuted, fontSize:12 }}>▾</Text>
                         </TouchableOpacity>
 
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6, marginTop:18 }}>
+                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>🎯 {lang==='tr' ? 'Derece' : 'Rating'}</Text>
+                            {(filterMinRating != null || filterMaxRating != null) ? (
+                                <TouchableOpacity onPress={() => { setFilterMinRating(null); setFilterMaxRating(null); }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:18 }}>
+                            <TextInput
+                                value={filterMinRating != null ? String(filterMinRating) : ''}
+                                onChangeText={(v) => setFilterMinRating(v.trim() === '' ? null : Math.max(0, Math.min(5, parseFloat(v.replace(',', '.')) || 0)))}
+                                placeholder={lang==='tr' ? 'Min (0)' : 'Min (0)'}
+                                placeholderTextColor={colors.textMuted}
+                                keyboardType="decimal-pad"
+                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterMinRating != null ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
+                            />
+                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>—</Text>
+                            <TextInput
+                                value={filterMaxRating != null ? String(filterMaxRating) : ''}
+                                onChangeText={(v) => setFilterMaxRating(v.trim() === '' ? null : Math.max(0, Math.min(5, parseFloat(v.replace(',', '.')) || 0)))}
+                                placeholder={lang==='tr' ? 'Maks (5)' : 'Max (5)'}
+                                placeholderTextColor={colors.textMuted}
+                                keyboardType="decimal-pad"
+                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterMaxRating != null ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
+                            />
+                        </View>
+
+                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>👥 {lang==='tr' ? 'Kimden' : 'From'}</Text>
+                        <View style={{ flexDirection:'row', gap:6, marginBottom:18 }}>
+                            <TouchableOpacity
+                                onPress={() => setFilterFriendsOnly(false)}
+                                style={{ flex:1, backgroundColor: !filterFriendsOnly ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1, borderColor: !filterFriendsOnly ? cfg.color : colors.border }}
+                            >
+                                <Text style={{ color: !filterFriendsOnly ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Herkes' : 'Everyone'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => setFilterFriendsOnly(true)}
+                                style={{ flex:1, backgroundColor: filterFriendsOnly ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1, borderColor: filterFriendsOnly ? cfg.color : colors.border }}
+                            >
+                                <Text style={{ color: filterFriendsOnly ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Arkadaşlarım' : 'Friends Only'}</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>⚧ {lang==='tr' ? 'Boş Kontenjanda Aranan' : 'Open Slot Seeking'}</Text>
+                        <View style={{ flexDirection:'row', gap:6, marginBottom:18 }}>
+                            <TouchableOpacity
+                                onPress={() => setFilterGenderSought(null)}
+                                style={{ flex:1, backgroundColor: !filterGenderSought ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1, borderColor: !filterGenderSought ? cfg.color : colors.border }}
+                            >
+                                <Text style={{ color: !filterGenderSought ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Fark Etmez' : 'Any'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => setFilterGenderSought(filterGenderSought === 'MALE' ? null : 'MALE')}
+                                style={{ flex:1, backgroundColor: filterGenderSought === 'MALE' ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1, borderColor: filterGenderSought === 'MALE' ? cfg.color : colors.border }}
+                            >
+                                <Text style={{ color: filterGenderSought === 'MALE' ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Erkek Aranıyor' : 'Male Sought'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => setFilterGenderSought(filterGenderSought === 'FEMALE' ? null : 'FEMALE')}
+                                style={{ flex:1, backgroundColor: filterGenderSought === 'FEMALE' ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1, borderColor: filterGenderSought === 'FEMALE' ? cfg.color : colors.border }}
+                            >
+                                <Text style={{ color: filterGenderSought === 'FEMALE' ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Kadın Aranıyor' : 'Female Sought'}</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>💰 {lang==='tr' ? 'Fiyat Aralığı' : 'Price Range'}</Text>
+                            {(filterMinPrice || filterMaxPrice) ? (
+                                <TouchableOpacity onPress={() => { setFilterMinPrice(''); setFilterMaxPrice(''); }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
+                            <TextInput
+                                value={filterMinPrice}
+                                onChangeText={(v) => setFilterMinPrice(v.replace(/[^0-9]/g, ''))}
+                                placeholder={lang==='tr' ? 'Min ₺' : 'Min'}
+                                placeholderTextColor={colors.textMuted}
+                                keyboardType="number-pad"
+                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterMinPrice ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
+                            />
+                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>—</Text>
+                            <TextInput
+                                value={filterMaxPrice}
+                                onChangeText={(v) => setFilterMaxPrice(v.replace(/[^0-9]/g, ''))}
+                                placeholder={lang==='tr' ? 'Maks ₺' : 'Max'}
+                                placeholderTextColor={colors.textMuted}
+                                keyboardType="number-pad"
+                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterMaxPrice ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
+                            />
+                        </View>
+
+                        </ScrollView>
+
                         {/* Kullanıcı isteği: filtre değişiklikleri zaten anlık uygulanıyor ama
                             en altta bir "Onayla" butonu olması daha anlaşılır — dokununca
                             filtreyi kapatır. Telefonun alt dokunmatik gezinme çubuğuyla
@@ -21448,7 +21623,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             zaten ayarlandı (bkz. yukarıdaki paddingBottom). */}
                         <TouchableOpacity
                             onPress={() => setShowFilterModal(false)}
-                            style={{ backgroundColor: cfg.color, borderRadius:12, paddingVertical:13, alignItems:'center', marginTop:20 }}
+                            style={{ backgroundColor: cfg.color, borderRadius:12, paddingVertical:13, alignItems:'center', marginTop:14 }}
                         >
                             <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>✓ {lang==='tr' ? 'Onayla' : 'Apply'}</Text>
                         </TouchableOpacity>
