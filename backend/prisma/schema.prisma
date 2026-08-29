@@ -372,7 +372,7 @@ model CoachListing {
   certificateUrl  String?  // yuklenen belge/sertifika dosyasi (pdf veya foto) — geriye donuk uyumluluk icin duruyor, yeni kayitlarda certificateUrls[0] ile ayni tutulur
   certificateUrls Json     @default("[]") // birden fazla belge/sertifika fotografi
   experience      Int      @default(0) // years
-  achievements    String?  // basarilar - yazili bilgi
+  achievements    Json?    // basarilar - string[] (kullanici "Ekle" ile birden fazla girebilir; eskiden tek String'di, migration'da [text] olarak tasindi)
   achievementUrls Json     @default("[]") // basari belgesi/foto dosyalari
   cvUrl           String?  // yuklenen CV dosyasi
   // Kullanici istegi: CV Yukle ekrani ders tipi/ucret/sehir istemeden sadece kimlik/belge/CV
@@ -383,10 +383,13 @@ model CoachListing {
   // gorunsun — genel hesap profilinden bagimsiz, ozellikle bu CV icin girilir.
   personalFullName  String?
   personalGender    String?  // MALE | FEMALE | OTHER
-  personalBirthYear Int?
-  // Kullanici istegi: daha once nerede/ne zaman antrenorluk yaptigi (serbest metin),
-  // basarilarin ustunde gosterilir.
-  priorExperience   String?
+  // Kullanici istegi: sadece yil degil gun/ay/yil olarak girilebilsin (eskiden personalBirthYear
+  // Int'ti, migration'da o yilin 1 Ocak'i olarak tasindi).
+  personalBirthDate DateTime?
+  // Kullanici istegi: "Ekle" dedikce calisilan yer/pozisyon/tarih araligi icin yeni bir satir
+  // acilsin — [{workplace, position, period}, ...] (eskiden serbest metindi, migration'da
+  // tek elemanli bir diziye tasindi).
+  priorExperience   Json?
 
   // Ders tipleri
   individual      Boolean  @default(true)
@@ -493,7 +496,7 @@ model RefereeListing {
   certificateUrl  String?  // geriye donuk uyumluluk icin duruyor, bkz. CoachListing.certificateUrl
   certificateUrls Json     @default("[]")
   experience      Int      @default(0) // years
-  achievements    String?
+  achievements    Json?    // basarilar - string[] (bkz. CoachListing.achievements ile ayni desen)
   achievementUrls Json     @default("[]")
   cvUrl           String?
   profileOnly     Boolean  @default(false) // bkz. CoachListing.profileOnly ile ayni desen

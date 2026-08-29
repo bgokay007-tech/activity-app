@@ -191,7 +191,7 @@ export const createListing = async (req, res, next) => {
             achievements, achievementUrls, cvUrl,
             individual, group, priceIndividual, priceGroup, maxGroupSize, includedEquipment,
             location, cities, days, timeFrom, timeTo, description,
-            personalFullName, personalGender, personalBirthYear, priorExperience,
+            personalFullName, personalGender, personalBirthDate, priorExperience,
             // Kullanıcı isteği: CV Yükle ekranı artık ders tipi/ücret/yer-zaman istemeden
             // sadece kimlik/belge/CV/başarı bilgisini kaydedebiliyor — henüz hiç ilanı
             // olmayan biri önce sadece bunları yükler, gerçek ilanı sonra oluşturur.
@@ -225,11 +225,12 @@ export const createListing = async (req, res, next) => {
                 certificateUrl: certUrlsArr[0] || certificateUrl,
                 certificateUrls: certUrlsArr,
                 experience: Number(experience) || 0,
-                achievements, achievementUrls: achievementUrls || [], cvUrl,
+                achievements: Array.isArray(achievements) ? achievements.filter(Boolean) : null,
+                achievementUrls: achievementUrls || [], cvUrl,
                 personalFullName: personalFullName || null,
                 personalGender: personalGender || null,
-                personalBirthYear: personalBirthYear ? Number(personalBirthYear) : null,
-                priorExperience: priorExperience || null,
+                personalBirthDate: personalBirthDate ? new Date(personalBirthDate) : null,
+                priorExperience: Array.isArray(priorExperience) ? priorExperience.filter(p => p?.workplace || p?.position || p?.period) : null,
                 individual: profileOnly ? false : Boolean(individual),
                 group: profileOnly ? false : Boolean(group),
                 priceIndividual: Number(priceIndividual) || 0,
@@ -294,7 +295,7 @@ export const updateListing = async (req, res, next) => {
             achievements, achievementUrls, cvUrl,
             individual, group, priceIndividual, priceGroup, maxGroupSize, includedEquipment,
             location, cities, days, timeFrom, timeTo, description,
-            personalFullName, personalGender, personalBirthYear, priorExperience,
+            personalFullName, personalGender, personalBirthDate, priorExperience,
         } = req.body;
 
         // Voleybol/tenis/padelde onaylı bir antrenör CV'sini değiştirirse onay otomatik
@@ -314,13 +315,13 @@ export const updateListing = async (req, res, next) => {
                 }),
                 ...(certificateUrls === undefined && certificateUrl !== undefined && { certificateUrl }),
                 ...(experience !== undefined && { experience: Number(experience) || 0 }),
-                ...(achievements !== undefined && { achievements }),
+                ...(achievements !== undefined && { achievements: Array.isArray(achievements) ? achievements.filter(Boolean) : null }),
                 ...(achievementUrls !== undefined && { achievementUrls }),
                 ...(cvUrl !== undefined && { cvUrl }),
                 ...(personalFullName !== undefined && { personalFullName: personalFullName || null }),
                 ...(personalGender !== undefined && { personalGender: personalGender || null }),
-                ...(personalBirthYear !== undefined && { personalBirthYear: personalBirthYear ? Number(personalBirthYear) : null }),
-                ...(priorExperience !== undefined && { priorExperience: priorExperience || null }),
+                ...(personalBirthDate !== undefined && { personalBirthDate: personalBirthDate ? new Date(personalBirthDate) : null }),
+                ...(priorExperience !== undefined && { priorExperience: Array.isArray(priorExperience) ? priorExperience.filter(p => p?.workplace || p?.position || p?.period) : null }),
                 ...(individual !== undefined && { individual: Boolean(individual) }),
                 ...(group !== undefined && { group: Boolean(group) }),
                 ...(priceIndividual !== undefined && { priceIndividual: Number(priceIndividual) || 0 }),
