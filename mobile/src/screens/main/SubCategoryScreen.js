@@ -587,6 +587,22 @@ const det = StyleSheet.create({
     chatBtnTxt:   { fontSize:moderateScale(13) },
 });
 
+// Galeriden resim/video seçip yükler, {url, isVideo} döner — hem RivalDetailModal (açık ilan/
+// eşleşme detayı) hem UpcomingCard (yaklaşan/skor bekleyen maç) aynı fonksiyonu paylaşıyor,
+// ikisinde de "Medya Paylaş" akışı birebir aynı (bkz. o bileşenlerdeki confirmMediaShare).
+async function pickAndUploadMatchMedia() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return null; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.85 });
+    if (result.canceled) return null;
+    const asset = result.assets[0];
+    const isVideo = asset.type === 'video' || asset.uri.includes('.mp4') || asset.uri.includes('.mov');
+    const form = new FormData();
+    form.append('file', { uri: asset.uri, name: isVideo ? 'media.mp4' : 'media.jpg', type: isVideo ? 'video/mp4' : 'image/jpeg' });
+    const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+    return { url: uploadData.url, isVideo };
+}
+
 function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin, highlightSlot: highlightSlotFromNotif = null, autoOpenOrder = false }) {
     const insets = useSafeAreaInsets();
     // Kullanıcı raporu: "Atanmamış" ızgarasında derece puanı (⭐) küçük ekranlı telefonlarda
@@ -747,6 +763,59 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [loadingComments, setLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
     const [sendingComment, setSendingComment] = useState(false);
+    // Kullanıcı isteği: "Yorumlar" başlığının sağına ok işareti — aşağı dönükken yorumlar
+    // (yazma kutusu + liste) görünür, dokununca sola döner ve gizler. Varsayılan açık.
+    const [showComments, setShowComments] = useState(true);
+    // Kullanıcı isteği: açık ilan detayında da (maça dönüşmeden önce) Yorumlar'ın altında
+    // her zaman erişilebilen bir "Medya Paylaş" girişi — UpcomingCard'daki (yaklaşan/skor
+    // bekleyen maç) aynı akış: medya seçilince o sporun Medya sekmesine + bu ilana (rivalId)
+    // bağlı tek gönderi otomatik gider, Sanal Alem'de de paylaşmak opsiyonel bir seçenek.
+    const [sharingMedia, setSharingMedia] = useState(false);
+    const [showMediaShareOptions, setShowMediaShareOptions] = useState(false);
+    const [pickedMediaForShare, setPickedMediaForShare] = useState(null); // {url, isVideo}
+    const [shareToSanalAlemChecked, setShareToSanalAlemChecked] = useState(false);
+    const shareItemMedia = async () => {
+        setSharingMedia(true);
+        try {
+            const media = await pickAndUploadMatchMedia();
+            if (!media) return;
+            setPickedMediaForShare(media);
+            setShareToSanalAlemChecked(false);
+            setShowMediaShareOptions(true);
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.sendFailed);
+        } finally {
+            setSharingMedia(false);
+        }
+    };
+    const confirmItemMediaShare = async () => {
+        if (!pickedMediaForShare) return;
+        const { url, isVideo } = pickedMediaForShare;
+        setSharingMedia(true);
+        try {
+            await api.post('/posts', {
+                category: item.category, subCategory: item.subCategory,
+                type: 'POST', content: '', rivalId: item.id,
+                ...(isVideo ? { videoUrl: url } : { imageUrl: url }),
+            });
+            if (shareToSanalAlemChecked) {
+                await api.post('/posts', {
+                    category: 'SOCIAL', subCategory: 'sanal_alem',
+                    type: 'POST', content: '',
+                    ...(isVideo ? { videoUrl: url } : { imageUrl: url }),
+                });
+            }
+            setShowMediaShareOptions(false);
+            setPickedMediaForShare(null);
+            Alert.alert('', shareToSanalAlemChecked
+                ? `Medya paylaşıldı ✓ (İlan + ${getSubCategoryLabel(item.subCategory, t.lang)} Medya + Sanal Alem)`
+                : `Medya paylaşıldı ✓ (İlan + ${getSubCategoryLabel(item.subCategory, t.lang)} Medya)`);
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.sendFailed);
+        } finally {
+            setSharingMedia(false);
+        }
+    };
     // Seyirci listesi — sadece voleybolda: onaylı antrenörlerin izledikleri maçlardaki
     // oyuncuları değerlendirebilmesi için (bkz. resolveRaterRole, backend/utils/volleyballRating.js).
     const [spectators, setSpectators] = useState([]);
@@ -3704,61 +3773,82 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </View>
                     )}
 
-                    {/* Yorum yaz — kullanıcı isteği: eskiden ekranın en altına, klavyenin hemen
-                        üstüne SABİT olarak yapıştırılmıştı; kadro kartındaki forma arama kutusuna
-                        yazarken de alakasızca orada duruyordu. Artık normal kaydırılan akışın
-                        içinde, doğrudan "Yorumlar" başlığının ÜSTÜNDE — sadece kullanıcı buraya
-                        kadar kaydırınca görünür. */}
-                    {item.refereeUser?.id !== myId && (
-                        <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
-                            <TextInput
-                                style={[s.fieldInput, { flex:1, height:moderateScale(44), marginBottom:0, fontSize:moderateScale(14) }]}
-                                placeholder={t.matchCommentPlaceholder}
-                                placeholderTextColor={colors.textMuted}
-                                value={commentText}
-                                onChangeText={setCommentText}
-                                multiline={false}
-                                returnKeyType="send"
-                                onSubmitEditing={sendComment}
-                            />
-                            <TouchableOpacity
-                                style={[s.joinBtn, { paddingHorizontal:15, height:moderateScale(44), justifyContent:'center', alignSelf:'center', borderRadius: moderateScale(10) }, sendingComment && { opacity:0.6 }]}
-                                onPress={sendComment}
-                                disabled={sendingComment}
-                            >
-                                <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{t.matchCommentSend}</Text>
-                            </TouchableOpacity>
-                        </View>
+                    {/* Yorumlar bölümü — kullanıcı isteği: başlığın sağına ok işareti, aşağı
+                        dönükken (varsayılan) yazma kutusu + liste görünür, dokununca sola döner
+                        ve gizler. */}
+                    <TouchableOpacity
+                        onPress={() => setShowComments(v => !v)}
+                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: showComments ? 14 : 4 }}
+                    >
+                        <Text style={{ color:'#fff', fontSize:moderateScale(15), fontWeight:'800' }}>
+                            💬 {t.matchCommentsTitle}{comments.length > 0 ? ` (${comments.length})` : ''}
+                        </Text>
+                        <Text style={{ color: colors.textMuted, fontSize:16, transform:[{ rotate: showComments ? '0deg' : '-90deg' }] }}>▼</Text>
+                    </TouchableOpacity>
+                    {showComments && (
+                        <>
+                            {/* Yorum yaz — kullanıcı isteği: eskiden ekranın en altına, klavyenin
+                                hemen üstüne SABİT olarak yapıştırılmıştı; kadro kartındaki forma
+                                arama kutusuna yazarken de alakasızca orada duruyordu. Artık normal
+                                kaydırılan akışın içinde, doğrudan "Yorumlar" başlığının ALTINDA. */}
+                            {item.refereeUser?.id !== myId && (
+                                <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
+                                    <TextInput
+                                        style={[s.fieldInput, { flex:1, height:moderateScale(44), marginBottom:0, fontSize:moderateScale(14) }]}
+                                        placeholder={t.matchCommentPlaceholder}
+                                        placeholderTextColor={colors.textMuted}
+                                        value={commentText}
+                                        onChangeText={setCommentText}
+                                        multiline={false}
+                                        returnKeyType="send"
+                                        onSubmitEditing={sendComment}
+                                    />
+                                    <TouchableOpacity
+                                        style={[s.joinBtn, { paddingHorizontal:15, height:moderateScale(44), justifyContent:'center', alignSelf:'center', borderRadius: moderateScale(10) }, sendingComment && { opacity:0.6 }]}
+                                        onPress={sendComment}
+                                        disabled={sendingComment}
+                                    >
+                                        <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{t.matchCommentSend}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                            {loadingComments ? (
+                                <ActivityIndicator color={cfg.color} style={{ marginTop:16 }} />
+                            ) : comments.length === 0 ? (
+                                <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:8, fontSize:moderateScale(13) }}>{t.matchCommentEmpty}</Text>
+                            ) : (
+                                comments.map(c => (
+                                    <View key={c.id} style={{ marginBottom:14, paddingBottom:11, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
+                                            <View style={{ flex:1 }}>
+                                                <Text style={{ color: cfg.color, fontSize:moderateScale(13), fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
+                                                <Text style={{ color:'#fff', fontSize:moderateScale(14), lineHeight:moderateScale(21) }}>{c.content}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), marginTop:4 }}>
+                                                    {new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
+                                                </Text>
+                                            </View>
+                                            {canDeleteComment(c) && (
+                                                <TouchableOpacity onPress={() => deleteComment(c.id)} style={{ padding:5, marginLeft:8 }}>
+                                                    <Text style={{ color:'#f87171', fontSize:moderateScale(14) }}>✕</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    </View>
+                                ))
+                            )}
+                        </>
                     )}
 
-                    {/* Yorumlar bölümü */}
-                    <Text style={{ color:'#fff', fontSize:moderateScale(15), fontWeight:'800', marginBottom:14 }}>
-                        💬 {t.matchCommentsTitle}{comments.length > 0 ? ` (${comments.length})` : ''}
-                    </Text>
-                    {loadingComments ? (
-                        <ActivityIndicator color={cfg.color} style={{ marginTop:16 }} />
-                    ) : comments.length === 0 ? (
-                        <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:8, fontSize:moderateScale(13) }}>{t.matchCommentEmpty}</Text>
-                    ) : (
-                        comments.map(c => (
-                            <View key={c.id} style={{ marginBottom:14, paddingBottom:11, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
-                                    <View style={{ flex:1 }}>
-                                        <Text style={{ color: cfg.color, fontSize:moderateScale(13), fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
-                                        <Text style={{ color:'#fff', fontSize:moderateScale(14), lineHeight:moderateScale(21) }}>{c.content}</Text>
-                                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), marginTop:4 }}>
-                                            {new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
-                                        </Text>
-                                    </View>
-                                    {canDeleteComment(c) && (
-                                        <TouchableOpacity onPress={() => deleteComment(c.id)} style={{ padding:5, marginLeft:8 }}>
-                                            <Text style={{ color:'#f87171', fontSize:moderateScale(14) }}>✕</Text>
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                            </View>
-                        ))
-                    )}
+                    {/* Kullanıcı isteği: açık ilan detayında da Yorumlar'ın altında her zaman
+                        erişilebilen bir "Medya Paylaş" girişi — UpcomingCard'daki aynı akış. */}
+                    <TouchableOpacity
+                        onPress={shareItemMedia}
+                        disabled={sharingMedia}
+                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor:'#0ea5e918', borderRadius:12, borderWidth:1, borderColor:'#0ea5e950', paddingVertical:11, marginTop:4, opacity: sharingMedia ? 0.6 : 1 }}>
+                        {sharingMedia
+                            ? <ActivityIndicator color="#38bdf8" size="small" />
+                            : <Text style={{ color:'#38bdf8', fontSize:14, fontWeight:'800' }}>📷 Medya Paylaş</Text>}
+                    </TouchableOpacity>
                 </ScrollView>
                 </KeyboardAvoidingView>
 
@@ -3824,6 +3914,61 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </KeyboardAvoidingView>
                     </View>
                 )}
+            </View>
+        </Modal>
+
+        {/* Kullanıcı isteği: medya seçildikten sonra nereye paylaşılacağı seçenek olarak
+            sorulsun — bu ilan + o sporun Medya sekmesi otomatik, Sanal Alem opsiyonel. Kasıtlı
+            olarak ana Modal'ın (visible={visible}) İÇİNE değil, kardeşi olarak buraya konuldu —
+            iç içe Modal Android'de klavye açıkken pencerenin çökmesine yol açıyordu (bkz.
+            yukarıdaki "Oyuncu Davet Et" panelindeki aynı uyarı). */}
+        <Modal visible={showMediaShareOptions} transparent animationType="fade" onRequestClose={() => { setShowMediaShareOptions(false); setPickedMediaForShare(null); }}>
+            <View style={{ flex:1, backgroundColor:'#000000a0', justifyContent:'center', padding:24 }}>
+                <View style={{ backgroundColor: colors.surface, borderRadius:18, padding:17 }}>
+                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:4 }}>📷 Medyayı Nerede Paylaşayım?</Text>
+                    <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:14, lineHeight:17 }}>
+                        Bu ilanın altında ve {getSubCategoryLabel(item.subCategory, t.lang)} Medya sekmesinde otomatik görünecek. İsterseniz aynı anda Sanal Alem'de de paylaşabilirsiniz.
+                    </Text>
+                    {pickedMediaForShare && (
+                        pickedMediaForShare.isVideo ? (
+                            <View style={{ width:'100%', height:140, borderRadius:12, marginBottom:14, backgroundColor: colors.surface2, alignItems:'center', justifyContent:'center' }}>
+                                <Text style={{ fontSize:32 }}>🎬</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>Video seçildi</Text>
+                            </View>
+                        ) : (
+                            <Image source={{ uri: pickedMediaForShare.url }} style={{ width:'100%', height:160, borderRadius:12, marginBottom:14 }} resizeMode="cover" />
+                        )
+                    )}
+                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, padding:10, marginBottom:8 }}>
+                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1 }}>
+                            {cfg.emoji} {getSubCategoryLabel(item.subCategory, t.lang)} Medya'da Paylaş
+                        </Text>
+                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>✓ Otomatik</Text>
+                    </View>
+                    <TouchableOpacity
+                        onPress={() => setShareToSanalAlemChecked(v => !v)}
+                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: shareToSanalAlemChecked ? '#0ea5e920' : colors.surface2, borderRadius:10, padding:10, marginBottom:16, borderWidth:1, borderColor: shareToSanalAlemChecked ? '#0ea5e960' : colors.border }}
+                    >
+                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1 }}>🌐 Sanal Alem'de de Paylaş</Text>
+                        <View style={{ width:22, height:22, borderRadius:6, borderWidth:2, borderColor: shareToSanalAlemChecked ? '#0ea5e9' : colors.textMuted, backgroundColor: shareToSanalAlemChecked ? '#0ea5e9' : 'transparent', alignItems:'center', justifyContent:'center' }}>
+                            {shareToSanalAlemChecked && <Text style={{ color:'#fff', fontSize:13, fontWeight:'900' }}>✓</Text>}
+                        </View>
+                    </TouchableOpacity>
+                    <View style={{ flexDirection:'row', gap:8 }}>
+                        <TouchableOpacity
+                            onPress={() => { setShowMediaShareOptions(false); setPickedMediaForShare(null); }}
+                            style={{ flex:1, paddingVertical:11, borderRadius:12, alignItems:'center', backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border }}>
+                            <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={confirmItemMediaShare} disabled={sharingMedia}
+                            style={{ flex:1, paddingVertical:11, borderRadius:12, alignItems:'center', backgroundColor: cfg.color, opacity: sharingMedia ? 0.6 : 1 }}>
+                            {sharingMedia
+                                ? <ActivityIndicator color="#fff" size="small" />
+                                : <Text style={{ color:'#fff', fontWeight:'800' }}>✓ Paylaş</Text>}
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </View>
         </Modal>
 
@@ -5160,6 +5305,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [localCommentsLoaded, setLocalCommentsLoaded] = useState(false);
     const [localCommentText, setLocalCommentText] = useState('');
     const [sendingLocalComment, setSendingLocalComment] = useState(false);
+    // Kullanıcı isteği: "Yorumlar" başlığının sağına ok işareti — aşağı dönükken yorumlar
+    // (yazma kutusu + liste) görünür, dokununca sola döner ve gizler. Varsayılan açık.
+    const [showLocalComments, setShowLocalComments] = useState(true);
     // Seyirci listesi — sadece voleybolda: onaylı antrenörlerin izledikleri maçlardaki
     // oyuncuları değerlendirebilmesi için (bkz. resolveRaterRole, backend/utils/volleyballRating.js).
     const [spectators, setSpectators] = useState([]);
@@ -5507,22 +5655,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         finally { setSubmitting(false); }
     };
 
-    // Galeriden resim/video seçip yükler, {url, isVideo} döner — seçim tek seferlik, hangi
-    // yer(ler)e paylaşılacağı sonrasında açılan seçenekler penceresinde (bkz. confirmMediaShare)
-    // belirlenir, medya ikinci kez seçtirilmez/yüklenmez.
-    const pickAndUploadMedia = async () => {
-        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return null; }
-        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.85 });
-        if (result.canceled) return null;
-        const asset = result.assets[0];
-        const isVideo = asset.type === 'video' || asset.uri.includes('.mp4') || asset.uri.includes('.mov');
-        const form = new FormData();
-        form.append('file', { uri: asset.uri, name: isVideo ? 'media.mp4' : 'media.jpg', type: isVideo ? 'video/mp4' : 'image/jpeg' });
-        const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-        return { url: uploadData.url, isVideo };
-    };
-
     // Kullanıcı isteği: medya seçildikten hemen sonra nereye paylaşılacağı SEÇENEK olarak
     // sorulsun (bu maç + o sporun Medya sekmesi zaten otomatik/tek gönderiyle birlikte gelir —
     // aynı Post rivalId ile hem maça hem Medya sekmesine bağlanıyor — Sanal Alem ise ayrı bir
@@ -5531,7 +5663,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const shareMatchMedia = async (hideMatchInfo = false) => {
         setSharingMedia(true);
         try {
-            const media = await pickAndUploadMedia();
+            const media = await pickAndUploadMatchMedia();
             if (!media) return;
             setPickedMediaForShare({ ...media, hideMatchInfo });
             setShareToSanalAlemChecked(false);
@@ -7527,50 +7659,61 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </View>
                     )}
 
-                    {/* Yorum yaz — kullanıcı isteği: eskiden ekranın en altına, klavyenin hemen
-                        üstüne SABİT yapıştırılmıştı; artık normal kaydırılan akışın içinde,
-                        doğrudan "Yorumlar" başlığının ÜSTÜNDE. */}
-                    {match.refereeUser?.id !== myId && (
-                        <View style={{ flexDirection:'row', gap:3, marginBottom:12 }}>
-                            <TextInput
-                                style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:9,
-                                    paddingVertical:5, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
-                                placeholder="Yorum yaz..."
-                                placeholderTextColor={colors.textMuted}
-                                value={localCommentText}
-                                onChangeText={setLocalCommentText}
-                                multiline
-                            />
-                            <TouchableOpacity
-                                style={{ backgroundColor: sendingLocalComment || !localCommentText.trim() ? colors.surface2 : colors.purple,
-                                    borderRadius:10, paddingHorizontal:11, justifyContent:'center', alignItems:'center' }}
-                                onPress={sendLocalComment}
-                                disabled={sendingLocalComment || !localCommentText.trim()}>
-                                <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Gönder</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-
-                    {/* Comments section */}
-                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:12 }}>
-                        💬 Yorumlar{localComments.length > 0 ? ` (${localComments.length})` : ''}
-                    </Text>
-                    {loadingLocalComments ? (
-                        <ActivityIndicator color={cfg.color} style={{ marginVertical:16 }} />
-                    ) : localComments.length === 0 ? (
-                        <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Henüz yorum yok.</Text>
-                    ) : (
-                        localComments.map(c => (
-                            <View key={c.id} style={{ backgroundColor: colors.surface2, borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
-                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
-                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{c.user?.username || '?'}</Text>
-                                    <Text style={{ color: colors.textMuted, fontSize:10 }}>
-                                        {c.createdAt ? new Date(c.createdAt).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short' }) : ''}
-                                    </Text>
+                    {/* Comments section — kullanıcı isteği: başlığın sağına ok işareti, aşağı
+                        dönükken (varsayılan) yazma kutusu + liste görünür, dokununca sola döner
+                        ve gizler. */}
+                    <TouchableOpacity
+                        onPress={() => setShowLocalComments(v => !v)}
+                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: showLocalComments ? 12 : 4 }}
+                    >
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>
+                            💬 Yorumlar{localComments.length > 0 ? ` (${localComments.length})` : ''}
+                        </Text>
+                        <Text style={{ color: colors.textMuted, fontSize:16, transform:[{ rotate: showLocalComments ? '0deg' : '-90deg' }] }}>▼</Text>
+                    </TouchableOpacity>
+                    {showLocalComments && (
+                        <>
+                            {/* Yorum yaz — kullanıcı isteği: eskiden ekranın en altına, klavyenin
+                                hemen üstüne SABİT yapıştırılmıştı; artık normal kaydırılan akışın
+                                içinde, doğrudan "Yorumlar" başlığının ALTINDA. */}
+                            {match.refereeUser?.id !== myId && (
+                                <View style={{ flexDirection:'row', gap:3, marginBottom:12 }}>
+                                    <TextInput
+                                        style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:9,
+                                            paddingVertical:5, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
+                                        placeholder="Yorum yaz..."
+                                        placeholderTextColor={colors.textMuted}
+                                        value={localCommentText}
+                                        onChangeText={setLocalCommentText}
+                                        multiline
+                                    />
+                                    <TouchableOpacity
+                                        style={{ backgroundColor: sendingLocalComment || !localCommentText.trim() ? colors.surface2 : colors.purple,
+                                            borderRadius:10, paddingHorizontal:11, justifyContent:'center', alignItems:'center' }}
+                                        onPress={sendLocalComment}
+                                        disabled={sendingLocalComment || !localCommentText.trim()}>
+                                        <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Gönder</Text>
+                                    </TouchableOpacity>
                                 </View>
-                                <Text style={{ color: colors.textSecondary, fontSize:13 }}>{c.content}</Text>
-                            </View>
-                        ))
+                            )}
+                            {loadingLocalComments ? (
+                                <ActivityIndicator color={cfg.color} style={{ marginVertical:16 }} />
+                            ) : localComments.length === 0 ? (
+                                <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Henüz yorum yok.</Text>
+                            ) : (
+                                localComments.map(c => (
+                                    <View key={c.id} style={{ backgroundColor: colors.surface2, borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
+                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{c.user?.username || '?'}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:10 }}>
+                                                {c.createdAt ? new Date(c.createdAt).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short' }) : ''}
+                                            </Text>
+                                        </View>
+                                        <Text style={{ color: colors.textSecondary, fontSize:13 }}>{c.content}</Text>
+                                    </View>
+                                ))
+                            )}
+                        </>
                     )}
 
                     {/* Kullanıcı isteği: Yorumlar'ın altında, skora bağlı olmadan (maç zaten
