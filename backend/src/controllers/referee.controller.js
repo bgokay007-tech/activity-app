@@ -135,6 +135,10 @@ export const createListing = async (req, res, next) => {
             // kademe/doğrulama bilgileri — sadece tenis dalında zorunlu (bkz. aşağıdaki kontrol).
             ikortNo, refereeKademe, vizeBelgesiUrl, itfBadgeLevel, itfCertNo,
             adliSicilUrl, cezaBelgesiUrl, ilTemsilciligi, specialization,
+            // Kullanıcı isteği: voleybol hakemliğinde TVF sistemiyle uyumlu doğrulama bilgileri —
+            // ikortNo/refereeKademe/vizeBelgesiUrl/ilTemsilciligi/specialization tenisle aynı
+            // alanlar üzerinden paylaşılıyor, bunlar sadece voleybole özel 3 yeni alan.
+            vizeAktif, highestLeagueLevel, recentMatchesUrl,
         } = req.body;
 
         const citiesArr = Array.isArray(cities) ? cities.filter(Boolean) : [];
@@ -167,6 +171,20 @@ export const createListing = async (req, res, next) => {
             if (specializationArr.length === 0)
                 return res.status(400).json({ message: 'Uzmanlık alanınızı (Kule/Çizgi Hakemi) seçmeniz zorunludur.' });
         }
+        // Kullanıcı isteği: bir voleybol hakemini onaylamadan önce mutlaka kontrol edilmesi
+        // gereken temel bilgiler — TVF hakem sicil no (lisans no), klasman/unvan, bağlı olduğu
+        // il temsilciliği, güncel hakemlik lisans/vize belgesi. Uzman pozisyonlar ve en yüksek
+        // lig seviyesi filtreleme amaçlı olduğu için zorunlu tutulmadı.
+        if (subCategory === 'volleyball') {
+            if (!ikortNo || !String(ikortNo).trim())
+                return res.status(400).json({ message: 'Hakemlik Sicil Numaranızı (Lisans No) girmeniz zorunludur.' });
+            if (!refereeKademe)
+                return res.status(400).json({ message: 'Mevcut klasmanınızı/unvanınızı seçmeniz zorunludur.' });
+            if (!ilTemsilciligi)
+                return res.status(400).json({ message: 'Bağlı olduğunuz il temsilciliğini seçmeniz zorunludur.' });
+            if (!vizeBelgesiUrl)
+                return res.status(400).json({ message: 'Hakemlik lisans/vize belgenizi yüklemeniz zorunludur.' });
+        }
 
         const listing = await prisma.refereeListing.create({
             data: {
@@ -193,6 +211,9 @@ export const createListing = async (req, res, next) => {
                 cezaBelgesiUrl: cezaBelgesiUrl || null,
                 ilTemsilciligi: ilTemsilciligi || null,
                 specialization: specializationArr,
+                vizeAktif: Boolean(vizeAktif),
+                highestLeagueLevel: highestLeagueLevel || null,
+                recentMatchesUrl: recentMatchesUrl || null,
                 // Voleybol/tenis/padelde admin onayı gerekiyor (approved varsayılan false
                 // kalır); diğer dallarda hiç kontrol edilmediği için baştan onaylı sayılır —
                 // davranış değişmesin diye (bkz. resolveRefereeEligibility).
@@ -247,6 +268,7 @@ export const updateListing = async (req, res, next) => {
             location, cities, days, timeFrom, timeTo, description,
             ikortNo, refereeKademe, vizeBelgesiUrl, itfBadgeLevel, itfCertNo,
             adliSicilUrl, cezaBelgesiUrl, ilTemsilciligi, specialization,
+            vizeAktif, highestLeagueLevel, recentMatchesUrl,
         } = req.body;
 
         // Voleybol/tenis/padelde onaylı bir hakem CV'sini değiştirirse onay otomatik düşer —
@@ -284,6 +306,9 @@ export const updateListing = async (req, res, next) => {
                 ...(cezaBelgesiUrl !== undefined && { cezaBelgesiUrl: cezaBelgesiUrl || null }),
                 ...(ilTemsilciligi !== undefined && { ilTemsilciligi: ilTemsilciligi || null }),
                 ...(specialization !== undefined && { specialization: Array.isArray(specialization) ? specialization.filter(Boolean) : [] }),
+                ...(vizeAktif !== undefined && { vizeAktif: Boolean(vizeAktif) }),
+                ...(highestLeagueLevel !== undefined && { highestLeagueLevel: highestLeagueLevel || null }),
+                ...(recentMatchesUrl !== undefined && { recentMatchesUrl: recentMatchesUrl || null }),
                 ...(revokeApproval && { approved: false }),
             },
             include: { user: { select: USER_SELECT } },

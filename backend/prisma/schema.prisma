@@ -539,7 +539,15 @@ model RefereeListing {
   adliSicilUrl    String?  // e-Devlet adli sicil belgesi (foto/PDF)
   cezaBelgesiUrl  String?  // TTF/Spor Bilgi Sistemi'nden alınan disiplin cezası almadığına dair belge
   ilTemsilciligi  String?  // bağlı olduğu il temsilciliği
-  specialization  Json?    // string[] — kule_hakemi (Chair Umpire) | cizgi_hakemi (Line Umpire)
+  specialization  Json?    // string[] — tenis: kule_hakemi/cizgi_hakemi, voleybol: bashakem/yardimci_hakem/yazi_hakemi/cizgi_hakemi
+
+  // Kullanıcı isteği: voleybol hakemliğinde de tenisteki gibi admin onayından önce mutlaka
+  // kontrol edilmesi gereken bilgiler (TVF sistemiyle uyumlu) — ikortNo/refereeKademe/
+  // vizeBelgesiUrl/ilTemsilciligi/specialization tenisle aynı alanlar üzerinden paylaşılıyor
+  // (bkz. createListing), sadece bu üçü voleybole özel yeni alanlar.
+  vizeAktif          Boolean  @default(false) // "Vize Durumu" — bu sezon vizesinin aktif olduğuna dair kendi beyanı, admin vizeBelgesiUrl ile çapraz kontrol eder
+  highestLeagueLevel String?  // "Yönettiği En Yüksek Lig Seviyesi" — Efeler/Sultanlar Ligi, 1. Lig, 2. Lig, Altyapı vb
+  recentMatchesUrl   String?  // "En Son Yönettiği Maç Listesi" — opsiyonel, son 1-2 yılda çıktığı maçların listesi/görseli
 
   location        String?  // kort/tesis adı — artık zorunlu değil, bkz. cities
   city            String?  // eski tekil alan — geriye dönük uyumluluk için duruyor, yeni
