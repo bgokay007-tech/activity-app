@@ -526,6 +526,21 @@ model RefereeListing {
 
   pricePerMatch   Int      @default(0)
 
+  // Kullanıcı isteği: tenis hakemliğinde admin onayından önce mutlaka kontrol edilmesi
+  // gereken resmi lisans/kademe/doğrulama bilgileri (TTF i-KORT sistemiyle uyumlu alanlar).
+  // Sadece tenis dalında zorunlu (bkz. createListing), diğer dallarda kullanılmıyor.
+  // adliSicilUrl/cezaBelgesiUrl SADECE sahibi ve admin görür (bkz. redactSensitiveRefereeFields,
+  // CoachListing.adliSicilUrl ile aynı desen).
+  ikortNo         String?  // TTF Hakem Sicil Numarası (i-KORT ID)
+  refereeKademe   String?  // ADAY | IL | ULUSAL | ULUSLARARASI
+  vizeBelgesiUrl  String?  // güncel vize durumunu gösteren i-KORT profil ekran görüntüsü/belge
+  itfBadgeLevel   String?  // WHITE | BRONZE | SILVER | GOLD — opsiyonel, sadece ITF rozetli hakemler için
+  itfCertNo       String?  // ITF sertifika numarası — opsiyonel
+  adliSicilUrl    String?  // e-Devlet adli sicil belgesi (foto/PDF)
+  cezaBelgesiUrl  String?  // TTF/Spor Bilgi Sistemi'nden alınan disiplin cezası almadığına dair belge
+  ilTemsilciligi  String?  // bağlı olduğu il temsilciliği
+  specialization  Json?    // string[] — kule_hakemi (Chair Umpire) | cizgi_hakemi (Line Umpire)
+
   location        String?  // kort/tesis adı — artık zorunlu değil, bkz. cities
   city            String?  // eski tekil alan — geriye dönük uyumluluk için duruyor, yeni
   // kayıtlarda kullanılmıyor, bkz. cities

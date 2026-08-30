@@ -9,6 +9,16 @@ const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 // zaten çalışan CV + admin onayı zorunluluğu artık tenis ve padelde de geçerli.
 const REFEREE_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
 
+// coach.controller.js'deki SENSITIVE_COACH_FIELDS/redactSensitiveCoachFields ile aynı desen —
+// adli sicil ve disiplin cezası belgeleri sadece sahibi ve admin görür.
+const SENSITIVE_REFEREE_FIELDS = ['adliSicilUrl', 'cezaBelgesiUrl'];
+function redactSensitiveRefereeFields(listing, viewerId) {
+    if (!listing || listing.userId === viewerId) return listing;
+    const copy = { ...listing };
+    for (const f of SENSITIVE_REFEREE_FIELDS) delete copy[f];
+    return copy;
+}
+
 export const getListings = async (req, res, next) => {
     try {
         const { category, subCategory } = req.query;
@@ -42,11 +52,11 @@ export const getListings = async (req, res, next) => {
             _count: { id: true },
         }) : [];
         const ratingMap = Object.fromEntries(ratings.map(r => [r.refereeListingId, { avg: r._avg.rating, count: r._count.id }]));
-        res.json(listings.map(l => ({
+        res.json(listings.map(l => redactSensitiveRefereeFields({
             ...l,
             avgRating: ratingMap[l.id]?.avg ?? null,
             reviewCount: ratingMap[l.id]?.count ?? 0,
-        })));
+        }, req.userId)));
     } catch (err) { next(err); }
 };
 
@@ -121,10 +131,15 @@ export const createListing = async (req, res, next) => {
             // Kullanıcı isteği: CV Yükle ekranı artık yer/zaman/ücret istemeden sadece
             // kimlik/belge/CV/başarı bilgisini kaydedebiliyor (bkz. coach.controller.js).
             profileOnly,
+            // Kullanıcı isteği: tenis hakemliğinde TTF i-KORT sistemiyle uyumlu resmi lisans/
+            // kademe/doğrulama bilgileri — sadece tenis dalında zorunlu (bkz. aşağıdaki kontrol).
+            ikortNo, refereeKademe, vizeBelgesiUrl, itfBadgeLevel, itfCertNo,
+            adliSicilUrl, cezaBelgesiUrl, ilTemsilciligi, specialization,
         } = req.body;
 
         const citiesArr = Array.isArray(cities) ? cities.filter(Boolean) : [];
         const certUrlsArr = Array.isArray(certificateUrls) ? certificateUrls.filter(Boolean) : [];
+        const specializationArr = Array.isArray(specialization) ? specialization.filter(Boolean) : [];
         if (!credentialLevel || !category || !subCategory)
             return res.status(400).json({ message: 'Missing required fields' });
         // Kullanıcı isteği: konum artık zorunlu değil, onun yerine bir/birden fazla şehir
@@ -137,6 +152,21 @@ export const createListing = async (req, res, next) => {
         // admin onayı CV'ye bakarak veriliyor, CV eksikse başvuru zaten değerlendirilemez.
         if (REFEREE_APPROVAL_SPORTS.includes(subCategory) && !cvUrl)
             return res.status(400).json({ message: 'Bu dalda hakemlik için CV yüklemeniz zorunludur.' });
+        // Kullanıcı isteği: bir tenis hakemini onaylamadan önce mutlaka kontrol edilmesi
+        // gereken temel bilgiler — TTF hakem sicil no (i-KORT ID), kademe, güncel vize belgesi,
+        // bağlı olduğu il temsilciliği, uzmanlık alanı (Kule/Çizgi Hakemi).
+        if (subCategory === 'tennis') {
+            if (!ikortNo || !String(ikortNo).trim())
+                return res.status(400).json({ message: 'TTF Hakem Sicil Numaranızı (i-KORT ID) girmeniz zorunludur.' });
+            if (!refereeKademe)
+                return res.status(400).json({ message: 'Hakemlik kademenizi seçmeniz zorunludur.' });
+            if (!vizeBelgesiUrl)
+                return res.status(400).json({ message: 'Güncel vize belgenizi (i-KORT profil ekran görüntüsü) yüklemeniz zorunludur.' });
+            if (!ilTemsilciligi)
+                return res.status(400).json({ message: 'Bağlı olduğunuz il temsilciliğini seçmeniz zorunludur.' });
+            if (specializationArr.length === 0)
+                return res.status(400).json({ message: 'Uzmanlık alanınızı (Kule/Çizgi Hakemi) seçmeniz zorunludur.' });
+        }
 
         const listing = await prisma.refereeListing.create({
             data: {
@@ -154,6 +184,15 @@ export const createListing = async (req, res, next) => {
                 timeFrom: timeFrom || '09:00',
                 timeTo: timeTo || '21:00',
                 description,
+                ikortNo: ikortNo?.trim() || null,
+                refereeKademe: refereeKademe || null,
+                vizeBelgesiUrl: vizeBelgesiUrl || null,
+                itfBadgeLevel: itfBadgeLevel || null,
+                itfCertNo: itfCertNo?.trim() || null,
+                adliSicilUrl: adliSicilUrl || null,
+                cezaBelgesiUrl: cezaBelgesiUrl || null,
+                ilTemsilciligi: ilTemsilciligi || null,
+                specialization: specializationArr,
                 // Voleybol/tenis/padelde admin onayı gerekiyor (approved varsayılan false
                 // kalır); diğer dallarda hiç kontrol edilmediği için baştan onaylı sayılır —
                 // davranış değişmesin diye (bkz. resolveRefereeEligibility).
@@ -206,6 +245,8 @@ export const updateListing = async (req, res, next) => {
             achievements, achievementUrls, cvUrl,
             pricePerMatch,
             location, cities, days, timeFrom, timeTo, description,
+            ikortNo, refereeKademe, vizeBelgesiUrl, itfBadgeLevel, itfCertNo,
+            adliSicilUrl, cezaBelgesiUrl, ilTemsilciligi, specialization,
         } = req.body;
 
         // Voleybol/tenis/padelde onaylı bir hakem CV'sini değiştirirse onay otomatik düşer —
@@ -234,6 +275,15 @@ export const updateListing = async (req, res, next) => {
                 ...(timeFrom !== undefined && { timeFrom }),
                 ...(timeTo !== undefined && { timeTo }),
                 ...(description !== undefined && { description }),
+                ...(ikortNo !== undefined && { ikortNo: ikortNo?.trim() || null }),
+                ...(refereeKademe !== undefined && { refereeKademe: refereeKademe || null }),
+                ...(vizeBelgesiUrl !== undefined && { vizeBelgesiUrl: vizeBelgesiUrl || null }),
+                ...(itfBadgeLevel !== undefined && { itfBadgeLevel: itfBadgeLevel || null }),
+                ...(itfCertNo !== undefined && { itfCertNo: itfCertNo?.trim() || null }),
+                ...(adliSicilUrl !== undefined && { adliSicilUrl: adliSicilUrl || null }),
+                ...(cezaBelgesiUrl !== undefined && { cezaBelgesiUrl: cezaBelgesiUrl || null }),
+                ...(ilTemsilciligi !== undefined && { ilTemsilciligi: ilTemsilciligi || null }),
+                ...(specialization !== undefined && { specialization: Array.isArray(specialization) ? specialization.filter(Boolean) : [] }),
                 ...(revokeApproval && { approved: false }),
             },
             include: { user: { select: USER_SELECT } },
