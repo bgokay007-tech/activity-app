@@ -19051,16 +19051,34 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Kullanıcı isteği: Rakip Bul'daki "Filtrele" paneline derece, herkes/arkadaşlarım, boş
     // kontenjanda aranan cinsiyet ve fiyat aralığı filtreleri eklendi — diğer filtreler gibi
     // (kort/mekan adı, tarih vb.) bilerek kalıcı yapılmadı, sadece sekme bazlı tutulur.
+    // Kullanıcı isteği: derece filtresi ilan oluştururken kullanılan RatingRangeModal ile
+    // birebir aynı (0.5 adımlı ★ grid + "cinsiyete göre ayır" anahtarı) — bu yüzden değerler
+    // de o modalin beklediği gibi string ('', '0.0'...'5.0') tutuluyor, sayı değil.
     const [tabFilterMinRating, setTabFilterMinRating] = useState({});
     const [tabFilterMaxRating, setTabFilterMaxRating] = useState({});
+    const [tabFilterRatingGenderSplit, setTabFilterRatingGenderSplit] = useState({});
+    const [tabFilterMinRatingMale, setTabFilterMinRatingMale] = useState({});
+    const [tabFilterMaxRatingMale, setTabFilterMaxRatingMale] = useState({});
+    const [tabFilterMinRatingFemale, setTabFilterMinRatingFemale] = useState({});
+    const [tabFilterMaxRatingFemale, setTabFilterMaxRatingFemale] = useState({});
     const [tabFilterFriendsOnly, setTabFilterFriendsOnly] = useState({});
     const [tabFilterGenderSought, setTabFilterGenderSought] = useState({}); // null | 'MALE' | 'FEMALE'
     const [tabFilterMinPrice, setTabFilterMinPrice] = useState({});
     const [tabFilterMaxPrice, setTabFilterMaxPrice] = useState({});
-    const filterMinRating = tabFilterMinRating[activeTab] ?? null;
+    const filterMinRating = tabFilterMinRating[activeTab] ?? '';
     const setFilterMinRating = (v) => setTabFilterMinRating(p => ({ ...p, [activeTab]: v }));
-    const filterMaxRating = tabFilterMaxRating[activeTab] ?? null;
+    const filterMaxRating = tabFilterMaxRating[activeTab] ?? '';
     const setFilterMaxRating = (v) => setTabFilterMaxRating(p => ({ ...p, [activeTab]: v }));
+    const filterRatingGenderSplit = tabFilterRatingGenderSplit[activeTab] || false;
+    const setFilterRatingGenderSplit = (v) => setTabFilterRatingGenderSplit(p => ({ ...p, [activeTab]: v }));
+    const filterMinRatingMale = tabFilterMinRatingMale[activeTab] ?? '';
+    const setFilterMinRatingMale = (v) => setTabFilterMinRatingMale(p => ({ ...p, [activeTab]: v }));
+    const filterMaxRatingMale = tabFilterMaxRatingMale[activeTab] ?? '';
+    const setFilterMaxRatingMale = (v) => setTabFilterMaxRatingMale(p => ({ ...p, [activeTab]: v }));
+    const filterMinRatingFemale = tabFilterMinRatingFemale[activeTab] ?? '';
+    const setFilterMinRatingFemale = (v) => setTabFilterMinRatingFemale(p => ({ ...p, [activeTab]: v }));
+    const filterMaxRatingFemale = tabFilterMaxRatingFemale[activeTab] ?? '';
+    const setFilterMaxRatingFemale = (v) => setTabFilterMaxRatingFemale(p => ({ ...p, [activeTab]: v }));
     const filterFriendsOnly = tabFilterFriendsOnly[activeTab] || false;
     const setFilterFriendsOnly = (v) => setTabFilterFriendsOnly(p => ({ ...p, [activeTab]: v }));
     const filterGenderSought = tabFilterGenderSought[activeTab] || null;
@@ -19069,6 +19087,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const setFilterMinPrice = (v) => setTabFilterMinPrice(p => ({ ...p, [activeTab]: v }));
     const filterMaxPrice = tabFilterMaxPrice[activeTab] || '';
     const setFilterMaxPrice = (v) => setTabFilterMaxPrice(p => ({ ...p, [activeTab]: v }));
+    const [showFilterRatingRange, setShowFilterRatingRange] = useState(false);
     // "Arkadaşlarım" filtresi için — sadece filtre panelinde kullanılıyor, bir kez çekilip
     // Set olarak tutuluyor (arkadaş sayısı yüzlerce olsa bile applyFilter içinde O(1) bakış).
     const [myFriendIds, setMyFriendIds] = useState(() => new Set());
@@ -20072,7 +20091,12 @@ export default function SubCategoryScreen({ route, navigation }) {
             setCvUploadContext(null);
             resetCvProfileForm();
             if (isReferee) loadReferees(); else loadCoaches();
-            Alert.alert('', 'CV bilgileriniz kaydedildi.');
+            // Kullanıcı isteği: bu dallarda "kaydedildi" yanıltıcı — CV admin onayından
+            // geçmeden ne CV'ler sekmesinde başkalarına görünür ne de gerçek bir ilan/başvuru
+            // sayılır, mesaj bunu netleştirmeli.
+            Alert.alert('', approvalSports.includes(sub)
+                ? 'CV bilgileriniz admin onayına gönderildi. Onaylandıktan sonra CV\'ler sekmesinde görünecek.'
+                : 'CV bilgileriniz kaydedildi.');
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
         finally { setSubmittingCvProfile(false); }
     };
@@ -20881,22 +20905,41 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
         return true;
     };
-    // Kullanıcı isteği: ilanın kendi istediği derece aralığı (minRating/maxRating, cinsiyete
-    // göre ayrılmışsa minRatingMale/Female'in en genişi) kullanıcının seçtiği aralıkla
-    // kesişiyorsa gösterilir. İlanın hiç derece şartı yoksa herkese açıktır, her aralıkla eşleşir.
+    // Kullanıcı isteği: derece filtresi ilan oluştururkenki RatingRangeModal ile birebir aynı
+    // olsun (0.5 adımlı, "cinsiyete göre ayır" anahtarı dahil). Anahtar kapalıyken tek düz
+    // aralık, ilanın kendi cinsiyet ayrımı varsa en geniş aralığına (minRatingMale/Female'in
+    // en genişi) bakılır — eskisiyle aynı. Anahtar açıkken filtredeki erkek aralığı ilanın
+    // erkeğe uygulanan aralığıyla, kadın aralığı da ilanın kadına uygulanan aralığıyla ayrı
+    // ayrı kesişmeli (ikisi de sağlanmalı) — sadece filtrede değer girilen taraf kontrol edilir.
+    const rNum = (v) => (v === '' || v == null) ? null : parseFloat(v);
+    const overlaps = (lo, hi, fLo, fHi) => (lo ?? 0) <= (fHi ?? 5) && (hi ?? 5) >= (fLo ?? 0);
     const matchesRatingFilter = (item) => {
-        if (filterMinRating == null && filterMaxRating == null) return true;
+        const adSplit = !!item.ratingGenderSplit;
+        const adMaleMin = adSplit ? item.minRatingMale : item.minRating;
+        const adMaleMax = adSplit ? item.maxRatingMale : item.maxRating;
+        const adFemaleMin = adSplit ? item.minRatingFemale : item.minRating;
+        const adFemaleMax = adSplit ? item.maxRatingFemale : item.maxRating;
+        if (filterRatingGenderSplit) {
+            const fMaleMin = rNum(filterMinRatingMale), fMaleMax = rNum(filterMaxRatingMale);
+            const fFemaleMin = rNum(filterMinRatingFemale), fFemaleMax = rNum(filterMaxRatingFemale);
+            const maleFilterSet = fMaleMin != null || fMaleMax != null;
+            const femaleFilterSet = fFemaleMin != null || fFemaleMax != null;
+            if (!maleFilterSet && !femaleFilterSet) return true;
+            const maleOk = !maleFilterSet || (adMaleMin == null && adMaleMax == null) || overlaps(adMaleMin, adMaleMax, fMaleMin, fMaleMax);
+            const femaleOk = !femaleFilterSet || (adFemaleMin == null && adFemaleMax == null) || overlaps(adFemaleMin, adFemaleMax, fFemaleMin, fFemaleMax);
+            return maleOk && femaleOk;
+        }
+        const fLo = rNum(filterMinRating), fHi = rNum(filterMaxRating);
+        if (fLo == null && fHi == null) return true;
         let adMin = item.minRating, adMax = item.maxRating;
-        if (item.ratingGenderSplit) {
-            const mins = [item.minRatingMale, item.minRatingFemale].filter(v => v != null);
-            const maxs = [item.maxRatingMale, item.maxRatingFemale].filter(v => v != null);
+        if (adSplit) {
+            const mins = [adMaleMin, adFemaleMin].filter(v => v != null);
+            const maxs = [adMaleMax, adFemaleMax].filter(v => v != null);
             adMin = mins.length ? Math.min(...mins) : null;
             adMax = maxs.length ? Math.max(...maxs) : null;
         }
         if (adMin == null && adMax == null) return true;
-        const lo = adMin ?? 0, hi = adMax ?? 5;
-        const fLo = filterMinRating ?? 0, fHi = filterMaxRating ?? 5;
-        return lo <= fHi && hi >= fLo;
+        return overlaps(adMin, adMax, fLo, fHi);
     };
     // Kullanıcı isteği: "Arkadaşlarım" seçiliyken sadece kendi arkadaşlarının (veya kendi)
     // açtığı ilanlar gösterilsin.
@@ -21570,31 +21613,36 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6, marginTop:18 }}>
                             <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>🎯 {lang==='tr' ? 'Derece' : 'Rating'}</Text>
-                            {(filterMinRating != null || filterMaxRating != null) ? (
-                                <TouchableOpacity onPress={() => { setFilterMinRating(null); setFilterMaxRating(null); }}>
+                            {(filterMinRating || filterMaxRating || filterMinRatingMale || filterMaxRatingMale || filterMinRatingFemale || filterMaxRatingFemale) ? (
+                                <TouchableOpacity onPress={() => { setFilterMinRating(''); setFilterMaxRating(''); setFilterMinRatingMale(''); setFilterMaxRatingMale(''); setFilterMinRatingFemale(''); setFilterMaxRatingFemale(''); }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
                                 </TouchableOpacity>
                             ) : null}
                         </View>
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:18 }}>
-                            <TextInput
-                                value={filterMinRating != null ? String(filterMinRating) : ''}
-                                onChangeText={(v) => setFilterMinRating(v.trim() === '' ? null : Math.max(0, Math.min(5, parseFloat(v.replace(',', '.')) || 0)))}
-                                placeholder={lang==='tr' ? 'Min (0)' : 'Min (0)'}
-                                placeholderTextColor={colors.textMuted}
-                                keyboardType="decimal-pad"
-                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterMinRating != null ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
-                            />
-                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>—</Text>
-                            <TextInput
-                                value={filterMaxRating != null ? String(filterMaxRating) : ''}
-                                onChangeText={(v) => setFilterMaxRating(v.trim() === '' ? null : Math.max(0, Math.min(5, parseFloat(v.replace(',', '.')) || 0)))}
-                                placeholder={lang==='tr' ? 'Maks (5)' : 'Max (5)'}
-                                placeholderTextColor={colors.textMuted}
-                                keyboardType="decimal-pad"
-                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterMaxRating != null ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
-                            />
-                        </View>
+                        <TouchableOpacity
+                            onPress={() => setShowFilterRatingRange(true)}
+                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: (filterRatingGenderSplit ? (filterMinRatingMale || filterMaxRatingMale || filterMinRatingFemale || filterMaxRatingFemale) : (filterMinRating || filterMaxRating)) ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, marginBottom:18 }}
+                        >
+                            <Text style={{ color: (filterRatingGenderSplit ? (filterMinRatingMale || filterMaxRatingMale || filterMinRatingFemale || filterMaxRatingFemale) : (filterMinRating || filterMaxRating)) ? cfg.color : colors.textMuted, fontSize:13, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                {filterRatingGenderSplit
+                                    ? `👨${filterMinRatingMale || '0.0'}-${filterMaxRatingMale || '5.0'}  👩${filterMinRatingFemale || '0.0'}-${filterMaxRatingFemale || '5.0'}`
+                                    : `${filterMinRating || '0.0'} - ${filterMaxRating || '5.0'} ★`}
+                            </Text>
+                            <Text style={{ color:colors.textMuted, fontSize:12 }}>▾</Text>
+                        </TouchableOpacity>
+                        <RatingRangeModal
+                            visible={showFilterRatingRange}
+                            onClose={() => setShowFilterRatingRange(false)}
+                            title={lang==='tr' ? 'Derece Filtresi' : 'Rating Filter'}
+                            minValue={filterMinRating} maxValue={filterMaxRating}
+                            onSelectMin={setFilterMinRating} onSelectMax={setFilterMaxRating}
+                            genderSplit={filterRatingGenderSplit}
+                            onToggleGenderSplit={(v) => setFilterRatingGenderSplit(v)}
+                            maleMin={filterMinRatingMale} maleMax={filterMaxRatingMale}
+                            onSelectMaleMin={setFilterMinRatingMale} onSelectMaleMax={setFilterMaxRatingMale}
+                            femaleMin={filterMinRatingFemale} femaleMax={filterMaxRatingFemale}
+                            onSelectFemaleMin={setFilterMinRatingFemale} onSelectFemaleMax={setFilterMaxRatingFemale}
+                        />
 
                         <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>👥 {lang==='tr' ? 'Kimden' : 'From'}</Text>
                         <View style={{ flexDirection:'row', gap:6, marginBottom:18 }}>
@@ -22470,13 +22518,19 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                     {activeTab === 'coaches' && (() => {
                         const isCoachExpanded = ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis'].includes(sub);
-                        const individualCoaches = filteredCoaches.filter(c => c.individual);
-                        const groupCourses = filteredCoaches.filter(c => c.group);
+                        // Kullanıcı isteği: admin onaylayınca "sadece CV" kaydı (profileOnly) CV'ler
+                        // sekmesinde görünsün diye backend artık bunu genel listeye de dahil ediyor
+                        // (bkz. coach.controller.js getListings) — ama gerçek bir ders teklifi
+                        // olmadığı için (individual/group her zaman false) Antrenörler/Kurslar
+                        // listelerinde YİNE görünmemeli, bu yüzden !c.profileOnly ile ayrıca elenir.
+                        const individualCoaches = filteredCoaches.filter(c => c.individual && !c.profileOnly);
+                        const groupCourses = filteredCoaches.filter(c => c.group && !c.profileOnly);
                         const coachesWithCv = filteredCoaches.filter(c => c.cvUrl);
                         // Kullanıcı isteği: CVler sekmesi antrenör ve hakem CV'lerini AYRI iki
                         // başlık altında göstersin — önceden sadece antrenör CV'leri vardı, hakem
                         // CV'leri hiç görünmüyordu.
                         const refereesWithCv = refereeListings.filter(r => r.cvUrl);
+                        const nonProfileOnlyCoaches = filteredCoaches.filter(c => !c.profileOnly);
                         const subTabs = isCoachExpanded
                             ? [
                                 { key:'listings', label: t.coachesSubTab,  count: individualCoaches.length },
@@ -22485,13 +22539,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 { key:'cvs',      label: t.coachCvsTab,    count: coachesWithCv.length + refereesWithCv.length },
                               ]
                             : [
-                                { key:'listings', label: t.coachListingsTab, count: filteredCoaches.length },
+                                { key:'listings', label: t.coachListingsTab, count: nonProfileOnlyCoaches.length },
                                 { key:'cvs',      label: t.coachCvsTab,      count: coachesWithCv.length + refereesWithCv.length },
                               ];
                         const shown = coachSubTab === 'cvs' ? coachesWithCv
                             : coachSubTab === 'courses' ? groupCourses
                             : (isCoachExpanded && coachSubTab === 'listings') ? individualCoaches
-                            : filteredCoaches;
+                            : nonProfileOnlyCoaches;
                         return (
                         <>
                             {/* Kullanıcı isteği: Antrenörler/Kurslar/Hakemler/CVler alt-sekmeleri
@@ -22541,11 +22595,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {coachSubTab === 'referees' ? (
                                 <>
                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8 }}>{t.refereeListingsTitle}</Text>
-                                    {loadingReferees
+                                    {(() => {
+                                        // Kullanıcı isteği: admin onaylayınca "sadece CV" kaydı (profileOnly)
+                                        // CV'ler sekmesinde görünsün diye backend artık bunu genel listeye de
+                                        // dahil ediyor (bkz. referee.controller.js getListings) — ama gerçek
+                                        // bir hakemlik teklifi olmadığı için Hakemler listesinde YİNE
+                                        // görünmemeli.
+                                        const nonProfileOnlyReferees = refereeListings.filter(r => !r.profileOnly);
+                                        return loadingReferees
                                         ? <ActivityIndicator color={cfg.color} style={{ marginTop:20 }} />
-                                        : refereeListings.length === 0
+                                        : nonProfileOnlyReferees.length === 0
                                             ? <EmptyState emoji="🟨" text={t.emptyReferees} />
-                                            : refereeListings.map(r => (
+                                            : nonProfileOnlyReferees.map(r => (
                                                 <View key={r.id} style={{ backgroundColor:colors.surface2, borderRadius:12, padding:9, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
                                                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
                                                         <Text style={{ fontSize:22 }}>🟨</Text>
@@ -22606,8 +22667,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         </TouchableOpacity>
                                                     </View>
                                                 </View>
-                                            ))
-                                    }
+                                            ));
+                                    })()}
                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginTop:14, marginBottom:8 }}>{t.refereeMatchesTitle}</Text>
                                     {refereeMatches.length === 0
                                         ? <EmptyState emoji="🟨" text={t.emptyRefereeMatches} />
