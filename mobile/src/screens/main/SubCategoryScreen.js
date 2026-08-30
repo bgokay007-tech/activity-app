@@ -20423,7 +20423,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     // kimlik/belge bilgisi otomatik dolsun, yeniden başvuru gibi davranmasın (bkz.
     // openCreateCoachModal ile aynı desen).
     const openCreateRefereeModal = () => {
-        const existing = refereeListings.find(r => r.userId === myId && r.cvUrl);
+        // Kullanıcı isteği: "Amatör" kademede CV zorunlu değil — bu durumda cvUrl boş
+        // olabileceği için sadece cvUrl'e bakmak, gerçekten CV Yükle'den geçmiş bir amatör
+        // hakemi "hiç CV göndermemiş" gibi gösterip yanlışlıkla engellerdi.
+        const existing = refereeListings.find(r => r.userId === myId && (r.cvUrl || r.credentialLevel === 'AMATEUR'));
         if (existing) {
             setExistingRefereeCv(existing);
             setRefereeForm(f => ({
@@ -20459,6 +20462,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                 experience: parseInt(refereeForm.experience) || 0,
                 pricePerMatch: parseInt(refereeForm.pricePerMatch) || 0,
                 certificateUrls, cvUrl, achievementUrls,
+                // Kullanıcı isteği: kişisel bilgiler (ad soyad/cinsiyet/doğum tarihi) de CV'den
+                // otomatik taşınır — "Amatör" kademede backend bunları zorunlu tutuyor.
+                personalFullName: existingRefereeCv?.personalFullName || undefined,
+                personalGender: existingRefereeCv?.personalGender || undefined,
+                personalBirthDate: existingRefereeCv?.personalBirthDate || undefined,
                 // Kullanıcı isteği: tenis hakemliğinde TTF i-KORT doğrulama bilgileri de CV'den
                 // otomatik taşınır — bu form kimlik/belge bilgisini yeniden istemiyor (bkz.
                 // openCvForm/submitCvProfile ile aynı desen).
@@ -20563,21 +20571,25 @@ export default function SubCategoryScreen({ route, navigation }) {
         // mutlaka kontrol edilmesi gereken temel bilgiler — TVF hakem sicil no (lisans no),
         // klasman/unvan, güncel hakemlik lisans/vize belgesi, bağlı olduğu il temsilciliği.
         const isVolleyballReferee = isReferee && sub === 'volleyball';
+        // Kullanıcı isteği: "Amatör" olarak başvuranlardan hiçbir belge/doğrulama bilgisi
+        // zorunlu istenmiyor (CV, tenis/voleybol i-KORT/TVF alanları, antrenör belge/deneyim
+        // dahil) — SADECE kişisel bilgiler (ad soyad/cinsiyet/doğum tarihi) zorunlu kalıyor.
+        const isAmateur = cvProfileForm.credentialLevel === 'AMATEUR';
         if (isReferee) {
-            if (approvalSports.includes(sub) && !standaloneCvImage && !targetListing?.cvUrl) {
+            if (approvalSports.includes(sub) && !isAmateur && !standaloneCvImage && !targetListing?.cvUrl) {
                 return Alert.alert('', 'Bu dalda hakemlik için CV yüklemeniz zorunludur.');
             }
             // Kullanıcı isteği: bir tenis hakemini onaylamadan önce mutlaka kontrol edilmesi
             // gereken temel bilgiler — TTF hakem sicil no (i-KORT ID), kademe, güncel vize
             // belgesi, bağlı olduğu il temsilciliği, uzmanlık alanı (Kule/Çizgi Hakemi).
-            if (isTennisReferee) {
+            if (isTennisReferee && !isAmateur) {
                 if (!cvProfileForm.ikortNo.trim()) return Alert.alert('', 'TTF Hakem Sicil Numaranızı (i-KORT ID) girmeniz zorunludur.');
                 if (!cvProfileForm.refereeKademe) return Alert.alert('', 'Hakemlik kademenizi seçmeniz zorunludur.');
                 if (!cvProfileVizeImage && !targetListing?.vizeBelgesiUrl) return Alert.alert('', 'Güncel vize belgenizi (i-KORT profil ekran görüntüsü) yüklemeniz zorunludur.');
                 if (!cvProfileForm.ilTemsilciligi) return Alert.alert('', 'Bağlı olduğunuz il temsilciliğini seçmeniz zorunludur.');
                 if (cvProfileForm.specialization.length === 0) return Alert.alert('', 'Uzmanlık alanınızı (Kule/Çizgi Hakemi) seçmeniz zorunludur.');
             }
-            if (isVolleyballReferee) {
+            if (isVolleyballReferee && !isAmateur) {
                 if (!cvProfileForm.ikortNo.trim()) return Alert.alert('', 'Hakemlik Sicil Numaranızı (Lisans No) girmeniz zorunludur.');
                 if (!cvProfileForm.refereeKademe) return Alert.alert('', 'Mevcut klasmanınızı/unvanınızı seçmeniz zorunludur.');
                 if (!cvProfileForm.ilTemsilciligi) return Alert.alert('', 'Bağlı olduğunuz il temsilciliğini seçmeniz zorunludur.');
@@ -20590,18 +20602,25 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
         // Kullanıcı isteği: doğum tarihi gün/ay/yıl olarak giriliyor — üçü de doluysa geçerli
         // bir tarihe birleştirilir, hiçbiri girilmediyse atlanır; kısmi doldurulmuşsa uyarılır.
+        // Artık hem antrenörlükte hem hakemlikte toplanıyor (eskiden sadece antrenörlükteydi).
         const { personalBirthDay: bDay, personalBirthMonth: bMonth, personalBirthYear: bYear } = cvProfileForm;
         const birthFieldsFilled = [bDay, bMonth, bYear].filter(v => v && v.trim()).length;
-        if (!isReferee && birthFieldsFilled > 0 && birthFieldsFilled < 3) {
+        if (birthFieldsFilled > 0 && birthFieldsFilled < 3) {
             return Alert.alert('', 'Doğum tarihini girecekseniz gün/ay/yıl üçünü de doldurun.');
         }
         let personalBirthDate;
-        if (!isReferee && birthFieldsFilled === 3) {
+        if (birthFieldsFilled === 3) {
             const d = parseInt(bDay, 10), m = parseInt(bMonth, 10), y = parseInt(bYear, 10);
             if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1900 || y > new Date().getFullYear()) {
                 return Alert.alert('', 'Geçerli bir doğum tarihi girin.');
             }
             personalBirthDate = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        }
+        // Kullanıcı isteği: "Amatör" seçilirse SADECE kişisel bilgiler zorunlu.
+        if (isAmateur) {
+            if (!cvProfileForm.personalFullName.trim()) return Alert.alert('', 'Ad soyad girmeniz zorunludur.');
+            if (!cvProfileForm.personalGender) return Alert.alert('', 'Cinsiyet seçmeniz zorunludur.');
+            if (birthFieldsFilled < 3) return Alert.alert('', 'Doğum tarihinizi (gün/ay/yıl) girmeniz zorunludur.');
         }
         setSubmittingCvProfile(true);
         try {
@@ -20629,10 +20648,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                 experience: parseInt(cvProfileForm.experience) || 0,
                 achievements: cvProfileForm.achievements.map(a => a.trim()).filter(Boolean),
                 certificateUrls, achievementUrls, cvUrl,
+                // Kullanıcı isteği: kişisel bilgiler artık hem antrenörlükte hem hakemlikte
+                // toplanıyor (eskiden sadece antrenörlükteydi).
+                personalFullName: cvProfileForm.personalFullName,
+                personalGender: cvProfileForm.personalGender,
+                personalBirthDate,
                 ...(!isReferee && {
-                    personalFullName: cvProfileForm.personalFullName,
-                    personalGender: cvProfileForm.personalGender,
-                    personalBirthDate,
                     priorExperience: cvProfileForm.priorExperience
                         .map(p => ({ workplace: p.workplace.trim(), position: p.position.trim(), period: p.period.trim() }))
                         .filter(p => p.workplace || p.position || p.period),
@@ -23803,10 +23824,11 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                                             {/* Kullanıcı isteği: antrenörlük ilanı kullanıcı adıyla değil bu kişisel
                                                 bilgilerle görünsün — form en üstten kişisel bilgilerle başlasın.
-                                                Sadece antrenörlükte, hakemlikte yok. */}
-                                            {!isReferee && (
-                                                <>
-                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kişisel Bilgiler</Text>
+                                                Kullanıcı isteği: hakemlik CV'sinde de kişisel bilgiler toplanıyor —
+                                                normalde zorunlu değil, "Amatör" kademe seçilirse SADECE bunlar
+                                                zorunlu oluyor (bkz. submitCvProfile). */}
+                                            <>
+                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kişisel Bilgiler{cvProfileForm.credentialLevel === 'AMATEUR' ? ' *' : ''}</Text>
                                                     <TextInput placeholder="İsim Soyisim" placeholderTextColor={colors.textMuted} value={cvProfileForm.personalFullName} onChangeText={v => setCvProfileForm(f=>({...f,personalFullName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                                     <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                                         {[
@@ -23828,7 +23850,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <TextInput placeholder="Yıl" placeholderTextColor={colors.textMuted} value={cvProfileForm.personalBirthYear} onChangeText={v => setCvProfileForm(f=>({...f,personalBirthYear:v.replace(/[^0-9]/,'').slice(0,4)}))} keyboardType="numeric" maxLength={4} style={{ flex:1.4, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, textAlign:'center' }} />
                                                     </View>
                                                 </>
-                                            )}
 
                                             <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kimlik / Belge</Text>
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>

@@ -492,11 +492,20 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     <Text style={fc.smallSportName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{getSubCategoryLabel(item.subCategory, lang)?.toUpperCase()}</Text>
                                     {item.alias ? <Text style={{ color: '#a855f7', fontSize: 8, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.alias}</Text> : null}
                                 </View>
-                                {item.assessmentCompleted && (
-                                    <TouchableOpacity onPress={() => setShowEloModal(true)} style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 1, paddingHorizontal: 4, borderWidth: 1, borderColor: '#facc1540' }}>
-                                        <Text style={{ color: '#facc15', fontSize: 13, fontWeight: '900' }}>{Number(item.skillRating).toFixed(2)}</Text>
-                                        <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
-                                    </TouchableOpacity>
+                                {/* Kullanıcı isteği: onaylı antrenör/hakem rozeti olanlar, ELO puanının hemen
+                                    altında (aynı kutu içinde) "Antrenör"/"Hakem" etiketiyle görünsün — bkz.
+                                    backend interest.controller.js attachCoachRefereeBadges. */}
+                                {(item.assessmentCompleted || item.isCoach || item.isReferee) && (
+                                    <View style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 1, paddingHorizontal: 4, borderWidth: 1, borderColor: '#facc1540' }}>
+                                        {item.assessmentCompleted && (
+                                            <TouchableOpacity onPress={() => setShowEloModal(true)} style={{ alignItems: 'center' }}>
+                                                <Text style={{ color: '#facc15', fontSize: 13, fontWeight: '900' }}>{Number(item.skillRating).toFixed(2)}</Text>
+                                                <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        {item.isCoach && <Text style={{ color: '#4ade80', fontSize: 8, fontWeight: '800' }}>🎓 {lang==='tr' ? 'Antrenör' : 'Coach'}</Text>}
+                                        {item.isReferee && <Text style={{ color: '#fbbf24', fontSize: 8, fontWeight: '800' }}>🟨 {lang==='tr' ? 'Hakem' : 'Referee'}</Text>}
+                                    </View>
                                 )}
                                 {[
                                     { type: 'win',  count: winsCount,   label: lang==='tr' ? 'Galibiyet' : 'Wins',   color: '#4ade80' },
@@ -2727,7 +2736,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                 historyMatches: myHistory.filter(m => m.subCategory === i.subCategory).slice(-14),
                                                 reservationCount,
                                             })}
-                                            style={{ backgroundColor: colors.surface2, borderRadius: 16, paddingTop: 3, paddingBottom: 11, paddingHorizontal: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, height: 128, gap: 3, opacity: i.hidden ? 0.4 : 1 }}
+                                            style={{ backgroundColor: colors.surface2, borderRadius: 16, paddingTop: 3, paddingBottom: 11, paddingHorizontal: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, height: (i.isCoach || i.isReferee) ? 138 : 128, gap: 3, opacity: i.hidden ? 0.4 : 1 }}
                                         >
                                             {i.subCategory === 'padel'
                                                 ? <Image source={require('../../../assets/padel.png')} style={{ width: 34, height: 34 }} resizeMode="contain" />
@@ -2737,6 +2746,13 @@ export default function ProfileScreen({ route, navigation }) {
                                                 bırakıp isim ile derece arasında gereksiz boşluk oluşturmasın. */}
                                             {i.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }} numberOfLines={1}>{i.alias}</Text> : null}
                                             <Text style={{ color: '#facc15', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>{i.assessmentCompleted ? `${Number(i.skillRating).toFixed(2)} ★` : ' '}</Text>
+                                            {/* Kullanıcı isteği: onaylı antrenör/hakem rozeti ELO'nun hemen altında
+                                                görünsün (bkz. backend attachCoachRefereeBadges). */}
+                                            {(i.isCoach || i.isReferee) && (
+                                                <Text numberOfLines={1} style={{ fontSize: 8, fontWeight: '800', color: i.isCoach ? '#4ade80' : '#fbbf24' }}>
+                                                    {i.isCoach ? '🎓 Antrenör' : '🟨 Hakem'}
+                                                </Text>
+                                            )}
                                             <Text style={{ color: i.hidden ? colors.textMuted : '#60a5fa', fontSize: 9, fontWeight: '700' }} numberOfLines={1}>
                                                 {i.hidden ? 'Gizli' : reservationCount > 0 ? `📅 ${reservationCount}` : ' '}
                                             </Text>
@@ -3719,6 +3735,11 @@ export default function ProfileScreen({ route, navigation }) {
                                     <View style={{ flex:1 }}>
                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{getSubCategoryLabel(i.subCategory, lang)}</Text>
                                         <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.levelTr?.[i.level] || i.level}{i.skillRating != null ? `  ${Number(i.skillRating).toFixed(2)}★` : ''}</Text>
+                                        {(i.isCoach || i.isReferee) && (
+                                            <Text style={{ fontSize: 10, fontWeight: '800', color: i.isCoach ? '#4ade80' : '#fbbf24', marginTop: 2 }}>
+                                                {i.isCoach ? '🎓 Antrenör' : '🟨 Hakem'}
+                                            </Text>
+                                        )}
                                     </View>
                                 </View>
                             ))}
