@@ -920,6 +920,7 @@
       "coachListing_empty_rejected": "No rejected coaching listings.",
       "referee_empty_pending": "No referees pending approval. ✅",
       "referee_empty_other": "No approved referees found.",
+      "referee_empty_rejected": "No rejected referee applications.",
       "coachRating_empty_pending": "No coaches pending approval. ✅",
       "coachRating_empty_other": "No approved coaches found.",
       "renewal_badge": "🔄 Renewal Application",

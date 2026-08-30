@@ -1673,8 +1673,9 @@ function CoachListingApprovalPanel() {
 
 function RefereeApprovalPanel() {
     const { t } = useTranslation();
-    return <ApprovalQueuePanel endpoint="/admin/referee-approvals"
-        emptyPendingText={t('admin.approvalQueue.referee_empty_pending')} emptyOtherText={t('admin.approvalQueue.referee_empty_other')} />;
+    return <ApprovalQueuePanel endpoint="/admin/referee-approvals" allowReject
+        emptyPendingText={t('admin.approvalQueue.referee_empty_pending')} emptyOtherText={t('admin.approvalQueue.referee_empty_other')}
+        emptyRejectedText={t('admin.approvalQueue.referee_empty_rejected')} />;
 }
 
 function CoachRatingApprovalPanel() {

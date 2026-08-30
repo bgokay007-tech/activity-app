@@ -360,9 +360,15 @@ export const setCoachRatingApproval = async (req, res, next) => {
 // resolveRefereeEligibility.
 export const getRefereeApprovals = async (req, res, next) => {
     try {
-        const { status } = req.query; // PENDING | APPROVED
+        const { status } = req.query; // PENDING | APPROVED | REJECTED
+        // Kullanıcı isteği: coach-listing-approvals ile aynı desen — reddedilenler PENDING'den
+        // ayrılıp kendi "Reddedilenler" sekmesinde (nedenleriyle) görünsün.
+        const where = { subCategory: { in: REFEREE_APPROVAL_SPORTS } };
+        if (status === 'APPROVED') { where.status = 'ACTIVE'; where.approved = true; }
+        else if (status === 'REJECTED') { where.status = 'REJECTED'; }
+        else { where.status = 'ACTIVE'; where.approved = false; }
         const listings = await prisma.refereeListing.findMany({
-            where: { subCategory: { in: REFEREE_APPROVAL_SPORTS }, status: 'ACTIVE', approved: status === 'APPROVED' },
+            where,
             include: { user: { select: RATING_APPROVAL_USER_SELECT } },
             orderBy: { createdAt: 'desc' },
         });
@@ -373,19 +379,26 @@ export const getRefereeApprovals = async (req, res, next) => {
 export const setRefereeApproval = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { action } = req.body; // 'APPROVE' | 'REVOKE'
+        const { action, adminNote } = req.body; // 'APPROVE' | 'REJECT' | 'REVOKE'
+        // Kullanıcı isteği: admin reddederken bir açıklama yazabilsin (eksik bilgi, yanlış
+        // bilgi vb.), kullanıcıya bu sebeple bildirim gitsin VE başvuru ayrı bir "REJECTED"
+        // durumuna geçsin — bkz. setCoachListingApproval ile aynı desen.
         const listing = await prisma.refereeListing.update({
             where: { id },
-            data: { approved: action === 'APPROVE' },
+            data: {
+                approved: action === 'APPROVE',
+                status: action === 'REJECT' ? 'REJECTED' : 'ACTIVE',
+                adminNote: action === 'REJECT' ? (adminNote || null) : null,
+            },
         });
-        createNotification(listing.userId,
-            action === 'APPROVE' ? 'REFEREE_APPROVED' : 'REFEREE_APPROVAL_REVOKED',
-            action === 'APPROVE' ? '✅ Hakemlik Başvurunuz Onaylandı' : '🚫 Hakemlik Onayınız Kaldırıldı',
-            action === 'APPROVE'
-                ? 'Hakemlik başvurunuz admin tarafından onaylandı — artık maçlara hakem olarak davet edilebilir/atanabilirsiniz.'
-                : 'Hakemlik onayınız admin tarafından kaldırıldı, maçlara hakem olarak davet edilemezsiniz.',
-            {}
-        ).catch(() => {});
+        const notifType = action === 'APPROVE' ? 'REFEREE_APPROVED' : action === 'REJECT' ? 'REFEREE_REJECTED' : 'REFEREE_APPROVAL_REVOKED';
+        const title = action === 'APPROVE' ? '✅ Hakemlik Başvurunuz Onaylandı' : action === 'REJECT' ? '❌ Hakemlik Başvurunuz Reddedildi' : '🚫 Hakemlik Onayınız Kaldırıldı';
+        const body = action === 'APPROVE'
+            ? 'Hakemlik başvurunuz admin tarafından onaylandı — artık maçlara hakem olarak davet edilebilir/atanabilirsiniz.'
+            : action === 'REJECT'
+                ? `Hakemlik başvurunuz admin tarafından reddedildi.${adminNote ? ` Neden: ${adminNote}` : ''}`
+                : 'Hakemlik onayınız admin tarafından kaldırıldı, maçlara hakem olarak davet edilemezsiniz.';
+        createNotification(listing.userId, notifType, title, body, {}).catch(() => {});
         res.json({ ok: true });
     } catch (e) { next(e); }
 };

@@ -920,6 +920,7 @@
       "coachListing_empty_rejected": "Reddedilen antrenörlük ilanı yok.",
       "referee_empty_pending": "Onay bekleyen hakem yok. ✅",
       "referee_empty_other": "Onaylı hakem bulunamadı.",
+      "referee_empty_rejected": "Reddedilen hakemlik başvurusu yok.",
       "coachRating_empty_pending": "Onay bekleyen antrenör yok. ✅",
       "coachRating_empty_other": "Onaylı antrenör bulunamadı.",
       "renewal_badge": "🔄 Yenileme Başvurusu",
