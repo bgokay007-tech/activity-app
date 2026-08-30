@@ -203,7 +203,7 @@ export const rejectMatchMedia = async (req, res, next) => {
 
 export const getPosts = async (req, res, next) => {
     try {
-        const { category: categoryRaw, subCategory, page = 1, limit = 10, type, communityOnly, mediaOnly } = req.query;
+        const { category: categoryRaw, subCategory, page = 1, limit = 10, type, communityOnly, mediaOnly, rivalId } = req.query;
         const category = categoryRaw ? categoryRaw.toUpperCase() : categoryRaw;
         const skip = (page - 1) * limit;
 
@@ -226,6 +226,10 @@ export const getPosts = async (req, res, next) => {
         } else if (category) {
             where.category = category;
         }
+        // Kullanıcı isteği: bir maç/ilan detayında o maça özel paylaşılan medyaların listesi —
+        // rivalId ile bağlı Post'lar (bkz. createPost'taki verifiedRivalId), diğer filtrelerden
+        // bağımsız kullanılabilir.
+        if (rivalId) where.rivalId = rivalId;
         if (type) where.type = type;
         if (mediaOnly === 'true') {
             where.AND = [

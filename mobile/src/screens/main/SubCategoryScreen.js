@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import * as DocumentPicker from 'expo-document-picker';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
@@ -590,7 +591,10 @@ const det = StyleSheet.create({
 // Galeriden resim/video seçip yükler, {url, isVideo} döner — hem RivalDetailModal (açık ilan/
 // eşleşme detayı) hem UpcomingCard (yaklaşan/skor bekleyen maç) aynı fonksiyonu paylaşıyor,
 // ikisinde de "Medya Paylaş" akışı birebir aynı (bkz. o bileşenlerdeki confirmMediaShare).
-async function pickAndUploadMatchMedia() {
+// Kullanıcı raporu: uzun (14sn) bir video paylaşırken yükleme "biraz geç" hissettiriyordu —
+// gerçek yükleme hızını değiştiremeyiz (dosya boyutu/bağlantıya bağlı) ama en azından ilerleme
+// yüzdesi göstererek "takıldı mı" belirsizliğini gideriyoruz (bkz. onProgress parametresi).
+async function pickAndUploadMatchMedia(onProgress) {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return null; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.85 });
@@ -599,7 +603,12 @@ async function pickAndUploadMatchMedia() {
     const isVideo = asset.type === 'video' || asset.uri.includes('.mp4') || asset.uri.includes('.mov');
     const form = new FormData();
     form.append('file', { uri: asset.uri, name: isVideo ? 'media.mp4' : 'media.jpg', type: isVideo ? 'video/mp4' : 'image/jpeg' });
-    const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+    const { data: uploadData } = await api.post('/upload', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: onProgress ? (e) => {
+            if (e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+        } : undefined,
+    });
     return { url: uploadData.url, isVideo };
 }
 
@@ -771,13 +780,35 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // bekleyen maç) aynı akış: medya seçilince o sporun Medya sekmesine + bu ilana (rivalId)
     // bağlı tek gönderi otomatik gider, Sanal Alem'de de paylaşmak opsiyonel bir seçenek.
     const [sharingMedia, setSharingMedia] = useState(false);
+    const [mediaUploadProgress, setMediaUploadProgress] = useState(0);
     const [showMediaShareOptions, setShowMediaShareOptions] = useState(false);
     const [pickedMediaForShare, setPickedMediaForShare] = useState(null); // {url, isVideo}
     const [shareToSanalAlemChecked, setShareToSanalAlemChecked] = useState(false);
+    // Kullanıcı isteği: bu ilanda/maçta paylaşılan medyalar (Medya Paylaş ile gönderilenler)
+    // "Medya" başlığı altında listelensin, kendi ok işaretiyle gizlenip gösterilebilsin —
+    // ayrı bir sekmeye gitmeden bu ilana özel paylaşımlar burada da görünür.
+    const [matchMediaList, setMatchMediaList] = useState([]);
+    const [loadingMatchMedia, setLoadingMatchMedia] = useState(false);
+    const [showMatchMediaList, setShowMatchMediaList] = useState(true);
+    const [matchMediaViewIdx, setMatchMediaViewIdx] = useState(null);
+    const matchMediaViewUrl = (matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && !matchMediaList[matchMediaViewIdx].imageUrl)
+        ? matchMediaList[matchMediaViewIdx].videoUrl : null;
+    const matchMediaViewPlayer = useVideoPlayer(matchMediaViewUrl, (p) => {
+        if (matchMediaViewUrl) { p.loop = false; p.play(); }
+    });
+    const loadMatchMedia = () => {
+        if (!item?.id) return;
+        setLoadingMatchMedia(true);
+        api.get(`/posts?rivalId=${item.id}`)
+            .then(({ data }) => setMatchMediaList(Array.isArray(data) ? data : []))
+            .catch(() => {})
+            .finally(() => setLoadingMatchMedia(false));
+    };
     const shareItemMedia = async () => {
         setSharingMedia(true);
+        setMediaUploadProgress(0);
         try {
-            const media = await pickAndUploadMatchMedia();
+            const media = await pickAndUploadMatchMedia(setMediaUploadProgress);
             if (!media) return;
             setPickedMediaForShare(media);
             setShareToSanalAlemChecked(false);
@@ -793,11 +824,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         const { url, isVideo } = pickedMediaForShare;
         setSharingMedia(true);
         try {
-            await api.post('/posts', {
+            const { data: newPost } = await api.post('/posts', {
                 category: item.category, subCategory: item.subCategory,
                 type: 'POST', content: '', rivalId: item.id,
                 ...(isVideo ? { videoUrl: url } : { imageUrl: url }),
             });
+            // Kullanıcı isteği: paylaşılan medya bu ilanın altındaki "Medya" listesinde ANINDA
+            // görünsün, tekrar açmaya/yenilemeye gerek kalmadan (bkz. instant UI update tercihi).
+            setMatchMediaList(prev => [newPost, ...prev]);
             if (shareToSanalAlemChecked) {
                 await api.post('/posts', {
                     category: 'SOCIAL', subCategory: 'sanal_alem',
@@ -976,6 +1010,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 .then(res => setComments(res.data || []))
                 .catch(e => Alert.alert('Hata', e?.response?.data?.message || 'Yorumlar yüklenemedi'))
                 .finally(() => setLoadingComments(false));
+            loadMatchMedia();
             if (item.subCategory === 'volleyball') {
                 api.get(`/rivals/${item.id}/spectators`)
                     .then(({ data }) => {
@@ -3773,9 +3808,36 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </View>
                     )}
 
-                    {/* Yorumlar bölümü — kullanıcı isteği: başlığın sağına ok işareti, aşağı
-                        dönükken (varsayılan) yazma kutusu + liste görünür, dokununca sola döner
-                        ve gizler. */}
+                    {/* Yorum yaz — kullanıcı isteği: bu kutu ok işaretinden bağımsız her zaman
+                        görünür kalmalı. Yorum yazarken bu kutu koşullu render edildiğinde
+                        ("showComments" false'a düşünce) TextInput sahne arkasında unmount olup
+                        klavyeyi de beraberinde kapatıyordu (kullanıcı raporu: "yorum formuna
+                        tıklayıp yorum yazacağımda klavye formu kapatıyor"). Sadece AŞAĞIDAKİ
+                        liste ok işaretiyle gizlenir/gösterilir, yazma kutusu HER ZAMAN render edilir. */}
+                    {item.refereeUser?.id !== myId && (
+                        <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
+                            <TextInput
+                                style={[s.fieldInput, { flex:1, height:moderateScale(44), marginBottom:0, fontSize:moderateScale(14) }]}
+                                placeholder={t.matchCommentPlaceholder}
+                                placeholderTextColor={colors.textMuted}
+                                value={commentText}
+                                onChangeText={setCommentText}
+                                multiline={false}
+                                returnKeyType="send"
+                                onSubmitEditing={sendComment}
+                            />
+                            <TouchableOpacity
+                                style={[s.joinBtn, { paddingHorizontal:15, height:moderateScale(44), justifyContent:'center', alignSelf:'center', borderRadius: moderateScale(10) }, sendingComment && { opacity:0.6 }]}
+                                onPress={sendComment}
+                                disabled={sendingComment}
+                            >
+                                <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{t.matchCommentSend}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* Yorumlar listesi — kullanıcı isteği: sadece bu liste başlığın sağındaki ok
+                        işaretiyle gizlenir/gösterilir, yazma kutusu (yukarıda) bundan etkilenmez. */}
                     <TouchableOpacity
                         onPress={() => setShowComments(v => !v)}
                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: showComments ? 14 : 4 }}
@@ -3786,57 +3848,30 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <Text style={{ color: colors.textMuted, fontSize:16, transform:[{ rotate: showComments ? '0deg' : '-90deg' }] }}>▼</Text>
                     </TouchableOpacity>
                     {showComments && (
-                        <>
-                            {/* Yorum yaz — kullanıcı isteği: eskiden ekranın en altına, klavyenin
-                                hemen üstüne SABİT olarak yapıştırılmıştı; kadro kartındaki forma
-                                arama kutusuna yazarken de alakasızca orada duruyordu. Artık normal
-                                kaydırılan akışın içinde, doğrudan "Yorumlar" başlığının ALTINDA. */}
-                            {item.refereeUser?.id !== myId && (
-                                <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
-                                    <TextInput
-                                        style={[s.fieldInput, { flex:1, height:moderateScale(44), marginBottom:0, fontSize:moderateScale(14) }]}
-                                        placeholder={t.matchCommentPlaceholder}
-                                        placeholderTextColor={colors.textMuted}
-                                        value={commentText}
-                                        onChangeText={setCommentText}
-                                        multiline={false}
-                                        returnKeyType="send"
-                                        onSubmitEditing={sendComment}
-                                    />
-                                    <TouchableOpacity
-                                        style={[s.joinBtn, { paddingHorizontal:15, height:moderateScale(44), justifyContent:'center', alignSelf:'center', borderRadius: moderateScale(10) }, sendingComment && { opacity:0.6 }]}
-                                        onPress={sendComment}
-                                        disabled={sendingComment}
-                                    >
-                                        <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{t.matchCommentSend}</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-                            {loadingComments ? (
-                                <ActivityIndicator color={cfg.color} style={{ marginTop:16 }} />
-                            ) : comments.length === 0 ? (
-                                <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:8, fontSize:moderateScale(13) }}>{t.matchCommentEmpty}</Text>
-                            ) : (
-                                comments.map(c => (
-                                    <View key={c.id} style={{ marginBottom:14, paddingBottom:11, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
-                                            <View style={{ flex:1 }}>
-                                                <Text style={{ color: cfg.color, fontSize:moderateScale(13), fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
-                                                <Text style={{ color:'#fff', fontSize:moderateScale(14), lineHeight:moderateScale(21) }}>{c.content}</Text>
-                                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), marginTop:4 }}>
-                                                    {new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
-                                                </Text>
-                                            </View>
-                                            {canDeleteComment(c) && (
-                                                <TouchableOpacity onPress={() => deleteComment(c.id)} style={{ padding:5, marginLeft:8 }}>
-                                                    <Text style={{ color:'#f87171', fontSize:moderateScale(14) }}>✕</Text>
-                                                </TouchableOpacity>
-                                            )}
+                        loadingComments ? (
+                            <ActivityIndicator color={cfg.color} style={{ marginTop:16 }} />
+                        ) : comments.length === 0 ? (
+                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:8, fontSize:moderateScale(13) }}>{t.matchCommentEmpty}</Text>
+                        ) : (
+                            comments.map(c => (
+                                <View key={c.id} style={{ marginBottom:14, paddingBottom:11, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                    <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color: cfg.color, fontSize:moderateScale(13), fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
+                                            <Text style={{ color:'#fff', fontSize:moderateScale(14), lineHeight:moderateScale(21) }}>{c.content}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), marginTop:4 }}>
+                                                {new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
+                                            </Text>
                                         </View>
+                                        {canDeleteComment(c) && (
+                                            <TouchableOpacity onPress={() => deleteComment(c.id)} style={{ padding:5, marginLeft:8 }}>
+                                                <Text style={{ color:'#f87171', fontSize:moderateScale(14) }}>✕</Text>
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
-                                ))
-                            )}
-                        </>
+                                </View>
+                            ))
+                        )
                     )}
 
                     {/* Kullanıcı isteği: açık ilan detayında da Yorumlar'ın altında her zaman
@@ -3846,9 +3881,38 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         disabled={sharingMedia}
                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor:'#0ea5e918', borderRadius:12, borderWidth:1, borderColor:'#0ea5e950', paddingVertical:11, marginTop:4, opacity: sharingMedia ? 0.6 : 1 }}>
                         {sharingMedia
-                            ? <ActivityIndicator color="#38bdf8" size="small" />
+                            ? <><ActivityIndicator color="#38bdf8" size="small" /><Text style={{ color:'#38bdf8', fontSize:13, fontWeight:'800' }}>{mediaUploadProgress > 0 ? `Yükleniyor... %${mediaUploadProgress}` : 'Yükleniyor...'}</Text></>
                             : <Text style={{ color:'#38bdf8', fontSize:14, fontWeight:'800' }}>📷 Medya Paylaş</Text>}
                     </TouchableOpacity>
+
+                    {/* Kullanıcı isteği: bu ilanda paylaşılan medyalar "Medya" diye altında
+                        sıralansın, kendi ok işaretiyle gizlenip açılabilsin. */}
+                    <TouchableOpacity
+                        onPress={() => setShowMatchMediaList(v => !v)}
+                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:14, marginBottom: showMatchMediaList ? 8 : 4 }}
+                    >
+                        <Text style={{ color:'#fff', fontSize:moderateScale(15), fontWeight:'800' }}>
+                            📷 Medya{matchMediaList.length > 0 ? ` (${matchMediaList.length})` : ''}
+                        </Text>
+                        <Text style={{ color: colors.textMuted, fontSize:16, transform:[{ rotate: showMatchMediaList ? '0deg' : '-90deg' }] }}>▼</Text>
+                    </TouchableOpacity>
+                    {showMatchMediaList && (
+                        loadingMatchMedia ? (
+                            <ActivityIndicator color={cfg.color} style={{ marginTop:8 }} />
+                        ) : matchMediaList.length === 0 ? (
+                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:4, marginBottom:8, fontSize:moderateScale(13) }}>Henüz medya paylaşılmadı.</Text>
+                        ) : (
+                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+                                {matchMediaList.map((mp, idx) => (
+                                    <TouchableOpacity key={mp.id} onPress={() => setMatchMediaViewIdx(idx)} style={{ width:72, height:72, borderRadius:8, overflow:'hidden', backgroundColor: colors.surface2 }}>
+                                        {mp.imageUrl
+                                            ? <Image source={{ uri: mp.imageUrl }} style={{ width:'100%', height:'100%' }} resizeMode="cover" />
+                                            : <View style={{ flex:1, alignItems:'center', justifyContent:'center' }}><Text style={{ fontSize:24 }}>🎬</Text></View>}
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )
+                    )}
                 </ScrollView>
                 </KeyboardAvoidingView>
 
@@ -3969,6 +4033,21 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </TouchableOpacity>
                     </View>
                 </View>
+            </View>
+        </Modal>
+
+        {/* Kullanıcı isteği: "Medya" listesindeki bir öğeye dokununca tam ekran görüntülensin —
+            fotoğraf/video. Kardeş Modal olarak (yukarıdakiler gibi), ana detay Modal'ının içine değil. */}
+        <Modal visible={matchMediaViewIdx !== null} transparent animationType="fade" onRequestClose={() => setMatchMediaViewIdx(null)}>
+            <View style={{ flex:1, backgroundColor:'#000000ee', justifyContent:'center', alignItems:'center' }}>
+                <TouchableOpacity style={{ position:'absolute', top:56, right:20, zIndex:10 }} onPress={() => setMatchMediaViewIdx(null)}>
+                    <Text style={{ color:'#fff', fontSize:28, fontWeight:'700' }}>✕</Text>
+                </TouchableOpacity>
+                {matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && (
+                    matchMediaList[matchMediaViewIdx].imageUrl
+                        ? <Image source={{ uri: matchMediaList[matchMediaViewIdx].imageUrl }} style={{ width:'100%', height:'75%' }} resizeMode="contain" />
+                        : <VideoView player={matchMediaViewPlayer} style={{ width:'100%', height:'75%' }} allowsFullscreen allowsPictureInPicture nativeControls />
+                )}
             </View>
         </Modal>
 
@@ -5194,6 +5273,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // medialar o spor dalının mediasına düşsün" — skor girişiyle birlikte/yanında galeriden
     // foto/video seçip o sporun Medya sekmesine, maça bağlı (rivalId) olarak paylaşılabiliyor.
     const [sharingMedia, setSharingMedia] = useState(false);
+    const [mediaUploadProgress, setMediaUploadProgress] = useState(0);
     // Kullanıcı isteği: "Skor Gir" ve "Skor Gir ve Medya Paylaş" diye İKİ ayrı buton olsun —
     // ikisi de AYNI skor formunu açar, sadece bu bayrak hangisine basıldığını hatırlar. Skor
     // başarıyla gönderilince (bkz. submitScore) bayrak true ise galeri seçici otomatik açılır.
@@ -5209,6 +5289,24 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [showMediaShareOptions, setShowMediaShareOptions] = useState(false);
     const [pickedMediaForShare, setPickedMediaForShare] = useState(null); // {url, isVideo, hideMatchInfo}
     const [shareToSanalAlemChecked, setShareToSanalAlemChecked] = useState(false);
+    // Kullanıcı isteği: bu maçta paylaşılan medyalar "Medya" başlığı altında listelensin, kendi
+    // ok işaretiyle gizlenip gösterilebilsin.
+    const [matchMediaList, setMatchMediaList] = useState([]);
+    const [loadingMatchMedia, setLoadingMatchMedia] = useState(false);
+    const [showMatchMediaList, setShowMatchMediaList] = useState(true);
+    const [matchMediaViewIdx, setMatchMediaViewIdx] = useState(null);
+    const matchMediaViewUrl = (matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && !matchMediaList[matchMediaViewIdx].imageUrl)
+        ? matchMediaList[matchMediaViewIdx].videoUrl : null;
+    const matchMediaViewPlayer = useVideoPlayer(matchMediaViewUrl, (p) => {
+        if (matchMediaViewUrl) { p.loop = false; p.play(); }
+    });
+    useEffect(() => {
+        setLoadingMatchMedia(true);
+        api.get(`/posts?rivalId=${match.id}`)
+            .then(({ data }) => setMatchMediaList(Array.isArray(data) ? data : []))
+            .catch(() => {})
+            .finally(() => setLoadingMatchMedia(false));
+    }, [match.id]);
     // Kullanıcı isteği: skor bekleyen (scoreStatus PENDING) maçlarda skoru girenin paylaştığı
     // medya da karşı tarafın onayını bekler — bu maçlar için o medyaları çekip Onayla/Reddet
     // gösterir (bkz. backend getPendingMatchMedia/approveMatchMedia/rejectMatchMedia).
@@ -5662,8 +5760,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // bir Alert.alert follow-up'tı, artık paylaşmadan ÖNCE gösterilen bir seçenekler penceresi.
     const shareMatchMedia = async (hideMatchInfo = false) => {
         setSharingMedia(true);
+        setMediaUploadProgress(0);
         try {
-            const media = await pickAndUploadMatchMedia();
+            const media = await pickAndUploadMatchMedia(setMediaUploadProgress);
             if (!media) return;
             setPickedMediaForShare({ ...media, hideMatchInfo });
             setShareToSanalAlemChecked(false);
@@ -5680,11 +5779,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         const { url, isVideo, hideMatchInfo } = pickedMediaForShare;
         setSharingMedia(true);
         try {
-            await api.post('/posts', {
+            const { data: newPost } = await api.post('/posts', {
                 category: match.category, subCategory: match.subCategory,
                 type: 'POST', content: '', ...(hideMatchInfo ? {} : { rivalId: match.id }),
                 ...(isVideo ? { videoUrl: url } : { imageUrl: url }),
             });
+            // Kullanıcı isteği: paylaşılan medya bu maçın altındaki "Medya" listesinde ANINDA
+            // görünsün — hideMatchInfo true'ysa rivalId gönderilmediği için bu maçın listesine
+            // ait değil, o durumda eklenmez.
+            if (!hideMatchInfo) setMatchMediaList(prev => [newPost, ...prev]);
             // Kullanıcı isteği: aynı medyayı Sanal Alem'e (Sosyal > Sanal Alem) de düşürebilme —
             // kimin görebileceği, kullanıcının kendi profil ayarındaki postsPrivacy'ye göre
             // backend'de zaten uygulanıyor (bkz. post.controller.js), ekstra gizlilik mantığı gerekmiyor.
@@ -7659,9 +7762,34 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </View>
                     )}
 
-                    {/* Comments section — kullanıcı isteği: başlığın sağına ok işareti, aşağı
-                        dönükken (varsayılan) yazma kutusu + liste görünür, dokununca sola döner
-                        ve gizler. */}
+                    {/* Yorum yaz — kullanıcı isteği: bu kutu ok işaretinden bağımsız her zaman
+                        görünür kalmalı, koşullu render edilirse yazarken TextInput unmount olup
+                        klavyeyi kapatıyordu (kullanıcı raporu: "yorum formuna tıklayıp yorum
+                        yazacağımda klavye formu kapatıyor"). Sadece aşağıdaki liste ok işaretiyle
+                        gizlenir/gösterilir. */}
+                    {match.refereeUser?.id !== myId && (
+                        <View style={{ flexDirection:'row', gap:3, marginBottom:12 }}>
+                            <TextInput
+                                style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:9,
+                                    paddingVertical:5, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
+                                placeholder="Yorum yaz..."
+                                placeholderTextColor={colors.textMuted}
+                                value={localCommentText}
+                                onChangeText={setLocalCommentText}
+                                multiline
+                            />
+                            <TouchableOpacity
+                                style={{ backgroundColor: sendingLocalComment || !localCommentText.trim() ? colors.surface2 : colors.purple,
+                                    borderRadius:10, paddingHorizontal:11, justifyContent:'center', alignItems:'center' }}
+                                onPress={sendLocalComment}
+                                disabled={sendingLocalComment || !localCommentText.trim()}>
+                                <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Gönder</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* Yorumlar listesi — kullanıcı isteği: sadece bu liste başlığın sağındaki ok
+                        işaretiyle gizlenir/gösterilir, yazma kutusu (yukarıda) bundan etkilenmez. */}
                     <TouchableOpacity
                         onPress={() => setShowLocalComments(v => !v)}
                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: showLocalComments ? 12 : 4 }}
@@ -7672,48 +7800,23 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         <Text style={{ color: colors.textMuted, fontSize:16, transform:[{ rotate: showLocalComments ? '0deg' : '-90deg' }] }}>▼</Text>
                     </TouchableOpacity>
                     {showLocalComments && (
-                        <>
-                            {/* Yorum yaz — kullanıcı isteği: eskiden ekranın en altına, klavyenin
-                                hemen üstüne SABİT yapıştırılmıştı; artık normal kaydırılan akışın
-                                içinde, doğrudan "Yorumlar" başlığının ALTINDA. */}
-                            {match.refereeUser?.id !== myId && (
-                                <View style={{ flexDirection:'row', gap:3, marginBottom:12 }}>
-                                    <TextInput
-                                        style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:9,
-                                            paddingVertical:5, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
-                                        placeholder="Yorum yaz..."
-                                        placeholderTextColor={colors.textMuted}
-                                        value={localCommentText}
-                                        onChangeText={setLocalCommentText}
-                                        multiline
-                                    />
-                                    <TouchableOpacity
-                                        style={{ backgroundColor: sendingLocalComment || !localCommentText.trim() ? colors.surface2 : colors.purple,
-                                            borderRadius:10, paddingHorizontal:11, justifyContent:'center', alignItems:'center' }}
-                                        onPress={sendLocalComment}
-                                        disabled={sendingLocalComment || !localCommentText.trim()}>
-                                        <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Gönder</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-                            {loadingLocalComments ? (
-                                <ActivityIndicator color={cfg.color} style={{ marginVertical:16 }} />
-                            ) : localComments.length === 0 ? (
-                                <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Henüz yorum yok.</Text>
-                            ) : (
-                                localComments.map(c => (
-                                    <View key={c.id} style={{ backgroundColor: colors.surface2, borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
-                                        <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
-                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{c.user?.username || '?'}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:10 }}>
-                                                {c.createdAt ? new Date(c.createdAt).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short' }) : ''}
-                                            </Text>
-                                        </View>
-                                        <Text style={{ color: colors.textSecondary, fontSize:13 }}>{c.content}</Text>
+                        loadingLocalComments ? (
+                            <ActivityIndicator color={cfg.color} style={{ marginVertical:16 }} />
+                        ) : localComments.length === 0 ? (
+                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Henüz yorum yok.</Text>
+                        ) : (
+                            localComments.map(c => (
+                                <View key={c.id} style={{ backgroundColor: colors.surface2, borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
+                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{c.user?.username || '?'}</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:10 }}>
+                                            {c.createdAt ? new Date(c.createdAt).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short' }) : ''}
+                                        </Text>
                                     </View>
-                                ))
-                            )}
-                        </>
+                                    <Text style={{ color: colors.textSecondary, fontSize:13 }}>{c.content}</Text>
+                                </View>
+                            ))
+                        )
                     )}
 
                     {/* Kullanıcı isteği: Yorumlar'ın altında, skora bağlı olmadan (maç zaten
@@ -7725,9 +7828,38 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         disabled={sharingMedia}
                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor:'#0ea5e918', borderRadius:12, borderWidth:1, borderColor:'#0ea5e950', paddingVertical:11, marginTop:14, opacity: sharingMedia ? 0.6 : 1 }}>
                         {sharingMedia
-                            ? <ActivityIndicator color="#38bdf8" size="small" />
+                            ? <><ActivityIndicator color="#38bdf8" size="small" /><Text style={{ color:'#38bdf8', fontSize:13, fontWeight:'800' }}>{mediaUploadProgress > 0 ? `Yükleniyor... %${mediaUploadProgress}` : 'Yükleniyor...'}</Text></>
                             : <Text style={{ color:'#38bdf8', fontSize:14, fontWeight:'800' }}>📷 Medya Paylaş</Text>}
                     </TouchableOpacity>
+
+                    {/* Kullanıcı isteği: bu maçta paylaşılan medyalar "Medya" diye altında
+                        sıralansın, kendi ok işaretiyle gizlenip açılabilsin. */}
+                    <TouchableOpacity
+                        onPress={() => setShowMatchMediaList(v => !v)}
+                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:14, marginBottom: showMatchMediaList ? 8 : 4 }}
+                    >
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>
+                            📷 Medya{matchMediaList.length > 0 ? ` (${matchMediaList.length})` : ''}
+                        </Text>
+                        <Text style={{ color: colors.textMuted, fontSize:16, transform:[{ rotate: showMatchMediaList ? '0deg' : '-90deg' }] }}>▼</Text>
+                    </TouchableOpacity>
+                    {showMatchMediaList && (
+                        loadingMatchMedia ? (
+                            <ActivityIndicator color={cfg.color} style={{ marginTop:8 }} />
+                        ) : matchMediaList.length === 0 ? (
+                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:4, marginBottom:8, fontSize:13 }}>Henüz medya paylaşılmadı.</Text>
+                        ) : (
+                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+                                {matchMediaList.map((mp, idx) => (
+                                    <TouchableOpacity key={mp.id} onPress={() => setMatchMediaViewIdx(idx)} style={{ width:72, height:72, borderRadius:8, overflow:'hidden', backgroundColor: colors.surface2 }}>
+                                        {mp.imageUrl
+                                            ? <Image source={{ uri: mp.imageUrl }} style={{ width:'100%', height:'100%' }} resizeMode="cover" />
+                                            : <View style={{ flex:1, alignItems:'center', justifyContent:'center' }}><Text style={{ fontSize:24 }}>🎬</Text></View>}
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )
+                    )}
                 </ScrollView>
             </View>
         </Modal>
@@ -7782,6 +7914,20 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </TouchableOpacity>
                     </View>
                 </View>
+            </View>
+        </Modal>
+
+        {/* Kullanıcı isteği: "Medya" listesindeki bir öğeye dokununca tam ekran görüntülensin. */}
+        <Modal visible={matchMediaViewIdx !== null} transparent animationType="fade" onRequestClose={() => setMatchMediaViewIdx(null)}>
+            <View style={{ flex:1, backgroundColor:'#000000ee', justifyContent:'center', alignItems:'center' }}>
+                <TouchableOpacity style={{ position:'absolute', top:56, right:20, zIndex:10 }} onPress={() => setMatchMediaViewIdx(null)}>
+                    <Text style={{ color:'#fff', fontSize:28, fontWeight:'700' }}>✕</Text>
+                </TouchableOpacity>
+                {matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && (
+                    matchMediaList[matchMediaViewIdx].imageUrl
+                        ? <Image source={{ uri: matchMediaList[matchMediaViewIdx].imageUrl }} style={{ width:'100%', height:'75%' }} resizeMode="contain" />
+                        : <VideoView player={matchMediaViewPlayer} style={{ width:'100%', height:'75%' }} allowsFullscreen allowsPictureInPicture nativeControls />
+                )}
             </View>
         </Modal>
 
@@ -19110,6 +19256,18 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [mediaStories, setMediaStories] = useState([]);
     const [storyViewer, setStoryViewer] = useState({ visible: false, userIdx: 0, storyIdx: 0 });
     const [mediaViewIdx, setMediaViewIdx] = useState(null);
+    // Kullanıcı isteği: "tenis medyadan oynatmıyor" — tam ekran medya görüntüleyicisi video
+    // paylaşımlarında SADECE 🎬 ikonu gösterip hiçbir zaman gerçekten oynatmıyordu (görsel
+    // dışında bir <Video>/<VideoView> hiç render edilmiyordu, tüm Medya sekmesi genelinde
+    // önceden var olan bir eksiklik). useVideoPlayer bir React hook'u olduğu için koşullu bir
+    // JSX bloğunun İÇİNDE çağrılamaz (Rules of Hooks) — bu yüzden component'in en üst seviyesinde,
+    // görüntülenen medyanın video URL'siyle besleniyor (bkz. ClassicFilmPlayerScreen.js'deki
+    // aynı desen). mediaViewIdx null'a dönünce videoUrl de null olur, oynatıcı otomatik durur.
+    const mediaViewVideoUrl = (mediaViewIdx !== null && mediaPosts[mediaViewIdx] && !mediaPosts[mediaViewIdx].imageUrl)
+        ? mediaPosts[mediaViewIdx].videoUrl : null;
+    const mediaViewPlayer = useVideoPlayer(mediaViewVideoUrl, (p) => {
+        if (mediaViewVideoUrl) { p.loop = false; p.play(); }
+    });
     // Kullanıcı isteği: skor girişinden bir maça bağlı (rivalId) paylaşılan medyaya tam ekranda
     // dokununca altında o maçın detayı (skor/takımlar) gösterilsin — postId bazında cache'lenir,
     // aynı maça bağlı birden fazla medyada tekrar tekrar istek atılmasın.
@@ -26259,7 +26417,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                                 {mp.imageUrl
                                     ? <Image source={{ uri: mp.imageUrl }} style={{ width: '100%', height: mediaShowComments ? '50%' : '75%' }} resizeMode="contain" />
-                                    : <View style={{ alignItems: 'center' }}><Text style={{ fontSize: 60 }}>🎬</Text><Text style={{ color: '#fff', marginTop: 8 }}>Video</Text></View>
+                                    : <VideoView player={mediaViewPlayer} style={{ width: '100%', height: mediaShowComments ? '50%' : '75%' }} allowsFullscreen allowsPictureInPicture nativeControls />
                                 }
                                 <Text style={{ color: '#ffffff90', fontSize: 12, fontWeight: '700', marginTop: 8 }}>
                                     {mp.user?.username} · {getSubCategoryLabel(mp.subCategory, t.lang)}
