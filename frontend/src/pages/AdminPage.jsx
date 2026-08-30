@@ -1507,7 +1507,7 @@ function BusinessVenuesPanel() {
 // Mobil AdminPortalScreen.js'deki CoachListingApprovalTab/RefereeApprovalTab/
 // CoachRatingApprovalTab ile aynı davranış — üçü de PENDING/APPROVED filtresine göre
 // backend'den liste çekip Onayla/Onayı Kaldır eylemi sunuyor, tek şablonla paylaşılıyor.
-function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, emptyPendingText, emptyOtherText, emptyRejectedText }) {
+function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, allowConditional = false, emptyPendingText, emptyOtherText, emptyRejectedText }) {
     const { t } = useTranslation();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -1515,6 +1515,11 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
     // Kullanıcı isteği: reddederken bir açıklama yazılabilsin, kullanıcıya bu sebeple
     // bildirim gitsin — ProfileChangesPanel'deki "Red notu" alanıyla aynı desen.
     const [notes, setNotes] = useState({}); // id → not metni
+    // Kullanıcı isteği: admin onaylarken "şu bilgiler eksik/yanlış, X gün içinde
+    // düzeltilmezse onay iptal edilir" diyebilsin — sadece antrenörlük ilanı onayında
+    // (allowConditional) gösterilir, doldurulmazsa normal (koşulsuz) onay olur.
+    const [condNotes, setCondNotes] = useState({}); // id → eksiklik notu
+    const [condDays, setCondDays] = useState({}); // id → gün sayısı
 
     const load = useCallback(() => {
         setLoading(true);
@@ -1529,7 +1534,10 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
     const setApproval = async (id, action) => {
         setItems(prev => prev.filter(x => x.id !== id));
         try {
-            await api.patch(`${endpoint}/${id}`, { action, adminNote: notes[id] || '' });
+            await api.patch(`${endpoint}/${id}`, {
+                action, adminNote: notes[id] || '',
+                ...(allowConditional && action === 'APPROVE' && { conditionalNote: condNotes[id] || '', conditionalDays: condDays[id] || 7 }),
+            });
         } catch (e) {
             alert(e?.response?.data?.message || t('admin.common.error'));
             load();
@@ -1562,12 +1570,28 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
                 <div key={c.id} className="bg-gray-900 border border-purple-700/30 rounded-2xl p-5">
                     <div className="flex items-center justify-between gap-4">
                         <div className="min-w-0">
-                            <p className="text-white font-bold text-sm">@{c.user?.username || '?'}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-white font-bold text-sm">@{c.user?.username || '?'}</p>
+                                {allowConditional && c.approvedAt && (
+                                    <span className="px-1.5 py-0.5 rounded bg-blue-900/40 border border-blue-700/50 text-blue-400 text-[10px] font-bold">
+                                        {t('admin.approvalQueue.renewal_badge')}
+                                    </span>
+                                )}
+                            </div>
+                            {allowConditional && c.approvedAt && (
+                                <p className="text-gray-500 text-[11px]">{t('admin.approvalQueue.previous_approval_label')} {new Date(c.approvedAt).toLocaleDateString()}</p>
+                            )}
                             {c.user?.fullName && <p className="text-gray-500 text-xs">{c.user.fullName}</p>}
                             <p className="text-gray-400 text-xs">{c.subCategory} · {c.credentialLevel}</p>
                             <p className="text-gray-500 text-xs">
                                 {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : (c.city || c.location || '—')}
                             </p>
+                            {allowConditional && filter === 'APPROVED' && c.conditionalNote && (
+                                <p className="text-amber-400 text-xs mt-1">
+                                    {t('admin.approvalQueue.conditional_active_label')} {c.conditionalNote}
+                                    {c.conditionalDeadline && <> · {t('admin.approvalQueue.conditional_deadline_label')} {new Date(c.conditionalDeadline).toLocaleDateString()}</>}
+                                </p>
+                            )}
                             {showCv && (
                                 c.cvUrl ? (
                                     <a href={c.cvUrl} target="_blank" rel="noreferrer" className="text-purple-400 text-xs font-bold hover:underline">{t('admin.approvalQueue.view_cv')}</a>
@@ -1594,6 +1618,23 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
                     </div>
                     {allowReject && filter === 'PENDING' && (
                         <div className="flex flex-col gap-2 mt-3">
+                            {allowConditional && (
+                                <div className="flex gap-2">
+                                    <input
+                                        value={condNotes[c.id] || ''}
+                                        onChange={e => setCondNotes(n => ({ ...n, [c.id]: e.target.value }))}
+                                        placeholder={t('admin.approvalQueue.conditional_note_ph')}
+                                        className="flex-1 bg-gray-800 border border-amber-700/50 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500"
+                                    />
+                                    <input
+                                        type="number" min={1}
+                                        value={condDays[c.id] ?? 7}
+                                        onChange={e => setCondDays(n => ({ ...n, [c.id]: parseInt(e.target.value, 10) || 7 }))}
+                                        title={t('admin.approvalQueue.conditional_days_label')}
+                                        className="w-20 bg-gray-800 border border-amber-700/50 rounded-xl px-2 py-2 text-white text-sm text-center focus:outline-none focus:border-amber-500"
+                                    />
+                                </div>
+                            )}
                             <input
                                 value={notes[c.id] || ''}
                                 onChange={e => setNotes(n => ({ ...n, [c.id]: e.target.value }))}
@@ -1625,7 +1666,7 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
 
 function CoachListingApprovalPanel() {
     const { t } = useTranslation();
-    return <ApprovalQueuePanel endpoint="/admin/coach-listing-approvals" allowReject
+    return <ApprovalQueuePanel endpoint="/admin/coach-listing-approvals" allowReject allowConditional
         emptyPendingText={t('admin.approvalQueue.coachListing_empty_pending')} emptyOtherText={t('admin.approvalQueue.coachListing_empty_other')}
         emptyRejectedText={t('admin.approvalQueue.coachListing_empty_rejected')} />;
 }

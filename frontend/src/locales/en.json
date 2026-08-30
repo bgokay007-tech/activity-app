@@ -921,7 +921,14 @@
       "referee_empty_pending": "No referees pending approval. ✅",
       "referee_empty_other": "No approved referees found.",
       "coachRating_empty_pending": "No coaches pending approval. ✅",
-      "coachRating_empty_other": "No approved coaches found."
+      "coachRating_empty_other": "No approved coaches found.",
+      "renewal_badge": "🔄 Renewal Application",
+      "previous_approval_label": "Previous approval:",
+      "conditional_note_ph": "Deficiency/error note (optional) — if filled, approval is auto-revoked if not fixed in time",
+      "conditional_days_label": "days",
+      "conditional_active_label": "⚠️ Conditional approval:",
+      "conditional_deadline_label": "Deadline:",
+      "approved_expiry_label": "Approval expires:"
     }
   },
   "batak": {

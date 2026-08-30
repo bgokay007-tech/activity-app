@@ -443,6 +443,18 @@ model CoachListing {
   approved        Boolean @default(false)
   adminNote       String?  // kullanıcı isteği: admin başvuruyu reddederken bir açıklama
   // yazabilsin, kullanıcıya bu sebeple bildirim gitsin (bkz. setCoachListingApproval REJECT)
+
+  // Kullanıcı isteği: admin onayı SÜRESİZ değil, en son onaylandığı tarihten itibaren 1 yıl
+  // geçerli — süre dolunca approvalExpiryJob otomatik approved:false yapar ama approvedAt'i
+  // SİLMEZ (geçmiş onay kaydı olarak kalır), böylece admin panelinde bu bir "yenileme
+  // başvurusu" olarak görünür (bkz. getCoachListingApprovals). Yeniden onaylanınca üzerine yazılır.
+  approvedAt          DateTime?
+  // Kullanıcı isteği: admin onaylarken "şu bilgiler eksik/yanlış, X gün içinde düzeltilmezse
+  // onay iptal edilir" diyebilsin — koşullu onay. conditionalDeadline dolana kadar onaylı
+  // kalır, kullanıcı ilanını güncellerse (updateListing) düzeltme girişimi sayılıp temizlenir,
+  // yoksa approvalExpiryJob otomatik approved:false yapar.
+  conditionalNote     String?
+  conditionalDeadline DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

@@ -921,7 +921,14 @@
       "referee_empty_pending": "Onay bekleyen hakem yok. ✅",
       "referee_empty_other": "Onaylı hakem bulunamadı.",
       "coachRating_empty_pending": "Onay bekleyen antrenör yok. ✅",
-      "coachRating_empty_other": "Onaylı antrenör bulunamadı."
+      "coachRating_empty_other": "Onaylı antrenör bulunamadı.",
+      "renewal_badge": "🔄 Yenileme Başvurusu",
+      "previous_approval_label": "Önceki onay:",
+      "conditional_note_ph": "Eksiklik/hata notu (opsiyonel) — doldurursanız süresi içinde düzeltilmezse onay otomatik iptal olur",
+      "conditional_days_label": "gün içinde",
+      "conditional_active_label": "⚠️ Koşullu onay:",
+      "conditional_deadline_label": "Son tarih:",
+      "approved_expiry_label": "Onay süresi doluyor:"
     }
   },
   "batak": {

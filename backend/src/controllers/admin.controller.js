@@ -417,7 +417,13 @@ export const getCoachListingApprovals = async (req, res, next) => {
 export const setCoachListingApproval = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { action, adminNote } = req.body; // 'APPROVE' | 'REJECT' | 'REVOKE'
+        // Kullanıcı isteği: admin onaylarken "şu bilgiler eksik/yanlış, X gün içinde
+        // düzeltilmezse onay iptal edilir" diyebilsin — koşullu onay. conditionalNote
+        // boş bırakılırsa normal (koşulsuz) onay olur.
+        const { action, adminNote, conditionalNote, conditionalDays } = req.body; // 'APPROVE' | 'REJECT' | 'REVOKE'
+        const now = new Date();
+        const hasCondition = action === 'APPROVE' && conditionalNote && String(conditionalNote).trim();
+        const days = Math.max(1, parseInt(conditionalDays, 10) || 7);
         // Kullanıcı isteği: admin reddederken bir açıklama yazabilsin (eksik bilgi, yanlış
         // bilgi vb.), kullanıcıya bu sebeple bildirim gitsin VE başvuru ayrı bir "REJECTED"
         // durumuna geçsin — PENDING listesinde kalmaya devam etmesin.
@@ -427,6 +433,12 @@ export const setCoachListingApproval = async (req, res, next) => {
                 approved: action === 'APPROVE',
                 status: action === 'REJECT' ? 'REJECTED' : 'ACTIVE',
                 adminNote: action === 'REJECT' ? (adminNote || null) : null,
+                // Kullanıcı isteği: onay süresiz değil, approvedAt üzerinden 1 yıl geçerli
+                // (bkz. coachApprovalExpiry job) — REVOKE/REJECT'te de temizlenmiyor, geçmiş
+                // onay kaydı olarak kalıp bir sonraki başvurunun "yenileme" olduğunu gösteriyor.
+                ...(action === 'APPROVE' && { approvedAt: now }),
+                conditionalNote: hasCondition ? String(conditionalNote).trim() : null,
+                conditionalDeadline: hasCondition ? new Date(now.getTime() + days * 24 * 60 * 60 * 1000) : null,
             },
         });
         const notifType = action === 'APPROVE' ? 'COACH_LISTING_APPROVED' : action === 'REJECT' ? 'COACH_LISTING_REJECTED' : 'COACH_APPROVAL_REVOKED';
@@ -434,7 +446,13 @@ export const setCoachListingApproval = async (req, res, next) => {
         const body = action === 'APPROVE'
             // Kullanıcı isteği: onaylı antrenörlerin turnuva oluşturma hakkı otomatik tanınıyor
             // (bkz. getTournamentPermissionStatus) — bunu bilmeleri için onay bildirimine eklendi.
+            // Ayrıca onayın süresiz olmadığı (1 yıl) ve varsa koşullu eksiklik/son tarih bilgisi
+            // de aynı bildirimde açıkça belirtiliyor.
             ? 'Antrenörlük başvurunuz admin tarafından onaylandı — ilanınız artık herkese görünüyor. Bu sayede turnuva oluşturma hakkınız da otomatik tanındı, admin onayı beklemeden turnuva açabilirsiniz.'
+                + (hasCondition
+                    ? ` ⚠️ Ancak şu eksiklik/hata tespit edildi: "${conditionalNote.trim()}" — ${days} gün içinde bilgilerinizi güncelleyerek düzeltmezseniz onayınız otomatik olarak iptal edilecektir.`
+                    : '')
+                + ' Bu onay 1 yıl geçerlidir, süre dolmadan önce bilgilerinizi güncelleyip yeniden admin onayına göndermeniz gerekecek.'
             : action === 'REJECT'
                 ? `Antrenörlük başvurunuz admin tarafından reddedildi.${adminNote ? ` Neden: ${adminNote}` : ''}`
                 : 'Antrenörlük ilan onayınız admin tarafından kaldırıldı, ilanınız başkalarına görünmüyor.';

@@ -401,10 +401,20 @@ export const updateListing = async (req, res, next) => {
                 ...(timeTo !== undefined && { timeTo }),
                 ...(description !== undefined && { description }),
                 ...(revokeApproval && { approved: false }),
+                // Kullanıcı isteği: admin "şu bilgiler eksik/yanlış, X gün içinde düzeltilmezse
+                // iptal edilir" diye koşullu onay verdiyse, kullanıcı ilanını güncellediğinde bu
+                // bir düzeltme girişimi sayılır ve süre kaldırılır (bkz. coachApprovalExpiry job).
+                ...(listing.conditionalDeadline && { conditionalNote: null, conditionalDeadline: null }),
             },
             include: { user: { select: USER_SELECT } },
         });
         res.json(updated);
+        if (listing.conditionalDeadline && !revokeApproval) {
+            createNotification(req.userId, 'COACH_CONDITIONAL_NOTE_CLEARED', '✅ Düzeltme Alındı',
+                'İlanınızı güncellediniz — admin\'in belirttiği eksiklik/hata için tanınan süre kaldırıldı, onayınız devam ediyor.',
+                {}
+            ).catch(() => {});
+        }
         if (revokeApproval) {
             createNotification(req.userId, 'COACH_APPROVAL_REVOKED', '🚫 Antrenörlük Onayınız Kaldırıldı',
                 'CV\'nizi değiştirdiğiniz için antrenörlük ilan onayınız kaldırıldı, yeni CV admin tarafından tekrar incelenene kadar ilanınız başkalarına görünmez.',
