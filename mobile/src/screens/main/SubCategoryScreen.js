@@ -19223,6 +19223,11 @@ export default function SubCategoryScreen({ route, navigation }) {
     // belgesi — pickCoachSingleImage/uploadCoachImage ile aynı, zaten var olan yükleme akışı.
     const [cvProfilePhotoImage, setCvProfilePhotoImage] = useState(null);
     const [cvProfileAdliSicilImage, setCvProfileAdliSicilImage] = useState(null);
+    // Kullanıcı isteği: tenis hakemliği CV'sinde ayrıca güncel vize belgesi (i-KORT profil
+    // ekran görüntüsü) ve TTF disiplin cezası almadığına dair belge — adliSicil ile aynı desen.
+    const [cvProfileVizeImage, setCvProfileVizeImage] = useState(null);
+    const [cvProfileCezaBelgesiImage, setCvProfileCezaBelgesiImage] = useState(null);
+    const [showRefereeIlModal, setShowRefereeIlModal] = useState(false);
     // Kullanıcı isteği: CV Yükle artık yer/zaman ve ders tipleri/ücret istemeden SADECE
     // kimlik/belge + deneyim + başarılar + CV bilgisini toplayan kendi formu — İlan Oluştur'dan
     // tamamen bağımsız state, iki modal arasında veri sızmasın diye.
@@ -19242,6 +19247,10 @@ export default function SubCategoryScreen({ route, navigation }) {
         // sosyal kanıt bilgileri, sadece antrenörlükte (hakemlikte kullanılmıyor).
         certIssuer: '', kademe: '', tcKimlikNo: '', education: '',
         specializations: [], introVideoUrl: '', socialInstagram: '', socialLinkedin: '',
+        // Kullanıcı isteği: tenis hakemliğinde TTF i-KORT sistemiyle uyumlu resmi lisans/
+        // kademe/doğrulama bilgileri — sadece hakemlik + tenis dalında kullanılıyor.
+        ikortNo: '', refereeKademe: '', itfBadgeLevel: '', itfCertNo: '',
+        ilTemsilciligi: '', specialization: [],
     });
     const [cvProfileCertImages, setCvProfileCertImages] = useState([]);
     const [cvProfileAchievementImages, setCvProfileAchievementImages] = useState([]);
@@ -20042,6 +20051,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                 experience: parseInt(refereeForm.experience) || 0,
                 pricePerMatch: parseInt(refereeForm.pricePerMatch) || 0,
                 certificateUrls, cvUrl, achievementUrls,
+                // Kullanıcı isteği: tenis hakemliğinde TTF i-KORT doğrulama bilgileri de CV'den
+                // otomatik taşınır — bu form kimlik/belge bilgisini yeniden istemiyor (bkz.
+                // openCvForm/submitCvProfile ile aynı desen).
+                ...(sub === 'tennis' && existingRefereeCv && {
+                    ikortNo: existingRefereeCv.ikortNo || undefined,
+                    refereeKademe: existingRefereeCv.refereeKademe || undefined,
+                    vizeBelgesiUrl: existingRefereeCv.vizeBelgesiUrl || undefined,
+                    itfBadgeLevel: existingRefereeCv.itfBadgeLevel || undefined,
+                    itfCertNo: existingRefereeCv.itfCertNo || undefined,
+                    adliSicilUrl: existingRefereeCv.adliSicilUrl || undefined,
+                    cezaBelgesiUrl: existingRefereeCv.cezaBelgesiUrl || undefined,
+                    ilTemsilciligi: existingRefereeCv.ilTemsilciligi || undefined,
+                    specialization: existingRefereeCv.specialization || [],
+                }),
             });
             setShowCreateReferee(false);
             resetRefereeForm();
@@ -20084,12 +20107,16 @@ export default function SubCategoryScreen({ route, navigation }) {
             priorExperience: [{ workplace: '', position: '', period: '' }],
             certIssuer: '', kademe: '', tcKimlikNo: '', education: '',
             specializations: [], introVideoUrl: '', socialInstagram: '', socialLinkedin: '',
+            ikortNo: '', refereeKademe: '', itfBadgeLevel: '', itfCertNo: '',
+            ilTemsilciligi: '', specialization: [],
         });
         setCvProfileCertImages([]);
         setCvProfileAchievementImages([]);
         setStandaloneCvImage(null);
         setCvProfilePhotoImage(null);
         setCvProfileAdliSicilImage(null);
+        setCvProfileVizeImage(null);
+        setCvProfileCezaBelgesiImage(null);
     };
 
     // Kullanıcı isteği: CV Yükle artık yer/zaman ve ders tipleri/ücret istemiyor, sadece
@@ -20109,9 +20136,20 @@ export default function SubCategoryScreen({ route, navigation }) {
             ? (isReferee ? refereeListings : coachListings).find(x => x.id === cvUploadListingId)
             : null;
         const hasCertPhoto = cvProfileCertImages.length > 0 || targetListing?.certificateUrls?.length > 0 || !!targetListing?.certificateUrl;
+        const isTennisReferee = isReferee && sub === 'tennis';
         if (isReferee) {
             if (approvalSports.includes(sub) && !standaloneCvImage && !targetListing?.cvUrl) {
                 return Alert.alert('', 'Bu dalda hakemlik için CV yüklemeniz zorunludur.');
+            }
+            // Kullanıcı isteği: bir tenis hakemini onaylamadan önce mutlaka kontrol edilmesi
+            // gereken temel bilgiler — TTF hakem sicil no (i-KORT ID), kademe, güncel vize
+            // belgesi, bağlı olduğu il temsilciliği, uzmanlık alanı (Kule/Çizgi Hakemi).
+            if (isTennisReferee) {
+                if (!cvProfileForm.ikortNo.trim()) return Alert.alert('', 'TTF Hakem Sicil Numaranızı (i-KORT ID) girmeniz zorunludur.');
+                if (!cvProfileForm.refereeKademe) return Alert.alert('', 'Hakemlik kademenizi seçmeniz zorunludur.');
+                if (!cvProfileVizeImage && !targetListing?.vizeBelgesiUrl) return Alert.alert('', 'Güncel vize belgenizi (i-KORT profil ekran görüntüsü) yüklemeniz zorunludur.');
+                if (!cvProfileForm.ilTemsilciligi) return Alert.alert('', 'Bağlı olduğunuz il temsilciliğini seçmeniz zorunludur.');
+                if (cvProfileForm.specialization.length === 0) return Alert.alert('', 'Uzmanlık alanınızı (Kule/Çizgi Hakemi) seçmeniz zorunludur.');
             }
         } else if (COACH_PROFESSIONAL_LEVELS.includes(cvProfileForm.credentialLevel)) {
             if (!cvProfileForm.certName.trim()) return Alert.alert('', 'Bu seviyede belge adını girmeniz zorunludur.');
@@ -20149,6 +20187,8 @@ export default function SubCategoryScreen({ route, navigation }) {
             const cvUrl = standaloneCvImage ? await uploadCoachImage(standaloneCvImage, 'cv.jpg') : (targetListing?.cvUrl || undefined);
             const profilePhotoUrl = cvProfilePhotoImage ? await uploadCoachImage(cvProfilePhotoImage, 'profile.jpg') : (targetListing?.profilePhotoUrl || undefined);
             const adliSicilUrl = cvProfileAdliSicilImage ? await uploadCoachImage(cvProfileAdliSicilImage, 'adli-sicil.jpg') : (targetListing?.adliSicilUrl || undefined);
+            const vizeBelgesiUrl = cvProfileVizeImage ? await uploadCoachImage(cvProfileVizeImage, 'vize.jpg') : (targetListing?.vizeBelgesiUrl || undefined);
+            const cezaBelgesiUrl = cvProfileCezaBelgesiImage ? await uploadCoachImage(cvProfileCezaBelgesiImage, 'ceza-belgesi.jpg') : (targetListing?.cezaBelgesiUrl || undefined);
 
             const payload = {
                 credentialLevel: cvProfileForm.credentialLevel,
@@ -20175,6 +20215,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                     introVideoUrl: cvProfileForm.introVideoUrl.trim() || undefined,
                     socialInstagram: cvProfileForm.socialInstagram.trim() || undefined,
                     socialLinkedin: cvProfileForm.socialLinkedin.trim() || undefined,
+                }),
+                // Kullanıcı isteği: TTF i-KORT sistemiyle uyumlu resmi lisans/kademe/doğrulama
+                // bilgileri — sadece tenis hakemliğinde kullanılıyor.
+                ...(isTennisReferee && {
+                    ikortNo: cvProfileForm.ikortNo.trim(),
+                    refereeKademe: cvProfileForm.refereeKademe,
+                    vizeBelgesiUrl,
+                    itfBadgeLevel: cvProfileForm.itfBadgeLevel || undefined,
+                    itfCertNo: cvProfileForm.itfCertNo.trim() || undefined,
+                    adliSicilUrl,
+                    cezaBelgesiUrl,
+                    ilTemsilciligi: cvProfileForm.ilTemsilciligi,
+                    specialization: cvProfileForm.specialization,
                 }),
             };
 
@@ -23218,12 +23271,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             introVideoUrl: l?.introVideoUrl || '',
                                             socialInstagram: l?.socialInstagram || '',
                                             socialLinkedin: l?.socialLinkedin || '',
+                                            ikortNo: l?.ikortNo || '',
+                                            refereeKademe: l?.refereeKademe || '',
+                                            itfBadgeLevel: l?.itfBadgeLevel || '',
+                                            itfCertNo: l?.itfCertNo || '',
+                                            ilTemsilciligi: l?.ilTemsilciligi || '',
+                                            specialization: Array.isArray(l?.specialization) ? l.specialization : [],
                                         });
                                         setCvProfileCertImages([]);
                                         setCvProfileAchievementImages([]);
                                         setStandaloneCvImage(null);
                                         setCvProfilePhotoImage(null);
                                         setCvProfileAdliSicilImage(null);
+                                        setCvProfileVizeImage(null);
+                                        setCvProfileCezaBelgesiImage(null);
                                     };
                                     const pickRow = (l, type) => (
                                         <TouchableOpacity key={l.id}
@@ -23269,8 +23330,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     // Kullanıcı isteği: Sertifikalı/Lisanslı/Kulüp Antrenörü seçilirse belge
                                     // adı/fotoğrafı/deneyim zorunlu — sadece antrenörlükte.
                                     const isProfessionalLevel = !isReferee && COACH_PROFESSIONAL_LEVELS.includes(cvProfileForm.credentialLevel);
+                                    // Kullanıcı isteği: bir tenis hakemini onaylamadan önce mutlaka kontrol
+                                    // edilmesi gereken TTF i-KORT sicil no/kademe/vize/il temsilciliği/uzmanlık
+                                    // alanı bilgileri — sadece hakemlik + tenis dalında istenir.
+                                    const isTennisReferee = isReferee && sub === 'tennis';
                                     return (
                                         <ScrollView showsVerticalScrollIndicator={false}>
+                                            <CityPickerModal
+                                                visible={showRefereeIlModal}
+                                                onClose={() => setShowRefereeIlModal(false)}
+                                                onSelect={(v) => { setCvProfileForm(f => ({ ...f, ilTemsilciligi: v })); setShowRefereeIlModal(false); }}
+                                                currentValue={cvProfileForm.ilTemsilciligi}
+                                                provinceOnly
+                                            />
                                             <TouchableOpacity onPress={closeForm} style={{ marginBottom:10, alignSelf:'flex-start' }}>
                                                 <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>‹ Geri</Text>
                                             </TouchableOpacity>
@@ -23346,6 +23418,131 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 </TouchableOpacity>
                                             )}
                                             <TextInput placeholder={`Deneyim (yıl)${isProfessionalLevel ? ' *' : ''}`} placeholderTextColor={colors.textMuted} value={cvProfileForm.experience} onChangeText={v => setCvProfileForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+
+                                            {/* Kullanıcı isteği: bir tenis hakemini onaylamadan önce mutlaka kontrol
+                                                edilmesi gereken temel bilgiler — TTF Hakem Sicil No (i-KORT ID), kademe
+                                                (Aday/İl/Ulusal/Uluslararası), güncel vize belgesi (i-KORT profil ekran
+                                                görüntüsü), bağlı olduğu il temsilciliği, uzmanlık alanı (Kule/Çizgi
+                                                Hakemi); ITF rozeti ve adli sicil/ceza belgesi opsiyonel. Sadece tenis
+                                                hakemliğinde gösterilir. */}
+                                            {isTennisReferee && (
+                                                <>
+                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Tenis Hakemliği Doğrulama</Text>
+                                                    <TextInput placeholder="TTF Hakem Sicil No / i-KORT ID *" placeholderTextColor={colors.textMuted} value={cvProfileForm.ikortNo} onChangeText={v => setCvProfileForm(f=>({...f,ikortNo:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Hakemlik Kademesi *</Text>
+                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
+                                                        {[
+                                                            { key:'ADAY', label:'Aday' },
+                                                            { key:'IL', label:'İl' },
+                                                            { key:'ULUSAL', label:'Ulusal' },
+                                                            { key:'ULUSLARARASI', label:'Uluslararası' },
+                                                        ].map(k => (
+                                                            <TouchableOpacity key={k.key} onPress={() => setCvProfileForm(f => ({...f, refereeKademe:k.key}))}
+                                                                style={{ paddingHorizontal:7, paddingVertical:3, borderRadius:8, backgroundColor: cvProfileForm.refereeKademe===k.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: cvProfileForm.refereeKademe===k.key ? cfg.color : colors.border }}>
+                                                                <Text style={{ color: cvProfileForm.refereeKademe===k.key ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>{k.label}</Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </View>
+
+                                                    {cvProfileVizeImage ? (
+                                                        <View style={{ marginBottom:8, position:'relative', alignSelf:'flex-start' }}>
+                                                            <Image source={{ uri: cvProfileVizeImage }} style={{ width:80, height:80, borderRadius:8 }} resizeMode="cover" />
+                                                            <TouchableOpacity onPress={() => setCvProfileVizeImage(null)}
+                                                                style={{ position:'absolute', top:-6, right:-6, backgroundColor:'#ef4444', borderRadius:10, width:20, height:20, justifyContent:'center', alignItems:'center' }}>
+                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'900' }}>✕</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    ) : (
+                                                        <TouchableOpacity onPress={() => pickCoachSingleImage(setCvProfileVizeImage)}
+                                                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
+                                                            <Text style={{ fontSize:14 }}>📇</Text>
+                                                            <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                                                {targetListing?.vizeBelgesiUrl ? 'Mevcut Vize Belgeniz Kullanılacak ✓ (eklemek için dokunun)' : 'Güncel Vize Belgesi Yükle (i-KORT profil ekran görüntüsü) *'}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    )}
+
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Bağlı Olduğu İl Temsilciliği *</Text>
+                                                    <TouchableOpacity onPress={() => setShowRefereeIlModal(true)}
+                                                        style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:8, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
+                                                        <Text style={{ color: cvProfileForm.ilTemsilciligi ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'700' }}>
+                                                            {cvProfileForm.ilTemsilciligi || 'İl seçin'}
+                                                        </Text>
+                                                    </TouchableOpacity>
+
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Uzmanlık Alanı *</Text>
+                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
+                                                        {[
+                                                            { key:'kule_hakemi', label:'Kule Hakemi (Chair Umpire)' },
+                                                            { key:'cizgi_hakemi', label:'Çizgi Hakemi (Line Umpire)' },
+                                                        ].map(o => {
+                                                            const active = cvProfileForm.specialization.includes(o.key);
+                                                            return (
+                                                                <TouchableOpacity key={o.key}
+                                                                    onPress={() => setCvProfileForm(f => ({ ...f, specialization: active ? f.specialization.filter(x => x !== o.key) : [...f.specialization, o.key] }))}
+                                                                    style={{ paddingHorizontal:7, paddingVertical:3, borderRadius:8, backgroundColor: active ? cfg.color : colors.surface2, borderWidth:1, borderColor: active ? cfg.color : colors.border }}>
+                                                                    <Text style={{ color: active ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>{o.label}</Text>
+                                                                </TouchableOpacity>
+                                                            );
+                                                        })}
+                                                    </View>
+
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>ITF Rozeti (opsiyonel, uluslararası maç yönetenler için)</Text>
+                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
+                                                        {[
+                                                            { key:'WHITE', label:'White' },
+                                                            { key:'BRONZE', label:'Bronze' },
+                                                            { key:'SILVER', label:'Silver' },
+                                                            { key:'GOLD', label:'Gold' },
+                                                        ].map(o => (
+                                                            <TouchableOpacity key={o.key} onPress={() => setCvProfileForm(f => ({...f, itfBadgeLevel: f.itfBadgeLevel === o.key ? '' : o.key}))}
+                                                                style={{ paddingHorizontal:7, paddingVertical:3, borderRadius:8, backgroundColor: cvProfileForm.itfBadgeLevel===o.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: cvProfileForm.itfBadgeLevel===o.key ? cfg.color : colors.border }}>
+                                                                <Text style={{ color: cvProfileForm.itfBadgeLevel===o.key ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>{o.label}</Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </View>
+                                                    {!!cvProfileForm.itfBadgeLevel && (
+                                                        <TextInput placeholder="ITF Sertifika Numarası (opsiyonel)" placeholderTextColor={colors.textMuted} value={cvProfileForm.itfCertNo} onChangeText={v => setCvProfileForm(f=>({...f,itfCertNo:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                                    )}
+
+                                                    {cvProfileAdliSicilImage ? (
+                                                        <View style={{ marginBottom:8, position:'relative', alignSelf:'flex-start' }}>
+                                                            <Image source={{ uri: cvProfileAdliSicilImage }} style={{ width:80, height:80, borderRadius:8 }} resizeMode="cover" />
+                                                            <TouchableOpacity onPress={() => setCvProfileAdliSicilImage(null)}
+                                                                style={{ position:'absolute', top:-6, right:-6, backgroundColor:'#ef4444', borderRadius:10, width:20, height:20, justifyContent:'center', alignItems:'center' }}>
+                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'900' }}>✕</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    ) : (
+                                                        <TouchableOpacity onPress={() => pickCoachSingleImage(setCvProfileAdliSicilImage)}
+                                                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
+                                                            <Text style={{ fontSize:14 }}>🪪</Text>
+                                                            <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                                                {targetListing?.adliSicilUrl ? 'Mevcut Adli Sicil Belgeniz Kullanılacak ✓ (eklemek için dokunun)' : 'Adli Sicil Belgesi Yükle (opsiyonel)'}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    )}
+
+                                                    {cvProfileCezaBelgesiImage ? (
+                                                        <View style={{ marginBottom:14, position:'relative', alignSelf:'flex-start' }}>
+                                                            <Image source={{ uri: cvProfileCezaBelgesiImage }} style={{ width:80, height:80, borderRadius:8 }} resizeMode="cover" />
+                                                            <TouchableOpacity onPress={() => setCvProfileCezaBelgesiImage(null)}
+                                                                style={{ position:'absolute', top:-6, right:-6, backgroundColor:'#ef4444', borderRadius:10, width:20, height:20, justifyContent:'center', alignItems:'center' }}>
+                                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'900' }}>✕</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    ) : (
+                                                        <TouchableOpacity onPress={() => pickCoachSingleImage(setCvProfileCezaBelgesiImage)}
+                                                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
+                                                            <Text style={{ fontSize:14 }}>📋</Text>
+                                                            <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
+                                                                {targetListing?.cezaBelgesiUrl ? 'Mevcut Belgeniz Kullanılacak ✓ (eklemek için dokunun)' : 'Ceza Almadığına Dair Belge Yükle (opsiyonel)'}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </>
+                                            )}
 
                                             {/* Kullanıcı isteği: resmi doğrulama bilgileri — TTF/GSB onaylı belge, kademe, T.C.
                                                 kimlik ve adli sicil doğrulaması. tcKimlikNo/adli sicil sadece sahibi ve admin
@@ -23679,6 +23876,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </Text>
                                             {existingRefereeCv.certName ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:2 }}>{existingRefereeCv.certName}</Text> : null}
                                             {Array.isArray(existingRefereeCv.achievements) && existingRefereeCv.achievements.length > 0 ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:6 }}>🏆 {existingRefereeCv.achievements.join(' · ')}</Text> : null}
+                                            {sub === 'tennis' && (existingRefereeCv.ikortNo || existingRefereeCv.refereeKademe) ? (
+                                                <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:6 }}>
+                                                    {existingRefereeCv.ikortNo ? `i-KORT: ${existingRefereeCv.ikortNo}` : ''}
+                                                    {existingRefereeCv.refereeKademe ? `${existingRefereeCv.ikortNo ? ' · ' : ''}${{ ADAY:'Aday', IL:'İl', ULUSAL:'Ulusal', ULUSLARARASI:'Uluslararası' }[existingRefereeCv.refereeKademe] || existingRefereeCv.refereeKademe} Kademe` : ''}
+                                                    {existingRefereeCv.itfBadgeLevel ? ` · ITF ${existingRefereeCv.itfBadgeLevel}` : ''}
+                                                    {existingRefereeCv.ilTemsilciligi ? ` · ${existingRefereeCv.ilTemsilciligi} Temsilciliği` : ''}
+                                                </Text>
+                                            ) : null}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
                                                 {existingRefereeCv.cvUrl && (
                                                     <TouchableOpacity onPress={() => Linking.openURL(existingRefereeCv.cvUrl)} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}>
