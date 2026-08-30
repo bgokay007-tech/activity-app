@@ -5057,6 +5057,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // gözükmesini istemeyebilir — açıkken paylaşılan medya rivalId'siz gönderilir, tam ekran
     // görünümde altında maç özeti (rakip/tarih/skor) hiç gösterilmez, sadece foto/video kalır.
     const [hideMatchInfoInMedia, setHideMatchInfoInMedia] = useState(false);
+    // Kullanıcı isteği: Yorumlar'ın altında her zaman görünen bir "Medya Paylaş" girişi olsun
+    // (skora bağlı olmadan, maç zaten skorlanmış olsa bile) ve medya seçilince nereye
+    // paylaşılacağı (bu maç + o sporun Medya sekmesi otomatik, Sanal Alem opsiyonel) seçenek
+    // olarak sorulsun — eskiden bu sadece paylaşımdan SONRA gelen bir Alert.alert follow-up'tı.
+    const [showMediaShareOptions, setShowMediaShareOptions] = useState(false);
+    const [pickedMediaForShare, setPickedMediaForShare] = useState(null); // {url, isVideo, hideMatchInfo}
+    const [shareToSanalAlemChecked, setShareToSanalAlemChecked] = useState(false);
     // Kullanıcı isteği: skor bekleyen (scoreStatus PENDING) maçlarda skoru girenin paylaştığı
     // medya da karşı tarafın onayını bekler — bu maçlar için o medyaları çekip Onayla/Reddet
     // gösterir (bkz. backend getPendingMatchMedia/approveMatchMedia/rejectMatchMedia).
@@ -5500,9 +5507,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         finally { setSubmitting(false); }
     };
 
-    // Galeriden resim/video seçip yükler, {url, isVideo} döner — hem "Medya Paylaş" hem "Sanal
-    // Alem'de de Paylaş" (bkz. shareToSanalAlem) AYNI yükleme adımını paylaşıyor, ikinci
-    // paylaşımda medya TEKRAR seçtirilmiyor/yüklenmiyor.
+    // Galeriden resim/video seçip yükler, {url, isVideo} döner — seçim tek seferlik, hangi
+    // yer(ler)e paylaşılacağı sonrasında açılan seçenekler penceresinde (bkz. confirmMediaShare)
+    // belirlenir, medya ikinci kez seçtirilmez/yüklenmez.
     const pickAndUploadMedia = async () => {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return null; }
@@ -5516,40 +5523,51 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         return { url: uploadData.url, isVideo };
     };
 
-    // Kullanıcı isteği: aynı medyayı Sanal Alem'e (Sosyal > Sanal Alem) de düşürebilme — kimin
-    // görebileceği, kullanıcının kendi profil ayarındaki postsPrivacy'ye göre backend'de zaten
-    // uygulanıyor (bkz. post.controller.js), burada ekstra bir gizlilik mantığı gerekmiyor.
-    const shareToSanalAlem = async (media) => {
-        try {
-            await api.post('/posts', {
-                category: 'SOCIAL', subCategory: 'sanal_alem',
-                type: 'POST', content: '',
-                ...(media.isVideo ? { videoUrl: media.url } : { imageUrl: media.url }),
-            });
-            Alert.alert('', "Sanal Alem'de paylaşıldı ✓");
-        } catch (e) {
-            Alert.alert(t.error, e?.response?.data?.message || t.sendFailed);
-        }
-    };
-
-    // Kullanıcı isteği: skor girişiyle birlikte maçtan foto/video paylaşılabilsin — o sporun
-    // Medya sekmesine (category/subCategory) düşer, rivalId ile bu maça bağlanır (tam ekran
-    // görünümde altında maç detayı/skoru gösterilebiliyor, bkz. MediaFullScreen). Paylaşım
-    // başarılı olunca aynı medyayı tekrar seçtirmeden Sanal Alem'de de paylaşma seçeneği sunulur.
+    // Kullanıcı isteği: medya seçildikten hemen sonra nereye paylaşılacağı SEÇENEK olarak
+    // sorulsun (bu maç + o sporun Medya sekmesi zaten otomatik/tek gönderiyle birlikte gelir —
+    // aynı Post rivalId ile hem maça hem Medya sekmesine bağlanıyor — Sanal Alem ise ayrı bir
+    // Post olarak opsiyonel eklenir). Eskiden bu sadece paylaşımdan SONRA gelen tek seçenekli
+    // bir Alert.alert follow-up'tı, artık paylaşmadan ÖNCE gösterilen bir seçenekler penceresi.
     const shareMatchMedia = async (hideMatchInfo = false) => {
         setSharingMedia(true);
         try {
             const media = await pickAndUploadMedia();
             if (!media) return;
+            setPickedMediaForShare({ ...media, hideMatchInfo });
+            setShareToSanalAlemChecked(false);
+            setShowMediaShareOptions(true);
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.sendFailed);
+        } finally {
+            setSharingMedia(false);
+        }
+    };
+
+    const confirmMediaShare = async () => {
+        if (!pickedMediaForShare) return;
+        const { url, isVideo, hideMatchInfo } = pickedMediaForShare;
+        setSharingMedia(true);
+        try {
             await api.post('/posts', {
                 category: match.category, subCategory: match.subCategory,
                 type: 'POST', content: '', ...(hideMatchInfo ? {} : { rivalId: match.id }),
-                ...(media.isVideo ? { videoUrl: media.url } : { imageUrl: media.url }),
+                ...(isVideo ? { videoUrl: url } : { imageUrl: url }),
             });
-            Alert.alert('', 'Medya paylaşıldı ✓', [
-                { text: 'Tamam' },
-                { text: "🌐 Sanal Alem'de de Paylaş", onPress: () => shareToSanalAlem(media) },
-            ]);
+            // Kullanıcı isteği: aynı medyayı Sanal Alem'e (Sosyal > Sanal Alem) de düşürebilme —
+            // kimin görebileceği, kullanıcının kendi profil ayarındaki postsPrivacy'ye göre
+            // backend'de zaten uygulanıyor (bkz. post.controller.js), ekstra gizlilik mantığı gerekmiyor.
+            if (shareToSanalAlemChecked) {
+                await api.post('/posts', {
+                    category: 'SOCIAL', subCategory: 'sanal_alem',
+                    type: 'POST', content: '',
+                    ...(isVideo ? { videoUrl: url } : { imageUrl: url }),
+                });
+            }
+            setShowMediaShareOptions(false);
+            setPickedMediaForShare(null);
+            Alert.alert('', shareToSanalAlemChecked
+                ? `Medya paylaşıldı ✓ (Maç + ${getSubCategoryLabel(match.subCategory, t.lang)} Medya + Sanal Alem)`
+                : `Medya paylaşıldı ✓ (Maç + ${getSubCategoryLabel(match.subCategory, t.lang)} Medya)`);
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.sendFailed);
         } finally {
@@ -7554,7 +7572,73 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             </View>
                         ))
                     )}
+
+                    {/* Kullanıcı isteği: Yorumlar'ın altında, skora bağlı olmadan (maç zaten
+                        skorlanmış olsa bile) her zaman erişilebilen bir "Medya Paylaş" girişi —
+                        tüm spor dallarında aynı şekilde çalışır (bu component sporlar arasında
+                        paylaşılıyor). Nereye paylaşılacağı bir sonraki adımda sorulur. */}
+                    <TouchableOpacity
+                        onPress={() => shareMatchMedia(false)}
+                        disabled={sharingMedia}
+                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor:'#0ea5e918', borderRadius:12, borderWidth:1, borderColor:'#0ea5e950', paddingVertical:11, marginTop:14, opacity: sharingMedia ? 0.6 : 1 }}>
+                        {sharingMedia
+                            ? <ActivityIndicator color="#38bdf8" size="small" />
+                            : <Text style={{ color:'#38bdf8', fontSize:14, fontWeight:'800' }}>📷 Medya Paylaş</Text>}
+                    </TouchableOpacity>
                 </ScrollView>
+            </View>
+        </Modal>
+
+        {/* Kullanıcı isteği: medya seçildikten sonra nereye paylaşılacağı seçenek olarak
+            sorulsun — bu maç + o sporun Medya sekmesi otomatik (aynı gönderi rivalId ile
+            ikisine de bağlanıyor), Sanal Alem'de de paylaşmak opsiyonel bir anahtar. */}
+        <Modal visible={showMediaShareOptions} transparent animationType="fade" onRequestClose={() => { setShowMediaShareOptions(false); setPickedMediaForShare(null); }}>
+            <View style={{ flex:1, backgroundColor:'#000000a0', justifyContent:'center', padding:24 }}>
+                <View style={{ backgroundColor: colors.surface, borderRadius:18, padding:17 }}>
+                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:4 }}>📷 Medyayı Nerede Paylaşayım?</Text>
+                    <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:14, lineHeight:17 }}>
+                        Bu maçın altında ve {getSubCategoryLabel(match.subCategory, t.lang)} Medya sekmesinde otomatik görünecek. İsterseniz aynı anda Sanal Alem'de de paylaşabilirsiniz.
+                    </Text>
+                    {pickedMediaForShare && (
+                        pickedMediaForShare.isVideo ? (
+                            <View style={{ width:'100%', height:140, borderRadius:12, marginBottom:14, backgroundColor: colors.surface2, alignItems:'center', justifyContent:'center' }}>
+                                <Text style={{ fontSize:32 }}>🎬</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>Video seçildi</Text>
+                            </View>
+                        ) : (
+                            <Image source={{ uri: pickedMediaForShare.url }} style={{ width:'100%', height:160, borderRadius:12, marginBottom:14 }} resizeMode="cover" />
+                        )
+                    )}
+                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, padding:10, marginBottom:8 }}>
+                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1 }}>
+                            {cfg.emoji} {getSubCategoryLabel(match.subCategory, t.lang)} Medya'da Paylaş
+                        </Text>
+                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>✓ Otomatik</Text>
+                    </View>
+                    <TouchableOpacity
+                        onPress={() => setShareToSanalAlemChecked(v => !v)}
+                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: shareToSanalAlemChecked ? '#0ea5e920' : colors.surface2, borderRadius:10, padding:10, marginBottom:16, borderWidth:1, borderColor: shareToSanalAlemChecked ? '#0ea5e960' : colors.border }}
+                    >
+                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1 }}>🌐 Sanal Alem'de de Paylaş</Text>
+                        <View style={{ width:22, height:22, borderRadius:6, borderWidth:2, borderColor: shareToSanalAlemChecked ? '#0ea5e9' : colors.textMuted, backgroundColor: shareToSanalAlemChecked ? '#0ea5e9' : 'transparent', alignItems:'center', justifyContent:'center' }}>
+                            {shareToSanalAlemChecked && <Text style={{ color:'#fff', fontSize:13, fontWeight:'900' }}>✓</Text>}
+                        </View>
+                    </TouchableOpacity>
+                    <View style={{ flexDirection:'row', gap:8 }}>
+                        <TouchableOpacity
+                            onPress={() => { setShowMediaShareOptions(false); setPickedMediaForShare(null); }}
+                            style={{ flex:1, paddingVertical:11, borderRadius:12, alignItems:'center', backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border }}>
+                            <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={confirmMediaShare} disabled={sharingMedia}
+                            style={{ flex:1, paddingVertical:11, borderRadius:12, alignItems:'center', backgroundColor: cfg.color, opacity: sharingMedia ? 0.6 : 1 }}>
+                            {sharingMedia
+                                ? <ActivityIndicator color="#fff" size="small" />
+                                : <Text style={{ color:'#fff', fontWeight:'800' }}>✓ Paylaş</Text>}
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </View>
         </Modal>
 
