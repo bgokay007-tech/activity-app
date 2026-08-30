@@ -25,12 +25,17 @@ export const getListings = async (req, res, next) => {
                 subCategory: subCategory || undefined,
                 // Voleybol/tenis/padelde admin onayı olmayan bir ilan başkalarına GÖRÜNMEZ —
                 // sahibi kendi başvurusunun durumunu takip edebilsin diye kendi ilanını her
-                // zaman görür (bkz. RefereeListing.approved ile aynı desen). Ayrıca "sadece
-                // CV/kimlik-belge" kaydı (profileOnly) gerçek bir ders teklifi değil, sahibi
-                // dışında kimseye görünmemeli.
+                // zaman görür (bkz. RefereeListing.approved ile aynı desen).
+                // Kullanıcı isteği: "sadece CV/kimlik-belge" kaydı (profileOnly) gerçek bir ders
+                // teklifi olmadığı için "Antrenörler"/"Kurslar" listelerinde HİÇBİR ZAMAN
+                // görünmüyor (mobil tarafta individual/group=false olduğu için o filtrelerden
+                // zaten elenir) — ama admin onaylayınca "CV'ler" sekmesinde herkese görünmesi
+                // gerekiyordu, önceki profileOnly:false koşulu bunu SONSUZA DEK engelliyordu
+                // (approved olsa bile). Artık approved:true tek başına yeterli — profileOnly
+                // ayrımı yapmıyor.
                 OR: [
                     { subCategory: { notIn: COACH_APPROVAL_SPORTS }, profileOnly: false },
-                    { approved: true, profileOnly: false },
+                    { approved: true },
                     { userId: req.userId },
                 ],
             },

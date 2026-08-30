@@ -20,11 +20,14 @@ export const getListings = async (req, res, next) => {
                 // Voleybol/tenis/padelde admin onayı olmayan bir ilan başkalarına GÖRÜNMEZ —
                 // sadece sahibi kendi başvurusunun durumunu (onay bekliyor) takip edebilsin
                 // diye kendi ilanını her zaman görür. Diğer dallarda approved kontrol edilmez.
-                // Ayrıca "sadece CV/kimlik-belge" kaydı (profileOnly) gerçek bir hakemlik
-                // teklifi değil, sahibi dışında kimseye görünmemeli.
+                // Kullanıcı isteği: "sadece CV/kimlik-belge" kaydı (profileOnly) gerçek bir
+                // hakemlik teklifi olmadığı için normal hakem listelerinde görünmüyor (mobil
+                // tarafta ders/maç bilgisi olmadığı için o filtrelerden zaten elenir) — ama
+                // admin onaylayınca "CV'ler" sekmesinde herkese görünmesi gerekiyordu, önceki
+                // profileOnly:false koşulu bunu SONSUZA DEK engelliyordu (approved olsa bile).
                 OR: [
                     { subCategory: { notIn: REFEREE_APPROVAL_SPORTS }, profileOnly: false },
-                    { approved: true, profileOnly: false },
+                    { approved: true },
                     { userId: req.userId },
                 ],
             },
