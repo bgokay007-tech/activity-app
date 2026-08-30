@@ -1507,7 +1507,7 @@ function BusinessVenuesPanel() {
 // Mobil AdminPortalScreen.js'deki CoachListingApprovalTab/RefereeApprovalTab/
 // CoachRatingApprovalTab ile aynı davranış — üçü de PENDING/APPROVED filtresine göre
 // backend'den liste çekip Onayla/Onayı Kaldır eylemi sunuyor, tek şablonla paylaşılıyor.
-function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, emptyPendingText, emptyOtherText }) {
+function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, emptyPendingText, emptyOtherText, emptyRejectedText }) {
     const { t } = useTranslation();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -1523,27 +1523,39 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
 
     useEffect(() => { load(); }, [load]);
 
+    // Kullanıcı isteği: onayla/reddet işlemi sayfa yenilemeden ANINDA listeden kalksın —
+    // sunucu isteğinin bitmesini beklemeden iyimser (optimistic) şekilde kaldırıyoruz;
+    // istek başarısız olursa gerçek durumu geri çekip düzeltiyoruz.
     const setApproval = async (id, action) => {
+        setItems(prev => prev.filter(x => x.id !== id));
         try {
             await api.patch(`${endpoint}/${id}`, { action, adminNote: notes[id] || '' });
+        } catch (e) {
+            alert(e?.response?.data?.message || t('admin.common.error'));
             load();
-        } catch (e) { alert(e?.response?.data?.message || t('admin.common.error')); }
+        }
     };
+
+    // Kullanıcı isteği: reddedilenler PENDING'den ayrılıp kendi sekmesinde nedenleriyle
+    // görünsün — bu sekme sadece reddetme desteği olan panellerde (antrenörlük) anlamlı.
+    const tabs = allowReject ? ['PENDING', 'APPROVED', 'REJECTED'] : ['PENDING', 'APPROVED'];
+    const tabLabel = { PENDING: t('admin.approvalQueue.pending_tab'), APPROVED: t('admin.approvalQueue.approved_tab'), REJECTED: t('admin.approvalQueue.rejected_tab') };
+    const emptyText = filter === 'PENDING' ? emptyPendingText : filter === 'REJECTED' ? emptyRejectedText : emptyOtherText;
 
     return (
         <div className="space-y-4">
             <div className="flex gap-2 mb-4">
-                {['PENDING', 'APPROVED'].map(s => (
+                {tabs.map(s => (
                     <button key={s} onClick={() => setFilter(s)}
                         className={`px-4 py-1.5 rounded-xl text-sm font-bold transition border ${filter === s ? 'bg-purple-600 border-purple-500 text-white' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}>
-                        {s === 'PENDING' ? t('admin.approvalQueue.pending_tab') : t('admin.approvalQueue.approved_tab')}
+                        {tabLabel[s]}
                     </button>
                 ))}
             </div>
 
             {loading && <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>}
             {!loading && items.length === 0 && (
-                <p className="text-gray-500 text-center py-16">{filter === 'PENDING' ? emptyPendingText : emptyOtherText}</p>
+                <p className="text-gray-500 text-center py-16">{emptyText}</p>
             )}
 
             {items.map(c => (
@@ -1564,7 +1576,7 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
                                 )
                             )}
                         </div>
-                        {!(allowReject && filter === 'PENDING') && (
+                        {filter !== 'REJECTED' && !(allowReject && filter === 'PENDING') && (
                             <div className="shrink-0">
                                 {filter === 'PENDING' ? (
                                     <button onClick={() => setApproval(c.id, 'APPROVE')}
@@ -1601,7 +1613,9 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
                         </div>
                     )}
                     {c.adminNote && (
-                        <p className="text-gray-500 text-xs mt-2 italic">{t('admin.common.note_prefix')} {c.adminNote}</p>
+                        <p className={`text-xs mt-2 italic ${filter === 'REJECTED' ? 'text-red-400 not-italic font-bold' : 'text-gray-500'}`}>
+                            {filter === 'REJECTED' ? t('admin.approvalQueue.reject_reason_label') : t('admin.common.note_prefix')} {c.adminNote}
+                        </p>
                     )}
                 </div>
             ))}
@@ -1612,7 +1626,8 @@ function ApprovalQueuePanel({ endpoint, showCv = true, allowReject = false, empt
 function CoachListingApprovalPanel() {
     const { t } = useTranslation();
     return <ApprovalQueuePanel endpoint="/admin/coach-listing-approvals" allowReject
-        emptyPendingText={t('admin.approvalQueue.coachListing_empty_pending')} emptyOtherText={t('admin.approvalQueue.coachListing_empty_other')} />;
+        emptyPendingText={t('admin.approvalQueue.coachListing_empty_pending')} emptyOtherText={t('admin.approvalQueue.coachListing_empty_other')}
+        emptyRejectedText={t('admin.approvalQueue.coachListing_empty_rejected')} />;
 }
 
 function RefereeApprovalPanel() {

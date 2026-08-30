@@ -396,9 +396,17 @@ export const setRefereeApproval = async (req, res, next) => {
 // birebir aynı desen — CV ile birlikte başvurulur).
 export const getCoachListingApprovals = async (req, res, next) => {
     try {
-        const { status } = req.query; // PENDING | APPROVED
+        const { status } = req.query; // PENDING | APPROVED | REJECTED
+        // Kullanıcı isteği: reddedilen başvurular PENDING listesinden ayrılıp kendi
+        // "Reddedilenler" sekmesinde (nedenleriyle) görünsün — eskiden reject sadece bir
+        // not düşüyordu ama status/approved PENDING ile aynı kalıyordu, bu yüzden reddedilen
+        // başvuru asla bekleyenler listesinden kaybolmuyordu.
+        const where = { subCategory: { in: COACH_APPROVAL_SPORTS } };
+        if (status === 'APPROVED') { where.status = 'ACTIVE'; where.approved = true; }
+        else if (status === 'REJECTED') { where.status = 'REJECTED'; }
+        else { where.status = 'ACTIVE'; where.approved = false; }
         const listings = await prisma.coachListing.findMany({
-            where: { subCategory: { in: COACH_APPROVAL_SPORTS }, status: 'ACTIVE', approved: status === 'APPROVED' },
+            where,
             include: { user: { select: RATING_APPROVAL_USER_SELECT } },
             orderBy: { createdAt: 'desc' },
         });
@@ -410,14 +418,14 @@ export const setCoachListingApproval = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { action, adminNote } = req.body; // 'APPROVE' | 'REJECT' | 'REVOKE'
-        // Kullanıcı isteği: admin reddederken bir açıklama yazabilsin, kullanıcıya bu
-        // sebeple bildirim gitsin. REJECT, henüz onaylanmamış bir başvuruyu not düşerek
-        // geri bildirim vermek için — REVOKE zaten onaylanmış bir ilanın onayını kaldırmak
-        // için, ayrı bir eylem olarak kalıyor (not gerektirmiyor, davranış değişmedi).
+        // Kullanıcı isteği: admin reddederken bir açıklama yazabilsin (eksik bilgi, yanlış
+        // bilgi vb.), kullanıcıya bu sebeple bildirim gitsin VE başvuru ayrı bir "REJECTED"
+        // durumuna geçsin — PENDING listesinde kalmaya devam etmesin.
         const listing = await prisma.coachListing.update({
             where: { id },
             data: {
                 approved: action === 'APPROVE',
+                status: action === 'REJECT' ? 'REJECTED' : 'ACTIVE',
                 adminNote: action === 'REJECT' ? (adminNote || null) : null,
             },
         });

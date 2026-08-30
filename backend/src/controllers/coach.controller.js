@@ -5,6 +5,18 @@ import { createNotification } from './notification.controller.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
+// T.C. kimlik no ve adli sicil belgesi — sadece ilan sahibi ve admin görebilir, başkalarına
+// (getListings/getListing) hiç dönülmez. Admin bunlara admin.controller.js'teki
+// getCoachListingApprovals/setCoachListingApproval üzerinden (bu redaksiyona uğramayan ayrı
+// bir endpoint) zaten ulaşıyor.
+const SENSITIVE_COACH_FIELDS = ['tcKimlikNo', 'adliSicilUrl'];
+function redactSensitiveCoachFields(listing, viewerId) {
+    if (!listing || listing.userId === viewerId) return listing;
+    const copy = { ...listing };
+    for (const f of SENSITIVE_COACH_FIELDS) delete copy[f];
+    return copy;
+}
+
 // Kullanıcı isteği: voleybolde zaten çalışan CV + admin onayı zorunluluğu artık tenis ve
 // padelde de geçerli — bu dallardaki antrenörlük başvurusu da CV'siz gönderilemiyor, admin
 // onaylamadan ilan başkalarına görünmüyor. Diğer dallarda (badminton, masa tenisi, airsoft vb.)
@@ -20,7 +32,6 @@ export const getListings = async (req, res, next) => {
         const { category, subCategory } = req.query;
         const listings = await prisma.coachListing.findMany({
             where: {
-                status: 'ACTIVE',
                 category: category || undefined,
                 subCategory: subCategory || undefined,
                 // Voleybol/tenis/padelde admin onayı olmayan bir ilan başkalarına GÖRÜNMEZ —
@@ -32,11 +43,12 @@ export const getListings = async (req, res, next) => {
                 // zaten elenir) — ama admin onaylayınca "CV'ler" sekmesinde herkese görünmesi
                 // gerekiyordu, önceki profileOnly:false koşulu bunu SONSUZA DEK engelliyordu
                 // (approved olsa bile). Artık approved:true tek başına yeterli — profileOnly
-                // ayrımı yapmıyor.
+                // ayrımı yapmıyor. Sahibi kendi REJECTED (admin reddetti) ilanını da görebilsin
+                // diye status kontrolü artık her OR dalının kendi içinde.
                 OR: [
-                    { subCategory: { notIn: COACH_APPROVAL_SPORTS }, profileOnly: false },
-                    { approved: true },
-                    { userId: req.userId },
+                    { status: 'ACTIVE', subCategory: { notIn: COACH_APPROVAL_SPORTS }, profileOnly: false },
+                    { status: 'ACTIVE', approved: true },
+                    { userId: req.userId, status: { in: ['ACTIVE', 'REJECTED'] } },
                 ],
             },
             include: { user: { select: USER_SELECT } },
@@ -50,11 +62,11 @@ export const getListings = async (req, res, next) => {
             _count: { id: true },
         }) : [];
         const ratingMap = Object.fromEntries(ratings.map(r => [r.coachListingId, { avg: r._avg.rating, count: r._count.id }]));
-        res.json(listings.map(l => ({
+        res.json(listings.map(l => redactSensitiveCoachFields({
             ...l,
             avgRating: ratingMap[l.id]?.avg ?? null,
             reviewCount: ratingMap[l.id]?.count ?? 0,
-        })));
+        }, req.userId)));
     } catch (err) { next(err); }
 };
 
@@ -76,7 +88,7 @@ export const getListing = async (req, res, next) => {
             _avg: { rating: true },
             _count: { id: true },
         });
-        res.json({ ...listing, avgRating: agg._avg.rating, reviewCount: agg._count.id });
+        res.json(redactSensitiveCoachFields({ ...listing, avgRating: agg._avg.rating, reviewCount: agg._count.id }, req.userId));
     } catch (err) { next(err); }
 };
 
@@ -201,6 +213,11 @@ export const createListing = async (req, res, next) => {
             // sadece kimlik/belge/CV/başarı bilgisini kaydedebiliyor — henüz hiç ilanı
             // olmayan biri önce sadece bunları yükler, gerçek ilanı sonra oluşturur.
             profileOnly,
+            // Kullanıcı isteği: TTF/GSB onayı, kademe, T.C. kimlik/adli sicil doğrulaması,
+            // eğitim durumu, uzmanlık alanları, kort ücreti politikası, profil fotoğrafı/
+            // tanıtım videosu/sosyal medya — bkz. schema.prisma CoachListing yorumu.
+            certIssuer, kademe, tcKimlikNo, adliSicilUrl, education, specializations,
+            profilePhotoUrl, introVideoUrl, socialInstagram, socialLinkedin, courtFeeIncluded,
         } = req.body;
 
         const citiesArr = Array.isArray(cities) ? cities.filter(Boolean) : [];
@@ -236,12 +253,23 @@ export const createListing = async (req, res, next) => {
                 personalGender: personalGender || null,
                 personalBirthDate: personalBirthDate ? new Date(personalBirthDate) : null,
                 priorExperience: Array.isArray(priorExperience) ? priorExperience.filter(p => p?.workplace || p?.position || p?.period) : null,
+                certIssuer: certIssuer || null,
+                kademe: kademe || null,
+                tcKimlikNo: tcKimlikNo || null,
+                adliSicilUrl: adliSicilUrl || null,
+                education: education || null,
+                specializations: Array.isArray(specializations) ? specializations.filter(Boolean) : null,
+                profilePhotoUrl: profilePhotoUrl || null,
+                introVideoUrl: introVideoUrl || null,
+                socialInstagram: socialInstagram || null,
+                socialLinkedin: socialLinkedin || null,
                 individual: profileOnly ? false : Boolean(individual),
                 group: profileOnly ? false : Boolean(group),
                 priceIndividual: Number(priceIndividual) || 0,
                 priceGroup: Number(priceGroup) || 0,
                 maxGroupSize: Number(maxGroupSize) || 4,
                 includedEquipment: includedEquipment || null,
+                courtFeeIncluded: typeof courtFeeIncluded === 'boolean' ? courtFeeIncluded : null,
                 location: location || null, cities: citiesArr,
                 days: days || [],
                 timeFrom: timeFrom || '09:00',
@@ -256,6 +284,22 @@ export const createListing = async (req, res, next) => {
             include: { user: { select: USER_SELECT } },
         });
         res.status(201).json(listing);
+
+        // Kullanıcı isteği: admin onayı gerektiren dallarda (profileOnly dahil — kimlik/belge
+        // kaydı da onaya tabi) her yeni CV/ilan gönderiminde admin'e açık bir "onay bekliyor"
+        // bildirimi gitsin — eskiden bu sadece admin panelindeki bekleyen sayacına (getPendingCounts)
+        // güveniyordu, aktif bir push yoktu.
+        if (COACH_APPROVAL_SPORTS.includes(subCategory)) {
+            prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } }).then(async admins => {
+                const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
+                await Promise.all(admins.map(a =>
+                    createNotification(a.id, 'COACH_LISTING_SUBMITTED', '🎓 Yeni Antrenörlük CV/İlan Başvurusu',
+                        `${user?.fullName || user?.username} tarafından ${listing.subCategory} antrenörlüğü için ${profileOnly ? 'CV/kimlik-belge bilgisi' : 'ilan'} gönderildi. Onay bekliyor.`,
+                        { coachListingId: listing.id, category: listing.category, subCategory: listing.subCategory }
+                    ).catch(() => {})
+                ));
+            }).catch(() => {});
+        }
 
         // Bir "sadece CV/kimlik-belge" gönderisi henüz gerçek bir ders teklifi değil,
         // kimseye bildirim gitmemeli — asıl ilan (ders tipi/şehir dolu) oluşunca zaten
@@ -301,13 +345,19 @@ export const updateListing = async (req, res, next) => {
             individual, group, priceIndividual, priceGroup, maxGroupSize, includedEquipment,
             location, cities, days, timeFrom, timeTo, description,
             personalFullName, personalGender, personalBirthDate, priorExperience,
+            certIssuer, kademe, tcKimlikNo, adliSicilUrl, education, specializations,
+            profilePhotoUrl, introVideoUrl, socialInstagram, socialLinkedin, courtFeeIncluded,
         } = req.body;
 
-        // Voleybol/tenis/padelde onaylı bir antrenör CV'sini değiştirirse onay otomatik
-        // düşer — admin hangi CV'yi onayladığını biliyor, sessizce farklı bir CV'yle onaylı
-        // kalınamaz.
+        // Voleybol/tenis/padelde onaylı bir antrenör CV'sini veya doğrulama bilgilerini
+        // (kademe/TTF-GSB/T.C. kimlik/adli sicil) değiştirirse onay otomatik düşer — admin
+        // hangi bilgileri onayladığını biliyor, sessizce farklı bilgilerle onaylı kalınamaz.
         const cvChanged = cvUrl !== undefined && cvUrl !== listing.cvUrl;
-        const revokeApproval = COACH_APPROVAL_SPORTS.includes(listing.subCategory) && listing.approved && cvChanged;
+        const verificationChanged = [
+            [certIssuer, listing.certIssuer], [kademe, listing.kademe],
+            [tcKimlikNo, listing.tcKimlikNo], [adliSicilUrl, listing.adliSicilUrl],
+        ].some(([next, prev]) => next !== undefined && next !== prev);
+        const revokeApproval = COACH_APPROVAL_SPORTS.includes(listing.subCategory) && listing.approved && (cvChanged || verificationChanged);
 
         const updated = await prisma.coachListing.update({
             where: { id },
@@ -333,6 +383,17 @@ export const updateListing = async (req, res, next) => {
                 ...(priceGroup !== undefined && { priceGroup: Number(priceGroup) || 0 }),
                 ...(maxGroupSize !== undefined && { maxGroupSize: Number(maxGroupSize) || 4 }),
                 ...(includedEquipment !== undefined && { includedEquipment: includedEquipment || null }),
+                ...(courtFeeIncluded !== undefined && { courtFeeIncluded: typeof courtFeeIncluded === 'boolean' ? courtFeeIncluded : null }),
+                ...(certIssuer !== undefined && { certIssuer: certIssuer || null }),
+                ...(kademe !== undefined && { kademe: kademe || null }),
+                ...(tcKimlikNo !== undefined && { tcKimlikNo: tcKimlikNo || null }),
+                ...(adliSicilUrl !== undefined && { adliSicilUrl: adliSicilUrl || null }),
+                ...(education !== undefined && { education: education || null }),
+                ...(specializations !== undefined && { specializations: Array.isArray(specializations) ? specializations.filter(Boolean) : null }),
+                ...(profilePhotoUrl !== undefined && { profilePhotoUrl: profilePhotoUrl || null }),
+                ...(introVideoUrl !== undefined && { introVideoUrl: introVideoUrl || null }),
+                ...(socialInstagram !== undefined && { socialInstagram: socialInstagram || null }),
+                ...(socialLinkedin !== undefined && { socialLinkedin: socialLinkedin || null }),
                 ...(location !== undefined && { location: location || null }),
                 ...(cities !== undefined && { cities: Array.isArray(cities) ? cities.filter(Boolean) : [] }),
                 ...(days !== undefined && { days }),
@@ -349,6 +410,17 @@ export const updateListing = async (req, res, next) => {
                 'CV\'nizi değiştirdiğiniz için antrenörlük ilan onayınız kaldırıldı, yeni CV admin tarafından tekrar incelenene kadar ilanınız başkalarına görünmez.',
                 {}
             ).catch(() => {});
+            // Kullanıcı isteği: yeniden onaya düştüğünde admin'e de açık bir bildirim gitsin —
+            // bkz. createListing'deki aynı desen.
+            prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } }).then(async admins => {
+                const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
+                await Promise.all(admins.map(a =>
+                    createNotification(a.id, 'COACH_LISTING_SUBMITTED', '🎓 Antrenörlük CV Güncellendi — Yeniden Onay Bekliyor',
+                        `${user?.fullName || user?.username} tarafından ${updated.subCategory} antrenörlüğü CV'si güncellendi, onay tekrar bekliyor.`,
+                        { coachListingId: updated.id, category: updated.category, subCategory: updated.subCategory }
+                    ).catch(() => {})
+                ));
+            }).catch(() => {});
         }
     } catch (err) { next(err); }
 };

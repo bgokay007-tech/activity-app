@@ -391,6 +391,26 @@ model CoachListing {
   // tek elemanli bir diziye tasindi).
   priorExperience   Json?
 
+  // Kullanici istegi: resmi/dogrulama bilgileri — TTF/GSB onayli belge, kademe, T.C. kimlik ve
+  // adli sicil dogrulamasi. tcKimlikNo/adliSicilUrl SADECE sahibi ve admin gorur (bkz.
+  // coach.controller.js redactSensitiveCoachFields), digerlerine hic donulmez. Bunlardan biri
+  // degisirse (updateListing) onaylanmis bir ilanin onayi otomatik dusuyor — cvUrl ile ayni desen.
+  certIssuer        String?  // TTF | GSB | OTHER — belgeyi veren resmi kurum
+  kademe            String?  // "1. Kademe Yardimci Antrenor", "2. Kademe Antrenor" vb.
+  tcKimlikNo        String?
+  tcKimlikVerified  Boolean  @default(false)
+  adliSicilUrl      String?  // e-Devlet temiz adli sicil belgesi (foto/PDF)
+  adliSicilVerified Boolean  @default(false)
+  education         String?  // Spor Bilimleri Fakultesi / BESYO vb.
+  specializations   Json?    // string[] — cocuk_tenisi | yetiskin_tenisi | performans | hobi | kardiyo
+
+  // Sosyal kanit — kullanici istegi: profil fotografi (hesap avatarindan bagimsiz), tanitim
+  // videosu, sosyal medya linkleri.
+  profilePhotoUrl   String?
+  introVideoUrl     String?
+  socialInstagram   String?
+  socialLinkedin    String?
+
   // Ders tipleri
   individual      Boolean  @default(true)
   group           Boolean  @default(false)
@@ -398,6 +418,9 @@ model CoachListing {
   priceGroup      Int      @default(0)   // per person per session
   maxGroupSize    Int      @default(4)
   includedEquipment String? // Kullanici istegi: fiyata dahil olan ekipmanlar (orn. Raket, Top)
+  // Kullanici istegi: "en cok yasanan anlasmazlik konusu" — ders fiyatina kort kirasinin
+  // dahil olup olmadigi acikca belirtilsin. null = belirtilmemis.
+  courtFeeIncluded  Boolean?
 
   // Yer / Zaman
   location        String?  // kort/tesis adı — artık zorunlu değil, birden fazla şehirde ders
@@ -411,7 +434,7 @@ model CoachListing {
   timeTo          String   @default("21:00")
 
   description     String?
-  status          String   @default("ACTIVE")  // ACTIVE | FLAGGED | REMOVED
+  status          String   @default("ACTIVE")  // ACTIVE | FLAGGED | REMOVED | REJECTED (admin basvuruyu reddetti, bkz. setCoachListingApproval)
   reportCount     Int      @default(0)
   approvedForRating Boolean @default(false)  // admin onayı — voleybolde resmi oyuncu değerlendirmesi verebilir (bkz. VolleyballRating)
   // approvedForRating'den AYRI bir onay — bu ilanın KENDİSİNİN başkalarına görünüp
