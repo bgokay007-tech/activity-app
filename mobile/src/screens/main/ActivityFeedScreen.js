@@ -1449,8 +1449,13 @@ const s = StyleSheet.create({
     filterPanel: {
         backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.border,
         paddingHorizontal: 3, paddingTop: 3, paddingBottom: 3, gap: 3,
+        // Kullanıcı isteği: İl/İlçe öneri listesi (position:absolute, filterRow'un altına
+        // taşıyor) altındaki Kategori seç/Dal seç/sekmeler/liste tarafından örtülüyordu,
+        // dokunulamıyordu — bu paneldeki zIndex/elevation ScrollView'daki sonraki
+        // kardeşlerinden (feedTabRow, liste) yüksek olmalı ki üstlerinde çizilsin.
+        zIndex: 30, elevation: 30,
     },
-    filterRow:    { flexDirection: 'row', gap: 3 },
+    filterRow:    { flexDirection: 'row', gap: 3, zIndex: 20, elevation: 20 },
     filterInput:  {
         flex: 1, backgroundColor: colors.surface2, borderRadius: 8,
         paddingHorizontal: 8, paddingVertical: 5, color: '#fff', fontSize: 12,
