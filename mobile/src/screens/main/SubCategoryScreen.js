@@ -21674,23 +21674,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </TouchableOpacity>
                             ) : null}
                         </View>
-                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10 }}>
-                            {DATE_FILTER_OPTS.map(([val,label]) => (
-                                <TouchableOpacity
-                                    key={val}
-                                    onPress={() => { setFilterDate(val); setFilterDateFrom(null); setFilterDateTo(null); }}
-                                    style={{ backgroundColor: filterDate===val ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:7, paddingHorizontal:12, borderWidth:1, borderColor: filterDate===val ? cfg.color : colors.border }}
-                                >
-                                    <Text style={{ color: filterDate===val ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{label}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
                         <TouchableOpacity
                             onPress={() => setShowDateFilter(true)}
-                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterDate==='custom' ? cfg.color : colors.border, paddingVertical:11, paddingHorizontal:13 }}
+                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterDate!=='all' ? cfg.color : colors.border, paddingVertical:11, paddingHorizontal:13 }}
                         >
-                            <Text style={{ color: filterDate==='custom' ? cfg.color : colors.textMuted, fontSize:13, fontWeight:'700' }}>
-                                {filterDate === 'custom' ? dateFilterLabel() : (lang==='tr' ? 'Özel Tarih Aralığı Seç' : 'Pick Custom Range')}
+                            <Text style={{ color: filterDate!=='all' ? cfg.color : colors.textMuted, fontSize:13, fontWeight:'700' }}>
+                                {filterDate !== 'all' ? dateFilterLabel() : (lang==='tr' ? 'Özel Tarih Aralığı Seç' : 'Pick Custom Range')}
                             </Text>
                             <Text style={{ color:colors.textMuted, fontSize:12 }}>▾</Text>
                         </TouchableOpacity>
