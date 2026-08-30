@@ -3040,6 +3040,11 @@ export const requestTournamentPermission = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+// coach.controller.js'deki COACH_APPROVAL_SPORTS ile aynı liste — admin onayı gerektiren
+// dallarda (bkz. resolveRefereeEligibility ile aynı desen) onaylı bir antrenörlük ilanı olan
+// kullanıcılar zaten ciddiyeti kanıtlanmış sayılır, turnuva oluşturma iznini otomatik alır.
+const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+
 export const getTournamentPermissionStatus = async (req, res, next) => {
     try {
         const now = new Date();
@@ -3047,7 +3052,24 @@ export const getTournamentPermissionStatus = async (req, res, next) => {
             where: { userId: req.userId, status: 'ACTIVE', endDate: { gt: now } },
             select: { packageType: true, endDate: true },
         });
-        res.json({ status: sub ? 'APPROVED' : 'NONE', subscription: sub || null });
+        if (sub) return res.json({ status: 'APPROVED', subscription: sub, reason: 'subscription' });
+
+        // Kullanıcı isteği: onaylı antrenörlerin turnuva oluşturma hakkı otomatik olsun —
+        // admin'e ayrıca başvurmalarına gerek kalmadan doğrudan APPROVED dönülür.
+        const approvedCoachListing = await prisma.coachListing.findFirst({
+            where: { userId: req.userId, subCategory: { in: COACH_APPROVAL_SPORTS }, status: 'ACTIVE', approved: true },
+            select: { id: true },
+        });
+        if (approvedCoachListing) return res.json({ status: 'APPROVED', subscription: null, reason: 'coach' });
+
+        // Kullanıcı isteği: normal admin onayı akışı — daha önce bu fonksiyon
+        // TournamentPermissionRequest'i hiç okumuyordu, bu yüzden admin PENDING bir başvuruyu
+        // onaylasa/reddetse bile kullanıcı ekranında hep 'NONE' görünüyordu.
+        const request = await prisma.tournamentPermissionRequest.findUnique({
+            where: { userId: req.userId },
+            select: { status: true },
+        });
+        res.json({ status: request?.status || 'NONE', subscription: null, reason: 'request' });
     } catch (e) { next(e); }
 };
 

@@ -17166,6 +17166,10 @@ const TIME_SLOTS = Array.from({ length: 48 }, (_, i) =>
 function TournamentPermissionModal({ visible, onClose, onStatusChange }) {
     const t = useT();
     const [status, setStatus] = useState(null);
+    // Kullanıcı isteği: onaylı antrenörlerin turnuva oluşturma hakkı otomatik tanınıyor —
+    // 'reason' hangi yoldan APPROVED olduklarını (subscription/coach/request) ayırt eder,
+    // coach olanlara bunu neden görebildiklerini açıkça söylemek için kullanılıyor.
+    const [reason, setReason] = useState(null);
     const [loading, setLoading] = useState(false);
     const [sending, setSending] = useState(false);
 
@@ -17173,7 +17177,7 @@ function TournamentPermissionModal({ visible, onClose, onStatusChange }) {
         if (!visible) return;
         setLoading(true);
         api.get('/tournaments/permission-status')
-            .then(r => { setStatus(r.data.status); onStatusChange?.(r.data.status); })
+            .then(r => { setStatus(r.data.status); setReason(r.data.reason || null); onStatusChange?.(r.data.status); })
             .catch(() => setStatus('NONE'))
             .finally(() => setLoading(false));
     }, [visible]);
@@ -17200,6 +17204,18 @@ function TournamentPermissionModal({ visible, onClose, onStatusChange }) {
 
                     {loading ? (
                         <ActivityIndicator color={colors.purple} style={{ marginVertical: 40 }} />
+                    ) : status === 'APPROVED' ? (
+                        <View style={tp.statusBox}>
+                            <Text style={tp.statusEmoji}>✅</Text>
+                            <Text style={tp.statusTitle}>Turnuva Oluşturma İzniniz Var</Text>
+                            <Text style={tp.statusDesc}>
+                                {reason === 'coach'
+                                    ? 'Onaylı antrenör olduğunuz için bu hak otomatik tanındı — admin onayı beklemeden turnuva oluşturabilirsiniz.'
+                                    : reason === 'subscription'
+                                        ? 'İşletme aboneliğiniz aktif olduğu için turnuva oluşturabilirsiniz.'
+                                        : 'Admin talebinizi onayladı, artık turnuva oluşturabilirsiniz.'}
+                            </Text>
+                        </View>
                     ) : (
                         <>
                             <Text style={tp.desc}>

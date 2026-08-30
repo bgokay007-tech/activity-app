@@ -432,7 +432,9 @@ export const setCoachListingApproval = async (req, res, next) => {
         const notifType = action === 'APPROVE' ? 'COACH_LISTING_APPROVED' : action === 'REJECT' ? 'COACH_LISTING_REJECTED' : 'COACH_APPROVAL_REVOKED';
         const title = action === 'APPROVE' ? '✅ Antrenörlük İlanınız Onaylandı' : action === 'REJECT' ? '❌ Antrenörlük Başvurunuz Reddedildi' : '🚫 Antrenörlük Onayınız Kaldırıldı';
         const body = action === 'APPROVE'
-            ? 'Antrenörlük başvurunuz admin tarafından onaylandı — ilanınız artık herkese görünüyor.'
+            // Kullanıcı isteği: onaylı antrenörlerin turnuva oluşturma hakkı otomatik tanınıyor
+            // (bkz. getTournamentPermissionStatus) — bunu bilmeleri için onay bildirimine eklendi.
+            ? 'Antrenörlük başvurunuz admin tarafından onaylandı — ilanınız artık herkese görünüyor. Bu sayede turnuva oluşturma hakkınız da otomatik tanındı, admin onayı beklemeden turnuva açabilirsiniz.'
             : action === 'REJECT'
                 ? `Antrenörlük başvurunuz admin tarafından reddedildi.${adminNote ? ` Neden: ${adminNote}` : ''}`
                 : 'Antrenörlük ilan onayınız admin tarafından kaldırıldı, ilanınız başkalarına görünmüyor.';
