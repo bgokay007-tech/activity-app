@@ -23605,6 +23605,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {isVolleyballReferee && (
                                                 <>
                                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Voleybol Hakemliği Doğrulama</Text>
+                                                    <Text style={{ color:'#fbbf24', fontSize:10, marginBottom:8 }}>
+                                                        ⚠️ Bu bilgiler admin onayına gönderilir, onaylanmadan maçlara hakem olarak atanamazsınız.
+                                                    </Text>
                                                     <TextInput placeholder="Hakemlik Sicil Numarası (Lisans No) *" placeholderTextColor={colors.textMuted} value={cvProfileForm.ikortNo} onChangeText={v => setCvProfileForm(f=>({...f,ikortNo:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
 
                                                     <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Mevcut Klasman / Unvan *</Text>
