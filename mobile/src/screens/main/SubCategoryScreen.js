@@ -14449,6 +14449,30 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [showPlayoffTimePicker, setShowPlayoffTimePicker] = useState(false);
     const [savingPlayoffDeadline, setSavingPlayoffDeadline] = useState(false);
 
+    // 3.'lük maçını kabul eden iki taraftan biri, maçın tarihini kendisi belirler (turnuva
+    // sahibi değil) — kullanıcı isteği: teklif hazır olduktan 2 gün içinde, en fazla 7 gün
+    // sonrasına (bkz. backend assignThirdPlaceMatchDate/resolveExpiredThirdPlaceMatches).
+    const [thirdPlaceDate, setThirdPlaceDate] = useState(null);
+    const [thirdPlaceTime, setThirdPlaceTime] = useState('');
+    const [showThirdPlaceDatePicker, setShowThirdPlaceDatePicker] = useState(false);
+    const [showThirdPlaceTimePicker, setShowThirdPlaceTimePicker] = useState(false);
+    const [savingThirdPlaceDate, setSavingThirdPlaceDate] = useState(false);
+
+    const submitThirdPlaceDate = async (matchId) => {
+        if (!thirdPlaceDate) { Alert.alert('', 'Tarih seçin.'); return; }
+        setSavingThirdPlaceDate(true);
+        try {
+            const y = thirdPlaceDate.getFullYear(), m = String(thirdPlaceDate.getMonth()+1).padStart(2,'0'), d = String(thirdPlaceDate.getDate()).padStart(2,'0');
+            await api.patch(`/tournaments/${item.id}/matches/${matchId}/third-place-date`, {
+                date: `${y}-${m}-${d}`, time: thirdPlaceTime || undefined,
+            });
+            await fetchMatches();
+            setThirdPlaceDate(null); setThirdPlaceTime('');
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setSavingThirdPlaceDate(false); }
+    };
+
     const submitPlayoffRoundDeadline = async () => {
         if (!playoffDeadlineDate) { Alert.alert('', 'Tarih seçin.'); return; }
         setSavingPlayoffDeadline(true);
@@ -15801,9 +15825,56 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <View style={{ marginBottom:16 }}>
                                     <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'800', marginBottom:6 }}>🥉 3.'lük Maçı</Text>
                                     {thirdPlaceMatch.status === 'FORFEIT' ? (
-                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Taraflardan biri kabul etmedi — 3./4. sıra yarı finaldeki averaja göre belirlendi.</Text>
-                                    ) : (thirdPlaceMatch.p1ThirdPlaceAccepted && thirdPlaceMatch.p2ThirdPlaceAccepted) || thirdPlaceMatch.status === 'COMPLETED' ? (
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Taraflardan biri kabul etmedi ya da 2 gün içinde tarih belirlenmedi — 3./4. sıra yarı finaldeki averaja göre belirlendi.</Text>
+                                    ) : thirdPlaceMatch.status === 'COMPLETED' ? (
                                         renderPlayoffMatchCard(thirdPlaceMatch)
+                                    ) : (thirdPlaceMatch.p1ThirdPlaceAccepted && thirdPlaceMatch.p2ThirdPlaceAccepted) ? (
+                                        thirdPlaceMatch.deadline ? (
+                                            <View>
+                                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700', marginBottom:6 }}>
+                                                    📅 Maç Tarihi: {new Date(thirdPlaceMatch.deadline).toLocaleDateString('tr-TR')}{new Date(thirdPlaceMatch.deadline).getHours() || new Date(thirdPlaceMatch.deadline).getMinutes() ? ` ${new Date(thirdPlaceMatch.deadline).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}` : ''}
+                                                </Text>
+                                                {renderPlayoffMatchCard(thirdPlaceMatch)}
+                                            </View>
+                                        ) : (
+                                            <View style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:2 }}>{thirdPlaceMatch.p1Name} vs {thirdPlaceMatch.p2Name}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:8 }}>
+                                                    İkiniz de kabul etti — {thirdPlaceMatch.readyAt ? new Date(new Date(thirdPlaceMatch.readyAt).getTime() + 2*86400000).toLocaleDateString('tr-TR') : ''} tarihine kadar bir maç tarihi belirleyin (en fazla {thirdPlaceMatch.readyAt ? new Date(new Date(thirdPlaceMatch.readyAt).getTime() + 7*86400000).toLocaleDateString('tr-TR') : ''} tarihine kadar) — aksi halde 3./4. sıra yarı finaldeki averaja göre belirlenir.
+                                                </Text>
+                                                <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
+                                                    <TouchableOpacity onPress={() => setShowThirdPlaceDatePicker(true)}
+                                                        style={{ flex:1, backgroundColor:'#1e293b', borderRadius:6, paddingVertical:6, paddingHorizontal:8, borderWidth:1, borderColor: colors.border, alignItems:'center' }}>
+                                                        <Text style={{ color: thirdPlaceDate ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'700' }}>
+                                                            {thirdPlaceDate ? thirdPlaceDate.toLocaleDateString('tr-TR') : 'Tarih Seç'}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity onPress={() => setShowThirdPlaceTimePicker(true)}
+                                                        style={{ flex:1, backgroundColor:'#1e293b', borderRadius:6, paddingVertical:6, paddingHorizontal:8, borderWidth:1, borderColor: colors.border, alignItems:'center' }}>
+                                                        <Text style={{ color: thirdPlaceTime ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'700' }}>
+                                                            {thirdPlaceTime || 'Saat (ops.)'}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                                <TouchableOpacity onPress={() => submitThirdPlaceDate(thirdPlaceMatch.id)} disabled={savingThirdPlaceDate}
+                                                    style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingVertical:6, alignItems:'center', borderWidth:1, borderColor:'#16a34a60', opacity: savingThirdPlaceDate ? 0.6 : 1 }}>
+                                                    <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>{savingThirdPlaceDate ? '...' : '✓ Tarihi Onayla'}</Text>
+                                                </TouchableOpacity>
+                                                <CalendarPickerModal
+                                                    visible={showThirdPlaceDatePicker}
+                                                    value={thirdPlaceDate}
+                                                    onSelect={(date) => { setThirdPlaceDate(date); setShowThirdPlaceDatePicker(false); }}
+                                                    onClose={() => setShowThirdPlaceDatePicker(false)}
+                                                />
+                                                <TimePickerModal
+                                                    visible={showThirdPlaceTimePicker}
+                                                    title={t.timeLabel}
+                                                    value={thirdPlaceTime}
+                                                    onSelect={(v) => { setThirdPlaceTime(v); setShowThirdPlaceTimePicker(false); }}
+                                                    onClose={() => setShowThirdPlaceTimePicker(false)}
+                                                />
+                                            </View>
+                                        )
                                     ) : (
                                         <View style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, borderWidth:1, borderColor:'#f59e0b40' }}>
                                             <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:2 }}>{thirdPlaceMatch.p1Name} vs {thirdPlaceMatch.p2Name}</Text>
@@ -20780,6 +20851,19 @@ export default function SubCategoryScreen({ route, navigation }) {
         return off;
     }, []);
 
+    // Kullanıcı isteği: turnuva tamamlanınca devam edenler için Arşiv'e sayfa yenilemeden/
+    // çık-gir yapmadan anında geçsin. Aktif listeden düşer; Arşiv sekmesi o an açıksa
+    // loadArchiveTournaments zaten kendi içinde tab kontrolü yaptığı için güvenle çağrılabilir
+    // (açık değilse no-op, sekmeye girildiğinde zaten taze veri çeker).
+    useEffect(() => {
+        const off = onSocket('tournament:completed', ({ tournamentId, category: c, subCategory: sc }) => {
+            if (c?.toUpperCase() !== category?.toUpperCase() || sc !== sub) return;
+            setTournaments(prev => prev.filter(t => t.id !== tournamentId));
+            loadArchiveTournaments();
+        });
+        return off;
+    }, [category, sub, loadArchiveTournaments]);
+
     // Real-time updates via socket
     useEffect(() => {
         const offUpdate = onSocket('rivalUpdate', (updatedRaw) => {
@@ -25176,23 +25260,45 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 return `Playoff - Tur ${round}`;
                             };
                             // Kullanıcı isteği: Puan Tablosu'nun sağında ayrı bir sekme olarak "İlk
-                            // 4'e Girenler" — final maçının galibi/mağlubu 1./2., yarı final
-                            // maçlarının mağlupları (ikisi de) ortak 3. olarak listelenir. Playoff
-                            // yoksa (sadece grup) veya final henüz sonuçlanmamışsa sekme hiç çıkmaz.
+                            // 4'e Girenler" — final maçının galibi/mağlubu 1./2. 3./4. sıra artık
+                            // 3.'lük maçının GERÇEK sonucuna (oynanmışsa skor, oynanmamışsa yarı final
+                            // averajına göre otomatik belirlenen winnerId — bkz. backend
+                            // resolveThirdPlaceByAveraj) göre ayrı ayrı gösterilir; eskiden ikisi de
+                            // aynı 🥉'de eşit gösteriliyordu (kullanıcı raporu). 3.'lük maçı hiç
+                            // oluşmadıysa (eski turnuvalar) yarı final averajına göre yaklaşık sıralanır.
                             const archiveTopFour = (() => {
                                 if (playoffMs.length === 0) return [];
                                 const finalM = playoffMs.find(m => m.round === playoffMaxRound && m.status === 'COMPLETED' && m.winnerId);
                                 if (!finalM) return [];
                                 const champion = finalM.winnerId === finalM.p1Id ? { id: finalM.p1Id, name: finalM.p1Name } : { id: finalM.p2Id, name: finalM.p2Name };
                                 const runnerUp = finalM.winnerId === finalM.p1Id ? { id: finalM.p2Id, name: finalM.p2Name } : { id: finalM.p1Id, name: finalM.p1Name };
-                                const semiLosers = playoffMs
-                                    .filter(m => m.round === playoffMaxRound - 1 && m.status === 'COMPLETED' && m.winnerId)
-                                    .map(m => m.winnerId === m.p1Id ? { id: m.p2Id, name: m.p2Name } : { id: m.p1Id, name: m.p1Name })
-                                    .filter(p => p.id);
+                                const semiMs = playoffMs.filter(m => m.round === playoffMaxRound - 1 && !m.isThirdPlaceMatch && m.status === 'COMPLETED' && m.winnerId);
+                                const matchAveraj = (m, side) => {
+                                    const sets = m.score?.sets || [];
+                                    let mine = 0, total = 0;
+                                    for (const s of sets) { mine += (side === 'p1' ? s.p1 : s.p2) || 0; total += (s.p1||0) + (s.p2||0); }
+                                    return total === 0 ? 0 : mine / total;
+                                };
+                                const loserOf = (m) => {
+                                    const loserIsP1 = m.winnerId === m.p2Id;
+                                    return { id: loserIsP1 ? m.p1Id : m.p2Id, name: loserIsP1 ? m.p1Name : m.p2Name, av: matchAveraj(m, loserIsP1 ? 'p1' : 'p2') };
+                                };
+                                const thirdPlaceMatch = playoffMs.find(m => m.isThirdPlaceMatch);
+                                let thirdFourth;
+                                if (thirdPlaceMatch?.winnerId) {
+                                    const winnerIsP1 = thirdPlaceMatch.winnerId === thirdPlaceMatch.p1Id;
+                                    thirdFourth = [
+                                        { place: '🥉', id: thirdPlaceMatch.winnerId, name: winnerIsP1 ? thirdPlaceMatch.p1Name : thirdPlaceMatch.p2Name },
+                                        { place: '4.', id: winnerIsP1 ? thirdPlaceMatch.p2Id : thirdPlaceMatch.p1Id, name: winnerIsP1 ? thirdPlaceMatch.p2Name : thirdPlaceMatch.p1Name },
+                                    ];
+                                } else {
+                                    const withAveraj = semiMs.map(loserOf).filter(p => p.id).sort((a, b) => b.av - a.av);
+                                    thirdFourth = withAveraj.map((p, i) => ({ place: i === 0 ? '🥉' : '4.', id: p.id, name: p.name }));
+                                }
                                 return [
                                     { place: '🥇', ...champion },
                                     { place: '🥈', ...runnerUp },
-                                    ...semiLosers.map(p => ({ place: '🥉', ...p })),
+                                    ...thirdFourth,
                                 ];
                             })();
                             const tabs = ['details', 'matches', ...(hasGroup ? ['standings'] : []), ...(archiveTopFour.length > 0 ? ['topfour'] : [])];

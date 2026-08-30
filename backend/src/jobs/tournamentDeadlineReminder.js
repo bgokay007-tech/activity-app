@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from '../controllers/notification.controller.js';
-import { advanceTournamentAfterMatch } from '../controllers/tournament.controller.js';
+import { advanceTournamentAfterMatch, resolveThirdPlaceByAveraj } from '../controllers/tournament.controller.js';
 
 // tournament.controller.js'teki advanceTournamentAfterMatch, tip '1' turnuvalarda bir turun
 // deadline'ı geçtiğinde joker'li tek bir açık maçı beklemeden bir sonraki grup turunu kurar —
@@ -231,7 +231,9 @@ async function autoAssignPlayoffDeadlines() {
     try {
         const graceExpired = new Date(Date.now() - 3 * 86400000);
         const pending = await prisma.tournamentMatch.findMany({
-            where: { status: 'PENDING', phase: 'PLAYOFF', deadline: null, readyAt: { lt: graceExpired }, p1Id: { not: null }, p2Id: { not: null } },
+            // isThirdPlaceMatch:false — 3.'lük maçının kendi 2 gün + 7 gün penceresi var
+            // (bkz. resolveExpiredThirdPlaceMatches), genel 3+7=10 günlük kuralla karışmasın.
+            where: { status: 'PENDING', phase: 'PLAYOFF', isThirdPlaceMatch: false, deadline: null, readyAt: { lt: graceExpired }, p1Id: { not: null }, p2Id: { not: null } },
         });
         if (pending.length === 0) return;
 
@@ -251,7 +253,9 @@ async function autoAssignPlayoffDeadlines() {
 async function notifyCreatorPlayoffRoundReady() {
     try {
         const ready = await prisma.tournamentMatch.findMany({
-            where: { status: 'PENDING', phase: 'PLAYOFF', deadline: null, readyAt: { not: null }, p1Id: { not: null }, p2Id: { not: null } },
+            // isThirdPlaceMatch:false — 3.'lük maçı turnuva sahibinin değil, iki oyuncunun kendi
+            // tarih ataması (bkz. assignThirdPlaceMatchDate), o yüzden sahibe bu bildirim gitmemeli.
+            where: { status: 'PENDING', phase: 'PLAYOFF', isThirdPlaceMatch: false, deadline: null, readyAt: { not: null }, p1Id: { not: null }, p2Id: { not: null } },
         });
         if (ready.length === 0) return;
 
@@ -286,19 +290,65 @@ async function notifyCreatorPlayoffRoundReady() {
     }
 }
 
+/** Kullanıcı isteği: 3.'lük maçı teklifi "hazır" olduktan (readyAt) 2 gün içinde taraflar hem
+ *  kabul edip hem de bir maç tarihi (deadline) belirlemezse, 3./4. sıra gerçek maç oynanmadan
+ *  yarı final averajına göre otomatik belirlenir — assignThirdPlaceMatchDate'teki 2 günlük
+ *  pencereyle birebir aynı hesap (readyAt + 2 gün). Taraflardan biri zaten reddettiyse
+ *  (respondThirdPlaceMatch) status zaten FORFEIT olduğu için bu sorguya hiç girmez. */
+async function resolveExpiredThirdPlaceMatches() {
+    try {
+        const twoDaysAgo = new Date(Date.now() - 2 * 86400000);
+        const expired = await prisma.tournamentMatch.findMany({
+            where: { status: 'PENDING', phase: 'PLAYOFF', isThirdPlaceMatch: true, deadline: null, readyAt: { lt: twoDaysAgo } },
+        });
+        if (expired.length === 0) return;
+
+        for (const match of expired) {
+            try {
+                const updated = await resolveThirdPlaceByAveraj(match);
+                const tournament = await prisma.tournament.findUnique({
+                    where: { id: match.tournamentId },
+                    include: { participants: { where: { status: 'ACCEPTED' }, include: { user: { select: { id: true, username: true, fullName: true } } } } },
+                });
+                // Bu, turnuvanın son bekleyen maçıysa hemen tamamlanıp arşive düşsün diye
+                // (kullanıcı raporu: "turnuvayı arşive almayı unutma") — bkz. respondThirdPlaceMatch'teki
+                // aynı çağrı (decline yolu).
+                if (tournament) {
+                    const isTeamTournament = tournament.type === '2' || tournament.type === '4';
+                    await advanceTournamentAfterMatch(tournament, updated, isTeamTournament, false);
+                }
+                for (const uid of [match.p1Id, match.p2Id].filter(Boolean)) {
+                    createNotification(uid, 'THIRD_PLACE_MATCH_DECLINED', "🥉 3.'lük Maçı Süresi Doldu",
+                        `${tournament?.name}: 2 gün içinde tarih belirlenmediği için 3./4. sıra yarı final averajına göre otomatik belirlendi.`,
+                        { tournamentId: match.tournamentId, category: tournament?.category, subCategory: tournament?.subCategory }
+                    ).catch(() => {});
+                }
+                console.log(`[tournamentDeadlineReminder] Resolved expired third-place match ${match.id} by averaj`);
+            } catch (matchErr) {
+                console.error(`[tournamentDeadlineReminder] Failed to resolve third-place match ${match.id}:`, matchErr.message);
+            }
+        }
+    } catch (err) {
+        console.error('[tournamentDeadlineReminder] resolveExpiredThirdPlaceMatches error:', err.message);
+    }
+}
+
 export function startTournamentDeadlineReminderJob() {
     checkAndNotifyUpcomingDeadlines();
     autoDrawExpiredMatches();
     advanceStuckDynamicRounds();
     autoAssignPlayoffDeadlines();
+    resolveExpiredThirdPlaceMatches();
     notifyCreatorPlayoffRoundReady();
     setInterval(checkAndNotifyUpcomingDeadlines, 30 * 60 * 1000); // every 30 minutes
     setInterval(autoDrawExpiredMatches, 15 * 60 * 1000); // every 15 minutes
     setInterval(advanceStuckDynamicRounds, 15 * 60 * 1000); // every 15 minutes
     setInterval(autoAssignPlayoffDeadlines, 30 * 60 * 1000); // every 30 minutes
+    setInterval(resolveExpiredThirdPlaceMatches, 15 * 60 * 1000); // every 15 minutes
     setInterval(notifyCreatorPlayoffRoundReady, 30 * 60 * 1000); // every 30 minutes
     console.log('⏳ Tournament match deadline reminder job started (every 30 min)');
     console.log('🤝 Tournament match auto-draw job started (every 15 min)');
     console.log('🔓 Tournament stuck-round unblock job started (every 15 min)');
     console.log('📅 Tournament playoff round auto-deadline job started (every 30 min)');
+    console.log("🥉 Third-place match auto-resolve job started (every 15 min)");
 }

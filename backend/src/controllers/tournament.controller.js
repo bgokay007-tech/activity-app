@@ -209,6 +209,36 @@ function stableTiebreakHash(tournamentId, playerId) {
     return h;
 }
 
+/** 3.'lük maçı taraflardan biri reddettiğinde veya 2 günlük kabul/tarih penceresi kaçırıldığında,
+ *  3./4. sırayı gerçek maç oynanmadan, iki kaybedenin KENDİ yarı final maçındaki averajına (kazandığı
+ *  oyun / toplam oyun oranı) göre belirler — daha yüksek averaja sahip olan 3., diğeri 4. olur.
+ *  Averaj hesaplanamıyorsa (skor eksikse) stableTiebreakHash ile sabit/adil bir kura yapılır. */
+export async function resolveThirdPlaceByAveraj(match) {
+    const semis = await prisma.tournamentMatch.findMany({
+        where: {
+            tournamentId: match.tournamentId, phase: 'PLAYOFF', round: match.round - 1, isThirdPlaceMatch: false,
+            OR: [{ p1Id: match.p1Id }, { p2Id: match.p1Id }, { p1Id: match.p2Id }, { p2Id: match.p2Id }],
+        },
+    });
+    const averajOf = (playerId) => {
+        const semi = semis.find(m => m.p1Id === playerId || m.p2Id === playerId);
+        if (!semi?.score?.sets) return null;
+        const side = semi.p1Id === playerId ? 'p1' : 'p2';
+        let mine = 0, total = 0;
+        for (const s of semi.score.sets) { mine += (side === 'p1' ? s.p1 : s.p2) || 0; total += (s.p1 || 0) + (s.p2 || 0); }
+        return total === 0 ? 0 : mine / total;
+    };
+    const av1 = averajOf(match.p1Id), av2 = averajOf(match.p2Id);
+    const kura = () => stableTiebreakHash(match.tournamentId, match.p1Id) >= stableTiebreakHash(match.tournamentId, match.p2Id) ? match.p1Id : match.p2Id;
+    let winnerId;
+    if (av1 == null && av2 == null) winnerId = kura();
+    else if (av1 == null) winnerId = match.p2Id;
+    else if (av2 == null) winnerId = match.p1Id;
+    else if (av1 === av2) winnerId = kura();
+    else winnerId = av1 > av2 ? match.p1Id : match.p2Id;
+    return prisma.tournamentMatch.update({ where: { id: match.id }, data: { status: 'FORFEIT', winnerId } });
+}
+
 /** Real-stat comparator (puan → averaj → set oranı → game oranı), without the final kura
  *  fallback. Returns 0 only when two standings rows are genuinely indistinguishable —
  *  used to detect a tie straddling the playoff cutoff so an extra round can be played
@@ -2196,6 +2226,9 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                 `"${tournament.name}" turnuvası sona erdi. Katılımınız için teşekkür ederiz!`,
                 { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory }
             ).catch(() => {});
+            // Kullanıcı isteği: turnuva bitince devam edenler Arşiv'e sayfa yenilemeden/çık-gir
+            // yapmadan anında geçsin — bkz. mobil SubCategoryScreen.js'teki onSocket('tournament:completed').
+            emitToUser(p.userId, 'tournament:completed', { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory });
         }
     }
 
@@ -2533,17 +2566,23 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                             name: m.winnerId === m.p1Id ? m.p2Name : m.p1Name,
                         }));
                         if (losers[0].id && losers[1].id) {
+                            // readyAt: 3.'lük maçının "hazır olduğu" an — kullanıcı isteği: taraflar
+                            // 2 gün içinde kabul edip tarih belirlemezse (bkz. assignThirdPlaceMatchDate/
+                            // resolveExpiredThirdPlaceMatches) 3./4. sıra averaja göre otomatik belirlenir.
+                            // Bu alan genel PLAYOFF turlarındaki (3 gün + 7 gün = 10 gün) mekanizmayla
+                            // KARIŞMASIN diye autoAssignPlayoffDeadlines sorgusu isThirdPlaceMatch:false
+                            // filtresiyle bu satırları hariç tutuyor (bkz. o fonksiyon).
                             await prisma.tournamentMatch.create({
                                 data: {
                                     tournamentId: id, phase: 'PLAYOFF', round: match.round + 1, matchIndex: 1,
                                     p1Id: losers[0].id, p1Name: losers[0].name,
                                     p2Id: losers[1].id, p2Name: losers[1].name,
-                                    status: 'PENDING', isThirdPlaceMatch: true,
+                                    status: 'PENDING', isThirdPlaceMatch: true, readyAt: new Date(),
                                 },
                             });
                             for (const l of losers) {
                                 createNotification(l.id, 'THIRD_PLACE_MATCH_OFFER', "🥉 3.'lük Maçı Teklifi",
-                                    `${tournament.name}: yarı finalde elendiniz ama 3.'lük maçı oynamak ister misiniz? Play-Off'lar sekmesinden kabul/red verebilirsiniz. İkiniz de kabul etmezseniz 3./4. sıra yarı finaldeki averajınıza göre belirlenecek.`,
+                                    `${tournament.name}: yarı finalde elendiniz ama 3.'lük maçı oynamak ister misiniz? Play-Off'lar sekmesinden kabul edip 2 gün içinde (en fazla 7 gün sonrasına) bir maç tarihi belirleyin — aksi halde 3./4. sıra yarı finaldeki averajınıza göre otomatik belirlenecek.`,
                                     { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory }
                                 ).catch(() => {});
                             }
@@ -2599,24 +2638,72 @@ export const respondThirdPlaceMatch = async (req, res, next) => {
             data: isP1 ? { p1ThirdPlaceAccepted: !!accept } : { p2ThirdPlaceAccepted: !!accept },
         });
 
-        const tournament = await prisma.tournament.findUnique({ where: { id }, select: { name: true, category: true, subCategory: true } });
+        const tournament = await prisma.tournament.findUnique({
+            where: { id },
+            include: { participants: { where: { status: 'ACCEPTED' }, include: { user: { select: { id: true, username: true, fullName: true } } } } },
+        });
         const otherId = isP1 ? match.p2Id : match.p1Id;
 
         if (accept === false) {
             // Biri reddettiyse maç asla oynanmayacak — PENDING kalırsa turnuvanın "bekleyen
             // maç kalmadı mı" otomatik tamamlanma kontrolünü (advanceTournamentAfterMatch)
-            // sonsuza dek bloklardı.
-            updated = await prisma.tournamentMatch.update({ where: { id: matchId }, data: { status: 'FORFEIT' } });
+            // sonsuza dek bloklardı. 3./4. sıra hemen averaja göre kayıt altına alınır (winnerId),
+            // ardından advanceTournamentAfterMatch çağrılıp bu maç son bekleyense turnuva hemen
+            // tamamlanıp arşive düşsün (kullanıcı raporu: "turnuvayı arşive almayı unutma").
+            updated = await resolveThirdPlaceByAveraj(match);
+            if (tournament) {
+                const isTeamTournament = tournament.type === '2' || tournament.type === '4';
+                await advanceTournamentAfterMatch(tournament, updated, isTeamTournament, false);
+            }
             createNotification(otherId, 'THIRD_PLACE_MATCH_DECLINED', "🥉 3.'lük Maçı İptal",
                 "Rakibiniz 3.'lük maçını oynamayı kabul etmedi — 3./4. sıra yarı final averajınıza göre belirlenecek.",
                 { tournamentId: id, category: tournament?.category, subCategory: tournament?.subCategory }
             ).catch(() => {});
         } else if (updated.p1ThirdPlaceAccepted && updated.p2ThirdPlaceAccepted) {
             createNotification(otherId, 'THIRD_PLACE_MATCH_ACCEPTED', "🥉 3.'lük Maçı Onaylandı",
-                "Rakibiniz de 3.'lük maçını kabul etti — skoru girdiğinizde sıralamaya işlenecek.",
+                "Rakibiniz de 3.'lük maçını kabul etti — şimdi ikinizden biri 2 gün içinde (en fazla 7 gün sonrasına) bir maç tarihi belirlemeli, aksi halde 3./4. sıra averaja göre otomatik belirlenecek.",
                 { tournamentId: id, category: tournament?.category, subCategory: tournament?.subCategory }
             ).catch(() => {});
         }
+        res.json(updated);
+    } catch (e) { next(e); }
+};
+
+/** 3.'lük maçını kabul eden iki taraftan biri, maçın oynanacağı tarih/saati belirler —
+ *  kullanıcı isteği: teklif "hazır" (readyAt) olduktan sonra 2 gün içinde belirlenmeli, seçilen
+ *  tarih de yine readyAt'ten en fazla 7 gün sonrasına düşebilir (toplam en fazla 9 gün). Bu
+ *  pencerelerden biri kaçırılırsa resolveExpiredThirdPlaceMatches (bkz. tournamentDeadlineReminder
+ *  job'ı) devreye girip 3./4. sırayı averaja göre otomatik belirler. */
+export const assignThirdPlaceMatchDate = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const { date, time } = req.body;
+        if (!date) return res.status(400).json({ message: 'Tarih zorunludur' });
+
+        const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+        if (!match || match.tournamentId !== id || !match.isThirdPlaceMatch) return res.status(404).json({ message: 'Maç bulunamadı' });
+        if (match.status !== 'PENDING') return res.status(400).json({ message: 'Bu maç için işlem yapılamaz' });
+        if (match.p1Id !== req.userId && match.p2Id !== req.userId) return res.status(403).json({ message: 'Bu maçın tarafı değilsiniz' });
+        if (!match.p1ThirdPlaceAccepted || !match.p2ThirdPlaceAccepted) return res.status(400).json({ message: 'Önce her iki taraf da 3.\'lük maçını kabul etmeli' });
+        if (!match.readyAt) return res.status(400).json({ message: 'Bu maç için henüz tarih ataması açık değil' });
+
+        const twoDayLimit = new Date(match.readyAt.getTime() + 2 * 86400000);
+        if (Date.now() > twoDayLimit.getTime()) return res.status(400).json({ message: '2 günlük tarih belirleme süresi doldu — 3./4. sıra averaja göre belirlenecek' });
+
+        const deadline = buildDateTime(date, time);
+        const sevenDayLimit = new Date(match.readyAt.getTime() + 7 * 86400000);
+        if (!deadline || deadline.getTime() <= Date.now()) return res.status(400).json({ message: 'Geçmiş veya geçersiz bir tarih seçilemez' });
+        if (deadline.getTime() > sevenDayLimit.getTime()) return res.status(400).json({ message: 'Maç tarihi en fazla 7 gün sonrasına ayarlanabilir' });
+
+        const updated = await prisma.tournamentMatch.update({ where: { id: matchId }, data: { deadline } });
+
+        const tournament = await prisma.tournament.findUnique({ where: { id }, select: { name: true, category: true, subCategory: true } });
+        const otherId = match.p1Id === req.userId ? match.p2Id : match.p1Id;
+        createNotification(otherId, 'THIRD_PLACE_MATCH_DATE_SET', "🥉 3.'lük Maçı Tarihi Belirlendi",
+            `${tournament?.name}: rakibiniz 3.'lük maçı için ${new Date(deadline).toLocaleDateString('tr-TR')} tarihini belirledi.`,
+            { tournamentId: id, category: tournament?.category, subCategory: tournament?.subCategory }
+        ).catch(() => {});
+
         res.json(updated);
     } catch (e) { next(e); }
 };
