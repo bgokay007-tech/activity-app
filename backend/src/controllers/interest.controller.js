@@ -117,6 +117,21 @@ export const getCategories = async (req, res) => {
 // ?includeHidden=true ile döndürülür, sadece Profil ekranındaki "Benim Aktivitelerim"
 // listesi bunu kullanır; okey/batak gibi "bu aktivite var mı" kontrolü yapan diğer tüm
 // çağıranlar eskisi gibi gizli olanları hiç görmez).
+// Bir kullanıcının onaylı antrenör/hakem kaydı olduğu dalları getirir — "Aktivitelerim"
+// kartında ELO'nun altında ve o dala girildiğinde profil kartında rozet göstermek için
+// kullanılıyor (bkz. attachCoachRefereeBadges). approved:true tek başına yeterli — diğer
+// dallarda ilan oluşturulur oluşturulmaz otomatik onaylı sayılıyor zaten (bkz. coach/referee
+// controller'lardaki approved ataması), tenis/voleybol/padelde ise gerçek admin onayı demek.
+async function attachCoachRefereeBadges(interests, userId) {
+    const [coachListings, refListings] = await Promise.all([
+        prisma.coachListing.findMany({ where: { userId, approved: true }, select: { subCategory: true } }),
+        prisma.refereeListing.findMany({ where: { userId, approved: true }, select: { subCategory: true } }),
+    ]);
+    const coachSubs = new Set(coachListings.map(c => c.subCategory));
+    const refSubs = new Set(refListings.map(r => r.subCategory));
+    return interests.map(i => ({ ...i, isCoach: coachSubs.has(i.subCategory), isReferee: refSubs.has(i.subCategory) }));
+}
+
 export const getUserInterests = async (req, res, next) => {
     try {
         const includeHidden = req.query.includeHidden === 'true';
@@ -124,7 +139,7 @@ export const getUserInterests = async (req, res, next) => {
             where: { userId: req.userId, ...(includeHidden ? {} : { hidden: false }) },
             include: { skills: true },
         });
-        res.json(interests);
+        res.json(await attachCoachRefereeBadges(interests, req.userId));
     } catch (error) {
         next(error);
     }
@@ -149,7 +164,7 @@ export const getInterestsOf = async (req, res, next) => {
             where: { userId, hidden: false },
             include: { skills: true },
         });
-        res.json(interests);
+        res.json(await attachCoachRefereeBadges(interests, userId));
     } catch (error) {
         next(error);
     }

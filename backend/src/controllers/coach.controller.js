@@ -238,6 +238,17 @@ export const createListing = async (req, res, next) => {
             if (certUrlsArr.length === 0 && !certificateUrl) return res.status(400).json({ message: 'Bu seviyede belge fotoğrafı yüklemeniz zorunludur.' });
             if (!experience || Number(experience) <= 0) return res.status(400).json({ message: 'Bu seviyede deneyim yılını girmeniz zorunludur.' });
         }
+        // Kullanıcı isteği: "Amatör" olarak başvuranlardan hiçbir belge/doğrulama bilgisi
+        // zorunlu istenmiyor, SADECE kişisel bilgiler (ad soyad/cinsiyet/doğum tarihi) zorunlu
+        // kalıyor (bkz. referee.controller.js'deki aynı desen).
+        if (credentialLevel === 'AMATEUR') {
+            if (!personalFullName || !String(personalFullName).trim())
+                return res.status(400).json({ message: 'Ad soyad girmeniz zorunludur.' });
+            if (!personalGender)
+                return res.status(400).json({ message: 'Cinsiyet seçmeniz zorunludur.' });
+            if (!personalBirthDate)
+                return res.status(400).json({ message: 'Doğum tarihinizi girmeniz zorunludur.' });
+        }
 
         const listing = await prisma.coachListing.create({
             data: {

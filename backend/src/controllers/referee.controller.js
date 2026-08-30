@@ -24,7 +24,6 @@ export const getListings = async (req, res, next) => {
         const { category, subCategory } = req.query;
         const listings = await prisma.refereeListing.findMany({
             where: {
-                status: 'ACTIVE',
                 category: category || undefined,
                 subCategory: subCategory || undefined,
                 // Voleybol/tenis/padelde admin onayı olmayan bir ilan başkalarına GÖRÜNMEZ —
@@ -35,10 +34,12 @@ export const getListings = async (req, res, next) => {
                 // tarafta ders/maç bilgisi olmadığı için o filtrelerden zaten elenir) — ama
                 // admin onaylayınca "CV'ler" sekmesinde herkese görünmesi gerekiyordu, önceki
                 // profileOnly:false koşulu bunu SONSUZA DEK engelliyordu (approved olsa bile).
+                // Sahibi kendi REJECTED (admin reddetti) ilanını da görebilsin diye status
+                // kontrolü artık her OR dalının kendi içinde (bkz. coach.controller.js).
                 OR: [
-                    { subCategory: { notIn: REFEREE_APPROVAL_SPORTS }, profileOnly: false },
-                    { approved: true },
-                    { userId: req.userId },
+                    { status: 'ACTIVE', subCategory: { notIn: REFEREE_APPROVAL_SPORTS }, profileOnly: false },
+                    { status: 'ACTIVE', approved: true },
+                    { userId: req.userId, status: { in: ['ACTIVE', 'REJECTED'] } },
                 ],
             },
             include: { user: { select: USER_SELECT } },
@@ -139,6 +140,9 @@ export const createListing = async (req, res, next) => {
             // ikortNo/refereeKademe/vizeBelgesiUrl/ilTemsilciligi/specialization tenisle aynı
             // alanlar üzerinden paylaşılıyor, bunlar sadece voleybole özel 3 yeni alan.
             vizeAktif, highestLeagueLevel, recentMatchesUrl,
+            // Kullanıcı isteği: kişisel bilgiler (ad soyad, cinsiyet, doğum tarihi) — normalde
+            // zorunlu değil, "Amatör" kademe seçilirse SADECE bunlar zorunlu oluyor (bkz. aşağı).
+            personalFullName, personalGender, personalBirthDate,
         } = req.body;
 
         const citiesArr = Array.isArray(cities) ? cities.filter(Boolean) : [];
@@ -152,14 +156,26 @@ export const createListing = async (req, res, next) => {
         // hakemlik teklifi olmadığı için şehir istenmiyor.
         if (!profileOnly && citiesArr.length === 0)
             return res.status(400).json({ message: 'En az bir şehir seçmelisiniz' });
+        // Kullanıcı isteği: "Amatör" olarak başvuranlardan hiçbir belge/doğrulama bilgisi
+        // zorunlu istenmiyor — CV, tenis/voleybol i-KORT/TVF alanları dahil hepsi opsiyonel
+        // olur, SADECE kişisel bilgiler (ad soyad/cinsiyet/doğum tarihi) zorunlu kalır.
+        const isAmateur = credentialLevel === 'AMATEUR';
+        if (isAmateur) {
+            if (!personalFullName || !String(personalFullName).trim())
+                return res.status(400).json({ message: 'Ad soyad girmeniz zorunludur.' });
+            if (!personalGender)
+                return res.status(400).json({ message: 'Cinsiyet seçmeniz zorunludur.' });
+            if (!personalBirthDate)
+                return res.status(400).json({ message: 'Doğum tarihinizi girmeniz zorunludur.' });
+        }
         // Kullanıcı isteği: voleybol/tenis/padelde hakemlik başvurusu CV'siz gönderilemez —
         // admin onayı CV'ye bakarak veriliyor, CV eksikse başvuru zaten değerlendirilemez.
-        if (REFEREE_APPROVAL_SPORTS.includes(subCategory) && !cvUrl)
+        if (REFEREE_APPROVAL_SPORTS.includes(subCategory) && !isAmateur && !cvUrl)
             return res.status(400).json({ message: 'Bu dalda hakemlik için CV yüklemeniz zorunludur.' });
         // Kullanıcı isteği: bir tenis hakemini onaylamadan önce mutlaka kontrol edilmesi
         // gereken temel bilgiler — TTF hakem sicil no (i-KORT ID), kademe, güncel vize belgesi,
         // bağlı olduğu il temsilciliği, uzmanlık alanı (Kule/Çizgi Hakemi).
-        if (subCategory === 'tennis') {
+        if (subCategory === 'tennis' && !isAmateur) {
             if (!ikortNo || !String(ikortNo).trim())
                 return res.status(400).json({ message: 'TTF Hakem Sicil Numaranızı (i-KORT ID) girmeniz zorunludur.' });
             if (!refereeKademe)
@@ -175,7 +191,7 @@ export const createListing = async (req, res, next) => {
         // gereken temel bilgiler — TVF hakem sicil no (lisans no), klasman/unvan, bağlı olduğu
         // il temsilciliği, güncel hakemlik lisans/vize belgesi. Uzman pozisyonlar ve en yüksek
         // lig seviyesi filtreleme amaçlı olduğu için zorunlu tutulmadı.
-        if (subCategory === 'volleyball') {
+        if (subCategory === 'volleyball' && !isAmateur) {
             if (!ikortNo || !String(ikortNo).trim())
                 return res.status(400).json({ message: 'Hakemlik Sicil Numaranızı (Lisans No) girmeniz zorunludur.' });
             if (!refereeKademe)
@@ -214,6 +230,9 @@ export const createListing = async (req, res, next) => {
                 vizeAktif: Boolean(vizeAktif),
                 highestLeagueLevel: highestLeagueLevel || null,
                 recentMatchesUrl: recentMatchesUrl || null,
+                personalFullName: personalFullName?.trim() || null,
+                personalGender: personalGender || null,
+                personalBirthDate: personalBirthDate ? new Date(personalBirthDate) : null,
                 // Voleybol/tenis/padelde admin onayı gerekiyor (approved varsayılan false
                 // kalır); diğer dallarda hiç kontrol edilmediği için baştan onaylı sayılır —
                 // davranış değişmesin diye (bkz. resolveRefereeEligibility).
@@ -269,6 +288,7 @@ export const updateListing = async (req, res, next) => {
             ikortNo, refereeKademe, vizeBelgesiUrl, itfBadgeLevel, itfCertNo,
             adliSicilUrl, cezaBelgesiUrl, ilTemsilciligi, specialization,
             vizeAktif, highestLeagueLevel, recentMatchesUrl,
+            personalFullName, personalGender, personalBirthDate,
         } = req.body;
 
         // Voleybol/tenis/padelde onaylı bir hakem CV'sini değiştirirse onay otomatik düşer —
@@ -309,6 +329,9 @@ export const updateListing = async (req, res, next) => {
                 ...(vizeAktif !== undefined && { vizeAktif: Boolean(vizeAktif) }),
                 ...(highestLeagueLevel !== undefined && { highestLeagueLevel: highestLeagueLevel || null }),
                 ...(recentMatchesUrl !== undefined && { recentMatchesUrl: recentMatchesUrl || null }),
+                ...(personalFullName !== undefined && { personalFullName: personalFullName?.trim() || null }),
+                ...(personalGender !== undefined && { personalGender: personalGender || null }),
+                ...(personalBirthDate !== undefined && { personalBirthDate: personalBirthDate ? new Date(personalBirthDate) : null }),
                 ...(revokeApproval && { approved: false }),
             },
             include: { user: { select: USER_SELECT } },

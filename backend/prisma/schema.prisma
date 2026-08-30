@@ -536,6 +536,13 @@ model RefereeListing {
   cvUrl           String?
   profileOnly     Boolean  @default(false) // bkz. CoachListing.profileOnly ile ayni desen
 
+  // Kullanıcı isteği: hakemlik CV'sinde de antrenörlükteki gibi kişisel bilgiler toplanıyor —
+  // normalde zorunlu değil, ama "Amatör" kademe seçilirse SADECE bunlar zorunlu oluyor, diğer
+  // tüm belge/doğrulama zorunlulukları kalkıyor (bkz. createListing, CoachListing ile aynı desen).
+  personalFullName  String?
+  personalGender    String?  // MALE | FEMALE | OTHER
+  personalBirthDate DateTime?
+
   pricePerMatch   Int      @default(0)
 
   // Kullanıcı isteği: tenis hakemliğinde admin onayından önce mutlaka kontrol edilmesi
@@ -571,13 +578,15 @@ model RefereeListing {
   timeTo          String   @default("21:00")
 
   description     String?
-  status          String   @default("ACTIVE")  // ACTIVE | FLAGGED | REMOVED
+  status          String   @default("ACTIVE")  // ACTIVE | FLAGGED | REMOVED | REJECTED (admin basvuruyu reddetti, bkz. setRefereeApproval)
   reportCount     Int      @default(0)
   // Voleybol/tenis/padelde admin onayı olmadan hakemlik yapılamaz (bkz.
   // resolveRefereeEligibility, rival.controller.js) — CoachListing.approved ile aynı desen.
   // Diğer dallarda (badminton/masa tenisi/airsoft) bu alan kontrol edilmez, ilan yayınlanır
   // yayınlanmaz hakem olarak davet edilebilir.
   approved        Boolean  @default(false)
+  adminNote       String?  // kullanıcı isteği: admin reddederken bir açıklama yazabilsin,
+  // kullanıcıya bu sebeple bildirim gitsin (bkz. CoachListing.adminNote ile aynı desen)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
