@@ -2,7 +2,7 @@ import { Router } from 'express';
 import {
     createPost, getPosts, getUserPosts,
     analyzeContent, suggestMusicForImage, toggleLike, addComment,
-    getComments, getPostLikes, editPost, toggleVisibility, deletePost,
+    getComments, deleteComment, toggleCommentLike, getPostLikes, editPost, toggleVisibility, deletePost,
     recordView, getStoryViews,
     getPendingMatchMedia, approveMatchMedia, rejectMatchMedia,
 } from '../controllers/post.controller.js';
@@ -18,6 +18,8 @@ router.get('/user/:userId',      authenticate, getUserPosts);
 router.post('/:id/like',         authenticate, toggleLike);
 router.post('/:id/comment',      authenticate, addComment);
 router.get('/:id/comments',      authenticate, getComments);
+router.delete('/comments/:commentId',      authenticate, deleteComment);
+router.post('/comments/:commentId/like',   authenticate, toggleCommentLike);
 router.get('/:id/likes',         authenticate, getPostLikes);
 router.patch('/:id',             authenticate, editPost);
 router.patch('/:id/visibility',  authenticate, toggleVisibility);

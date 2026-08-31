@@ -37,6 +37,7 @@ model User {
   posts            Post[]
   comments         Comment[]
   likes            Like[]
+  commentLikes     CommentLike[]
   playlists        Playlist[]
   likedTracks      LikedTrack[]
   followers        Follow[]  @relation("following")
@@ -774,16 +775,35 @@ model StoryView {
   @@unique([postId, userId])
 }
 
-// YORUM
+// YORUM — kullanıcı isteği: maç yorumlarındaki (MatchComment) aynı algoritma — silme (viewedBy
+// ile "gören oldu mu" uyarısı), yanıtlama (parentId ile tek seviye thread) ve beğeni.
 model Comment {
   id        String   @id @default(uuid())
   userId    String
   postId    String
+  parentId  String?  // dolu ise bu bir yanıt — sadece o üst yoruma bağlı, tek seviye
   content   String
+  viewedBy  Json     @default("[]")
   createdAt DateTime @default(now())
 
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post      Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]     @relation("CommentReplies")
+  likes     CommentLike[]
+}
+
+// YORUM BEĞENİSİ
+model CommentLike {
+  id        String   @id @default(uuid())
+  userId    String
+  commentId String
+  createdAt DateTime @default(now())
+
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
 }
 
 // BEĞENİ

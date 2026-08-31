@@ -504,12 +504,57 @@ export const toggleLike = async (req, res, next) => {
 export const addComment = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { content } = req.body;
+        const { content, parentId } = req.body;
+        // Kullanıcı isteği: bir yorumun altına sadece o yorumla ilgili yanıt yazılabilsin —
+        // tek seviye (yanıtın yanıtı yok), MatchComment'teki gibi ayrı bir thread modeli yerine
+        // aynı Comment tablosunda parentId ile tutuluyor.
+        if (parentId) {
+            const parent = await prisma.comment.findUnique({ where: { id: parentId }, select: { postId: true } });
+            if (!parent || parent.postId !== id) return res.status(400).json({ message: 'Geçersiz yanıt' });
+        }
         const comment = await prisma.comment.create({
-            data: { userId: req.userId, postId: id, content },
+            data: { userId: req.userId, postId: id, content, parentId: parentId || null },
             include: { user: { select: { id: true, username: true, avatar: true } } },
         });
         res.status(201).json(comment);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const deleteComment = async (req, res, next) => {
+    try {
+        const { commentId } = req.params;
+        const comment = await prisma.comment.findUnique({
+            where: { id: commentId },
+            include: { post: { select: { userId: true } } },
+        });
+        if (!comment) return res.status(404).json({ message: 'Not found' });
+        // Kullanıcı isteği: MatchComment ile aynı algoritma — kendi yorumunu her zaman
+        // silebilir, gönderi sahibi de kendi gönderisindeki herhangi bir yorumu silebilir.
+        const canDelete = comment.userId === req.userId || comment.post.userId === req.userId;
+        if (!canDelete) return res.status(403).json({ message: 'Forbidden' });
+        await prisma.comment.delete({ where: { id: commentId } });
+        res.json({ deleted: true });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Kullanıcı isteği: yoruma da gönderiye yaptığı gibi kalp/beğeni — aynı toggle deseni.
+export const toggleCommentLike = async (req, res, next) => {
+    try {
+        const { commentId } = req.params;
+        const existing = await prisma.commentLike.findUnique({
+            where: { userId_commentId: { userId: req.userId, commentId } },
+        });
+        if (existing) {
+            await prisma.commentLike.delete({ where: { id: existing.id } });
+        } else {
+            await prisma.commentLike.create({ data: { userId: req.userId, commentId } });
+        }
+        const count = await prisma.commentLike.count({ where: { commentId } });
+        res.json({ liked: !existing, count });
     } catch (error) {
         next(error);
     }
@@ -544,10 +589,33 @@ export const getComments = async (req, res, next) => {
 
         const comments = await prisma.comment.findMany({
             where: { postId: id },
-            include: { user: { select: { id: true, username: true, avatar: true } } },
+            include: {
+                user: { select: { id: true, username: true, avatar: true } },
+                likes: { where: { userId: req.userId }, select: { id: true } },
+                _count: { select: { likes: true } },
+            },
             orderBy: { createdAt: 'asc' },
         });
-        res.json(comments);
+
+        // Kullanıcı isteği: MatchComment'teki aynı algoritma — yazarı hariç, yorumu
+        // görüntüleyen her kullanıcının id'si viewedBy'a eklenir (silmeden önce "gören oldu
+        // mu" uyarısı için).
+        const toMark = comments.filter(c => c.userId !== req.userId && !(Array.isArray(c.viewedBy) && c.viewedBy.includes(req.userId)));
+        if (toMark.length > 0) {
+            await Promise.all(toMark.map(c => prisma.comment.update({
+                where: { id: c.id },
+                data: { viewedBy: [...(Array.isArray(c.viewedBy) ? c.viewedBy : []), req.userId] },
+            })));
+            toMark.forEach(c => { c.viewedBy = [...(Array.isArray(c.viewedBy) ? c.viewedBy : []), req.userId]; });
+        }
+
+        res.json(comments.map(c => ({
+            ...c,
+            isLiked: c.likes.length > 0,
+            likeCount: c._count.likes,
+            likes: undefined,
+            _count: undefined,
+        })));
     } catch (error) {
         next(error);
     }
