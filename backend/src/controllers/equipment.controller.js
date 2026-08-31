@@ -25,14 +25,27 @@ async function expireStaleReservations() {
 export const getListings = async (req, res, next) => {
     try {
         await expireStaleReservations();
-        const { category, subCategory, condition, status } = req.query;
+        const { category, subCategory, condition, status, city, dateFrom, dateTo } = req.query;
         const statusWhere = status === 'SOLD' ? { status: 'SOLD' } : { status: { in: ['ACTIVE', 'RESERVED'] } };
+        // Kullanıcı isteği: Arşiv > Ekipmanlar sekmesi artık Arşiv'in diğer sekmeleriyle
+        // (Bireysel Maçlar/Turnuvalar) aynı filtre formunu kullanıyor — konum ve tarih aralığı.
+        // Satılma tarihi ayrı bir alan olmadığı için satıldı işaretlenince değişen updatedAt
+        // kullanılıyor (bkz. archive.controller.js'deki completedAt mantığının karşılığı).
+        const dateFilter = {
+            ...(dateFrom && { gte: new Date(dateFrom) }),
+            ...(dateTo   && { lte: new Date(dateTo) }),
+        };
         const listings = await prisma.equipmentListing.findMany({
             where: {
                 ...statusWhere,
                 ...(category    && { category }),
                 ...(subCategory && { subCategory }),
                 ...(condition   && { condition }),
+                ...(city && { OR: [
+                    { city:     { contains: city, mode: 'insensitive' } },
+                    { location: { contains: city, mode: 'insensitive' } },
+                ]}),
+                ...(Object.keys(dateFilter).length > 0 && { updatedAt: dateFilter }),
             },
             include: {
                 user: { select: USER_SELECT },

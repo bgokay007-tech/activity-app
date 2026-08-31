@@ -19597,6 +19597,21 @@ export default function SubCategoryScreen({ route, navigation }) {
             setArchiveSubTab('tournaments');
         }
     }, [route.params?.initialArchiveSubTab]);
+    // Kullanıcı isteği: Rakip Bul'daki gibi Arşiv'de de filtre (konum + tarih aralığı) artık
+    // sağda tek bir butonla açılan tek bir formda toplandı (bkz. showArchiveFilterModal,
+    // aşağıda render ediliyor). Alt-sekmeler arasında (Bireysel Maçlar/Turnuvalar/Ekipmanlar)
+    // geçince aynı mantık: konum kalıcı kalır, tarih aralığı sıfırlanır.
+    const [showArchiveFilterModal, setShowArchiveFilterModal] = useState(false);
+    useEffect(() => {
+        setArchiveDateFrom('');
+        setArchiveDateTo('');
+    }, [archiveSubTab]);
+    const archiveFilterSummaryLabel = () => {
+        const parts = [];
+        if (archiveCity) parts.push(archiveCity);
+        if (archiveDateFrom || archiveDateTo) parts.push(`${archiveDateFrom || '…'}–${archiveDateTo || '…'}`);
+        return parts.length ? parts.join(' · ') : (lang==='tr' ? 'Filtrele' : 'Filter');
+    };
     const [archiveTournaments, setArchiveTournaments] = useState([]);
     const [loadingArchiveTournaments, setLoadingArchiveTournaments] = useState(false);
     // Arşiv > Ekipmanlar (satılmış ilanlar) ve Hakemlik (hakemlik yapılan tamamlanmış maçlar)
@@ -20306,11 +20321,14 @@ export default function SubCategoryScreen({ route, navigation }) {
         setLoadingArchiveEquipment(true);
         try {
             const params = new URLSearchParams({ category, subCategory: sub, status: 'SOLD' });
+            if (archiveCity) params.set('city', archiveCity);
+            if (archiveDateFrom) params.set('dateFrom', archiveDateFrom);
+            if (archiveDateTo) params.set('dateTo', archiveDateTo);
             const { data } = await api.get(`/equipment?${params.toString()}`);
             setArchiveEquipment(Array.isArray(data) ? data : []);
         } catch { /* silent */ }
         finally { setLoadingArchiveEquipment(false); }
-    }, [activeTab, archiveSubTab, category, sub]);
+    }, [activeTab, archiveSubTab, category, sub, archiveCity, archiveDateFrom, archiveDateTo]);
 
     useEffect(() => {
         const task = InteractionManager.runAfterInteractions(() => { loadArchiveEquipment(); });
@@ -22542,13 +22560,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <TouchableOpacity onPress={() => setShowLeaderboard(true)}>
                             <Text style={{ fontSize:19 }}>🏆</Text>
                         </TouchableOpacity>
-                        {sub === 'tennis' && (
-                            <TouchableOpacity onPress={() => setShowSpotlight(true)}>
-                                <Text style={{ fontSize:21 }}>🃏</Text>
-                            </TouchableOpacity>
-                        )}
                     </View>
                 )}
+                {/* Kullanıcı isteği: "Günün Yıldızı" digimon kart butonu (🃏) artık sadece
+                    tenis'te değil, TÜM spor dallarında (sıralama butonu olsun olmasın) sağ üst
+                    köşede görünüyor — sıralama (🏆) butonu varsa hemen sağında, yoksa başlığın
+                    hemen sağında; algoritma/veri tenisle birebir aynı (bkz. TennisSpotlightModal,
+                    backend spotlight.controller.js zaten subCategory'ye göre generic çalışıyor). */}
+                <TouchableOpacity onPress={() => setShowSpotlight(true)}>
+                    <Text style={{ fontSize:21 }}>🃏</Text>
+                </TouchableOpacity>
             </View>
 
             {/* Tabs */}
@@ -24758,44 +24779,82 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 ))}
                             </View>
                         </ScrollView>
-                        {/* Filter bar */}
-                        <View style={{ flexDirection:'row', gap:3, marginBottom:8, alignItems:'center' }}>
-                            <TextInput
-                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:5, paddingVertical:2, color:'#fff', fontSize:11, borderWidth:1, borderColor:colors.border }}
-                                placeholder="📍 Şehir"
-                                placeholderTextColor={colors.textMuted}
-                                value={archiveCity}
-                                onChangeText={setArchiveCity}
-                                onSubmitEditing={archiveSubTab==='rivals' ? loadArchive : loadArchiveTournaments}
-                                returnKeyType="search"
-                            />
-                            <TextInput
-                                style={{ width:80, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:5, paddingVertical:2, color:'#fff', fontSize:11, borderWidth:1, borderColor:colors.border }}
-                                placeholder="📅 Başl."
-                                placeholderTextColor={colors.textMuted}
-                                value={archiveDateFrom}
-                                onChangeText={setArchiveDateFrom}
-                                onSubmitEditing={archiveSubTab==='rivals' ? loadArchive : loadArchiveTournaments}
-                                returnKeyType="search"
-                            />
-                            <TextInput
-                                style={{ width:70, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:5, paddingVertical:2, color:'#fff', fontSize:11, borderWidth:1, borderColor:colors.border }}
-                                placeholder="Bitiş"
-                                placeholderTextColor={colors.textMuted}
-                                value={archiveDateTo}
-                                onChangeText={setArchiveDateTo}
-                                onSubmitEditing={archiveSubTab==='rivals' ? loadArchive : loadArchiveTournaments}
-                                returnKeyType="search"
-                            />
-                            <TouchableOpacity onPress={archiveSubTab==='rivals' ? loadArchive : loadArchiveTournaments} style={{ backgroundColor: cfg.color, borderRadius:8, paddingHorizontal:7, paddingVertical:2 }}>
-                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>🔍</Text>
+                        {/* Kullanıcı isteği: Rakip Bul'daki gibi konum+tarih filtresi artık ayrı ayrı
+                            görünen alanlar değil, sağda tek bir butonla açılan tek bir form
+                            (bkz. showArchiveFilterModal). */}
+                        <View style={{ flexDirection:'row', justifyContent:'flex-end', marginBottom:8 }}>
+                            <TouchableOpacity
+                                onPress={() => setShowArchiveFilterModal(true)}
+                                style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, backgroundColor: (archiveCity || archiveDateFrom || archiveDateTo) ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:8, borderWidth:1, borderColor: (archiveCity || archiveDateFrom || archiveDateTo) ? cfg.color : colors.border }}
+                            >
+                                <Text style={{ color: (archiveCity || archiveDateFrom || archiveDateTo) ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    🔍 {archiveFilterSummaryLabel()}
+                                </Text>
+                                <Text style={{ color: colors.textMuted, fontSize:10 }}>▾</Text>
                             </TouchableOpacity>
-                            {(archiveCity || archiveDateFrom || archiveDateTo) && (
-                                <TouchableOpacity onPress={() => { setArchiveCity(''); setArchiveDateFrom(''); setArchiveDateTo(''); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:5, paddingVertical:2, borderWidth:1, borderColor:colors.border }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>✕</Text>
-                                </TouchableOpacity>
-                            )}
                         </View>
+
+                        <Modal visible={showArchiveFilterModal} transparent animationType="slide" onRequestClose={() => setShowArchiveFilterModal(false)} android_keyboardInputMode="adjustNothing">
+                            <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
+                                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
+                                <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:16, paddingTop:17, paddingBottom: Math.max(20, insets.bottom + 16), maxHeight:'88%' }}>
+                                    <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+                                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🔍 {lang==='tr' ? 'Filtrele' : 'Filter'}</Text>
+                                        <TouchableOpacity onPress={() => setShowArchiveFilterModal(false)}><Text style={{ color:colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
+                                    </View>
+                                    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📍 {lang==='tr' ? 'Konum' : 'Location'}</Text>
+                                            {archiveCity ? (
+                                                <TouchableOpacity onPress={() => setArchiveCity('')}>
+                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                                </TouchableOpacity>
+                                            ) : null}
+                                        </View>
+                                        <TextInput
+                                            value={archiveCity}
+                                            onChangeText={setArchiveCity}
+                                            placeholder={lang==='tr' ? 'Şehir ara...' : 'Search city...'}
+                                            placeholderTextColor={colors.textMuted}
+                                            style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: archiveCity ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff', marginBottom:18 }}
+                                        />
+
+                                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📅 {lang==='tr' ? 'Tarih Aralığı' : 'Date Range'}</Text>
+                                            {(archiveDateFrom || archiveDateTo) ? (
+                                                <TouchableOpacity onPress={() => { setArchiveDateFrom(''); setArchiveDateTo(''); }}>
+                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                                </TouchableOpacity>
+                                            ) : null}
+                                        </View>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:18 }}>
+                                            <TextInput
+                                                value={archiveDateFrom}
+                                                onChangeText={setArchiveDateFrom}
+                                                placeholder="YYYY-AA-GG"
+                                                placeholderTextColor={colors.textMuted}
+                                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: archiveDateFrom ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
+                                            />
+                                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>—</Text>
+                                            <TextInput
+                                                value={archiveDateTo}
+                                                onChangeText={setArchiveDateTo}
+                                                placeholder="YYYY-AA-GG"
+                                                placeholderTextColor={colors.textMuted}
+                                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: archiveDateTo ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
+                                            />
+                                        </View>
+                                    </ScrollView>
+                                    <TouchableOpacity
+                                        onPress={() => setShowArchiveFilterModal(false)}
+                                        style={{ backgroundColor: cfg.color, borderRadius:12, paddingVertical:13, alignItems:'center', marginTop:14 }}
+                                    >
+                                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>✓ {lang==='tr' ? 'Onayla' : 'Apply'}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                </KeyboardAvoidingView>
+                            </View>
+                        </Modal>
 
                         {/* Bireysel Maçlar */}
                         {archiveSubTab === 'rivals' && (
