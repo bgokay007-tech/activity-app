@@ -23,6 +23,15 @@ router.post('/push-token', authenticate, async (req, res) => {
     res.json({ ok: true });
 });
 
+// Bildirimler ekranındaki "Sessize Al" butonu — uygulamanın merkezi bildirim kontrolü.
+// Belirli bir dal için bildirim açık olsa bile (CityAlert vb.) push bu moda göre teslim edilir.
+router.patch('/notification-mode', authenticate, async (req, res) => {
+    const { mode } = req.body;
+    if (!['MUTE', 'VIBRATE', 'SOUND'].includes(mode)) return res.status(400).json({ message: 'Geçersiz mod' });
+    await prisma.user.update({ where: { id: req.userId }, data: { notificationMode: mode } });
+    res.json({ ok: true, notificationMode: mode });
+});
+
 // Logging out should stop pushes to this device for this account —
 // otherwise a stale token keeps delivering pushes meant for an account
 // the device is no longer logged into (it would just switch to another user).

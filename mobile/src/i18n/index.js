@@ -1161,6 +1161,15 @@ const en = {
     notificationsTitle: 'Notifications',
     markAllReadBtn: 'Mark all read',
     noNotificationsText: 'No notifications yet',
+    muteBtn: 'Mute',
+    notificationModeTitle: 'Notification sound',
+    notificationMode_SOUND: 'Sound',
+    notificationModeDesc_SOUND: 'Plays sound and vibrates',
+    notificationMode_VIBRATE: 'Vibrate',
+    notificationModeDesc_VIBRATE: 'Vibrates only, no sound',
+    notificationMode_MUTE: 'Mute',
+    notificationModeDesc_MUTE: 'No sound or vibration, arrives silently',
+    notificationModeSaveError: 'Could not save notification mode',
 
     // Messages / Chat
     messagesTitle: 'Messages',
@@ -2688,6 +2697,15 @@ const tr = {
     notificationsTitle: 'Bildirimler',
     markAllReadBtn: 'Tümünü okundu işaretle',
     noNotificationsText: 'Henüz bildirim yok',
+    muteBtn: 'Sessize Al',
+    notificationModeTitle: 'Bildirim sesi',
+    notificationMode_SOUND: 'Sesli',
+    notificationModeDesc_SOUND: 'Ses çalar ve titreşir',
+    notificationMode_VIBRATE: 'Titreşimli',
+    notificationModeDesc_VIBRATE: 'Sadece titreşir, ses çalmaz',
+    notificationMode_MUTE: 'Sessiz',
+    notificationModeDesc_MUTE: 'Ses ve titreşim olmadan sessizce düşer',
+    notificationModeSaveError: 'Bildirim modu kaydedilemedi',
 
     // Messages / Chat
     messagesTitle: 'Mesajlar',

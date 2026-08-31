@@ -2,14 +2,20 @@ import prisma from '../config/prisma.js';
 import { emitToUser } from '../config/socket.js';
 import axios from 'axios';
 
-async function sendPush(pushToken, title, body, data = {}, priority = 'default') {
+// Bildirimler ekranındaki "Sessize Al" moduna göre Android bildirim kanalını ve sesi seçer —
+// kanallar mobil tarafta app açılışında (navigation/index.js) aynı id'lerle önceden kaydedilir.
+const CHANNEL_BY_MODE = { MUTE: 'silent', VIBRATE: 'vibrate', SOUND: 'default' };
+
+async function sendPush(pushToken, title, body, data = {}, priority = 'default', notificationMode = 'SOUND') {
     if (!pushToken?.startsWith('ExponentPushToken')) {
         console.warn('[push] invalid token:', pushToken?.substring(0, 30));
         return;
     }
     try {
         const res = await axios.post('https://exp.host/--/api/v2/push/send', {
-            to: pushToken, title, body, sound: 'default', data, priority,
+            to: pushToken, title, body, data, priority,
+            sound: notificationMode === 'SOUND' ? 'default' : null,
+            channelId: CHANNEL_BY_MODE[notificationMode] || 'default',
         }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
         const ticket = res.data?.data;
         if (ticket?.status === 'error') {
@@ -60,11 +66,11 @@ export async function createNotification(userId, type, title, body, data = {}, p
     try {
         const [notif, user] = await Promise.all([
             prisma.notification.create({ data: { userId, type, title, body, data } }),
-            prisma.user.findUnique({ where: { id: userId }, select: { pushToken: true } }),
+            prisma.user.findUnique({ where: { id: userId }, select: { pushToken: true, notificationMode: true } }),
         ]);
         emitToUser(userId, 'notification', notif);
         console.log(`[push] user=${userId} hasToken=${!!user?.pushToken}`);
-        if (user?.pushToken) sendPush(user.pushToken, title, body, { ...data, type }, priority);
+        if (user?.pushToken) sendPush(user.pushToken, title, body, { ...data, type }, priority, user.notificationMode);
         return notif;
     } catch { /* non-critical */ }
 }

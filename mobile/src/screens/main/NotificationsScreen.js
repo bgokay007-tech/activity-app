@@ -9,7 +9,11 @@ import { onSocket, getSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import { decrementUnread, clearUnread } from '../../store/slices/notificationSlice';
+import { setUser } from '../../store/slices/authSlice';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
+import NotificationModePickerModal from '../../components/NotificationModePickerModal';
+
+const MODE_ICON = { SOUND: '🔊', VIBRATE: '📳', MUTE: '🔇' };
 
 // "Okundu" işareti PATCH isteği, kullanıcı bildirime dokunduktan hemen sonra
 // uygulamayı kapatırsa yarıda kesilip sunucuya hiç ulaşmayabiliyordu — bu durumda
@@ -89,11 +93,25 @@ const TYPE_ICON = {
 export default function NotificationsScreen({ navigation }) {
     const t = useT();
     const dispatch = useDispatch();
-    const isBusiness = useSelector(s => s.auth.user?.isBusiness);
+    const user = useSelector(s => s.auth.user);
+    const isBusiness = user?.isBusiness;
+    const notificationMode = user?.notificationMode || 'SOUND';
     const lang = useSelector(s => s.lang?.lang || 'tr');
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [modePickerVisible, setModePickerVisible] = useState(false);
+
+    const changeNotificationMode = async (mode) => {
+        const prevMode = notificationMode;
+        dispatch(setUser({ ...user, notificationMode: mode })); // önce anında yansıt, sonra sunucuya gönder
+        try {
+            await api.patch('/auth/notification-mode', { mode });
+        } catch (e) {
+            dispatch(setUser({ ...user, notificationMode: prevMode }));
+            Alert.alert(t.error || 'Hata', e?.response?.data?.message || t.notificationModeSaveError);
+        }
+    };
 
     // Daha önce tamamlanamamış "okundu" isteklerini tekrar dener — bu, ekran her
     // yüklendiğinde (mount, focus, pull-to-refresh) çalışır ki hiçbir bekleyen
@@ -386,10 +404,23 @@ export default function NotificationsScreen({ navigation }) {
         <View style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.title}>{t.notificationsTitle}</Text>
-                <TouchableOpacity onPress={markAllRead} style={styles.markAllBtn}>
-                    <Text style={styles.markAllText}>{t.markAllReadBtn}</Text>
-                </TouchableOpacity>
+                <View style={styles.headerBtns}>
+                    <TouchableOpacity onPress={() => setModePickerVisible(true)} style={styles.muteBtn}>
+                        <Text style={styles.muteBtnText}>{MODE_ICON[notificationMode]} {t.muteBtn}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={markAllRead} style={styles.markAllBtn}>
+                        <Text style={styles.markAllText}>{t.markAllReadBtn}</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
+
+            <NotificationModePickerModal
+                visible={modePickerVisible}
+                onClose={() => setModePickerVisible(false)}
+                onSelect={changeNotificationMode}
+                currentValue={notificationMode}
+                t={t}
+            />
 
             {loading ? (
                 <ActivityIndicator color={colors.purple} style={{ marginTop: 40 }} />
@@ -416,6 +447,9 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg, paddingTop: 53 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 17, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
     title: { color: '#fff', fontSize: 22, fontWeight: '900' },
+    headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    muteBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: colors.border },
+    muteBtnText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
     markAllBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: colors.border },
     markAllText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
     item: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 17, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border + '40', gap: 3, position: 'relative' },

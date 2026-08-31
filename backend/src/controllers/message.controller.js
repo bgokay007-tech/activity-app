@@ -25,14 +25,19 @@ async function isConversationMuted(userId, conversationId) {
     return mute.mutedUntil === null || mute.mutedUntil > new Date();
 }
 
-async function sendPushNotification(pushToken, title, body) {
+// Bildirimler ekranındaki "Sessize Al" moduna göre Android bildirim kanalını ve sesi seçer —
+// kanallar mobil tarafta app açılışında (navigation/index.js) aynı id'lerle önceden kaydedilir.
+const CHANNEL_BY_MODE = { MUTE: 'silent', VIBRATE: 'vibrate', SOUND: 'default' };
+
+async function sendPushNotification(pushToken, title, body, notificationMode = 'SOUND') {
     if (!pushToken?.startsWith('ExponentPushToken')) return;
     try {
         await axios.post('https://exp.host/--/api/v2/push/send', {
             to: pushToken,
             title,
             body,
-            sound: 'default',
+            sound: notificationMode === 'SOUND' ? 'default' : null,
+            channelId: CHANNEL_BY_MODE[notificationMode] || 'default',
             data: { type: 'MESSAGE' },
         }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
     } catch { /* push failure is non-critical */ }
@@ -240,7 +245,7 @@ export const sendMessage = async (req, res, next) => {
                 },
             }),
             prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } }),
-            prisma.user.findUnique({ where: { id: receiverId }, select: { pushToken: true } }),
+            prisma.user.findUnique({ where: { id: receiverId }, select: { pushToken: true, notificationMode: true } }),
             isConversationMuted(receiverId, conv.id),
         ]);
 
@@ -262,7 +267,7 @@ export const sendMessage = async (req, res, next) => {
         const senderUsername = sender?.username;
 
         if (receiver?.pushToken) {
-            sendPushNotification(receiver.pushToken, `@${senderUsername}`, notifBody);
+            sendPushNotification(receiver.pushToken, `@${senderUsername}`, notifBody, receiver.notificationMode);
         }
 
         prisma.notification.create({

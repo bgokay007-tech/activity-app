@@ -147,6 +147,26 @@ Notifications.setNotificationHandler({
     }),
 });
 
+// Bildirimler ekranındaki "Sessize Al" modları (sessiz/titreşimli/sesli) Android'de ancak
+// ayrı kanallarla kesin olarak uygulanabiliyor — backend push gönderirken bu id'lerle
+// eşleşen channelId'yi seçiyor (bkz. notification.controller.js CHANNEL_BY_MODE). Kanal bir
+// kez oluşturulduktan sonra ses/titreşim ayarları OS tarafında sabitlenir, bu yüzden app her
+// açılışta idempotent şekilde yeniden kaydediyor (zaten varsa expo-notifications no-op geçer).
+if (Platform.OS === 'android') {
+    Notifications.setNotificationChannelAsync('default', {
+        name: 'Sesli', importance: Notifications.AndroidImportance.HIGH,
+        sound: 'default', vibrationPattern: [0, 250, 250, 250], enableVibrate: true,
+    }).catch(() => {});
+    Notifications.setNotificationChannelAsync('vibrate', {
+        name: 'Titreşimli', importance: Notifications.AndroidImportance.HIGH,
+        sound: null, vibrationPattern: [0, 250, 250, 250], enableVibrate: true,
+    }).catch(() => {});
+    Notifications.setNotificationChannelAsync('silent', {
+        name: 'Sessiz', importance: Notifications.AndroidImportance.LOW,
+        sound: null, enableVibrate: false,
+    }).catch(() => {});
+}
+
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import BusinessRegisterScreen from '../screens/auth/BusinessRegisterScreen';

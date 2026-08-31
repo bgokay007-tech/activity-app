@@ -86,6 +86,10 @@ model User {
   // oluşturma engellenir (bkz. venue.controller.js assertNotVenuePolicyBlocked).
   venuePolicyRejectionCount Int   @default(0)
   pushToken              String?
+  // Uygulamanın merkezi bildirim kontrolü — Bildirimler ekranındaki "Sessize Al" butonundan
+  // seçilir. MUTE: push sessiz+titreşimsiz düşer, VIBRATE: sadece titreşim, SOUND: normal ses.
+  // Belirli bir dal/kategori için bildirim açık olsa bile (CityAlert vb.) telefona bu moda göre düşer.
+  notificationMode       String   @default("SOUND")
   rivalJoinReqs    RivalJoinRequest[]
   notifications    Notification[]
   sentFriendReqs   Friendship[] @relation("friendshipSender")

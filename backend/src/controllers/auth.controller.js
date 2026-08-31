@@ -264,7 +264,7 @@ export const getMe = async (req, res, next) => {
                 id: true, email: true, phone: true, username: true,
                 fullName: true, avatar: true, bio: true, gender: true,
                 birthDate: true, createdAt: true, city: true, country: true,
-                isPublic: true, isAdmin: true,
+                isPublic: true, isAdmin: true, notificationMode: true,
                 isBusiness: true, businessName: true, taxNumber: true, businessAddress: true,
                 businessIban: true, businessIbanHolder: true,
                 profilePrivacy: true, profileExclude: true,
