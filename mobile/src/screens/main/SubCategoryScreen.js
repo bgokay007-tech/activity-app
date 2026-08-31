@@ -23187,7 +23187,15 @@ export default function SubCategoryScreen({ route, navigation }) {
                             ? [
                                 { key:'listings', label: t.coachesSubTab,  count: individualCoaches.length },
                                 { key:'courses',  label: t.coursesSubTab,  count: groupCourses.length },
-                                { key:'referees', label: t.refereesSubTab, count: refereeListings.length + refereeMatches.length },
+                                {
+                                    // Kullanıcı isteği: "Hakemler" sekmesi sayacı sadece gerçek/bookable
+                                    // hakem ilanlarını saysın — CV Yükle'den gelen "sadece CV" (profileOnly)
+                                    // kayıtlar henüz gerçek bir teklif olmadığı için (coach tarafındaki
+                                    // nonProfileOnlyCoaches ile aynı desen) buraya hiç dahil edilmemeliydi,
+                                    // önceden ham refereeListings.length kullanıldığı için CV Yükle sonrası
+                                    // admin onayından önce bile sayaç yanlışlıkla 1 gösteriyordu.
+                                    key:'referees', label: t.refereesSubTab, count: refereeListings.filter(r => !r.profileOnly).length + refereeMatches.length
+                                },
                                 { key:'cvs',      label: t.coachCvsTab,    count: coachesWithCv.length + refereesWithCv.length },
                               ]
                             : [
@@ -23353,13 +23361,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <>
                                                 <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                                                     {[
-                                                        { key:'coaches',  label:'Antrenörler' },
-                                                        { key:'referees', label:'Hakemler' },
+                                                        // Kullanıcı isteği: CV Yükle sonrası (onay bekliyor/onaylı fark etmeksizin)
+                                                        // sayaç "Hakemler"/"Antrenörler" ana sekmesinde değil, burada (CVler
+                                                        // içindeki Antrenörler/Hakemler alt-sekmesinde) görünsün.
+                                                        { key:'coaches',  label:'Antrenörler', count: coachesWithCv.length },
+                                                        { key:'referees', label:'Hakemler', count: refereesWithCv.length },
                                                         { key:'upload',   label:'CV Yükle' },
                                                     ].map(it => (
                                                         <TouchableOpacity key={it.key} onPress={() => setCvInnerTab(it.key)}
                                                             style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center', backgroundColor: cvInnerTab===it.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: cvInnerTab===it.key ? cfg.color : colors.border }}>
-                                                            <Text style={{ color: cvInnerTab===it.key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }}>{it.label}</Text>
+                                                            <Text style={{ color: cvInnerTab===it.key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }}>{it.label}{it.count != null ? ` (${it.count})` : ''}</Text>
                                                         </TouchableOpacity>
                                                     ))}
                                                 </View>
