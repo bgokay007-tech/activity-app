@@ -22,7 +22,11 @@ function fmtShort(d, t) {
     return `${d.getDate()} ${t.calMonths[d.getMonth()].slice(0, 3)}`;
 }
 
-export default function DateRangePickerModal({ visible, dateFrom, dateTo, onApply, onClose, quickOptions, activeQuick, onQuickSelect }) {
+// disableFuture: kullanıcı isteği — arşiv gibi GEÇMİŞ tarih filtrelerinde varsayılan
+// "geçmiş seçilemez" davranışı tam tersi olmalı (gelecek tarih seçilemez, geçmiş
+// serbest); mevcut 3 çağıran (Rakip Bul zaman filtresi, Medya/Gönderiler tarih
+// filtresi) hep gelecek tarih seçtiği için varsayılan davranış DEĞİŞMİYOR.
+export default function DateRangePickerModal({ visible, dateFrom, dateTo, onApply, onClose, quickOptions, activeQuick, onQuickSelect, disableFuture = false }) {
     const t = useT();
     const [from, setFrom] = useState(dateFrom || null);
     const [to, setTo] = useState(dateTo || null);
@@ -44,9 +48,17 @@ export default function DateRangePickerModal({ visible, dateFrom, dateTo, onAppl
 
     const today = new Date();
     const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const isPastDay = (d) => d && new Date(yr, mo, d) < todayMid;
-    const minBase = picking === 'to' && from ? from : todayMid;
-    const isBelowMin = (d) => d && new Date(yr, mo, d) < new Date(minBase.getFullYear(), minBase.getMonth(), minBase.getDate());
+    const isDisabledDay = (d) => {
+        if (!d) return true;
+        const cellDate = new Date(yr, mo, d);
+        if (disableFuture) {
+            if (cellDate > todayMid) return true;
+            if (picking === 'to' && from && cellDate < from) return true;
+            return false;
+        }
+        const minBase = picking === 'to' && from ? from : todayMid;
+        return cellDate < new Date(minBase.getFullYear(), minBase.getMonth(), minBase.getDate());
+    };
     const isSelected = (d) => {
         if (!d) return false;
         const cur = picking === 'from' ? from : to;
@@ -57,7 +69,7 @@ export default function DateRangePickerModal({ visible, dateFrom, dateTo, onAppl
     const nextMo = () => mo === 11 ? (setMo(0), setYr(y => y + 1)) : setMo(m => m + 1);
 
     const selectDay = (d) => {
-        if (!d || isPastDay(d)) return;
+        if (!d || isDisabledDay(d)) return;
         const picked = new Date(yr, mo, d);
         if (picking === 'from') {
             setFrom(picked);
@@ -117,7 +129,7 @@ export default function DateRangePickerModal({ visible, dateFrom, dateTo, onAppl
                     {Array.from({ length: cells.length / 7 }).map((_, w) => (
                         <View key={w} style={s.row}>
                             {cells.slice(w * 7, w * 7 + 7).map((d, i) => {
-                                const disabled = !d || isBelowMin(d);
+                                const disabled = isDisabledDay(d);
                                 return (
                                     <TouchableOpacity
                                         key={i}

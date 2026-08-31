@@ -25,7 +25,7 @@ async function expireStaleReservations() {
 export const getListings = async (req, res, next) => {
     try {
         await expireStaleReservations();
-        const { category, subCategory, condition, status, city, dateFrom, dateTo } = req.query;
+        const { category, subCategory, condition, status, city, dateFrom, dateTo, q } = req.query;
         const statusWhere = status === 'SOLD' ? { status: 'SOLD' } : { status: { in: ['ACTIVE', 'RESERVED'] } };
         // Kullanıcı isteği: Arşiv > Ekipmanlar sekmesi artık Arşiv'in diğer sekmeleriyle
         // (Bireysel Maçlar/Turnuvalar) aynı filtre formunu kullanıyor — konum ve tarih aralığı.
@@ -35,17 +35,27 @@ export const getListings = async (req, res, next) => {
             ...(dateFrom && { gte: new Date(dateFrom) }),
             ...(dateTo   && { lte: new Date(dateTo) }),
         };
+        // Kullanıcı isteği: anahtar kelime ile arama — başlık veya açıklamada geçen kelimeye
+        // göre filtrelenir. city ile aynı where objesinde iki ayrı OR anahtarı çakışacağı için
+        // (biri diğerini ezerdi) ikisi de AND dizisi içinde ayrı birer OR bloğu olarak taşınıyor.
+        const qTrim = q && q.trim();
         const listings = await prisma.equipmentListing.findMany({
             where: {
                 ...statusWhere,
                 ...(category    && { category }),
                 ...(subCategory && { subCategory }),
                 ...(condition   && { condition }),
-                ...(city && { OR: [
-                    { city:     { contains: city, mode: 'insensitive' } },
-                    { location: { contains: city, mode: 'insensitive' } },
-                ]}),
                 ...(Object.keys(dateFilter).length > 0 && { updatedAt: dateFilter }),
+                AND: [
+                    ...(city ? [{ OR: [
+                        { city:     { contains: city, mode: 'insensitive' } },
+                        { location: { contains: city, mode: 'insensitive' } },
+                    ] }] : []),
+                    ...(qTrim ? [{ OR: [
+                        { title:       { contains: qTrim, mode: 'insensitive' } },
+                        { description: { contains: qTrim, mode: 'insensitive' } },
+                    ] }] : []),
+                ],
             },
             include: {
                 user: { select: USER_SELECT },

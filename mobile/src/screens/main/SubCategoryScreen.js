@@ -19531,6 +19531,40 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [mediaComments, setMediaComments] = useState([]);
     const [mediaCommentText, setMediaCommentText] = useState('');
     const [sendingMediaComment, setSendingMediaComment] = useState(false);
+    // Kullanıcı isteği: medya yorumlarında da maç yorumlarındaki (MatchComment) aynı algoritma —
+    // silme (viewedBy ile "gören oldu mu" uyarısı), tek seviye yanıtlama (parentId) ve beğeni.
+    const [mediaReplyingTo, setMediaReplyingTo] = useState(null); // yanıt yazılan yorumun id'si
+
+    const toggleMediaCommentLike = async (commentId) => {
+        setMediaComments(prev => prev.map(c => c.id === commentId ? { ...c, isLiked: !c.isLiked, likeCount: (c.likeCount || 0) + (c.isLiked ? -1 : 1) } : c));
+        try {
+            await api.post(`/posts/comments/${commentId}/like`);
+        } catch {
+            setMediaComments(prev => prev.map(c => c.id === commentId ? { ...c, isLiked: !c.isLiked, likeCount: (c.likeCount || 0) + (c.isLiked ? -1 : 1) } : c));
+        }
+    };
+
+    const doDeleteMediaComment = async (commentId) => {
+        try {
+            await api.delete(`/posts/comments/${commentId}`);
+            setMediaComments(prev => prev.filter(c => c.id !== commentId && c.parentId !== commentId));
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Yorum silinemedi'); }
+    };
+    const deleteMediaComment = (comment) => {
+        const seenByOthers = Array.isArray(comment.viewedBy) ? comment.viewedBy.filter(uid => uid !== myId).length : 0;
+        if (seenByOthers > 0) {
+            Alert.alert(
+                'Bu yorum görüldü',
+                `Bu yorumu ${seenByOthers} kişi gördü. Yine de silmek istiyor musunuz?`,
+                [
+                    { text: 'Vazgeç', style: 'cancel' },
+                    { text: 'Yine de Sil', style: 'destructive', onPress: () => doDeleteMediaComment(comment.id) },
+                ]
+            );
+            return;
+        }
+        doDeleteMediaComment(comment.id);
+    };
     const [mediaCity, setMediaCity] = useState('');
     const [mediaTimeFilter, setMediaTimeFilter] = useState('ALL');
     const [mediaUsername, setMediaUsername] = useState('');
@@ -19650,6 +19684,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveCity, setArchiveCity] = useState('');
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
+    // Kullanıcı isteği: tarih aralığı artık elle "YYYY-AA-GG" yazılmıyor, takvimden
+    // (DateRangePickerModal) doğrudan seçiliyor — bkz. showArchiveFilterModal içindeki kullanım.
+    const [showArchiveDateRange, setShowArchiveDateRange] = useState(false);
     const [archiveSubTab, setArchiveSubTab] = useState(initialArchiveSubTab === 'tournaments' ? 'tournaments' : 'rivals');
     const [archiveDetailMatch, setArchiveDetailMatch] = useState(null);
     const [ratingSubject, setRatingSubject] = useState(null); // { userId, subCategory } — Voleybol oyuncu değerlendirme anketi (VolleyballRatingModal) hedefi
@@ -19697,6 +19734,16 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (archiveDateFrom || archiveDateTo) parts.push(`${archiveDateFrom || '…'}–${archiveDateTo || '…'}`);
         return parts.length ? parts.join(' · ') : (lang==='tr' ? 'Filtrele' : 'Filter');
     };
+    // Kullanıcı isteği: arşiv tarih aralığı artık DateRangePickerModal (takvim) ile seçiliyor —
+    // o bileşen Date nesnesiyle çalışıyor, archiveDateFrom/To ise API'ye "YYYY-AA-GG" string
+    // olarak gidiyor (dependency array'lerde de string olarak kullanılıyor) — sadece bu iki
+    // yardımcı ile aradaki dönüşüm yapılıyor, state'in kendi tipi değişmiyor.
+    const parseArchiveDate = (s) => {
+        if (!s) return null;
+        const [y, mo, d] = s.split('-').map(Number);
+        return (y && mo && d) ? new Date(y, mo - 1, d) : null;
+    };
+    const fmtArchiveDate = (d) => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : '';
     const [archiveTournaments, setArchiveTournaments] = useState([]);
     const [loadingArchiveTournaments, setLoadingArchiveTournaments] = useState(false);
     // Arşiv > Ekipmanlar (satılmış ilanlar) ve Hakemlik (hakemlik yapılan tamamlanmış maçlar)
@@ -22899,7 +22946,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {/* ── EKİPMAN ── */}
                     {activeTab === 'equipment' && (() => {
                         const filteredEquipment = equipmentListings.filter(eq => {
-                            if (equipmentSearch && !eq.title.toLowerCase().includes(equipmentSearch.toLowerCase())) return false;
+                            // Kullanıcı isteği: anahtar kelime araması sadece başlıkta değil,
+                            // açıklamada geçen kelimeye göre de eşleşsin.
+                            if (equipmentSearch) {
+                                const q = equipmentSearch.toLowerCase();
+                                const inTitle = eq.title.toLowerCase().includes(q);
+                                const inDesc  = (eq.description || '').toLowerCase().includes(q);
+                                if (!inTitle && !inDesc) return false;
+                            }
                             if (filterCity) {
                                 const city = filterCity.toLowerCase();
                                 const inLoc = (eq.location||'').toLowerCase().includes(city);
@@ -24913,23 +24967,17 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 </TouchableOpacity>
                                             ) : null}
                                         </View>
-                                        <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:18 }}>
-                                            <TextInput
-                                                value={archiveDateFrom}
-                                                onChangeText={setArchiveDateFrom}
-                                                placeholder="YYYY-AA-GG"
-                                                placeholderTextColor={colors.textMuted}
-                                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: archiveDateFrom ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
-                                            />
-                                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>—</Text>
-                                            <TextInput
-                                                value={archiveDateTo}
-                                                onChangeText={setArchiveDateTo}
-                                                placeholder="YYYY-AA-GG"
-                                                placeholderTextColor={colors.textMuted}
-                                                style={{ flex:1, backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: archiveDateTo ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
-                                            />
-                                        </View>
+                                        {/* Kullanıcı isteği: elle "YYYY-AA-GG" yazmak yerine dokununca takvim
+                                            (ajanda) açılıp başlangıç/bitiş doğrudan seçilsin. */}
+                                        <TouchableOpacity
+                                            onPress={() => setShowArchiveDateRange(true)}
+                                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: (archiveDateFrom || archiveDateTo) ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, marginBottom:18 }}
+                                        >
+                                            <Text style={{ color: (archiveDateFrom || archiveDateTo) ? '#fff' : colors.textMuted, fontSize:14, fontWeight:'700' }}>
+                                                {(archiveDateFrom || archiveDateTo) ? `${archiveDateFrom || '…'} — ${archiveDateTo || '…'}` : (lang==='tr' ? 'Tarih aralığı seç' : 'Select date range')}
+                                            </Text>
+                                            <Text style={{ fontSize:14 }}>📅</Text>
+                                        </TouchableOpacity>
                                     </ScrollView>
                                     <TouchableOpacity
                                         onPress={() => setShowArchiveFilterModal(false)}
@@ -24941,6 +24989,24 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </KeyboardAvoidingView>
                             </View>
                         </Modal>
+
+                        {/* Kullanıcı isteği: arşiv geçmiş maçları listelediği için (gelecekte arşiv
+                            kaydı olamaz) disableFuture ile bugünden sonraki tarihler değil bugünden
+                            ÖNCEKİ tarihler seçilebilir olmalı — DateRangePickerModal'ın diğer 3
+                            kullanımı (Rakip Bul/Medya/Gönderiler) tam tersini istiyor, o yüzden
+                            varsayılan davranış değiştirilmeden opt-in bir prop eklendi. */}
+                        <DateRangePickerModal
+                            visible={showArchiveDateRange}
+                            dateFrom={parseArchiveDate(archiveDateFrom)}
+                            dateTo={parseArchiveDate(archiveDateTo)}
+                            disableFuture
+                            onApply={(from, to) => {
+                                setArchiveDateFrom(fmtArchiveDate(from));
+                                setArchiveDateTo(fmtArchiveDate(to));
+                                setShowArchiveDateRange(false);
+                            }}
+                            onClose={() => setShowArchiveDateRange(false)}
+                        />
 
                         {/* Bireysel Maçlar */}
                         {archiveSubTab === 'rivals' && (
@@ -26813,11 +26879,11 @@ export default function SubCategoryScreen({ route, navigation }) {
             </Modal>
 
             {/* ── Media Viewer ── */}
-            <Modal visible={mediaViewIdx !== null} animationType="fade" transparent onRequestClose={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); }} android_keyboardInputMode="adjustNothing">
+            <Modal visible={mediaViewIdx !== null} animationType="fade" transparent onRequestClose={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaReplyingTo(null); }} android_keyboardInputMode="adjustNothing">
                 {/* Kullanıcı isteği: tam ekran medya telefonun üst/alt dokunmatik gezinme
                     çubuklarıyla çakışmasın diye insets kullanılıyor (bkz. ekran-guvenli-alan.md). */}
                 <View style={{ flex: 1, backgroundColor: '#000000ee', paddingTop: insets.top, paddingBottom: insets.bottom }}>
-                    <TouchableOpacity style={{ position: 'absolute', top: insets.top + 12, right: 20, zIndex: 10 }} onPress={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); }}>
+                    <TouchableOpacity style={{ position: 'absolute', top: insets.top + 12, right: 20, zIndex: 10 }} onPress={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaReplyingTo(null); }}>
                         <Text style={{ color: '#fff', fontSize: 28, fontWeight: '700' }}>✕</Text>
                     </TouchableOpacity>
                     {/* Kullanıcı isteği: yorum kutusuna dokununca klavye onu kapatıyordu (kullanıcı
@@ -26855,8 +26921,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                             if (!text) return;
                             setSendingMediaComment(true);
                             try {
-                                const { data } = await api.post(`/posts/${mp.id}/comment`, { content: text });
+                                const { data } = await api.post(`/posts/${mp.id}/comment`, { content: text, parentId: mediaReplyingTo || undefined });
                                 setMediaCommentText('');
+                                setMediaReplyingTo(null);
                                 setMediaComments(prev => [...prev, data]);
                                 // Kullanıcı isteği: yorum sayacı akış/gridde de ANINDA artsın.
                                 setMediaCommentCounts(prev => ({ ...prev, [mp.id]: (prev[mp.id] ?? (mp._count?.comments || 0)) + 1 }));
@@ -26915,42 +26982,84 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                 </View>
 
-                                {/* Inline comments */}
-                                {mediaShowComments && (
-                                    <View style={{ width: '90%', marginTop: 10, backgroundColor: '#00000060', borderRadius: 12, padding: 7, maxHeight: 180 }}>
-                                        <ScrollView style={{ maxHeight: 100 }} showsVerticalScrollIndicator={false}>
-                                            {mediaComments.map((c, i) => (
-                                                <View key={c.id || i} style={{ flexDirection: 'row', gap: 3, marginBottom: 5 }}>
-                                                    <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>{c.user?.username}</Text>
+                                {/* Inline comments — kullanıcı isteği: MatchComment ile aynı algoritma
+                                    (silme + "görüldü" uyarısı), tek seviye yanıtlama, beğeni, isme
+                                    dokununca profile gitme. */}
+                                {mediaShowComments && (() => {
+                                    const topLevel = mediaComments.filter(c => !c.parentId);
+                                    const repliesOf = (id) => mediaComments.filter(c => c.parentId === id);
+                                    const goToProfile = (userId) => userId && navigation.push('Profile', { userId });
+                                    const renderRow = (c, isReply) => {
+                                        const canDelete = c.userId === myId || mp.userId === myId;
+                                        return (
+                                            <View key={c.id} style={{ marginBottom: 6, marginLeft: isReply ? 18 : 0 }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 3 }}>
+                                                    <TouchableOpacity onPress={() => goToProfile(c.user?.id)}>
+                                                        <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>{c.user?.username}</Text>
+                                                    </TouchableOpacity>
                                                     <Text style={{ color: '#ffffffcc', fontSize: 12, flex: 1 }}>{c.content}</Text>
+                                                    {canDelete && (
+                                                        <TouchableOpacity onPress={() => deleteMediaComment(c)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                                                            <Text style={{ color: '#f87171', fontSize: 12 }}>✕</Text>
+                                                        </TouchableOpacity>
+                                                    )}
                                                 </View>
-                                            ))}
-                                        </ScrollView>
-                                        <View style={{ flexDirection: 'row', gap: 3, marginTop: 6 }}>
-                                            <TextInput
-                                                style={{ flex: 1, backgroundColor: '#ffffff15', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: '#ffffff30' }}
-                                                placeholder="Yorum yaz..."
-                                                placeholderTextColor="#ffffff50"
-                                                value={mediaCommentText}
-                                                onChangeText={setMediaCommentText}
-                                            />
-                                            <TouchableOpacity onPress={sendMediaComment} disabled={sendingMediaComment || !mediaCommentText.trim()}
-                                                style={{ backgroundColor: cfg.color, borderRadius: 8, paddingHorizontal: 11, justifyContent: 'center', opacity: !mediaCommentText.trim() ? 0.4 : 1 }}>
-                                                <Text style={{ color: '#fff', fontWeight: '900', fontSize: 14 }}>{sendingMediaComment ? '…' : '↑'}</Text>
-                                            </TouchableOpacity>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 }}>
+                                                    <TouchableOpacity onPress={() => toggleMediaCommentLike(c.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                                                        <Text style={{ color: c.isLiked ? '#f43f5e' : '#ffffff70', fontSize: 12 }}>{c.isLiked ? '♥' : '♡'}</Text>
+                                                        {c.likeCount > 0 && <Text style={{ color: '#ffffff70', fontSize: 10, fontWeight: '700' }}>{c.likeCount}</Text>}
+                                                    </TouchableOpacity>
+                                                    {!isReply && (
+                                                        <TouchableOpacity onPress={() => setMediaReplyingTo(c.id)}>
+                                                            <Text style={{ color: '#ffffff70', fontSize: 10, fontWeight: '700' }}>Yanıtla</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
+                                                {repliesOf(c.id).map(r => renderRow(r, true))}
+                                            </View>
+                                        );
+                                    };
+                                    return (
+                                        <View style={{ width: '90%', marginTop: 10, backgroundColor: '#00000060', borderRadius: 12, padding: 7, maxHeight: 260 }}>
+                                            <ScrollView style={{ maxHeight: 180 }} showsVerticalScrollIndicator={false}>
+                                                {topLevel.map(c => renderRow(c, false))}
+                                            </ScrollView>
+                                            {mediaReplyingTo && (
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 3 }}>
+                                                    <Text style={{ color: '#ffffff80', fontSize: 11 }}>
+                                                        Yanıtlanıyor: {mediaComments.find(c => c.id === mediaReplyingTo)?.user?.username}
+                                                    </Text>
+                                                    <TouchableOpacity onPress={() => setMediaReplyingTo(null)}>
+                                                        <Text style={{ color: '#ffffff80', fontSize: 11, fontWeight: '700' }}>✕ Vazgeç</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            )}
+                                            <View style={{ flexDirection: 'row', gap: 3, marginTop: 6 }}>
+                                                <TextInput
+                                                    style={{ flex: 1, backgroundColor: '#ffffff15', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: '#ffffff30' }}
+                                                    placeholder={mediaReplyingTo ? 'Yanıt yaz...' : 'Yorum yaz...'}
+                                                    placeholderTextColor="#ffffff50"
+                                                    value={mediaCommentText}
+                                                    onChangeText={setMediaCommentText}
+                                                />
+                                                <TouchableOpacity onPress={sendMediaComment} disabled={sendingMediaComment || !mediaCommentText.trim()}
+                                                    style={{ backgroundColor: cfg.color, borderRadius: 8, paddingHorizontal: 11, justifyContent: 'center', opacity: !mediaCommentText.trim() ? 0.4 : 1 }}>
+                                                    <Text style={{ color: '#fff', fontWeight: '900', fontSize: 14 }}>{sendingMediaComment ? '…' : '↑'}</Text>
+                                                </TouchableOpacity>
+                                            </View>
                                         </View>
-                                    </View>
-                                )}
+                                    );
+                                })()}
 
                                 {/* Prev/Next nav */}
                                 <View style={{ flexDirection: 'row', gap: 3, marginTop: 16 }}>
                                     {mediaViewIdx > 0 && (
-                                        <TouchableOpacity style={s.storyNavBtn} onPress={() => { setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaViewIdx(i => i - 1); }}>
+                                        <TouchableOpacity style={s.storyNavBtn} onPress={() => { setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaReplyingTo(null); setMediaViewIdx(i => i - 1); }}>
                                             <Text style={{ color: '#fff', fontWeight: '700' }}>‹ Önceki</Text>
                                         </TouchableOpacity>
                                     )}
                                     {mediaViewIdx < mediaPosts.length - 1 && (
-                                        <TouchableOpacity style={s.storyNavBtn} onPress={() => { setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaViewIdx(i => i + 1); }}>
+                                        <TouchableOpacity style={s.storyNavBtn} onPress={() => { setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaReplyingTo(null); setMediaViewIdx(i => i + 1); }}>
                                             <Text style={{ color: '#fff', fontWeight: '700' }}>Sonraki ›</Text>
                                         </TouchableOpacity>
                                     )}

@@ -902,7 +902,7 @@ const en = {
     'surfaceHALI_SAHA': 'Turf', 'surfaceCIM_SAHA': 'Grass', surfaceFUTSAL: 'Futsal', surfaceSOKAK: 'Street', surfaceBEACH: 'Beach',
 
     // Equipment
-    postListingBtn: '+ List Item', equipSearchPh: 'Search product name...', equipCityPh: 'City / Location',
+    postListingBtn: '+ List Item', equipSearchPh: 'Search product name or description...', equipCityPh: 'City / Location',
     equipActiveTab: 'Active', equipSoldTab: 'Sold',
     equipChatBtn: '💬 Chat', equipSendOfferBtn: '💰 Send Offer',
     equipOfferPricePh: 'Your offer (₺)', equipOfferMsgPh: 'Add a note (optional)', equipOfferSendBtn: 'Send Offer',
@@ -1298,6 +1298,7 @@ const en = {
     vsSuggestDistrictPh: 'District (optional)',
     vsSuggestAddressPh: 'Full Address',
     vsSuggestPhonePh: 'Phone Number',
+    vsSuggestWebsitePh: 'Website / Online Booking Link (optional)',
     vsSuggestCourtCountPh: 'Number of Courts',
     vsSuggestDaysLabel: 'Working Days',
     vsSuggestHoursLabel: 'Working Hours',
@@ -1331,6 +1332,7 @@ const en = {
     vsCallBtn: 'Call',
     vsWhatsappBtn: 'Message on WhatsApp',
     vsPhoneActionsCancel: 'Cancel',
+    vsWebsiteBtn: 'Online Booking',
     vsStartTimeLabel: 'Enter Start Time',
     vsBetween: (s, e) => `(between ${s} – ${e})`,
     vsDurationLabel: 'Select Duration',
@@ -2438,7 +2440,7 @@ const tr = {
     'surfaceHALI_SAHA': 'Halı Saha', 'surfaceCIM_SAHA': 'Çim Saha', surfaceFUTSAL: 'Futsal', surfaceSOKAK: 'Sokak', surfaceBEACH: 'Plaj',
 
     // Equipment
-    postListingBtn: '+ İlan Ver', equipSearchPh: 'Ürün adı ara...', equipCityPh: 'İl / Konum',
+    postListingBtn: '+ İlan Ver', equipSearchPh: 'Ürün adı veya açıklamada ara...', equipCityPh: 'İl / Konum',
     equipActiveTab: 'Aktif', equipSoldTab: 'Satılanlar',
     equipChatBtn: '💬 Sohbet Aç', equipSendOfferBtn: '💰 Teklif Gönder',
     equipOfferPricePh: 'Teklifiniz (₺)', equipOfferMsgPh: 'Not ekle (isteğe bağlı)', equipOfferSendBtn: 'Teklifi Gönder',
@@ -2831,6 +2833,7 @@ const tr = {
     vsSuggestDistrictPh: 'İlçe (opsiyonel)',
     vsSuggestAddressPh: 'Açık Adres',
     vsSuggestPhonePh: 'Telefon Numarası',
+    vsSuggestWebsitePh: 'Web Sitesi / Online Rezervasyon Linki (opsiyonel)',
     vsSuggestCourtCountPh: 'Kaç Kort/Saha Var?',
     vsSuggestDaysLabel: 'Çalışma Günleri',
     vsSuggestHoursLabel: 'Çalışma Saatleri',
@@ -2864,6 +2867,7 @@ const tr = {
     vsCallBtn: 'Ara',
     vsWhatsappBtn: "WhatsApp'tan Yaz",
     vsPhoneActionsCancel: 'İptal',
+    vsWebsiteBtn: 'Online Rezervasyon',
     vsStartTimeLabel: 'Başlangıç Saatini Girin',
     vsBetween: (s, e) => `(${s} – ${e} arası)`,
     vsDurationLabel: 'Süre Seçin',
