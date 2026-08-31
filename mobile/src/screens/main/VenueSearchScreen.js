@@ -26,6 +26,31 @@ function formatDateLabel(dateStr, locale = 'tr-TR') {
     return d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+// Kullanıcı isteği: işletme olmayan (isProVenue===false / topluluk) tesislerde gösterilen
+// telefon numarasına dokununca "Ara" / "WhatsApp'tan Yaz" seçenekleri çıksın — hem tesis
+// kartında hem detay sayfasında AYNI davranış. whatsappNumber verilmezse (dala özel bir
+// contactLinks.whatsapp yoksa) telefon numarası WhatsApp için de kullanılır — detay
+// sayfasındaki mevcut whatsappV/callV fallback zinciriyle aynı desen.
+function openPhoneActions(t, phone, whatsappNumber) {
+    const wa = whatsappNumber || phone;
+    if (!phone && !wa) return;
+    const options = [];
+    if (phone) {
+        options.push({ text: `📞 ${t.vsCallBtn}`, onPress: () => Linking.openURL(`tel:${phone}`) });
+    }
+    if (wa) {
+        options.push({
+            text: `💬 ${t.vsWhatsappBtn}`,
+            onPress: () => {
+                const digits = wa.replace(/\D/g, '');
+                Linking.openURL(`https://wa.me/${digits.startsWith('0') ? '90' + digits.slice(1) : digits}`);
+            },
+        });
+    }
+    options.push({ text: t.vsPhoneActionsCancel, style: 'cancel' });
+    Alert.alert('', phone || wa, options);
+}
+
 const DATE_OPTIONS = Array.from({ length: 14 }, (_, i) => getDateStr(i));
 const SURFACE_OPTIONS = ['HARD', 'CLAY', 'GRASS', 'CARPET', 'ARTIFICIAL'];
 const DAY_ITEMS = [
@@ -417,7 +442,11 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
             <View style={bm.overlay}>
-                <View style={[bm.sheet, { paddingBottom: (Platform.OS === 'ios' ? 24 : 12) + insets.bottom }]}>
+                {/* Kullanıcı isteği: tesis detayının üst kısmı telefonun çentik/durum çubuğu
+                    göstergeleriyle çakışıyordu — sabit paddingTop yerine useSafeAreaInsets'ten
+                    gelen gerçek üst boşluk kullanılıyor (paddingBottom'daki insets.bottom ile
+                    aynı desen). */}
+                <View style={[bm.sheet, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 50 : 28), paddingBottom: (Platform.OS === 'ios' ? 24 : 12) + insets.bottom }]}>
                     {/* Header */}
                     <View style={bm.header}>
                         <View style={{ flex: 1 }}>
@@ -478,16 +507,12 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                         <View style={bm.tag}><Text style={bm.tagText}>📅 {venueSlotChip(venue, t)}</Text></View>
                                     </>
                                 )}
-                                {venue.phone ? <View style={bm.tag}><Text style={bm.tagText}>📞 {venue.phone}</Text></View> : null}
-                                {whatsappV ? (
-                                    <TouchableOpacity style={bm.tag}
-                                        onPress={() => { const d = whatsappV.replace(/\D/g,''); Linking.openURL(`https://wa.me/${d.startsWith('0') ? '90'+d.slice(1) : d}`); }}>
-                                        <Text style={bm.tagText}>💬</Text>
-                                    </TouchableOpacity>
-                                ) : null}
-                                {callV ? (
-                                    <TouchableOpacity style={bm.tag} onPress={() => Linking.openURL(`tel:${callV}`)}>
-                                        <Text style={bm.tagText}>📲</Text>
+                                {/* Kullanıcı isteği: telefon numarasına dokununca "Ara"/"WhatsApp'tan
+                                    Yaz" seçenekleri çıksın — eskiden ayrı bir statik 📞 etiketi +
+                                    ayrı 💬/📲 ikon butonları vardı, artık tek dokunulabilir etiket. */}
+                                {(venue.phone || whatsappV) ? (
+                                    <TouchableOpacity style={bm.tag} onPress={() => openPhoneActions(t, callV, whatsappV)}>
+                                        <Text style={bm.tagText}>📞 {venue.phone || whatsappV}</Text>
                                     </TouchableOpacity>
                                 ) : null}
                                 {/* Kullanıcı isteği: eksik/hatalı tesis bilgisini (isim, şehir, ilçe, adres,
@@ -853,7 +878,9 @@ function VenueCard({ venue, onPress }) {
             </View>
             {venue.address ? <Text style={s.cardAddr}>📍 {venue.address}</Text> : null}
             {venue.isProVenue === false && venue.phone ? (
-                <Text style={[s.cardAddr, { color: colors.purple }]}>📞 {venue.phone}</Text>
+                <TouchableOpacity onPress={() => openPhoneActions(t, venue.phone, venue.contactLinks?.whatsapp || venue.phone)}>
+                    <Text style={[s.cardAddr, { color: colors.purple }]}>📞 {venue.phone}</Text>
+                </TouchableOpacity>
             ) : null}
         </TouchableOpacity>
     );
@@ -1313,7 +1340,11 @@ export default function VenueSearchScreen({ navigation, route }) {
                                     <View style={[s.tag, { backgroundColor: '#f59e0b20', borderColor: '#f59e0b50', alignSelf: 'flex-start', marginTop: 6 }]}>
                                         <Text style={[s.tagText, { color: '#f59e0b' }]}>📵 {t.vsNotBookableTag}</Text>
                                     </View>
-                                    {item.venue.phone ? <Text style={[s.availResultCity, { color: colors.purple, marginTop: 4 }]}>📞 {item.venue.phone}</Text> : null}
+                                    {item.venue.phone ? (
+                                        <TouchableOpacity onPress={() => openPhoneActions(t, item.venue.phone, item.venue.contactLinks?.whatsapp || item.venue.phone)}>
+                                            <Text style={[s.availResultCity, { color: colors.purple, marginTop: 4 }]}>📞 {item.venue.phone}</Text>
+                                        </TouchableOpacity>
+                                    ) : null}
                                     {item.venue.address ? <Text style={s.availResultCity}>📍 {item.venue.address}</Text> : null}
                                     <Text style={[s.availResultCourt, { marginTop: 6 }]}>{t.vsApproxDatesLabel}</Text>
                                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 3 }}>
