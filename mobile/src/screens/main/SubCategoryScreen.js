@@ -793,9 +793,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [matchMediaViewIdx, setMatchMediaViewIdx] = useState(null);
     const matchMediaViewUrl = (matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && !matchMediaList[matchMediaViewIdx].imageUrl)
         ? matchMediaList[matchMediaViewIdx].videoUrl : null;
-    const matchMediaViewPlayer = useVideoPlayer(matchMediaViewUrl, (p) => {
-        if (matchMediaViewUrl) { p.loop = false; p.play(); }
-    });
+    // Kullanıcı raporu: "hala oynatmıyor" — useVideoPlayer'ın setup callback'i SADECE player
+    // ilk oluşturulduğunda bir kez çalışıyor, source sonradan değişince player kendiliğinden
+    // yeni kaynağı yüklemiyor (expo-video: "the setup callback runs only once during player
+    // creation"). Source değişikliği ayrı bir efektte replaceAsync ile elle uygulanmalı.
+    const matchMediaViewPlayer = useVideoPlayer(null);
+    useEffect(() => {
+        if (matchMediaViewUrl) {
+            matchMediaViewPlayer.replaceAsync(matchMediaViewUrl).then(() => matchMediaViewPlayer.play()).catch(() => {});
+        } else {
+            matchMediaViewPlayer.pause();
+        }
+    }, [matchMediaViewUrl]);
     const loadMatchMedia = () => {
         if (!item?.id) return;
         setLoadingMatchMedia(true);
@@ -5297,9 +5306,18 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [matchMediaViewIdx, setMatchMediaViewIdx] = useState(null);
     const matchMediaViewUrl = (matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && !matchMediaList[matchMediaViewIdx].imageUrl)
         ? matchMediaList[matchMediaViewIdx].videoUrl : null;
-    const matchMediaViewPlayer = useVideoPlayer(matchMediaViewUrl, (p) => {
-        if (matchMediaViewUrl) { p.loop = false; p.play(); }
-    });
+    // Kullanıcı raporu: "hala oynatmıyor" — useVideoPlayer'ın setup callback'i SADECE player
+    // ilk oluşturulduğunda bir kez çalışıyor, source sonradan değişince player kendiliğinden
+    // yeni kaynağı yüklemiyor (expo-video: "the setup callback runs only once during player
+    // creation"). Source değişikliği ayrı bir efektte replaceAsync ile elle uygulanmalı.
+    const matchMediaViewPlayer = useVideoPlayer(null);
+    useEffect(() => {
+        if (matchMediaViewUrl) {
+            matchMediaViewPlayer.replaceAsync(matchMediaViewUrl).then(() => matchMediaViewPlayer.play()).catch(() => {});
+        } else {
+            matchMediaViewPlayer.pause();
+        }
+    }, [matchMediaViewUrl]);
     useEffect(() => {
         setLoadingMatchMedia(true);
         api.get(`/posts?rivalId=${match.id}`)
@@ -19265,9 +19283,19 @@ export default function SubCategoryScreen({ route, navigation }) {
     // aynı desen). mediaViewIdx null'a dönünce videoUrl de null olur, oynatıcı otomatik durur.
     const mediaViewVideoUrl = (mediaViewIdx !== null && mediaPosts[mediaViewIdx] && !mediaPosts[mediaViewIdx].imageUrl)
         ? mediaPosts[mediaViewIdx].videoUrl : null;
-    const mediaViewPlayer = useVideoPlayer(mediaViewVideoUrl, (p) => {
-        if (mediaViewVideoUrl) { p.loop = false; p.play(); }
-    });
+    // Kullanıcı raporu: "hala oynatmıyor" — useVideoPlayer'ın setup callback'i SADECE player
+    // ilk oluşturulduğunda (component mount olurken, source hâlâ null iken) bir kez çalışıyor;
+    // source sonradan değişse bile player kendiliğinden yeni kaynağı yüklemiyor (expo-video
+    // dokümantasyonu: "the setup callback runs only once during player creation"). Bu yüzden
+    // source değişikliğini ayrı bir efektte replaceAsync ile elle uygulamak gerekiyor.
+    const mediaViewPlayer = useVideoPlayer(null);
+    useEffect(() => {
+        if (mediaViewVideoUrl) {
+            mediaViewPlayer.replaceAsync(mediaViewVideoUrl).then(() => mediaViewPlayer.play()).catch(() => {});
+        } else {
+            mediaViewPlayer.pause();
+        }
+    }, [mediaViewVideoUrl]);
     // Kullanıcı isteği: skor girişinden bir maça bağlı (rivalId) paylaşılan medyaya tam ekranda
     // dokununca altında o maçın detayı (skor/takımlar) gösterilsin — postId bazında cache'lenir,
     // aynı maça bağlı birden fazla medyada tekrar tekrar istek atılmasın.
