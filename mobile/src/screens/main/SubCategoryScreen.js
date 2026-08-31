@@ -24778,28 +24778,29 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {/* ── ARCHIVE ── */}
                     {activeTab === 'archive' && (
                         <>
-                        {/* Sub-tabs */}
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:10 }}>
-                            <View style={{ flexDirection:'row', gap:3 }}>
-                                {/* Kullanıcı isteği: "Hakemlik" sekmesi sadece admin tarafından onaylanmış
-                                    hakemlere görünsün — onaysız/hiç hakemlik yapmamış kullanıcıda hiç çıkmaz. */}
-                                {['rivals','tournaments','equipment', ...(refereeApproved ? ['referee'] : [])].map(st => (
-                                    <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
-                                        style={{ paddingVertical:4, paddingHorizontal:12, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? cfg.color : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? cfg.color : colors.border }}>
-                                        <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                            {st === 'rivals' ? 'Bireysel Maçlar' : st === 'tournaments' ? 'Turnuvalar' : st === 'equipment' ? 'Ekipmanlar' : 'Hakemlik'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </ScrollView>
-                        {/* Kullanıcı isteği: Rakip Bul'daki gibi konum+tarih filtresi artık ayrı ayrı
-                            görünen alanlar değil, sağda tek bir butonla açılan tek bir form
-                            (bkz. showArchiveFilterModal). */}
-                        <View style={{ flexDirection:'row', justifyContent:'flex-end', marginBottom:8 }}>
+                        {/* Sub-tabs + filtre — kullanıcı isteği: Filtrele butonu alt satıra kaymasın,
+                            gerekirse sekme butonları daralarak aynı satıra sığsın. */}
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:10 }}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex:1 }}>
+                                <View style={{ flexDirection:'row', gap:3 }}>
+                                    {/* Kullanıcı isteği: "Hakemlik" sekmesi sadece admin tarafından onaylanmış
+                                        hakemlere görünsün — onaysız/hiç hakemlik yapmamış kullanıcıda hiç çıkmaz. */}
+                                    {['rivals','tournaments','equipment', ...(refereeApproved ? ['referee'] : [])].map(st => (
+                                        <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
+                                            style={{ paddingVertical:4, paddingHorizontal:8, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? cfg.color : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? cfg.color : colors.border }}>
+                                            <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>
+                                                {st === 'rivals' ? 'Bireysel Maçlar' : st === 'tournaments' ? 'Turnuvalar' : st === 'equipment' ? 'Ekipmanlar' : 'Hakemlik'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </ScrollView>
+                            {/* Kullanıcı isteği: Rakip Bul'daki gibi konum+tarih filtresi artık ayrı ayrı
+                                görünen alanlar değil, sağda tek bir butonla açılan tek bir form
+                                (bkz. showArchiveFilterModal). */}
                             <TouchableOpacity
                                 onPress={() => setShowArchiveFilterModal(true)}
-                                style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, backgroundColor: (archiveCity || archiveDateFrom || archiveDateTo) ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:8, borderWidth:1, borderColor: (archiveCity || archiveDateFrom || archiveDateTo) ? cfg.color : colors.border }}
+                                style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, flexShrink:0, backgroundColor: (archiveCity || archiveDateFrom || archiveDateTo) ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:7, borderWidth:1, borderColor: (archiveCity || archiveDateFrom || archiveDateTo) ? cfg.color : colors.border }}
                             >
                                 <Text style={{ color: (archiveCity || archiveDateFrom || archiveDateTo) ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                     🔍 {archiveFilterSummaryLabel()}
