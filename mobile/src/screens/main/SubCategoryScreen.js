@@ -19043,7 +19043,7 @@ function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
 // Kullanıcı isteği: tenis/padel/badminton/masa tenisi/voleybol dallarında ELO (derece) puan
 // sıralaması — yerel (şehir)/ulusal (ülke)/uluslararası (herkes) 3 sekme, kendi sırası ayrıca
 // vurgulanır. Header'daki ℹ️ ile 🃏 (varsa) arasına konan yeni bir butonla açılır.
-function LeaderboardModal({ visible, onClose, cfg, sub }) {
+function LeaderboardModal({ visible, onClose, cfg, sub, onUserPress }) {
     const [scope, setScope] = useState('international'); // local | national | international
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState(null);
@@ -19090,7 +19090,8 @@ function LeaderboardModal({ visible, onClose, cfg, sub }) {
                     ) : (
                         <ScrollView style={{ paddingHorizontal:14 }} showsVerticalScrollIndicator={false}>
                             {data.list.map(row => (
-                                <View key={row.userId} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:9, borderBottomWidth:1, borderBottomColor: colors.border, backgroundColor: row.isMe ? cfg.color+'15' : 'transparent', borderRadius: row.isMe ? 8 : 0, paddingHorizontal: row.isMe ? 6 : 0 }}>
+                                <TouchableOpacity key={row.userId} onPress={() => onUserPress && onUserPress(row.userId)}
+                                    style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:9, borderBottomWidth:1, borderBottomColor: colors.border, backgroundColor: row.isMe ? cfg.color+'15' : 'transparent', borderRadius: row.isMe ? 8 : 0, paddingHorizontal: row.isMe ? 6 : 0 }}>
                                     <Text style={{ color: row.rank <= 3 ? '#fbbf24' : colors.textMuted, fontSize:14, fontWeight:'900', width:28 }}>
                                         {row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : `#${row.rank}`}
                                     </Text>
@@ -19099,7 +19100,7 @@ function LeaderboardModal({ visible, onClose, cfg, sub }) {
                                         {row.fullName || row.username}{row.isMe ? ' (Sen)' : ''}
                                     </Text>
                                     <Text style={{ color: cfg.color, fontSize:14, fontWeight:'900' }}>{row.skillRating != null ? row.skillRating.toFixed(2) : '—'} ★</Text>
-                                </View>
+                                </TouchableOpacity>
                             ))}
                         </ScrollView>
                     )}
@@ -22555,35 +22556,35 @@ export default function SubCategoryScreen({ route, navigation }) {
                 ) : (
                     <Text style={s.title}>{cfg.emoji} {sportDisplayName}</Text>
                 )}
-                {(sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'volleyball') && (
+                {(sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'volleyball') ? (
                     <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                        {(sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis') && (
-                            <TouchableOpacity onPress={() => setShowVenuesSheet(true)}
-                                style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
-                                <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{lang === 'tr' ? 'Kortlar' : 'Courts'}</Text>
-                            </TouchableOpacity>
-                        )}
-                        {/* Kullanıcı isteği: voleybolde de (tenis/padel'deki gibi) sağ üstte bir İ butonu —
-                            tıklanınca puan sistemi + kadro/ceza kurallarını anlatan modal açılsın. */}
-                        <TouchableOpacity onPress={() => setShowRatingInfo(true)}>
-                            <Text style={{ fontSize:19 }}>ℹ️</Text>
-                        </TouchableOpacity>
-                        {/* Kullanıcı isteği: tenis/padel/badminton/masa tenisi/voleybolde ELO
-                            (derece) puan sıralaması — bilgilendirme (ℹ️) ile digimon kart (🃏,
-                            sadece tenis) arasına yerleştirildi. */}
+                        {/* Kullanıcı isteği: sıralama şu düzende olsun — kupa (sıralama), digimon
+                            kart (günün yıldızı), kortlar/salonlar, en sonda bilgilendirme (ℹ️). */}
                         <TouchableOpacity onPress={() => setShowLeaderboard(true)}>
                             <Text style={{ fontSize:19 }}>🏆</Text>
                         </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setShowSpotlight(true)}>
+                            <Text style={{ fontSize:21 }}>🃏</Text>
+                        </TouchableOpacity>
+                        {/* Kullanıcı isteği: voleybolde de kortlar butonu görünsün, sadece etiketi
+                            "Salonlar" olsun (kort değil salon aranıyor). */}
+                        <TouchableOpacity onPress={() => setShowVenuesSheet(true)}
+                            style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
+                            <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{sub === 'volleyball' ? (lang === 'tr' ? 'Salonlar' : 'Halls') : (lang === 'tr' ? 'Kortlar' : 'Courts')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setShowRatingInfo(true)}>
+                            <Text style={{ fontSize:19 }}>ℹ️</Text>
+                        </TouchableOpacity>
                     </View>
+                ) : (
+                    /* Kullanıcı isteği: "Günün Yıldızı" digimon kart butonu (🃏) sıralama grubu
+                        olmayan spor dallarında da tek başına sağ üstte görünmeye devam ediyor —
+                        algoritma/veri tenisle birebir aynı (bkz. TennisSpotlightModal, backend
+                        spotlight.controller.js zaten subCategory'ye göre generic çalışıyor). */
+                    <TouchableOpacity onPress={() => setShowSpotlight(true)}>
+                        <Text style={{ fontSize:21 }}>🃏</Text>
+                    </TouchableOpacity>
                 )}
-                {/* Kullanıcı isteği: "Günün Yıldızı" digimon kart butonu (🃏) artık sadece
-                    tenis'te değil, TÜM spor dallarında (sıralama butonu olsun olmasın) sağ üst
-                    köşede görünüyor — sıralama (🏆) butonu varsa hemen sağında, yoksa başlığın
-                    hemen sağında; algoritma/veri tenisle birebir aynı (bkz. TennisSpotlightModal,
-                    backend spotlight.controller.js zaten subCategory'ye göre generic çalışıyor). */}
-                <TouchableOpacity onPress={() => setShowSpotlight(true)}>
-                    <Text style={{ fontSize:21 }}>🃏</Text>
-                </TouchableOpacity>
             </View>
 
             {/* Tabs */}
@@ -26786,7 +26787,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         </View>
         <TennisSpotlightModal visible={showSpotlight} onClose={() => setShowSpotlight(false)} cfg={cfg} sub={sub} />
         <RatingInfoModal visible={showRatingInfo} onClose={() => setShowRatingInfo(false)} cfg={cfg} sub={sub} />
-        <LeaderboardModal visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} cfg={cfg} sub={sub} />
+        <LeaderboardModal visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} cfg={cfg} sub={sub} onUserPress={setProfileUserId} />
 
         {/* Kalbe uzun basınca beğenenler listesi (bkz. openLikersModal) — medya feed kartı ve
             tam ekran görüntüleyici paylaşıyor. Görünürlük backend'de zaten kullanıcının
