@@ -19587,6 +19587,15 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [newsDateFrom, setNewsDateFrom] = useState('');
     const [newsDateTo, setNewsDateTo] = useState('');
     const [showNewsFilterModal, setShowNewsFilterModal] = useState(false);
+    // Kullanıcı isteği: Haberler'den Arşiv/Bilet Al/Rakip Bul vb. başka bir sekmeye geçilince
+    // haber filtresi (anahtar kelime + tarih aralığı) otomatik sıfırlansın.
+    useEffect(() => {
+        if (activeTab !== 'news') {
+            setNewsKeyword('');
+            setNewsDateFrom('');
+            setNewsDateTo('');
+        }
+    }, [activeTab]);
     const [trails, setTrails] = useState([]);
     const [loadingTrails, setLoadingTrails] = useState(false);
     const [trailsLoaded, setTrailsLoaded] = useState(false);
