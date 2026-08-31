@@ -11,6 +11,20 @@ const SPORT_CLASSIFICATION = {
     volleyball: 'volleyball',
 };
 
+// Kullanıcı isteği: şehir filtresi Ticketmaster'a olduğu gibi gönderiliyordu — "Antalya merkez"
+// gibi kullanıcının kendi yazdığı bir değer Ticketmaster'ın venue veritabanındaki tam şehir
+// adıyla (ör. "Antalya", Türkçe karaktersiz "Istanbul") eşleşmediği için hiç sonuç dönmüyordu.
+// Burada "merkez/ilçe/il" gibi ekleri temizleyip Türkçe karakterleri ASCII karşılığına çeviriyoruz.
+function normalizeCityForTicketmaster(city) {
+    if (!city) return city;
+    const TR_MAP = { 'ı': 'i', 'İ': 'I', 'ğ': 'g', 'Ğ': 'G', 'ü': 'u', 'Ü': 'U', 'ş': 's', 'Ş': 'S', 'ö': 'o', 'Ö': 'O', 'ç': 'c', 'Ç': 'C' };
+    let s = city.trim();
+    // "Antalya Merkez", "İstanbul merkez", "Konya İl" gibi ekleri kaldır (sadece kelime sonu).
+    s = s.replace(/\s+(merkez|il|ilçe)\.?$/i, '').trim();
+    s = s.replace(/[ıİğĞüÜşŞöÖçÇ]/g, ch => TR_MAP[ch] || ch);
+    return s || city;
+}
+
 function normalizeSportsEvent(e) {
     const venue = e._embedded?.venues?.[0] || null;
     const image = (e.images || []).sort((a, b) => (b.width || 0) - (a.width || 0))[0];
@@ -47,7 +61,7 @@ export const searchSportsTickets = async (req, res, next) => {
             size: '30',
             sort: 'date,asc',
         });
-        if (city) params.set('city', city);
+        if (city) params.set('city', normalizeCityForTicketmaster(city));
         if (dateFrom) params.set('startDateTime', `${dateFrom}T00:00:00Z`);
         if (dateTo) params.set('endDateTime', `${dateTo}T23:59:59Z`);
 
