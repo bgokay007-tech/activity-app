@@ -19529,6 +19529,13 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [reportModal, setReportModal] = useState({ visible: false, type: null, id: null, reason: null, explanation: '' });
     const [news, setNews] = useState([]);
     const [loadingNews, setLoadingNews] = useState(false);
+    // Kullanıcı isteği: Haberler'de de Arşiv'deki gibi tarih aralığı + anahtar kelime filtresi
+    // — /news/:sub zaten tüm haberleri tek seferde döndürüyor, filtre backend'e gitmiyor,
+    // yüklenmiş listenin üzerinde client-side uygulanıyor.
+    const [newsKeyword, setNewsKeyword] = useState('');
+    const [newsDateFrom, setNewsDateFrom] = useState('');
+    const [newsDateTo, setNewsDateTo] = useState('');
+    const [showNewsFilterModal, setShowNewsFilterModal] = useState(false);
     const [trails, setTrails] = useState([]);
     const [loadingTrails, setLoadingTrails] = useState(false);
     const [trailsLoaded, setTrailsLoaded] = useState(false);
@@ -25629,16 +25636,50 @@ export default function SubCategoryScreen({ route, navigation }) {
                     )}
 
                     {/* ── NEWS ── */}
-                    {activeTab === 'news' && (
-                        loadingNews
+                    {activeTab === 'news' && (() => {
+                        const newsFilterActive = !!(newsKeyword.trim() || newsDateFrom || newsDateTo);
+                        const newsFilterSummaryLabel = () => {
+                            const parts = [];
+                            if (newsKeyword.trim()) parts.push(newsKeyword.trim());
+                            if (newsDateFrom || newsDateTo) parts.push(`${newsDateFrom || '…'}–${newsDateTo || '…'}`);
+                            return parts.length ? parts.join(' · ') : (lang === 'tr' ? 'Filtrele' : 'Filter');
+                        };
+                        const filteredNews = news.filter(item => {
+                            if (newsKeyword.trim()) {
+                                const q = newsKeyword.trim().toLowerCase();
+                                const title = (item.title || '').toLowerCase();
+                                const desc = (item.description || '').toLowerCase();
+                                if (!title.includes(q) && !desc.includes(q)) return false;
+                            }
+                            if (newsDateFrom || newsDateTo) {
+                                if (!item.pubDate) return false;
+                                const ms = new Date(item.pubDate).getTime();
+                                if (newsDateFrom && ms < new Date(newsDateFrom).getTime()) return false;
+                                if (newsDateTo && ms > new Date(newsDateTo).getTime() + 86400000 - 1) return false;
+                            }
+                            return true;
+                        });
+                        return loadingNews
                             ? <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
                             : news.length === 0
                                 ? <EmptyState emoji="📰" text={t.emptyNews} />
                                 : <>
-                                    <TouchableOpacity onPress={loadNews} style={{ alignSelf: 'flex-end', marginBottom: 8, paddingHorizontal: 7, paddingVertical: 1, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
-                                        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>🔄 {lang === 'tr' ? 'Yenile' : 'Refresh'}</Text>
-                                    </TouchableOpacity>
-                                    {news.map((item, i) => (
+                                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 5, marginBottom: 8 }}>
+                                        <TouchableOpacity onPress={loadNews} style={{ paddingHorizontal: 7, paddingVertical: 1, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
+                                            <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>🔄 {lang === 'tr' ? 'Yenile' : 'Refresh'}</Text>
+                                        </TouchableOpacity>
+                                        {/* Kullanıcı isteği: Yenile'nin hemen yanında, aynı ebatta, tıklanınca
+                                            tarih aralığı + anahtar kelime seçilebilen tek bir filtre butonu. */}
+                                        <TouchableOpacity onPress={() => setShowNewsFilterModal(true)}
+                                            style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 1, borderRadius: 8, maxWidth: 150, backgroundColor: newsFilterActive ? cfg.color + '25' : colors.surface2, borderWidth: 1, borderColor: newsFilterActive ? cfg.color : colors.border }}>
+                                            <Text style={{ color: newsFilterActive ? cfg.color : colors.textMuted, fontSize: 11, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                🔍 {newsFilterSummaryLabel()}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    {filteredNews.length === 0 ? (
+                                        <EmptyState emoji="📰" text={t.noFilterMatch} />
+                                    ) : filteredNews.map((item, i) => (
                                         <TouchableOpacity key={i} onPress={() => item.link && Linking.openURL(item.link)}
                                             style={{ backgroundColor: colors.surface2, borderRadius: 12, marginBottom: 10, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
                                             {!!item.thumbnail && (
@@ -25657,8 +25698,70 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </View>
                                         </TouchableOpacity>
                                     ))}
-                                  </>
-                    )}
+
+                                    <Modal visible={showNewsFilterModal} transparent animationType="slide" onRequestClose={() => setShowNewsFilterModal(false)} android_keyboardInputMode="adjustNothing">
+                                        <View style={{ flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end' }}>
+                                            <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
+                                            <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 17, paddingBottom: Math.max(20, insets.bottom + 16), maxHeight: '88%' }}>
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900' }}>🔍 {lang === 'tr' ? 'Filtrele' : 'Filter'}</Text>
+                                                    <TouchableOpacity onPress={() => setShowNewsFilterModal(false)}><Text style={{ color: colors.textMuted, fontSize: 22 }}>✕</Text></TouchableOpacity>
+                                                </View>
+                                                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>🔎 {lang === 'tr' ? 'Anahtar Kelime' : 'Keyword'}</Text>
+                                                        {newsKeyword ? (
+                                                            <TouchableOpacity onPress={() => setNewsKeyword('')}>
+                                                                <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>{lang === 'tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                                            </TouchableOpacity>
+                                                        ) : null}
+                                                    </View>
+                                                    <TextInput
+                                                        value={newsKeyword}
+                                                        onChangeText={setNewsKeyword}
+                                                        placeholder={lang === 'tr' ? 'Başlık veya açıklamada ara...' : 'Search title or description...'}
+                                                        placeholderTextColor={colors.textMuted}
+                                                        style={{ backgroundColor: colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: newsKeyword ? cfg.color + '60' : colors.border, paddingVertical: 11, paddingHorizontal: 13, fontSize: 14, fontWeight: '700', color: '#fff', marginBottom: 18 }}
+                                                    />
+
+                                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>📅 {lang === 'tr' ? 'Tarih Aralığı' : 'Date Range'}</Text>
+                                                        {(newsDateFrom || newsDateTo) ? (
+                                                            <TouchableOpacity onPress={() => { setNewsDateFrom(''); setNewsDateTo(''); }}>
+                                                                <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>{lang === 'tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                                            </TouchableOpacity>
+                                                        ) : null}
+                                                    </View>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+                                                        <TextInput
+                                                            value={newsDateFrom}
+                                                            onChangeText={setNewsDateFrom}
+                                                            placeholder="YYYY-AA-GG"
+                                                            placeholderTextColor={colors.textMuted}
+                                                            style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: newsDateFrom ? cfg.color + '60' : colors.border, paddingVertical: 11, paddingHorizontal: 13, fontSize: 14, fontWeight: '700', color: '#fff' }}
+                                                        />
+                                                        <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>—</Text>
+                                                        <TextInput
+                                                            value={newsDateTo}
+                                                            onChangeText={setNewsDateTo}
+                                                            placeholder="YYYY-AA-GG"
+                                                            placeholderTextColor={colors.textMuted}
+                                                            style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: newsDateTo ? cfg.color + '60' : colors.border, paddingVertical: 11, paddingHorizontal: 13, fontSize: 14, fontWeight: '700', color: '#fff' }}
+                                                        />
+                                                    </View>
+                                                </ScrollView>
+                                                <TouchableOpacity
+                                                    onPress={() => setShowNewsFilterModal(false)}
+                                                    style={{ backgroundColor: cfg.color, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 14 }}
+                                                >
+                                                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>✓ {lang === 'tr' ? 'Onayla' : 'Apply'}</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                            </KeyboardAvoidingView>
+                                        </View>
+                                    </Modal>
+                                  </>;
+                    })()}
 
                     {/* ── VENUES ── */}
                     {/* ── TEXT POSTS ── */}
