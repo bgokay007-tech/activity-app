@@ -8,6 +8,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import * as Location from 'expo-location';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import RainbowLogo from '../../components/RainbowLogo';
@@ -169,6 +170,7 @@ function MiniCalendar({ selected, onSelect, minDate }) {
 
 // ── Tarih aralığı modal ──
 function DateRangeModal({ visible, dateFrom, dateTo, onApply, onClose }) {
+    const insets = useSafeAreaInsets();
     const [from, setFrom] = useState(dateFrom);
     const [to,   setTo]   = useState(dateTo);
     const [picking, setPicking] = useState('from'); // 'from' | 'to'
@@ -189,7 +191,7 @@ function DateRangeModal({ visible, dateFrom, dateTo, onApply, onClose }) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={m.overlay}>
-                <View style={m.sheet}>
+                <View style={[m.sheet, { paddingBottom: (Platform.OS === 'ios' ? 36 : 24) + insets.bottom }]}>
                     <View style={m.handle} />
                     <Text style={m.title}>📅 Tarih Aralığı</Text>
 
@@ -227,6 +229,7 @@ function DateRangeModal({ visible, dateFrom, dateTo, onApply, onClose }) {
 
 // ── Saat aralığı modal ──
 function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
+    const insets = useSafeAreaInsets();
     const [from, setFrom] = useState(timeFrom);
     const [to,   setTo]   = useState(timeTo);
 
@@ -235,7 +238,7 @@ function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={m.overlay}>
-                <View style={m.sheet}>
+                <View style={[m.sheet, { paddingBottom: (Platform.OS === 'ios' ? 36 : 24) + insets.bottom }]}>
                     <View style={m.handle} />
                     <Text style={m.title}>🕐 Saat Aralığı</Text>
 
@@ -289,6 +292,7 @@ function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
 // ── Kategori seçim modalı — kullanıcı isteği: forma dokununca açılır, 1 veya daha
 // fazla kategori seçilip "Onayla" ile kapanır, seçilenler formun içinde yazılı görünür. ──
 function CatsModal({ visible, categories, selCats, onApply, onClose }) {
+    const insets = useSafeAreaInsets();
     const [tmp, setTmp] = useState(selCats);
     useEffect(() => { if (visible) setTmp(selCats); }, [visible]);
 
@@ -297,7 +301,7 @@ function CatsModal({ visible, categories, selCats, onApply, onClose }) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={m.overlay}>
-                <View style={[m.sheet, { height: undefined }]}>
+                <View style={[m.sheet, { height: undefined, paddingBottom: (Platform.OS === 'ios' ? 36 : 24) + insets.bottom }]}>
                     <View style={m.handle} />
                     <Text style={m.title}>🏷 Kategori Seç</Text>
                     <View style={m.subGrid}>
@@ -333,6 +337,7 @@ function CatsModal({ visible, categories, selCats, onApply, onClose }) {
 }
 
 function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) {
+    const insets = useSafeAreaInsets();
     const [tmp, setTmp] = useState(selSubs);
     useEffect(() => { if (visible) setTmp(selSubs); }, [visible]);
 
@@ -347,7 +352,7 @@ function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={m.overlay}>
-                <View style={[m.sheet, { height: '85%' }]}>
+                <View style={[m.sheet, { height: '85%', paddingBottom: (Platform.OS === 'ios' ? 36 : 24) + insets.bottom }]}>
                     <View style={m.handle} />
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Text style={m.title}>⚡ Dal Seç</Text>
@@ -402,6 +407,7 @@ function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) 
 // ── Aktivite bildirim filtresi modalı ──
 function ActivityAlertModal({ visible, onClose, categories, onSaved }) {
     const t = useT();
+    const insets = useSafeAreaInsets();
     const [loading, setLoading] = useState(false);
     const [saving,  setSaving]  = useState(false);
     const [enabled, setEnabled] = useState(false);
@@ -474,7 +480,7 @@ function ActivityAlertModal({ visible, onClose, categories, onSaved }) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={m.overlay}>
-                <View style={[m.sheet, { height: '90%' }]}>
+                <View style={[m.sheet, { height: '90%', paddingBottom: (Platform.OS === 'ios' ? 36 : 24) + insets.bottom }]}>
                     <View style={m.handle} />
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Text style={m.title}>{t.actAlertTitle}</Text>
@@ -674,8 +680,24 @@ function LocationInput({ placeholder, value, onChange, type, province, compact }
 // ── Aktivite kartı ──
 function ActivityCard({ item, navigation, onJoin, joining }) {
     const catMeta  = CAT_MAP[item.category]  || { color: colors.purple, label: item.category, emoji: '🏅' };
-    const subEmoji = SUB_MAP[item.subCategory]?.emoji || '🏅';
-    const spots    = (item.teamSize * 2) - 1 - (item.participants?.length || 0);
+    const subMeta  = SUB_MAP[item.subCategory];
+    const subEmoji = subMeta?.emoji || '🏅';
+    // Kullanıcı isteği: sağ üstteki rozet kategori (ör. "⚽ Spor") değil, ilanın kendi dalını
+    // (ör. "🎾 Tenis"/"🏓 Padel") göstersin — hangi kategoride olduğu zaten sol tarafta yazıyor.
+    const badgeLabel = subMeta?.label || catMeta.label;
+    const badgeEmoji = subMeta?.emoji || catMeta.emoji;
+    // Kullanıcı isteği: "1 kişi aranıyor" sayısı yanlıştı — sadece participants dizisini
+    // sayıyor, senderTeam (kurucunun ekip arkadaşları) ve unassignedPlayers (henüz
+    // Kurucu/Rakip'e atanmamış ama katılmış oyuncular) hiç düşülmüyordu. rival.controller.js'deki
+    // isFull hesabıyla aynı desen: toplam kapasite (teamSize*2) - kurucu(1) - dolu tüm slotlar.
+    const occupied = 1
+        + (Array.isArray(item.senderTeam) ? item.senderTeam.filter(p => p && (p.id || p.manualName)).length : 0)
+        + (Array.isArray(item.participants) ? item.participants.filter(p => p && (p.id || p.manualName)).length : 0)
+        + (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers.filter(p => p && (p.id || p.manualName)).length : 0);
+    const spots = (item.teamSize * 2) - occupied;
+    const hasRatingRange = item.ratingGenderSplit
+        ? (item.minRatingMale != null || item.maxRatingMale != null || item.minRatingFemale != null || item.maxRatingFemale != null)
+        : (item.minRating != null || item.maxRating != null);
 
     const fmtDate = (dt) => {
         if (!dt) return '';
@@ -685,9 +707,13 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
 
     return (
         <TouchableOpacity style={s.card} activeOpacity={0.85}
-            onPress={() => navigation.navigate('HomeTab', {
-                screen: 'SubCategory',
-                params: { category: item.category, sub: item.subCategory, initialTab: 'rivals', highlightRivalId: item.id },
+            onPress={() => navigation.navigate('SubCategory', {
+                // Kullanıcı isteği: geri tıklayınca filtrelenmiş Aktivite akışına dönmeli —
+                // eskiden 'HomeTab'a (farklı bir sekme/stack) çapraz navigasyon yapılıyordu,
+                // bu yüzden geri tuşu bu ekrana değil Ana Sayfa sekmesine dönüyordu. Bu ekran
+                // zaten ActivityStack içinde ('ActivityFeed' ile aynı stack), SubCategory de
+                // aynı stack'te kayıtlı — yerel navigate ile geri tuşu doğal olarak buraya döner.
+                category: item.category, sub: item.subCategory, initialTab: 'rivals', highlightRivalId: item.id,
             })}>
             <View style={[s.cardStripe, { backgroundColor: catMeta.color }]} />
             <View style={s.cardBody}>
@@ -700,7 +726,7 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
                         <Text style={s.cardUser} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.sender?.fullName || item.sender?.username || '—'}</Text>
                     </View>
                     <View style={[s.catBadge, { backgroundColor: catMeta.color + '22', borderColor: catMeta.color + '55' }]}>
-                        <Text style={[s.catBadgeText, { color: catMeta.color }]}>{catMeta.emoji} {catMeta.label}</Text>
+                        <Text style={[s.catBadgeText, { color: catMeta.color }]}>{badgeEmoji} {badgeLabel}</Text>
                     </View>
                 </View>
                 <View style={s.infoRow}>
@@ -708,6 +734,18 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
                     {(item.location || item.courtAddress) && <Text style={s.infoChip} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📍 {item.location || item.courtAddress}</Text>}
                     {item.duration && <Text style={s.infoChip}>⏱ {item.duration} dk</Text>}
                     {item.level && <Text style={s.infoChip}>🎯 {item.level}</Text>}
+                    {/* Kullanıcı isteği: cinsiyet kısıtlaması ve derece aralığı varsa kartta da
+                        gösterilsin — SubCategoryScreen'deki RivalCard ile aynı bilgi/desen. */}
+                    {item.genderReq && item.genderReq !== 'MIX' && (
+                        <Text style={s.infoChip}>{item.genderReq === 'MALE' ? '👨 Sadece Erkek' : '👩 Sadece Kadın'}</Text>
+                    )}
+                    {hasRatingRange && (
+                        <Text style={s.infoChip}>
+                            {item.ratingGenderSplit
+                                ? `⭐ 👨${item.minRatingMale ?? 0}-${item.maxRatingMale ?? 5}  👩${item.minRatingFemale ?? 0}-${item.maxRatingFemale ?? 5}`
+                                : `⭐ ${item.minRating ?? '0'}–${item.maxRating ?? '5'}`}
+                        </Text>
+                    )}
                 </View>
                 {item.message ? <Text style={s.cardMsg} numberOfLines={2}>{item.message}</Text> : null}
                 <View style={s.cardFooter}>
@@ -763,35 +801,16 @@ function TicketedCard({ item, emoji }) {
     );
 }
 
-// ── Kurs kartı (kategori bağımsız — spor antrenörü de sanat hocası da olabilir) ──
-function CourseFeedCard({ item }) {
-    const priceLabel = [
-        item.individual && item.priceIndividual ? `Bireysel ${item.priceIndividual}₺` : null,
-        item.group && item.priceGroup ? `Grup ${item.priceGroup}₺` : null,
-    ].filter(Boolean).join(' · ');
-    return (
-        <View style={s.ticketedCard}>
-            <View style={[s.ticketedImg, s.ticketedImgFallback]}><Text style={{ fontSize: 22 }}>🎓</Text></View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={s.ticketedTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.user?.fullName || item.user?.username}</Text>
-                <Text style={s.ticketedMeta} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.credentialLevel}</Text>
-                <Text style={s.ticketedMeta} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📍 {item.location}{item.city ? `, ${item.city}` : ''}</Text>
-                {priceLabel ? <Text style={s.ticketedPrice}>{priceLabel}</Text> : null}
-            </View>
-        </View>
-    );
-}
-
 // ── Ana ekran ──
 export default function ActivityFeedScreen({ navigation }) {
     const lang     = useSelector(s => s.lang?.lang || 'en');
     const logoText = lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy';
+    const insets   = useSafeAreaInsets();
 
     const [items,     setItems]     = useState([]); // Etkinlik (ActivityRequest) sonuçları
     const [concertItems, setConcertItems] = useState([]);
     const [cinemaItems,  setCinemaItems]  = useState([]);
     const [theaterItems, setTheaterItems] = useState([]);
-    const [courseItems,  setCourseItems]  = useState([]);
     const [loading,   setLoading]   = useState(false);
     const [joiningId, setJoiningId] = useState(null);
     const [feedTab,   setFeedTab]   = useState('current'); // 'current' | 'upcomingFull' | 'past'
@@ -1013,20 +1032,16 @@ export default function ActivityFeedScreen({ navigation }) {
                 .then(r => r.data?.plays || []).catch(() => [])
             : Promise.resolve([]);
 
-        const coursePromise = api.get('/coaches', { params: { category: cats[0] || undefined, subCategory: subs[0] || undefined } })
-            .then(r => r.data || []).catch(() => []);
-
         try {
-            const [eventRes, concertRes, cinemaRes, theaterRes, courseRes] = await Promise.all([
-                eventPromise, concertPromise, cinemaPromise, theaterPromise, coursePromise,
+            const [eventRes, concertRes, cinemaRes, theaterRes] = await Promise.all([
+                eventPromise, concertPromise, cinemaPromise, theaterPromise,
             ]);
             setItems(eventRes);
             setConcertItems(concertRes);
             setCinemaItems(cinemaRes);
             setTheaterItems(theaterRes);
-            setCourseItems(courseRes);
         } catch {
-            setItems([]); setConcertItems([]); setCinemaItems([]); setTheaterItems([]); setCourseItems([]);
+            setItems([]); setConcertItems([]); setCinemaItems([]); setTheaterItems([]);
         } finally { setLoading(false); }
     }, []);
 
@@ -1057,22 +1072,34 @@ export default function ActivityFeedScreen({ navigation }) {
         ? [timeFrom || '?', timeTo || '?'].join(' – ')
         : null;
 
-    // Tüm kaynaklar (Etkinlik/Konser/Sinema/Tiyatro/Kurs) tek bir akışta,
-    // yakından uzağa (tarihi olmayanlar en yakına) karışık sıralanır. Gerçek
-    // tarihi olan türler (etkinlik/konser/tiyatro) başlangıcından 15 dk sonra
-    // "geçmiş" sayılıp ayrı sekmeye düşer — sinema/kurs tarihsiz/süregelen
-    // olduğu için hiçbir zaman geçmişe düşmez. Henüz geçmemiş ama kontenjanı
-    // dolmuş etkinlikler (ActivityCard'daki "Dolu" durumu ile aynı hesap)
-    // geçmişe değil, ayrı bir "Yaklaşan Aktiviteler" sekmesine düşer.
+    // Tüm kaynaklar (Etkinlik/Konser/Sinema/Tiyatro) tek bir akışta, yakından uzağa
+    // (tarihi olmayanlar en yakına) karışık sıralanır. Gerçek tarihi olan türler
+    // (etkinlik/konser/tiyatro) başlangıcından 15 dk sonra "geçmiş" sayılıp ayrı
+    // sekmeye düşer — sinema tarihsiz/süregelen olduğu için hiçbir zaman geçmişe
+    // düşmez. Henüz geçmemiş ama kontenjanı dolmuş etkinlikler (ActivityCard'daki
+    // "Dolu" durumu ile aynı hesap) geçmişe değil, ayrı bir "Yaklaşan Aktiviteler"
+    // sekmesine düşer.
+    // Kullanıcı isteği: antrenör/hakem ilanları (CV Yükle'den gelen profileOnly
+    // kayıtlar dahil) bu genel aktivite akışında hiç gösterilmiyor — burası
+    // katılınabilir aktiviteler/etkinlikler için, ders/hakemlik teklifleri için
+    // değil (bkz. SubCategoryScreen'in Antrenörler/Hakemler sekmeleri).
     const PAST_GRACE_MS = 15 * 60 * 1000;
-    const isEventFull = (item) => ((item.teamSize * 2) - 1 - (item.participants?.length || 0)) <= 0;
+    // Kullanıcı isteği: doluluk hesabı sadece participants'ı sayıyordu — senderTeam
+    // (kurucunun ekip arkadaşları) ve unassignedPlayers (atanmamış ama katılmış
+    // oyuncular) hiç düşülmüyordu, ActivityCard'daki spots hesabıyla aynı desen.
+    const isEventFull = (item) => {
+        const occupied = 1
+            + (Array.isArray(item.senderTeam) ? item.senderTeam.filter(p => p && (p.id || p.manualName)).length : 0)
+            + (Array.isArray(item.participants) ? item.participants.filter(p => p && (p.id || p.manualName)).length : 0)
+            + (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers.filter(p => p && (p.id || p.manualName)).length : 0);
+        return (item.teamSize * 2) - occupied <= 0;
+    };
     const { feedItems, upcomingFullFeedItems, pastFeedItems } = useMemo(() => {
         const merged = [
             ...items.map(item => ({ key: `event-${item.id}`, type: 'event', data: item, sortTime: feedSortTime(item.matchDate), hasDate: true })),
             ...concertItems.map(item => ({ key: `concert-${item.id}`, type: 'concert', data: item, sortTime: feedSortTime(item.date, item.time), hasDate: true })),
             ...cinemaItems.map(item => ({ key: `cinema-${item.id}`, type: 'cinema', data: item, sortTime: feedSortTime(null), hasDate: false })),
             ...theaterItems.map(item => ({ key: `theater-${item.id}`, type: 'theater', data: item, sortTime: feedSortTime(item.date, item.time), hasDate: true })),
-            ...courseItems.map(item => ({ key: `course-${item.id}`, type: 'course', data: item, sortTime: feedSortTime(null), hasDate: false })),
         ];
         const now = Date.now();
         const upcoming = merged.filter(fi => !fi.hasDate || fi.sortTime + PAST_GRACE_MS >= now);
@@ -1084,7 +1111,7 @@ export default function ActivityFeedScreen({ navigation }) {
         upcomingFull.sort((a, b) => a.sortTime - b.sortTime);
         past.sort((a, b) => b.sortTime - a.sortTime);
         return { feedItems: current, upcomingFullFeedItems: upcomingFull, pastFeedItems: past };
-    }, [items, concertItems, cinemaItems, theaterItems, courseItems]);
+    }, [items, concertItems, cinemaItems, theaterItems]);
 
     return (
         <View style={s.root}>
@@ -1197,7 +1224,6 @@ export default function ActivityFeedScreen({ navigation }) {
                                     <ActivityCard key={fi.key} item={fi.data} navigation={navigation}
                                         onJoin={handleJoin} joining={joiningId === fi.data.id} />
                                 );
-                                if (fi.type === 'course') return <CourseFeedCard key={fi.key} item={fi.data} />;
                                 const emoji = fi.type === 'concert' ? '🎵' : fi.type === 'cinema' ? '🎬' : '🎫';
                                 return <TicketedCard key={fi.key} item={fi.data} emoji={emoji} />;
                             })}
@@ -1252,7 +1278,7 @@ export default function ActivityFeedScreen({ navigation }) {
             {/* Destek mesajı modalı */}
             <Modal visible={supportOpen} animationType="slide" transparent onRequestClose={() => setSupportOpen(false)}>
                 <View style={m.overlay}>
-                    <View style={m.sheet}>
+                    <View style={[m.sheet, { paddingBottom: (Platform.OS === 'ios' ? 36 : 24) + insets.bottom }]}>
                         <View style={sup.header}>
                             <Text style={m.title}>💬 Admine Destek Mesajı</Text>
                             <TouchableOpacity onPress={() => setSupportOpen(false)}>
