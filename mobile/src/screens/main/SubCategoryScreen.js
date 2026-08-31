@@ -25834,7 +25834,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <View style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 22 }}>🎟️</Text></View>
                                         )}
                                         <View style={{ flex: 1, marginLeft: 12 }}>
-                                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }} numberOfLines={2}>{ev.name}</Text>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', flex:1 }} numberOfLines={2}>{ev.name}</Text>
+                                                {/* Kullanıcı isteği: birden fazla kaynaktan (Ticketmaster + SeatGeek) gelen
+                                                    biletler aynı listede — hangi kanaldan satıldığı görünsün. */}
+                                                {ev.source && (
+                                                    <View style={{ backgroundColor: colors.surface, borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: colors.border }}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700' }}>{ev.source === 'seatgeek' ? 'SeatGeek' : 'Ticketmaster'}</Text>
+                                                    </View>
+                                                )}
+                                            </View>
                                             <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                 {[ev.venueName, ev.city, ev.country].filter(Boolean).join(' · ')}
                                             </Text>
