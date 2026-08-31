@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
+import { buildPenaltyUpdate, isDoublesFormat } from '../utils/utrRating.js';
 
 export const reportNoShow = async (req, res, next) => {
     try {
@@ -112,17 +113,16 @@ export const approveNoShow = async (req, res, next) => {
 
         const penalty = NO_SHOW_PENALTY_BY_SUBCATEGORY[report.subCategory] ?? DEFAULT_NO_SHOW_PENALTY;
         const absentIds = Array.isArray(report.absentUserIds) ? report.absentUserIds : [];
+        const match = await prisma.activityRequest.findUnique({ where: { id: report.rivalId }, select: { matchType: true } });
+        const isDoubles = isDoublesFormat(match || {});
         for (const userId of absentIds) {
-            // Clamp skillRating to minimum 0
             const interest = await prisma.userInterest.findFirst({
                 where: { userId, subCategory: report.subCategory },
-                select: { id: true, skillRating: true },
             });
             if (interest) {
-                const newRating = Math.max(0, Number(interest.skillRating) - penalty);
                 await prisma.userInterest.update({
                     where: { id: interest.id },
-                    data: { skillRating: newRating },
+                    data: buildPenaltyUpdate(interest, report.subCategory, isDoubles, penalty),
                 });
             }
             await createNotification(

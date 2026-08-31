@@ -4,13 +4,13 @@ import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags } from '../utils/tennisElo.js';
+import { UTR_SUBCATEGORIES, applyUtrRatingForMatch, getDisplayRating, isDoublesFormat, buildPenaltyUpdate } from '../utils/utrRating.js';
 
-// Voleybol rekabetçi maçlarında da (kullanıcı isteğiyle) tenis/padel'in takım-ortalaması
-// bazlı ELO tablosu kullanılıyor — turnuva tarafında (tournament.controller.js) hâlâ sadece
-// tenis/padel'e özel kurallar (MIN_MATCHES_FOR_TOURNAMENT vb.) geçerli olduğu için bu genişletme
-// paylaşılan TENNIS_PADEL_SUBCATEGORIES sabitine değil, sadece bu dosyadaki skor onayı/ELO
-// hesabına özel yerel bir kontrole eklendi.
-const usesTennisEloTable = (subCategory) => TENNIS_PADEL_SUBCATEGORIES.includes(subCategory) || subCategory === 'volleyball';
+// Tenis/padel artık burada değil — UTR-esinli ayrı sisteme geçti (bkz. utrRating.js). Bu sabit
+// artık SADECE badminton/masa tenisi için eski sabit-tablo ELO'yu tetikler; voleybol rekabetçi
+// maçları da (kullanıcı isteğiyle) aynı tabloyu kullanmaya devam ediyor.
+const LEGACY_ELO_TABLE_SUBCATEGORIES = TENNIS_PADEL_SUBCATEGORIES.filter(s => !UTR_SUBCATEGORIES.includes(s));
+const usesTennisEloTable = (subCategory) => LEGACY_ELO_TABLE_SUBCATEGORIES.includes(subCategory) || subCategory === 'volleyball';
 import { PEER_REVIEW_SUBCATEGORIES } from '../utils/peerReview.js';
 import { computeReservationStatus, overlaps, toMins, isPastDateTime, PRO_PACKAGES, refundGiftMinutes, assertNotVenuePolicyBlocked } from './venue.controller.js';
 import { RATING_REQUIRED_SUBCATEGORIES } from '../config/assessments.js';
@@ -76,6 +76,12 @@ function calcTransfer(winnerPts, loserPts, score) {
 }
 
 async function applyCompetitivePoints(request, winnerUserId) {
+    // Tenis/padel: UTR-esinli ayrı tekli/çiftler sistemi (bkz. utrRating.js) — bu iki dal için
+    // aşağıdaki eski sabit-tablo ELO mantığı artık hiç çalışmıyor.
+    if (UTR_SUBCATEGORIES.includes(request.subCategory)) {
+        return applyUtrRatingForMatch(request, winnerUserId);
+    }
+
     const participants  = Array.isArray(request.participants) ? request.participants : [];
     const senderTeamArr = Array.isArray(request.senderTeam)  ? request.senderTeam  : [];
 
@@ -799,11 +805,12 @@ async function resolveAndValidateTeam(rival, joiningTeam, submitterId) {
     }
     const [users, interests] = await Promise.all([
         prisma.user.findMany({ where: { id: { in: realIds } }, select: { id: true, username: true, fullName: true, avatar: true, gender: true } }),
-        prisma.userInterest.findMany({ where: { userId: { in: realIds }, category: rival.category, subCategory: rival.subCategory }, select: { userId: true, skillRating: true } }),
+        prisma.userInterest.findMany({ where: { userId: { in: realIds }, category: rival.category, subCategory: rival.subCategory } }),
     ]);
     if (users.length !== realIds.length) return { error: 'Kadrodaki bir oyuncu bulunamadı.' };
     const userMap = new Map(users.map(u => [u.id, u]));
-    const ratingMap = new Map(interests.map(i => [i.userId, i.skillRating]));
+    const teamIsDoubles = isDoublesFormat(rival);
+    const ratingMap = new Map(interests.map(i => [i.userId, getDisplayRating(i, rival.subCategory, teamIsDoubles)]));
 
     const resolvedMembers = joiningTeam.map(m => {
         if (m?.userId) {
@@ -1388,7 +1395,7 @@ export const updateRivalRequest = async (req, res, next) => {
             }
             if (effMin !== null || effMax !== null) {
                 const creatorInterest = await prisma.userInterest.findFirst({ where: { userId: req.userId, category: rival.category, subCategory: rival.subCategory } });
-                const creatorRating = creatorInterest?.skillRating ?? 0;
+                const creatorRating = getDisplayRating(creatorInterest, rival.subCategory, isDoublesFormat(rival));
                 if (effMin !== null && creatorRating < effMin)
                     return res.status(400).json({ message: `Bu kısıtlamayı koyamazsınız: en az ${effMin}★ istiyorsunuz ama kendi puanınız ${creatorRating.toFixed(2)}★.` });
                 if (effMax !== null && creatorRating > effMax)
@@ -2006,7 +2013,7 @@ export const createRivalRequest = async (req, res, next) => {
             }
         }
         if (creatorEffMin !== null || creatorEffMax !== null) {
-            const creatorRating = creatorInterest.skillRating ?? 0;
+            const creatorRating = getDisplayRating(creatorInterest, subCategory, isDoublesFormat({ matchType: matchType.toUpperCase() }));
             if (creatorEffMin !== null && creatorRating < creatorEffMin)
                 return res.status(400).json({ message: `Bu kısıtlamayı koyamazsınız: en az ${creatorEffMin}★ istiyorsunuz ama kendi puanınız ${creatorRating.toFixed(2)}★.` });
             if (creatorEffMax !== null && creatorRating > creatorEffMax)
@@ -2917,7 +2924,7 @@ export const sendJoinRequest = async (req, res, next) => {
             const userInterest = await prisma.userInterest.findFirst({
                 where: { userId: req.userId, category: request.category, subCategory: request.subCategory },
             });
-            const userRating = userInterest?.skillRating ?? 0;
+            const userRating = getDisplayRating(userInterest, request.subCategory, isDoublesFormat(request));
             if (effMinRating !== null && userRating < effMinRating)
                 return res.status(400).json({ message: `Bu ilan için en az ${effMinRating}★ puan gerekiyor. Sizin puanınız: ${userRating.toFixed(2)}★` });
             if (effMaxRating !== null && userRating > effMaxRating)
@@ -5020,14 +5027,20 @@ export async function runScoreConfirmation(request) {
     }
 
     // Build rating snapshot and store it in score JSON
-    // For tennis/padel: change is in skillRating units (e.g. 0.04).
-    // For other sports: change is in totalPoints units (e.g. 3).
+    // Tenis/padel (UTR): change/before/after applyUtrRatingForMatch'ten doğrudan gelir (doğru
+    // disiplin — tekli/çiftler — zaten orada çözülmüştü). Diğer tenis/padel-dışı eski-tablo
+    // dallar için change skillRating birimindedir; kalan sporlar için totalPoints birimindedir.
+    const isUtrMatch = UTR_SUBCATEGORIES.includes(request.subCategory);
     const isTennisPadelMatch = usesTennisEloTable(request.subCategory);
     const ratingSnapshot = {};
     for (const i of interestsBefore) {
         const change = pointChanges.find(c => c.userId === i.userId);
+        let skillRatingBefore = i.skillRating;
         let skillRatingAfter;
-        if (isTennisPadelMatch && change) {
+        if (isUtrMatch && change) {
+            skillRatingBefore = change.before;
+            skillRatingAfter = change.after;
+        } else if (isTennisPadelMatch && change) {
             skillRatingAfter = parseFloat(Math.max(0, i.skillRating + change.change).toFixed(4));
         } else {
             const ptsBefore = i.totalPoints;
@@ -5036,8 +5049,8 @@ export async function runScoreConfirmation(request) {
         }
         ratingSnapshot[i.userId] = {
             username: userMap[i.userId]?.username || '',
-            skillRating_before: i.skillRating,
-            skillRating_after: skillRatingAfter,
+            skillRating_before: skillRatingBefore,
+            skillRating_after: skillRatingAfter ?? skillRatingBefore,
             change: change?.change || 0,
         };
     }
@@ -6306,7 +6319,7 @@ export const removeRivalParticipant = async (req, res, next) => {
                 await prisma.userInterest.update({
                     where: { id: interest.id },
                     data: {
-                        skillRating: Math.max(0, parseFloat((interest.skillRating - leavePenaltyAmount).toFixed(2))),
+                        ...buildPenaltyUpdate(interest, rival.subCategory, isDoublesFormat(rival), leavePenaltyAmount),
                         totalPoints: Math.max(0, interest.totalPoints - Math.round(leavePenaltyAmount * 20)),
                         lateCancelCount: newCount,
                     },
@@ -6728,7 +6741,7 @@ export const cancelMatch = async (req, res, next) => {
                 await prisma.userInterest.update({
                     where: { id: interest.id },
                     data: {
-                        skillRating: Math.max(0, parseFloat((interest.skillRating - penaltyAmount).toFixed(2))),
+                        ...buildPenaltyUpdate(interest, request.subCategory, isDoublesFormat(request), penaltyAmount),
                         totalPoints: Math.max(0, interest.totalPoints - Math.round(penaltyAmount * 20)),
                         lateCancelCount: newCount,
                     },

@@ -29,7 +29,7 @@ export const getProfile = async (req, res, next) => {
                 cEmailPrivacy: true, cEmailSelected: true,
                 instagramPrivacy: true, instagramSelected: true,
                 interests: {
-                    select: { id: true, category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, lateCancelCount: true, assessmentCompleted: true },
+                    select: { id: true, category: true, subCategory: true, level: true, skillRating: true, singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true, totalPoints: true, wins: true, losses: true, lateCancelCount: true, assessmentCompleted: true },
                     orderBy: { totalPoints: 'desc' },
                 },
                 _count: {
@@ -459,7 +459,7 @@ export const searchUsers = async (req, res, next) => {
                             subCategory,
                             ...(category && { category }),
                         },
-                        select: { subCategory: true, skillRating: true, totalPoints: true, level: true, alias: true, assessmentCompleted: true },
+                        select: { subCategory: true, skillRating: true, singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true, totalPoints: true, level: true, alias: true, assessmentCompleted: true },
                     },
                 }),
                 ...(refereeOnly === 'true' && subCategory && {

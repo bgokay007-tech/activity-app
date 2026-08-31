@@ -4,6 +4,7 @@ import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags, MIN_MATCHES_FOR_TOURNAMENT } from '../utils/tennisElo.js';
+import { UTR_SUBCATEGORIES, applyUtrRatingForTournamentMatch, getDisplayRating, isDoublesFormat } from '../utils/utrRating.js';
 import { computeTournamentPlacement } from './achievement.controller.js';
 import { sanitizeExtraServices } from '../utils/extraServices.js';
 
@@ -419,17 +420,17 @@ async function getCurrentPlayerRatings(tournament, userIds) {
                     id: true, username: true, fullName: true,
                     interests: {
                         where: { category: tournament.category, subCategory: tournament.subCategory },
-                        select: { skillRating: true },
                     },
                 },
             },
         },
     });
+    const isDoubles = isDoublesFormat({ tournamentType: tournament.type });
     return participants.filter(p => p.userId && p.user).map(p => ({
         id: p.userId,
         fullName: p.user.fullName || null,
         username: p.user.username || null,
-        skillRating: p.user.interests?.[0]?.skillRating || 0,
+        skillRating: getDisplayRating(p.user.interests?.[0], tournament.subCategory, isDoubles),
     }));
 }
 
@@ -440,7 +441,8 @@ async function getCurrentTeamRatings(tournament, teamIds) {
     const interests = await prisma.userInterest.findMany({
         where: { userId: { in: memberIds }, category: tournament.category, subCategory: tournament.subCategory },
     });
-    const ratingOf = (uid) => interests.find(i => i.userId === uid)?.skillRating || 0;
+    const isDoubles = isDoublesFormat({ tournamentType: tournament.type });
+    const ratingOf = (uid) => getDisplayRating(interests.find(i => i.userId === uid), tournament.subCategory, isDoubles);
     return teams.map(t => ({
         id: t.id,
         fullName: `${t.player1Name} & ${t.player2Name}`,
@@ -906,7 +908,6 @@ export async function checkPollAutoJoinEligibility(tournament, userId) {
     const [interest, userRec] = await Promise.all([
         prisma.userInterest.findUnique({
             where: { userId_category_subCategory: { userId, category: tournament.category, subCategory: tournament.subCategory } },
-            select: { assessmentCompleted: true, wins: true, losses: true, skillRating: true },
         }),
         prisma.user.findUnique({ where: { id: userId }, select: { tournamentBanRemaining: true, gender: true } }),
     ]);
@@ -919,7 +920,7 @@ export async function checkPollAutoJoinEligibility(tournament, userId) {
     if (userRec?.tournamentBanRemaining > 0) {
         return { ok: false, message: 'Geç iptal cezası nedeniyle şu anda turnuvalara katılamadığınız için otomatik başvurunuz oluşturulamadı.' };
     }
-    const userRating = interest?.skillRating ?? 0;
+    const userRating = getDisplayRating(interest, tournament.subCategory, isDoublesFormat({ tournamentType: tournament.type }));
     // Cinsiyete göre ayrı derece aralığı seçiliyse (ör. erkek 3-4, kadın 4-5) o aralık kullanılır;
     // cinsiyeti belirtilmemiş/OTHER olan kullanıcılar için derece kısıtlaması uygulanmaz.
     let effMinRating = tournament.minRating, effMaxRating = tournament.maxRating;
@@ -1005,7 +1006,6 @@ export const joinTournament = async (req, res, next) => {
             prisma.user.findUnique({ where: { id: req.userId }, select: { tournamentBanRemaining: true, gender: true } }),
             prisma.userInterest.findUnique({
                 where: { userId_category_subCategory: { userId: req.userId, category: tournament.category, subCategory: tournament.subCategory } },
-                select: { skillRating: true },
             }),
         ]);
         if (userBan?.tournamentBanRemaining > 0) {
@@ -1016,7 +1016,7 @@ export const joinTournament = async (req, res, next) => {
         // Check rating limits — cinsiyete göre ayrı aralık seçiliyse (ör. erkek 3-4, kadın 4-5)
         // katılımcının cinsiyetine göre uygun aralık kullanılır; cinsiyeti belirtilmemiş/OTHER
         // olan kullanıcılar için derece kısıtlaması uygulanmaz.
-        const userRating = userInterest?.skillRating ?? 0;
+        const userRating = getDisplayRating(userInterest, tournament.subCategory, isDoublesFormat({ tournamentType: tournament.type }));
         let effMinRating = tournament.minRating, effMaxRating = tournament.maxRating;
         if (tournament.ratingGenderSplit) {
             if (userBan?.gender === 'MALE') { effMinRating = tournament.minRatingMale; effMaxRating = tournament.maxRatingMale; }
@@ -1696,7 +1696,6 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
                     id: true, username: true, fullName: true, gender: true,
                     interests: {
                         where: { category: tournament.category, subCategory: tournament.subCategory },
-                        select: { skillRating: true },
                     },
                 },
             },
@@ -1710,11 +1709,12 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
     }
     const mainList = rawParticipants.slice(0, tournament.maxPlayers);
 
+    const isDoublesTournament = isDoublesFormat({ tournamentType: tournament.type });
     const players = mainList.map(p => ({
         id: p.userId || p.id,
         fullName: p.userId ? (p.user?.fullName || null) : p.manualName,
         username: p.userId ? (p.user?.username || null) : p.manualName,
-        skillRating: p.userId ? (p.user?.interests?.[0]?.skillRating || 0) : 0,
+        skillRating: p.userId ? getDisplayRating(p.user?.interests?.[0], tournament.subCategory, isDoublesTournament) : 0,
     }));
 
     if (players.length < (tournament.minPlayers || 2)) {
@@ -1932,7 +1932,6 @@ export const rematchTournament = async (req, res, next) => {
                         id: true, fullName: true, username: true,
                         interests: {
                             where: { category: tournament.category, subCategory: tournament.subCategory },
-                            select: { skillRating: true },
                         },
                     },
                 },
@@ -1944,7 +1943,7 @@ export const rematchTournament = async (req, res, next) => {
             id: p.userId || p.id,
             fullName: p.userId ? (p.user?.fullName || null) : p.manualName,
             username: p.userId ? (p.user?.username || null) : p.manualName,
-            skillRating: p.userId ? (p.user?.interests?.[0]?.skillRating || 0) : 0,
+            skillRating: p.userId ? getDisplayRating(p.user?.interests?.[0], tournament.subCategory, false) : 0,
         }));
 
         const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(players.length - 1, 3);
@@ -2162,7 +2161,6 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                                         id: true, username: true, fullName: true,
                                         interests: {
                                             where: { category: tournament.category, subCategory: tournament.subCategory },
-                                            select: { skillRating: true },
                                         },
                                     },
                                 },
@@ -2172,7 +2170,7 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                             id: p.userId,
                             fullName: p.user?.fullName || null,
                             username: p.user?.username || null,
-                            skillRating: p.user?.interests?.[0]?.skillRating || 0,
+                            skillRating: getDisplayRating(p.user?.interests?.[0], tournament.subCategory, false),
                         }));
                     })()).sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
 
@@ -2331,6 +2329,54 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         // önceki/sonraki bireysel puanı ayrıca burada saklanır (web/mobil "X puanı → Y puanı"
         // şeklinde her oyuncuyu ayrı ayrı gösterebilsin diye). Bireysel Rekabetçi'de tek elemanlı dizi.
         let p1MemberRatings = [], p2MemberRatings = [];
+
+        if (UTR_SUBCATEGORIES.includes(tournament.subCategory)) {
+            // Tenis/padel: UTR-esinli ayrı tekli/çiftler sistemi (bkz. utrRating.js). Skor
+            // DÜZELTİLİYORSA (match zaten COMPLETED), eski katkıyı ters-delta ile geri almak
+            // yerine bu maça ait RatingMatchRecord'lar silinir — recompute geçmişten taze
+            // hesaplandığı için silinince önceki katkı otomatik geri alınmış olur. Ama wins/
+            // losses/matchCount SAYAÇLARI recompute'un parçası değil (RatingMatchRecord'tan
+            // türetilmiyor) — bu yüzden eski kayıtlardan hangi tarafın kazandığını okuyup bu
+            // sayaçları elle geri almak gerekiyor, aksi halde düzeltmede ikinci kez sayılırlardı.
+            if (match.status === 'COMPLETED') {
+                const prevRecords = await prisma.ratingMatchRecord.findMany({ where: { sourceType: 'TOURNAMENT', sourceId: match.id } });
+                for (const r of prevRecords) {
+                    const field = r.matchType === 'DOUBLE' ? 'doublesMatchCount' : 'singlesMatchCount';
+                    await prisma.userInterest.updateMany({
+                        where: { userId: r.userId, category: tournament.category, subCategory: tournament.subCategory },
+                        data: {
+                            ...(r.didWin ? { wins: { decrement: 1 } } : { losses: { decrement: 1 } }),
+                            [field]: { decrement: 1 },
+                        },
+                    });
+                }
+                await prisma.ratingMatchRecord.deleteMany({ where: { sourceType: 'TOURNAMENT', sourceId: match.id } });
+            }
+            if (p1Members.length > 0 && p2Members.length > 0) {
+                const winnerMembers = winner === 'p1' ? p1Members : p2Members;
+                const loserMembers = winner === 'p1' ? p2Members : p1Members;
+                const result = await applyUtrRatingForTournamentMatch({
+                    category: tournament.category, subCategory: tournament.subCategory, tournamentType: tournament.type,
+                    matchId: match.id, winnerMembers, loserMembers, sets, winnerSide: winner,
+                });
+                if (!result.skipRating) {
+                    const byId = (uid) => result.changes.find(c => c.userId === uid);
+                    const winnerChanges = winnerMembers.map(byId).filter(Boolean);
+                    const loserChanges = loserMembers.map(byId).filter(Boolean);
+                    const avg = (list, key) => list.length ? parseFloat((list.reduce((s, c) => s + c[key], 0) / list.length).toFixed(4)) : null;
+                    const winnerMemberRatings = winnerChanges.map(c => ({ userId: c.userId, before: c.before, after: c.after }));
+                    const loserMemberRatings = loserChanges.map(c => ({ userId: c.userId, before: c.before, after: c.after }));
+                    p1MemberRatings = winner === 'p1' ? winnerMemberRatings : loserMemberRatings;
+                    p2MemberRatings = winner === 'p2' ? winnerMemberRatings : loserMemberRatings;
+                    p1RatingBefore = winner === 'p1' ? avg(winnerChanges, 'before') : avg(loserChanges, 'before');
+                    p2RatingBefore = winner === 'p2' ? avg(winnerChanges, 'before') : avg(loserChanges, 'before');
+                    p1RatingAfter = winner === 'p1' ? avg(winnerChanges, 'after') : avg(loserChanges, 'after');
+                    p2RatingAfter = winner === 'p2' ? avg(winnerChanges, 'after') : avg(loserChanges, 'after');
+                    p1EloDelta = winner === 'p1' ? avg(winnerChanges, 'change') : avg(loserChanges, 'change');
+                    p2EloDelta = winner === 'p2' ? avg(winnerChanges, 'change') : avg(loserChanges, 'change');
+                }
+            }
+        } else {
         // If match was already scored, reverse previous ELO before re-applying.
         // Bireysel before/after kayıtlıysa (p1MemberRatings/p2MemberRatings) onlar kullanılır —
         // takım ortalamasına göre geri alırsak, farklı başlangıç puanına sahip iki üye yanlışlıkla
@@ -2513,6 +2559,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 p2EloDelta = skipElo ? 0 : (winner === 'p2' ? +transferWin : -transferLose);
             }
         }
+        } // else (UTR_SUBCATEGORIES dışındaki dallar) sonu
 
         const score = { sets, winner, p1Sets, p2Sets, p1Games, p2Games, p1EloDelta, p2EloDelta, p1RatingBefore, p1RatingAfter, p2RatingBefore, p2RatingAfter, p1MemberRatings, p2MemberRatings };
 

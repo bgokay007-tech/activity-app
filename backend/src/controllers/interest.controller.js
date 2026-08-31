@@ -3,6 +3,7 @@ import { getQuestions, calculateLevel } from '../config/assessments.js';
 import { getRelation, canAccess } from '../utils/privacy.js';
 import { QUESTION_FIELDS, applyBlendedVolleyballRating } from '../utils/volleyballRating.js';
 import { applyBlendedPadelRating } from '../utils/padelRating.js';
+import { UTR_SUBCATEGORIES, getDisplayRating, isDoublesFormat } from '../utils/utrRating.js';
 
 // Kategorilerin alt dalları
 export const SUBCATEGORIES = {
@@ -347,7 +348,7 @@ export const saveAssessment = async (req, res, next) => {
             });
 
             const updated = await applyBlendedPadelRating(req.userId);
-            return res.json({ interest: updated, level: updated.level, skillRating: updated.skillRating, totalPoints: updated.totalPoints });
+            return res.json({ interest: updated, level: updated.level, skillRating: getDisplayRating(updated, 'padel', false), totalPoints: updated.totalPoints });
         }
 
         const questions = getQuestions(interest.subCategory);
@@ -355,12 +356,21 @@ export const saveAssessment = async (req, res, next) => {
         const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);
         const { level, skillRating, totalPoints } = calculateLevel(totalScore, maxScore);
 
+        // Tenis: UTR-esinli sisteme geçti (bkz. utrRating.js) — anket sonucu artık skillRating'e
+        // DEĞİL, tekli/çiftler için ortak "başlangıç puanı"na (seed) yazılır; ikisi de aynı
+        // anketten (henüz format-ayrımlı bir anket yok) beslenir. Zaten var olan gerçek maç
+        // geçmişi varsa singlesRating/doublesRating'e DOKUNULMAZ — bir sonraki gerçek maçın
+        // recompute'u yeni seed'i zaten kendi ağırlığıyla (bkz. seedWeight) hesaba katar.
+        const isUtrTennis = UTR_SUBCATEGORIES.includes(interest.subCategory);
         const updated = await prisma.userInterest.update({
             where: { id },
-            data: { level, skillRating, totalPoints, assessmentCompleted: true, matchesSinceAssessment: 0 },
+            data: isUtrTennis
+                ? { level, singlesSeedRating: skillRating, doublesSeedRating: skillRating, assessmentCompletedAt: new Date(), assessmentCompleted: true, matchesSinceAssessment: 0 }
+                : { level, skillRating, totalPoints, assessmentCompleted: true, matchesSinceAssessment: 0 },
         });
 
-        res.json({ interest: updated, totalScore, maxScore, level, skillRating, totalPoints });
+        const responseRating = isUtrTennis ? getDisplayRating(updated, interest.subCategory, false) : skillRating;
+        res.json({ interest: updated, totalScore, maxScore, level, skillRating: responseRating, totalPoints });
     } catch (error) { next(error); }
 };
 
@@ -492,18 +502,19 @@ export const getUsersByCategory = async (req, res, next) => {
 };
 
 // Kullanıcı isteği: tenis/padel/badminton/masa tenisi/voleybol dallarında ELO (derece) puan
-// sıralaması — yerel (şehir)/ulusal (ülke)/uluslararası (herkes) 3 kapsam. Hepsinde tek bir
-// alan (UserInterest.skillRating) sıralanıyor — voleybolde de applyBlendedVolleyballRating,
-// padelde applyBlendedPadelRating harmanlanmış derece puanını buraya yazıyor (şema
-// yorumundaki "izole" ifadesi güncel değil, kod gerçekte skillRating'e yazıyor).
+// sıralaması — yerel (şehir)/ulusal (ülke)/uluslararası (herkes) 3 kapsam. Tenis/padel UTR-esinli
+// sisteme geçti (bkz. utrRating.js) — bu ikisinde `ratingType` (singles/doubles) query parametresi
+// ile hangi disiplin sıralanacağı seçilir (default singles). Badminton/masa tenisi/voleybol hâlâ
+// tek bir skillRating alanını sıralıyor, ratingType parametresi onlarda yok sayılır.
 const LEADERBOARD_SPORTS = ['tennis', 'padel', 'badminton', 'table_tennis', 'volleyball'];
 
 export const getLeaderboard = async (req, res, next) => {
     try {
-        const { subCategory, scope = 'international' } = req.query;
+        const { subCategory, scope = 'international', ratingType = 'singles' } = req.query;
         if (!LEADERBOARD_SPORTS.includes(subCategory)) {
             return res.status(400).json({ message: 'Bu dalda derece sıralaması bulunmuyor' });
         }
+        const isDoubles = UTR_SUBCATEGORIES.includes(subCategory) && ratingType === 'doubles';
 
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { city: true, country: true } });
 
@@ -511,10 +522,13 @@ export const getLeaderboard = async (req, res, next) => {
             where: { subCategory, hidden: false },
             select: {
                 userId: true,
-                skillRating: true,
+                skillRating: true, singlesRating: true, doublesRating: true,
+                singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true,
                 user: { select: { id: true, username: true, fullName: true, avatar: true, city: true, country: true } },
             },
         });
+
+        const ratingOf = (e) => getDisplayRating(e, subCategory, isDoubles);
 
         const filtered = entries.filter(e => {
             if (scope === 'local') return me?.city && e.user.city === me.city;
@@ -522,7 +536,7 @@ export const getLeaderboard = async (req, res, next) => {
             return true; // international
         });
 
-        filtered.sort((a, b) => b.skillRating - a.skillRating);
+        filtered.sort((a, b) => ratingOf(b) - ratingOf(a));
 
         const list = filtered.map((e, idx) => ({
             rank: idx + 1,
@@ -530,14 +544,14 @@ export const getLeaderboard = async (req, res, next) => {
             username: e.user.username,
             fullName: e.user.fullName,
             avatar: e.user.avatar,
-            skillRating: e.skillRating,
+            skillRating: ratingOf(e),
             isMe: e.userId === req.userId,
         }));
 
         const myEntry = list.find(x => x.isMe) || null;
 
         res.json({
-            subCategory, scope,
+            subCategory, scope, ratingType: isDoubles ? 'doubles' : 'singles',
             total: list.length,
             myRank: myEntry?.rank || null,
             mySkillRating: myEntry?.skillRating ?? null,

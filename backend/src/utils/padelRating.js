@@ -56,6 +56,13 @@ export function computeOverallScore(selfSkillRating, ratings) {
 // puanı) alınır, ÖNCEKİ harmanlanmış skillRating'den değil — aksi halde her yeni coach/teammate
 // değerlendirmesinde puan üst üste binerdi. selfAssessmentRating henüz set edilmemiş eski
 // kayıtlarda (bu özellik gelmeden önce anket doldurmuş oyuncular) mevcut skillRating taban alınır.
+// Padel de UTR-esinli sisteme geçti (bkz. utrRating.js) — bu harmanlanmış puan artık
+// skillRating'e DEĞİL, tekli/çiftler ORTAK "başlangıç puanı"na (seed) yazılır. 10 soru
+// (forehandDrive/volley/çeviklik vb.) format-bağımsız genel beceri traitleri olduğu için
+// (tekli'ye özel ya da çiftler'e özel bir soru yok) aynı harmanlanmış değer hem
+// singlesSeedRating hem doublesSeedRating'e yazılıyor — "beceri tabanı" olarak. Gerçek maç
+// geçmişi varsa singlesRating/doublesRating'e DOKUNULMAZ (bkz. tenis tarafındaki aynı karar,
+// interest.controller.js saveAssessment).
 export async function applyBlendedPadelRating(subjectId) {
     const interest = await prisma.userInterest.findFirst({ where: { userId: subjectId, subCategory: 'padel' } });
     if (!interest || !interest.assessmentCompleted) return null;
@@ -63,7 +70,10 @@ export async function applyBlendedPadelRating(subjectId) {
     const ratings = await prisma.padelRating.findMany({ where: { subjectId } });
     const { overallScore } = computeOverallScore(selfBase, ratings);
     const { level, totalPoints } = calculateLevel(overallScore, 5);
-    return prisma.userInterest.update({ where: { id: interest.id }, data: { level, skillRating: overallScore, totalPoints } });
+    return prisma.userInterest.update({
+        where: { id: interest.id },
+        data: { level, singlesSeedRating: overallScore, doublesSeedRating: overallScore, totalPoints },
+    });
 }
 
 // İki oyuncu padelde aynı takımda (rakip değil) tamamlanmış bir maç oynamış mı — akran

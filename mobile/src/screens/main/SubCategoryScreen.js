@@ -19096,17 +19096,22 @@ function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
 // vurgulanır. Header'daki ℹ️ ile 🃏 (varsa) arasına konan yeni bir butonla açılır.
 function LeaderboardModal({ visible, onClose, cfg, sub, onUserPress }) {
     const [scope, setScope] = useState('international'); // local | national | international
+    // Tenis/padel UTR-esinli sisteme geçti — tekli/çiftler AYRI puanlanıyor, bu yüzden
+    // sıralama da hangi disiplin gösterileceğini seçen bir toggle'a ihtiyaç duyuyor.
+    // Diğer dallarda (badminton/masa tenisi/voleybol) tek bir puan var, toggle gösterilmez.
+    const isUtrSport = sub === 'tennis' || sub === 'padel';
+    const [ratingType, setRatingType] = useState('singles'); // singles | doubles
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState(null);
 
     useEffect(() => {
         if (!visible) return;
         setLoading(true);
-        api.get(`/interests/leaderboard?subCategory=${sub}&scope=${scope}`)
+        api.get(`/interests/leaderboard?subCategory=${sub}&scope=${scope}${isUtrSport ? `&ratingType=${ratingType}` : ''}`)
             .then(({ data }) => setData(data))
             .catch(() => setData(null))
             .finally(() => setLoading(false));
-    }, [visible, sub, scope]);
+    }, [visible, sub, scope, ratingType]);
 
     const SCOPES = [['local', '📍 Yerel'], ['national', '🇹🇷 Ulusal'], ['international', '🌍 Uluslararası']];
 
@@ -19126,6 +19131,16 @@ function LeaderboardModal({ visible, onClose, cfg, sub, onUserPress }) {
                             </TouchableOpacity>
                         ))}
                     </View>
+                    {isUtrSport && (
+                        <View style={{ flexDirection:'row', gap:3, marginHorizontal:14, marginBottom:10 }}>
+                            {[['singles', '🎾 Tekli'], ['doubles', '👥 Çiftler']].map(([key, lbl]) => (
+                                <TouchableOpacity key={key} onPress={() => setRatingType(key)}
+                                    style={{ flex:1, paddingVertical:7, borderRadius:10, alignItems:'center', backgroundColor: ratingType===key ? cfg.color+'30' : colors.surface2, borderWidth:1, borderColor: ratingType===key ? cfg.color : colors.border }}>
+                                    <Text style={{ color: ratingType===key ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{lbl}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
                     {data?.myRank ? (
                         <View style={{ marginHorizontal:14, marginBottom:10, backgroundColor: cfg.color+'20', borderRadius:12, borderWidth:1, borderColor: cfg.color+'60', padding:10, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                             <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>Senin Sıran</Text>

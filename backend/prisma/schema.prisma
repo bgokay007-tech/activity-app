@@ -108,6 +108,7 @@ model User {
   messageDeletions MessageDeletion[]
   storyViews       StoryView[]
   assessmentVotesCast AssessmentVote[]
+  ratingMatchRecords RatingMatchRecord[]
   coachListings       CoachListing[]
   artistListing       ArtistListing?
   refereeListings     RefereeListing[]
@@ -329,6 +330,21 @@ model UserInterest {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
+  // UTR-esinli tenis/padel puanlama (bkz. backend/src/utils/utrRating.js) — SADECE tennis/padel
+  // subCategory'lerinde kullanılır, diğer dallarda hep null/0 kalır. skillRating bu iki dal için
+  // artık otoriter değil (getDisplayRating() üzerinden okunur), geriye dönük uyumluluk için duruyor.
+  singlesRating          Float?     // tekli — son ≤30 maçlık kayan pencerenin ağırlıklı ortalaması
+  doublesRating          Float?     // çiftler — ayrı kayan pencere
+  singlesSeedRating      Float?     // ankettten gelen başlangıç puanı — recompute'ta her zaman referans (bkz. §3 seedWeight)
+  doublesSeedRating      Float?
+  singlesRatingOffset    Float      @default(0)  // ceza (no-show/geç iptal) — recompute'ın üzerine BİNER, ezilmez
+  doublesRatingOffset    Float      @default(0)
+  singlesMatchCount      Int        @default(0)
+  doublesMatchCount      Int        @default(0)
+  singlesLastMatchAt     DateTime?
+  doublesLastMatchAt     DateTime?
+  assessmentCompletedAt  DateTime?  // tenis/padel reassessment-grace penceresinin dayanak noktası
+
   user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   skills            Skill[]
   assessmentVotes   AssessmentVote[] @relation("VoteTarget")
@@ -336,6 +352,31 @@ model UserInterest {
   digimonVotingEnabled Boolean @default(false)
 
   @@unique([userId, category, subCategory])
+}
+
+// UTR-esinli tenis/padel puanlama: her nitelikli maç için tek bir ham kayıt. Kayan pencere
+// (≤30 maç / 12 ay) recompute anında bu tablodan taze hesaplanır — zaman aşımı ağırlığı
+// SAKLANMAZ, çünkü "şimdi"ye bağlıdır (bkz. backend/src/utils/utrRating.js recomputeRatingFromHistory).
+model RatingMatchRecord {
+  id                          String   @id @default(uuid())
+  userId                      String
+  subCategory                 String   // 'tennis' | 'padel'
+  matchType                   String   // 'SINGLE' | 'DOUBLE'
+  sourceType                  String   // 'RIVAL' | 'TOURNAMENT'
+  sourceId                    String   // ActivityRequest.id veya TournamentMatch.id (denetim/debug)
+  matchDate                   DateTime
+  didWin                      Boolean
+  performanceScore            Float    // 0-1, oynanan setlerdeki kazanılan oyun oranı
+  opponentRatingSnapshot      Float    // rakip tarafın maç anındaki aynı-disiplin ratingi
+  opponentReliabilitySnapshot Float    // 0-1, maç anında donmuş (sonradan değişmez)
+  formatWeight                Float    // 0-1, set sayısından tahmin
+  ratingBefore                Float
+  ratingAfter                 Float
+  createdAt                   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, subCategory, matchType, matchDate])
 }
 
 // ASSESSMENT OYLAMA (digimon kart oy sistemi)
