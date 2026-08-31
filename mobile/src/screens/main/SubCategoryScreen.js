@@ -19510,6 +19510,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     }, [mediaViewIdx, mediaPosts, rivalSummaryCache]);
     const [mediaLiked, setMediaLiked] = useState({});
     const [mediaLikeCounts, setMediaLikeCounts] = useState({});
+    // Kullanıcı isteği: medyaya yorum yapınca yorum sayacı akış/gridde ANINDA artsın —
+    // sayfadan çıkıp girmeye gerek kalmadan (mediaLikeCounts ile aynı desen).
+    const [mediaCommentCounts, setMediaCommentCounts] = useState({});
     // Kalbe uzun basınca beğenenler listesi — kullanıcı isteği: "beğenenleri görebilmesi için
     // kalbe uzun basılı tutsun". Medya feed kartı VE tam ekran görüntüleyici AYNI paylaşılan
     // state/modalı kullanıyor (bkz. openLikersModal, aşağıdaki Modal render'ı).
@@ -25342,7 +25345,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     const actualIdx = mediaPosts.findIndex(p => p.id === post.id);
                                                     const isLiked = mediaLiked[post.id] ?? (Array.isArray(post.likes) && post.likes.length > 0);
                                                     const likeCount = mediaLikeCounts[post.id] ?? (post._count?.likes || 0);
-                                                    const commentCount = post._count?.comments || 0;
+                                                    const commentCount = mediaCommentCounts[post.id] ?? (post._count?.comments || 0);
                                                     const toggleLike = async () => {
                                                         const next = !isLiked;
                                                         setMediaLiked(prev => ({ ...prev, [post.id]: next }));
@@ -26855,6 +26858,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 const { data } = await api.post(`/posts/${mp.id}/comment`, { content: text });
                                 setMediaCommentText('');
                                 setMediaComments(prev => [...prev, data]);
+                                // Kullanıcı isteği: yorum sayacı akış/gridde de ANINDA artsın.
+                                setMediaCommentCounts(prev => ({ ...prev, [mp.id]: (prev[mp.id] ?? (mp._count?.comments || 0)) + 1 }));
                             } catch {}
                             finally { setSendingMediaComment(false); }
                         };
