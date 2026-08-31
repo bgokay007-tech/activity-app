@@ -7,6 +7,7 @@ import {
     removeInterest,
     hideInterest,
     getUsersByCategory,
+    getLeaderboard,
     getAssessmentQuestions,
     saveAssessment,
     toggleVoting,
@@ -26,6 +27,7 @@ router.post('/add', authenticate, addInterest);
 router.delete('/:id', authenticate, removeInterest);
 router.patch('/:id/hide', authenticate, hideInterest);
 router.get('/users', authenticate, getUsersByCategory);
+router.get('/leaderboard', authenticate, getLeaderboard);
 router.get('/assessment/:subCategory', authenticate, getAssessmentQuestions);
 router.patch('/:id/assess', authenticate, saveAssessment);
 router.patch('/:id/alias', authenticate, updateAlias);

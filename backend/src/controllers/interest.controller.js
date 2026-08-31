@@ -491,6 +491,63 @@ export const getUsersByCategory = async (req, res, next) => {
     }
 };
 
+// Kullanıcı isteği: tenis/padel/badminton/masa tenisi/voleybol dallarında ELO (derece) puan
+// sıralaması — yerel (şehir)/ulusal (ülke)/uluslararası (herkes) 3 kapsam. Hepsinde tek bir
+// alan (UserInterest.skillRating) sıralanıyor — voleybolde de applyBlendedVolleyballRating,
+// padelde applyBlendedPadelRating harmanlanmış derece puanını buraya yazıyor (şema
+// yorumundaki "izole" ifadesi güncel değil, kod gerçekte skillRating'e yazıyor).
+const LEADERBOARD_SPORTS = ['tennis', 'padel', 'badminton', 'table_tennis', 'volleyball'];
+
+export const getLeaderboard = async (req, res, next) => {
+    try {
+        const { subCategory, scope = 'international' } = req.query;
+        if (!LEADERBOARD_SPORTS.includes(subCategory)) {
+            return res.status(400).json({ message: 'Bu dalda derece sıralaması bulunmuyor' });
+        }
+
+        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { city: true, country: true } });
+
+        const entries = await prisma.userInterest.findMany({
+            where: { subCategory, hidden: false },
+            select: {
+                userId: true,
+                skillRating: true,
+                user: { select: { id: true, username: true, fullName: true, avatar: true, city: true, country: true } },
+            },
+        });
+
+        const filtered = entries.filter(e => {
+            if (scope === 'local') return me?.city && e.user.city === me.city;
+            if (scope === 'national') return me?.country && e.user.country === me.country;
+            return true; // international
+        });
+
+        filtered.sort((a, b) => b.skillRating - a.skillRating);
+
+        const list = filtered.map((e, idx) => ({
+            rank: idx + 1,
+            userId: e.userId,
+            username: e.user.username,
+            fullName: e.user.fullName,
+            avatar: e.user.avatar,
+            skillRating: e.skillRating,
+            isMe: e.userId === req.userId,
+        }));
+
+        const myEntry = list.find(x => x.isMe) || null;
+
+        res.json({
+            subCategory, scope,
+            total: list.length,
+            myRank: myEntry?.rank || null,
+            mySkillRating: myEntry?.skillRating ?? null,
+            list: list.slice(0, 100),
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 export const updateAlias = async (req, res, next) => {
     try {
         const { id } = req.params;

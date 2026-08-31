@@ -612,6 +612,57 @@ async function pickAndUploadMatchMedia(onProgress) {
     return { url: uploadData.url, isVideo };
 }
 
+// Kullanıcı isteği: Medya sekmesindeki video paylaşımları Instagram gibi akışta otomatik
+// oynasın (sessiz+döngülü) — ama "Veri Tasarrufu" açıksa otomatik oynatılmasın, kullanıcı
+// dokununca kartın içinde küçük oynasın, basılı tutunca tam ekran açılıp orada oynasın.
+// Ayrı bir component olmak zorunda: useVideoPlayer bir hook, bir .map() callback'inin
+// İÇİNDE (koşullu/döngüsel çağrı) kullanılamaz (Rules of Hooks) — her karo kendi player'ını
+// kendi bileşen örneğinde tutar.
+function MediaTile({ post, dataSaverMode, onOpenFullscreen }) {
+    const [inlineUnlocked, setInlineUnlocked] = useState(false);
+    const isVideo = !post.imageUrl && !!post.videoUrl;
+    const shouldPlayInline = isVideo && (!dataSaverMode || inlineUnlocked);
+    const player = useVideoPlayer(null);
+    useEffect(() => {
+        if (shouldPlayInline) {
+            player.loop = true;
+            player.muted = true;
+            player.replaceAsync(post.videoUrl).then(() => player.play()).catch(() => {});
+        } else {
+            player.pause();
+        }
+    }, [shouldPlayInline, post.videoUrl]);
+
+    const handlePress = () => {
+        if (!isVideo) { onOpenFullscreen(); return; }
+        if (dataSaverMode && !inlineUnlocked) { setInlineUnlocked(true); return; }
+        onOpenFullscreen();
+    };
+    const handleLongPress = () => {
+        if (isVideo) onOpenFullscreen();
+    };
+
+    if (post.imageUrl) {
+        return (
+            <TouchableOpacity activeOpacity={0.95} onPress={handlePress}>
+                <Image source={{ uri: post.imageUrl }} style={{ width: '100%', aspectRatio: 1 }} resizeMode="cover" />
+            </TouchableOpacity>
+        );
+    }
+    return (
+        <TouchableOpacity activeOpacity={0.95} onPress={handlePress} onLongPress={handleLongPress} delayLongPress={350}>
+            {shouldPlayInline ? (
+                <VideoView player={player} style={{ width: '100%', aspectRatio: 1 }} contentFit="cover" nativeControls={false} />
+            ) : (
+                <View style={{ width: '100%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a14' }}>
+                    <Text style={{ fontSize: 46 }}>▶️</Text>
+                    {dataSaverMode && <Text style={{ color: '#fff', fontSize: 10, marginTop: 6, opacity: 0.8 }}>Veri tasarrufu · dokun</Text>}
+                </View>
+            )}
+        </TouchableOpacity>
+    );
+}
+
 function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin, highlightSlot: highlightSlotFromNotif = null, autoOpenOrder = false }) {
     const insets = useSafeAreaInsets();
     // Kullanıcı raporu: "Atanmamış" ızgarasında derece puanı (⭐) küçük ekranlı telefonlarda
@@ -18975,6 +19026,75 @@ function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
     );
 }
 
+// Kullanıcı isteği: tenis/padel/badminton/masa tenisi/voleybol dallarında ELO (derece) puan
+// sıralaması — yerel (şehir)/ulusal (ülke)/uluslararası (herkes) 3 sekme, kendi sırası ayrıca
+// vurgulanır. Header'daki ℹ️ ile 🃏 (varsa) arasına konan yeni bir butonla açılır.
+function LeaderboardModal({ visible, onClose, cfg, sub }) {
+    const [scope, setScope] = useState('international'); // local | national | international
+    const [loading, setLoading] = useState(false);
+    const [data, setData] = useState(null);
+
+    useEffect(() => {
+        if (!visible) return;
+        setLoading(true);
+        api.get(`/interests/leaderboard?subCategory=${sub}&scope=${scope}`)
+            .then(({ data }) => setData(data))
+            .catch(() => setData(null))
+            .finally(() => setLoading(false));
+    }, [visible, sub, scope]);
+
+    const SCOPES = [['local', '📍 Yerel'], ['national', '🇹🇷 Ulusal'], ['international', '🌍 Uluslararası']];
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
+                <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, maxHeight:'85%', paddingBottom:24 }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', padding:16, borderBottomWidth:1, borderColor: colors.border }}>
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>🏆 Derece Sıralaması</Text>
+                        <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:18, fontWeight:'700' }}>✕</Text></TouchableOpacity>
+                    </View>
+                    <View style={{ flexDirection:'row', gap:3, marginHorizontal:14, marginTop:10, marginBottom:10 }}>
+                        {SCOPES.map(([key, lbl]) => (
+                            <TouchableOpacity key={key} onPress={() => setScope(key)}
+                                style={{ flex:1, paddingVertical:7, borderRadius:10, alignItems:'center', backgroundColor: scope===key ? cfg.color : colors.surface2, borderWidth:1, borderColor: scope===key ? cfg.color : colors.border }}>
+                                <Text style={{ color: scope===key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{lbl}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                    {data?.myRank ? (
+                        <View style={{ marginHorizontal:14, marginBottom:10, backgroundColor: cfg.color+'20', borderRadius:12, borderWidth:1, borderColor: cfg.color+'60', padding:10, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>Senin Sıran</Text>
+                            <Text style={{ color: cfg.color, fontSize:15, fontWeight:'900' }}>#{data.myRank} · {data.mySkillRating != null ? data.mySkillRating.toFixed(2) : '—'} ★</Text>
+                        </View>
+                    ) : (!loading && data) ? (
+                        <Text style={{ color: colors.textMuted, textAlign:'center', marginBottom:10, fontSize:12 }}>Bu dalda henüz bir dereceniz yok.</Text>
+                    ) : null}
+                    {loading ? (
+                        <ActivityIndicator color={cfg.color} style={{ marginTop:30 }} />
+                    ) : !data || data.list.length === 0 ? (
+                        <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>Bu kapsamda henüz derece kaydı yok.</Text>
+                    ) : (
+                        <ScrollView style={{ paddingHorizontal:14 }} showsVerticalScrollIndicator={false}>
+                            {data.list.map(row => (
+                                <View key={row.userId} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:9, borderBottomWidth:1, borderBottomColor: colors.border, backgroundColor: row.isMe ? cfg.color+'15' : 'transparent', borderRadius: row.isMe ? 8 : 0, paddingHorizontal: row.isMe ? 6 : 0 }}>
+                                    <Text style={{ color: row.rank <= 3 ? '#fbbf24' : colors.textMuted, fontSize:14, fontWeight:'900', width:28 }}>
+                                        {row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : `#${row.rank}`}
+                                    </Text>
+                                    <Avatar name={row.username} avatar={row.avatar} size={32} color={cfg.color} />
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight: row.isMe ? '900' : '700', flex:1 }} numberOfLines={1}>
+                                        {row.fullName || row.username}{row.isMe ? ' (Sen)' : ''}
+                                    </Text>
+                                    <Text style={{ color: cfg.color, fontSize:14, fontWeight:'900' }}>{row.skillRating != null ? row.skillRating.toFixed(2) : '—'} ★</Text>
+                                </View>
+                            ))}
+                        </ScrollView>
+                    )}
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 const spot = StyleSheet.create({
     overlay:      { flex:1, backgroundColor: colors.bg, paddingHorizontal:13, paddingBottom:17 },
     card:         { flex:1, backgroundColor: colors.surface, borderRadius:24, borderWidth:3, marginBottom:14, overflow:'hidden' },
@@ -19219,6 +19339,16 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Tenis/Padel sekmesine her girişte (günde en fazla 3 kez) "Günün Tenisçisi/Padelcıları" kartını otomatik göster
     const [showSpotlight, setShowSpotlight] = useState(false);
     const [showRatingInfo, setShowRatingInfo] = useState(false);
+    const [showLeaderboard, setShowLeaderboard] = useState(false);
+    // Kullanıcı isteği: Medya sekmesindeki videolar Instagram gibi akışta otomatik oynasın,
+    // ama "Veri Tasarrufu" (Profil'deki mevcut ayar, AsyncStorage 'activity_data_saver')
+    // açıksa otomatik oynatılmasın — kullanıcı dokununca küçük kartta oynasın, basılı tutunca
+    // tam ekran açılıp oynasın (bkz. MediaTile). Profil'de değiştirilince buraya dönünce
+    // güncellensin diye useFocusEffect ile tekrar okunuyor.
+    const [dataSaverMode, setDataSaverMode] = useState(false);
+    useFocusEffect(useCallback(() => {
+        AsyncStorage.getItem('activity_data_saver').then(v => setDataSaverMode(v === 'true')).catch(() => {});
+    }, []));
     useEffect(() => {
         if (sub !== 'tennis' && sub !== 'padel' && sub !== 'badminton' && sub !== 'table_tennis') return;
         const today = new Date().toISOString().slice(0, 10);
@@ -22406,6 +22536,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <TouchableOpacity onPress={() => setShowRatingInfo(true)}>
                             <Text style={{ fontSize:19 }}>ℹ️</Text>
                         </TouchableOpacity>
+                        {/* Kullanıcı isteği: tenis/padel/badminton/masa tenisi/voleybolde ELO
+                            (derece) puan sıralaması — bilgilendirme (ℹ️) ile digimon kart (🃏,
+                            sadece tenis) arasına yerleştirildi. */}
+                        <TouchableOpacity onPress={() => setShowLeaderboard(true)}>
+                            <Text style={{ fontSize:19 }}>🏆</Text>
+                        </TouchableOpacity>
                         {sub === 'tennis' && (
                             <TouchableOpacity onPress={() => setShowSpotlight(true)}>
                                 <Text style={{ fontSize:21 }}>🃏</Text>
@@ -25086,15 +25222,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 </View>
                                                                 {post.type === 'REEL' && <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '800' }}>🎬</Text>}
                                                             </View>
-                                                            {/* Görsel */}
-                                                            <TouchableOpacity activeOpacity={0.95} onPress={() => setMediaViewIdx(actualIdx)}>
-                                                                {post.imageUrl
-                                                                    ? <Image source={{ uri: post.imageUrl }} style={{ width: '100%', aspectRatio: 1 }} resizeMode="cover" />
-                                                                    : <View style={{ width: '100%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a14' }}>
-                                                                        <Text style={{ fontSize: 52 }}>🎬</Text>
-                                                                      </View>
-                                                                }
-                                                            </TouchableOpacity>
+                                                            {/* Görsel/Video — kullanıcı isteği: video Instagram gibi akışta otomatik
+                                                                oynasın (Veri Tasarrufu kapalıyken), açıksa dokununca küçük oynasın,
+                                                                basılı tutunca tam ekran açılsın (bkz. MediaTile). */}
+                                                            <MediaTile post={post} dataSaverMode={dataSaverMode} onOpenFullscreen={() => setMediaViewIdx(actualIdx)} />
                                                             {/* Aksiyon satırı */}
                                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 9, paddingTop: 7, paddingBottom: 3 }}>
                                                                 <TouchableOpacity onPress={toggleLike} onLongPress={() => openLikersModal(post.id)} delayLongPress={350} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
@@ -26572,6 +26703,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         </View>
         <TennisSpotlightModal visible={showSpotlight} onClose={() => setShowSpotlight(false)} cfg={cfg} sub={sub} />
         <RatingInfoModal visible={showRatingInfo} onClose={() => setShowRatingInfo(false)} cfg={cfg} sub={sub} />
+        <LeaderboardModal visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} cfg={cfg} sub={sub} />
 
         {/* Kalbe uzun basınca beğenenler listesi (bkz. openLikersModal) — medya feed kartı ve
             tam ekran görüntüleyici paylaşıyor. Görünürlük backend'de zaten kullanıcının
