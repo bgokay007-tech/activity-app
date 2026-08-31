@@ -18964,14 +18964,28 @@ const SPOTLIGHT_CONFIG = {
     padel:     { title: 'Günün Padelcıları', emoji: '🏓', comingSoon: 'Çok yakında — güncel profesyonel padel verileri burada görünecek 🏓' },
     badminton: { title: 'Günün Badmintoncuları', emoji: '🏸', comingSoon: 'Çok yakında — güncel profesyonel badminton verileri burada görünecek 🏸' },
     table_tennis: { title: 'Günün Masa Tenisçileri', emoji: '🏓', comingSoon: 'Çok yakında — güncel profesyonel masa tenisi verileri burada görünecek 🏓' },
+    volleyball: { title: 'Günün Voleybolcuları', emoji: '🏐', comingSoon: 'Çok yakında — güncel profesyonel voleybol verileri burada görünecek 🏐' },
 };
+
+// Kullanıcı isteği: digimon kart butonu artık tüm spor dallarında çalışıyor — yukarıdaki
+// SPOTLIGHT_CONFIG'te özel olarak tanımlanmamış dallar (basketbol, yüzme, koşu vb.) için
+// sabit "Tenisçi/Padelci" gibi dala özgü bir unvan uydurmak yerine dal-nötr "Günün Yıldızı"
+// başlığı + o dalın kendi emoji'si (cfg.emoji) kullanılır — algoritma/veri (backend
+// spotlight.controller.js) zaten subCategory parametresine göre generic çalışıyor.
+function getSpotlightMeta(sub, cfg) {
+    return SPOTLIGHT_CONFIG[sub] || {
+        title: 'Günün Yıldızı',
+        emoji: cfg?.emoji || '🏅',
+        comingSoon: 'Çok yakında — güncel profesyonel veriler burada görünecek',
+    };
+}
 
 function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
     const insets = useSafeAreaInsets();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [flipped, setFlipped] = useState(false);
-    const meta = SPOTLIGHT_CONFIG[sub] || SPOTLIGHT_CONFIG.tennis;
+    const meta = getSpotlightMeta(sub, cfg);
 
     useEffect(() => {
         if (!visible) return;
@@ -19350,7 +19364,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         AsyncStorage.getItem('activity_data_saver').then(v => setDataSaverMode(v === 'true')).catch(() => {});
     }, []));
     useEffect(() => {
-        if (sub !== 'tennis' && sub !== 'padel' && sub !== 'badminton' && sub !== 'table_tennis') return;
+        if (sub !== 'tennis' && sub !== 'padel' && sub !== 'badminton' && sub !== 'table_tennis' && sub !== 'volleyball') return;
         const today = new Date().toISOString().slice(0, 10);
         const storageKey = `${sub}_spotlight_shown`;
         AsyncStorage.getItem(storageKey).then(raw => {
