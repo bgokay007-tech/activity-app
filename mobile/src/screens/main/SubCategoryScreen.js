@@ -1171,6 +1171,28 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         return off;
     }, [visible, item?.id]);
 
+    // Kullanıcı isteği: bir yorum silindiğinde açık olan görünümden ANINDA kaybolsun —
+    // sayfa yenilemeye/çıkıp girmeye gerek kalmadan (bkz. backend deleteMatchComment).
+    useEffect(() => {
+        if (!visible || !item?.id) return;
+        const off = onSocket('commentDeleted', ({ rivalId, commentId }) => {
+            if (rivalId !== item.id) return;
+            setComments(prev => prev.filter(c => c.id !== commentId));
+        });
+        return off;
+    }, [visible, item?.id]);
+
+    // Kullanıcı isteği: maça katılan biri medya paylaştığında, bu ilanı/maçı açık tutanların
+    // ekranında ANINDA görünsün — sayfa yenilemeye/çıkıp girmeye gerek kalmadan.
+    useEffect(() => {
+        if (!visible || !item?.id) return;
+        const off = onSocket('rivalMediaAdded', ({ rivalId, post }) => {
+            if (rivalId !== item.id) return;
+            setMatchMediaList(prev => prev.some(p => p.id === post.id) ? prev : [post, ...prev]);
+        });
+        return off;
+    }, [visible, item?.id]);
+
     useEffect(() => {
         if (!visible || !item?.id) return;
         const off = onSocket('rivalUpdate', (updated) => {
@@ -1892,11 +1914,28 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         finally { setSendingComment(false); }
     };
 
-    const deleteComment = async (commentId) => {
+    const doDeleteComment = async (commentId) => {
         try {
             await api.delete(`/rivals/comments/${commentId}`);
             setComments(p => p.filter(c => c.id !== commentId));
         } catch(e) { Alert.alert('Hata', e?.response?.data?.message || 'Yorum silinemedi'); }
+    };
+    // Kullanıcı isteği: yorumu silmeden önce, yazarı hariç birileri bu yorumu zaten
+    // görmüşse "yine de silmek istiyor musunuz?" diye sorsun (bkz. backend viewedBy).
+    const deleteComment = (comment) => {
+        const seenByOthers = Array.isArray(comment.viewedBy) ? comment.viewedBy.filter(uid => uid !== myId).length : 0;
+        if (seenByOthers > 0) {
+            Alert.alert(
+                'Bu yorum görüldü',
+                `Bu yorumu ${seenByOthers} kişi gördü. Yine de silmek istiyor musunuz?`,
+                [
+                    { text: 'Vazgeç', style: 'cancel' },
+                    { text: 'Yine de Sil', style: 'destructive', onPress: () => doDeleteComment(comment.id) },
+                ]
+            );
+            return;
+        }
+        doDeleteComment(comment.id);
     };
 
     return (
@@ -3924,7 +3963,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             </Text>
                                         </View>
                                         {canDeleteComment(c) && (
-                                            <TouchableOpacity onPress={() => deleteComment(c.id)} style={{ padding:5, marginLeft:8 }}>
+                                            <TouchableOpacity onPress={() => deleteComment(c)} style={{ padding:5, marginLeft:8 }}>
                                                 <Text style={{ color:'#f87171', fontSize:moderateScale(14) }}>✕</Text>
                                             </TouchableOpacity>
                                         )}
@@ -4099,8 +4138,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         {/* Kullanıcı isteği: "Medya" listesindeki bir öğeye dokununca tam ekran görüntülensin —
             fotoğraf/video. Kardeş Modal olarak (yukarıdakiler gibi), ana detay Modal'ının içine değil. */}
         <Modal visible={matchMediaViewIdx !== null} transparent animationType="fade" onRequestClose={() => setMatchMediaViewIdx(null)}>
-            <View style={{ flex:1, backgroundColor:'#000000ee', justifyContent:'center', alignItems:'center' }}>
-                <TouchableOpacity style={{ position:'absolute', top:56, right:20, zIndex:10 }} onPress={() => setMatchMediaViewIdx(null)}>
+            <View style={{ flex:1, backgroundColor:'#000000ee', justifyContent:'center', alignItems:'center', paddingTop: insets.top, paddingBottom: insets.bottom }}>
+                {/* Kullanıcı isteği: tam ekran medya, telefonun üst/alt dokunmatik gezinme
+                    çubuklarıyla çakışmasın — kapatma butonu insets.top'a göre, içerik de
+                    insets.bottom bırakılarak konumlanıyor (bkz. references/ekran-guvenli-alan.md). */}
+                <TouchableOpacity style={{ position:'absolute', top: insets.top + 12, right:20, zIndex:10 }} onPress={() => setMatchMediaViewIdx(null)}>
                     <Text style={{ color:'#fff', fontSize:28, fontWeight:'700' }}>✕</Text>
                 </TouchableOpacity>
                 {matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && (
@@ -5375,6 +5417,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             .then(({ data }) => setMatchMediaList(Array.isArray(data) ? data : []))
             .catch(() => {})
             .finally(() => setLoadingMatchMedia(false));
+    }, [match.id]);
+    // Kullanıcı isteği: maça katılan biri medya paylaştığında bu kart açıkken ANINDA görünsün.
+    useEffect(() => {
+        const off = onSocket('rivalMediaAdded', ({ rivalId, post }) => {
+            if (rivalId !== match.id) return;
+            setMatchMediaList(prev => prev.some(p => p.id === post.id) ? prev : [post, ...prev]);
+        });
+        return off;
     }, [match.id]);
     // Kullanıcı isteği: skor bekleyen (scoreStatus PENDING) maçlarda skoru girenin paylaştığı
     // medya da karşı tarafın onayını bekler — bu maçlar için o medyaları çekip Onayla/Reddet
@@ -7986,10 +8036,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             </View>
         </Modal>
 
-        {/* Kullanıcı isteği: "Medya" listesindeki bir öğeye dokununca tam ekran görüntülensin. */}
+        {/* Kullanıcı isteği: "Medya" listesindeki bir öğeye dokununca tam ekran görüntülensin —
+            telefonun üst/alt dokunmatik gezinme çubuklarıyla çakışmasın diye insets kullanılıyor. */}
         <Modal visible={matchMediaViewIdx !== null} transparent animationType="fade" onRequestClose={() => setMatchMediaViewIdx(null)}>
-            <View style={{ flex:1, backgroundColor:'#000000ee', justifyContent:'center', alignItems:'center' }}>
-                <TouchableOpacity style={{ position:'absolute', top:56, right:20, zIndex:10 }} onPress={() => setMatchMediaViewIdx(null)}>
+            <View style={{ flex:1, backgroundColor:'#000000ee', justifyContent:'center', alignItems:'center', paddingTop: insets.top, paddingBottom: insets.bottom }}>
+                <TouchableOpacity style={{ position:'absolute', top: insets.top + 12, right:20, zIndex:10 }} onPress={() => setMatchMediaViewIdx(null)}>
                     <Text style={{ color:'#fff', fontSize:28, fontWeight:'700' }}>✕</Text>
                 </TouchableOpacity>
                 {matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && (
@@ -26750,11 +26801,19 @@ export default function SubCategoryScreen({ route, navigation }) {
             </Modal>
 
             {/* ── Media Viewer ── */}
-            <Modal visible={mediaViewIdx !== null} animationType="fade" transparent onRequestClose={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); }}>
-                <View style={{ flex: 1, backgroundColor: '#000000ee' }}>
-                    <TouchableOpacity style={{ position: 'absolute', top: 56, right: 20, zIndex: 10 }} onPress={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); }}>
+            <Modal visible={mediaViewIdx !== null} animationType="fade" transparent onRequestClose={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); }} android_keyboardInputMode="adjustNothing">
+                {/* Kullanıcı isteği: tam ekran medya telefonun üst/alt dokunmatik gezinme
+                    çubuklarıyla çakışmasın diye insets kullanılıyor (bkz. ekran-guvenli-alan.md). */}
+                <View style={{ flex: 1, backgroundColor: '#000000ee', paddingTop: insets.top, paddingBottom: insets.bottom }}>
+                    <TouchableOpacity style={{ position: 'absolute', top: insets.top + 12, right: 20, zIndex: 10 }} onPress={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); }}>
                         <Text style={{ color: '#fff', fontSize: 28, fontWeight: '700' }}>✕</Text>
                     </TouchableOpacity>
+                    {/* Kullanıcı isteği: yorum kutusuna dokununca klavye onu kapatıyordu (kullanıcı
+                        raporu: "yorum yazacağım formu kapatıyor, ne yazdığımı göremiyorum") —
+                        android_keyboardInputMode="adjustNothing" ile Android'in kendiliğinden
+                        yeniden boyutlandırmasını kapatıp yerine bunu kullanıyoruz (bkz.
+                        RivalDetailModal'daki aynı desen, ekran-guvenli-alan.md). */}
+                    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
                     {mediaViewIdx !== null && mediaPosts[mediaViewIdx] && (() => {
                         const mp = mediaPosts[mediaViewIdx];
                         const isLiked = mediaLiked[mp.id] ?? (Array.isArray(mp.likes) && mp.likes.length > 0);
@@ -26885,6 +26944,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             </View>
                         );
                     })()}
+                    </KeyboardAvoidingView>
                 </View>
             </Modal>
         </View>
