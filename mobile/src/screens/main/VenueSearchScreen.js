@@ -51,6 +51,15 @@ function openPhoneActions(t, phone, whatsappNumber) {
     Alert.alert('', phone || wa, options);
 }
 
+// Kullanıcı isteği: Pro olmayan tesislerde eklenmiş bir website linki varsa, tıklanınca
+// (Ara/WhatsApp'taki gibi seçenek sormadan) direkt açılsın — o tesisin kendi online
+// rezervasyon sayfası olabilir.
+function openWebsite(url) {
+    if (!url) return;
+    const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    Linking.openURL(normalized).catch(() => {});
+}
+
 const DATE_OPTIONS = Array.from({ length: 14 }, (_, i) => getDateStr(i));
 const SURFACE_OPTIONS = ['HARD', 'CLAY', 'GRASS', 'CARPET', 'ARTIFICIAL'];
 const DAY_ITEMS = [
@@ -203,10 +212,11 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
 // ─── Tesis Öner Modalı (en üst seviyede, nested modal sorunu yok — CartModal ile aynı gerekçe) ─
 function VenueSuggestModal({ visible, form, onChangeField, onToggleDay, onOpenTimePicker, onChangeCourtGroup, onAddCourtGroup, onRemoveCourtGroup, onSubmit, onClose, saving }) {
     const t = useT();
+    const insets = useSafeAreaInsets();
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <View style={cm.overlay}>
-                <View style={[cm.box, { maxHeight: '88%' }]}>
+                <View style={[cm.box, { maxHeight: '88%', paddingBottom: 18 + insets.bottom }]}>
                     <ScrollView showsVerticalScrollIndicator={false}>
                         <Text style={cm.title}>🏟️ {t.vsSuggestTitle}</Text>
                         <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 12, lineHeight: 17 }}>{t.vsSuggestDesc}</Text>
@@ -220,6 +230,11 @@ function VenueSuggestModal({ visible, form, onChangeField, onToggleDay, onOpenTi
                         <TextInput style={[s.input, { height: 60, textAlignVertical: 'top' }]} placeholder={t.vsSuggestAddressPh} placeholderTextColor={colors.textMuted} value={form.address} onChangeText={v => onChangeField('address', v)} multiline />
                         <View style={{ height: 8 }} />
                         <TextInput style={s.input} placeholder={t.vsSuggestPhonePh} placeholderTextColor={colors.textMuted} value={form.phone} onChangeText={v => onChangeField('phone', v)} keyboardType="phone-pad" />
+                        <View style={{ height: 8 }} />
+                        {/* Kullanıcı isteği: Pro olmayan bu tesisin kendi online rezervasyon/web
+                            sitesi linki de eklenebilsin — onaylanınca tesis kartında dokununca
+                            direkt açılır (bkz. openWebsite). */}
+                        <TextInput style={s.input} placeholder={t.vsSuggestWebsitePh} placeholderTextColor={colors.textMuted} value={form.website} onChangeText={v => onChangeField('website', v)} keyboardType="url" autoCapitalize="none" />
 
                         {/* Kullanıcı isteği: tek bir "kaç kort" sayısı yerine, kaç kortun hangi
                             zeminde ve açık/kapalı olduğu grup grup girilebilsin (ör. 3 kort toprak
@@ -309,11 +324,12 @@ function VenueSuggestModal({ visible, form, onChangeField, onToggleDay, onOpenTi
 // doldurulan alanlar gönderilir — hepsini doldurma zorunluluğu yok.
 function VenueEditSuggestModal({ visible, venue, form, onChangeField, onToggleDay, onOpenTimePicker, onSubmit, onClose, saving }) {
     const t = useT();
+    const insets = useSafeAreaInsets();
     if (!venue) return null;
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <View style={cm.overlay}>
-                <View style={[cm.box, { maxHeight: '88%' }]}>
+                <View style={[cm.box, { maxHeight: '88%', paddingBottom: 18 + insets.bottom }]}>
                     <ScrollView showsVerticalScrollIndicator={false}>
                         <Text style={cm.title}>✏️ {t.vsSuggestEditTitle}</Text>
                         <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 12, lineHeight: 17 }}>
@@ -335,6 +351,13 @@ function VenueEditSuggestModal({ visible, venue, form, onChangeField, onToggleDa
                         <View style={{ height: 8 }} />
                         <TextInput style={s.input} placeholder={t.vsSuggestPhonePh} placeholderTextColor={colors.textMuted} value={form.phone} onChangeText={v => onChangeField('phone', v)} keyboardType="phone-pad" />
                         <View style={{ height: 8 }} />
+                        {/* website sadece BusinessVenue'de var — topluluk Court kaydında bu alan yok. */}
+                        {!venue.isCommunityCourt && (
+                            <>
+                                <TextInput style={s.input} placeholder={t.vsSuggestWebsitePh} placeholderTextColor={colors.textMuted} value={form.website} onChangeText={v => onChangeField('website', v)} keyboardType="url" autoCapitalize="none" />
+                                <View style={{ height: 8 }} />
+                            </>
+                        )}
                         <TextInput style={s.input} placeholder={t.vsSuggestCourtCountPh} placeholderTextColor={colors.textMuted} value={form.courtCount} onChangeText={v => onChangeField('courtCount', v.replace(/[^0-9]/g, ''))} keyboardType="number-pad" maxLength={2} />
 
                         <Text style={[cm.payLabel, { marginTop: 12 }]}>{t.vsSuggestDaysLabel}</Text>
@@ -513,6 +536,14 @@ function VenueBookingSheet({ venue, visible, onClose, onAddToCart, cartKeys, onO
                                 {(venue.phone || whatsappV) ? (
                                     <TouchableOpacity style={bm.tag} onPress={() => openPhoneActions(t, callV, whatsappV)}>
                                         <Text style={bm.tagText}>📞 {venue.phone || whatsappV}</Text>
+                                    </TouchableOpacity>
+                                ) : null}
+                                {/* Kullanıcı isteği: eklenmiş bir website varsa dokununca direkt açılsın —
+                                    Pro olmayan (uygulama içi rezervasyon yapılamayan) tesisin kendi
+                                    online rezervasyon sayfası olabilir. */}
+                                {!venue.isCommunityCourt && venue.website ? (
+                                    <TouchableOpacity style={bm.tag} onPress={() => openWebsite(venue.website)}>
+                                        <Text style={bm.tagText}>🔗 {t.vsWebsiteBtn}</Text>
                                     </TouchableOpacity>
                                 ) : null}
                                 {/* Kullanıcı isteği: eksik/hatalı tesis bilgisini (isim, şehir, ilçe, adres,
@@ -882,6 +913,11 @@ function VenueCard({ venue, onPress }) {
                     <Text style={[s.cardAddr, { color: colors.purple }]}>📞 {venue.phone}</Text>
                 </TouchableOpacity>
             ) : null}
+            {venue.isProVenue === false && !venue.isCommunityCourt && venue.website ? (
+                <TouchableOpacity onPress={() => openWebsite(venue.website)}>
+                    <Text style={[s.cardAddr, { color: colors.purple }]}>🔗 {t.vsWebsiteBtn}</Text>
+                </TouchableOpacity>
+            ) : null}
         </TouchableOpacity>
     );
 }
@@ -975,7 +1011,7 @@ export default function VenueSearchScreen({ navigation, route }) {
     const [suggestSaving, setSuggestSaving] = useState(false);
     const EMPTY_COURT_GROUP = { count: '', surface: '', indoor: false };
     const [suggestForm, setSuggestForm] = useState({
-        name: '', city: '', district: '', address: '', phone: '',
+        name: '', city: '', district: '', address: '', phone: '', website: '',
         courtGroups: [{ ...EMPTY_COURT_GROUP }], openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7],
     });
     const [showSuggestOpenPicker, setShowSuggestOpenPicker] = useState(false);
@@ -1018,11 +1054,12 @@ export default function VenueSearchScreen({ navigation, route }) {
                 name: f.name.trim(), branch: rawBranch, city: f.city.trim(),
                 district: f.district.trim() || undefined,
                 address: f.address.trim() || undefined, phone: f.phone.trim() || undefined,
+                website: f.website.trim() || undefined,
                 ...(courtGroups.length ? { courtGroups } : {}),
                 openTime: f.openTime, closeTime: f.closeTime, openDays: f.openDays,
             });
             setSuggestOpen(false);
-            setSuggestForm({ name: '', city: '', district: '', address: '', phone: '', courtGroups: [{ ...EMPTY_COURT_GROUP }], openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7] });
+            setSuggestForm({ name: '', city: '', district: '', address: '', phone: '', website: '', courtGroups: [{ ...EMPTY_COURT_GROUP }], openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7] });
             Alert.alert(t.vsSuggestSuccessTitle, t.vsSuggestSuccessMsg);
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.vsSuggestFailed);
@@ -1033,7 +1070,7 @@ export default function VenueSearchScreen({ navigation, route }) {
     // bilgisini herhangi bir kullanıcının tamamlayıp admin onayına gönderebilmesi.
     const [editSuggestVenue, setEditSuggestVenue] = useState(null);
     const [editSuggestForm, setEditSuggestForm] = useState({
-        name: '', city: '', district: '', address: '', phone: '', courtCount: '', openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7],
+        name: '', city: '', district: '', address: '', phone: '', website: '', courtCount: '', openTime: '08:00', closeTime: '22:00', openDays: [1, 2, 3, 4, 5, 6, 7],
     });
     const [editSuggestSaving, setEditSuggestSaving] = useState(false);
     const [showEditOpenPicker, setShowEditOpenPicker] = useState(false);
@@ -1048,6 +1085,7 @@ export default function VenueSearchScreen({ navigation, route }) {
             district: venue.district || '',
             address: venue.address || '',
             phone: venue.phone || '',
+            website: venue.website || '',
             courtCount: venue.isCommunityCourt
                 ? (venue.courtCount ? String(venue.courtCount) : '')
                 : (venue.courts?.length ? String(venue.courts.length) : ''),
@@ -1074,6 +1112,8 @@ export default function VenueSearchScreen({ navigation, route }) {
         if (f.district.trim())  body.district = f.district.trim();
         if (f.address.trim())   body.address = f.address.trim();
         if (f.phone.trim())     body.phone = f.phone.trim();
+        // website sadece BusinessVenue'de var — topluluk Court kaydında bu alan yok.
+        if (!isCommunity && f.website.trim()) body.website = f.website.trim();
         if (f.courtCount.trim()) body.courtCount = parseInt(f.courtCount, 10);
         if (f.openTime)  body.openTime = f.openTime;
         if (f.closeTime) body.closeTime = f.closeTime;
@@ -1343,6 +1383,11 @@ export default function VenueSearchScreen({ navigation, route }) {
                                     {item.venue.phone ? (
                                         <TouchableOpacity onPress={() => openPhoneActions(t, item.venue.phone, item.venue.contactLinks?.whatsapp || item.venue.phone)}>
                                             <Text style={[s.availResultCity, { color: colors.purple, marginTop: 4 }]}>📞 {item.venue.phone}</Text>
+                                        </TouchableOpacity>
+                                    ) : null}
+                                    {!item.venue.isCommunityCourt && item.venue.website ? (
+                                        <TouchableOpacity onPress={() => openWebsite(item.venue.website)}>
+                                            <Text style={[s.availResultCity, { color: colors.purple, marginTop: 4 }]}>🔗 {t.vsWebsiteBtn}</Text>
                                         </TouchableOpacity>
                                     ) : null}
                                     {item.venue.address ? <Text style={s.availResultCity}>📍 {item.venue.address}</Text> : null}

@@ -566,7 +566,7 @@ export const createVenue = async (req, res, next) => {
 // approveVenue/rejectVenue) onaylar/reddeder — o taraf zaten hazır, burada değişiklik yok.
 export const suggestVenue = async (req, res, next) => {
     try {
-        const { name, branch, city, district, address, phone, courtCount, courtGroups, openTime, closeTime, openDays } = req.body;
+        const { name, branch, city, district, address, phone, website, courtCount, courtGroups, openTime, closeTime, openDays } = req.body;
         // Kullanıcı isteği: bilinmeyen alanlar boş bırakılabilsin, admin veya başka bir kullanıcı
         // sonradan "Tesis Öner" ekranındaki düzenleme akışıyla (suggestVenueEdit) tamamlayabilir —
         // sadece isim/spor dalı/şehir zorunlu (şehir şema gereği NOT NULL).
@@ -608,6 +608,7 @@ export const suggestVenue = async (req, res, next) => {
                 district: district || null,
                 address: address || null,
                 phone: phone || null,
+                website: website?.trim() || null,
                 openTime: openTime || '08:00',
                 closeTime: closeTime || '22:00',
                 openDays: days,
@@ -637,7 +638,7 @@ export const suggestVenue = async (req, res, next) => {
 export const suggestVenueEdit = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { name, district, address, phone, courtCount, openTime, closeTime, openDays } = req.body;
+        const { name, district, address, phone, website, courtCount, openTime, closeTime, openDays } = req.body;
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
         if (!venue) return res.status(404).json({ message: 'Bulunamadı' });
 
@@ -646,6 +647,7 @@ export const suggestVenueEdit = async (req, res, next) => {
         if (district?.trim()) edit.district = district.trim();
         if (address?.trim())  edit.address  = address.trim();
         if (phone?.trim())    edit.phone    = phone.trim();
+        if (website?.trim())  edit.website  = website.trim();
         if (openTime)          edit.openTime  = openTime;
         if (closeTime)         edit.closeTime = closeTime;
         if (Array.isArray(openDays) && openDays.length) {
@@ -2278,6 +2280,7 @@ export const approveVenueEdit = async (req, res, next) => {
         if (edit.district)  data.district  = edit.district;
         if (edit.address)   data.address   = edit.address;
         if (edit.phone)     data.phone     = edit.phone;
+        if (edit.website)   data.website   = edit.website;
         if (edit.openTime)  data.openTime  = edit.openTime;
         if (edit.closeTime) data.closeTime = edit.closeTime;
         if (Array.isArray(edit.openDays) && edit.openDays.length) data.openDays = edit.openDays;

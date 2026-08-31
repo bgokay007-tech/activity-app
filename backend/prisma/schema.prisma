@@ -1687,6 +1687,10 @@ model BusinessVenue {
   district    String?
   address     String?
   phone       String?
+  // Kullanıcı isteği: Pro olmayan (uygulama içi rezervasyon yapılamayan) tesislerde, tesisin
+  // kendi online rezervasyon/web sitesine link verilebilsin — onaylanınca tesis kartında/detayında
+  // dokununca direkt açılır (bkz. mobile openWebsite, VenueSearchScreen.js).
+  website     String?
   openTime    String   @default("08:00")
   closeTime   String   @default("22:00")
   openSlots   Json?
