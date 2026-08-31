@@ -4587,6 +4587,17 @@ export const getMatchComments = async (req, res, next) => {
             include: { user: { select: { id: true, username: true, avatar: true } } },
             orderBy: { createdAt: 'asc' },
         });
+        // Kullanıcı isteği: yazarı silmeden önce "bu yorumu gören oldu mu" diye sorabilsin —
+        // yazarı hariç, yorumu görüntüleyen her kullanıcının id'si viewedBy'a eklenir. Kendi
+        // yorumumuzu görmemiz sayılmaz, bu yüzden sadece userId !== req.userId olanlar işaretlenir.
+        const toMark = comments.filter(c => c.userId !== req.userId && !(Array.isArray(c.viewedBy) && c.viewedBy.includes(req.userId)));
+        if (toMark.length > 0) {
+            await Promise.all(toMark.map(c => prisma.matchComment.update({
+                where: { id: c.id },
+                data: { viewedBy: [...(Array.isArray(c.viewedBy) ? c.viewedBy : []), req.userId] },
+            })));
+            toMark.forEach(c => { c.viewedBy = [...(Array.isArray(c.viewedBy) ? c.viewedBy : []), req.userId]; });
+        }
         res.json(comments);
     } catch (error) { next(error); }
 };
@@ -4647,6 +4658,13 @@ export const deleteMatchComment = async (req, res, next) => {
         if (!canDelete) return res.status(403).json({ message: 'Forbidden' });
         await prisma.matchComment.delete({ where: { id: commentId } });
         res.json({ deleted: true });
+
+        // Kullanıcı isteği: yorum silindiğinde açık olan tüm görünümlerden ANINDA kaybolsun —
+        // sayfa yenilemeye/çıkıp girmeye gerek kalmadan (bkz. mobildeki 'commentDeleted' dinleyicisi).
+        const allIds = [...new Set([comment.rival?.senderId, ...parts.filter(p => p?.id).map(p => p.id)])].filter(Boolean);
+        for (const uid of allIds) {
+            emitToUser(uid, 'commentDeleted', { rivalId: comment.rivalId, commentId });
+        }
     } catch (error) { next(error); }
 };
 

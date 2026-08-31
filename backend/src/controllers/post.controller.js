@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import Anthropic from '@anthropic-ai/sdk';
 import { getRelation, canAccess } from '../utils/privacy.js';
 import { createNotification } from './notification.controller.js';
+import { emitToUser } from '../config/socket.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -32,6 +33,7 @@ export const createPost = async (req, res, next) => {
         // kadar Medya sekmesinde kimseye görünmez (bkz. getPosts'taki mediaApprovalStatus
         // filtresi ve rival.controller.js'teki approveMatchMedia/rejectMatchMedia).
         let mediaApprovalStatus = null;
+        let rivalParticipantIds = [];
         if (rivalId) {
             const rival = await prisma.activityRequest.findUnique({
                 where: { id: rivalId },
@@ -39,6 +41,7 @@ export const createPost = async (req, res, next) => {
             });
             const participants = Array.isArray(rival?.participants) ? rival.participants : [];
             const senderTeamArr = Array.isArray(rival?.senderTeam) ? rival.senderTeam : [];
+            rivalParticipantIds = rival ? [...new Set([rival.senderId, ...participants.filter(p => p?.id).map(p => p.id), ...senderTeamArr.filter(p => p?.id).map(p => p.id)])] : [];
             const isInvolved = rival && (
                 rival.senderId === req.userId
                 || participants.some(p => p?.id === req.userId)
@@ -90,6 +93,13 @@ export const createPost = async (req, res, next) => {
 
         if (mediaApprovalStatus === 'PENDING') {
             notifyMediaApprovers(post).catch(() => {});
+        } else if (verifiedRivalId) {
+            // Kullanıcı isteği: maça katılan biri medya paylaştığında, aynı maçı açık tutan
+            // diğer katılımcıların ekranında ANINDA görünsün — sayfa yenilemeye/çıkıp girmeye
+            // gerek kalmadan (bkz. mobildeki 'rivalMediaAdded' dinleyicisi).
+            for (const uid of rivalParticipantIds) {
+                emitToUser(uid, 'rivalMediaAdded', { rivalId: verifiedRivalId, post });
+            }
         }
     } catch (error) {
         next(error);

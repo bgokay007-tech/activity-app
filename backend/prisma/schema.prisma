@@ -979,6 +979,9 @@ model MatchComment {
   rivalId   String
   userId    String
   content   String
+  // Kullanıcı isteği: yorumu silmeden önce "bu yorumu gören oldu mu" uyarısı — yazarı hariç
+  // yorumu görüntüleyen her kullanıcının id'si burada birikir (bkz. getMatchComments).
+  viewedBy  Json     @default("[]")
   createdAt DateTime @default(now())
 
   rival     ActivityRequest @relation(fields: [rivalId], references: [id], onDelete: Cascade)
