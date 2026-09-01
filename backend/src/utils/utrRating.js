@@ -174,7 +174,12 @@ async function getUtrReassessmentFlags(winnerInterests, loserAvg, winnerAvg, sub
     if (loserAvg - winnerAvg < ASSESSMENT_GRACE_RATING_GAP) return [];
     const flagged = [];
     for (const wi of winnerInterests) {
-        const matchesSince = await countMatchesSinceAssessment(wi.userId, subCategory, matchType, wi.assessmentCompletedAt);
+        // Çiftler için kendi anketinin tamamlanma anı (doublesAssessmentCompletedAt) esas
+        // alınır — tenis'te tekli/çiftler ayrı zamanlarda tamamlanabilen ayrı anketler (bkz.
+        // interest.controller.js saveAssessment). Padel'de ikisi de aynı tek anketten geldiği
+        // için doublesAssessmentCompletedAt hiç set edilmez, bu durumda assessmentCompletedAt'e düşer.
+        const anchor = (matchType === 'DOUBLE' && wi.doublesAssessmentCompletedAt) ? wi.doublesAssessmentCompletedAt : wi.assessmentCompletedAt;
+        const matchesSince = await countMatchesSinceAssessment(wi.userId, subCategory, matchType, anchor);
         if (matchesSince < ASSESSMENT_GRACE_MATCHES) flagged.push(wi);
     }
     return flagged;

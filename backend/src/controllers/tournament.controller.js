@@ -914,6 +914,9 @@ export async function checkPollAutoJoinEligibility(tournament, userId) {
     if (!interest?.assessmentCompleted) {
         return { ok: false, message: 'Derecelendirme anketini tamamlamadığınız için otomatik başvurunuz oluşturulamadı.' };
     }
+    if (tournament.subCategory === 'tennis' && isDoublesFormat({ tournamentType: tournament.type }) && !interest.doublesAssessmentCompleted) {
+        return { ok: false, message: 'Çiftler derecelendirme anketini tamamlamadığınız için otomatik başvurunuz oluşturulamadı.' };
+    }
     if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) && (interest.wins + interest.losses) < MIN_MATCHES_FOR_TOURNAMENT) {
         return { ok: false, message: `Bu spor dalında en az ${MIN_MATCHES_FOR_TOURNAMENT} maç yapmadığınız için otomatik başvurunuz oluşturulamadı.` };
     }
@@ -951,10 +954,13 @@ export const joinTournament = async (req, res, next) => {
             if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
             const partnerInterest = await prisma.userInterest.findUnique({
                 where: { userId_category_subCategory: { userId: partnerId, category: tournament.category, subCategory: tournament.subCategory } },
-                select: { assessmentCompleted: true, wins: true, losses: true },
+                select: { assessmentCompleted: true, doublesAssessmentCompleted: true, wins: true, losses: true },
             });
             if (!partnerInterest?.assessmentCompleted) {
                 return res.status(400).json({ message: 'Seçtiğiniz partner bu spor dalında henüz derecelendirme anketini tamamlamamış' });
+            }
+            if (tournament.subCategory === 'tennis' && !partnerInterest.doublesAssessmentCompleted) {
+                return res.status(400).json({ message: 'Seçtiğiniz partner henüz çiftler derecelendirme anketini tamamlamamış' });
             }
             if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) &&
                 (partnerInterest.wins + partnerInterest.losses) < MIN_MATCHES_FOR_TOURNAMENT) {
@@ -964,10 +970,13 @@ export const joinTournament = async (req, res, next) => {
 
         const myInterest = await prisma.userInterest.findUnique({
             where: { userId_category_subCategory: { userId: req.userId, category: tournament.category, subCategory: tournament.subCategory } },
-            select: { assessmentCompleted: true, wins: true, losses: true },
+            select: { assessmentCompleted: true, doublesAssessmentCompleted: true, wins: true, losses: true },
         });
         if (!myInterest?.assessmentCompleted) {
             return res.status(403).json({ message: 'Bu spor dalında maçlara katılabilmek için önce derecelendirme anketini tamamlamanız gerekiyor.' });
+        }
+        if (tournament.subCategory === 'tennis' && isDoublesFormat({ tournamentType: tournament.type }) && !myInterest.doublesAssessmentCompleted) {
+            return res.status(403).json({ message: 'Bu turnuvaya katılabilmek için önce çiftler derecelendirme anketini tamamlamanız gerekiyor.' });
         }
         if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) &&
             (myInterest.wins + myInterest.losses) < MIN_MATCHES_FOR_TOURNAMENT) {
@@ -1121,10 +1130,13 @@ export const setTournamentPartner = async (req, res, next) => {
             }
             const partnerInterest = await prisma.userInterest.findUnique({
                 where: { userId_category_subCategory: { userId: partnerId, category: tournament.category, subCategory: tournament.subCategory } },
-                select: { assessmentCompleted: true },
+                select: { assessmentCompleted: true, doublesAssessmentCompleted: true },
             });
             if (!partnerInterest?.assessmentCompleted) {
                 return res.status(400).json({ message: 'Seçtiğiniz partner bu spor dalında henüz derecelendirme anketini tamamlamamış' });
+            }
+            if (tournament.subCategory === 'tennis' && !partnerInterest.doublesAssessmentCompleted) {
+                return res.status(400).json({ message: 'Seçtiğiniz partner henüz çiftler derecelendirme anketini tamamlamamış' });
             }
         }
 

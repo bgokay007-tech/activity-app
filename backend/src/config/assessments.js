@@ -196,6 +196,162 @@ const QUESTIONS = {
         },
     ],
 
+    // ─── TENNIS ÇİFTLER (DOUBLES) — tekli anketinden AYRI, çiftlere özgü beceri/taktik/
+    // iletişim soruları — UTR-esinli sistemde doublesSeedRating'i besler (bkz.
+    // interest.controller.js saveAssessment, ratingType==='doubles'). Aynı 20/30/30/20
+    // ağırlık yapısı ve puan skalaları tekli anketiyle birebir aynı, sadece içerik çiftlere
+    // özel (kullanıcı onayıyla eklendi, bkz. konuşma geçmişi).
+    tennis_doubles: [
+        // ── Section 1: Experience & Level Perception (Doubles) ───────────────
+        {
+            id: 'd1', section: 1,
+            question: 'Which of the following best describes your DOUBLES tennis experience and level?',
+            tr: 'Çiftler tenis deneyimini ve seviyeni en iyi hangisi tanımlıyor?',
+            options: [
+                { text: 'Complete beginner — rarely play doubles',                                    tr: 'Tam yeni başlayan — çiftler nadiren oynarım',                              points: 0 },
+                { text: 'Early — play doubles occasionally, still learning positioning',              tr: 'Başlangıç — ara sıra çiftler oynarım, pozisyon almayı öğreniyorum',       points: 2 },
+                { text: 'Intermediate — comfortable playing doubles regularly',                       tr: 'Orta — düzenli çiftler oynarım, rahatım',                                  points: 5 },
+                { text: 'Advanced — doubles tournament experience; strong tactical awareness',        tr: 'İleri — çiftler turnuva deneyimim var; güçlü taktik farkındalığım var',   points: 7 },
+            ],
+        },
+        {
+            id: 'd2', section: 1,
+            question: 'How often do you play DOUBLES specifically? (average hours per week)',
+            tr: 'Ne sıklıkla ÇİFTLER maçı oynuyorsun? (haftada ortalama saat)',
+            options: [
+                { text: 'Rarely or never',        tr: 'Nadiren veya hiç',       points: 0 },
+                { text: '1–2 hours per week',      tr: 'Haftada 1–2 saat',       points: 2 },
+                { text: '3–5 hours per week',      tr: 'Haftada 3–5 saat',       points: 5 },
+                { text: '6+ hours per week',       tr: 'Haftada 6+ saat',        points: 7 },
+            ],
+        },
+        {
+            id: 'd3', section: 1,
+            question: 'Have you ever played in a licensed or official DOUBLES tournament?',
+            tr: 'Hiç lisanslı veya resmi bir ÇİFTLER turnuvasına katıldın mı?',
+            options: [
+                { text: 'Never — only casual doubles',                    tr: 'Hayır — sadece sosyal çiftler oynarım',                        points: 0 },
+                { text: 'Yes, participated but did not advance far',      tr: 'Evet, katıldım ama fazla ilerleyemedim',                       points: 2 },
+                { text: 'Yes, reached knockout stage or semi-finals',     tr: 'Evet, çeyrek final veya yarı finale kadar çıktım',            points: 4 },
+                { text: 'Yes, won a tournament or regional/national level', tr: 'Evet, turnuva kazandım veya bölgesel/ulusal düzeyde yarıştım', points: 6 },
+            ],
+        },
+
+        // ── Section 2: Technical Skills (Doubles) ─────────────────────────────
+        {
+            id: 'd4', section: 2,
+            question: 'How confident are you at the net — volleys, especially in fast exchanges? (1 = Very uncertain → 5 = Reliable weapon)',
+            tr: 'Ağ önünde (vole) güvenin nasıl — özellikle hızlı vole düellolarında? (1 = Çok belirsiz → 5 = Güvenilir silah)',
+            options: [
+                { text: 'Very uncertain; avoid the net whenever possible', tr: 'Çok belirsiz; mümkün olduğunca ağdan kaçınırım',            points: 0 },
+                { text: 'Inconsistent but improving',                      tr: 'Tutarsız ama gelişiyor',                                    points: 2 },
+                { text: 'Fairly consistent volleys under moderate pace',   tr: 'Orta tempoda oldukça tutarlı voleler',                     points: 4 },
+                { text: 'Confident; can direct volleys and react quickly', tr: 'Güvenilir; voleleri yönlendirip hızlı tepki verebiliyorum', points: 6 },
+                { text: 'Fully reliable; net play is a core strength',     tr: 'Tamamen güvenilir; ağ oyunu temel güçlü yanım',             points: 8 },
+            ],
+        },
+        {
+            id: 'd5', section: 2,
+            question: 'When the opponent serves and approaches the net (serve-and-volley), how effective is your return?',
+            tr: 'Rakip servis atıp ağa çıkıyorsa (serve-and-volley), dönüşünü ne kadar etkili kullanabiliyorsun?',
+            options: [
+                { text: 'I have no answer for this tactic',              tr: 'Bu taktiğe karşı bir çözümüm yok',                       points: 0 },
+                { text: 'I can return the ball but rarely trouble them',  tr: 'Topu döndürebiliyorum ama nadiren zorluyorum',           points: 2 },
+                { text: 'I can aim low/at the feet reasonably well',      tr: 'Makul ölçüde alçak/ayak dibine döndürebiliyorum',       points: 4 },
+                { text: 'I consistently make it difficult with dips/lobs', tr: 'Alçak toplar/loblarla sürekli zorlaştırıyorum',        points: 6 },
+                { text: 'I regularly win the point off this return',      tr: 'Bu dönüşle sayıyı düzenli olarak kazanıyorum',          points: 8 },
+            ],
+        },
+        {
+            id: 'd6', section: 2,
+            question: 'When your partner is pulled out of position by a lob, how well can you cover and smash?',
+            tr: 'Partnerin lobla pozisyonundan çıkarıldığında, alanı kapatıp smaç/overhead yapma konusunda ne kadar başarılısın?',
+            options: [
+                { text: 'I rarely cover — we often lose the point',        tr: 'Nadiren alanı kapatabiliyorum — genellikle sayıyı kaybediyoruz', points: 0 },
+                { text: 'I try to cover but my overhead is unreliable',    tr: 'Kapatmaya çalışıyorum ama overhead\'im güvenilir değil',          points: 2 },
+                { text: 'I cover reasonably and keep the ball in play',   tr: 'Makul şekilde kapatıp topu oyunda tutuyorum',                     points: 4 },
+                { text: 'Confident overhead; often finishes the point',   tr: 'Güvenilir overhead; genellikle sayıyı bitiriyor',                points: 6 },
+                { text: 'A clear strength — reliably wins the point',     tr: 'Belirgin güçlü yanım — sayıyı güvenilir biçimde kazandırıyor',   points: 8 },
+            ],
+        },
+        {
+            id: 'd7', section: 2,
+            question: 'After serving, how comfortable are you approaching the net to join your partner? (1 = Never → 5 = Core strategy)',
+            tr: 'Servisten sonra ağa (partnerinin yanına) çıkma konusunda ne kadar rahatsın? (1 = Hiç → 5 = Temel stratejim)',
+            options: [
+                { text: 'I never approach after serving',                   tr: 'Servisten sonra hiç ağa çıkmam',                            points: 0 },
+                { text: 'Rarely; usually stay back',                        tr: 'Nadiren; genellikle arkada kalırım',                        points: 1 },
+                { text: 'Sometimes, when the serve is strong',              tr: 'Bazen, servisim güçlü olduğunda',                           points: 3 },
+                { text: 'Often; comfortable finishing points at net',       tr: 'Sık sık; ağda sayıyı bitirmekte rahatım',                   points: 5 },
+                { text: 'Frequently; serve-and-volley is part of my game',  tr: 'Çok sık; serve-and-volley oyunumun bir parçası',           points: 6 },
+            ],
+        },
+
+        // ── Section 3: Tactics & Game Intelligence (Doubles) ──────────────────
+        {
+            id: 'd8', section: 3,
+            question: 'Can you read and adapt to different doubles formations (both back, one up/one back, both at net) with your partner?',
+            tr: 'Farklı çiftler formasyonlarını (ikisi de arkada / biri önde biri arkada / ikisi de ağda) okuyup partnerinle doğru formasyonu seçebiliyor musun?',
+            options: [
+                { text: 'No — we just play without a clear formation',            tr: 'Hayır — belirli bir formasyon olmadan oynuyoruz',                    points: 0 },
+                { text: 'We have one default formation, rarely change it',        tr: 'Tek bir varsayılan formasyonumuz var, nadiren değiştiririz',        points: 3 },
+                { text: 'We adapt formation based on who is serving/returning',    tr: 'Servis/dönüşe göre formasyonu değiştiriyoruz',                       points: 6 },
+                { text: 'We adjust formation mid-point based on the situation',    tr: 'Sayı içinde duruma göre formasyonu ayarlıyoruz',                     points: 8 },
+                { text: 'We fully control formation, including advanced (Australian) setups', tr: 'Formasyonu (Avustralya dahil) tam kontrol ediyoruz',    points: 10 },
+            ],
+        },
+        {
+            id: 'd9', section: 3,
+            question: 'How well do you communicate/coordinate shot-calling and poaching decisions with your partner during a point?',
+            tr: 'Sayı sırasında partnerinle iletişim/koordinasyon (kim hangi topa gidecek, araya girme/poaching kararları) ne kadar iyi?',
+            options: [
+                { text: 'We rarely communicate — frequent confusion',        tr: 'Nadiren iletişim kurarız — sık sık karışıklık olur',                points: 0 },
+                { text: 'Basic communication, occasional mix-ups',           tr: 'Temel iletişim, ara sıra karışıklık olur',                          points: 3 },
+                { text: 'Good communication, few mistakes',                  tr: 'İyi iletişim, az hata',                                             points: 6 },
+                { text: 'Strong coordination, poach confidently when needed', tr: 'Güçlü koordinasyon, gerektiğinde güvenle araya gireriz',           points: 8 },
+                { text: 'Excellent teamwork — rarely a communication error', tr: 'Mükemmel takım oyunu — nadiren iletişim hatası olur',              points: 10 },
+            ],
+        },
+        {
+            id: 'd10', section: 3,
+            question: 'How well can you identify and consistently target the weaker player on the opposing team?',
+            tr: 'Rakip takımın zayıf oyuncusunu (dönüşü/ağ oyunu zayıf olan) tespit edip sürekli ona oynayabiliyor musun?',
+            options: [
+                { text: 'I do not think about this during a match',          tr: 'Maç sırasında bunu hiç düşünmüyorum',                    points: 0 },
+                { text: 'I notice it but rarely adjust my play',              tr: 'Fark ediyorum ama nadiren oyunumu ona göre ayarlıyorum', points: 3 },
+                { text: 'I sometimes target the weaker player',              tr: 'Bazen zayıf oyuncuya oynuyorum',                         points: 6 },
+                { text: 'I consistently target them and it pays off',        tr: 'Sürekli ona oynuyorum ve işe yarıyor',                   points: 8 },
+                { text: 'This is a clear, reliable part of our strategy',    tr: 'Bu stratejimizin belirgin ve güvenilir bir parçası',    points: 10 },
+            ],
+        },
+
+        // ── Section 4: Physical & Mental (Doubles) ────────────────────────────
+        {
+            id: 'd11', section: 4,
+            question: 'In fast net exchanges (quick volley battles), how well do your reflexes and hand-speed hold up?',
+            tr: 'Hızlı ağ düellolarında (art arda vole değişimi), reflekslerin/el hızın ne kadar iyi dayanıyor?',
+            options: [
+                { text: 'I struggle badly, often miss the reaction',   tr: 'Ciddi zorlanıyorum, çoğu zaman tepki veremiyorum',      points: 0 },
+                { text: 'I manage a couple of exchanges then falter',  tr: 'Birkaç değişime dayanıyorum sonra bozuluyorum',        points: 2 },
+                { text: 'I hold up reasonably in moderate exchanges',  tr: 'Orta tempoda düellolarda makul şekilde dayanıyorum',   points: 5 },
+                { text: 'Quick reflexes; rarely miss a fast exchange', tr: 'Hızlı reflekslerim var; hızlı değişimi nadiren kaçırıyorum', points: 8 },
+                { text: 'Elite hand-speed; thrive in fast exchanges',  tr: 'Üst düzey el hızım var; hızlı düellolarda parlıyorum', points: 10 },
+            ],
+        },
+        {
+            id: 'd12', section: 4,
+            question: 'How well do you support/communicate with your partner after a bad game or mistake, keeping team morale up?',
+            tr: 'Partnerin kötü bir oyun/hata yaptığında onu destekleyip takım moralini yüksek tutma konusunda ne kadar iyisin?',
+            options: [
+                { text: 'I get frustrated with my partner — it affects our game', tr: 'Partnerime sinirleniyorum — oyunumuzu etkiliyor',           points: 0 },
+                { text: 'Difficult, but I try not to show frustration',           tr: 'Zor, ama sinirimi belli etmemeye çalışıyorum',                points: 2 },
+                { text: 'I usually stay positive and encourage my partner',       tr: 'Genellikle pozitif kalıp partnerimi motive ediyorum',         points: 5 },
+                { text: 'Good team mentality; we recover together quickly',      tr: 'İyi takım zihniyeti; birlikte hızlı toparlanıyoruz',          points: 8 },
+                { text: 'Strong team leadership — we get stronger under pressure', tr: 'Güçlü takım liderliği — baskı altında daha da güçleniyoruz', points: 10 },
+            ],
+        },
+    ],
+
     // ─── PADEL — 3-category weighted self-assessment (total max = 100 pts → rating 0-5) ───
     // Each question is self-rated 0-5; per-question max points are scaled so the
     // category totals land exactly on the requested weights:

@@ -344,6 +344,12 @@ model UserInterest {
   singlesLastMatchAt     DateTime?
   doublesLastMatchAt     DateTime?
   assessmentCompletedAt  DateTime?  // tenis/padel reassessment-grace penceresinin dayanak noktası
+  // Tenis: çiftlere özgü AYRI bir anket var (bkz. assessments.js QUESTIONS.tennis_doubles) —
+  // assessmentCompleted (tekli/genel anket) tamamlanmadan hiç tenis oynanamaz; bu alan ayrıca,
+  // tekli anketi tamamlamış ama henüz çiftler anketini doldurmamış birinin bir ÇİFTLER maçına
+  // katılmasını engeller (doublesSeedRating o zamana kadar tekli anketinin mirror'ı kalır).
+  doublesAssessmentCompleted Boolean @default(false)
+  doublesAssessmentCompletedAt DateTime? // çiftler reassessment-grace penceresinin dayanak noktası — assessmentCompletedAt'ten AYRI (çiftler anketi tekliden farklı bir zamanda tamamlanabilir)
 
   user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   skills            Skill[]

@@ -132,11 +132,16 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
 
     const handleAssessComplete = (result) => {
         if (!result || !assessTarget) return;
-        const updated = localInterests.map(i =>
-            i.id === assessTarget.interestId
-                ? { ...i, skillRating: result.skillRating, level: result.level, assessmentCompleted: true }
-                : i
-        );
+        // Çiftler anketi (tenis) tekli anketten AYRI bir alanı (doublesAssessmentCompleted/
+        // doublesSeedRating) günceller — result.interest zaten backend'den güncel haliyle
+        // dönüyor, doğrudan onu kullanmak en güvenlisi (tek tek alan kopyalamaya gerek yok).
+        const updated = localInterests.map(i => {
+            if (i.id !== assessTarget.interestId) return i;
+            if (assessTarget.ratingType === 'doubles') {
+                return { ...i, ...(result.interest || {}) };
+            }
+            return { ...i, skillRating: result.skillRating, level: result.level, assessmentCompleted: true };
+        });
         setLocalInterests(updated);
         onInterestsChange?.(updated);
         setAssessTarget(null);
@@ -243,6 +248,18 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                                             <Text style={[s.assessBtnText, { color: activeColor }]}>{t.assessBtn}</Text>
                                                         </TouchableOpacity>
                                                     )}
+                                                    {/* Tenis çiftler: tekli anketten AYRI bir anket — tekli tamamlanmış ve henüz
+                                                        çiftler tamamlanmamışsa (ya da tekrar doldurma penceresi açıksa) gösterilir. */}
+                                                    {sub.id === 'tennis' && existing.assessmentCompleted && (
+                                                        !existing.doublesAssessmentCompleted || (existing.doublesMatchCount || 0) < 3
+                                                    ) && (
+                                                        <TouchableOpacity
+                                                            style={[s.assessBtn, { borderColor: activeColor + '60' }]}
+                                                            onPress={() => setAssessTarget({ interestId: existing.id, subCategory: sub.id, ratingType: 'doubles' })}
+                                                        >
+                                                            <Text style={[s.assessBtnText, { color: activeColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.doublesAssessBtn}</Text>
+                                                        </TouchableOpacity>
+                                                    )}
                                                     <TouchableOpacity
                                                         style={s.removeBtn}
                                                         onPress={() => handleRemove(existing, activeTab, sub.id)}
@@ -279,6 +296,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                 visible={!!assessTarget}
                 interestId={assessTarget?.interestId}
                 subCategory={assessTarget?.subCategory}
+                ratingType={assessTarget?.ratingType || null}
                 lang={lang}
                 mandatory={!!assessTarget?.mandatory}
                 onClose={(hasProgress) => {

@@ -997,6 +997,7 @@ const en = {
     sportsTab: 'Sports', socialTab: 'Social', artsTab: 'Arts', gamesTab: 'Games',
     noBranches: 'No branches found in this category',
     assessBtn: 'Assess',
+    doublesAssessBtn: 'Doubles',
     doneBtn: 'Done',
     addBtn: '+ Add',
     hideInsteadTitle: 'Branch Cannot Be Deleted',
@@ -1012,6 +1013,9 @@ const en = {
 
     // Assessment modal
     assessmentTitle: name => `${name} Assessment`,
+    assessmentTitleDoubles: name => `${name} Doubles Assessment`,
+    doublesAssessmentRequiredSubtitle: 'You need to complete the doubles assessment to open/join doubles matches in this sport',
+    doublesRatingLabel: 'Doubles Rating',
     questionCounter: (c, total) => `Question ${c} / ${total}`,
     positionQuestion: 'What position do you play?',
     positionHint: 'Questions will be tailored to your position.',
@@ -2535,6 +2539,7 @@ const tr = {
     sportsTab: 'Spor', socialTab: 'Sosyal', artsTab: 'Sanat', gamesTab: 'Oyun',
     noBranches: 'Bu kategoride dal bulunamadı',
     assessBtn: 'Değerlendir',
+    doublesAssessBtn: 'Çiftler',
     doneBtn: 'Tamam',
     addBtn: '+ Ekle',
     hideInsteadTitle: 'Branş Silinemez',
@@ -2550,6 +2555,9 @@ const tr = {
 
     // Assessment modal
     assessmentTitle: name => `${name} Değerlendirmesi`,
+    assessmentTitleDoubles: name => `${name} Çiftler Değerlendirmesi`,
+    doublesAssessmentRequiredSubtitle: 'Bu dalda çiftler ilanı açabilmek/katılabilmek için çiftler anketini tamamlaman gerekiyor',
+    doublesRatingLabel: 'Çiftler Puanı',
     questionCounter: (c, total) => `Soru ${c} / ${total}`,
     positionQuestion: 'Hangi mevkide oynuyorsun?',
     positionHint: 'Sorular seçtiğin mevkiye göre özelleştirilecek.',

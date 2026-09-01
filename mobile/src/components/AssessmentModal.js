@@ -17,7 +17,11 @@ const LEVEL_COLORS = {
     PRO:          '#f87171',
 };
 
-export default function AssessmentModal({ visible, interestId, subCategory, lang: langProp, onClose, onComplete, mandatory = false }) {
+export default function AssessmentModal({ visible, interestId, subCategory, lang: langProp, onClose, onComplete, mandatory = false, ratingType = null }) {
+    // ratingType='doubles': tenis'e özgü, tekli anketten TAMAMEN AYRI bir soru seti (bkz.
+    // backend assessments.js QUESTIONS.tennis_doubles) — sonuç ekranında level/percent yok,
+    // sadece çiftler puanı gösterilir (backend bu dalda level döndürmüyor).
+    const isDoubles = ratingType === 'doubles';
     // ── All hooks first — no early returns before this block ──
     const langRedux = useSelector(s => s.lang?.lang || 'en');
     const lang = langProp || langRedux;
@@ -51,7 +55,7 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
         const fetchLang = store.getState().lang?.lang || 'en';
         const url = subCategory === 'football'
             ? `/interests/assessment/${subCategory}?position=${position}&lang=${fetchLang}`
-            : `/interests/assessment/${subCategory}?lang=${fetchLang}`;
+            : `/interests/assessment/${subCategory}?lang=${fetchLang}${isDoubles ? '&ratingType=doubles' : ''}`;
         api.get(url)
             .then(({ data }) => {
                 setQuestions(data.questions || []);
@@ -60,7 +64,7 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
             })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [visible, subCategory, position]);
+    }, [visible, subCategory, position, isDoubles]);
 
     // ── Derived values (after all hooks) ──
     const isFootball    = subCategory === 'football';
@@ -101,7 +105,7 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
     const submitAssessment = async (finalAnswers) => {
         setSaving(true);
         try {
-            const { data } = await api.patch(`/interests/${interestId}/assess`, { answers: finalAnswers });
+            const { data } = await api.patch(`/interests/${interestId}/assess`, { answers: finalAnswers, ...(isDoubles && { ratingType: 'doubles' }) });
             setResult(data);
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.assessmentSubmitFailed);
@@ -127,9 +131,9 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
                     {/* Header */}
                     <View style={s.header}>
                         <View style={{ flex: 1 }}>
-                            <Text style={s.title}>{t.assessmentTitle(safeLabel)}</Text>
+                            <Text style={s.title}>{isDoubles ? t.assessmentTitleDoubles(safeLabel) : t.assessmentTitle(safeLabel)}</Text>
                             {mandatory && !result && (
-                                <Text style={s.subtitle}>Bu dalda ilan açabilmek/katılabilmek için anketi tamamlaman gerekiyor</Text>
+                                <Text style={s.subtitle}>{isDoubles ? t.doublesAssessmentRequiredSubtitle : 'Bu dalda ilan açabilmek/katılabilmek için anketi tamamlaman gerekiyor'}</Text>
                             )}
                             {!result && !needsPosition && questions.length > 0 && (
                                 <Text style={s.subtitle}>{t.questionCounter(current + 1, questions.length)}</Text>
@@ -216,20 +220,22 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
                             <View style={s.resultBox}>
                                 <Text style={s.resultEmoji}>🎉</Text>
                                 <Text style={s.resultTitle}>{t.assessmentComplete}</Text>
-                                <View style={[s.resultLevelBox, {
-                                    borderColor: (LEVEL_COLORS[result.level] || colors.purple) + '60',
-                                    backgroundColor: (LEVEL_COLORS[result.level] || colors.purple) + '15',
-                                }]}>
-                                    <Text style={[s.resultLevel, { color: LEVEL_COLORS[result.level] || colors.purple }]}>
-                                        {result.level === 'BEGINNER' ? t.levelBeginner
-                                            : result.level === 'INTERMEDIATE' ? t.levelIntermediate
-                                            : result.level === 'ADVANCED' ? t.levelAdvanced
-                                            : result.level === 'PRO' ? t.levelPro
-                                            : result.level}
-                                    </Text>
-                                </View>
+                                {!isDoubles && (
+                                    <View style={[s.resultLevelBox, {
+                                        borderColor: (LEVEL_COLORS[result.level] || colors.purple) + '60',
+                                        backgroundColor: (LEVEL_COLORS[result.level] || colors.purple) + '15',
+                                    }]}>
+                                        <Text style={[s.resultLevel, { color: LEVEL_COLORS[result.level] || colors.purple }]}>
+                                            {result.level === 'BEGINNER' ? t.levelBeginner
+                                                : result.level === 'INTERMEDIATE' ? t.levelIntermediate
+                                                : result.level === 'ADVANCED' ? t.levelAdvanced
+                                                : result.level === 'PRO' ? t.levelPro
+                                                : result.level}
+                                        </Text>
+                                    </View>
+                                )}
                                 <View style={s.ratingSection}>
-                                    <Text style={s.ratingLabel}>{t.skillRatingLabel}</Text>
+                                    <Text style={s.ratingLabel}>{isDoubles ? t.doublesRatingLabel : t.skillRatingLabel}</Text>
                                     <Text style={[s.ratingValue, { color: colors.purple }]}>
                                         {Number(result.skillRating || 0).toFixed(2)} ★
                                     </Text>

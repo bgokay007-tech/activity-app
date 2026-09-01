@@ -290,23 +290,27 @@ export const hideInterest = async (req, res, next) => {
 // Assessment sorularını getir (?position= ile pozisyon bazlı futbol desteği)
 export const getAssessmentQuestions = async (req, res) => {
     const { subCategory } = req.params;
-    const { position, lang } = req.query; // goalkeeper | defender | midfielder | forward | allrounder
+    const { position, lang, ratingType } = req.query; // goalkeeper | defender | midfielder | forward | allrounder
 
     const key = subCategory === 'football' && position
         ? `football_${position}`
-        : subCategory;
+        // Tenis çiftler: tekli anketten tamamen ayrı bir soru seti (bkz. assessments.js
+        // QUESTIONS.tennis_doubles) — sadece ?ratingType=doubles ile istenir.
+        : subCategory === 'tennis' && ratingType === 'doubles'
+            ? 'tennis_doubles'
+            : subCategory;
 
     const questions = getQuestions(key, lang || 'en');
     const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
 
-    res.json({ subCategory, position: position || null, questions, maxScore });
+    res.json({ subCategory, position: position || null, ratingType: ratingType || null, questions, maxScore });
 };
 
 // Assessment sonucunu kaydet → level ve initialPoints güncelle
 export const saveAssessment = async (req, res, next) => {
     try {
         const { id } = req.params; // interestId
-        const { answers } = req.body; // [{questionId, points}]
+        const { answers, ratingType } = req.body; // [{questionId, points}], ratingType: 'singles'|'doubles' (sadece tenis)
 
         const interest = await prisma.userInterest.findUnique({ where: { id } });
         if (!interest || interest.userId !== req.userId)
@@ -344,11 +348,31 @@ export const saveAssessment = async (req, res, next) => {
 
             await prisma.userInterest.update({
                 where: { id },
-                data: { selfAssessmentRating: selfSkillRating, assessmentCompleted: true, matchesSinceAssessment: 0 },
+                data: { selfAssessmentRating: selfSkillRating, assessmentCompleted: true, matchesSinceAssessment: 0, assessmentCompletedAt: new Date() },
             });
 
             const updated = await applyBlendedPadelRating(req.userId);
             return res.json({ interest: updated, level: updated.level, skillRating: getDisplayRating(updated, 'padel', false), totalPoints: updated.totalPoints });
+        }
+
+        // Tenis ÇİFTLER anketi: tekli anketten TAMAMEN AYRI bir soru seti (bkz. assessments.js
+        // QUESTIONS.tennis_doubles) — sadece doublesSeedRating/doublesAssessmentCompleted'i
+        // besler, tekli tarafına (assessmentCompleted/singlesSeedRating) dokunmaz. Tekli anketi
+        // önce tamamlanmış olmalı (assessmentCompleted) — aksi halde bu dala hiç eklenemez zaten.
+        if (interest.subCategory === 'tennis' && ratingType === 'doubles') {
+            if (!interest.assessmentCompleted) {
+                return res.status(400).json({ message: 'Önce tekli derecelendirme anketini tamamlamalısın.' });
+            }
+            const questions = getQuestions('tennis_doubles');
+            const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
+            const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);
+            const { skillRating: doublesSkill } = calculateLevel(totalScore, maxScore);
+
+            const updated = await prisma.userInterest.update({
+                where: { id },
+                data: { doublesSeedRating: doublesSkill, doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() },
+            });
+            return res.json({ interest: updated, totalScore, maxScore, skillRating: getDisplayRating(updated, 'tennis', true) });
         }
 
         const questions = getQuestions(interest.subCategory);
@@ -356,16 +380,17 @@ export const saveAssessment = async (req, res, next) => {
         const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);
         const { level, skillRating, totalPoints } = calculateLevel(totalScore, maxScore);
 
-        // Tenis: UTR-esinli sisteme geçti (bkz. utrRating.js) — anket sonucu artık skillRating'e
-        // DEĞİL, tekli/çiftler için ortak "başlangıç puanı"na (seed) yazılır; ikisi de aynı
-        // anketten (henüz format-ayrımlı bir anket yok) beslenir. Zaten var olan gerçek maç
-        // geçmişi varsa singlesRating/doublesRating'e DOKUNULMAZ — bir sonraki gerçek maçın
-        // recompute'u yeni seed'i zaten kendi ağırlığıyla (bkz. seedWeight) hesaba katar.
+        // Tenis (tekli/genel anket): UTR-esinli sisteme geçti (bkz. utrRating.js) — anket sonucu
+        // artık skillRating'e DEĞİL, singlesSeedRating'e yazılır. Çiftler için AYRI bir anket var
+        // (yukarıdaki ratingType==='doubles' dalı) — bu yüzden burada doublesSeedRating'e ARTIK
+        // MİRROR YAZILMIYOR; kullanıcı çiftler anketini tamamlayana kadar doublesAssessmentCompleted
+        // false kalır ve çiftler maçlarına katılamaz (bkz. rival.controller.js requireActiveInterest).
+        // Zaten var olan gerçek maç geçmişi varsa singlesRating/doublesRating'e DOKUNULMAZ.
         const isUtrTennis = UTR_SUBCATEGORIES.includes(interest.subCategory);
         const updated = await prisma.userInterest.update({
             where: { id },
             data: isUtrTennis
-                ? { level, singlesSeedRating: skillRating, doublesSeedRating: skillRating, assessmentCompletedAt: new Date(), assessmentCompleted: true, matchesSinceAssessment: 0 }
+                ? { level, singlesSeedRating: skillRating, assessmentCompletedAt: new Date(), assessmentCompleted: true, matchesSinceAssessment: 0 }
                 : { level, skillRating, totalPoints, assessmentCompleted: true, matchesSinceAssessment: 0 },
         });
 

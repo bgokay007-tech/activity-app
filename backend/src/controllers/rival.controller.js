@@ -22,7 +22,7 @@ import { removeSpectatorOnPromotion } from './spectator.controller.js';
 // eklememişse veya gizlemişse (hidden=true, gizliyken hiçbir şey yapamaz) reddedilir.
 // RATING_REQUIRED_SUBCATEGORIES'te ayrıca derece anketini (assessmentCompleted)
 // tamamlamış olmalı — ekleme sırasında zorunlu olsa da eski kayıtlar için ikinci savunma hattı.
-async function requireActiveInterest(userId, category, subCategory) {
+async function requireActiveInterest(userId, category, subCategory, matchType = null) {
     const interest = await prisma.userInterest.findUnique({
         where: { userId_category_subCategory: { userId, category, subCategory } },
     });
@@ -34,6 +34,13 @@ async function requireActiveInterest(userId, category, subCategory) {
     if (RATING_REQUIRED_SUBCATEGORIES.has(subCategory) && !interest.assessmentCompleted) {
         const err = new Error('Bu dalda ilan açabilmek/katılabilmek için önce derece anketini tamamlamalısın.');
         err.status = 403; err.code = 'ASSESSMENT_REQUIRED';
+        throw err;
+    }
+    // Tenis çiftler: tekli anketten AYRI bir anket var (bkz. assessments.js
+    // QUESTIONS.tennis_doubles) — çiftler ilanı açmadan/katılmadan önce o da tamamlanmış olmalı.
+    if (subCategory === 'tennis' && matchType === 'DOUBLE' && !interest.doublesAssessmentCompleted) {
+        const err = new Error('Çiftler ilanı açabilmek/katılabilmek için önce çiftler derecelendirme anketini tamamlamalısın.');
+        err.status = 403; err.code = 'DOUBLES_ASSESSMENT_REQUIRED';
         throw err;
     }
     return interest;
@@ -1994,7 +2001,7 @@ export const createRivalRequest = async (req, res, next) => {
             if (cleanExtraServices === null) return res.status(400).json({ message: 'Geçersiz ekstra hizmet' });
         }
 
-        const creatorInterest = await requireActiveInterest(creatorId, category, subCategory);
+        const creatorInterest = await requireActiveInterest(creatorId, category, subCategory, matchType?.toUpperCase());
 
         // İlan sahibi kendi derece puanının dışında kalan bir aralık kısıtlaması koyamaz —
         // ör. kendi puanı 1.20 iken erkekler için 3-3.5 aralığı açması anlamsız, çünkü
@@ -2821,7 +2828,7 @@ export const sendJoinRequest = async (req, res, next) => {
             return res.status(400).json({ message: 'Bu maçın hakemisiniz, aynı zamanda oyuncu olarak katılamazsınız.' });
         }
 
-        await requireActiveInterest(req.userId, request.category, request.subCategory);
+        await requireActiveInterest(req.userId, request.category, request.subCategory, request.matchType);
 
         // Hakem ilanına başvuru: bağlı olduğu asıl maça zaten oyuncu olarak katılmış biri
         // (kurucu/rakip/partner fark etmez) aynı maça hakemlik başvurusu yapamaz.
