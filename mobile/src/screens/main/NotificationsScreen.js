@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
     headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
     muteBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: colors.border, maxWidth: 66 },
     muteBtnText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
-    markAllBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: colors.border, maxWidth: 92 },
+    markAllBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: colors.border, maxWidth: 66 },
     markAllText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
     item: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 17, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border + '40', gap: 3, position: 'relative' },
     subBadge: { position: 'absolute', top: 8, right: 12, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: colors.border, maxWidth: 90 },
