@@ -63,6 +63,43 @@ const TR_PROVINCES = [
 
 const TEAM_SPORTS = new Set(['football', 'volleyball']);
 
+// Tenis/padel UTR-esinli sistemde tekli/çiftli AYRI puanlar var (bkz. backend/src/utils/
+// utrRating.js getDisplayRating) — düz skillRating artık otoriter değil. Kullanıcı isteği:
+// gelen istekler/gönderilen davetler ve digimon kartlarda kullanıcı adının yanında maçın
+// FORMATINA (tekli/çiftli) göre doğru puan, "T ELO"/"Ç ELO" (İngilizce "S ELO"/"D ELO") gibi
+// açıkça etiketlenmiş şekilde görünsün — hangi puanın gösterildiği belirsiz kalmasın diye.
+const UTR_MOBILE_SUBS = new Set(['tennis', 'padel']);
+function utrDisplayRating(interest, sub, isDoubles) {
+    if (!interest || !UTR_MOBILE_SUBS.has(sub)) return null;
+    const raw = isDoubles ? interest.doublesRating : interest.singlesRating;
+    const seed = isDoubles ? interest.doublesSeedRating : interest.singlesSeedRating;
+    const offset = (isDoubles ? interest.doublesRatingOffset : interest.singlesRatingOffset) ?? 0;
+    if (raw == null && seed == null) return null;
+    return Math.max(0, (raw ?? seed ?? 0) + offset);
+}
+// Kullanıcı adının yanına eklenecek hazır metni üretir — tenis/padel'de "  T ELO 2.75" gibi
+// formata özel etiketli, diğer dallarda eski "  2.75 ★" gösterimi aynen korunur.
+function eloSuffix(interest, sub, isDoubles, lang) {
+    if (!interest) return '';
+    if (!UTR_MOBILE_SUBS.has(sub)) {
+        return interest.skillRating != null ? `  ${Number(interest.skillRating).toFixed(2)} ★` : '';
+    }
+    const val = utrDisplayRating(interest, sub, isDoubles);
+    if (val == null) return '';
+    const label = lang === 'tr' ? (isDoubles ? 'Ç ELO' : 'T ELO') : (isDoubles ? 'D ELO' : 'S ELO');
+    return `  ${label} ${val.toFixed(2)}`;
+}
+// Kadro/digimon kartlarında — sunucu zaten formata-doğru NUMERİK değeri hesaplayıp
+// gönderdiği (bkz. backend teamDisplayRating) yerlerde, burada sadece doğru ETİKET
+// eklenir: tenis/padel'de "T ELO 2.75"/"Ç ELO 3.10" (İngilizce "S ELO"/"D ELO"), diğer
+// dallarda eski "2.75★" gösterimi aynen korunur.
+function ratingBadgeText(sub, isDoubles, lang, value) {
+    if (value == null) return null;
+    if (!UTR_MOBILE_SUBS.has(sub)) return `${Number(value).toFixed(2)}★`;
+    const label = lang === 'tr' ? (isDoubles ? 'Ç ELO' : 'T ELO') : (isDoubles ? 'D ELO' : 'S ELO');
+    return `${label} ${Number(value).toFixed(2)}`;
+}
+
 // Tüm istatistikler eşit olduğunda kullanılan sabit (deterministik) kura — backend'deki
 // stableTiebreakHash ile birebir aynı, böylece sıralama her açılışta değişmez.
 function stableTiebreakHash(tournamentId, playerId) {
@@ -675,6 +712,9 @@ function MediaTile({ post, dataSaverMode, onOpenFullscreen }) {
 
 function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin, highlightSlot: highlightSlotFromNotif = null, autoOpenOrder = false }) {
     const insets = useSafeAreaInsets();
+    // Tenis/padel'de gelen istekler/gönderilen davetlerde tekli/çiftli ELO etiketini bu ilanın
+    // FORMATINA göre seçmek için (bkz. eloSuffix) — kullanıcı isteği.
+    const isDoublesFmt = item.matchType === 'DOUBLE';
     // Kullanıcı raporu: "Atanmamış" ızgarasında derece puanı (⭐) küçük ekranlı telefonlarda
     // görünmüyordu — sabit 3 sütun (width:'32%') dar ekranda isim+cinsiyet metnini doldurup
     // numberOfLines={1} yüzünden sondaki puanı kesiyordu. Dar ekranlarda 2 sütuna düşülerek
@@ -2004,7 +2044,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     )}
                                 </View>
                                 {item.sender?.interests?.[0]?.assessmentCompleted && (
-                                    <Text style={{ color:'#facc15', fontSize:moderateScale(11), fontWeight:'800' }}>{Number(item.sender.interests[0].skillRating).toFixed(2)} ★</Text>
+                                    <Text style={{ color:'#facc15', fontSize:moderateScale(11), fontWeight:'800' }}>{ratingBadgeText(sub, isDoublesFmt, t.lang, item.sender.interests[0].skillRating)}</Text>
                                 )}
                                 {/* Kullanıcı isteği: kart'ta (RivalCard) zaten gösterilen tüm bilgiler
                                     (cinsiyet kısıtlaması, derece aralığı, iptal cezası, kort/salon
@@ -2326,7 +2366,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                             </Text>
                                                             <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                 {p.username}
-                                                                {p.skillRating != null && <Text style={{ color:'#facc15', fontWeight:'800' }}>  {Number(p.skillRating).toFixed(2)}★</Text>}
+                                                                {p.skillRating != null && <Text style={{ color:'#facc15', fontWeight:'800' }}>  {ratingBadgeText(sub, isDoublesFmt, t.lang, p.skillRating)}</Text>}
                                                             </Text>
                                                         </View>
                                                     ) : (
@@ -2339,7 +2379,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                             </Text>
                                                             <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                 {p.username}
-                                                                {p.skillRating != null && <Text style={{ color:'#facc15', fontWeight:'800' }}>  {Number(p.skillRating).toFixed(2)}★</Text>}
+                                                                {p.skillRating != null && <Text style={{ color:'#facc15', fontWeight:'800' }}>  {ratingBadgeText(sub, isDoublesFmt, t.lang, p.skillRating)}</Text>}
                                                             </Text>
                                                         </TouchableOpacity>
                                                     )}
@@ -2440,7 +2480,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         )}
                                                         {/* Kullanıcı isteği: derece puanı (elo) kurucu dahil herkeste görünsün. */}
                                                         {item.sender?.interests?.[0]?.skillRating != null && (
-                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{Number(item.sender.interests[0].skillRating).toFixed(2)}★</Text>
+                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{ratingBadgeText(sub, isDoublesFmt, t.lang, item.sender.interests[0].skillRating)}</Text>
                                                         )}
                                                     </View>
                                                     <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
@@ -2468,7 +2508,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                             )}
                                                             {/* Kullanıcı isteği: derece puanı (elo) isimlerin sağında. */}
                                                             {sl.p.skillRating != null && (
-                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{Number(sl.p.skillRating).toFixed(2)}★</Text>
+                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{ratingBadgeText(sub, isDoublesFmt, t.lang, sl.p.skillRating)}</Text>
                                                             )}
                                                         </View>
                                                         {/* Kullanıcı raporu: ön yüzde slot bazlı cinsiyet etiketi ("Katılımcı 1
@@ -2512,7 +2552,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                                 </TouchableOpacity>
                                                             )}
                                                             {p.skillRating != null && (
-                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
+                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{ratingBadgeText(sub, isDoublesFmt, t.lang, p.skillRating)}</Text>
                                                             )}
                                                         </View>
                                                         <Text style={det.playerSub} numberOfLines={1}>{t.cardParticipantLabel(teamSlots.length + i + 1)}</Text>
@@ -2653,7 +2693,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                                 <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({p.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})</Text>
                                                             )}
                                                             {p.skillRating != null && (
-                                                                <Text style={{ color:'#facc15', fontWeight:'800' }}>  {Number(p.skillRating).toFixed(2)}★</Text>
+                                                                <Text style={{ color:'#facc15', fontWeight:'800' }}>  {ratingBadgeText(sub, isDoublesFmt, t.lang, p.skillRating)}</Text>
                                                             )}
                                                         </Text>
                                                         {(isOwner || isMe) && canTeam1 && (
@@ -2900,7 +2940,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                             <Text style={{ color:'#fff', fontSize:10 }} numberOfLines={1}>{playerDisplayName(item.sender)}</Text>
                                                         </View>
                                                         {item.sender?.interests?.[0]?.skillRating != null && (
-                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(item.sender.interests[0].skillRating).toFixed(2)}★</Text>
+                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{ratingBadgeText(sub, isDoublesFmt, t.lang, item.sender.interests[0].skillRating)}</Text>
                                                         )}
                                                     </TouchableOpacity>
                                                 </View>
@@ -2970,7 +3010,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         {/* Kullanıcı isteği: ilan sahibi kime hangi takımı vereceğine karar
                                                             verirken cinsiyet + derece puanını burada görsün. */}
                                                         <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', flex:1 }} numberOfLines={1}>
-                                                            {p.id ? playerDisplayName(p) : p.manualName}{reqGenderParen(p.gender, t.lang)}{p.skillRating != null ? `  ⭐${Number(p.skillRating).toFixed(2)}` : ''}
+                                                            {p.id ? playerDisplayName(p) : p.manualName}{reqGenderParen(p.gender, t.lang)}{p.skillRating != null ? `  ${ratingBadgeText(sub, isDoublesFmt, t.lang, p.skillRating)}` : ''}
                                                         </Text>
                                                     </TouchableOpacity>
                                                 ))}
@@ -3082,7 +3122,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 HER dalda gösterilsin, ilan detayına bakan HERKES (ilan sahibi
                                                 dahil) görebilsin — burada (SINGLE/1v1 ilanlar) hiç yoktu. */}
                                             {item.sender?.interests?.[0]?.skillRating != null && (
-                                                <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{Number(item.sender.interests[0].skillRating).toFixed(2)}★</Text>
+                                                <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{ratingBadgeText(sub, isDoublesFmt, t.lang, item.sender.interests[0].skillRating)}</Text>
                                             )}
                                         </View>
                                         <Text style={det.playerSub}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
@@ -3100,7 +3140,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     </TouchableOpacity>
                                                 )}
                                                 {p.skillRating != null && (
-                                                    <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
+                                                    <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{ratingBadgeText(sub, isDoublesFmt, t.lang, p.skillRating)}</Text>
                                                 )}
                                             </View>
                                             <Text style={det.playerSub}>
@@ -3167,7 +3207,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <View style={{ flex:1 }}>
                                             <Text style={det.playerName}>{playerDisplayName(jr.user)}</Text>
                                             <Text style={det.playerSub}>
-                                                {jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}{reqGenderParen(jr.user?.gender, t.lang)}
+                                                {jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{eloSuffix(jr.user?.interests?.find(i => i.subCategory === sub), sub, isDoublesFmt, t.lang)}{reqGenderParen(jr.user?.gender, t.lang)}
                                             </Text>
                                             <Text style={{ color: cfg.color, fontSize:moderateScale(10), fontWeight:'700', marginTop:1 }} numberOfLines={1}>
                                                 → {slotLabel(jr.requestedSlot)}
@@ -3219,7 +3259,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                                 <View style={{ flex:1 }}>
                                                     <Text style={det.playerName}>{playerDisplayName(jr.user)}</Text>
-                                                    <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}{reqGenderParen(jr.user?.gender, t.lang)}</Text>
+                                                    <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{eloSuffix(jr.user?.interests?.find(i => i.subCategory === sub), sub, isDoublesFmt, t.lang)}{reqGenderParen(jr.user?.gender, t.lang)}</Text>
                                                 </View>
                                                 {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
                                                     <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
@@ -3277,7 +3317,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     ) : (
                                         <View style={{ flex:1 }}>
                                             <Text style={det.playerName}>{playerDisplayName(jr.user)}</Text>
-                                            <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}{reqGenderParen(jr.user?.gender, t.lang)}</Text>
+                                            <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{eloSuffix(jr.user?.interests?.find(i => i.subCategory === sub), sub, isDoublesFmt, t.lang)}{reqGenderParen(jr.user?.gender, t.lang)}</Text>
                                             {jr.requestedSlot && (
                                                 <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'700', marginTop:1 }}>
                                                     🎯 {jr.requestedSlot === 'partner' ? t.founderTeamLabel : jr.requestedSlot === 'opp1' ? t.opp1Label : jr.requestedSlot === 'opp2' ? t.opp2Label : t.joinAsOpponentBtn}
@@ -3333,7 +3373,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <View key={jr.id} style={det.playerRow}>
                                         <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                         <View style={{ flex:1 }}>
-                                            <Text style={det.playerName}>{playerDisplayName(jr.user)}{!isRefereeAd && jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}</Text>
+                                            <Text style={det.playerName}>{playerDisplayName(jr.user)}{!isRefereeAd && eloSuffix(jr.user?.interests?.find(i => i.subCategory === sub), sub, isDoublesFmt, t.lang)}</Text>
                                             <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>{slotLabel ? `${slotLabel} — ` : ''}⏳ Onay Bekleniyor</Text>
                                             {/* Kullanıcı isteği: hakem daveti bildiriminden gelen kişi, kabul/red
                                                 etmeden önce kendisine teklif edilen ücret/mesajı görebilmeli —
