@@ -11587,7 +11587,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // Derece kısıtlaması kendi puanına uymuyorsa seçim anında uyarılsın diye (backend'de
     // submit'te de aynı kontrol var, bkz. createRivalRequest) — kendi puanı burada bilinmeli.
     const myInterestForSub = (myUser?.interests || []).find(i => i.subCategory === sub);
-    const myOwnRating = myInterestForSub?.skillRating ?? null;
     // Tenis/padel çiftler: kullanıcı isteği — çiftler anketi tamamlanmadan Çiftler formatı hiç
     // seçilemesin, direkt çiftler anketine yönlendirilsin (backend zaten submit'te reddediyor,
     // ama kullanıcı formu doldurup gönderene kadar bunu öğrenmiyordu).
@@ -11792,6 +11791,23 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     };
 
     const [f, setF]               = useState(() => buildInitialState());
+    // Tenis/padel'de skillRating artık otoriter değil (bkz. backend/src/utils/utrRating.js
+    // getDisplayRating) — sadece gerçek bir maç oynanınca "aynalanıyor", anket tamamlanınca
+    // güncellenmiyor. Kullanıcı raporu: anketini doldurup 2.75 puan aldı ama hiç maç oynamadığı
+    // için skillRating hâlâ 0'da kalmıştı, derece kısıtlaması formu bunu okuyup "kendi puanınız
+    // 0.00" diye yanlış reddediyordu. Backend'deki aynı kontrolle (rival.controller.js,
+    // getDisplayRating) birebir aynı mantık: seçilen formata (tekli/çiftli) göre
+    // singlesRating/doublesRating (yoksa seed'i), üzerine varsa ceza offset'i eklenir.
+    const myOwnRating = (() => {
+        if (!myInterestForSub) return null;
+        if (sub !== 'tennis' && sub !== 'padel') return myInterestForSub.skillRating ?? null;
+        const isDoublesFmt = f.matchType === 'DOUBLE';
+        const raw = isDoublesFmt ? myInterestForSub.doublesRating : myInterestForSub.singlesRating;
+        const seed = isDoublesFmt ? myInterestForSub.doublesSeedRating : myInterestForSub.singlesSeedRating;
+        const offset = (isDoublesFmt ? myInterestForSub.doublesRatingOffset : myInterestForSub.singlesRatingOffset) ?? 0;
+        if (raw == null && seed == null) return null;
+        return Math.max(0, (raw ?? seed ?? 0) + offset);
+    })();
     // Düzenleme modunda ilk yüklemedeki gerçek rezervasyon kimliği burada sabit kalır —
     // f.venueId/venueCourtId kullanıcı yeni bir slot seçtikçe değişir, originalRef hiç
     // değişmez; submitEdit() aynı kort mu farklı kort mu ayrımını bununla yapar.
