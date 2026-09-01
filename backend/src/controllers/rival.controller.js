@@ -31,7 +31,14 @@ async function requireActiveInterest(userId, category, subCategory, matchType = 
         err.status = 403; err.code = 'ACTIVITY_REQUIRED';
         throw err;
     }
-    if (RATING_REQUIRED_SUBCATEGORIES.has(subCategory) && !interest.assessmentCompleted) {
+    // Padel: %99 çiftler oynanan bir spor olduğu için (kullanıcı isteği) çiftler anketi tekliden
+    // BAĞIMSIZ ve varsayılan/birincil olabilir — genel "bu dalı hiç kullanabilir miyim" kapısı
+    // padel'de İKİSİNDEN BİRİ (tekli VEYA çiftler) tamamlanmışsa açılır. Tenis'te hâlâ sadece
+    // tekli (assessmentCompleted) genel kapıyı açar.
+    const generalAssessmentDone = subCategory === 'padel'
+        ? (interest.assessmentCompleted || interest.doublesAssessmentCompleted)
+        : interest.assessmentCompleted;
+    if (RATING_REQUIRED_SUBCATEGORIES.has(subCategory) && !generalAssessmentDone) {
         const err = new Error('Bu dalda ilan açabilmek/katılabilmek için önce derece anketini tamamlamalısın.');
         err.status = 403; err.code = 'ASSESSMENT_REQUIRED';
         throw err;
@@ -42,6 +49,14 @@ async function requireActiveInterest(userId, category, subCategory, matchType = 
     if ((subCategory === 'tennis' || subCategory === 'padel') && matchType === 'DOUBLE' && !interest.doublesAssessmentCompleted) {
         const err = new Error('Çiftler ilanı açabilmek/katılabilmek için önce çiftler derecelendirme anketini tamamlamalısın.');
         err.status = 403; err.code = 'DOUBLES_ASSESSMENT_REQUIRED';
+        throw err;
+    }
+    // Padel tekli: çiftler anketi tekliyi otomatik karşılamaz — tekli maç açmak/katılmak
+    // için gerçekten tekli anketi tamamlanmış olmalı (kullanıcı isteği: "tekli puanı yoksa
+    // tekli maç açamasın").
+    if (subCategory === 'padel' && matchType === 'SINGLE' && !interest.assessmentCompleted) {
+        const err = new Error('Tekli ilanı açabilmek/katılabilmek için önce tekli derecelendirme anketini tamamlamalısın.');
+        err.status = 403; err.code = 'SINGLES_ASSESSMENT_REQUIRED';
         throw err;
     }
     return interest;

@@ -341,11 +341,10 @@ export const saveAssessment = async (req, res, next) => {
 
         // Padel ÇİFTLER anketi: tekli ile AYNI soru seti (Vuruş Teknikleri/Taktik/Deneyim —
         // format-bağımsız genel beceri traitleri) ama AYRICA doldurulur, ham sonuç
-        // doublesSelfAssessmentRating'e yazılır. Tekli anketi önce tamamlanmış olmalı.
+        // doublesSelfAssessmentRating'e yazılır. Kullanıcı isteği: padel %99 çiftler oynanan bir
+        // spor olduğu için tekli anketi ÖNCE tamamlanmış olması ŞART DEĞİL (tenis'teki "önce
+        // tekli" kuralı burada yok) — çiftler bağımsız, varsayılan/birincil anket olabilir.
         if (interest.subCategory === 'padel' && ratingType === 'doubles') {
-            if (!interest.assessmentCompleted) {
-                return res.status(400).json({ message: 'Önce tekli derecelendirme anketini tamamlamalısın.' });
-            }
             const questions = getQuestions('padel');
             const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
             const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);

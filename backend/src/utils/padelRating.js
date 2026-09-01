@@ -58,11 +58,13 @@ export function computeOverallScore(selfSkillRating, ratings) {
 // (PadelRating) DİSİPLİNE göre ayrılmıyor — genel beceri traitleri (forehandDrive/volley/çeviklik
 // vb.) olduğu için tekli/çiftler harmanında AYNI coach/teammate satırları kullanılır, sadece "kendi"
 // tarafı (selfBase) tekli/çiftler anketine göre değişir. ratingType='singles' (varsayılan) tekli
-// tarafını, 'doubles' çiftler tarafını günceller — birbirine karışmaz.
+// tarafını, 'doubles' çiftler tarafını günceller — birbirine karışmaz. Kullanıcı isteği: padel
+// %99 çiftler oynanan bir spor olduğu için ikisi BİRBİRİNDEN BAĞIMSIZ tamamlanabilir — çiftler
+// anketi tekli tamamlanmadan da doldurulabilir (tenis'teki "önce tekli" zorunluluğu padel'de YOK).
 export async function applyBlendedPadelRating(subjectId, ratingType = 'singles') {
     const interest = await prisma.userInterest.findFirst({ where: { userId: subjectId, subCategory: 'padel' } });
-    if (!interest || !interest.assessmentCompleted) return null;
-    if (ratingType === 'doubles' && !interest.doublesAssessmentCompleted) return null;
+    if (!interest) return null;
+    if (ratingType === 'doubles' ? !interest.doublesAssessmentCompleted : !interest.assessmentCompleted) return null;
 
     const selfBase = ratingType === 'doubles'
         ? (interest.doublesSelfAssessmentRating ?? interest.selfAssessmentRating ?? interest.skillRating)

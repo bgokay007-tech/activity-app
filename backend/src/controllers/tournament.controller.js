@@ -8,6 +8,16 @@ import { UTR_SUBCATEGORIES, applyUtrRatingForTournamentMatch, getDisplayRating, 
 import { computeTournamentPlacement } from './achievement.controller.js';
 import { sanitizeExtraServices } from '../utils/extraServices.js';
 
+// Padel: %99 çiftler oynanan bir spor olduğu için (kullanıcı isteği) çiftler anketi tekliden
+// BAĞIMSIZ ve varsayılan/birincil olabilir — genel "bu dalı hiç kullanabilir miyim" kapısı
+// padel'de İKİSİNDEN BİRİ (tekli VEYA çiftler) tamamlanmışsa açılır (bkz. rival.controller.js
+// requireActiveInterest'teki aynı mantık). Tenis'te hâlâ sadece tekli genel kapıyı açar.
+function hasGeneralAssessment(interest, subCategory) {
+    if (!interest) return false;
+    if (subCategory === 'padel') return interest.assessmentCompleted || interest.doublesAssessmentCompleted;
+    return interest.assessmentCompleted;
+}
+
 // Geçerli turnuva türü ID'leri — bkz. mobil TOURN_TYPES. '1' (Bireysel Rekabetçi), '2'
 // (Çiftler Rekabetçi), '3' (Bireysel Antrenman) ve '4' (Çiftler Antrenman) tam olarak
 // kurallandırılmış/skorlanabilir; '5'-'8' zamanla gerçek formatlara dönüştürülecek yer
@@ -911,7 +921,7 @@ export async function checkPollAutoJoinEligibility(tournament, userId) {
         }),
         prisma.user.findUnique({ where: { id: userId }, select: { tournamentBanRemaining: true, gender: true } }),
     ]);
-    if (!interest?.assessmentCompleted) {
+    if (!hasGeneralAssessment(interest, tournament.subCategory)) {
         return { ok: false, message: 'Derecelendirme anketini tamamlamadığınız için otomatik başvurunuz oluşturulamadı.' };
     }
     if ((tournament.subCategory === 'tennis' || tournament.subCategory === 'padel') && isDoublesFormat({ tournamentType: tournament.type }) && !interest.doublesAssessmentCompleted) {
@@ -956,7 +966,7 @@ export const joinTournament = async (req, res, next) => {
                 where: { userId_category_subCategory: { userId: partnerId, category: tournament.category, subCategory: tournament.subCategory } },
                 select: { assessmentCompleted: true, doublesAssessmentCompleted: true, wins: true, losses: true },
             });
-            if (!partnerInterest?.assessmentCompleted) {
+            if (!hasGeneralAssessment(partnerInterest, tournament.subCategory)) {
                 return res.status(400).json({ message: 'Seçtiğiniz partner bu spor dalında henüz derecelendirme anketini tamamlamamış' });
             }
             if ((tournament.subCategory === 'tennis' || tournament.subCategory === 'padel') && !partnerInterest.doublesAssessmentCompleted) {
@@ -972,11 +982,16 @@ export const joinTournament = async (req, res, next) => {
             where: { userId_category_subCategory: { userId: req.userId, category: tournament.category, subCategory: tournament.subCategory } },
             select: { assessmentCompleted: true, doublesAssessmentCompleted: true, wins: true, losses: true },
         });
-        if (!myInterest?.assessmentCompleted) {
+        if (!hasGeneralAssessment(myInterest, tournament.subCategory)) {
             return res.status(403).json({ message: 'Bu spor dalında maçlara katılabilmek için önce derecelendirme anketini tamamlamanız gerekiyor.' });
         }
         if ((tournament.subCategory === 'tennis' || tournament.subCategory === 'padel') && isDoublesFormat({ tournamentType: tournament.type }) && !myInterest.doublesAssessmentCompleted) {
             return res.status(403).json({ message: 'Bu turnuvaya katılabilmek için önce çiftler derecelendirme anketini tamamlamanız gerekiyor.' });
+        }
+        // Padel tekli: çiftler anketi tekliyi otomatik karşılamaz (bkz. rival.controller.js
+        // requireActiveInterest'teki aynı kural).
+        if (tournament.subCategory === 'padel' && !isDoublesFormat({ tournamentType: tournament.type }) && !myInterest.assessmentCompleted) {
+            return res.status(403).json({ message: 'Bu turnuvaya katılabilmek için önce tekli derecelendirme anketini tamamlamanız gerekiyor.' });
         }
         if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) &&
             (myInterest.wins + myInterest.losses) < MIN_MATCHES_FOR_TOURNAMENT) {
@@ -1132,7 +1147,7 @@ export const setTournamentPartner = async (req, res, next) => {
                 where: { userId_category_subCategory: { userId: partnerId, category: tournament.category, subCategory: tournament.subCategory } },
                 select: { assessmentCompleted: true, doublesAssessmentCompleted: true },
             });
-            if (!partnerInterest?.assessmentCompleted) {
+            if (!hasGeneralAssessment(partnerInterest, tournament.subCategory)) {
                 return res.status(400).json({ message: 'Seçtiğiniz partner bu spor dalında henüz derecelendirme anketini tamamlamamış' });
             }
             if ((tournament.subCategory === 'tennis' || tournament.subCategory === 'padel') && !partnerInterest.doublesAssessmentCompleted) {
