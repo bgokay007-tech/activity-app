@@ -4529,6 +4529,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 ...(Array.isArray(positionPreferences) && positionPreferences.length > 0 && { positionPreferences }),
             });
             onRefresh();
+            // Kullanıcı isteği: istek atar atmaz, ne olacağını (onaylanınca katılım, 1 saatten
+            // geç kabulde tekrar onay istenmesi — bkz. backend respondToJoin lateAccept) açıkça
+            // anlatan bir bilgilendirme çıksın, sessizce "istek gönderildi" ile geçilmesin.
+            Alert.alert(t.joinRequestSentTitle, t.joinRequestSentMsg);
         } catch (e) {
             if (!e?.response) { onRefresh(); return; } // network drop — sunucu aldı, yenile
             setLocalJoinStatus(null); // hata varsa geri al
