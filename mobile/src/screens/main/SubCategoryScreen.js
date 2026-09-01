@@ -6,7 +6,8 @@ import {
     Alert, KeyboardAvoidingView, Platform, Switch, Linking, Image,
     InteractionManager, PanResponder, Animated, BackHandler, useWindowDimensions, Keyboard,
 } from 'react-native';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { setUser } from '../../store/slices/authSlice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -19461,10 +19462,21 @@ export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId, inviteSide, inviteSlotIndex, inviteDoubleSlot, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
             openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor,
             openEquipmentId, initialCoachSubTab, openCoachId, initialArchiveSubTab, openArchiveTournamentId, autoOpenOrder } = route.params;
+    const dispatch = useDispatch();
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
     const myRating = myInterests.find(i => i.subCategory === sub)?.skillRating ?? 0;
+
+    // Redux'taki auth.user sadece uygulama açılışında (HomeScreen) veya kendi Profil sayfasına
+    // girildiğinde tazeleniyordu — kullanıcı bu dala girmeden önce (ör. başka bir ekranda) bir
+    // maç sonuçlanıp derecesi güncellenmişse burada hâlâ eski (hatta 0.00, hiç anket doldurmamış
+    // gibi) skillRating görünüyordu. Bu da "kendi puanınız 0.00, en az X★ isteyemezsiniz" gibi
+    // yanlış derece kısıtlaması reddiyle sonuçlanıyordu. Dala her girişte kendi güncel bilgisi
+    // sessizce tazeleniyor.
+    useFocusEffect(useCallback(() => {
+        api.get('/auth/me').then(({ data }) => dispatch(setUser(data))).catch(() => {});
+    }, []));
 
     // İlan oluşturmadan/kort rezervasyonuna girmeden önce bu dalın "Aktivitelerim"e
     // eklenmiş (ve gizli olmayan) olduğunu kontrol eder — backend ilan oluşturmada zaten
