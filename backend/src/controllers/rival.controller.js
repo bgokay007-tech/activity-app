@@ -1148,7 +1148,11 @@ export const getRivalById = async (req, res, next) => {
                 refereeUser: { select: SENDER_SELECT },
                 // where filtresi + alias ÖNEMLİ (bkz. yukarıdaki sender.interests yorumu ile
                 // aynı sebep) — davet listesindeki kişinin bu daldaki takma adı gösterilsin.
-                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: rival.category, subCategory: rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
+                // interests select'i singlesRating/doublesRating/seed/offset alanlarını da
+                // içerir — mobil tarafta "Gelen İstekler"/"Gönderilen Davetler" listesinde
+                // kullanıcı isteğiyle format-doğru (tekli/çiftli) ELO etiketi ("T ELO"/"Ç ELO")
+                // gösterilebilsin diye (bkz. utrRating.js getDisplayRating ile aynı alanlar).
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: rival.category, subCategory: rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true, singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true } } } } } },
                 // Hakem Arıyorum ilanları (matchType PLAYER_WANTED, positions:['REFEREE']) için:
                 // asıl maçın oyuncularını (kim başvuramaz) ve dolu/boş slot durumunu görebilmek için.
                 linkedRival: { select: { id: true, senderId: true, matchType: true, teamSize: true, participants: true, senderTeam: true, participantsCanInvite: true, sender: { select: SENDER_SELECT } } },
@@ -3363,6 +3367,33 @@ export const inviteToRival = async (req, res, next) => {
         });
         if (existing && existing.status !== 'REJECTED') {
             return res.status(400).json({ message: 'Bu kullanıcıya zaten bir istek/davet gönderilmiş', status: existing.status });
+        }
+
+        // Kullanıcı isteği: ilan sahibi kendi koyduğu derece (ELO) kısıtlamasına uymayan birini
+        // davet etmeye çalışırsa, davet backend'e gitmeden/gönderilmeden hemen reddedilsin —
+        // aynı kontrol createRivalRequest/updateRivalRequest'te ilan sahibinin KENDİ puanı için
+        // zaten var (bkz. getDisplayRating/isDoublesFormat), burada davet edilen kişinin puanına
+        // uygulanıyor. Hakem ilanlarında (isRefereeAd) derece kısıtlaması anlamsız, atlanır.
+        if (!isRefereeAd) {
+            const inviteeIsDoubles = isDoublesFormat(rival);
+            let effMin = null, effMax = null;
+            if (rival.ratingGenderSplit) {
+                const inviteeUser = await prisma.user.findUnique({ where: { id: userId }, select: { gender: true } });
+                if (inviteeUser?.gender === 'MALE') { effMin = rival.minRatingMale; effMax = rival.maxRatingMale; }
+                else if (inviteeUser?.gender === 'FEMALE') { effMin = rival.minRatingFemale; effMax = rival.maxRatingFemale; }
+            } else {
+                effMin = rival.minRating; effMax = rival.maxRating;
+            }
+            if (effMin != null || effMax != null) {
+                const inviteeInterest = await prisma.userInterest.findFirst({ where: { userId, category: rival.category, subCategory: rival.subCategory } });
+                const inviteeRating = getDisplayRating(inviteeInterest, rival.subCategory, inviteeIsDoubles);
+                if (effMin != null && inviteeRating < effMin) {
+                    return res.status(400).json({ message: `Yolladığınız kişinin derece puanı (${inviteeRating.toFixed(2)}★) belirlemiş olduğunuz derece kısıtlamasına (en az ${effMin}★) uymamaktadır.` });
+                }
+                if (effMax != null && inviteeRating > effMax) {
+                    return res.status(400).json({ message: `Yolladığınız kişinin derece puanı (${inviteeRating.toFixed(2)}★) belirlemiş olduğunuz derece kısıtlamasına (en fazla ${effMax}★) uymamaktadır.` });
+                }
+            }
         }
 
         // Kullanıcı isteği: hakem ilanına sadece bu dalda aktif bir hakem kaydı (RefereeListing)
