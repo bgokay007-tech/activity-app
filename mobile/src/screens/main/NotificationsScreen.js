@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg, paddingTop: 53 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 17, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
     title: { color: '#fff', fontSize: 22, fontWeight: '900' },
-    headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 1 },
     muteBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: colors.border },
     muteBtnText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
     markAllBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: colors.border },
