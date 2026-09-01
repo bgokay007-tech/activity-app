@@ -173,12 +173,16 @@ export const seedOneTournamentJoin = async (req, res, next) => {
             user = await prisma.user.update({ where: { id: user.id }, data: { gender: demo.gender } });
         }
 
+        // UTR-esinli tenis sistemi (bkz. utrRating.js) tekli/çiftler puanını singlesRating/
+        // doublesRating'ten (seed'e düşerek) okuyor — demo botlar için de seed alanları
+        // dolmazsa gerçek eşleşme/derece kontrollerinde (getDisplayRating) 0 puanlı görünürlerdi.
         await prisma.userInterest.upsert({
             where: { userId_category_subCategory: { userId: user.id, category: 'SPORTS', subCategory: 'tennis' } },
-            update: { skillRating: demo.skillRating, level: demo.level, wins: demo.wins, losses: demo.losses, assessmentCompleted: true },
+            update: { skillRating: demo.skillRating, level: demo.level, wins: demo.wins, losses: demo.losses, assessmentCompleted: true, singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date() },
             create: {
                 userId: user.id, category: 'SPORTS', subCategory: 'tennis',
                 skillRating: demo.skillRating, level: demo.level, wins: demo.wins, losses: demo.losses, assessmentCompleted: true,
+                singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date(),
             },
         });
 
@@ -280,12 +284,19 @@ async function ensureDemoRivalPlayer(demo, subCategory) {
     } else if (user.gender !== demo.gender) {
         user = await prisma.user.update({ where: { id: user.id }, data: { gender: demo.gender } });
     }
+    // bkz. seedOneTournamentJoin'deki aynı not — UTR dallarında (tennis/padel) gerçek
+    // eşleşme/derece kontrolleri singlesRating/doublesRating'ten (seed'e düşerek) okunuyor.
+    const isUtrSubCategory = subCategory === 'tennis' || subCategory === 'padel';
     await prisma.userInterest.upsert({
         where: { userId_category_subCategory: { userId: user.id, category: 'SPORTS', subCategory } },
-        update: { skillRating: demo.skillRating, level: levelForRating(demo.skillRating), assessmentCompleted: true },
+        update: {
+            skillRating: demo.skillRating, level: levelForRating(demo.skillRating), assessmentCompleted: true,
+            ...(isUtrSubCategory && { singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date() }),
+        },
         create: {
             userId: user.id, category: 'SPORTS', subCategory,
             skillRating: demo.skillRating, level: levelForRating(demo.skillRating), assessmentCompleted: true,
+            ...(isUtrSubCategory && { singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date() }),
         },
     });
     return user;

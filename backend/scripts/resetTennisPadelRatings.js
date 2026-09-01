@@ -1,7 +1,10 @@
 // TEK SEFERLİK, GERİ ALINAMAZ migrasyon — tenis/padel UTR-esinli puanlama sistemine geçişte
 // "sıfırdan başla" kararının uygulanması (bkz. plan §7). Kullanıcı açıkça onayladı:
-//   1) UserInterest (tennis/padel): rating/istatistikler sıfırlanır, anket sonucu (varsa)
-//      singlesSeedRating/doublesSeedRating'e BİR KEREYE mahsus taşınır.
+//   1) UserInterest (tennis/padel): rating/istatistikler GERÇEKTEN sıfırlanır — eski
+//      skillRating/selfAssessmentRating seed olarak TAŞINMAZ (ilk sürüm yanlışlıkla taşıyordu,
+//      bu da "sıfırlama" sonrası derecenin hiç değişmemiş gibi görünmesine sebep oldu — kullanıcı
+//      raporu üzerine düzeltildi). assessmentCompleted false'a çekilir — herkes anketi (tenis
+//      için mevcut soru seti, padel için kendi soru seti) BAŞTAN doldurmak zorunda kalır.
 //   2) DESTRÜKTİF: tamamlanmış tenis/padel ActivityRequest kayıtları (Geçmiş Maçlar/arşiv) VE
 //      o maçlarda paylaşılan medya (rivalId'li Post + cascade Comment/Like/StoryView) SİLİNİR.
 //
@@ -49,22 +52,20 @@ async function main() {
         await prisma.activityRequest.deleteMany({ where: { id: { in: matchIds } } });
     }
 
-    console.log('UserInterest satırları sıfırlanıyor...');
+    console.log('UserInterest satırları sıfırlanıyor (anket dahil — herkes baştan dolduracak)...');
     let reset = 0;
     for (const i of interests) {
-        // Tenis: skillRating anket'in ham çıktısıydı (hiç harmanlanmadı) — bir kereye mahsus
-        // seed olarak taşınır. Padel: selfAssessmentRating aynı role sahip.
-        const seed = i.subCategory === 'padel' ? (i.selfAssessmentRating ?? null) : (i.assessmentCompleted ? i.skillRating : null);
         await prisma.userInterest.update({
             where: { id: i.id },
             data: {
+                skillRating: 0, level: 'BEGINNER', selfAssessmentRating: null,
                 singlesRating: null, doublesRating: null,
-                singlesSeedRating: seed, doublesSeedRating: seed,
+                singlesSeedRating: null, doublesSeedRating: null,
                 singlesRatingOffset: 0, doublesRatingOffset: 0,
                 singlesMatchCount: 0, doublesMatchCount: 0,
                 singlesLastMatchAt: null, doublesLastMatchAt: null,
                 wins: 0, losses: 0, totalPoints: 0, matchesSinceAssessment: 0,
-                assessmentCompletedAt: i.assessmentCompleted ? (i.assessmentCompletedAt ?? i.updatedAt) : null,
+                assessmentCompleted: false, assessmentCompletedAt: null,
             },
         });
         reset++;
