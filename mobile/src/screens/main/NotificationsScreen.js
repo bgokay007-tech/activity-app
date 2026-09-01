@@ -13,8 +13,6 @@ import { setUser } from '../../store/slices/authSlice';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import NotificationModePickerModal from '../../components/NotificationModePickerModal';
 
-const MODE_ICON = { SOUND: '🔊', VIBRATE: '📳', MUTE: '🔇' };
-
 // "Okundu" işareti PATCH isteği, kullanıcı bildirime dokunduktan hemen sonra
 // uygulamayı kapatırsa yarıda kesilip sunucuya hiç ulaşmayabiliyordu — bu durumda
 // bildirim saatler/günler sonra tekrar "okunmamış" görünüyordu, çünkü kaybolan
@@ -406,10 +404,10 @@ export default function NotificationsScreen({ navigation }) {
                 <Text style={styles.title}>{t.notificationsTitle}</Text>
                 <View style={styles.headerBtns}>
                     <TouchableOpacity onPress={() => setModePickerVisible(true)} style={styles.muteBtn}>
-                        <Text style={styles.muteBtnText}>{MODE_ICON[notificationMode]} {t.muteBtn}</Text>
+                        <Text style={styles.muteBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.muteBtn}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={markAllRead} style={styles.markAllBtn}>
-                        <Text style={styles.markAllText}>{t.markAllReadBtn}</Text>
+                        <Text style={styles.markAllText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.markAllReadBtn}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -447,10 +445,10 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg, paddingTop: 53 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 17, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
     title: { color: '#fff', fontSize: 22, fontWeight: '900' },
-    headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-    muteBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: colors.border },
+    headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
+    muteBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: colors.border, maxWidth: 66 },
     muteBtnText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
-    markAllBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: colors.border },
+    markAllBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: colors.border, maxWidth: 92 },
     markAllText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
     item: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 17, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border + '40', gap: 3, position: 'relative' },
     subBadge: { position: 'absolute', top: 8, right: 12, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: colors.border, maxWidth: 90 },
