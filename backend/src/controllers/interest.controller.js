@@ -394,7 +394,10 @@ export const saveAssessment = async (req, res, next) => {
 
             const updated = await prisma.userInterest.update({
                 where: { id },
-                data: { doublesSeedRating: doublesSkill, doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() },
+                // skillRating (aynalanmış alan) burada da güncellenir — aksi halde çiftler anketini
+                // yeni tamamlayan biri gerçek bir çiftler maçı oynayana kadar mobildeki onlarca
+                // kozmetik gösterim noktasında (rozet, ilan kartı vb.) hâlâ 0/bayat görünürdü.
+                data: { doublesSeedRating: doublesSkill, skillRating: doublesSkill, doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() },
             });
             return res.json({ interest: withDisplayRatings(updated), totalScore, maxScore, skillRating: getDisplayRating(updated, 'tennis', true) });
         }
@@ -413,8 +416,12 @@ export const saveAssessment = async (req, res, next) => {
         const isUtrTennis = UTR_SUBCATEGORIES.includes(interest.subCategory);
         const updated = await prisma.userInterest.update({
             where: { id },
+            // skillRating (aynalanmış alan) tekli ankette de güncellenir — aksi halde kullanıcı
+            // anketi tamamlayıp gerçek bir puan alsa da ilk maçını oynayana kadar mobildeki
+            // onlarca kozmetik gösterim noktasında (ilan kartı/detayı, roster rozeti vb.) hâlâ
+            // 0.00 görünüyordu (kullanıcı raporu: "anketi doldurdum 2.75 aldım ama her yerde 0").
             data: isUtrTennis
-                ? { level, singlesSeedRating: skillRating, assessmentCompletedAt: new Date(), assessmentCompleted: true, matchesSinceAssessment: 0 }
+                ? { level, singlesSeedRating: skillRating, skillRating, assessmentCompletedAt: new Date(), assessmentCompleted: true, matchesSinceAssessment: 0 }
                 : { level, skillRating, totalPoints, assessmentCompleted: true, matchesSinceAssessment: 0 },
         });
 

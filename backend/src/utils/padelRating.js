@@ -72,11 +72,14 @@ export async function applyBlendedPadelRating(subjectId, ratingType = 'singles')
     const ratings = await prisma.padelRating.findMany({ where: { subjectId } });
     const { overallScore } = computeOverallScore(selfBase, ratings);
     const { level, totalPoints } = calculateLevel(overallScore, 5);
+    // skillRating (aynalanmış alan, mobildeki onlarca kozmetik gösterim noktasının okuduğu
+    // yer) burada da güncellenir — aksi halde anketi tamamlayan/coach-takım arkadaşı
+    // değerlendirmesi alan biri ilk gerçek maçını oynayana kadar hâlâ 0.00 görünürdü.
     return prisma.userInterest.update({
         where: { id: interest.id },
         data: ratingType === 'doubles'
-            ? { doublesSeedRating: overallScore, totalPoints }
-            : { level, singlesSeedRating: overallScore, totalPoints },
+            ? { doublesSeedRating: overallScore, skillRating: overallScore, totalPoints }
+            : { level, singlesSeedRating: overallScore, skillRating: overallScore, totalPoints },
     });
 }
 

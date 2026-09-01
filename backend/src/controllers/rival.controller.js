@@ -283,6 +283,18 @@ const SENDER_SELECT = {
     id: true, username: true, fullName: true, avatar: true, city: true, gender: true,
 };
 
+// Tenis/padel'de tek bir düz skillRating yetmez — tekli/çiftli AYRI puanlar (bkz. utrRating.js).
+// İlan kartı/detayı/kadrosunda bir oyuncunun puanı canlı UserInterest sorgusuyla "zenginleştirilirken"
+// (aşağıdaki teamInterests/withTeamRating desenleri) bu fonksiyon kullanılır — o ilanın FORMATINA
+// (tekli/çiftli) göre doğru puanı döner. Diğer dallarda (badminton/masa tenisi/voleybol/vb.)
+// davranış değişmez, düz skillRating aynen döner.
+const TEAM_RATING_SUBCATEGORIES = UTR_SUBCATEGORIES;
+function teamDisplayRating(interestRow, subCategory, isDoubles) {
+    if (!interestRow) return null;
+    if (!TEAM_RATING_SUBCATEGORIES.includes(subCategory)) return interestRow.skillRating ?? null;
+    return getDisplayRating(interestRow, subCategory, isDoubles);
+}
+
 // unassignedPlayers Json snapshot'ında bazı eski kayıtlarda gender hiç yazılmamıştı (respondToJoin/
 // confirmLateJoin'deki joinerEntry gender taşımıyordu) — DOUBLE'da cinsiyet kısıtlı slotlara
 // "Takımlara Ata" seçeneği bu yüzden hiç çıkmıyordu (mobil taraf genderFitsSlot(undefined, 'FEMALE')
@@ -1160,13 +1172,22 @@ export const getRivalById = async (req, res, next) => {
         const teamInterests = teamUserIds.length > 0
             ? await prisma.userInterest.findMany({
                 where: { userId: { in: teamUserIds }, subCategory: rival.subCategory },
-                select: { userId: true, alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true },
+                select: {
+                    userId: true, alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true,
+                    singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true,
+                },
             })
             : [];
+        // Tenis/padel'de tekli/çiftli AYRI puan (bkz. teamDisplayRating) — bu ilanın FORMATINA
+        // göre doğru puan gösterilir, düz (format'tan bağımsız) skillRating mirror'ı DEĞİL.
+        const rivalIsDoubles = isDoublesFormat(rival);
         const withTeamRating = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id
-            ? { ...p, skillRating: teamInterests.find(i => i.userId === p.id)?.skillRating ?? null }
+            ? { ...p, skillRating: teamDisplayRating(teamInterests.find(i => i.userId === p.id), rival.subCategory, rivalIsDoubles) }
             : p);
-        const senderInterest = teamInterests.find(i => i.userId === rival.senderId);
+        const senderInterestRaw = teamInterests.find(i => i.userId === rival.senderId);
+        const senderInterest = senderInterestRaw
+            ? { ...senderInterestRaw, skillRating: teamDisplayRating(senderInterestRaw, rival.subCategory, rivalIsDoubles) }
+            : null;
         const unassignedGenderById = await fillMissingUnassignedGenders([rival.unassignedPlayers]);
         const withGender = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id ? { ...p, gender: p.gender ?? unassignedGenderById[p.id] ?? null } : p);
 
@@ -2687,7 +2708,10 @@ export const getRivalRequests = async (req, res, next) => {
                         ...SENDER_SELECT,
                         interests: {
                             where: { ...catWhere, ...(subCategory && { subCategory }) },
-                            select: { alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true },
+                            select: {
+                                alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true,
+                                singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true,
+                            },
                         },
                     },
                 },
@@ -2704,7 +2728,10 @@ export const getRivalRequests = async (req, res, next) => {
                                         ...catWhere,
                                         ...(subCategory && { subCategory }),
                                     },
-                                    select: { alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true },
+                                    select: {
+                                        alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true,
+                                        singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true,
+                                    },
                                 },
                             },
                         },
@@ -2748,20 +2775,41 @@ export const getRivalRequests = async (req, res, next) => {
             ...(Array.isArray(r.unassignedPlayers) ? r.unassignedPlayers : []).filter(p => p?.id).map(p => p.id),
         ]))];
         const teamInterests = teamUserIds.length > 0
-            ? await prisma.userInterest.findMany({ where: { userId: { in: teamUserIds } }, select: { userId: true, subCategory: true, skillRating: true } })
+            ? await prisma.userInterest.findMany({
+                where: { userId: { in: teamUserIds } },
+                select: {
+                    userId: true, subCategory: true, skillRating: true,
+                    singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true,
+                },
+            })
             : [];
-        const withTeamRating = (arr, subCategory) => (Array.isArray(arr) ? arr : []).map(p => p?.id
-            ? { ...p, skillRating: teamInterests.find(i => i.userId === p.id && i.subCategory === subCategory)?.skillRating ?? null }
+        // matchType formatına (tekli/çiftli) göre doğru puan — bkz. teamDisplayRating yorumu.
+        const withTeamRating = (arr, subCategory, isDoubles) => (Array.isArray(arr) ? arr : []).map(p => p?.id
+            ? { ...p, skillRating: teamDisplayRating(teamInterests.find(i => i.userId === p.id && i.subCategory === subCategory), subCategory, isDoubles) }
             : p);
+        // sender/joinRequests.user.interests[0] de aynı şekilde format-doğru puana çevrilir —
+        // kullanıcı raporu: yeni oluşturulan bir ilanın kartında/detayında ilan sahibinin kendi
+        // puanı hâlâ 0 görünüyordu çünkü bu iki alan düz (aynalanmış, format'tan bağımsız)
+        // skillRating'i olduğu gibi gönderiyordu.
+        const withOwnDisplayRating = (interestsArr, subCategory, isDoubles) => (Array.isArray(interestsArr) && interestsArr[0]
+            ? [{ ...interestsArr[0], skillRating: teamDisplayRating(interestsArr[0], subCategory, isDoubles) }]
+            : (interestsArr || []));
         const unassignedGenderById = await fillMissingUnassignedGenders(requests.map(r => r.unassignedPlayers));
         const withGender = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id ? { ...p, gender: p.gender ?? unassignedGenderById[p.id] ?? null } : p);
 
-        res.json(requests.map(r => ({
+        res.json(requests.map(r => {
+            const isDoubles = isDoublesFormat(r);
+            return {
             ...r,
-            senderTeam: withTeamRating(r.senderTeam, r.subCategory),
-            participants: withTeamRating(r.participants, r.subCategory),
-            substitutePlayers: withTeamRating(r.substitutePlayers, r.subCategory),
-            unassignedPlayers: withGender(withTeamRating(r.unassignedPlayers, r.subCategory)),
+            sender: { ...r.sender, interests: withOwnDisplayRating(r.sender?.interests, r.subCategory, isDoubles) },
+            joinRequests: (Array.isArray(r.joinRequests) ? r.joinRequests : []).map(jr => ({
+                ...jr,
+                user: jr.user ? { ...jr.user, interests: withOwnDisplayRating(jr.user.interests, r.subCategory, isDoubles) } : jr.user,
+            })),
+            senderTeam: withTeamRating(r.senderTeam, r.subCategory, isDoubles),
+            participants: withTeamRating(r.participants, r.subCategory, isDoubles),
+            substitutePlayers: withTeamRating(r.substitutePlayers, r.subCategory, isDoubles),
+            unassignedPlayers: withGender(withTeamRating(r.unassignedPlayers, r.subCategory, isDoubles)),
             _myJoinStatus: myJoinMap[r.id]?.status || null,
             _myJoinRequestId: myJoinMap[r.id]?.id || null,
             _myJoinCounterPrice: myJoinMap[r.id]?.counterPrice || null,
@@ -2770,7 +2818,8 @@ export const getRivalRequests = async (req, res, next) => {
             _myJoinOfferPrice: myJoinMap[r.id]?.offerPrice || null,
             _myJoinOfferMessage: myJoinMap[r.id]?.offerMessage || null,
             commentCount: commentCountMap[r.id] ?? 0,
-        })));
+        };
+        }));
     } catch (error) {
         next(error);
     }
@@ -5718,11 +5767,15 @@ export const assignPlayerToSide = async (req, res, next) => {
         const teamInterests = teamUserIds.length > 0
             ? await prisma.userInterest.findMany({
                 where: { userId: { in: teamUserIds }, subCategory: updatedRaw.subCategory },
-                select: { userId: true, skillRating: true },
+                select: {
+                    userId: true, skillRating: true,
+                    singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true,
+                },
             })
             : [];
+        const updatedIsDoubles = isDoublesFormat(updatedRaw);
         const withSkillRating = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id
-            ? { ...p, skillRating: teamInterests.find(i => i.userId === p.id)?.skillRating ?? null }
+            ? { ...p, skillRating: teamDisplayRating(teamInterests.find(i => i.userId === p.id), updatedRaw.subCategory, updatedIsDoubles) }
             : p);
         const updated = {
             ...updatedRaw,
