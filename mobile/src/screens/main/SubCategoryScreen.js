@@ -1984,7 +1984,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     kapatıyor, ne yazdığımı göremiyorum"). behavior="padding" hem iOS'ta hem Android'de
                     kullanılır (bkz. ekran-guvenli-alan.md — "height" bu projede kullanılmaz). */}
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1 }}>
-                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom:5 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" maintainVisibleContentPosition={{ minIndexForVisible: 0 }}>
+                {/* paddingBottom sadece 5 sabitti — "Medya" bölümünün ok işareti (gizle/aç) gibi
+                    listenin en altındaki dokunulabilir öğeler telefonun ekrana gömülü alt
+                    dokunmatik tuşlarıyla çakışıp basılamıyordu (kullanıcı raporu). */}
+                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom: insets.bottom + 16 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" maintainVisibleContentPosition={{ minIndexForVisible: 0 }}>
 
                     {/* Kurucu (sol) + Tarih/Saat/Kort/Fiyat (sağ, küçük) — tek satırda */}
                     <View style={{ flexDirection:'row', alignItems:'flex-start', gap:moderateScale(8), marginBottom:item.message ? 8 : 12, paddingBottom:9, borderBottomWidth:1, borderBottomColor: colors.border }}>
@@ -6567,7 +6570,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     </View>
                 </View>
 
-                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom:5 }}
+                {/* paddingBottom sadece 5 sabitti — "Medya" bölümünün ok işareti (gizle/aç) gibi
+                    listenin en altındaki dokunulabilir öğeler telefonun ekrana gömülü alt
+                    dokunmatik tuşlarıyla çakışıp basılamıyordu (kullanıcı raporu). */}
+                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom: insets.bottom + 16 }}
                     keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
 
                     {/* Kullanıcı isteği: Yaklaşan Maçlar'daki bu ekran Açık İlanlar'daki (RivalDetailModal)
