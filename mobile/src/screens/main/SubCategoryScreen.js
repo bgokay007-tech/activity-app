@@ -12330,21 +12330,22 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
     // "Kortu Değiştir" (VenueBookingModal) kapatma mantığı — hem VenueBookingModal'ın kendi
     // onClose'undan HEM de bu formun kendi Modal'ının onRequestClose'undan (aşağıda) çağrılır.
-    // Sebep: VenueBookingModal, bu formun (CreateRivalModal) ÜZERİNE sibling bir <Modal> olarak
-    // açılıyor — Android'de aynı anda iki <Modal> görünür olduğunda, donanım geri tuşu HANGİSİNE
-    // gideceği garanti değil (bazen bu formun kendi Modal'ı yakalayıp closeEdit()'i tetikliyor,
-    // bu da editVisible'ı false yapıp {editVisible && <CreateRivalModal/>} nedeniyle formu VE
-    // içindeki VenueBookingModal'ı aniden unmount ediyordu — kullanıcı raporu: "Kortu Değiştir"
-    // içindeyken geri tuşuna basınca "Cannot read property 'snapshot' of null" ile çöküyordu).
-    // Artık HANGİ Modal geri tuşunu yakalarsa yakalasın, ikisi de bu AYNI fonksiyona yönlendiği
-    // için form asla yanlışlıkla kapanmıyor/unmount olmuyor, sadece kort seçimi düzgünce kapanıyor.
+    // GERÇEK ÇÖKME SEBEBİ (kullanıcı ekran görüntüsüyle doğruladı — "at basicStateReducer",
+    // yani React'ın kendi useState güncelleyicisi): setF'e "p => ({...p, ...pendingCourtChangeRef
+    // .current.snapshot})" gibi bir GÜNCELLEYİCİ FONKSİYON verilince, React bu fonksiyonu HEMEN
+    // değil, render aşamasında birazdan çağırıyor. Hemen ardından senkron olarak
+    // "pendingCourtChangeRef.current = null" yapıldığı için, React o güncelleyiciyi
+    // ÇAĞIRDIĞINDA ref ZATEN null olmuş oluyordu — "Cannot read property 'snapshot' of null".
+    // Çözüm: snapshot'ı ref null'lanmadan ÖNCE sabit bir yerel değişkene alıp güncelleyici
+    // içinde referansı DEĞİL o yerel değişkeni okumak (closure üzerinden sabit kalır).
     const closeVenueBooking = () => {
         setVenueBooking({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null, initialDate: null, initialStartTime: null, initialEndTime: null });
         // Yeni bir kort/saat seçilmeden kapatıldıysa (venueCourtId hâlâ boş) —
         // "Değiştir"den önceki kort bilgisini geri getir, eski rezervasyona dokunulmaz.
-        if (pendingCourtChangeRef.current && !f.venueCourtId) {
-            setF(p => ({ ...p, ...pendingCourtChangeRef.current.snapshot }));
-            pendingCourtChangeRef.current = null;
+        const pending = pendingCourtChangeRef.current;
+        pendingCourtChangeRef.current = null;
+        if (pending && !f.venueCourtId) {
+            setF(p => ({ ...p, ...pending.snapshot }));
         }
     };
 
