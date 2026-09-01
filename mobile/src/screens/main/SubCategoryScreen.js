@@ -9417,6 +9417,23 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     // başka bir tarihe geçtiğinde bir daha initialStartTime'ı üzerine yazmasın diye.
     const selDateWasChangedManually = useRef(false);
     useEffect(() => { if (visible) selDateWasChangedManually.current = false; }, [visible]);
+    // Telefonun geri tuşu — bu modal Android'de onRequestClose'a güveniyordu ama bu, RN'de
+    // AYNI hardwareBackPress listener yığınını kullanıyor; "Kortu Değiştir" ilan düzenleme
+    // formunun İÇİNDEN açıldığında, o formu barındıran karttaki (RivalCard/UpcomingCard) geri
+    // tuşu dinleyicisi bazen bu modalınkinden önce tetiklenip DIŞARIDAKİ formu kapatıyordu —
+    // bu modal (ve içindeki pendingCourtChangeRef state'i) yarım kalmış halde kalıyor, kullanıcı
+    // raporu: geri tuşuna basınca "Cannot read property 'snapshot' of null" ile çöküyordu.
+    // Burada AÇIKÇA yakalayıp true dönerek olayı burada durdurmak, dıştaki dinleyiciye hiç
+    // ulaşmasını engelliyor (RivalCard/UpcomingCard'daki aynı patern, bkz. oradaki yorumlar).
+    useEffect(() => {
+        if (!visible) return;
+        const onBackPress = () => {
+            if (selSlot) { setSelSlot(null); } else { onClose(); }
+            return true;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [visible, selSlot, onClose]);
     useEffect(() => {
         if (!visible || !venueId) return;
         setVenue(null); setCourtsSlots({}); setSelSlot(null); setSelDate(initialDate || todayStr());
