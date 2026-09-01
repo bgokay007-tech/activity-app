@@ -6,6 +6,7 @@ import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import { onSocket } from '../../services/socket';
+import SupportModal from '../../components/SupportModal';
 
 function Avatar({ user, size = 40 }) {
     return (
@@ -23,12 +24,9 @@ export default function MessagesScreen({ navigation }) {
     const [conversations, setConversations] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Destek mesajı
+    // Destek mesajı — kullanıcı isteği: konu bazlı sohbetler, bkz. paylaşılan SupportModal.
     const [supportOpen, setSupportOpen] = useState(false);
-    const [supportMessages, setSupportMessages] = useState([]);
-    const [supportLoading, setSupportLoading] = useState(false);
-    const [supportText, setSupportText] = useState('');
-    const [supportSending, setSupportSending] = useState(false);
+    const openSupport = () => setSupportOpen(true);
 
     // Mesajları engellenenler — tam Block'tan farklı, sadece mesajlaşmayı durdurur
     const [msgBlockedOpen, setMsgBlockedOpen] = useState(false);
@@ -56,32 +54,6 @@ export default function MessagesScreen({ navigation }) {
         ]);
     };
 
-    const loadSupportMessages = () => {
-        setSupportLoading(true);
-        api.get('/users/me/support-messages')
-            .then(r => setSupportMessages(Array.isArray(r.data) ? r.data : []))
-            .catch(() => setSupportMessages([]))
-            .finally(() => setSupportLoading(false));
-    };
-
-    const openSupport = () => {
-        setSupportOpen(true);
-        loadSupportMessages();
-    };
-
-    const sendSupportMessage = async () => {
-        if (!supportText.trim()) return;
-        setSupportSending(true);
-        try {
-            await api.post('/users/me/support-messages', { message: supportText.trim() });
-            setSupportText('');
-            loadSupportMessages();
-        } catch (e) {
-            Alert.alert('Hata', e?.response?.data?.message || 'Mesaj gönderilemedi');
-        } finally {
-            setSupportSending(false);
-        }
-    };
 
     const load = useCallback(() => {
         api.get('/messages/conversations')
@@ -267,59 +239,8 @@ export default function MessagesScreen({ navigation }) {
                 />
             )}
 
-            <Modal visible={supportOpen} animationType="slide" transparent onRequestClose={() => setSupportOpen(false)}>
-                <View style={styles.modalOverlay}>
-                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
-                        <View style={styles.modalBox}>
-                            <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>💬 Admine Destek Mesajı</Text>
-                                <TouchableOpacity onPress={() => setSupportOpen(false)}>
-                                    <Text style={styles.modalClose}>✕</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-                                {supportLoading ? (
-                                    <ActivityIndicator color={colors.purple} style={{ marginVertical: 16 }} />
-                                ) : supportMessages.length === 0 ? (
-                                    <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 3 }}>Henüz mesaj göndermediniz.</Text>
-                                ) : (
-                                    supportMessages.map(msg => (
-                                        <View key={msg.id} style={{ backgroundColor: '#1e293b', borderRadius: 12, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
-                                            <Text style={{ color: '#fff', fontSize: 13 }}>{msg.message}</Text>
-                                            {msg.status === 'PENDING' ? (
-                                                <Text style={{ color: '#f59e0b', fontSize: 11, marginTop: 6 }}>⏳ Mesajınız iletildi, ekibimiz en kısa sürede yanıtlayacak.</Text>
-                                            ) : (
-                                                <View style={{ marginTop: 6, backgroundColor: '#10b98118', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#10b98150' }}>
-                                                    <Text style={{ color: '#10b981', fontSize: 11, fontWeight: '700', marginBottom: 2 }}>✅ Yanıtlandı</Text>
-                                                    <Text style={{ color: '#fff', fontSize: 12 }}>{msg.adminReply}</Text>
-                                                </View>
-                                            )}
-                                        </View>
-                                    ))
-                                )}
-                            </ScrollView>
-                            <TextInput
-                                style={styles.supportInput}
-                                value={supportText}
-                                onChangeText={setSupportText}
-                                placeholder="Mesajınızı yazın..."
-                                placeholderTextColor={colors.textMuted}
-                                multiline
-                            />
-                            <TouchableOpacity
-                                style={[styles.saveBtn, (!supportText.trim() || supportSending) && { opacity: 0.4 }]}
-                                onPress={sendSupportMessage}
-                                disabled={!supportText.trim() || supportSending}
-                            >
-                                {supportSending
-                                    ? <ActivityIndicator size="small" color="#fff" />
-                                    : <Text style={styles.saveBtnText}>Gönder</Text>}
-                            </TouchableOpacity>
-                        </View>
-                    </KeyboardAvoidingView>
-                </View>
-            </Modal>
+            {/* Kullanıcı isteği: konu bazlı sohbetler, bkz. paylaşılan SupportModal. */}
+            <SupportModal visible={supportOpen} onClose={() => setSupportOpen(false)} />
 
             <Modal visible={msgBlockedOpen} animationType="slide" transparent onRequestClose={() => setMsgBlockedOpen(false)}>
                 <View style={styles.modalOverlay}>
@@ -433,7 +354,6 @@ const styles = StyleSheet.create({
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 13 },
     modalTitle: { color: '#fff', fontSize: 17, fontWeight: '800' },
     modalClose: { color: colors.textMuted, fontSize: 20, fontWeight: '700', paddingHorizontal: 3 },
-    supportInput: { marginTop: 8, minHeight: 60, textAlignVertical: 'top', backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, color: '#fff', fontSize: 13, paddingHorizontal: 12, paddingVertical: 10 },
     saveBtn: { marginTop: 8, backgroundColor: colors.purple, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
     saveBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
 });

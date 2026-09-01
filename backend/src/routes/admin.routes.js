@@ -14,6 +14,7 @@ import {
     getTeamNameApprovals, setTeamNameApproval,
     getProfileChangeRequests, reviewProfileChangeRequest,
     getSupportMessages, replySupportMessage,
+    getSupportTickets, getSupportTicketMessagesAdmin, replySupportTicket, closeSupportTicket,
 } from '../controllers/admin.controller.js';
 import { getNoShowReports, approveNoShow, rejectNoShow } from '../controllers/noshow.controller.js';
 import { adminGetCities, adminUpdateCity } from '../controllers/city.controller.js';
@@ -60,6 +61,10 @@ router.patch('/profile-changes/:id',  reviewProfileChangeRequest);
 
 router.get('/support-messages',       getSupportMessages);
 router.patch('/support-messages/:id', replySupportMessage);
+router.get('/support-tickets',                getSupportTickets);
+router.get('/support-tickets/:id/messages',   getSupportTicketMessagesAdmin);
+router.post('/support-tickets/:id/reply',     replySupportTicket);
+router.patch('/support-tickets/:id/close',    closeSupportTicket);
 
 router.get('/review-appeals',         getReviewAppeals);
 router.patch('/review-appeals/:id',   resolveReviewAppeal);

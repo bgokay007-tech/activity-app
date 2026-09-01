@@ -13,6 +13,7 @@ import colors from '../../theme/colors';
 import api from '../../services/api';
 import RainbowLogo from '../../components/RainbowLogo';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
+import SupportModal from '../../components/SupportModal';
 import useT from '../../hooks/useT';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 
@@ -902,39 +903,9 @@ export default function ActivityFeedScreen({ navigation }) {
         api.get('/activity-alerts/me').then(({ data }) => setAlertEnabled(!!data.enabled)).catch(() => {});
     }, []);
 
-    // Destek mesajı
+    // Destek mesajı — kullanıcı isteği: konu bazlı sohbetler, bkz. paylaşılan SupportModal.
     const [supportOpen, setSupportOpen] = useState(false);
-    const [supportMessages, setSupportMessages] = useState([]);
-    const [supportLoading, setSupportLoading] = useState(false);
-    const [supportText, setSupportText] = useState('');
-    const [supportSending, setSupportSending] = useState(false);
-
-    const loadSupportMessages = () => {
-        setSupportLoading(true);
-        api.get('/users/me/support-messages')
-            .then(r => setSupportMessages(Array.isArray(r.data) ? r.data : []))
-            .catch(() => setSupportMessages([]))
-            .finally(() => setSupportLoading(false));
-    };
-
-    const openSupport = () => {
-        setSupportOpen(true);
-        loadSupportMessages();
-    };
-
-    const sendSupportMessage = async () => {
-        if (!supportText.trim()) return;
-        setSupportSending(true);
-        try {
-            await api.post('/users/me/support-messages', { message: supportText.trim() });
-            setSupportText('');
-            loadSupportMessages();
-        } catch (e) {
-            Alert.alert('Hata', e?.response?.data?.message || 'Mesaj gönderilemedi');
-        } finally {
-            setSupportSending(false);
-        }
-    };
+    const openSupport = () => setSupportOpen(true);
 
     // Backend'den ekstra subCategory'leri çek (static listede yoksa)
     useEffect(() => {
@@ -1276,58 +1247,8 @@ export default function ActivityFeedScreen({ navigation }) {
                 onClose={() => setShowAlertModal(false)}
             />
 
-            {/* Destek mesajı modalı */}
-            <Modal visible={supportOpen} animationType="slide" transparent onRequestClose={() => setSupportOpen(false)}>
-                <View style={m.overlay}>
-                    <View style={[m.sheet, { paddingBottom: (Platform.OS === 'ios' ? 36 : 24) + insets.bottom }]}>
-                        <View style={sup.header}>
-                            <Text style={m.title}>💬 Admine Destek Mesajı</Text>
-                            <TouchableOpacity onPress={() => setSupportOpen(false)}>
-                                <Text style={sup.closeBtn}>✕</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
-                            {supportLoading ? (
-                                <ActivityIndicator color={colors.purple} style={{ marginVertical: 16 }} />
-                            ) : supportMessages.length === 0 ? (
-                                <Text style={sup.emptyText}>Henüz mesaj göndermediniz.</Text>
-                            ) : (
-                                supportMessages.map(m => (
-                                    <View key={m.id} style={sup.msgBox}>
-                                        <Text style={sup.msgText}>{m.message}</Text>
-                                        {m.status === 'PENDING' ? (
-                                            <Text style={sup.pendingText}>⏳ Mesajınız iletildi, ekibimiz en kısa sürede yanıtlayacak.</Text>
-                                        ) : (
-                                            <View style={sup.replyBox}>
-                                                <Text style={sup.replyLabel}>✅ Yanıtlandı</Text>
-                                                <Text style={sup.replyText}>{m.adminReply}</Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                ))
-                            )}
-                        </ScrollView>
-                        <TextInput
-                            style={sup.input}
-                            value={supportText}
-                            onChangeText={setSupportText}
-                            placeholder="Mesajınızı yazın..."
-                            placeholderTextColor={colors.textMuted}
-                            multiline
-                        />
-                        <TouchableOpacity
-                            style={[sup.sendBtn, (!supportText.trim() || supportSending) && { opacity: 0.5 }]}
-                            onPress={sendSupportMessage}
-                            disabled={!supportText.trim() || supportSending}
-                            activeOpacity={0.8}
-                        >
-                            {supportSending
-                                ? <ActivityIndicator size="small" color="#fff" />
-                                : <Text style={sup.sendBtnText}>Gönder</Text>}
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
+            {/* Destek mesajı modalı — kullanıcı isteği: konu bazlı sohbetler (bkz. SupportModal) */}
+            <SupportModal visible={supportOpen} onClose={() => setSupportOpen(false)} />
 
             {/* ── Yakındaki Aktiviteler Haritası ── */}
             <Modal visible={showActivityMap} animationType="slide" onRequestClose={() => setShowActivityMap(false)}>
@@ -1584,24 +1505,6 @@ const m = StyleSheet.create({
     clearBtnText:{ color: colors.textSecondary, fontWeight: '700' },
     applyBtn:    { flex: 2, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: colors.purple },
     applyBtnText:{ color: '#fff', fontWeight: '900', fontSize: 15 },
-});
-
-const sup = StyleSheet.create({
-    header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-    closeBtn:    { color: colors.textMuted, fontSize: 18, padding: 3 },
-    emptyText:   { color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 3 },
-    msgBox:      { backgroundColor: colors.surface2, borderRadius: 12, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
-    msgText:     { color: '#fff', fontSize: 13 },
-    pendingText: { color: colors.yellow, fontSize: 11, marginTop: 6 },
-    replyBox:    { marginTop: 6, backgroundColor: '#10b98118', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#10b98150' },
-    replyLabel:  { color: '#10b981', fontSize: 11, fontWeight: '700', marginBottom: 2 },
-    replyText:   { color: '#fff', fontSize: 12 },
-    input:       {
-        backgroundColor: colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: colors.border,
-        color: '#fff', fontSize: 13, padding: 10, minHeight: 60, textAlignVertical: 'top', marginTop: 8,
-    },
-    sendBtn:     { backgroundColor: colors.purple, borderRadius: 12, paddingVertical: 11, alignItems: 'center', marginTop: 8 },
-    sendBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
 });
 
 const am = StyleSheet.create({

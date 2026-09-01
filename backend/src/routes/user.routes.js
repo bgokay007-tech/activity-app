@@ -5,6 +5,7 @@ import {
     getFollowStatus, getFollowers, getFollowing, getPendingFollowRequests,
     submitProfileChangeRequest, getMyProfileChangeRequests,
     submitSupportMessage, getMySupportMessages,
+    createSupportTicket, getMySupportTickets, getSupportTicketMessages, sendSupportTicketMessage,
 } from '../controllers/user.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
@@ -28,5 +29,9 @@ router.post('/me/change-requests',     authenticate, submitProfileChangeRequest)
 router.get('/me/change-requests',      authenticate, getMyProfileChangeRequests);
 router.post('/me/support-messages',    authenticate, submitSupportMessage);
 router.get('/me/support-messages',     authenticate, getMySupportMessages);
+router.post('/me/support-tickets',              authenticate, createSupportTicket);
+router.get('/me/support-tickets',               authenticate, getMySupportTickets);
+router.get('/me/support-tickets/:id/messages',  authenticate, getSupportTicketMessages);
+router.post('/me/support-tickets/:id/messages', authenticate, sendSupportTicketMessage);
 
 export default router;

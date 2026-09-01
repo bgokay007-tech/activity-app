@@ -1245,7 +1245,117 @@ function ProfileChangesTab() {
 }
 
 // ── Destek Mesajları ─────────────────────────────────────────────────────────────
+// Kullanıcı isteği: destek mesajları artık konu (subject) bazlı ayrı sohbetler — admin bu
+// konuları listeler, birine dokununca o sohbetin tam geçmişi açılır ve oradan yanıtlanır.
+// Konu sistemine geçmeden önceki eski düz mesajlar "Eski Mesajlar" sekmesinde ayrı duruyor.
+function SupportTicketThread({ ticketId, onBack, onClosed }) {
+    const [ticket, setTicket] = useState(null);
+    const [messages, setMessages] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [reply, setReply] = useState('');
+    const [sending, setSending] = useState(false);
+
+    const load = useCallback(() => {
+        setLoading(true);
+        api.get(`/admin/support-tickets/${ticketId}/messages`)
+            .then(({ data }) => { setTicket(data.ticket); setMessages(Array.isArray(data.messages) ? data.messages : []); })
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [ticketId]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const sendReply = async () => {
+        const text = reply.trim();
+        if (!text) return;
+        setSending(true);
+        try {
+            const { data } = await api.post(`/admin/support-tickets/${ticketId}/reply`, { message: text });
+            setMessages(prev => [...prev, data]);
+            setReply('');
+        } catch { Alert.alert('Hata', 'Yanıt gönderilemedi.'); }
+        finally { setSending(false); }
+    };
+
+    const closeTicket = () => {
+        Alert.alert('Konuyu Kapat', 'Bu destek konusu kapatılsın mı?', [
+            { text: 'Vazgeç', style: 'cancel' },
+            { text: 'Kapat', style: 'destructive', onPress: async () => {
+                try {
+                    await api.patch(`/admin/support-tickets/${ticketId}/close`);
+                    onClosed?.(ticketId);
+                    onBack();
+                } catch { Alert.alert('Hata', 'İşlem başarısız.'); }
+            } },
+        ]);
+    };
+
+    if (loading) return <LoadingView />;
+
+    return (
+        <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                <TouchableOpacity onPress={onBack} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                    <Text style={{ color: colors.textMuted, fontSize: 16 }}>‹</Text>
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800', flex: 1 }} numberOfLines={1}>
+                        @{ticket?.user?.username} — {ticket?.subject}
+                    </Text>
+                </TouchableOpacity>
+                {ticket?.status !== 'CLOSED' && <Btn label="Kapat" onPress={closeTicket} color="#ef4444" small />}
+            </View>
+            <FlatList
+                data={messages}
+                keyExtractor={m => m.id}
+                contentContainerStyle={{ padding: 14 }}
+                renderItem={({ item: m }) => (
+                    <View style={{
+                        alignSelf: m.isFromAdmin ? 'flex-end' : 'flex-start',
+                        backgroundColor: m.isFromAdmin ? colors.purple + '30' : colors.surface2,
+                        borderRadius: 12, padding: 9, marginBottom: 8, maxWidth: '85%',
+                        borderWidth: 1, borderColor: m.isFromAdmin ? colors.purple + '50' : colors.border,
+                    }}>
+                        {!m.isFromAdmin && <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '800', marginBottom: 2 }}>@{ticket?.user?.username}</Text>}
+                        <Text style={{ color: '#fff', fontSize: 13 }}>{m.message}</Text>
+                    </View>
+                )}
+            />
+            {ticket?.status !== 'CLOSED' && (
+                <View style={{ flexDirection: 'row', gap: 6, padding: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
+                    <TextInput
+                        style={[s.textArea, { flex: 1, minHeight: 40, marginBottom: 0 }]}
+                        placeholder="Yanıt yaz..."
+                        placeholderTextColor={colors.textMuted}
+                        value={reply}
+                        onChangeText={setReply}
+                        multiline
+                    />
+                    <Btn label={sending ? '...' : '↑'} onPress={sendReply} color={colors.purple} small />
+                </View>
+            )}
+        </View>
+    );
+}
+
 function SupportMessagesTab() {
+    const [viewMode, setViewMode] = useState('tickets'); // 'tickets' | 'legacy'
+    const [activeTicketId, setActiveTicketId] = useState(null);
+
+    const [tickets, setTickets] = useState([]);
+    const [ticketStatusFilter, setTicketStatusFilter] = useState('OPEN');
+    const [loadingTickets, setLoadingTickets] = useState(true);
+    const [refreshingTickets, setRefreshingTickets] = useState(false);
+
+    const loadTickets = useCallback(async (st, isRefresh = false) => {
+        if (isRefresh) setRefreshingTickets(true); else setLoadingTickets(true);
+        try {
+            const { data } = await api.get(`/admin/support-tickets?status=${st}`);
+            setTickets(Array.isArray(data) ? data : []);
+        } catch {}
+        if (isRefresh) setRefreshingTickets(false); else setLoadingTickets(false);
+    }, []);
+
+    useEffect(() => { if (viewMode === 'tickets' && !activeTicketId) loadTickets(ticketStatusFilter); }, [viewMode, ticketStatusFilter, activeTicketId]);
+
     const [msgs, setMsgs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('PENDING');
@@ -1263,7 +1373,7 @@ function SupportMessagesTab() {
         if (isRefresh) setRefreshing(false); else setLoading(false);
     }, []);
 
-    useEffect(() => { load(statusFilter); }, [statusFilter]);
+    useEffect(() => { if (viewMode === 'legacy') load(statusFilter); }, [viewMode, statusFilter]);
 
     const sendReply = async (id) => {
         if (!reply.trim()) return;
@@ -1277,55 +1387,109 @@ function SupportMessagesTab() {
         finally { setSending(false); }
     };
 
-    if (loading) return <LoadingView />;
+    if (activeTicketId) {
+        return (
+            <SupportTicketThread
+                ticketId={activeTicketId}
+                onBack={() => setActiveTicketId(null)}
+                onClosed={(id) => setTickets(prev => prev.filter(t => t.id !== id))}
+            />
+        );
+    }
 
     return (
         <View style={{ flex: 1 }}>
-            <FilterRow
-                options={[
-                    { key: 'PENDING',  label: '⏳ Bekleyen' },
-                    { key: 'ANSWERED', label: '✅ Yanıtlanan' },
-                ]}
-                active={statusFilter}
-                onChange={setStatusFilter}
-            />
-            <FlatList
-                data={msgs}
-                keyExtractor={m => m.id}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(statusFilter, true)} tintColor={colors.purple} />}
-                renderItem={({ item: m }) => (
-                    <View style={[s.card, { flexDirection: 'column', gap: 8 }]}>
-                        <Text style={s.cardTitle}>@{m.user?.username || '?'}</Text>
-                        <Text style={s.cardMeta}>{m.message}</Text>
-                        {m.status === 'ANSWERED' && (
-                            <Text style={[s.cardMeta, { color: '#10b981' }]}>Yanıt: {m.adminReply}</Text>
-                        )}
-                        {statusFilter === 'PENDING' && (
-                            <>
-                                {replyId === m.id && (
-                                    <TextInput
-                                        style={[s.textArea, { minHeight: 60 }]}
-                                        placeholder="Yanıtınızı yazın..."
-                                        placeholderTextColor={colors.textMuted}
-                                        value={reply}
-                                        onChangeText={setReply}
-                                        multiline
-                                    />
-                                )}
-                                <Btn
-                                    label={replyId === m.id ? (sending ? '...' : '💬 Yanıtla (gönder)') : '💬 Yanıtla'}
-                                    onPress={() => {
-                                        if (replyId === m.id) sendReply(m.id);
-                                        else { setReplyId(m.id); setReply(''); }
-                                    }}
-                                    color="#3b82f6" small
-                                />
-                            </>
-                        )}
-                    </View>
-                )}
-                ListEmptyComponent={<EmptyView text="Destek mesajı bulunamadı." />}
-            />
+            <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingTop: 10 }}>
+                {[['tickets', '💬 Konular'], ['legacy', '🗄 Eski Mesajlar']].map(([key, label]) => (
+                    <TouchableOpacity key={key} onPress={() => setViewMode(key)}
+                        style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: viewMode === key ? colors.purple : colors.surface2, borderWidth: 1, borderColor: viewMode === key ? colors.purple : colors.border }}>
+                        <Text style={{ color: viewMode === key ? '#fff' : colors.textMuted, fontSize: 12, fontWeight: '800' }}>{label}</Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
+            {viewMode === 'tickets' ? (
+                loadingTickets ? <LoadingView /> : (
+                    <>
+                        <FilterRow
+                            options={[
+                                { key: 'OPEN',   label: '💬 Açık' },
+                                { key: 'CLOSED', label: '✅ Kapalı' },
+                            ]}
+                            active={ticketStatusFilter}
+                            onChange={setTicketStatusFilter}
+                        />
+                        <FlatList
+                            data={tickets}
+                            keyExtractor={t => t.id}
+                            refreshControl={<RefreshControl refreshing={refreshingTickets} onRefresh={() => loadTickets(ticketStatusFilter, true)} tintColor={colors.purple} />}
+                            renderItem={({ item: t }) => (
+                                <TouchableOpacity onPress={() => setActiveTicketId(t.id)}
+                                    style={[s.card, { flexDirection: 'column', gap: 4, borderColor: t.awaitingAdmin ? '#f59e0b' : s.card.borderColor }]}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <Text style={s.cardTitle}>@{t.user?.username || '?'} — {t.subject}</Text>
+                                        {t.awaitingAdmin && <Text style={{ color: '#f59e0b', fontSize: 10, fontWeight: '800' }}>⏳ Yanıt bekliyor</Text>}
+                                    </View>
+                                    {t.lastMessage && (
+                                        <Text style={s.cardMeta} numberOfLines={1}>{t.lastMessage.isFromAdmin ? 'Siz: ' : ''}{t.lastMessage.message}</Text>
+                                    )}
+                                </TouchableOpacity>
+                            )}
+                            ListEmptyComponent={<EmptyView text="Destek konusu bulunamadı." />}
+                        />
+                    </>
+                )
+            ) : (
+                loading ? <LoadingView /> : (
+                    <>
+                        <FilterRow
+                            options={[
+                                { key: 'PENDING',  label: '⏳ Bekleyen' },
+                                { key: 'ANSWERED', label: '✅ Yanıtlanan' },
+                            ]}
+                            active={statusFilter}
+                            onChange={setStatusFilter}
+                        />
+                        <FlatList
+                            data={msgs}
+                            keyExtractor={m => m.id}
+                            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(statusFilter, true)} tintColor={colors.purple} />}
+                            renderItem={({ item: m }) => (
+                                <View style={[s.card, { flexDirection: 'column', gap: 8 }]}>
+                                    <Text style={s.cardTitle}>@{m.user?.username || '?'}</Text>
+                                    <Text style={s.cardMeta}>{m.message}</Text>
+                                    {m.status === 'ANSWERED' && (
+                                        <Text style={[s.cardMeta, { color: '#10b981' }]}>Yanıt: {m.adminReply}</Text>
+                                    )}
+                                    {statusFilter === 'PENDING' && (
+                                        <>
+                                            {replyId === m.id && (
+                                                <TextInput
+                                                    style={[s.textArea, { minHeight: 60 }]}
+                                                    placeholder="Yanıtınızı yazın..."
+                                                    placeholderTextColor={colors.textMuted}
+                                                    value={reply}
+                                                    onChangeText={setReply}
+                                                    multiline
+                                                />
+                                            )}
+                                            <Btn
+                                                label={replyId === m.id ? (sending ? '...' : '💬 Yanıtla (gönder)') : '💬 Yanıtla'}
+                                                onPress={() => {
+                                                    if (replyId === m.id) sendReply(m.id);
+                                                    else { setReplyId(m.id); setReply(''); }
+                                                }}
+                                                color="#3b82f6" small
+                                            />
+                                        </>
+                                    )}
+                                </View>
+                            )}
+                            ListEmptyComponent={<EmptyView text="Destek mesajı bulunamadı." />}
+                        />
+                    </>
+                )
+            )}
         </View>
     );
 }

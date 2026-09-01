@@ -227,29 +227,66 @@ function MessagesPage() {
 
     const [blockedIds, setBlockedIds] = useState(new Set());
 
+    // Kullanıcı isteği: destek mesajları artık konu (subject) bazlı ayrı sohbetler — her
+    // başlatılan sohbet kendi konusuyla bir kutu, tıklayınca sadece o konunun mesajlaşması açılır.
     const [supportOpen, setSupportOpen] = useState(false);
-    const [supportMessages, setSupportMessages] = useState([]);
+    const [supportView, setSupportView] = useState('list'); // 'list' | 'thread'
+    const [supportTickets, setSupportTickets] = useState([]);
     const [supportLoading, setSupportLoading] = useState(false);
+    const [activeTicket, setActiveTicket] = useState(null);
+    const [ticketMessages, setTicketMessages] = useState([]);
+    const [loadingTicketMessages, setLoadingTicketMessages] = useState(false);
     const [supportText, setSupportText] = useState('');
     const [supportSending, setSupportSending] = useState(false);
+    const [newSubject, setNewSubject] = useState('');
+    const [newMessage, setNewMessage] = useState('');
+    const [creatingTicket, setCreatingTicket] = useState(false);
 
-    const loadSupportMessages = () => {
+    const loadSupportTickets = () => {
         setSupportLoading(true);
-        api.get('/users/me/support-messages')
-            .then(({ data }) => setSupportMessages(Array.isArray(data) ? data : []))
-            .catch(() => setSupportMessages([]))
+        api.get('/users/me/support-tickets')
+            .then(({ data }) => setSupportTickets(Array.isArray(data) ? data : []))
+            .catch(() => setSupportTickets([]))
             .finally(() => setSupportLoading(false));
     };
 
-    const openSupport = () => { setSupportOpen(true); loadSupportMessages(); };
+    const openSupport = () => { setSupportOpen(true); setSupportView('list'); loadSupportTickets(); };
+
+    const openTicket = (ticket) => {
+        setActiveTicket(ticket);
+        setSupportView('thread');
+        setLoadingTicketMessages(true);
+        api.get(`/users/me/support-tickets/${ticket.id}/messages`)
+            .then(({ data }) => setTicketMessages(Array.isArray(data.messages) ? data.messages : []))
+            .catch(() => setTicketMessages([]))
+            .finally(() => setLoadingTicketMessages(false));
+    };
+
+    const createTicket = async () => {
+        const subject = newSubject.trim();
+        const message = newMessage.trim();
+        if (!subject || !message) return;
+        setCreatingTicket(true);
+        try {
+            const { data } = await api.post('/users/me/support-tickets', { subject, message });
+            setNewSubject('');
+            setNewMessage('');
+            setSupportTickets(prev => [{ id: data.id, subject: data.subject, status: data.status, updatedAt: data.updatedAt, lastMessage: data.messages?.[0] || null, hasNewReply: false }, ...prev]);
+            openTicket(data);
+        } catch (err) {
+            alert(err?.response?.data?.message || 'Konu oluşturulamadı');
+        } finally {
+            setCreatingTicket(false);
+        }
+    };
 
     const sendSupportMessage = async () => {
-        if (!supportText.trim()) return;
+        if (!supportText.trim() || !activeTicket) return;
         setSupportSending(true);
         try {
-            await api.post('/users/me/support-messages', { message: supportText.trim() });
+            const { data } = await api.post(`/users/me/support-tickets/${activeTicket.id}/messages`, { message: supportText.trim() });
+            setTicketMessages(prev => [...prev, data]);
             setSupportText('');
-            loadSupportMessages();
         } catch (err) {
             alert(err?.response?.data?.message || 'Mesaj gönderilemedi');
         } finally {
@@ -444,46 +481,101 @@ function MessagesPage() {
                 <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setSupportOpen(false)}>
                     <div className="bg-gray-900 rounded-2xl border border-gray-700 p-6 w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-4 shrink-0">
-                            <h3 className="text-white font-bold text-lg">💬 Admine Destek Mesajı</h3>
-                            <button onClick={() => setSupportOpen(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
-                        </div>
-
-                        <div className="overflow-y-auto mb-3 space-y-2" style={{ maxHeight: '18rem' }}>
-                            {supportLoading ? (
-                                <p className="text-gray-500 text-sm text-center py-6">Yükleniyor...</p>
-                            ) : supportMessages.length === 0 ? (
-                                <p className="text-gray-500 text-sm text-center py-6">Henüz mesaj göndermediniz.</p>
+                            {supportView === 'thread' ? (
+                                <button onClick={() => setSupportView('list')} className="flex items-center gap-2 text-white font-bold text-lg min-w-0">
+                                    <span className="text-gray-400">‹</span>
+                                    <span className="truncate">{activeTicket?.subject}</span>
+                                </button>
                             ) : (
-                                supportMessages.map(msg => (
-                                    <div key={msg.id} className="bg-gray-800 rounded-xl p-3 border border-gray-700">
-                                        <p className="text-white text-sm">{msg.message}</p>
-                                        {msg.status === 'PENDING' ? (
-                                            <p className="text-yellow-500 text-xs mt-1.5">⏳ Mesajınız iletildi, ekibimiz en kısa sürede yanıtlayacak.</p>
-                                        ) : (
-                                            <div className="mt-1.5 bg-green-500/10 border border-green-500/30 rounded-lg p-2">
-                                                <p className="text-green-400 text-xs font-bold mb-0.5">✅ Yanıtlandı</p>
-                                                <p className="text-white text-xs">{msg.adminReply}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
+                                <h3 className="text-white font-bold text-lg">💬 Admine Destek</h3>
                             )}
+                            <button onClick={() => setSupportOpen(false)} className="text-gray-400 hover:text-white text-xl shrink-0">✕</button>
                         </div>
 
-                        <textarea
-                            value={supportText}
-                            onChange={e => setSupportText(e.target.value)}
-                            placeholder="Mesajınızı yazın..."
-                            rows={3}
-                            className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 resize-none text-sm shrink-0"
-                        />
-                        <button
-                            onClick={sendSupportMessage}
-                            disabled={!supportText.trim() || supportSending}
-                            className="mt-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2.5 rounded-xl disabled:opacity-40 transition hover:opacity-90 shrink-0"
-                        >
-                            {supportSending ? 'Gönderiliyor...' : 'Gönder'}
-                        </button>
+                        {supportView === 'list' ? (
+                            <>
+                                {/* Kullanıcı isteği: yeni bir sohbet başlatırken konu + mesaj birlikte
+                                    girilsin, gönderince o konunun adıyla bir sohbet kutusu oluşsun. */}
+                                <div className="bg-gray-800 rounded-xl p-3 border border-gray-700 mb-3 shrink-0">
+                                    <p className="text-gray-400 text-xs font-bold mb-2">+ Yeni Konu</p>
+                                    <input
+                                        value={newSubject}
+                                        onChange={e => setNewSubject(e.target.value)}
+                                        placeholder="Konu (örn. Ödeme sorunu)"
+                                        className="w-full bg-gray-900 text-white rounded-lg px-3 py-2 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm mb-2"
+                                    />
+                                    <textarea
+                                        value={newMessage}
+                                        onChange={e => setNewMessage(e.target.value)}
+                                        placeholder="Mesajınızı yazın..."
+                                        rows={2}
+                                        className="w-full bg-gray-900 text-white rounded-lg px-3 py-2 border border-gray-700 focus:outline-none focus:border-purple-500 resize-none text-sm mb-2"
+                                    />
+                                    <button
+                                        onClick={createTicket}
+                                        disabled={!newSubject.trim() || !newMessage.trim() || creatingTicket}
+                                        className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2 rounded-lg disabled:opacity-40 transition hover:opacity-90 text-sm"
+                                    >
+                                        {creatingTicket ? 'Gönderiliyor...' : 'Gönder'}
+                                    </button>
+                                </div>
+
+                                <div className="overflow-y-auto space-y-2" style={{ maxHeight: '18rem' }}>
+                                    {supportLoading ? (
+                                        <p className="text-gray-500 text-sm text-center py-6">Yükleniyor...</p>
+                                    ) : supportTickets.length === 0 ? (
+                                        <p className="text-gray-500 text-sm text-center py-6">Henüz bir destek konunuz yok.</p>
+                                    ) : (
+                                        supportTickets.map(t => (
+                                            <button key={t.id} onClick={() => openTicket(t)}
+                                                className={`w-full text-left bg-gray-800 rounded-xl p-3 border ${t.hasNewReply ? 'border-purple-500' : 'border-gray-700'} hover:border-purple-500 transition`}>
+                                                <div className="flex justify-between items-center gap-2">
+                                                    <p className="text-white text-sm font-bold truncate">💬 {t.subject}</p>
+                                                    {t.hasNewReply && <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />}
+                                                </div>
+                                                {t.lastMessage && (
+                                                    <p className="text-gray-400 text-xs mt-1 truncate">{t.lastMessage.isFromAdmin ? 'Admin: ' : ''}{t.lastMessage.message}</p>
+                                                )}
+                                                {t.status === 'CLOSED' && <p className="text-gray-600 text-[10px] mt-1">Kapatıldı</p>}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="overflow-y-auto mb-3 space-y-2 flex-1" style={{ maxHeight: '20rem' }}>
+                                    {loadingTicketMessages ? (
+                                        <p className="text-gray-500 text-sm text-center py-6">Yükleniyor...</p>
+                                    ) : (
+                                        ticketMessages.map(m => (
+                                            <div key={m.id} className={`rounded-xl p-3 border max-w-[85%] ${m.isFromAdmin ? 'bg-gray-800 border-gray-700 ml-0' : 'bg-purple-600/20 border-purple-500/40 ml-auto'}`}>
+                                                {m.isFromAdmin && <p className="text-purple-400 text-[10px] font-bold mb-0.5">Admin</p>}
+                                                <p className="text-white text-sm">{m.message}</p>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                                {activeTicket?.status !== 'CLOSED' && (
+                                    <>
+                                        <textarea
+                                            value={supportText}
+                                            onChange={e => setSupportText(e.target.value)}
+                                            placeholder="Yanıt yaz..."
+                                            rows={2}
+                                            className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 resize-none text-sm shrink-0"
+                                        />
+                                        <button
+                                            onClick={sendSupportMessage}
+                                            disabled={!supportText.trim() || supportSending}
+                                            className="mt-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2.5 rounded-xl disabled:opacity-40 transition hover:opacity-90 shrink-0"
+                                        >
+                                            {supportSending ? 'Gönderiliyor...' : 'Gönder'}
+                                        </button>
+                                    </>
+                                )}
+                            </>
+                        )}
                     </div>
                 </div>
             )}

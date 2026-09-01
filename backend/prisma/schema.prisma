@@ -138,6 +138,7 @@ model User {
   matchSpectations     MatchSpectator[]
   profileChangeRequests ProfileChangeRequest[]
   supportMessages       SupportMessage[]
+  supportTickets        SupportTicket[]
   subscriptions         BusinessSubscription[]
   subscriptionRequests  SubscriptionRequest[]
   teamNameRequests      TeamNameRequest[]
@@ -197,14 +198,34 @@ model ProfileChangeRequest {
   updatedAt    DateTime @updatedAt
 }
 
-// KULLANICIDAN ADMİNE DESTEK MESAJI
+// KULLANICIDAN ADMİNE DESTEK MESAJI — konu (subject) bazlı bir sohbete (SupportTicket) bağlı.
+// Kullanıcı isteği: her "Destek" başvurusu artık kendi konusuyla ayrı bir sohbet kutusu —
+// eski tek satırlık "mesaj + tek adminReply" modelinin yerine gerçek çift yönlü mesajlaşma.
+model SupportTicket {
+  id        String   @id @default(uuid())
+  userId    String
+  subject   String
+  status    String   @default("OPEN") // OPEN | CLOSED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  SupportMessage[]
+}
+
 model SupportMessage {
   id         String   @id @default(uuid())
-  userId     String
+  userId     String   // mesajı yazan kişi — kullanıcı ya da yanıtlayan admin
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   message    String
-  status     String   @default("PENDING") // PENDING | ANSWERED
-  adminReply String?
+  // Aşağıdaki status/adminReply SADECE ticketId null olan eski (konu sistemine geçmeden önce
+  // yazılmış) kayıtlar için anlamlıdır — silinmedi, admin panelinde ayrı bir "Eski Mesajlar"
+  // bölümünde hâlâ görünüyor. Yeni mesajlarda ticketId dolu, bu iki alan kullanılmıyor.
+  status     String   @default("PENDING") // PENDING | ANSWERED — sadece ticketId null iken
+  adminReply String?  // sadece ticketId null iken
+  ticketId    String?
+  ticket      SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  isFromAdmin Boolean  @default(false) // ticketId doluyken: bu mesajı admin mi yazdı
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }

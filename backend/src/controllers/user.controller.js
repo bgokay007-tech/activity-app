@@ -279,6 +279,88 @@ export const getMySupportMessages = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Kullanıcı isteği: her destek başvurusu artık kendi konusuyla (subject) ayrı bir sohbet
+// kutusu — eski tek satırlık "mesaj + tek adminReply" modelinin yerine gerçek çift yönlü
+// mesajlaşma (bkz. SupportTicket/SupportMessage.ticketId).
+async function notifyAdminsNewTicketMessage(ticket, message, isNewTicket) {
+    const user = await prisma.user.findUnique({ where: { id: ticket.userId }, select: { username: true } });
+    const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
+    const title = isNewTicket ? '💬 Yeni Destek Konusu' : '💬 Destek Sohbetine Yeni Mesaj';
+    const body = `${user?.username || '?'} — ${ticket.subject}: ${message.slice(0, 80)}`;
+    await Promise.all(admins.map(admin =>
+        createNotification(admin.id, 'SUPPORT_MESSAGE', title, body, { ticketId: ticket.id, userId: ticket.userId })
+            .then(() => emitToUser(admin.id, 'notification', {})).catch(() => {})
+    ));
+}
+
+export const createSupportTicket = async (req, res, next) => {
+    try {
+        const { subject, message } = req.body;
+        if (!subject?.trim()) return res.status(400).json({ message: 'Konu boş olamaz' });
+        if (!message?.trim()) return res.status(400).json({ message: 'Mesaj boş olamaz' });
+
+        const ticket = await prisma.supportTicket.create({
+            data: {
+                userId: req.userId,
+                subject: subject.trim().slice(0, 80),
+                messages: { create: { userId: req.userId, message: message.trim(), isFromAdmin: false } },
+            },
+            include: { messages: true },
+        });
+
+        res.status(201).json(ticket);
+        notifyAdminsNewTicketMessage(ticket, message.trim(), true).catch(() => {});
+    } catch (error) { next(error); }
+};
+
+export const getMySupportTickets = async (req, res, next) => {
+    try {
+        const tickets = await prisma.supportTicket.findMany({
+            where: { userId: req.userId },
+            include: { messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
+            orderBy: { updatedAt: 'desc' },
+        });
+        res.json(tickets.map(t => ({
+            id: t.id, subject: t.subject, status: t.status, createdAt: t.createdAt, updatedAt: t.updatedAt,
+            lastMessage: t.messages[0] || null,
+            // Kullanıcı isteği: cevap gelince kullanıcı bunu anında görsün — son mesaj admin'den
+            // geldiyse ve konu hâlâ açıksa "yeni yanıt var" say.
+            hasNewReply: !!(t.messages[0]?.isFromAdmin) && t.status === 'OPEN',
+        })));
+    } catch (error) { next(error); }
+};
+
+export const getSupportTicketMessages = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const ticket = await prisma.supportTicket.findUnique({ where: { id } });
+        if (!ticket || ticket.userId !== req.userId) return res.status(404).json({ message: 'Konu bulunamadı' });
+        const messages = await prisma.supportMessage.findMany({
+            where: { ticketId: id },
+            orderBy: { createdAt: 'asc' },
+        });
+        res.json({ ticket, messages });
+    } catch (error) { next(error); }
+};
+
+export const sendSupportTicketMessage = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { message } = req.body;
+        if (!message?.trim()) return res.status(400).json({ message: 'Mesaj boş olamaz' });
+        const ticket = await prisma.supportTicket.findUnique({ where: { id } });
+        if (!ticket || ticket.userId !== req.userId) return res.status(404).json({ message: 'Konu bulunamadı' });
+
+        const [newMessage] = await prisma.$transaction([
+            prisma.supportMessage.create({ data: { ticketId: id, userId: req.userId, message: message.trim(), isFromAdmin: false } }),
+            prisma.supportTicket.update({ where: { id }, data: { updatedAt: new Date() } }),
+        ]);
+
+        res.status(201).json(newMessage);
+        notifyAdminsNewTicketMessage(ticket, message.trim(), false).catch(() => {});
+    } catch (error) { next(error); }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const FOLLOW_SELECT = { id: true, username: true, fullName: true, avatar: true };

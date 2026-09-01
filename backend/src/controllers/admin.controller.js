@@ -596,11 +596,14 @@ export const reviewProfileChangeRequest = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+// Kullanıcı isteği: destek mesajları artık konu (subject) bazlı ayrı sohbetler (bkz.
+// getSupportTickets aşağıda) — bu fonksiyon SADECE ticketId'si olmayan, konu sistemine
+// geçmeden önce yazılmış eski düz mesajları döndürür, silinmediler ama yeni akışta kullanılmıyor.
 export const getSupportMessages = async (req, res, next) => {
     try {
         const { status = 'PENDING' } = req.query;
         const messages = await prisma.supportMessage.findMany({
-            where: { status },
+            where: { status, ticketId: null },
             include: { user: { select: { id: true, username: true, fullName: true, avatar: true } } },
             orderBy: { createdAt: 'asc' },
         });
@@ -634,5 +637,69 @@ export const replySupportMessage = async (req, res, next) => {
         ).catch(() => {});
 
         res.json(updated);
+    } catch (e) { next(e); }
+};
+
+// Kullanıcı isteği: her destek başvurusu konu (subject) bazlı ayrı bir sohbet — admin bunları
+// tek tek izole mesajlar yerine kullanıcı+konu bazında gruplu görür, tıklayınca o sohbetin
+// tüm geçmişi açılır.
+export const getSupportTickets = async (req, res, next) => {
+    try {
+        const { status = 'OPEN' } = req.query;
+        const tickets = await prisma.supportTicket.findMany({
+            where: { status },
+            include: {
+                user: { select: { id: true, username: true, fullName: true, avatar: true } },
+                messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+            },
+            orderBy: { updatedAt: 'desc' },
+        });
+        res.json(tickets.map(t => ({
+            id: t.id, subject: t.subject, status: t.status, createdAt: t.createdAt, updatedAt: t.updatedAt,
+            user: t.user, lastMessage: t.messages[0] || null,
+            // Kullanıcı isteği: admin, henüz kendisinin yanıtlamadığı (son mesaj kullanıcıdan
+            // gelen) konuları öncelikli görebilsin.
+            awaitingAdmin: !!(t.messages[0] && !t.messages[0].isFromAdmin),
+        })));
+    } catch (e) { next(e); }
+};
+
+export const getSupportTicketMessagesAdmin = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const ticket = await prisma.supportTicket.findUnique({
+            where: { id },
+            include: { user: { select: { id: true, username: true, fullName: true, avatar: true } } },
+        });
+        if (!ticket) return res.status(404).json({ message: 'Konu bulunamadı' });
+        const messages = await prisma.supportMessage.findMany({ where: { ticketId: id }, orderBy: { createdAt: 'asc' } });
+        res.json({ ticket, messages });
+    } catch (e) { next(e); }
+};
+
+export const replySupportTicket = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { message } = req.body;
+        if (!message?.trim()) return res.status(400).json({ message: 'Mesaj boş olamaz' });
+        const ticket = await prisma.supportTicket.findUnique({ where: { id } });
+        if (!ticket) return res.status(404).json({ message: 'Konu bulunamadı' });
+
+        const [newMessage] = await prisma.$transaction([
+            prisma.supportMessage.create({ data: { ticketId: id, userId: req.userId, message: message.trim(), isFromAdmin: true } }),
+            prisma.supportTicket.update({ where: { id }, data: { updatedAt: new Date() } }),
+        ]);
+
+        res.status(201).json(newMessage);
+        createNotification(ticket.userId, 'SUPPORT_MESSAGE_REPLIED', '💬 Destek Sohbetinize Yanıt Geldi',
+            `${ticket.subject}: ${message.trim().slice(0, 100)}`, { ticketId: id }
+        ).then(() => emitToUser(ticket.userId, 'notification', {})).catch(() => {});
+    } catch (e) { next(e); }
+};
+
+export const closeSupportTicket = async (req, res, next) => {
+    try {
+        const ticket = await prisma.supportTicket.update({ where: { id: req.params.id }, data: { status: 'CLOSED' } });
+        res.json(ticket);
     } catch (e) { next(e); }
 };
