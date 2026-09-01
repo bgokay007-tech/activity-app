@@ -30,6 +30,7 @@ import CalendarPickerModal from '../../components/CalendarPickerModal';
 import DateRangePickerModal from '../../components/DateRangePickerModal';
 import TimePickerModal from '../../components/TimePickerModal';
 import VolleyballRatingModal from '../../components/VolleyballRatingModal';
+import AssessmentModal from '../../components/AssessmentModal';
 import ExtraServicesEditor from '../../components/ExtraServicesEditor';
 import TrailsTab from './TrailsTab';
 import { shareRival, shareTournament } from '../../utils/share';
@@ -37,6 +38,14 @@ import { computeVarDurationPrice } from '../../utils/priceProration';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+// Bu dallarda derece anketi zorunlu — ManageActivitiesModal.js'teki RATING_REQUIRED_SUBS ile
+// aynı liste (backend requireActiveInterest ile de tutarlı). İlan oluşturma/kort rezervasyonu
+// öncesi bu dallarda anket tamamlanmamışsa direkt anketi açıyoruz (bkz. requireActivity).
+const RATING_REQUIRED_SUBS = new Set([
+    'tennis', 'padel', 'volleyball', 'basketball', 'football',
+    'badminton', 'golf', 'handball', 'table_tennis',
+]);
 
 const TR_PROVINCES = [
     'Adana','Adıyaman','Afyonkarahisar','Ağrı','Aksaray','Amasya','Ankara','Antalya',
@@ -19339,11 +19348,17 @@ export default function SubCategoryScreen({ route, navigation }) {
     // ilgisi olmayan Kort Rez./tesis arama akışında) bunu öğrenmiyordu. Redux'taki
     // myInterests az önce eklenmiş bir aktiviteyi yansıtmayabileceği için anlık, taze
     // bir kontrol yapılır.
+    // İlan oluşturma/katılma akışını, anket tamamlanana kadar bekletir — kullanıcı raporu:
+    // derece anketi hiç tamamlanmamışken (ELO puanı yokken) ilan oluşturma formu yine de
+    // açılıyordu, halbuki backend zaten requireActiveInterest ile reddediyor ama kullanıcı
+    // formu doldurup gönderene kadar bunu öğrenmiyordu. Şimdi anket eksikse form hiç açılmıyor,
+    // direkt anket (AssessmentModal) açılıyor; tamamlanınca orijinal eylem otomatik devam eder.
+    const [gateAssessTarget, setGateAssessTarget] = useState(null); // { interestId, pendingAction }
     const requireActivity = async (onOk, actionLabel = 'bu özelliği kullanabilmen') => {
         try {
             const { data } = await api.get('/interests/my');
-            const hasActivity = Array.isArray(data) && data.some(i => i.category === category && i.subCategory === sub && !i.hidden);
-            if (!hasActivity) {
+            const interest = Array.isArray(data) ? data.find(i => i.category === category && i.subCategory === sub && !i.hidden) : null;
+            if (!interest) {
                 Alert.alert(
                     'Aktivite Gerekli',
                     `${sportDisplayName} için ${actionLabel} için önce bu dalı profilinden "Aktivitelerim"e eklemen gerekiyor.`,
@@ -19352,6 +19367,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                         { text: 'Profilime Git', onPress: () => navigation.navigate('ProfileTab') },
                     ]
                 );
+                return;
+            }
+            if (RATING_REQUIRED_SUBS.has(sub) && !interest.assessmentCompleted) {
+                setGateAssessTarget({ interestId: interest.id, pendingAction: onOk });
                 return;
             }
         } catch {
@@ -19702,6 +19721,24 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Kullanıcı isteği: tarih aralığı artık elle "YYYY-AA-GG" yazılmıyor, takvimden
     // (DateRangePickerModal) doğrudan seçiliyor — bkz. showArchiveFilterModal içindeki kullanım.
     const [showArchiveDateRange, setShowArchiveDateRange] = useState(false);
+    // Kullanıcı isteği: arkadaşının/merak ettiği bir oyuncunun maçlarını arayabilsin — otomatik
+    // tamamlama ile gerçek kullanıcı seçiliyor (bkz. otomatik-tamamlama.md, serbest metin değil).
+    const [archivePlayer, setArchivePlayer] = useState(null); // {id, username, fullName, avatar} | null
+    const [archivePlayerQuery, setArchivePlayerQuery] = useState('');
+    const [archivePlayerSuggestions, setArchivePlayerSuggestions] = useState([]);
+    const [archivePlayerSearching, setArchivePlayerSearching] = useState(false);
+    useEffect(() => {
+        const q = archivePlayerQuery.trim();
+        if (q.length < 2) { setArchivePlayerSuggestions([]); return; }
+        setArchivePlayerSearching(true);
+        const task = setTimeout(() => {
+            api.get(`/users/search?q=${encodeURIComponent(q)}&subCategory=${sub}&category=${category}`)
+                .then(res => setArchivePlayerSuggestions(Array.isArray(res.data) ? res.data.slice(0, 6) : []))
+                .catch(() => setArchivePlayerSuggestions([]))
+                .finally(() => setArchivePlayerSearching(false));
+        }, 300);
+        return () => clearTimeout(task);
+    }, [archivePlayerQuery, sub, category]);
     const [archiveSubTab, setArchiveSubTab] = useState(initialArchiveSubTab === 'tournaments' ? 'tournaments' : 'rivals');
     const [archiveDetailMatch, setArchiveDetailMatch] = useState(null);
     const [ratingSubject, setRatingSubject] = useState(null); // { userId, subCategory } — Voleybol oyuncu değerlendirme anketi (VolleyballRatingModal) hedefi
@@ -19747,6 +19784,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         const parts = [];
         if (archiveCity) parts.push(archiveCity);
         if (archiveDateFrom || archiveDateTo) parts.push(`${archiveDateFrom || '…'}–${archiveDateTo || '…'}`);
+        if (archivePlayer) parts.push(archivePlayer.fullName || archivePlayer.username);
         return parts.length ? parts.join(' · ') : (lang==='tr' ? 'Filtrele' : 'Filter');
     };
     // Kullanıcı isteği: arşiv tarih aralığı artık DateRangePickerModal (takvim) ile seçiliyor —
@@ -20451,6 +20489,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (archiveCity) params.set('city', archiveCity);
         if (archiveDateFrom) params.set('dateFrom', archiveDateFrom);
         if (archiveDateTo) params.set('dateTo', archiveDateTo);
+        if (archivePlayer) params.set('player', archivePlayer.id);
         api.get(`/archive?${params.toString()}`)
             .then(res => {
                 setArchiveRivals(res.data?.rivals || []);
@@ -20461,7 +20500,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             })
             .catch(() => {})
             .finally(() => setLoadingArchive(false));
-    }, [activeTab, category, sub, archiveCity, archiveDateFrom, archiveDateTo]);
+    }, [activeTab, category, sub, archiveCity, archiveDateFrom, archiveDateTo, archivePlayer]);
 
     const loadArchiveEquipment = useCallback(async () => {
         if (activeTab !== 'archive' || archiveSubTab !== 'equipment') return;
@@ -24940,9 +24979,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 (bkz. showArchiveFilterModal). */}
                             <TouchableOpacity
                                 onPress={() => setShowArchiveFilterModal(true)}
-                                style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, flexShrink:0, backgroundColor: (archiveCity || archiveDateFrom || archiveDateTo) ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:7, borderWidth:1, borderColor: (archiveCity || archiveDateFrom || archiveDateTo) ? cfg.color : colors.border }}
+                                style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, flexShrink:0, backgroundColor: (archiveCity || archiveDateFrom || archiveDateTo || archivePlayer) ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:7, borderWidth:1, borderColor: (archiveCity || archiveDateFrom || archiveDateTo || archivePlayer) ? cfg.color : colors.border }}
                             >
-                                <Text style={{ color: (archiveCity || archiveDateFrom || archiveDateTo) ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                <Text style={{ color: (archiveCity || archiveDateFrom || archiveDateTo || archivePlayer) ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                     🔍 {archiveFilterSummaryLabel()}
                                 </Text>
                                 <Text style={{ color: colors.textMuted, fontSize:10 }}>▾</Text>
@@ -24993,6 +25032,57 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </Text>
                                             <Text style={{ fontSize:14 }}>📅</Text>
                                         </TouchableOpacity>
+
+                                        {/* Kullanıcı isteği: arkadaşının ya da merak ettiği bir oyuncunun
+                                            maçlarını arayabilsin — sadece Bireysel Maçlar'da anlamlı
+                                            olduğu için diğer alt-sekmelerde (Turnuvalar/Ekipmanlar)
+                                            gösterilmiyor. Kayıtlı gerçek kullanıcı seçiliyor (otomatik
+                                            tamamlama), serbest metin değil. */}
+                                        {archiveSubTab === 'rivals' && (
+                                            <>
+                                                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                                                    <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>🔍 {lang==='tr' ? 'Oyuncu' : 'Player'}</Text>
+                                                    {archivePlayer ? (
+                                                        <TouchableOpacity onPress={() => { setArchivePlayer(null); setArchivePlayerQuery(''); }}>
+                                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                                        </TouchableOpacity>
+                                                    ) : null}
+                                                </View>
+                                                {archivePlayer ? (
+                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: cfg.color+'60', paddingVertical:9, paddingHorizontal:13, marginBottom:18 }}>
+                                                        <Avatar name={archivePlayer.username} avatar={archivePlayer.avatar} size={26} color={cfg.color} />
+                                                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'700', flex:1 }} numberOfLines={1}>
+                                                            {archivePlayer.fullName || archivePlayer.username}
+                                                        </Text>
+                                                    </View>
+                                                ) : (
+                                                    <View style={{ marginBottom:18 }}>
+                                                        <TextInput
+                                                            value={archivePlayerQuery}
+                                                            onChangeText={setArchivePlayerQuery}
+                                                            placeholder={lang==='tr' ? 'Kullanıcı adı veya isim ara...' : 'Search username or name...'}
+                                                            placeholderTextColor={colors.textMuted}
+                                                            style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor:colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
+                                                        />
+                                                        {archivePlayerSearching && (
+                                                            <ActivityIndicator size="small" color={cfg.color} style={{ marginTop:8 }} />
+                                                        )}
+                                                        {archivePlayerSuggestions.length > 0 && (
+                                                            <View style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor:colors.border, marginTop:6, overflow:'hidden' }}>
+                                                                {archivePlayerSuggestions.map(u => (
+                                                                    <TouchableOpacity key={u.id}
+                                                                        onPress={() => { setArchivePlayer(u); setArchivePlayerQuery(''); setArchivePlayerSuggestions([]); }}
+                                                                        style={{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:9, paddingHorizontal:11, borderBottomWidth:1, borderBottomColor:colors.border }}>
+                                                                        <Avatar name={u.username} avatar={u.avatar} size={24} color={cfg.color} />
+                                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={1}>{u.fullName || u.username}</Text>
+                                                                    </TouchableOpacity>
+                                                                ))}
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                )}
+                                            </>
+                                        )}
                                     </ScrollView>
                                     <TouchableOpacity
                                         onPress={() => setShowArchiveFilterModal(false)}
@@ -26118,6 +26208,34 @@ export default function SubCategoryScreen({ route, navigation }) {
             )}
 
             {showCreateRival && <CreateRivalModal visible onClose={() => { setShowCreateRival(false); setRivalPrefill(null); }} category={category} sub={sub} onCreated={load} prefill={rivalPrefill} />}
+
+            {/* İlan oluşturma/kort rezervasyonu öncesi anket eksikse burada açılır — bkz. requireActivity */}
+            <AssessmentModal
+                visible={!!gateAssessTarget}
+                interestId={gateAssessTarget?.interestId}
+                subCategory={sub}
+                mandatory
+                onClose={(hasProgress) => {
+                    if (!hasProgress) { setGateAssessTarget(null); return; }
+                    const target = gateAssessTarget;
+                    Alert.alert(
+                        'Anketten Vazgeç',
+                        'Anketi tamamlamazsan bu dal aktivitelerinden kaldırılacak. Vazgeçmek istediğine emin misin?',
+                        [
+                            { text: 'Devam Et', style: 'cancel' },
+                            { text: 'Vazgeç', style: 'destructive', onPress: () => {
+                                setGateAssessTarget(null);
+                                api.delete(`/interests/${target.interestId}`).catch(() => {});
+                            }},
+                        ]
+                    );
+                }}
+                onComplete={() => {
+                    const pending = gateAssessTarget?.pendingAction;
+                    setGateAssessTarget(null);
+                    pending?.();
+                }}
+            />
 
             {/* ── Kortlar Listesi Modal (tam ekran) ── */}
             {showVenuesSheet && (

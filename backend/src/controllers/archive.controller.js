@@ -5,9 +5,22 @@ const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
 export const getArchive = async (req, res, next) => {
     try {
-        const { category, subCategory, city, court, dateFrom, dateTo, scope } = req.query;
+        const { category, subCategory, city, court, dateFrom, dateTo, scope, player } = req.query;
         const myId = req.userId;
         const allUsers = scope === 'all';
+        // Kullanıcı isteği: arşivde belirli bir arkadaşın/oyuncunun maçlarını arayabilme —
+        // player, gerçek bir kullanıcının id'si (mobil tarafta /users/search ile seçiliyor,
+        // serbest metin değil — bkz. otomatik-tamamlama.md, "kişi adı" alanları asla düz metin
+        // olmaz). participants/senderTeam JSON dizileri olduğu için Prisma'da doğrudan
+        // sorgulanamıyor, myId üyelik filtresiyle aynı desende JS tarafında uygulanıyor.
+        const matchInvolvesPlayer = (r, uid) => {
+            if (!uid) return true;
+            if (r.senderId === uid || r.receiverId === uid) return true;
+            const parts = Array.isArray(r.participants) ? r.participants : [];
+            if (parts.some(p => p?.id === uid)) return true;
+            const senderTeamArr = Array.isArray(r.senderTeam) ? r.senderTeam : [];
+            return senderTeamArr.some(p => p?.id === uid);
+        };
 
         const dateFilter = {
             ...(dateFrom && { gte: new Date(dateFrom) }),
@@ -57,10 +70,15 @@ export const getArchive = async (req, res, next) => {
             where: rWhere,
             include: { sender: { select: USER_SELECT } },
             orderBy: { completedAt: 'desc' },
-            take: 100,
+            // Oyuncu filtresi JS tarafında (JSON alanlar yüzünden) uygulandığı için, en son
+            // 100 kayıt arasında o oyuncunun maçı hiç olmayabilir — filtre aktifken havuz
+            // büyütülüyor ki gerçekten eşleşen bir maç varsa gözden kaçmasın.
+            take: player ? 300 : 100,
         });
 
-        const rivals = allUsers ? allRivals : allRivals.filter(r => {
+        const rivalsForPlayer = player ? allRivals.filter(r => matchInvolvesPlayer(r, player)) : allRivals;
+
+        const rivals = allUsers ? rivalsForPlayer : rivalsForPlayer.filter(r => {
             if (r.senderId === myId || r.receiverId === myId) return true;
             const parts = Array.isArray(r.participants) ? r.participants : [];
             return parts.some(p => p.id === myId);
