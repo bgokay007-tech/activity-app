@@ -424,6 +424,64 @@ export const saveAssessment = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Tenis/padel: tekli veya çiftler değerlendirmesini (ya da ikisini birden) sıfırlar — kullanıcı
+// isteği: "silerken tekli/çiftli/ikisini de sil seçenekleri olsun". 3+ maç oynanmış bir disiplin
+// SIFIRLANAMAZ — aynı eşik yeniden değerlendirme (bkz. tennisElo.js/utrRating.js ASSESSMENT_GRACE
+// mantığı, mobil taraftaki matches<3 kontrolüyle tutarlı) kuralıyla birebir aynı, aksi halde
+// puan/geçmiş sıfırlayıp yeniden anket doldurma istismarı (sandbagging) mümkün olurdu.
+// ratingType: 'singles' | 'doubles' | 'both'. Sıfırlanan disiplinin RatingMatchRecord'ları da
+// silinir (matchCount<3 olduğu için en fazla 2 satır) — aksi halde yeni anket sonrası recompute
+// eski (silinmemiş) maç geçmişiyle karışırdı.
+export const resetAssessment = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { ratingType } = req.body; // 'singles' | 'doubles' | 'both'
+
+        const interest = await prisma.userInterest.findUnique({ where: { id } });
+        if (!interest || interest.userId !== req.userId) return res.status(403).json({ message: 'Forbidden' });
+        if (!UTR_SUBCATEGORIES.includes(interest.subCategory)) {
+            return res.status(400).json({ message: 'Bu dalda ayrı tekli/çiftler sıfırlama desteklenmiyor.' });
+        }
+
+        const resetSingles = ratingType === 'singles' || ratingType === 'both';
+        const resetDoubles = ratingType === 'doubles' || ratingType === 'both';
+
+        if (resetSingles && (interest.singlesMatchCount ?? 0) >= 3) {
+            return res.status(400).json({ message: 'Tekli değerlendirme 3+ maç oynandığı için sıfırlanamaz.' });
+        }
+        if (resetDoubles && (interest.doublesMatchCount ?? 0) >= 3) {
+            return res.status(400).json({ message: 'Çiftler değerlendirmesi 3+ maç oynandığı için sıfırlanamaz.' });
+        }
+
+        const data = {};
+        if (resetSingles) {
+            Object.assign(data, {
+                assessmentCompleted: false, assessmentCompletedAt: null,
+                singlesRating: null, singlesSeedRating: null, singlesMatchCount: 0, singlesLastMatchAt: null,
+                skillRating: 0, level: 'BEGINNER',
+                ...(interest.subCategory === 'padel' && { selfAssessmentRating: null }),
+            });
+        }
+        if (resetDoubles) {
+            Object.assign(data, {
+                doublesAssessmentCompleted: false, doublesAssessmentCompletedAt: null,
+                doublesRating: null, doublesSeedRating: null, doublesMatchCount: 0, doublesLastMatchAt: null,
+                ...(interest.subCategory === 'padel' && { doublesSelfAssessmentRating: null }),
+            });
+        }
+
+        const matchTypesToClear = [...(resetSingles ? ['SINGLE'] : []), ...(resetDoubles ? ['DOUBLE'] : [])];
+        if (matchTypesToClear.length) {
+            await prisma.ratingMatchRecord.deleteMany({
+                where: { userId: req.userId, subCategory: interest.subCategory, matchType: { in: matchTypesToClear } },
+            });
+        }
+
+        const updated = await prisma.userInterest.update({ where: { id }, data });
+        res.json(withDisplayRatings(updated));
+    } catch (error) { next(error); }
+};
+
 // Digimon kart oylama toggle
 export const toggleVoting = async (req, res, next) => {
     try {

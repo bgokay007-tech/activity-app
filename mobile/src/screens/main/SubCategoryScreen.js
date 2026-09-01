@@ -11585,7 +11585,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const myUser = useSelector(s => s.auth.user);
     // Derece kısıtlaması kendi puanına uymuyorsa seçim anında uyarılsın diye (backend'de
     // submit'te de aynı kontrol var, bkz. createRivalRequest) — kendi puanı burada bilinmeli.
-    const myOwnRating = (myUser?.interests || []).find(i => i.subCategory === sub)?.skillRating ?? null;
+    const myInterestForSub = (myUser?.interests || []).find(i => i.subCategory === sub);
+    const myOwnRating = myInterestForSub?.skillRating ?? null;
+    // Tenis/padel çiftler: kullanıcı isteği — çiftler anketi tamamlanmadan Çiftler formatı hiç
+    // seçilemesin, direkt çiftler anketine yönlendirilsin (backend zaten submit'te reddediyor,
+    // ama kullanıcı formu doldurup gönderene kadar bunu öğrenmiyordu).
+    const [doublesGateOpen, setDoublesGateOpen] = useState(false);
     const isTeamSport = TEAM_SPORTS.has(sub);
     const isFootball  = sub === 'football';
     const isVolleyball = sub === 'volleyball';
@@ -12893,6 +12898,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             if (fmt.id === f.matchType) { setShowGenderReqModal(true); return; }
                                                             if (editHasParticipants) {
                                                                 Alert.alert('Format Değiştirilemez', 'Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemez — önce katılımcıları çıkarabilirsin.');
+                                                                return;
+                                                            }
+                                                            if (fmt.id === 'DOUBLE' && (sub === 'tennis' || sub === 'padel') && !myInterestForSub?.doublesAssessmentCompleted) {
+                                                                setActivePopup(null);
+                                                                setDoublesGateOpen(true);
                                                                 return;
                                                             }
                                                             // Kullanıcı isteği: format seçilince kişi başı ücret otomatik
@@ -14442,6 +14452,22 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                         </View>
                     </Modal>
                 )}
+
+                {/* Çiftler formatı seçilirken çiftler anketi tamamlanmamışsa burada açılır —
+                    bkz. format seçim onPress'i (doublesGateOpen). */}
+                <AssessmentModal
+                    visible={doublesGateOpen}
+                    interestId={myInterestForSub?.id}
+                    subCategory={sub}
+                    ratingType="doubles"
+                    onClose={() => setDoublesGateOpen(false)}
+                    onComplete={() => {
+                        setDoublesGateOpen(false);
+                        courtFeeInputRef.current?.blur();
+                        setShowGenderReqModal(true);
+                        setF(p => ({ ...p, matchType: 'DOUBLE', partner: p.partner }));
+                    }}
+                />
 
                 {/* Partner / Rakip 1 / Rakip 2 davet — ortak arama + arkadaşlar penceresi.
                     Ayrı bir <Modal> DEĞİL: Android'de iç içe Modal, klavye açılınca pencerenin

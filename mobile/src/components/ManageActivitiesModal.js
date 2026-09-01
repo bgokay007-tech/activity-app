@@ -4,6 +4,7 @@ import {
     ScrollView, ActivityIndicator, Alert, Image,
 } from 'react-native';
 import { useSelector } from 'react-redux';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
 import colors from '../theme/colors';
 import AssessmentModal from './AssessmentModal';
@@ -36,6 +37,7 @@ const SINGLES_DOUBLES_SUBS = new Set(['tennis', 'padel']);
 export default function ManageActivitiesModal({ visible, interests, onClose, onInterestsChange, privacyEmojiIcon, onPrivacyPress }) {
     const t = useT();
     const lang = useSelector(s => s.lang?.lang || 'en');
+    const insets = useSafeAreaInsets();
     const CATEGORY_TABS = [
         { id: 'SPORTS', label: t.sportsTab, color: '#16a34a' },
         { id: 'SOCIAL', label: t.socialTab, color: '#d97706' },
@@ -134,23 +136,58 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
         doRemove(interest.id, category, subCategory);
     };
 
-    // Tenis/padel: tıklayınca Tekli/Çiftler seçimi sorulur (kullanıcı isteği: "iki seçenek
-    // çıksın") — hangisi seçilirse o disiplinin anketi açılır. Anket hiç tamamlanmamışsa
-    // (assessmentCompleted false) seçim sorulmadan direkt tekli anketi açılır, çünkü çiftler
-    // anketi tekliden önce hiç yapılamaz zaten.
+    // Tenis/padel: tıklayınca HER ZAMAN Tekli/Çiftler seçimi sorulur (kullanıcı isteği: "iki
+    // seçenek çıksın... ona göre ankete yönlendirmeliydi") — tekli anketi henüz tamamlanmamışsa
+    // Çiftler seçilince önce tekli anketini tamamlaması gerektiği söylenir (çiftler anketi
+    // tekliden önce hiç yapılamaz), Tekli seçilirse direkt açılır. 3+ maç oynanmış bir disiplin
+    // artık yeniden değerlendirilemez (aynı kural silme için de geçerli, bkz. openResetPicker).
     const openAssessPicker = (existing, subId) => {
-        if (!existing.assessmentCompleted) {
-            setAssessTarget({ interestId: existing.id, subCategory: subId });
-            return;
-        }
-        const canRedoSingles = ((existing.wins || 0) + (existing.losses || 0)) < 3;
+        const canRedoSingles = ((existing.singlesMatchCount ?? ((existing.wins || 0) + (existing.losses || 0))) < 3) || !existing.assessmentCompleted;
         const canDoDoubles = !existing.doublesAssessmentCompleted || (existing.doublesMatchCount || 0) < 3;
+        if (!canRedoSingles && !canDoDoubles) return;
+        Alert.alert(t.assessPickerTitle, t.assessPickerMessage, [
+            { text: t.singlesAssessOption, onPress: () => {
+                if (!canRedoSingles) { Alert.alert(t.assessPickerTitle, t.tooManyMatchesMsg); return; }
+                setAssessTarget({ interestId: existing.id, subCategory: subId });
+            }},
+            { text: t.doublesAssessOption, onPress: () => {
+                if (!existing.assessmentCompleted) { Alert.alert(t.assessPickerTitle, t.doSinglesFirstMsg); return; }
+                if (!canDoDoubles) { Alert.alert(t.assessPickerTitle, t.tooManyMatchesMsg); return; }
+                setAssessTarget({ interestId: existing.id, subCategory: subId, ratingType: 'doubles' });
+            }},
+            { text: t.assessPickerCancelBtn, style: 'cancel' },
+        ]);
+    };
+
+    // Tenis/padel: "−" tıklanınca Tekli/Çiftler değerlendirmesini AYRI AYRI sıfırlama ya da
+    // dalı tamamen kaldırma seçeneği sunar (kullanıcı isteği). 3+ maç oynanmış bir disiplin
+    // sıfırlanamaz — aynı eşik değerlendirmeyi yeniden yapabilme kuralıyla birebir aynı.
+    const openResetPicker = (existing, category, subId) => {
+        const canResetSingles = (existing.singlesMatchCount ?? ((existing.wins || 0) + (existing.losses || 0))) < 3;
+        const canResetDoubles = (existing.doublesMatchCount || 0) < 3;
         const options = [];
-        if (canRedoSingles) options.push({ text: t.singlesAssessOption, onPress: () => setAssessTarget({ interestId: existing.id, subCategory: subId }) });
-        if (canDoDoubles) options.push({ text: t.doublesAssessOption, onPress: () => setAssessTarget({ interestId: existing.id, subCategory: subId, ratingType: 'doubles' }) });
-        if (options.length === 0) return;
+        if (existing.assessmentCompleted && canResetSingles) {
+            options.push({ text: t.resetSinglesOption, style: 'destructive', onPress: () => doResetAssessment(existing.id, 'singles') });
+        }
+        if (existing.doublesAssessmentCompleted && canResetDoubles) {
+            options.push({ text: t.resetDoublesOption, style: 'destructive', onPress: () => doResetAssessment(existing.id, 'doubles') });
+        }
+        options.push({ text: t.removeWholeActivityOption, style: 'destructive', onPress: () => handleRemove(existing, category, subId) });
         options.push({ text: t.assessPickerCancelBtn, style: 'cancel' });
-        Alert.alert(t.assessPickerTitle, t.assessPickerMessage, options);
+        Alert.alert(t.resetPickerTitle, t.resetPickerMessage, options);
+    };
+
+    const doResetAssessment = async (interestId, ratingType) => {
+        const key = `reset_${interestId}`;
+        setLoadingId(key);
+        try {
+            const { data } = await api.patch(`/interests/${interestId}/reset-assessment`, { ratingType });
+            const updated = localInterests.map(i => i.id === interestId ? { ...i, ...data } : i);
+            setLocalInterests(updated);
+            onInterestsChange?.(updated);
+        } catch (e) {
+            Alert.alert(t.error || 'Hata', e?.response?.data?.message || t.assessmentSubmitFailed);
+        } finally { setLoadingId(null); }
     };
 
     const handleAssessComplete = (result) => {
@@ -288,7 +325,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                                     )}
                                                     <TouchableOpacity
                                                         style={s.removeBtn}
-                                                        onPress={() => handleRemove(existing, activeTab, sub.id)}
+                                                        onPress={() => SINGLES_DOUBLES_SUBS.has(sub.id) ? openResetPicker(existing, activeTab, sub.id) : handleRemove(existing, activeTab, sub.id)}
                                                     >
                                                         <Text style={s.removeBtnText}>−</Text>
                                                     </TouchableOpacity>
@@ -308,7 +345,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                         </ScrollView>
 
                         {/* Done button */}
-                        <View style={s.footer}>
+                        <View style={[s.footer, { paddingBottom: 11 + insets.bottom }]}>
                             <TouchableOpacity style={s.doneBtn} onPress={onClose}>
                                 <Text style={s.doneBtnText}>{t.doneBtn}</Text>
                             </TouchableOpacity>

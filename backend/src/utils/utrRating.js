@@ -272,6 +272,11 @@ async function runUtrMatch({ category, subCategory, matchType, sourceType, sourc
     const matchCountField = matchType === 'DOUBLE' ? 'doublesMatchCount' : 'singlesMatchCount';
     const lastMatchField = matchType === 'DOUBLE' ? 'doublesLastMatchAt' : 'singlesLastMatchAt';
     const seedField = matchType === 'DOUBLE' ? 'doublesSeedRating' : 'singlesSeedRating';
+    // Reassessment-grace flag'i HANGİ disiplinde tetiklendiyse o disiplinin anketini geçersiz
+    // kılar — bir çiftler maçında sandbagging tespit edilirse sadece doublesAssessmentCompleted
+    // false olur, tekli (assessmentCompleted) etkilenmez ve tam tersi (bkz. plan: "ayrı
+    // ratinglerin asıl amacı" tekli/çiftler'in birbirini bloklamaması).
+    const completionField = matchType === 'DOUBLE' ? 'doublesAssessmentCompleted' : 'assessmentCompleted';
 
     // Bir katılımcı için: RatingMatchRecord ekle (bu maçın kendisi de pencereye dahil olsun diye
     // ÖNCE), sonra kayan pencereden taze recompute et, sonra hem kaydı hem UserInterest'i güncelle.
@@ -283,8 +288,8 @@ async function runUtrMatch({ category, subCategory, matchType, sourceType, sourc
             return prisma.userInterest.update({
                 where: { id: interest.id },
                 data: didWin
-                    ? { wins: interest.wins + 1, assessmentCompleted: !reassessFlags.some(f => f.id === interest.id) }
-                    : { losses: interest.losses + 1, assessmentCompleted: true },
+                    ? { wins: interest.wins + 1, [completionField]: !reassessFlags.some(f => f.id === interest.id) }
+                    : { losses: interest.losses + 1 },
             }).then(() => ({ userId: interest.userId, change: 0 }));
         }
         const record = await prisma.ratingMatchRecord.create({

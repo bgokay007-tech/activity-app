@@ -10,6 +10,7 @@ import {
     getLeaderboard,
     getAssessmentQuestions,
     saveAssessment,
+    resetAssessment,
     toggleVoting,
     getVotes,
     submitVote,
@@ -30,6 +31,7 @@ router.get('/users', authenticate, getUsersByCategory);
 router.get('/leaderboard', authenticate, getLeaderboard);
 router.get('/assessment/:subCategory', authenticate, getAssessmentQuestions);
 router.patch('/:id/assess', authenticate, saveAssessment);
+router.patch('/:id/reset-assessment', authenticate, resetAssessment);
 router.patch('/:id/alias', authenticate, updateAlias);
 router.patch('/:id/goals', authenticate, updateGoals);
 router.patch('/:id/voting', authenticate, toggleVoting);
