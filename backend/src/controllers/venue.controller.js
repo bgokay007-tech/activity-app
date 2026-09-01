@@ -855,7 +855,7 @@ export const updateCourtSettings = async (req, res, next) => {
 // Bakım/çakışma/boşluk kontrolleri — hem kullanıcı rezervasyonunda (makeReservation) hem de
 // işletmecinin manuel (telefonla gelen) rezervasyonunda (createManualReservation) ortak.
 // Sorun yoksa null, varsa { status, message } döner.
-export async function validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod, userId = null) {
+export async function validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod, userId = null, excludeReservationId = null) {
     // Tüm-gün bakım kontrolü
     const courtCheck = await prisma.venueCourt.findUnique({ where: { id: courtId } });
     const mDates = (Array.isArray(courtCheck?.maintenanceDates) ? courtCheck.maintenanceDates : []).map(normMaint);
@@ -896,9 +896,17 @@ export async function validateReservationSlot(venue, courtId, date, startTime, e
             return { status: 400, message: `Bu kort ${m.fromTime}–${m.toTime} saatleri arası "${m.reason || 'Bakım'}" nedeniyle kapalı. Rezervasyon yapılamaz.` };
     }
 
-    // Çakışma kontrolü
+    // Çakışma kontrolü — "Kortu Değiştir" akışında kullanıcının kendi ESKİ rezervasyonu yeni
+    // seçim onaylanana kadar silinmez (bkz. mobil pendingCourtChangeRef yorumu); grid ekranı
+    // (getVenueSlots) bunu excludeReservationId ile hariç tutup boş gösteriyordu ama bu
+    // doğrulama hariç tutmuyordu — kullanıcı raporu: gridde boş/yeşil görünen bir saat "Onayla"
+    // dedikten sonra "Bu saat aralığı dolu" diye reddediliyordu (kendi eski rezervasyonuna karşı
+    // çakışma tespit ediliyordu). Artık aynı excludeReservationId burada da hariç tutuluyor.
     const existing = await prisma.courtReservation.findMany({
-        where: { venueId: venue.id, courtId, date, status: { not: 'CANCELLED' } },
+        where: {
+            venueId: venue.id, courtId, date, status: { not: 'CANCELLED' },
+            ...(excludeReservationId && { id: { not: excludeReservationId } }),
+        },
     });
     const hasConflict = existing.some(r => {
         const rs = toMins(r.startTime);
@@ -953,7 +961,7 @@ export async function validateReservationSlot(venue, courtId, date, startTime, e
 export const validateSlot = async (req, res, next) => {
     try {
         const { id, courtId } = req.params;
-        const { date, startTime, endTime, paymentMethod } = req.body;
+        const { date, startTime, endTime, paymentMethod, excludeReservationId } = req.body;
 
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
         if (!venue || venue.status !== 'APPROVED') return res.status(404).json({ message: 'Tesis bulunamadı' });
@@ -971,7 +979,16 @@ export const validateSlot = async (req, res, next) => {
             return res.status(403).json({ message: `Bu tarih için rezervasyonlar henüz açılmadı. Açılış: ${opensAt.toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}` });
         }
 
-        const slotErr = await validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod);
+        // "Kortu Değiştir" akışında kendi eski rezervasyonuna karşı yanlış "dolu" reddi
+        // yememesi için hariç tutulacak rezervasyon — sadece KENDİ rezervasyonu olduğu
+        // doğrulanırsa hariç tutulur (başkasının rezervasyonu asla hariç tutulamaz).
+        let excludeId = null;
+        if (excludeReservationId) {
+            const own = await prisma.courtReservation.findUnique({ where: { id: excludeReservationId }, select: { userId: true } });
+            if (own?.userId === req.userId) excludeId = excludeReservationId;
+        }
+
+        const slotErr = await validateReservationSlot(venue, courtId, date, startTime, endTime, paymentMethod, req.userId, excludeId);
         if (slotErr) return res.status(slotErr.status).json({ message: slotErr.message });
 
         res.json({ ok: true });

@@ -9592,6 +9592,11 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
         try {
             await api.post(`/venues/${venueId}/courts/${courtId}/validate-slot`, {
                 date: selDate, startTime: slot.start, endTime, paymentMethod: payMethod,
+                // "Kortu Değiştir" akışında henüz iptal edilmemiş eski rezervasyonumuz (bkz.
+                // excludeReservationId, grid zaten bunu "dolu" saymıyordu) bu doğrulamada da
+                // hariç tutulur — aksi halde gridde boş/yeşil görünen bir saat burada kendi eski
+                // rezervasyonumuza çarpıp yanlışlıkla "dolu" diye reddediliyordu.
+                ...(excludeReservationId && { excludeReservationId }),
             });
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || 'Bu saat seçilemiyor, lütfen başka bir saat seçin.');
