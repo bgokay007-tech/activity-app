@@ -1162,29 +1162,30 @@ export default function ActivityFeedScreen({ navigation }) {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Kategoriler — kullanıcı isteği: yatay çip listesi yerine tek form,
-                        dokununca aşağı doğru açılıp Onayla ile kapanıyor (Dallar ile aynı deseni). */}
-                    <TouchableOpacity
-                        style={[s.pickerField, selCats.length > 0 && s.pickerFieldActive]}
-                        onPress={() => setShowCatsModal(true)}
-                        activeOpacity={0.8}
-                    >
-                        <Text style={[s.pickerFieldText, selCats.length > 0 && { color: colors.purpleLight }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                            {selCats.length > 0 ? selCats.map(k => categories.find(c => c.key === k)?.label || k).join(', ') : 'Kategori seç…'}
-                        </Text>
-                    </TouchableOpacity>
+                    {/* Kategori seç / Dal seç — kullanıcı isteği: aynı satırda, genişlikleri
+                        5'te 2 (Kategori) / 5'te 3 (Dal) oranında, yükseklikleri de biraz artırılmış. */}
+                    <View style={{ flexDirection: 'row', gap: 3 }}>
+                        <TouchableOpacity
+                            style={[s.pickerField, s.pickerFieldTall, { flex: 2 }, selCats.length > 0 && s.pickerFieldActive]}
+                            onPress={() => setShowCatsModal(true)}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={[s.pickerFieldText, selCats.length > 0 && { color: colors.purpleLight }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                {selCats.length > 0 ? selCats.map(k => categories.find(c => c.key === k)?.label || k).join(', ') : 'Kategori seç…'}
+                            </Text>
+                        </TouchableOpacity>
 
-                    {/* Dal seçici — form alanı */}
-                    <TouchableOpacity
-                        style={[s.pickerField, selSubs.length > 0 && s.pickerFieldActive]}
-                        onPress={() => setShowSubsModal(true)}
-                        activeOpacity={0.8}
-                    >
-                        <Text style={[s.pickerFieldText, selSubs.length > 0 && { color: colors.purpleLight }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                            {selSubs.length > 0 ? selSubs.map(k => SUB_MAP[k]?.label || k).join(', ') : 'Dal seç…'}
-                        </Text>
-                        <Text style={s.pickerArrow}>›</Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[s.pickerField, s.pickerFieldTall, { flex: 3 }, selSubs.length > 0 && s.pickerFieldActive]}
+                            onPress={() => setShowSubsModal(true)}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={[s.pickerFieldText, selSubs.length > 0 && { color: colors.purpleLight }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                {selSubs.length > 0 ? selSubs.map(k => SUB_MAP[k]?.label || k).join(', ') : 'Dal seç…'}
+                            </Text>
+                            <Text style={s.pickerArrow}>›</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* ── Güncel / Geçmiş sekmeleri ── */}
@@ -1494,6 +1495,9 @@ const s = StyleSheet.create({
         backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 3, paddingVertical: 3,
         borderWidth: 1, borderColor: colors.border,
     },
+    // Kullanıcı isteği: Kategori seç/Dal seç formları diğer pickerField'lardan (tarih/saat)
+    // birkaç piksel daha yüksek olsun.
+    pickerFieldTall:   { paddingVertical: 6 },
     pickerFieldActive: { borderColor: colors.purple, backgroundColor: colors.purple + '12' },
     pickerFieldText:   { color: colors.textMuted, fontSize: 9, textAlign: 'center' },
     pickerArrow:       { color: colors.textMuted, fontSize: 14 },
