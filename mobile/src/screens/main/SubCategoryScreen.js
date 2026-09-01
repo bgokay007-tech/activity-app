@@ -12328,6 +12328,26 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         });
     };
 
+    // "Kortu Değiştir" (VenueBookingModal) kapatma mantığı — hem VenueBookingModal'ın kendi
+    // onClose'undan HEM de bu formun kendi Modal'ının onRequestClose'undan (aşağıda) çağrılır.
+    // Sebep: VenueBookingModal, bu formun (CreateRivalModal) ÜZERİNE sibling bir <Modal> olarak
+    // açılıyor — Android'de aynı anda iki <Modal> görünür olduğunda, donanım geri tuşu HANGİSİNE
+    // gideceği garanti değil (bazen bu formun kendi Modal'ı yakalayıp closeEdit()'i tetikliyor,
+    // bu da editVisible'ı false yapıp {editVisible && <CreateRivalModal/>} nedeniyle formu VE
+    // içindeki VenueBookingModal'ı aniden unmount ediyordu — kullanıcı raporu: "Kortu Değiştir"
+    // içindeyken geri tuşuna basınca "Cannot read property 'snapshot' of null" ile çöküyordu).
+    // Artık HANGİ Modal geri tuşunu yakalarsa yakalasın, ikisi de bu AYNI fonksiyona yönlendiği
+    // için form asla yanlışlıkla kapanmıyor/unmount olmuyor, sadece kort seçimi düzgünce kapanıyor.
+    const closeVenueBooking = () => {
+        setVenueBooking({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null, initialDate: null, initialStartTime: null, initialEndTime: null });
+        // Yeni bir kort/saat seçilmeden kapatıldıysa (venueCourtId hâlâ boş) —
+        // "Değiştir"den önceki kort bilgisini geri getir, eski rezervasyona dokunulmaz.
+        if (pendingCourtChangeRef.current && !f.venueCourtId) {
+            setF(p => ({ ...p, ...pendingCourtChangeRef.current.snapshot }));
+            pendingCourtChangeRef.current = null;
+        }
+    };
+
     // Düzenleme modunda çağrılır (submit() içinden) — yeni ilan OLUŞTURMAZ, mevcut ilanı
     // PATCH eder. Kort/saat değiştiyse: aynı kort ise mevcut rezervasyonu "reschedule" eder,
     // farklı kortsa önce yeni rezervasyonu alır, o başarılı olursa eskisini iptal eder —
@@ -12748,7 +12768,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
 
     return (
         <>
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
+        <Modal visible={visible} animationType="slide" transparent
+            // "Kortu Değiştir" (VenueBookingModal) sibling <Modal> olarak bu formun ÜZERİNDE
+            // açıkken donanım geri tuşu bazen bu formun Modal'ına gidiyordu (bkz. closeVenueBooking
+            // yorumu) — o durumda formu KAPATMAK yerine sadece kort seçimini kapatıyoruz, form
+            // asla yanlışlıkla unmount olmasın diye.
+            onRequestClose={() => { if (venueBooking.visible) { closeVenueBooking(); return; } onClose(); }}
+            android_keyboardInputMode="adjustNothing">
             <View style={s.modalOverlay}>
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
@@ -14634,15 +14660,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             initialDate={venueBooking.initialDate}
             initialStartTime={venueBooking.initialStartTime}
             initialEndTime={venueBooking.initialEndTime}
-            onClose={() => {
-                setVenueBooking({ visible: false, venueId: null, initialCourtId: null, excludeReservationId: null, initialDate: null, initialStartTime: null, initialEndTime: null });
-                // Yeni bir kort/saat seçilmeden kapatıldıysa (venueCourtId hâlâ boş) —
-                // "Değiştir"den önceki kort bilgisini geri getir, eski rezervasyona dokunulmaz.
-                if (pendingCourtChangeRef.current && !f.venueCourtId) {
-                    setF(p => ({ ...p, ...pendingCourtChangeRef.current.snapshot }));
-                    pendingCourtChangeRef.current = null;
-                }
-            }}
+            onClose={closeVenueBooking}
             onBooked={(court, date, startTime, endTime, payMethod) => {
                 const toMin = (tm) => { const [h, m] = tm.split(':').map(Number); return h * 60 + m; };
                 const durMins = (startTime && endTime) ? toMin(endTime) - toMin(startTime) : 0;
