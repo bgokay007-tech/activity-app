@@ -1170,7 +1170,8 @@ const en = {
 
     // Notifications
     notificationsTitle: 'Notifications',
-    markAllReadBtn: 'Mark all read',
+    notifUnreadBtn: 'Unread',
+    notifReadBtn: 'Read',
     noNotificationsText: 'No notifications yet',
     muteBtn: 'Mute',
     notificationModeTitle: 'Notification sound',
@@ -2719,7 +2720,8 @@ const tr = {
 
     // Notifications
     notificationsTitle: 'Bildirimler',
-    markAllReadBtn: 'Tümünü okundu işaretle',
+    notifUnreadBtn: 'Okunmadı',
+    notifReadBtn: 'Okundu',
     noNotificationsText: 'Henüz bildirim yok',
     muteBtn: 'Sessize Al',
     notificationModeTitle: 'Bildirim sesi',

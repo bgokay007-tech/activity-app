@@ -407,7 +407,9 @@ export default function NotificationsScreen({ navigation }) {
                         <Text style={styles.muteBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.muteBtn}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={markAllRead} style={styles.markAllBtn}>
-                        <Text style={styles.markAllText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.markAllReadBtn}</Text>
+                        <Text style={styles.markAllText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                            {unreadCount > 0 ? t.notifUnreadBtn : t.notifReadBtn}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -446,9 +448,9 @@ const styles = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 17, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
     title: { color: '#fff', fontSize: 22, fontWeight: '900' },
     headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
-    muteBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: colors.border, maxWidth: 66 },
+    muteBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 8, height: 24, minWidth: 66, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
     muteBtnText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
-    markAllBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: colors.border, maxWidth: 66 },
+    markAllBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 8, height: 24, minWidth: 66, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
     markAllText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
     item: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 17, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border + '40', gap: 3, position: 'relative' },
     subBadge: { position: 'absolute', top: 8, right: 12, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: colors.border, maxWidth: 90 },
