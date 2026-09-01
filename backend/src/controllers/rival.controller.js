@@ -4631,9 +4631,16 @@ export const getUpcomingMatches = async (req, res, next) => {
             const interests = allUserIds.length > 0
                 ? await prisma.userInterest.findMany({
                     where: { userId: { in: allUserIds } },
-                    select: { userId: true, subCategory: true, skillRating: true, alias: true },
+                    select: {
+                        userId: true, subCategory: true, skillRating: true, alias: true,
+                        singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true,
+                    },
                 })
                 : [];
+            // Kullanıcı isteği: yaklaşan/skor bekleyen maçlarda tenis/padel oyuncularının derece
+            // puanı ilan sahibi de dahil HERKESE görünür olmalı, maçın FORMATINA (tekli/çiftli)
+            // göre doğru (bkz. teamDisplayRating, açık ilan detayındaki aynı düzeltme).
+            const ratingFor = (userId, subCategory, isDoubles) => teamDisplayRating(interests.find(i => i.userId === userId && i.subCategory === subCategory), subCategory, isDoubles);
             const unassignedGenderById = await fillMissingUnassignedGenders(active.map(m => m.unassignedPlayers));
 
                 // Check existing no-show reports by this user
@@ -4652,33 +4659,36 @@ export const getUpcomingMatches = async (req, res, next) => {
             }).catch(() => []);
             const myNoShowSet = new Set(myNoShowReports.map(r => r.rivalId));
 
-            const enriched = active.map(m => ({
+            const enriched = active.map(m => {
+                const mIsDoubles = isDoublesFormat(m);
+                return {
                 ...m,
-                senderSkillRating: interests.find(i => i.userId === m.senderId && i.subCategory === m.subCategory)?.skillRating ?? null,
+                senderSkillRating: ratingFor(m.senderId, m.subCategory, mIsDoubles),
                 senderAlias: interests.find(i => i.userId === m.senderId && i.subCategory === m.subCategory)?.alias || null,
                 participants: (Array.isArray(m.participants) ? m.participants : []).filter(p => p?.id).map(p => ({
                     ...p,
-                    skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
+                    skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
                     alias: p.alias || interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.alias || null,
                 })),
                 senderTeam: (Array.isArray(m.senderTeam) ? m.senderTeam : []).filter(p => p?.id).map(p => ({
                     ...p,
-                    skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
+                    skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
                     alias: p.alias || interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.alias || null,
                 })),
                 substitutePlayers: (Array.isArray(m.substitutePlayers) ? m.substitutePlayers : []).map(p => p?.id ? ({
                     ...p,
-                    skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
+                    skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
                     alias: p.alias || interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.alias || null,
                 }) : p),
                 unassignedPlayers: (Array.isArray(m.unassignedPlayers) ? m.unassignedPlayers : []).map(p => p?.id ? ({
                     ...p,
                     gender: p.gender ?? unassignedGenderById[p.id] ?? null,
-                    skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
+                    skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
                 }) : p),
                 _myNoShowPending: myNoShowSet.has(m.id),
                 commentCount: commentCountMap[m.id] ?? 0,
-            }));
+                };
+            });
 
             return res.json(enriched);
         } catch (_) {
@@ -6935,8 +6945,12 @@ export const getMyUpcomingMatches = async (req, res, next) => {
             const interests = allUserIds.length > 0
                 ? await prisma.userInterest.findMany({
                     where: { userId: { in: allUserIds } },
-                    select: { userId: true, subCategory: true, skillRating: true },
+                    select: {
+                        userId: true, subCategory: true, skillRating: true,
+                        singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true,
+                    },
                 }) : [];
+            const ratingFor = (userId, subCategory, isDoubles) => teamDisplayRating(interests.find(i => i.userId === userId && i.subCategory === subCategory), subCategory, isDoubles);
             // Voleybol/airsoft: maç MATCHED olduktan sonra hâlâ bekleyen istek/davetler —
             // (a) joiner'ın gönderdiği "Yedek Olarak Başvur" istekleri (bkz. sendJoinRequest'teki
             // subSlotOpenForRequest), (b) ilan sahibinin kadro kartından doğrudan gönderdiği
@@ -6951,15 +6965,18 @@ export const getMyUpcomingMatches = async (req, res, next) => {
                 }) : [];
             const subReqsByRival = pendingSubReqs.reduce((acc, jr) => { (acc[jr.rivalId] ??= []).push(jr); return acc; }, {});
 
-            const enriched = mine.map(m => ({
+            const enriched = mine.map(m => {
+                const mIsDoubles = isDoublesFormat(m);
+                return {
                 ...m,
-                senderSkillRating: interests.find(i => i.userId === m.senderId && i.subCategory === m.subCategory)?.skillRating ?? null,
+                senderSkillRating: ratingFor(m.senderId, m.subCategory, mIsDoubles),
                 participants: (Array.isArray(m.participants) ? m.participants : []).map(p => ({
                     ...p,
-                    skillRating: interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.skillRating ?? null,
+                    skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
                 })),
                 joinRequests: subReqsByRival[m.id] || [],
-            }));
+                };
+            });
             return res.json(enriched);
         } catch (_) {
             return res.json(mine);
