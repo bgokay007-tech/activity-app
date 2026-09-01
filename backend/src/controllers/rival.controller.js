@@ -36,9 +36,10 @@ async function requireActiveInterest(userId, category, subCategory, matchType = 
         err.status = 403; err.code = 'ASSESSMENT_REQUIRED';
         throw err;
     }
-    // Tenis çiftler: tekli anketten AYRI bir anket var (bkz. assessments.js
-    // QUESTIONS.tennis_doubles) — çiftler ilanı açmadan/katılmadan önce o da tamamlanmış olmalı.
-    if (subCategory === 'tennis' && matchType === 'DOUBLE' && !interest.doublesAssessmentCompleted) {
+    // Tenis/padel çiftler: tekli anketten AYRI bir anket var (bkz. assessments.js
+    // QUESTIONS.tennis_doubles / padel'de aynı sorular ayrıca doldurulur) — çiftler ilanı
+    // açmadan/katılmadan önce o da tamamlanmış olmalı.
+    if ((subCategory === 'tennis' || subCategory === 'padel') && matchType === 'DOUBLE' && !interest.doublesAssessmentCompleted) {
         const err = new Error('Çiftler ilanı açabilmek/katılabilmek için önce çiftler derecelendirme anketini tamamlamalısın.');
         err.status = 403; err.code = 'DOUBLES_ASSESSMENT_REQUIRED';
         throw err;

@@ -497,7 +497,19 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     backend interest.controller.js attachCoachRefereeBadges. */}
                                 {(item.assessmentCompleted || item.isCoach || item.isReferee) && (
                                     <View style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 1, paddingHorizontal: 4, borderWidth: 1, borderColor: '#facc1540' }}>
-                                        {item.assessmentCompleted && (
+                                        {/* Tenis/padel: tekli/çiftler puanı AYRI gösterilir (bkz. backend
+                                            utrRating.js) — ikisi de dokununca aynı ELO geçmişi grafiğini açar. */}
+                                        {item.assessmentCompleted && ['tennis','padel'].includes(item.subCategory) ? (
+                                            <TouchableOpacity onPress={() => setShowEloModal(true)} style={{ alignItems: 'center' }}>
+                                                <Text style={{ color: '#facc15', fontSize: 10, fontWeight: '900' }} numberOfLines={1}>
+                                                    {lang === 'tr' ? 'Tekli' : 'Singles'} {item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'}
+                                                </Text>
+                                                <Text style={{ color: '#facc15', fontSize: 10, fontWeight: '900' }} numberOfLines={1}>
+                                                    {lang === 'tr' ? 'Çiftler' : 'Doubles'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
+                                                </Text>
+                                                <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
+                                            </TouchableOpacity>
+                                        ) : item.assessmentCompleted && (
                                             <TouchableOpacity onPress={() => setShowEloModal(true)} style={{ alignItems: 'center' }}>
                                                 <Text style={{ color: '#facc15', fontSize: 13, fontWeight: '900' }}>{Number(item.skillRating).toFixed(2)}</Text>
                                                 <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
@@ -651,7 +663,13 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, paddingBottom: 33, borderWidth: 1, borderColor: '#a855f730' }}>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                         <View>
-                                            <Text style={{ color: '#facc15', fontSize: 16, fontWeight: '900' }}>ELO ★ {Number(item.skillRating || 0).toFixed(2)}</Text>
+                                            {['tennis','padel'].includes(item.subCategory) ? (
+                                                <Text style={{ color: '#facc15', fontSize: 14, fontWeight: '900' }} numberOfLines={1}>
+                                                    ELO ★ {lang === 'tr' ? 'Tekli' : 'S'} {item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'} · {lang === 'tr' ? 'Çiftler' : 'D'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
+                                                </Text>
+                                            ) : (
+                                                <Text style={{ color: '#facc15', fontSize: 16, fontWeight: '900' }}>ELO ★ {Number(item.skillRating || 0).toFixed(2)}</Text>
+                                            )}
                                             <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{lang === 'tr' ? 'Puan Geçmişi' : 'Rating History'}</Text>
                                         </View>
                                         <TouchableOpacity onPress={() => setShowEloModal(false)}>
@@ -2736,7 +2754,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                 historyMatches: myHistory.filter(m => m.subCategory === i.subCategory).slice(-14),
                                                 reservationCount,
                                             })}
-                                            style={{ backgroundColor: colors.surface2, borderRadius: 16, paddingTop: 3, paddingBottom: 11, paddingHorizontal: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, height: (i.isCoach || i.isReferee) ? 138 : 128, gap: 3, opacity: i.hidden ? 0.4 : 1 }}
+                                            style={{ backgroundColor: colors.surface2, borderRadius: 16, paddingTop: 3, paddingBottom: 11, paddingHorizontal: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, height: (i.isCoach || i.isReferee) ? 138 : (['tennis','padel'].includes(i.subCategory) ? 138 : 128), gap: 3, opacity: i.hidden ? 0.4 : 1 }}
                                         >
                                             {i.subCategory === 'padel'
                                                 ? <Image source={require('../../../assets/padel.png')} style={{ width: 34, height: 34 }} resizeMode="contain" />
@@ -2745,7 +2763,20 @@ export default function ProfileScreen({ route, navigation }) {
                                             {/* Alias varsa gösterilir, yoksa hiç render edilmez — boş bir satır
                                                 bırakıp isim ile derece arasında gereksiz boşluk oluşturmasın. */}
                                             {i.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }} numberOfLines={1}>{i.alias}</Text> : null}
-                                            <Text style={{ color: '#facc15', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>{i.assessmentCompleted ? `${Number(i.skillRating).toFixed(2)} ★` : ' '}</Text>
+                                            {/* Tenis/padel: tekli/çiftler puanı AYRI (bkz. backend utrRating.js) —
+                                                iki kısa satır olarak gösterilir, diğer dallarda tek birleşik puan. */}
+                                            {['tennis','padel'].includes(i.subCategory) ? (
+                                                <View style={{ alignItems: 'center' }}>
+                                                    <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '900' }} numberOfLines={1}>
+                                                        {lang === 'tr' ? 'T' : 'S'}: {i.singlesDisplayRating != null ? Number(i.singlesDisplayRating).toFixed(2) : '—'}★
+                                                    </Text>
+                                                    <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '900' }} numberOfLines={1}>
+                                                        {lang === 'tr' ? 'Ç' : 'D'}: {i.doublesDisplayRating != null ? Number(i.doublesDisplayRating).toFixed(2) : '—'}★
+                                                    </Text>
+                                                </View>
+                                            ) : (
+                                                <Text style={{ color: '#facc15', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>{i.assessmentCompleted ? `${Number(i.skillRating).toFixed(2)} ★` : ' '}</Text>
+                                            )}
                                             {/* Kullanıcı isteği: onaylı antrenör/hakem rozeti ELO'nun hemen altında
                                                 görünsün (bkz. backend attachCoachRefereeBadges). */}
                                             {(i.isCoach || i.isReferee) && (

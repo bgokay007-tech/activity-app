@@ -914,7 +914,7 @@ export async function checkPollAutoJoinEligibility(tournament, userId) {
     if (!interest?.assessmentCompleted) {
         return { ok: false, message: 'Derecelendirme anketini tamamlamadığınız için otomatik başvurunuz oluşturulamadı.' };
     }
-    if (tournament.subCategory === 'tennis' && isDoublesFormat({ tournamentType: tournament.type }) && !interest.doublesAssessmentCompleted) {
+    if ((tournament.subCategory === 'tennis' || tournament.subCategory === 'padel') && isDoublesFormat({ tournamentType: tournament.type }) && !interest.doublesAssessmentCompleted) {
         return { ok: false, message: 'Çiftler derecelendirme anketini tamamlamadığınız için otomatik başvurunuz oluşturulamadı.' };
     }
     if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) && (interest.wins + interest.losses) < MIN_MATCHES_FOR_TOURNAMENT) {
@@ -959,7 +959,7 @@ export const joinTournament = async (req, res, next) => {
             if (!partnerInterest?.assessmentCompleted) {
                 return res.status(400).json({ message: 'Seçtiğiniz partner bu spor dalında henüz derecelendirme anketini tamamlamamış' });
             }
-            if (tournament.subCategory === 'tennis' && !partnerInterest.doublesAssessmentCompleted) {
+            if ((tournament.subCategory === 'tennis' || tournament.subCategory === 'padel') && !partnerInterest.doublesAssessmentCompleted) {
                 return res.status(400).json({ message: 'Seçtiğiniz partner henüz çiftler derecelendirme anketini tamamlamamış' });
             }
             if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) &&
@@ -975,7 +975,7 @@ export const joinTournament = async (req, res, next) => {
         if (!myInterest?.assessmentCompleted) {
             return res.status(403).json({ message: 'Bu spor dalında maçlara katılabilmek için önce derecelendirme anketini tamamlamanız gerekiyor.' });
         }
-        if (tournament.subCategory === 'tennis' && isDoublesFormat({ tournamentType: tournament.type }) && !myInterest.doublesAssessmentCompleted) {
+        if ((tournament.subCategory === 'tennis' || tournament.subCategory === 'padel') && isDoublesFormat({ tournamentType: tournament.type }) && !myInterest.doublesAssessmentCompleted) {
             return res.status(403).json({ message: 'Bu turnuvaya katılabilmek için önce çiftler derecelendirme anketini tamamlamanız gerekiyor.' });
         }
         if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) &&
@@ -1135,7 +1135,7 @@ export const setTournamentPartner = async (req, res, next) => {
             if (!partnerInterest?.assessmentCompleted) {
                 return res.status(400).json({ message: 'Seçtiğiniz partner bu spor dalında henüz derecelendirme anketini tamamlamamış' });
             }
-            if (tournament.subCategory === 'tennis' && !partnerInterest.doublesAssessmentCompleted) {
+            if ((tournament.subCategory === 'tennis' || tournament.subCategory === 'padel') && !partnerInterest.doublesAssessmentCompleted) {
                 return res.status(400).json({ message: 'Seçtiğiniz partner henüz çiftler derecelendirme anketini tamamlamamış' });
             }
         }

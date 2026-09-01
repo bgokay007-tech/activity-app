@@ -3,7 +3,7 @@ import { getQuestions, calculateLevel } from '../config/assessments.js';
 import { getRelation, canAccess } from '../utils/privacy.js';
 import { QUESTION_FIELDS, applyBlendedVolleyballRating } from '../utils/volleyballRating.js';
 import { applyBlendedPadelRating } from '../utils/padelRating.js';
-import { UTR_SUBCATEGORIES, getDisplayRating, isDoublesFormat } from '../utils/utrRating.js';
+import { UTR_SUBCATEGORIES, getDisplayRating, isDoublesFormat, withDisplayRatings } from '../utils/utrRating.js';
 
 // Kategorilerin alt dalları
 export const SUBCATEGORIES = {
@@ -130,7 +130,10 @@ async function attachCoachRefereeBadges(interests, userId) {
     ]);
     const coachSubs = new Set(coachListings.map(c => c.subCategory));
     const refSubs = new Set(refListings.map(r => r.subCategory));
-    return interests.map(i => ({ ...i, isCoach: coachSubs.has(i.subCategory), isReferee: refSubs.has(i.subCategory) }));
+    // Tenis/padel: mobil "Aktivitelerim" kartı/detayı tekli/çiftler puanını AYRI göstersin diye
+    // (bkz. utrRating.js withDisplayRatings) — mobilin kendi getDisplayRating mantığını
+    // tekrarlamasına gerek kalmıyor, diğer dallarda ikisi de null döner.
+    return interests.map(i => ({ ...withDisplayRatings(i), isCoach: coachSubs.has(i.subCategory), isReferee: refSubs.has(i.subCategory) }));
 }
 
 export const getUserInterests = async (req, res, next) => {
@@ -336,10 +339,32 @@ export const saveAssessment = async (req, res, next) => {
             return res.json({ interest: updated, level: updated.level, skillRating: updated.skillRating, totalPoints: updated.totalPoints });
         }
 
-        // Padel: kendi anketi (Vuruş Teknikleri/Taktik/Deneyim) mevcut soru setiyle aynı şekilde
-        // puanlanır, ama ham sonuç selfAssessmentRating'e ayrıca yazılır — derece puanı (skillRating)
-        // bundan sonra coach %10/takım arkadaşı %5 ile harmanlanarak (applyBlendedPadelRating)
-        // hesaplanır. Hiç coach/teammate değerlendirmesi yoksa kendi puanı %100 aynen kullanılır.
+        // Padel ÇİFTLER anketi: tekli ile AYNI soru seti (Vuruş Teknikleri/Taktik/Deneyim —
+        // format-bağımsız genel beceri traitleri) ama AYRICA doldurulur, ham sonuç
+        // doublesSelfAssessmentRating'e yazılır. Tekli anketi önce tamamlanmış olmalı.
+        if (interest.subCategory === 'padel' && ratingType === 'doubles') {
+            if (!interest.assessmentCompleted) {
+                return res.status(400).json({ message: 'Önce tekli derecelendirme anketini tamamlamalısın.' });
+            }
+            const questions = getQuestions('padel');
+            const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
+            const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);
+            const { skillRating: selfSkillRating } = calculateLevel(totalScore, maxScore);
+
+            await prisma.userInterest.update({
+                where: { id },
+                data: { doublesSelfAssessmentRating: selfSkillRating, doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() },
+            });
+
+            const updated = await applyBlendedPadelRating(req.userId, 'doubles');
+            return res.json({ interest: withDisplayRatings(updated), totalScore, maxScore, skillRating: getDisplayRating(updated, 'padel', true) });
+        }
+
+        // Padel TEKLİ (varsayılan): kendi anketi (Vuruş Teknikleri/Taktik/Deneyim) mevcut soru
+        // setiyle aynı şekilde puanlanır, ham sonuç selfAssessmentRating'e ayrıca yazılır —
+        // derece puanı bundan sonra coach %10/takım arkadaşı %5 ile harmanlanarak
+        // (applyBlendedPadelRating) hesaplanır. Hiç coach/teammate değerlendirmesi yoksa kendi
+        // puanı %100 aynen kullanılır.
         if (interest.subCategory === 'padel') {
             const questions = getQuestions('padel');
             const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
@@ -351,8 +376,8 @@ export const saveAssessment = async (req, res, next) => {
                 data: { selfAssessmentRating: selfSkillRating, assessmentCompleted: true, matchesSinceAssessment: 0, assessmentCompletedAt: new Date() },
             });
 
-            const updated = await applyBlendedPadelRating(req.userId);
-            return res.json({ interest: updated, level: updated.level, skillRating: getDisplayRating(updated, 'padel', false), totalPoints: updated.totalPoints });
+            const updated = await applyBlendedPadelRating(req.userId, 'singles');
+            return res.json({ interest: withDisplayRatings(updated), level: updated.level, skillRating: getDisplayRating(updated, 'padel', false), totalPoints: updated.totalPoints });
         }
 
         // Tenis ÇİFTLER anketi: tekli anketten TAMAMEN AYRI bir soru seti (bkz. assessments.js
@@ -372,7 +397,7 @@ export const saveAssessment = async (req, res, next) => {
                 where: { id },
                 data: { doublesSeedRating: doublesSkill, doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() },
             });
-            return res.json({ interest: updated, totalScore, maxScore, skillRating: getDisplayRating(updated, 'tennis', true) });
+            return res.json({ interest: withDisplayRatings(updated), totalScore, maxScore, skillRating: getDisplayRating(updated, 'tennis', true) });
         }
 
         const questions = getQuestions(interest.subCategory);
@@ -395,7 +420,7 @@ export const saveAssessment = async (req, res, next) => {
         });
 
         const responseRating = isUtrTennis ? getDisplayRating(updated, interest.subCategory, false) : skillRating;
-        res.json({ interest: updated, totalScore, maxScore, level, skillRating: responseRating, totalPoints });
+        res.json({ interest: withDisplayRatings(updated), totalScore, maxScore, level, skillRating: responseRating, totalPoints });
     } catch (error) { next(error); }
 };
 

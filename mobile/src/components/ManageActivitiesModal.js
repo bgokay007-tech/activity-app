@@ -29,6 +29,10 @@ const RATING_REQUIRED_SUBS = new Set([
     'badminton', 'golf', 'handball', 'table_tennis',
 ]);
 
+// UTR-esinli sisteme geçen dallar (bkz. backend utrRating.js) — tekli/çiftler puanı AYRI,
+// değerlendirme de iki seçenekli (Tekli/Çiftler) açılıyor. Diğer dallarda tek "Değerlendir".
+const SINGLES_DOUBLES_SUBS = new Set(['tennis', 'padel']);
+
 export default function ManageActivitiesModal({ visible, interests, onClose, onInterestsChange, privacyEmojiIcon, onPrivacyPress }) {
     const t = useT();
     const lang = useSelector(s => s.lang?.lang || 'en');
@@ -130,6 +134,25 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
         doRemove(interest.id, category, subCategory);
     };
 
+    // Tenis/padel: tıklayınca Tekli/Çiftler seçimi sorulur (kullanıcı isteği: "iki seçenek
+    // çıksın") — hangisi seçilirse o disiplinin anketi açılır. Anket hiç tamamlanmamışsa
+    // (assessmentCompleted false) seçim sorulmadan direkt tekli anketi açılır, çünkü çiftler
+    // anketi tekliden önce hiç yapılamaz zaten.
+    const openAssessPicker = (existing, subId) => {
+        if (!existing.assessmentCompleted) {
+            setAssessTarget({ interestId: existing.id, subCategory: subId });
+            return;
+        }
+        const canRedoSingles = ((existing.wins || 0) + (existing.losses || 0)) < 3;
+        const canDoDoubles = !existing.doublesAssessmentCompleted || (existing.doublesMatchCount || 0) < 3;
+        const options = [];
+        if (canRedoSingles) options.push({ text: t.singlesAssessOption, onPress: () => setAssessTarget({ interestId: existing.id, subCategory: subId }) });
+        if (canDoDoubles) options.push({ text: t.doublesAssessOption, onPress: () => setAssessTarget({ interestId: existing.id, subCategory: subId, ratingType: 'doubles' }) });
+        if (options.length === 0) return;
+        options.push({ text: t.assessPickerCancelBtn, style: 'cancel' });
+        Alert.alert(t.assessPickerTitle, t.assessPickerMessage, options);
+    };
+
     const handleAssessComplete = (result) => {
         if (!result || !assessTarget) return;
         // Çiftler anketi (tenis) tekli anketten AYRI bir alanı (doublesAssessmentCompleted/
@@ -223,6 +246,12 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                                     raporu: "nereye gittiler", eskiden hiç eklenmemiş gibi görünüyordu). */}
                                                 {existing?.hidden ? (
                                                     <Text style={[s.subRating, { color: colors.textMuted }]}>{t.hiddenLabel || 'Gizli'}</Text>
+                                                ) : existing && SINGLES_DOUBLES_SUBS.has(sub.id) ? (
+                                                    // Tekli/Çiftler AYRI puanlanıyor (bkz. backend utrRating.js) — ikisi de
+                                                    // ayrı ayrı gösterilir, henüz tamamlanmamış olan "—" ile işaretlenir.
+                                                    <Text style={[s.subRating, { color: activeColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                        {t.singlesEloLabel}: {existing.singlesDisplayRating != null ? Number(existing.singlesDisplayRating).toFixed(2) : '—'} ★  ·  {t.doublesEloLabel}: {existing.doublesDisplayRating != null ? Number(existing.doublesDisplayRating).toFixed(2) : '—'} ★
+                                                    </Text>
                                                 ) : existing?.assessmentCompleted && (
                                                     <Text style={[s.subRating, { color: activeColor }]}>
                                                         {Number(existing.skillRating).toFixed(2)} ★
@@ -240,24 +269,21 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                                 </TouchableOpacity>
                                             ) : existing ? (
                                                 <View style={s.addedBtns}>
-                                                    {((existing.wins || 0) + (existing.losses || 0)) < 3 && (
+                                                    {SINGLES_DOUBLES_SUBS.has(sub.id) ? (
+                                                        // Tıklayınca Tekli/Çiftler seçimi sorulur — hangisi seçilirse o
+                                                        // disiplinin anketi açılır (bkz. openAssessPicker).
+                                                        <TouchableOpacity
+                                                            style={[s.assessBtn, { borderColor: activeColor + '60' }]}
+                                                            onPress={() => openAssessPicker(existing, sub.id)}
+                                                        >
+                                                            <Text style={[s.assessBtnText, { color: activeColor }]}>{t.assessBtn}</Text>
+                                                        </TouchableOpacity>
+                                                    ) : ((existing.wins || 0) + (existing.losses || 0)) < 3 && (
                                                         <TouchableOpacity
                                                             style={[s.assessBtn, { borderColor: activeColor + '60' }]}
                                                             onPress={() => setAssessTarget({ interestId: existing.id, subCategory: sub.id })}
                                                         >
                                                             <Text style={[s.assessBtnText, { color: activeColor }]}>{t.assessBtn}</Text>
-                                                        </TouchableOpacity>
-                                                    )}
-                                                    {/* Tenis çiftler: tekli anketten AYRI bir anket — tekli tamamlanmış ve henüz
-                                                        çiftler tamamlanmamışsa (ya da tekrar doldurma penceresi açıksa) gösterilir. */}
-                                                    {sub.id === 'tennis' && existing.assessmentCompleted && (
-                                                        !existing.doublesAssessmentCompleted || (existing.doublesMatchCount || 0) < 3
-                                                    ) && (
-                                                        <TouchableOpacity
-                                                            style={[s.assessBtn, { borderColor: activeColor + '60' }]}
-                                                            onPress={() => setAssessTarget({ interestId: existing.id, subCategory: sub.id, ratingType: 'doubles' })}
-                                                        >
-                                                            <Text style={[s.assessBtnText, { color: activeColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.doublesAssessBtn}</Text>
                                                         </TouchableOpacity>
                                                     )}
                                                     <TouchableOpacity

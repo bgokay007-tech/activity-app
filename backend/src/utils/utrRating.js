@@ -45,6 +45,21 @@ export function getDisplayRating(interest, subCategory, isDoubles) {
     return Math.max(0, (raw ?? seed ?? 0) + offset);
 }
 
+// Mobil "Aktivitelerim" kartı/detayı ve profil ekranı için — tekli/çiftler puanını AYRI AYRI
+// (birleşik skillRating değil) döner, mobilin kendi getDisplayRating mantığını tekrarlamasına
+// gerek kalmasın diye. Henüz o disiplinin anketi tamamlanmadıysa null döner ("—" gösterilsin,
+// yanıltıcı "0.00★" değil). UTR dışı dallarda (badminton/masa tenisi/voleybol vb.) ikisi de null.
+export function withDisplayRatings(interest) {
+    if (!interest || !UTR_SUBCATEGORIES.includes(interest.subCategory)) {
+        return { ...interest, singlesDisplayRating: null, doublesDisplayRating: null };
+    }
+    return {
+        ...interest,
+        singlesDisplayRating: interest.assessmentCompleted ? getDisplayRating(interest, interest.subCategory, false) : null,
+        doublesDisplayRating: interest.doublesAssessmentCompleted ? getDisplayRating(interest, interest.subCategory, true) : null,
+    };
+}
+
 // No-show/geç iptal gibi cezalar için Prisma update verisi üretir. UTR dallarında (tenis/padel)
 // doğrudan singlesRating/doublesRating'e DOKUNULMAZ — bir sonraki gerçek maçın recompute'u
 // bunu sessizce silerdi. Bunun yerine ilgili disipline (tekli/çiftler) özel offset alanı

@@ -50,29 +50,31 @@ export function computeOverallScore(selfSkillRating, ratings) {
     };
 }
 
-// Harmanlanmış puanı (computeOverallScore) YENİDEN hesaplayıp UserInterest.skillRating/level/
-// totalPoints'e yazar — bu puan izole değil, oyuncunun GERÇEK derecesi (maç eşleştirme, turnuva
-// derece kısıtlaması vb. buradan okur). Taban her zaman selfAssessmentRating'den (ham kendi anketi
-// puanı) alınır, ÖNCEKİ harmanlanmış skillRating'den değil — aksi halde her yeni coach/teammate
-// değerlendirmesinde puan üst üste binerdi. selfAssessmentRating henüz set edilmemiş eski
-// kayıtlarda (bu özellik gelmeden önce anket doldurmuş oyuncular) mevcut skillRating taban alınır.
-// Padel de UTR-esinli sisteme geçti (bkz. utrRating.js) — bu harmanlanmış puan artık
-// skillRating'e DEĞİL, tekli/çiftler ORTAK "başlangıç puanı"na (seed) yazılır. 10 soru
-// (forehandDrive/volley/çeviklik vb.) format-bağımsız genel beceri traitleri olduğu için
-// (tekli'ye özel ya da çiftler'e özel bir soru yok) aynı harmanlanmış değer hem
-// singlesSeedRating hem doublesSeedRating'e yazılıyor — "beceri tabanı" olarak. Gerçek maç
-// geçmişi varsa singlesRating/doublesRating'e DOKUNULMAZ (bkz. tenis tarafındaki aynı karar,
-// interest.controller.js saveAssessment).
-export async function applyBlendedPadelRating(subjectId) {
+// Harmanlanmış puanı (computeOverallScore) YENİDEN hesaplayıp tekli/çiftler seed'inden BİRİNE
+// yazar — bu puan izole değil, oyuncunun GERÇEK derecesi (maç eşleştirme, turnuva derece
+// kısıtlaması vb. buradan okur). Taban her zaman selfAssessmentRating/doublesSelfAssessmentRating'den
+// (ham kendi anketi puanı, DİSİPLİNE göre) alınır, ÖNCEKİ harmanlanmış seed'den değil — aksi halde
+// her yeni coach/teammate değerlendirmesinde puan üst üste binerdi. Coach/teammate puanları
+// (PadelRating) DİSİPLİNE göre ayrılmıyor — genel beceri traitleri (forehandDrive/volley/çeviklik
+// vb.) olduğu için tekli/çiftler harmanında AYNI coach/teammate satırları kullanılır, sadece "kendi"
+// tarafı (selfBase) tekli/çiftler anketine göre değişir. ratingType='singles' (varsayılan) tekli
+// tarafını, 'doubles' çiftler tarafını günceller — birbirine karışmaz.
+export async function applyBlendedPadelRating(subjectId, ratingType = 'singles') {
     const interest = await prisma.userInterest.findFirst({ where: { userId: subjectId, subCategory: 'padel' } });
     if (!interest || !interest.assessmentCompleted) return null;
-    const selfBase = interest.selfAssessmentRating ?? interest.skillRating;
+    if (ratingType === 'doubles' && !interest.doublesAssessmentCompleted) return null;
+
+    const selfBase = ratingType === 'doubles'
+        ? (interest.doublesSelfAssessmentRating ?? interest.selfAssessmentRating ?? interest.skillRating)
+        : (interest.selfAssessmentRating ?? interest.skillRating);
     const ratings = await prisma.padelRating.findMany({ where: { subjectId } });
     const { overallScore } = computeOverallScore(selfBase, ratings);
     const { level, totalPoints } = calculateLevel(overallScore, 5);
     return prisma.userInterest.update({
         where: { id: interest.id },
-        data: { level, singlesSeedRating: overallScore, doublesSeedRating: overallScore, totalPoints },
+        data: ratingType === 'doubles'
+            ? { doublesSeedRating: overallScore, totalPoints }
+            : { level, singlesSeedRating: overallScore, totalPoints },
     });
 }
 

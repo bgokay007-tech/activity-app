@@ -3,6 +3,13 @@ import { computeOverallScore, computeRaterOverall, resolveRaterRole, QUESTION_FI
 
 const RATER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
+// Coach/teammate puanları disipline göre ayrılmıyor (bkz. padelRating.js) — bir değerlendirme
+// hem tekli hem (doldurulmuşsa) çiftler harmanını etkiler, ikisi de tazelenir.
+async function refreshBothPadelRatings(subjectId) {
+    await applyBlendedPadelRating(subjectId, 'singles');
+    await applyBlendedPadelRating(subjectId, 'doubles');
+}
+
 // GET /padel-rating/:subjectId
 export const getPadelRating = async (req, res, next) => {
     try {
@@ -12,7 +19,7 @@ export const getPadelRating = async (req, res, next) => {
         // Kendi profilini görüntülerken UserInterest.skillRating de tazelenir — böylece formül
         // değişikliği (ör. ağırlık hesaplaması) sonradan yapılsa bile saklı derece puanı bir
         // sonraki değerlendirmeyi beklemeden ekranı her açtığında güncel kalır.
-        if (raterId === subjectId) await applyBlendedPadelRating(subjectId);
+        if (raterId === subjectId) await refreshBothPadelRatings(subjectId);
 
         const interest = await prisma.userInterest.findFirst({ where: { userId: subjectId, subCategory: 'padel' } });
         const selfBase = interest ? (interest.selfAssessmentRating ?? interest.skillRating) : 0;
@@ -88,9 +95,10 @@ export const submitPadelRating = async (req, res, next) => {
             update: data,
         });
 
-        // Antrenör/takım arkadaşı değerlendirmesi de derece puanını (UserInterest.skillRating)
-        // günceller — harmanlanmış puan (kendi %85, antrenör %10, takım arkadaşı %5) gerçek derece.
-        await applyBlendedPadelRating(subjectId);
+        // Antrenör/takım arkadaşı değerlendirmesi de derece puanını günceller — harmanlanmış
+        // puan (kendi %85, antrenör %10, takım arkadaşı %5) gerçek derece. Disipline göre
+        // ayrılmadığı için hem tekli hem çiftler (doldurulmuşsa) tazelenir.
+        await refreshBothPadelRatings(subjectId);
 
         const interest = await prisma.userInterest.findFirst({ where: { userId: subjectId, subCategory: 'padel' } });
         const selfBase = interest ? (interest.selfAssessmentRating ?? interest.skillRating) : 0;
