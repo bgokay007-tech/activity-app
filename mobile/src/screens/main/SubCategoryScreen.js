@@ -18838,7 +18838,11 @@ const RATING_REC = [
 
 function RatingInfoModal({ visible, onClose, cfg, sub }) {
     const isVolleyball = sub === 'volleyball';
-    const [section, setSection] = useState(isVolleyball ? 'kurallar' : 'dominant');
+    // Tenis/Padel artık sabit tablolu eski Elo sistemini değil, UTR benzeri (son 30 maçın
+    // ağırlıklı ortalaması) sistemi kullanıyor — bkz. backend/src/utils/utrRating.js. Badminton/
+    // masa tenisi/voleybol hâlâ eski sabit tabloyu kullandığı için onların sekmeleri değişmedi.
+    const isUtrSport = sub === 'tennis' || sub === 'padel';
+    const [section, setSection] = useState(isVolleyball ? 'kurallar' : isUtrSport ? 'sistem' : 'dominant');
     const rows = section === 'dominant' ? RATING_DOM : RATING_REC;
     // Tenis skoru (6-0 vb.) voleybolde anlamsız — voleybolde dominantlık SET FARKINA göre
     // belirlenir (bkz. backend applyCompetitivePoints): fark ≥2 set dominant, fark 1 set rekabetçi.
@@ -18852,12 +18856,12 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                 <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, maxHeight:'92%', paddingBottom:24 }}>
                     {/* Başlık */}
                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', padding:16, borderBottomWidth:1, borderColor: colors.border }}>
-                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{isVolleyball ? '🏐 Voleybol Kuralları & Puan Sistemi' : '📊 Rekabetçi Maç Puan Sistemi'}</Text>
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{isVolleyball ? '🏐 Voleybol Kuralları & Puan Sistemi' : isUtrSport ? '📊 Derece Puanı Nasıl İşliyor?' : '📊 Rekabetçi Maç Puan Sistemi'}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:18, fontWeight:'700' }}>✕</Text></TouchableOpacity>
                     </View>
 
                     {/* Açıklama */}
-                    {section !== 'kalibrasyon' && section !== 'kurallar' && (
+                    {section !== 'kalibrasyon' && section !== 'kurallar' && !isUtrSport && (
                         <View style={{ paddingHorizontal:14, paddingTop:10, paddingBottom:8 }}>
                             <Text style={{ color: colors.textSecondary, fontSize:12, lineHeight:18 }}>
                                 Puanlar oyuncular arasındaki <Text style={{ color:'#fbbf24', fontWeight:'800' }}>FARK</Text>'a ve maç tipine göre değişir.{'\n'}
@@ -18867,11 +18871,12 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                         </View>
                     )}
 
-                    {/* Segment: (Voleybolde ek "Kurallar") Dominant / Rekabetçi / Kalibrasyon */}
+                    {/* Segment: (Voleybolde ek "Kurallar") Tenis/Padel'de Sistem/Puan, digerlerinde Dominant/Rekabetçi — hepsinde Kalibrasyon */}
                     <View style={{ flexDirection:'row', gap:3, marginHorizontal:14, marginBottom:10, marginTop: (section === 'kalibrasyon' || section === 'kurallar') ? 10 : 0, flexWrap:'wrap' }}>
                         {[
                             ...(isVolleyball ? [['kurallar','📋 Kurallar']] : []),
-                            ['dominant','🏆 Dominant'], ['rekabetci','⚔️ Rekabetçi'], ['kalibrasyon','🎯 Kalibrasyon'],
+                            ...(isUtrSport ? [['sistem','📈 Sistem'], ['kazanKaybet','⚖️ Puan']] : [['dominant','🏆 Dominant'], ['rekabetci','⚔️ Rekabetçi']]),
+                            ['kalibrasyon','🎯 Kalibrasyon'],
                         ].map(([key, lbl]) => (
                             <TouchableOpacity key={key} onPress={() => setSection(key)}
                                 style={{ flex:1, minWidth:'23%', paddingVertical:7, borderRadius:10, alignItems:'center', backgroundColor: section===key ? cfg.color : colors.surface2, borderWidth:1, borderColor: section===key ? cfg.color : colors.border }}>
@@ -18988,6 +18993,99 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                                 <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'800', marginBottom:6 }}>💡 Neden böyle?</Text>
                                 <Text style={{ color: colors.textMuted, fontSize:12, lineHeight:19 }}>
                                     Anket cevapları oyuncunun gerçek seviyesini her zaman tam yansıtmayabilir. Bu koruma sistemi, yanlış derece ile başlayan oyuncuların rakiplerini etkilemesini önler ve tüm oyuncular için adil bir rekabet ortamı sağlar.
+                                </Text>
+                            </View>
+                        </ScrollView>
+                    ) : isUtrSport && section === 'sistem' ? (
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal:14 }}>
+                            <View style={{ backgroundColor:'#38bdf812', borderRadius:12, borderWidth:1, borderColor:'#38bdf840', padding:12, marginBottom:12 }}>
+                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
+                                    <Text style={{ fontSize:18 }}>🧮</Text>
+                                    <Text style={{ color:'#38bdf8', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Sabit Tablo Yok, Sürekli Güncellenen Ortalama</Text>
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
+                                    Derece puanın, eski sistemdeki gibi sabit bir puan tablosuna göre değil, <Text style={{ color:'#fff', fontWeight:'800' }}>son 12 ay içindeki en fazla 30 maçının ağırlıklı ortalamasına</Text> göre sürekli yeniden hesaplanır. Yani puanın tek bir maçla değil, güncel performansınla şekillenir.
+                                </Text>
+                            </View>
+
+                            <View style={{ backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, padding:12, marginBottom:12 }}>
+                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
+                                    <Text style={{ fontSize:18 }}>🎾</Text>
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Maç Performans Puanı</Text>
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
+                                    Her maç, rakibine göre sergilediğin performansı yansıtan bir puana çevrilir. Rakibini <Text style={{ color:'#4ade80', fontWeight:'800' }}>ne kadar farklı skorla</Text> (ör. 6-1, 6-0) yenersen, o maçtaki performans puanın o kadar yüksek çıkar. Yakın skorla kazanmak (7-6, 6-4) ya da kaybetmek, performansını rakibinin puanına daha yakın tutar.
+                                </Text>
+                            </View>
+
+                            <View style={{ backgroundColor:'#fbbf2412', borderRadius:12, borderWidth:1, borderColor:'#fbbf2440', padding:12, marginBottom:12 }}>
+                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
+                                    <Text style={{ fontSize:18 }}>⚖️</Text>
+                                    <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Her Maç Aynı Ağırlıkta Değil</Text>
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
+                                    • <Text style={{ color:'#fff', fontWeight:'800' }}>Yakın zamanda</Text> oynanan maçlar daha ağır basar — 12 aydan eski bir maçın etkisi tamamen sıfırlanır.{'\n'}
+                                    • <Text style={{ color:'#fff', fontWeight:'800' }}>3 set gibi uzun</Text> süren maçlar, tek setlik bir maça göre daha belirleyicidir.{'\n'}
+                                    • <Text style={{ color:'#fff', fontWeight:'800' }}>Az maç oynamış</Text> (güvenilirliği henüz düşük) bir rakibe karşı alınan sonucun etkisi azaltılır.
+                                </Text>
+                            </View>
+
+                            <View style={{ backgroundColor:'#a855f712', borderRadius:12, borderWidth:1, borderColor:'#a855f740', padding:12, marginBottom:16 }}>
+                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
+                                    <Text style={{ fontSize:18 }}>🎾🆚🥎</Text>
+                                    <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Tekli / Çiftler Ayrı Puanlanır</Text>
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
+                                    Tekli ve çiftler maçlarının derece puanı tamamen ayrı hesaplanır ve gösterilir — tekilerde iyi olman çiftler puanını, çiftlerde iyi olman da tekiler puanını doğrudan etkilemez.
+                                </Text>
+                            </View>
+                        </ScrollView>
+                    ) : isUtrSport && section === 'kazanKaybet' ? (
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal:14 }}>
+                            <View style={{ backgroundColor:'#fbbf2412', borderRadius:12, borderWidth:1, borderColor:'#fbbf2440', padding:12, marginBottom:12 }}>
+                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
+                                    <Text style={{ fontSize:18 }}>⚖️</Text>
+                                    <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Sabit "+X / -Y" Tablosu Yok</Text>
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
+                                    Kazandığında ne kadar puan alacağın ya da kaybettiğinde ne kadar kaybedeceğin sabit değildir — aşağıdaki faktörlere göre değişir.
+                                </Text>
+                            </View>
+
+                            <View style={{ backgroundColor:'#4ade8012', borderRadius:12, borderWidth:1, borderColor:'#4ade8040', padding:12, marginBottom:12 }}>
+                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
+                                    <Text style={{ fontSize:18 }}>📈</Text>
+                                    <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Güçlü Rakibi Yenersen</Text>
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
+                                    Senden <Text style={{ color:'#fff', fontWeight:'800' }}>yüksek derece puanlı</Text> bir rakibi yenmek beklenenin üzerinde bir sonuç olduğu için puanını belirgin şekilde yükseltir. Ne kadar farklı skorla kazanırsan (ör. 6-1, 6-2), etkisi o kadar büyük olur.
+                                </Text>
+                            </View>
+
+                            <View style={{ backgroundColor:'#ef444412', borderRadius:12, borderWidth:1, borderColor:'#ef444440', padding:12, marginBottom:12 }}>
+                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
+                                    <Text style={{ fontSize:18 }}>📉</Text>
+                                    <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Zayıf Rakibe Kaybedersen</Text>
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
+                                    Senden <Text style={{ color:'#fff', fontWeight:'800' }}>düşük derece puanlı</Text> bir rakibe kaybetmek de beklenenin dışında bir sonuç olduğu için puanını belirgin şekilde düşürür.
+                                </Text>
+                            </View>
+
+                            <View style={{ backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, padding:12, marginBottom:12 }}>
+                                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
+                                    <Text style={{ fontSize:18 }}>🤏</Text>
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Beklenen Sonuçların Etkisi Az</Text>
+                                </View>
+                                <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
+                                    Yaklaşık aynı seviyedeki bir rakibe karşı, tahmin edilebilir/yakın bir sonuç (kazan ya da kaybet) puanını çok az değiştirir. <Text style={{ color:'#fff', fontWeight:'800' }}>Sürpriz sonuçlar</Text> puanını çok daha fazla değiştirir.
+                                </Text>
+                            </View>
+
+                            <View style={{ backgroundColor:'#a855f712', borderRadius:12, borderWidth:1, borderColor:'#a855f740', padding:12, marginBottom:16 }}>
+                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'800', marginBottom:6 }}>💡 Tek maç her şeyi değiştirmez</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:12, lineHeight:19 }}>
+                                    Puanın son 30 maçının ortalamasına dayandığı için tek bir maç sonucu derece puanını aniden çok fazla değiştirmez — puanın zamanla, oynadığın maçların genel gidişatını yansıtır.
                                 </Text>
                             </View>
                         </ScrollView>
