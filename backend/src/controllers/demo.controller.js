@@ -176,13 +176,17 @@ export const seedOneTournamentJoin = async (req, res, next) => {
         // UTR-esinli tenis sistemi (bkz. utrRating.js) tekli/çiftler puanını singlesRating/
         // doublesRating'ten (seed'e düşerek) okuyor — demo botlar için de seed alanları
         // dolmazsa gerçek eşleşme/derece kontrollerinde (getDisplayRating) 0 puanlı görünürlerdi.
+        // doublesAssessmentCompleted da true olmalı — tenis çiftlerde artık AYRI bir anket
+        // gerekiyor (bkz. requireActiveInterest), yoksa demo botlar çiftler test ilanlarına
+        // hiç katılamazdı.
         await prisma.userInterest.upsert({
             where: { userId_category_subCategory: { userId: user.id, category: 'SPORTS', subCategory: 'tennis' } },
-            update: { skillRating: demo.skillRating, level: demo.level, wins: demo.wins, losses: demo.losses, assessmentCompleted: true, singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date() },
+            update: { skillRating: demo.skillRating, level: demo.level, wins: demo.wins, losses: demo.losses, assessmentCompleted: true, singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date(), doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() },
             create: {
                 userId: user.id, category: 'SPORTS', subCategory: 'tennis',
                 skillRating: demo.skillRating, level: demo.level, wins: demo.wins, losses: demo.losses, assessmentCompleted: true,
                 singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date(),
+                doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date(),
             },
         });
 
@@ -286,17 +290,22 @@ async function ensureDemoRivalPlayer(demo, subCategory) {
     }
     // bkz. seedOneTournamentJoin'deki aynı not — UTR dallarında (tennis/padel) gerçek
     // eşleşme/derece kontrolleri singlesRating/doublesRating'ten (seed'e düşerek) okunuyor.
+    // Tenis'te ayrıca doublesAssessmentCompleted true olmalı — yoksa demo botlar artık ayrı
+    // olan çiftler anketini tamamlamamış sayılıp çiftler test ilanlarına katılamazdı.
     const isUtrSubCategory = subCategory === 'tennis' || subCategory === 'padel';
+    const isTennis = subCategory === 'tennis';
     await prisma.userInterest.upsert({
         where: { userId_category_subCategory: { userId: user.id, category: 'SPORTS', subCategory } },
         update: {
             skillRating: demo.skillRating, level: levelForRating(demo.skillRating), assessmentCompleted: true,
             ...(isUtrSubCategory && { singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date() }),
+            ...(isTennis && { doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() }),
         },
         create: {
             userId: user.id, category: 'SPORTS', subCategory,
             skillRating: demo.skillRating, level: levelForRating(demo.skillRating), assessmentCompleted: true,
             ...(isUtrSubCategory && { singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date() }),
+            ...(isTennis && { doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() }),
         },
     });
     return user;
