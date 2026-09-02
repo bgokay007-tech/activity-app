@@ -80,14 +80,16 @@ function utrDisplayRating(interest, sub, isDoubles) {
 // Kullanıcı adının yanına eklenecek hazır metni üretir — tenis/padel'de "  T ELO 2.75" gibi
 // formata özel etiketli, diğer dallarda eski "  2.75 ★" gösterimi aynen korunur.
 function eloSuffix(interest, sub, isDoubles, lang) {
-    if (!interest) return '';
     if (!UTR_MOBILE_SUBS.has(sub)) {
-        return interest.skillRating != null ? `  ${Number(interest.skillRating).toFixed(2)} ★` : '';
+        return interest?.skillRating != null ? `  ${Number(interest.skillRating).toFixed(2)} ★` : '';
     }
+    // Kullanıcı raporu: hiç değerlendirme yapmamış (singlesRating/singlesSeedRating ikisi de
+    // null) biri için burası tamamen BOŞ gösteriliyordu — ilan sahibi "ELO gözükmüyor, bug var"
+    // sanıyordu, oysa o kişinin gerçekten hiç puanı yoktu. Artık "T ELO -" gibi açıkça
+    // etiketlenmiş bir yer tutucu gösteriliyor, sessizce kaybolmuyor.
     const val = utrDisplayRating(interest, sub, isDoubles);
-    if (val == null) return '';
     const label = lang === 'tr' ? (isDoubles ? 'Ç ELO' : 'T ELO') : (isDoubles ? 'D ELO' : 'S ELO');
-    return `  ${label} ${val.toFixed(2)}`;
+    return `  ${label} ${val != null ? val.toFixed(2) : '-'}`;
 }
 // Kadro/digimon kartlarında — sunucu zaten formata-doğru NUMERİK değeri hesaplayıp
 // gönderdiği (bkz. backend teamDisplayRating) yerlerde, burada sadece doğru ETİKET
