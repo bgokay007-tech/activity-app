@@ -143,6 +143,36 @@ export async function cleanupExpiredRivals() {
                 ).catch(() => {});
             }
         }
+        // Esnek saatli MATCHED maçlar: 24 saat içinde tarih/saat anlaşılamadıysa otomatik silinir.
+        // Kullanıcı raporu: bu temizlik hem burada HEM de getUpcomingMatches/getMyUpcomingMatches
+        // uç noktalarının kendi içinde AYRI AYRI yapılıyordu — uygulama açılışında bu uç noktalar
+        // paralel çağrılınca (ör. bir sekme + profildeki "yaklaşan maçlarım" widget'ı aynı anda)
+        // ikisi de aynı süresi geçmiş maçı silmeden önce yakalayıp AYNI bildirimi iki kez
+        // gönderebiliyordu ("son 4 ilanınız kaldırıldı, 2'si tekrar eden"). Artık TEK yer burası —
+        // diğer iki uç nokta artık sadece listeden HARİÇ TUTUYOR, silme/bildirim yapmıyor.
+        const flexMatched = await prisma.activityRequest.findMany({
+            where: { status: 'MATCHED', flexibleSchedule: true, matchDate: null, schedulingDeadline: { not: null } },
+            select: { id: true, senderId: true, category: true, subCategory: true, schedulingDeadline: true, participants: true },
+        });
+        const flexExpired = flexMatched.filter(m => now > new Date(m.schedulingDeadline));
+        if (flexExpired.length > 0) {
+            await prisma.activityRequest.deleteMany({ where: { id: { in: flexExpired.map(m => m.id) } } });
+            console.log(`[cleanup] Deleted ${flexExpired.length} expired flexible-schedule matched match(es)`);
+            for (const m of flexExpired) {
+                const parts = Array.isArray(m.participants) ? m.participants : [];
+                const allIds = [...new Set([m.senderId, ...parts.filter(p => p?.id).map(p => p.id)])];
+                for (const uid of allIds) {
+                    emitToUser(uid, 'rivalDeleted', { rivalId: m.id, subCategory: m.subCategory });
+                    createNotification(
+                        uid, 'MATCH_EXPIRED',
+                        '⏰ Esnek Maç Silindi',
+                        `${m.subCategory} esnek maçında 24 saat içinde tarih/saat/yer belirlenemediği için ilan otomatik silindi.`,
+                        { category: m.category, subCategory: m.subCategory },
+                        'high',
+                    ).catch(() => {});
+                }
+            }
+        }
     } catch (err) {
         console.error('[cleanup] Error:', err.message);
     }

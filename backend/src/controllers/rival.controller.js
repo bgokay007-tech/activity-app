@@ -2681,11 +2681,18 @@ export const getRivalRequests = async (req, res, next) => {
         const cat = category ? category.toUpperCase() : null;
         const catWhere = cat ? { category: cat } : {};
 
-        // Auto-delete OPEN listings whose match time has already passed (not enough players)
+        // Kullanıcı raporu: burada AYRICA silinip bildirim gönderiliyordu — cleanupRivals.js'teki
+        // cron (her 5 dk) da AYNI OPEN+süresi-geçmiş ilanları kendi başına yakalayıp bildirim
+        // gönderiyordu. Uygulama açılışında birden fazla ekran bu uç noktayı (farklı subCategory
+        // parametreleriyle ama HEPSİ tüm ilanları global taradığı için) paralel çağırınca, ikisi
+        // de aynı ilanı silinmeden önce yakalayıp AYNI "İlanınız Kaldırıldı" bildirimini iki kez
+        // gönderebiliyordu. Artık burası SADECE listeden hariç tutuyor (silme/bildirim YOK) —
+        // tek yetkili yer cleanupRivals.js cron'u, bildirim en fazla ~5 dk gecikmeyle ama TEK
+        // sefer gider.
         const now = new Date();
         const expiryCandidates = await prisma.activityRequest.findMany({
             where: { status: 'OPEN', matchDate: { lte: now }, matchTime: { not: null } },
-            select: { id: true, senderId: true, category: true, subCategory: true, matchDate: true, matchTime: true },
+            select: { id: true, matchDate: true, matchTime: true },
         });
         const expired = expiryCandidates.filter(r => {
             if (!r.matchTime || !r.matchDate) return false;
@@ -2694,19 +2701,7 @@ export const getRivalRequests = async (req, res, next) => {
             const matchUTC = new Date(new Date(r.matchDate).getTime() + (h * 60 + m) * 60000 - 3 * 3600000);
             return now >= matchUTC;
         });
-        if (expired.length > 0) {
-            await prisma.activityRequest.deleteMany({ where: { id: { in: expired.map(e => e.id) } } });
-            for (const e of expired) {
-                emitToUser(e.senderId, 'rivalDeleted', { rivalId: e.id, subCategory: e.subCategory });
-                createNotification(
-                    e.senderId,
-                    'MATCH_EXPIRED',
-                    '⏰ İlanınız Kaldırıldı',
-                    `${subCategoryTR(e.subCategory)} ilanınız için yeterli oyuncu bulunamadı ve maç saati geldiği için otomatik kaldırıldı.`,
-                    { category: e.category, subCategory: e.subCategory },
-                ).catch(() => {});
-            }
-        }
+        const expiredIds = expired.map(e => e.id);
 
         // Location filter — matches city/district against location or courtAddress
         const locFilters = [];
@@ -2738,6 +2733,7 @@ export const getRivalRequests = async (req, res, next) => {
                 ...timeWhere,
                 ...(locFilters.length > 0 && { OR: locFilters }),
                 status: 'OPEN',
+                ...(expiredIds.length > 0 && { id: { notIn: expiredIds } }),
                 AND: [
                     { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
                 ],
@@ -4630,27 +4626,19 @@ export const getUpcomingMatches = async (req, res, next) => {
             const dl = getMatchDeadline(m);
             return dl && now > dl && !m.score;
         });
-        // Auto-delete flexible MATCHED matches whose scheduling deadline passed without agreeing on date
+        // Kullanıcı raporu: esnek MATCHED maçların süresi geçince silinmesi + bildirimi burada
+        // VE getMyUpcomingMatches'te AYRI AYRI yapılıyordu — uygulama açılışında ikisi paralel
+        // çağrılınca aynı maç için AYNI bildirim iki kez gidebiliyordu ("2'si tekrar eden").
+        // Artık silme/bildirim TEK yerde, cleanupRivals.js cron'unda (her 5 dk) — burası sadece
+        // listeden hariç tutuyor, DB'ye dokunmuyor.
         const scheduleExpired = matches.filter(m =>
             m.flexibleSchedule && m.schedulingDeadline && now > new Date(m.schedulingDeadline) && !m.matchDate
         );
-        const allExpiredIds = [...new Set([...expired.map(m => m.id), ...scheduleExpired.map(m => m.id)])];
-        if (allExpiredIds.length > 0) {
-            await prisma.activityRequest.deleteMany({ where: { id: { in: allExpiredIds } } });
-        }
-        for (const m of scheduleExpired) {
-            const parts = Array.isArray(m.participants) ? m.participants : [];
-            const allIds = [m.senderId, ...parts.filter(p => p?.id).map(p => p.id)];
-            for (const uid of allIds) {
-                createNotification(uid, 'MATCH_EXPIRED',
-                    '⏰ Maç Silindi',
-                    `${subCategoryTR(m.subCategory)} esnek maçında 24 saat içinde tarih/saat/yer belirlenemediği için ilan otomatik silindi.`,
-                    { subCategory: m.subCategory }
-                ).catch(() => {});
-            }
+        if (expired.length > 0) {
+            await prisma.activityRequest.deleteMany({ where: { id: { in: expired.map(m => m.id) } } });
         }
 
-        const allExpiredSet = new Set(allExpiredIds);
+        const allExpiredSet = new Set([...expired.map(m => m.id), ...scheduleExpired.map(m => m.id)]);
         const active = matches.filter(m => !allExpiredSet.has(m.id));
 
         // Enrich with skill ratings — isolated so failure doesn't break the main response
@@ -6973,26 +6961,12 @@ export const getMyUpcomingMatches = async (req, res, next) => {
         });
         const myId = req.userId;
         const now = new Date();
-        // Auto-delete flexible matches whose scheduling deadline passed
+        // Kullanıcı raporu: bu silme/bildirim getUpcomingMatches'te de AYRI AYRI yapılıyordu —
+        // ikisi paralel çağrılınca aynı maç için aynı bildirim iki kez gidebiliyordu. Artık
+        // silme/bildirim TEK yerde, cleanupRivals.js cron'unda — burası sadece hariç tutuyor.
         const schedExpired = all.filter(m =>
             m.flexibleSchedule && m.schedulingDeadline && now > new Date(m.schedulingDeadline) && !m.matchDate
         );
-        if (schedExpired.length > 0) {
-            await prisma.activityRequest.deleteMany({ where: { id: { in: schedExpired.map(m => m.id) } } });
-            for (const m of schedExpired) {
-                const parts = Array.isArray(m.participants) ? m.participants : [];
-                const allIds = [...new Set([m.senderId, ...parts.filter(p => p?.id).map(p => p.id)])];
-                for (const uid of allIds) {
-                    emitToUser(uid, 'rivalDeleted', { rivalId: m.id, subCategory: m.subCategory });
-                    createNotification(
-                        uid, 'MATCH_EXPIRED',
-                        '⏰ Esnek Maç Silindi',
-                        `${subCategoryTR(m.subCategory)} esnek maçında 24 saat içinde tarih/saat/yer belirlenemediği için ilan otomatik silindi.`,
-                        { subCategory: m.subCategory }
-                    ).catch(() => {});
-                }
-            }
-        }
         const schedExpiredIds = new Set(schedExpired.map(m => m.id));
         // Takım sporlarında (voleybol) kurucunun eklediği takım arkadaşları (senderTeam)
         // buraya hiç dahil edilmiyordu — kabul ettikleri bir maç kendi "Yaklaşan Maçlar"
