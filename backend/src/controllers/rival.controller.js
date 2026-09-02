@@ -1492,6 +1492,34 @@ export const updateRivalRequest = async (req, res, next) => {
                     return res.status(400).json({ message: `Bu kısıtlamayı koyamazsınız: en az ${effMin}★ istiyorsunuz ama kendi puanınız ${creatorRating.toFixed(2)}★.` });
                 if (effMax !== null && creatorRating > effMax)
                     return res.status(400).json({ message: `Bu kısıtlamayı koyamazsınız: en fazla ${effMax}★ kabul ediyorsunuz ama kendi puanınız ${creatorRating.toFixed(2)}★.` });
+
+                // Kullanıcı isteği: derece kısıtlaması eklenince/sıkılaştırılınca, zaten
+                // bekleyen davet/başvurular varsa ve onlar yeni kısıtlamaya uymuyorsa genel
+                // "İşlem başarısız" yerine kimlerin uymadığını açıkça söyleyen bir hata dönsün
+                // — ilan sahibi önce o davetleri/başvuruları geri çekmeli, kimse otomatik
+                // reddedilmiyor (genderCountMode kontrolündeki aynı desen).
+                const pendingReqs = await prisma.rivalJoinRequest.findMany({
+                    where: { rivalId: id, status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } },
+                    include: { user: { select: { id: true, username: true, fullName: true } } },
+                });
+                if (pendingReqs.length > 0) {
+                    const isDoubles = isDoublesFormat({ ...rival, matchType: matchType !== undefined ? matchType.toUpperCase() : rival.matchType });
+                    const pendingInterests = await prisma.userInterest.findMany({
+                        where: { userId: { in: pendingReqs.map(r => r.userId) }, category: rival.category, subCategory: rival.subCategory },
+                    });
+                    const nonCompliant = pendingReqs
+                        .map(r => {
+                            const rating = getDisplayRating(pendingInterests.find(i => i.userId === r.userId), rival.subCategory, isDoubles);
+                            return { name: r.user?.fullName || r.user?.username || 'Bilinmeyen kullanıcı', rating };
+                        })
+                        .filter(p => (effMin !== null && p.rating < effMin) || (effMax !== null && p.rating > effMax));
+                    if (nonCompliant.length > 0) {
+                        const names = nonCompliant.map(p => `${p.name} (${p.rating.toFixed(2)}★)`).join(', ');
+                        return res.status(400).json({
+                            message: `Şu davet/başvuru sahibi kullanıcı(lar) belirlemek istediğiniz derece kısıtlamasına uymamaktadır: ${names}. Bu kısıtlamayı uygulayabilmek için önce ilgili davetlerinizi/başvurularınızı geri çekmeniz gerekmektedir.`,
+                        });
+                    }
+                }
             }
         }
 
