@@ -1799,9 +1799,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 // (onRefresh() tüm listeyi yeniden çekene kadar beklemeden).
                 if (Array.isArray(data?.request?.joinRequests)) setLocalJoinRequests(data.request.joinRequests);
                 onRefresh();
-                // Kullanıcı isteği (güncel): "tek tıklamamda davet atsın" — OK'a basılana kadar
-                // bekleten onay yazısı ikinci bir dokunuş gerektiriyormuş hissi veriyordu,
-                // kaldırıldı (inviteToDoubleSlot/onInviteDoubleSlot ile aynı desen).
+                // Kullanıcı isteği: kadro kartındaki formadan davet gönderilince de (arama
+                // penceresinden gönderilen davetle aynı şekilde) küçük bir onay yazısı çıksın —
+                // kullanıcı raporu: bu geri bildirim olmayınca "hiçbir şey olmadı" sanıp
+                // tekrar deniyordu, geri getirildi.
+                Alert.alert('', t.inviteSentToMsg(playerDisplayName(u)));
             })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
@@ -1810,15 +1812,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // isim yazıp doğrudan davet göndermek için — inviteToTeamSlot'un slot-özel karşılığı
     // (bkz. backend inviteToRival'daki isDoubleSlotInvite).
     const inviteToDoubleSlot = (u, slot) => {
-        // Kullanıcı isteği: "tek tıklamamda davet atsın" — başarı sonrası burada duran
-        // Alert.alert (OK'a basılana kadar bekleten) ikinci bir dokunuş gerektiriyormuş
-        // hissi veriyordu. UpcomingCard'daki aynı akış (onInviteDoubleSlot) zaten sessiz
-        // başarı + "Gönderilen Davetler" listesinin anında güncellenmesiyle yetiniyor,
-        // burası da aynı desene getirildi.
         api.post(`/rivals/${item.id}/invite`, { userId: u.id, slot })
             .then(({ data }) => {
                 if (Array.isArray(data?.request?.joinRequests)) setLocalJoinRequests(data.request.joinRequests);
                 onRefresh();
+                Alert.alert('', t.inviteSentToMsg(playerDisplayName(u)));
             })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
@@ -5989,13 +5987,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // Digimon kart'taki boş bir formaya yazıp öneriden tıklayınca — voleybolün onInviteSlot'unun
     // birebir DOUBLE karşılığı (bkz. backend inviteToRival'daki isDoubleSlotInvite).
     const onInviteDoubleSlot = (u, slot) => {
-        // Kullanıcı isteği: "tek tıklamamda davet atsın" — başarı sonrası duran Alert.alert
-        // (OK'a basılana kadar bekleten) ikinci bir dokunuş gerektiriyormuş hissi veriyordu,
-        // kaldırıldı (RivalDetailModal'daki inviteToDoubleSlot ile aynı desen).
         api.post(`/rivals/${match.id}/invite`, { userId: u.id, slot })
             .then(({ data }) => {
                 if (Array.isArray(data?.request?.joinRequests)) setLocalSubRequests(data.request.joinRequests);
                 onRefresh();
+                Alert.alert('', t.inviteSentToMsg(playerDisplayName(u)));
             })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
@@ -7304,12 +7300,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
                             onInviteSlot={(u, side, slotIndex) => {
-                                // Kullanıcı isteği: "tek tıklamamda davet atsın" — bekleten onay
-                                // yazısı kaldırıldı, diğer forma-davet akışlarıyla aynı desen.
                                 api.post(`/rivals/${match.id}/invite`, { userId: u.id, side, slotIndex })
                                     .then(({ data }) => {
                                         if (Array.isArray(data?.request?.joinRequests)) setLocalSubRequests(data.request.joinRequests);
                                         onRefresh();
+                                        Alert.alert('', t.inviteSentToMsg(playerDisplayName(u)));
                                     })
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
@@ -11029,6 +11024,15 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                             // çalışıyor, onPressIn (dokunuşun EN başı) ile aynı zamanlamada
                             // garantili tetiklenmeyebiliyor — "ilk dokunuş sadece klavyeyi
                             // indiriyor" sorununun asıl kaynağı bu zamanlama uyuşmazlığıydı.
+                            // Kullanıcı raporu (TEKRAR): sadece keyboardShouldPersistTaps="always" +
+                            // onPress bazı cihazlarda YETMİYOR, ilk dokunuş hâlâ sadece klavyeyi
+                            // kapatıp seçimi 2. dokunuşa bırakıyor. onStartShouldSetResponderCapture
+                            // ile dokunuşun EN başında (native klavye-kapatma davranışından önce)
+                            // klavye burada elle kapatılıyor ama responder ÇALINMIYOR (false
+                            // dönüyor) — böylece AYNI dokunuşun onPress'i de normal şekilde
+                            // tetiklenmeye devam ediyor (bkz. daha önce aynı sorun için kullanılan
+                            // teknik). Klavye SADECE öneriye dokununca kapanıyor, yazarken asla.
+                            onStartShouldSetResponderCapture={() => { Keyboard.dismiss(); return false; }}
                             onPress={() => {
                                 // Formanın cinsiyet kısıtlaması varsa (genderReq), seçilen kişinin
                                 // cinsiyeti uymuyorsa daveti/atamayı hiç başlatmadan uyar — backend
