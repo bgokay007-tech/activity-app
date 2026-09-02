@@ -2,16 +2,42 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     StatusBar, Platform, Alert, ActivityIndicator, Modal, Image,
-    TextInput, Switch, FlatList, BackHandler, KeyboardAvoidingView, Animated,
+    TextInput, Switch, FlatList, BackHandler, KeyboardAvoidingView, Animated, Linking,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
-import { logout } from '../../store/slices/authSlice';
+import { logout, setUser } from '../../store/slices/authSlice';
 import api from '../../services/api';
 import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import TimePickerModal from '../../components/TimePickerModal';
+import ExtraNotifyChannelModal from '../../components/ExtraNotifyChannelModal';
+
+// BusinessHomeScreen hiçbir yerde i18n (useT) kullanmıyor, tamamen sabit Türkçe — paylaşılan
+// ExtraNotifyChannelModal'a bu yüzden gerçek t yerine aynı anahtarları taşıyan sabit bir nesne
+// veriliyor (bkz. ProfileScreen.js'deki gerçek i18n kullanımıyla aynı bileşen).
+const NOTIFY_MODAL_T = {
+    extraNotifyTitle: 'Otomatik Bildirim Kanalı',
+    extraNotifyDesc: 'Uygulama içi bildirimlere ek olarak, işletmenizle ilgili bildirimleri (yeni rezervasyon vb.) seçtiğiniz kanaldan da otomatik alın.',
+    extraNotifyOff: 'Kapalı',
+    extraNotify_WHATSAPP: 'WhatsApp',
+    extraNotify_TELEGRAM: 'Telegram',
+    extraNotify_SMS: 'SMS',
+    extraNotify_EMAIL: 'E-posta',
+    extraNotifyPhoneLabel: 'Telefon Numarası',
+    extraNotifyPhonePh: '5xx xxx xx xx',
+    extraNotifyPhoneHint: 'Boş bırakırsanız hesap telefonunuz kullanılır.',
+    extraNotifyEmailLabel: 'E-posta Adresi',
+    extraNotifyEmailPh: 'ornek@eposta.com',
+    extraNotifyEmailHint: 'Boş bırakırsanız hesap e-postanız kullanılır.',
+    extraNotifyTelegramHint: 'Telegram botunu başlatıp hesabınızı bağlayın.',
+    extraNotifyTelegramLink: "Telegram'ı Bağla",
+    extraNotifyTelegramLinked: 'Telegram bağlı',
+    extraNotifyTelegramUnlink: 'Bağlantıyı Kaldır',
+    extraNotifyTelegramNotReady: 'Telegram entegrasyonu henüz aktif değil.',
+    saveBtn: 'Kaydet', error: 'Hata', info: 'Bilgi', actionFailed: 'İşlem başarısız',
+};
 
 const BIZ_COLOR = '#f59e0b';
 const BIZ_LIGHT = '#fbbf24';
@@ -5157,6 +5183,49 @@ export default function BusinessHomeScreen({ navigation, route }) {
         setIbanHolder(data.businessIbanHolder);
     };
 
+    // Otomatik bildirim kanalı (WhatsApp/Telegram/SMS/E-posta) — bkz. ProfileScreen.js'deki
+    // aynı özellik, aynı endpoint/alanlar (User.extraNotifyChannel işletme hesabında da geçerli).
+    const [notifyChannelModalOpen, setNotifyChannelModalOpen] = useState(false);
+    const [savingNotifyChannel, setSavingNotifyChannel] = useState(false);
+    const [linkingTelegram, setLinkingTelegram] = useState(false);
+
+    const openNotifyChannelModal = async () => {
+        setNotifyChannelModalOpen(true);
+        try {
+            const { data } = await api.get('/users/me');
+            dispatch(setUser({ ...user, ...data }));
+        } catch { /* sessizce yut */ }
+    };
+
+    const saveNotifyChannel = async (channel, phone, email) => {
+        setSavingNotifyChannel(true);
+        try {
+            const { data } = await api.patch('/users/me/notify-channel', { channel, phone, email });
+            dispatch(setUser({ ...user, ...data }));
+            setNotifyChannelModalOpen(false);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'İşlem başarısız'); }
+        setSavingNotifyChannel(false);
+    };
+
+    const linkTelegram = async () => {
+        setLinkingTelegram(true);
+        try {
+            const { data } = await api.post('/telegram/link-token');
+            if (!data.botConfigured || !data.deepLink) Alert.alert('Bilgi', 'Telegram entegrasyonu henüz aktif değil.');
+            else Linking.openURL(data.deepLink);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'İşlem başarısız'); }
+        setLinkingTelegram(false);
+    };
+
+    const unlinkTelegram = async () => {
+        setLinkingTelegram(true);
+        try {
+            await api.post('/telegram/unlink');
+            dispatch(setUser({ ...user, telegramLinked: false }));
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'İşlem başarısız'); }
+        setLinkingTelegram(false);
+    };
+
     const handleLogout = () => {
         Alert.alert('Çıkış Yap', 'Hesabınızdan çıkmak istiyor musunuz?', [
             { text: 'İptal', style: 'cancel' },
@@ -5186,6 +5255,9 @@ export default function BusinessHomeScreen({ navigation, route }) {
                         </TouchableOpacity>
                         <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('App', { screen: 'MessagesTab' })} activeOpacity={0.7}>
                             <Text style={{ fontSize: 16 }}>💬</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.iconBtn} onPress={openNotifyChannelModal} activeOpacity={0.7}>
+                            <Text style={{ fontSize: 16 }}>📡</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('App')}
@@ -5307,6 +5379,23 @@ export default function BusinessHomeScreen({ navigation, route }) {
                 onClose={() => setSuggestionModal(false)}
                 onSuccess={fetchAll}
                 businessName={user?.businessName}
+            />
+
+            <ExtraNotifyChannelModal
+                visible={notifyChannelModalOpen}
+                onClose={() => setNotifyChannelModalOpen(false)}
+                t={NOTIFY_MODAL_T}
+                channel={user?.extraNotifyChannel || null}
+                phone={user?.extraNotifyPhone || ''}
+                email={user?.extraNotifyEmail || ''}
+                accountPhone={user?.accountPhone || ''}
+                accountEmail={user?.accountEmail || ''}
+                telegramLinked={!!user?.telegramLinked}
+                onLinkTelegram={linkTelegram}
+                onUnlinkTelegram={unlinkTelegram}
+                linkingTelegram={linkingTelegram}
+                onSave={saveNotifyChannel}
+                saving={savingNotifyChannel}
             />
 
         </View>

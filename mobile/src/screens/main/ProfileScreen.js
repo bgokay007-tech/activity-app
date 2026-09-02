@@ -21,6 +21,7 @@ import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import RainbowLogo from '../../components/RainbowLogo';
 import CityPickerModal from '../../components/CityPickerModal';
 import VolleyballRatingModal from '../../components/VolleyballRatingModal';
+import ExtraNotifyChannelModal from '../../components/ExtraNotifyChannelModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Sport Card Flip Modal ────────────────────────────────────────────────────
@@ -1676,6 +1677,56 @@ export default function ProfileScreen({ route, navigation }) {
         setDataSaver(next);
         await AsyncStorage.setItem('activity_data_saver', String(next));
     }, [dataSaver]);
+
+    // Ek bildirim kanalı (WhatsApp/Telegram/SMS/E-posta) — kullanıcı isteği: uygulama içi
+    // bildirimlere ek olarak dışarıdan bir kanaldan da otomatik mesaj alabilsin. Değerler
+    // getProfile'ın owner-only bloğundan (bkz. user.controller.js) doğrudan redux user'a geliyor.
+    const [notifyChannelModalOpen, setNotifyChannelModalOpen] = useState(false);
+    const [savingNotifyChannel, setSavingNotifyChannel] = useState(false);
+    const [linkingTelegram, setLinkingTelegram] = useState(false);
+
+    const openNotifyChannelModal = async () => {
+        setNotifyChannelModalOpen(true);
+        // Telegram bağlama başka bir uygulamada (Telegram) tamamlandığı için modal her
+        // açıldığında telegramLinked durumu tazelenir — yoksa "bağla" deyip döndükten sonra
+        // hâlâ bağlı değilmiş gibi görünürdü.
+        try {
+            const { data } = await api.get('/users/me');
+            dispatch(setUser({ ...myUser, ...data }));
+        } catch { /* sessizce yut — modal zaten mevcut redux değerleriyle açıldı */ }
+    };
+
+    const saveNotifyChannel = async (channel, phone, email) => {
+        setSavingNotifyChannel(true);
+        try {
+            const { data } = await api.patch('/users/me/notify-channel', { channel, phone, email });
+            dispatch(setUser({ ...myUser, ...data }));
+            setNotifyChannelModalOpen(false);
+        } catch (e) { Alert.alert(t.error || 'Hata', e?.response?.data?.message || t.actionFailed); }
+        setSavingNotifyChannel(false);
+    };
+
+    const linkTelegram = async () => {
+        setLinkingTelegram(true);
+        try {
+            const { data } = await api.post('/telegram/link-token');
+            if (!data.botConfigured || !data.deepLink) {
+                Alert.alert(t.info || 'Bilgi', t.extraNotifyTelegramNotReady);
+            } else {
+                Linking.openURL(data.deepLink);
+            }
+        } catch (e) { Alert.alert(t.error || 'Hata', e?.response?.data?.message || t.actionFailed); }
+        setLinkingTelegram(false);
+    };
+
+    const unlinkTelegram = async () => {
+        setLinkingTelegram(true);
+        try {
+            await api.post('/telegram/unlink');
+            dispatch(setUser({ ...myUser, telegramLinked: false }));
+        } catch (e) { Alert.alert(t.error || 'Hata', e?.response?.data?.message || t.actionFailed); }
+        setLinkingTelegram(false);
+    };
 
     const openMyUpcoming = (subCategory = null) => {
         setUpcomingSub(subCategory);
@@ -4034,6 +4085,17 @@ export default function ProfileScreen({ route, navigation }) {
                                 </TouchableOpacity>
                             </View>
 
+                            {/* ── Ek Bildirim Kanalı ── */}
+                            <TouchableOpacity style={s.infoFieldHeader} onPress={openNotifyChannelModal} activeOpacity={0.7}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.fieldLabel}>{t.extraNotifyLabel}</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }} numberOfLines={1}>
+                                        {myUser?.extraNotifyChannel ? t[`extraNotify_${myUser.extraNotifyChannel}`] : t.extraNotifyOff}
+                                    </Text>
+                                </View>
+                                <Text style={{ color: colors.textMuted, fontSize: 18 }}>›</Text>
+                            </TouchableOpacity>
+
                             <View style={s.divider} />
 
                             {/* İletişim Bilgileri */}
@@ -4223,6 +4285,23 @@ export default function ProfileScreen({ route, navigation }) {
                     </View>
                 </View>
             </Modal>
+
+            <ExtraNotifyChannelModal
+                visible={notifyChannelModalOpen}
+                onClose={() => setNotifyChannelModalOpen(false)}
+                t={t}
+                channel={myUser?.extraNotifyChannel || null}
+                phone={myUser?.extraNotifyPhone || ''}
+                email={myUser?.extraNotifyEmail || ''}
+                accountPhone={myUser?.accountPhone || ''}
+                accountEmail={myUser?.accountEmail || ''}
+                telegramLinked={!!myUser?.telegramLinked}
+                onLinkTelegram={linkTelegram}
+                onUnlinkTelegram={unlinkTelegram}
+                linkingTelegram={linkingTelegram}
+                onSave={saveNotifyChannel}
+                saving={savingNotifyChannel}
+            />
 
             {/* ── City Picker (Profile Edit) ── */}
             <CityPickerModal

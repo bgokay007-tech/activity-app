@@ -91,6 +91,18 @@ model User {
   // seçilir. MUTE: push sessiz+titreşimsiz düşer, VIBRATE: sadece titreşim, SOUND: normal ses.
   // Belirli bir dal/kategori için bildirim açık olsa bile (CityAlert vb.) telefona bu moda göre düşer.
   notificationMode       String   @default("SOUND")
+  // Kişisel Bilgiler > Veri Tasarrufu (normal kullanıcı) / İşletme Ayarları (business) —
+  // uygulama içi bildirimlere EK olarak dışarıdan bir kanaldan da otomatik mesaj gönderilsin mi.
+  // WHATSAPP | TELEGRAM | SMS | EMAIL | null (kapalı). Hedef numara/e-posta boşsa hesabın
+  // kendi phone/email alanına düşer — extraNotify* sadece override için var (bkz. externalNotify.js).
+  extraNotifyChannel     String?
+  extraNotifyPhone       String?
+  extraNotifyEmail       String?
+  // Telegram bot rastgele bir kullanıcıyı mesajlayamaz — kullanıcı botu bir kere başlatıp
+  // hesabını bağlamalı (bkz. telegram.routes.js). chatId bağlandıktan sonra dolar,
+  // linkToken ise bağlama sırasında kullanılan tek seferlik doğrulama kodu.
+  telegramChatId         String?
+  telegramLinkToken      String?  @unique
   rivalJoinReqs    RivalJoinRequest[]
   notifications    Notification[]
   sentFriendReqs   Friendship[] @relation("friendshipSender")

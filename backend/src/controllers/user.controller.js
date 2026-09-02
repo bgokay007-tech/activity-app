@@ -28,6 +28,8 @@ export const getProfile = async (req, res, next) => {
                 telegramPrivacy: true, telegramSelected: true,
                 cEmailPrivacy: true, cEmailSelected: true,
                 instagramPrivacy: true, instagramSelected: true,
+                extraNotifyChannel: true, extraNotifyPhone: true, extraNotifyEmail: true, telegramChatId: true,
+                phone: true, email: true,
                 interests: {
                     select: { id: true, category: true, subCategory: true, level: true, skillRating: true, singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true, totalPoints: true, wins: true, losses: true, lateCancelCount: true, assessmentCompleted: true },
                     orderBy: { totalPoints: 'desc' },
@@ -102,6 +104,9 @@ export const getProfile = async (req, res, next) => {
                 telegramPrivacy: user.telegramPrivacy, telegramSelected: user.telegramSelected,
                 cEmailPrivacy: user.cEmailPrivacy, cEmailSelected: user.cEmailSelected,
                 instagramPrivacy: user.instagramPrivacy, instagramSelected: user.instagramSelected,
+                extraNotifyChannel: user.extraNotifyChannel, extraNotifyPhone: user.extraNotifyPhone,
+                extraNotifyEmail: user.extraNotifyEmail, telegramLinked: !!user.telegramChatId,
+                accountPhone: user.phone, accountEmail: user.email,
             }),
         });
     } catch (error) { next(error); }
@@ -194,6 +199,29 @@ export const updateProfile = async (req, res, next) => {
                 cEmailPrivacy: true, cEmailSelected: true,
                 instagramPrivacy: true, instagramSelected: true,
             },
+        });
+        res.json(updated);
+    } catch (error) { next(error); }
+};
+
+// Kişisel Bilgiler > Veri Tasarrufu (normal kullanıcı) / İşletme Ayarları (business) — uygulama
+// içi bildirimlere ek olarak WhatsApp/Telegram/SMS/E-posta'dan da otomatik bildirim alma tercihi.
+const EXTRA_NOTIFY_CHANNELS = ['WHATSAPP', 'TELEGRAM', 'SMS', 'EMAIL'];
+
+export const updateExtraNotifyChannel = async (req, res, next) => {
+    try {
+        const { channel, phone, email } = req.body;
+        if (channel !== null && channel !== undefined && !EXTRA_NOTIFY_CHANNELS.includes(channel)) {
+            return res.status(400).json({ message: 'Geçersiz kanal' });
+        }
+        const updated = await prisma.user.update({
+            where: { id: req.userId },
+            data: {
+                extraNotifyChannel: channel === undefined ? undefined : channel,
+                ...(phone !== undefined && { extraNotifyPhone: phone || null }),
+                ...(email !== undefined && { extraNotifyEmail: email || null }),
+            },
+            select: { extraNotifyChannel: true, extraNotifyPhone: true, extraNotifyEmail: true },
         });
         res.json(updated);
     } catch (error) { next(error); }

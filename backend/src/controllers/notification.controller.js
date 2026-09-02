@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { emitToUser } from '../config/socket.js';
 import axios from 'axios';
+import { sendExternalNotification } from '../utils/externalNotify.js';
 
 // Bildirimler ekranındaki "Sessize Al" moduna göre Android bildirim kanalını ve sesi seçer —
 // kanallar mobil tarafta app açılışında (navigation/index.js) aynı id'lerle önceden kaydedilir.
@@ -71,6 +72,7 @@ export async function createNotification(userId, type, title, body, data = {}, p
         emitToUser(userId, 'notification', notif);
         console.log(`[push] user=${userId} hasToken=${!!user?.pushToken}`);
         if (user?.pushToken) sendPush(user.pushToken, title, body, { ...data, type }, priority, user.notificationMode);
+        sendExternalNotification(userId, title, body);
         return notif;
     } catch { /* non-critical */ }
 }
