@@ -123,6 +123,7 @@ model User {
   listingReports      ListingReport[]
   userAchievements    UserAchievement[]
   matchComments    MatchComment[]
+  matchCommentLikes MatchCommentLike[]
   noShowReports    NoShowReport[] @relation("noShowReporter")
   peerReviewsGiven    MatchPeerReview[] @relation("PeerReviewGiven")
   peerReviewsReceived MatchPeerReview[] @relation("PeerReviewReceived")
@@ -1073,14 +1074,33 @@ model MatchComment {
   id        String   @id @default(uuid())
   rivalId   String
   userId    String
+  // Kullanıcı isteği: medya yorumlarındaki gibi (Comment.parentId) tek seviye yanıt —
+  // yanıtın yanıtı yok, aynı tabloda parentId ile tutuluyor.
+  parentId  String?
   content   String
   // Kullanıcı isteği: yorumu silmeden önce "bu yorumu gören oldu mu" uyarısı — yazarı hariç
   // yorumu görüntüleyen her kullanıcının id'si burada birikir (bkz. getMatchComments).
   viewedBy  Json     @default("[]")
   createdAt DateTime @default(now())
 
-  rival     ActivityRequest @relation(fields: [rivalId], references: [id], onDelete: Cascade)
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rival     ActivityRequest    @relation(fields: [rivalId], references: [id], onDelete: Cascade)
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent    MatchComment?      @relation("MatchCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   MatchComment[]     @relation("MatchCommentReplies")
+  likes     MatchCommentLike[]
+}
+
+// Kullanıcı isteği: maç/ilan yorumlarına da medya yorumlarındaki (CommentLike) aynı kalp/beğeni.
+model MatchCommentLike {
+  id        String   @id @default(uuid())
+  userId    String
+  commentId String
+  createdAt DateTime @default(now())
+
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment   MatchComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
 }
 
 model NoShowReport {

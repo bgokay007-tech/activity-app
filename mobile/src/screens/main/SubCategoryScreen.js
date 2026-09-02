@@ -875,6 +875,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [loadingComments, setLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
     const [sendingComment, setSendingComment] = useState(false);
+    // Kullanıcı isteği: maç/ilan yorumlarına da medya yorumlarındaki gibi tek seviye
+    // yanıtlama (parentId) ve beğeni eklendi — aynı algoritma.
+    const [replyingTo, setReplyingTo] = useState(null);
+    const toggleCommentLike = async (commentId) => {
+        setComments(prev => prev.map(c => c.id === commentId ? { ...c, isLiked: !c.isLiked, likeCount: (c.likeCount || 0) + (c.isLiked ? -1 : 1) } : c));
+        try {
+            await api.post(`/rivals/comments/${commentId}/like`);
+        } catch {
+            setComments(prev => prev.map(c => c.id === commentId ? { ...c, isLiked: !c.isLiked, likeCount: (c.likeCount || 0) + (c.isLiked ? -1 : 1) } : c));
+        }
+    };
     // Kullanıcı isteği: "Yorumlar" başlığının sağına ok işareti — aşağı dönükken yorumlar
     // (yazma kutusu + liste) görünür, dokununca sola döner ve gizler. Varsayılan açık.
     const [showComments, setShowComments] = useState(true);
@@ -1229,7 +1240,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         if (!visible || !item?.id) return;
         const off = onSocket('commentDeleted', ({ rivalId, commentId }) => {
             if (rivalId !== item.id) return;
-            setComments(prev => prev.filter(c => c.id !== commentId));
+            setComments(prev => prev.filter(c => c.id !== commentId && c.parentId !== commentId));
         });
         return off;
     }, [visible, item?.id]);
@@ -1954,7 +1965,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         if (!commentText.trim()) return;
         setSendingComment(true);
         try {
-            const res = await api.post(`/rivals/${item.id}/comments`, { content: commentText.trim() });
+            const res = await api.post(`/rivals/${item.id}/comments`, { content: commentText.trim(), parentId: replyingTo || undefined });
             // Backend, yorum sayacı anlık artsın diye 'newComment' socket olayını yorumu atan
             // kullanıcıya da (kendisine) ayrıca gönderiyor — bu, HTTP cevabıyla yarışıp aynı
             // yorumun buradan bir kez, socket dinleyicisinden bir kez daha eklenmesine yol
@@ -1962,6 +1973,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             // dinleyicisiyle AYNI id-bazlı tekrar kontrolü burada da yapılmalı.
             setComments(p => p.some(c => c.id === res.data.id) ? p : [...p, res.data]);
             setCommentText('');
+            setReplyingTo(null);
         } catch(e) { Alert.alert('Hata', e?.response?.data?.message || 'Yorum gönderilemedi'); }
         finally { setSendingComment(false); }
     };
@@ -1969,7 +1981,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const doDeleteComment = async (commentId) => {
         try {
             await api.delete(`/rivals/comments/${commentId}`);
-            setComments(p => p.filter(c => c.id !== commentId));
+            setComments(p => p.filter(c => c.id !== commentId && c.parentId !== commentId));
         } catch(e) { Alert.alert('Hata', e?.response?.data?.message || 'Yorum silinemedi'); }
     };
     // Kullanıcı isteği: yorumu silmeden önce, yazarı hariç birileri bu yorumu zaten
@@ -3995,25 +4007,37 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         tıklayıp yorum yazacağımda klavye formu kapatıyor"). Sadece AŞAĞIDAKİ
                         liste ok işaretiyle gizlenir/gösterilir, yazma kutusu HER ZAMAN render edilir. */}
                     {item.refereeUser?.id !== myId && (
-                        <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
-                            <TextInput
-                                style={[s.fieldInput, { flex:1, height:moderateScale(44), marginBottom:0, fontSize:moderateScale(14) }]}
-                                placeholder={t.matchCommentPlaceholder}
-                                placeholderTextColor={colors.textMuted}
-                                value={commentText}
-                                onChangeText={setCommentText}
-                                multiline={false}
-                                returnKeyType="send"
-                                onSubmitEditing={sendComment}
-                            />
-                            <TouchableOpacity
-                                style={[s.joinBtn, { paddingHorizontal:15, height:moderateScale(44), justifyContent:'center', alignSelf:'center', borderRadius: moderateScale(10) }, sendingComment && { opacity:0.6 }]}
-                                onPress={sendComment}
-                                disabled={sendingComment}
-                            >
-                                <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{t.matchCommentSend}</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <>
+                            {replyingTo && (
+                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
+                                        Yanıtlanıyor: {comments.find(c => c.id === replyingTo)?.user?.username}
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setReplyingTo(null)}>
+                                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }}>✕ Vazgeç</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                            <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
+                                <TextInput
+                                    style={[s.fieldInput, { flex:1, height:moderateScale(44), marginBottom:0, fontSize:moderateScale(14) }]}
+                                    placeholder={replyingTo ? 'Yanıt yaz...' : t.matchCommentPlaceholder}
+                                    placeholderTextColor={colors.textMuted}
+                                    value={commentText}
+                                    onChangeText={setCommentText}
+                                    multiline={false}
+                                    returnKeyType="send"
+                                    onSubmitEditing={sendComment}
+                                />
+                                <TouchableOpacity
+                                    style={[s.joinBtn, { paddingHorizontal:15, height:moderateScale(44), justifyContent:'center', alignSelf:'center', borderRadius: moderateScale(10) }, sendingComment && { opacity:0.6 }]}
+                                    onPress={sendComment}
+                                    disabled={sendingComment}
+                                >
+                                    <Text style={[s.joinBtnText, { fontSize: moderateScale(13) }]}>{t.matchCommentSend}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </>
                     )}
 
                     {/* Yorumlar listesi — kullanıcı isteği: sadece bu liste başlığın sağındaki ok
@@ -4032,12 +4056,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             <ActivityIndicator color={cfg.color} style={{ marginTop:16 }} />
                         ) : comments.length === 0 ? (
                             <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:8, fontSize:moderateScale(13) }}>{t.matchCommentEmpty}</Text>
-                        ) : (
-                            comments.map(c => (
-                                <View key={c.id} style={{ marginBottom:14, paddingBottom:11, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                        ) : (() => {
+                            // Kullanıcı isteği: medya yorumlarındaki gibi tek seviye yanıtlama —
+                            // yanıtlar üst yorumun altına girintili gösterilir.
+                            const topLevel = comments.filter(c => !c.parentId);
+                            const repliesOf = (id) => comments.filter(c => c.parentId === id);
+                            const renderRow = (c, isReply) => (
+                                <View key={c.id} style={{ marginBottom:14, paddingBottom:11, borderBottomWidth:1, borderBottomColor: colors.border, marginLeft: isReply ? 18 : 0 }}>
                                     <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
                                         <View style={{ flex:1 }}>
-                                            <Text style={{ color: cfg.color, fontSize:moderateScale(13), fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
+                                            <TouchableOpacity onPress={() => c.user?.id && navigation.push('Profile', { userId: c.user.id })}>
+                                                <Text style={{ color: cfg.color, fontSize:moderateScale(13), fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
+                                            </TouchableOpacity>
                                             <Text style={{ color:'#fff', fontSize:moderateScale(14), lineHeight:moderateScale(21) }}>{c.content}</Text>
                                             <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), marginTop:4 }}>
                                                 {new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
@@ -4049,9 +4079,22 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             </TouchableOpacity>
                                         )}
                                     </View>
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:14, marginTop:4 }}>
+                                        <TouchableOpacity onPress={() => toggleCommentLike(c.id)} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                                            <Text style={{ color: c.isLiked ? '#f43f5e' : colors.textMuted, fontSize:moderateScale(14) }}>{c.isLiked ? '♥' : '♡'}</Text>
+                                            {c.likeCount > 0 && <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }}>{c.likeCount}</Text>}
+                                        </TouchableOpacity>
+                                        {!isReply && (
+                                            <TouchableOpacity onPress={() => setReplyingTo(c.id)}>
+                                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }}>Yanıtla</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                    {repliesOf(c.id).map(r => renderRow(r, true))}
                                 </View>
-                            ))
-                        )
+                            );
+                            return topLevel.map(c => renderRow(c, false));
+                        })()
                     )}
 
                     {/* Kullanıcı isteği: açık ilan detayında da Yorumlar'ın altında her zaman
@@ -4226,6 +4269,28 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 <TouchableOpacity style={{ position:'absolute', top: insets.top + 12, right:20, zIndex:10 }} onPress={() => setMatchMediaViewIdx(null)}>
                     <Text style={{ color:'#fff', fontSize:28, fontWeight:'700' }}>✕</Text>
                 </TouchableOpacity>
+                {/* Kullanıcı isteği: kendi paylaştığım fotoğraf/videoyu buradan da (maç/ilan
+                    detayındaki medya görüntüleyicisi) kalıcı olarak silebileyim. */}
+                {matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx]?.userId === myId && (
+                    <TouchableOpacity style={{ position:'absolute', top: insets.top + 12, right:66, zIndex:10 }} onPress={() => {
+                        const mp = matchMediaList[matchMediaViewIdx];
+                        if (!mp) return;
+                        Alert.alert('Medyayı Sil', 'Bu fotoğraf/videoyu kalıcı olarak silmek istediğinize emin misiniz?', [
+                            { text: 'Vazgeç', style: 'cancel' },
+                            { text: 'Sil', style: 'destructive', onPress: async () => {
+                                try {
+                                    await api.delete(`/posts/${mp.id}`);
+                                    setMatchMediaList(prev => prev.filter(p => p.id !== mp.id));
+                                    setMatchMediaViewIdx(null);
+                                } catch (e) {
+                                    Alert.alert('Hata', e?.response?.data?.message || 'Silinemedi');
+                                }
+                            }},
+                        ]);
+                    }}>
+                        <Text style={{ fontSize:24 }}>🗑️</Text>
+                    </TouchableOpacity>
+                )}
                 {matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && (
                     matchMediaList[matchMediaViewIdx].imageUrl
                         ? <Image source={{ uri: matchMediaList[matchMediaViewIdx].imageUrl }} style={{ width:'100%', height:'75%' }} resizeMode="contain" />
@@ -8185,6 +8250,28 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 <TouchableOpacity style={{ position:'absolute', top: insets.top + 12, right:20, zIndex:10 }} onPress={() => setMatchMediaViewIdx(null)}>
                     <Text style={{ color:'#fff', fontSize:28, fontWeight:'700' }}>✕</Text>
                 </TouchableOpacity>
+                {/* Kullanıcı isteği: kendi paylaştığım fotoğraf/videoyu buradan da (maç/ilan
+                    detayındaki medya görüntüleyicisi) kalıcı olarak silebileyim. */}
+                {matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx]?.userId === myId && (
+                    <TouchableOpacity style={{ position:'absolute', top: insets.top + 12, right:66, zIndex:10 }} onPress={() => {
+                        const mp = matchMediaList[matchMediaViewIdx];
+                        if (!mp) return;
+                        Alert.alert('Medyayı Sil', 'Bu fotoğraf/videoyu kalıcı olarak silmek istediğinize emin misiniz?', [
+                            { text: 'Vazgeç', style: 'cancel' },
+                            { text: 'Sil', style: 'destructive', onPress: async () => {
+                                try {
+                                    await api.delete(`/posts/${mp.id}`);
+                                    setMatchMediaList(prev => prev.filter(p => p.id !== mp.id));
+                                    setMatchMediaViewIdx(null);
+                                } catch (e) {
+                                    Alert.alert('Hata', e?.response?.data?.message || 'Silinemedi');
+                                }
+                            }},
+                        ]);
+                    }}>
+                        <Text style={{ fontSize:24 }}>🗑️</Text>
+                    </TouchableOpacity>
+                )}
                 {matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && (
                     matchMediaList[matchMediaViewIdx].imageUrl
                         ? <Image source={{ uri: matchMediaList[matchMediaViewIdx].imageUrl }} style={{ width:'100%', height:'75%' }} resizeMode="contain" />
@@ -20686,6 +20773,17 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [commentText, setCommentText] = useState('');
     const [sendingComment, setSendingComment] = useState(false);
     const [commentSwapSlot, setCommentSwapSlot] = useState(null);
+    // Kullanıcı isteği: maç/ilan yorumlarına da medya yorumlarındaki gibi tek seviye
+    // yanıtlama (parentId) ve beğeni eklendi — aynı algoritma.
+    const [commentReplyingTo, setCommentReplyingTo] = useState(null);
+    const toggleMatchCommentLike = async (commentId) => {
+        setComments(prev => prev.map(c => c.id === commentId ? { ...c, isLiked: !c.isLiked, likeCount: (c.likeCount || 0) + (c.isLiked ? -1 : 1) } : c));
+        try {
+            await api.post(`/rivals/comments/${commentId}/like`);
+        } catch {
+            setComments(prev => prev.map(c => c.id === commentId ? { ...c, isLiked: !c.isLiked, likeCount: (c.likeCount || 0) + (c.isLiked ? -1 : 1) } : c));
+        }
+    };
 
     const handleCommentSwap = useCallback(async (slot) => {
         if (!commentMatch || commentMatch.senderId !== myId) return;
@@ -20721,24 +20819,25 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (!commentText.trim() || !commentMatch) return;
         setSendingComment(true);
         try {
-            const res = await api.post(`/rivals/${commentMatch.id}/comments`, { content: commentText.trim() });
+            const res = await api.post(`/rivals/${commentMatch.id}/comments`, { content: commentText.trim(), parentId: commentReplyingTo || undefined });
             // bkz. RivalDetailModal'daki sendComment'teki aynı id-bazlı tekrar kontrolü — backend
             // 'newComment' socket olayını yorumu atan kullanıcıya da gönderdiği için HTTP cevabıyla
             // yarışıp aynı yorum iki kez ekleniyordu (kullanıcı raporu).
             setComments(p => p.some(c => c.id === res.data.id) ? p : [...p, res.data]);
             setCommentText('');
+            setCommentReplyingTo(null);
             // Update local count on the card
             setCommentMatch(prev => prev ? { ...prev, _count: { ...prev._count, matchComments: (prev._count?.matchComments ?? 0) + 1 } } : prev);
         } catch(e) {
             Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Yorum gönderilemedi');
         }
         finally { setSendingComment(false); }
-    }, [commentText, commentMatch, sendingComment]);
+    }, [commentText, commentMatch, sendingComment, commentReplyingTo]);
 
     const deleteComment = useCallback(async (commentId) => {
         try {
             await api.delete(`/rivals/comments/${commentId}`);
-            setComments(p => p.filter(c => c.id !== commentId));
+            setComments(p => p.filter(c => c.id !== commentId && c.parentId !== commentId));
         } catch(e) {
             Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Yorum silinemedi');
         }
@@ -27173,12 +27272,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <ActivityIndicator color={cfg2.color} style={{ marginTop:20 }} />
                                 ) : comments.length === 0 ? (
                                     <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:8, fontSize:13 }}>{t.matchCommentEmpty}</Text>
-                                ) : (
-                                    comments.map(c => (
-                                        <View key={c.id} style={{ marginBottom:14, paddingBottom:11, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                                ) : (() => {
+                                    // Kullanıcı isteği: medya yorumlarındaki gibi tek seviye yanıtlama —
+                                    // yanıtlar üst yorumun altına girintili gösterilir.
+                                    const topLevel = comments.filter(c => !c.parentId);
+                                    const repliesOf = (id) => comments.filter(c => c.parentId === id);
+                                    const renderRow = (c, isReply) => (
+                                        <View key={c.id} style={{ marginBottom:14, paddingBottom:11, borderBottomWidth:1, borderBottomColor: colors.border, marginLeft: isReply ? 18 : 0 }}>
                                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
                                                 <View style={{ flex:1 }}>
-                                                    <Text style={{ color: cfg2.color, fontSize:13, fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
+                                                    <TouchableOpacity onPress={() => c.user?.id && navigation.push('Profile', { userId: c.user.id })}>
+                                                        <Text style={{ color: cfg2.color, fontSize:13, fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
+                                                    </TouchableOpacity>
                                                     <Text style={{ color:'#fff', fontSize:14, lineHeight:21 }}>{c.content}</Text>
                                                     <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>
                                                         {new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
@@ -27190,17 +27295,40 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
+                                            <View style={{ flexDirection:'row', alignItems:'center', gap:14, marginTop:4 }}>
+                                                <TouchableOpacity onPress={() => toggleMatchCommentLike(c.id)} style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                                                    <Text style={{ color: c.isLiked ? '#f43f5e' : colors.textMuted, fontSize:14 }}>{c.isLiked ? '♥' : '♡'}</Text>
+                                                    {c.likeCount > 0 && <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>{c.likeCount}</Text>}
+                                                </TouchableOpacity>
+                                                {!isReply && (
+                                                    <TouchableOpacity onPress={() => setCommentReplyingTo(c.id)}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>Yanıtla</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                            {repliesOf(c.id).map(r => renderRow(r, true))}
                                         </View>
-                                    ))
-                                )}
+                                    );
+                                    return topLevel.map(c => renderRow(c, false));
+                                })()}
                             </ScrollView>
 
                             {/* Yorum yaz — bottom input */}
                             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={0}>
+                                {commentReplyingTo && (
+                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:9, paddingTop:6, backgroundColor: colors.bg }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                            Yanıtlanıyor: {comments.find(c => c.id === commentReplyingTo)?.user?.username}
+                                        </Text>
+                                        <TouchableOpacity onPress={() => setCommentReplyingTo(null)}>
+                                            <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>✕ Vazgeç</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
                                 <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7, paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 8 : 10), borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
                                     <TextInput
                                         style={[s.fieldInput, { flex:1, height:44, marginBottom:0, fontSize:14 }]}
-                                        placeholder={t.matchCommentPlaceholder}
+                                        placeholder={commentReplyingTo ? 'Yanıt yaz...' : t.matchCommentPlaceholder}
                                         placeholderTextColor={colors.textMuted}
                                         value={commentText}
                                         onChangeText={setCommentText}
@@ -27484,6 +27612,28 @@ export default function SubCategoryScreen({ route, navigation }) {
                     <TouchableOpacity style={{ position: 'absolute', top: insets.top + 12, right: 20, zIndex: 10 }} onPress={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaReplyingTo(null); }}>
                         <Text style={{ color: '#fff', fontSize: 28, fontWeight: '700' }}>✕</Text>
                     </TouchableOpacity>
+                    {/* Kullanıcı isteği: kendi paylaştığım fotoğraf/videoyu Medya sekmesinden de
+                        kalıcı olarak silebileyim. */}
+                    {mediaViewIdx !== null && mediaPosts[mediaViewIdx]?.userId === myId && (
+                        <TouchableOpacity style={{ position: 'absolute', top: insets.top + 12, right: 66, zIndex: 10 }} onPress={() => {
+                            const mp = mediaPosts[mediaViewIdx];
+                            if (!mp) return;
+                            Alert.alert('Medyayı Sil', 'Bu fotoğraf/videoyu kalıcı olarak silmek istediğinize emin misiniz?', [
+                                { text: 'Vazgeç', style: 'cancel' },
+                                { text: 'Sil', style: 'destructive', onPress: async () => {
+                                    try {
+                                        await api.delete(`/posts/${mp.id}`);
+                                        setMediaPosts(prev => prev.filter(p => p.id !== mp.id));
+                                        setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaReplyingTo(null);
+                                    } catch (e) {
+                                        Alert.alert('Hata', e?.response?.data?.message || 'Silinemedi');
+                                    }
+                                }},
+                            ]);
+                        }}>
+                            <Text style={{ fontSize: 24 }}>🗑️</Text>
+                        </TouchableOpacity>
+                    )}
                     {/* Kullanıcı isteği: yorum kutusuna dokununca klavye onu kapatıyordu (kullanıcı
                         raporu: "yorum yazacağım formu kapatıyor, ne yazdığımı göremiyorum") —
                         android_keyboardInputMode="adjustNothing" ile Android'in kendiliğinden

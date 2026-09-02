@@ -4740,7 +4740,11 @@ export const getMatchComments = async (req, res, next) => {
         const { id } = req.params;
         const comments = await prisma.matchComment.findMany({
             where: { rivalId: id },
-            include: { user: { select: { id: true, username: true, avatar: true } } },
+            include: {
+                user: { select: { id: true, username: true, avatar: true } },
+                likes: { where: { userId: req.userId }, select: { id: true } },
+                _count: { select: { likes: true } },
+            },
             orderBy: { createdAt: 'asc' },
         });
         // Kullanıcı isteği: yazarı silmeden önce "bu yorumu gören oldu mu" diye sorabilsin —
@@ -4754,22 +4758,34 @@ export const getMatchComments = async (req, res, next) => {
             })));
             toMark.forEach(c => { c.viewedBy = [...(Array.isArray(c.viewedBy) ? c.viewedBy : []), req.userId]; });
         }
-        res.json(comments);
+        res.json(comments.map(c => ({
+            ...c,
+            isLiked: c.likes.length > 0,
+            likeCount: c._count.likes,
+            likes: undefined,
+            _count: undefined,
+        })));
     } catch (error) { next(error); }
 };
 
 export const addMatchComment = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { content } = req.body;
+        const { content, parentId } = req.body;
         if (!content?.trim()) return res.status(400).json({ message: 'Content required' });
         const match = await prisma.activityRequest.findUnique({
             where: { id },
             select: { id: true, senderId: true, participants: true, subCategory: true, category: true },
         });
         if (!match) return res.status(404).json({ message: 'Match not found' });
+        // Kullanıcı isteği: medya yorumlarındaki gibi, sadece o maçın bir yorumuna yanıt
+        // yazılabilsin — tek seviye (yanıtın yanıtı yok).
+        if (parentId) {
+            const parent = await prisma.matchComment.findUnique({ where: { id: parentId }, select: { rivalId: true } });
+            if (!parent || parent.rivalId !== id) return res.status(400).json({ message: 'Geçersiz yanıt' });
+        }
         const comment = await prisma.matchComment.create({
-            data: { rivalId: id, userId: req.userId, content: content.trim() },
+            data: { rivalId: id, userId: req.userId, content: content.trim(), parentId: parentId || null },
             include: { user: { select: { id: true, username: true, avatar: true } } },
         });
         res.status(201).json(comment);
@@ -4821,6 +4837,23 @@ export const deleteMatchComment = async (req, res, next) => {
         for (const uid of allIds) {
             emitToUser(uid, 'commentDeleted', { rivalId: comment.rivalId, commentId });
         }
+    } catch (error) { next(error); }
+};
+
+// Kullanıcı isteği: maç/ilan yorumlarına da medya yorumlarındaki gibi kalp/beğeni — aynı toggle deseni.
+export const toggleMatchCommentLike = async (req, res, next) => {
+    try {
+        const { commentId } = req.params;
+        const existing = await prisma.matchCommentLike.findUnique({
+            where: { userId_commentId: { userId: req.userId, commentId } },
+        });
+        if (existing) {
+            await prisma.matchCommentLike.delete({ where: { id: existing.id } });
+        } else {
+            await prisma.matchCommentLike.create({ data: { userId: req.userId, commentId } });
+        }
+        const count = await prisma.matchCommentLike.count({ where: { commentId } });
+        res.json({ liked: !existing, count });
     } catch (error) { next(error); }
 };
 

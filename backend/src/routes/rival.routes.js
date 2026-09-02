@@ -7,7 +7,7 @@ import {
     archiveMatch, getCompletedMatches, getArchivedMatchesBySport,
     extendScoreDeadline, getCountsBySubCategory, getActiveSubCategories, getLocationSuggestions,
     abandonMatch, cancelMatch, removeRivalParticipant, leaveAsPromotedSubstitute,
-    getMatchComments, addMatchComment, deleteMatchComment,
+    getMatchComments, addMatchComment, deleteMatchComment, toggleMatchCommentLike,
     getMyUpcomingMatches, getMyMatchHistory,
     proposeSchedule, acceptSchedule, updateRivalRequest,
     getForReservation, getRefereeApplications, submitRefereeReview, getRivalBill, getMyRivalOrders,
@@ -72,6 +72,7 @@ router.get('/:id/referee-applications', authenticate, getRefereeApplications);
 router.get('/:id/comments',          authenticate, getMatchComments);
 router.post('/:id/comments',         authenticate, addMatchComment);
 router.delete('/comments/:commentId', authenticate, deleteMatchComment);
+router.post('/comments/:commentId/like', authenticate, toggleMatchCommentLike);
 router.post('/:id/no-show',          authenticate, reportNoShow);
 router.post('/:id/propose-schedule', authenticate, proposeSchedule);
 router.post('/:id/accept-schedule',  authenticate, acceptSchedule);
