@@ -1799,9 +1799,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 // (onRefresh() tüm listeyi yeniden çekene kadar beklemeden).
                 if (Array.isArray(data?.request?.joinRequests)) setLocalJoinRequests(data.request.joinRequests);
                 onRefresh();
-                // Kullanıcı isteği: kadro kartındaki formadan davet gönderilince de (arama
-                // penceresinden gönderilen davetle aynı şekilde) küçük bir onay yazısı çıksın.
-                Alert.alert('', t.inviteSentToMsg(playerDisplayName(u)));
+                // Kullanıcı isteği (güncel): "tek tıklamamda davet atsın" — OK'a basılana kadar
+                // bekleten onay yazısı ikinci bir dokunuş gerektiriyormuş hissi veriyordu,
+                // kaldırıldı (inviteToDoubleSlot/onInviteDoubleSlot ile aynı desen).
             })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
@@ -1810,11 +1810,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // isim yazıp doğrudan davet göndermek için — inviteToTeamSlot'un slot-özel karşılığı
     // (bkz. backend inviteToRival'daki isDoubleSlotInvite).
     const inviteToDoubleSlot = (u, slot) => {
+        // Kullanıcı isteği: "tek tıklamamda davet atsın" — başarı sonrası burada duran
+        // Alert.alert (OK'a basılana kadar bekleten) ikinci bir dokunuş gerektiriyormuş
+        // hissi veriyordu. UpcomingCard'daki aynı akış (onInviteDoubleSlot) zaten sessiz
+        // başarı + "Gönderilen Davetler" listesinin anında güncellenmesiyle yetiniyor,
+        // burası da aynı desene getirildi.
         api.post(`/rivals/${item.id}/invite`, { userId: u.id, slot })
             .then(({ data }) => {
                 if (Array.isArray(data?.request?.joinRequests)) setLocalJoinRequests(data.request.joinRequests);
                 onRefresh();
-                Alert.alert('', t.inviteSentToMsg(playerDisplayName(u)));
             })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
@@ -2121,10 +2125,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         {t.cancelPenaltyBadge(item.cancelPenaltyHours)}
                                     </Text>
                                 )}
-                                <Text style={{ fontSize:moderateScale(10), fontWeight:'700', marginTop:3, color: item.isCourtReserved ? '#4ade80' : '#f87171' }} numberOfLines={1}>
+                                {/* Kullanıcı isteği: "Ortaklaşa Kararlaştırılır" seçilen ilanlarda
+                                    detayda da yanıltıcı "❌ Kort Rezerve Edilmedi" yerine gerçek durum
+                                    gösterilsin — RivalCard'daki (liste kartı) aynı desen. */}
+                                <Text style={{ fontSize:moderateScale(10), fontWeight:'700', marginTop:3, color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1}>
                                     {item.isCourtReserved
                                         ? `${sub === 'volleyball' ? '' : '✅ '}${sub === 'volleyball' ? t.volleyballHallReservedLabel : t.courtReservedLabel}`
-                                        : `${sub === 'volleyball' ? '' : '❌ '}${t.courtNotReserved}`}
+                                        : item.location === 'Ortaklaşa Kararlaştırılır'
+                                            ? `${sub === 'volleyball' ? '' : '🤝 '}${t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır'}`
+                                            : `${sub === 'volleyball' ? '' : '❌ '}${t.courtNotReserved}`}
                                 </Text>
                             </View>
                         </View>
@@ -4782,8 +4791,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                  modal zaten kendi içinde tek ilan için taze veri çekiyor
                  (bkz. RivalDetailModal'daki useEffect), listeyi de yenilemek
                  gereksiz bir ağ isteği + yeniden render'a (algılanan ~1sn
-                 gecikmeye) yol açıyordu. */}
-            <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)}>
+                 gecikmeye) yol açıyordu. Kullanıcı isteği: kartın altındaki (kısa içerikli
+                 ilanlarda minHeight'ten kalan) boş alana dokununca da detay açılsın — bu
+                 alan önceden bu TouchableOpacity'nin İÇİNDE değildi (dokunma hedefi içeriğe
+                 göre daralıyordu), flex:1 ile kalan tüm dikey alanı da kapsıyor. */}
+            <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)} style={{ flex:1 }}>
 
                 {/* Avatar + isim/puan + mod/format */}
                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:3 }}>
@@ -4941,8 +4953,15 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         </View>
                     </View>
                 )}
-                <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                    {item.isCourtReserved ? `${isVolleyball ? '' : '✅ '}${isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}` : `${isVolleyball ? '' : '❌ '}${t.courtNotReserved}`}
+                {/* Kullanıcı isteği: "Ortaklaşa Kararlaştırılır" seçilen ilanlarda "❌ Kort Rezerve
+                    Edilmedi" gibi yanıltıcı bir kırmızı uyarı yerine, gerçekten seçilen durum
+                    (kort taraflar arasında ortaklaşa kararlaştırılacak) nötr renkte gösterilir. */}
+                <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                    {item.isCourtReserved
+                        ? `${isVolleyball ? '' : '✅ '}${isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}`
+                        : item.location === 'Ortaklaşa Kararlaştırılır'
+                            ? `${isVolleyball ? '' : '🤝 '}${t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır'}`
+                            : `${isVolleyball ? '' : '❌ '}${t.courtNotReserved}`}
                 </Text>
                 {item.courtFeePerPerson > 0 && (() => {
                     // Kullanıcı isteği: kart üzerinde tüm ödeme yöntemlerinin ayrı bir satırda
@@ -5970,11 +5989,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // Digimon kart'taki boş bir formaya yazıp öneriden tıklayınca — voleybolün onInviteSlot'unun
     // birebir DOUBLE karşılığı (bkz. backend inviteToRival'daki isDoubleSlotInvite).
     const onInviteDoubleSlot = (u, slot) => {
+        // Kullanıcı isteği: "tek tıklamamda davet atsın" — başarı sonrası duran Alert.alert
+        // (OK'a basılana kadar bekleten) ikinci bir dokunuş gerektiriyormuş hissi veriyordu,
+        // kaldırıldı (RivalDetailModal'daki inviteToDoubleSlot ile aynı desen).
         api.post(`/rivals/${match.id}/invite`, { userId: u.id, slot })
             .then(({ data }) => {
                 if (Array.isArray(data?.request?.joinRequests)) setLocalSubRequests(data.request.joinRequests);
                 onRefresh();
-                Alert.alert('', t.inviteSentToMsg(playerDisplayName(u)));
             })
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
@@ -7283,11 +7304,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
                             onInviteSlot={(u, side, slotIndex) => {
+                                // Kullanıcı isteği: "tek tıklamamda davet atsın" — bekleten onay
+                                // yazısı kaldırıldı, diğer forma-davet akışlarıyla aynı desen.
                                 api.post(`/rivals/${match.id}/invite`, { userId: u.id, side, slotIndex })
                                     .then(({ data }) => {
                                         if (Array.isArray(data?.request?.joinRequests)) setLocalSubRequests(data.request.joinRequests);
                                         onRefresh();
-                                        Alert.alert('', t.inviteSentToMsg(playerDisplayName(u)));
                                     })
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
@@ -12756,7 +12778,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 matchDate: f.flexibleSchedule ? null : (matchDateStr || null),
                 matchTime: f.flexibleSchedule ? null : (f.matchTime || null),
                 duration: f.flexibleSchedule ? null : (f.duration || null),
-                location: f.selectedCourt?.city || f.manualCity || null,
+                // Kullanıcı isteği: "Ortaklaşa Kararlaştırılır" seçilince kort/konum bilgisi boş
+                // gidiyordu, kart bunu "❌ Kort Rezerve Edilmedi" gibi yanıltıcı gösteriyordu —
+                // coach/referee formlarındaki aynı desen (location'a sabit metin yazılır).
+                location: f.courtMutual ? 'Ortaklaşa Kararlaştırılır' : (f.selectedCourt?.city || f.manualCity || null),
                 district: f.manualDistrict || null,
                 courtName: f.selectedCourt ? ([f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ') || null) : (f.showManualCourt ? f.manualCourtName : null) || f.courtSearchText || null,
                 courtAddress: f.manualAddress || undefined,
@@ -12952,7 +12977,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 duration:  f.flexibleSchedule ? undefined : f.duration,
                 courtName: f.selectedCourt ? ([f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' ') || undefined) : (f.showManualCourt ? f.manualCourtName : undefined) || f.courtSearchText || undefined,
                 courtId:   f.selectedCourt?.id || undefined,
-                location:  f.selectedCourt?.city || f.manualCity || undefined,
+                location:  f.courtMutual ? 'Ortaklaşa Kararlaştırılır' : (f.selectedCourt?.city || f.manualCity || undefined),
                 district:  f.manualDistrict || undefined,
                 courtAddress: f.selectedCourt?.address || f.manualAddress || undefined,
                 surface:   f.surface || (isPadel ? 'ARTIFICIAL' : undefined),

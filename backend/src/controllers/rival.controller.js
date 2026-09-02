@@ -295,6 +295,50 @@ function teamDisplayRating(interestRow, subCategory, isDoubles) {
     return getDisplayRating(interestRow, subCategory, isDoubles);
 }
 
+// getRivalById'deki AYNI zenginleştirme (bkz. oradaki yorum) — respondToJoin gibi doğrudan
+// res.json + socket broadcast ile dönen uç noktalarda da kullanılıyor. Kullanıcı raporu: bir
+// davet/katılım isteği kabul edilince (ör. demo oyuncu kabulü) hem yeni katılımcının ELO'su
+// hem de kurucunun (sender) rozeti anlık olarak kayboluyordu — respondToJoin'in kendi
+// prisma.activityRequest.update sonucu HAM senderTeam/participants/sender.interests
+// döndürüyordu (joinerData zaten hiç skillRating taşımıyor, SENDER_SELECT de interests
+// seçmiyor), bu ham veri hem doğrudan cevapta hem de broadcast('rivalUpdate', ...) ile TÜM
+// görüntüleyenlere gidiyordu. Bu fonksiyon o veriyi göndermeden hemen önce zenginleştirir.
+async function enrichRivalWithRatings(rival) {
+    if (!rival) return rival;
+    const teamUserIds = [...new Set([
+        rival.senderId,
+        ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []).filter(p => p?.id).map(p => p.id),
+        ...(Array.isArray(rival.participants) ? rival.participants : []).filter(p => p?.id).map(p => p.id),
+        ...(Array.isArray(rival.substitutePlayers) ? rival.substitutePlayers : []).filter(p => p?.id).map(p => p.id),
+        ...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []).filter(p => p?.id).map(p => p.id),
+    ])];
+    const teamInterests = teamUserIds.length > 0
+        ? await prisma.userInterest.findMany({
+            where: { userId: { in: teamUserIds }, subCategory: rival.subCategory },
+            select: {
+                userId: true, alias: true, level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true,
+                singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true,
+            },
+        })
+        : [];
+    const rivalIsDoubles = isDoublesFormat(rival);
+    const withTeamRating = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id
+        ? { ...p, skillRating: teamDisplayRating(teamInterests.find(i => i.userId === p.id), rival.subCategory, rivalIsDoubles) }
+        : p);
+    const senderInterestRaw = teamInterests.find(i => i.userId === rival.senderId);
+    const senderInterest = senderInterestRaw
+        ? { ...senderInterestRaw, skillRating: teamDisplayRating(senderInterestRaw, rival.subCategory, rivalIsDoubles) }
+        : null;
+    return {
+        ...rival,
+        sender: rival.sender ? { ...rival.sender, interests: senderInterest ? [senderInterest] : [] } : rival.sender,
+        senderTeam: withTeamRating(rival.senderTeam),
+        participants: withTeamRating(rival.participants),
+        substitutePlayers: withTeamRating(rival.substitutePlayers),
+        unassignedPlayers: withTeamRating(rival.unassignedPlayers),
+    };
+}
+
 // unassignedPlayers Json snapshot'ında bazı eski kayıtlarda gender hiç yazılmamıştı (respondToJoin/
 // confirmLateJoin'deki joinerEntry gender taşımıyordu) — DOUBLE'da cinsiyet kısıtlı slotlara
 // "Takımlara Ata" seçeneği bu yüzden hiç çıkmıyordu (mobil taraf genderFitsSlot(undefined, 'FEMALE')
@@ -1659,6 +1703,9 @@ export const updateRivalRequest = async (req, res, next) => {
 
         if (refereeWillBeRequested) syncRefereeAdCourt(id, updated);
 
+        // Kullanıcı raporu: ilan düzenlenince de (kabul edilince olduğu gibi) kurucunun/
+        // katılımcıların ELO rozeti anlık kayboluyordu — bkz. enrichRivalWithRatings tanımı.
+        finalUpdated = await enrichRivalWithRatings(finalUpdated);
         broadcast('rivalUpdate', finalUpdated);
         res.json(matchTypeLocked ? { ...finalUpdated, matchTypeLocked: true } : finalUpdated);
     } catch (error) { next(error); }
@@ -3637,7 +3684,7 @@ export const respondToJoin = async (req, res, next) => {
                 + (Array.isArray(updatedSenderTeamArr) ? updatedSenderTeamArr.filter(p => p?.id).length : 0)
                 + (Array.isArray(joinReq.rival.participants) ? joinReq.rival.participants.filter(p => p?.id).length : 0)
                 + (Array.isArray(joinReq.rival.unassignedPlayers) ? joinReq.rival.unassignedPlayers.filter(p => p?.id).length : 0) >= 4;
-            const updatedRival = await prisma.activityRequest.update({
+            let updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },
                 data: { senderTeam: updatedSenderTeamArr, ...(isFullNow && { status: 'MATCHED', receiverId: joinReq.userId, reopenedAt: null }) },
                 include: {
@@ -3645,6 +3692,7 @@ export const respondToJoin = async (req, res, next) => {
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
                 },
             });
+            updatedRival = await enrichRivalWithRatings(updatedRival);
             broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
             emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: isFullNow });
             createNotification(
@@ -3688,7 +3736,7 @@ export const respondToJoin = async (req, res, next) => {
             const isFullNow = teamSizeN > 1
                 ? teamFilledCount(joinReq.rival, { participants: updatedParticipantsArr }) >= totalPlayerCount(joinReq.rival)
                 : false;
-            const updatedRival = await prisma.activityRequest.update({
+            let updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },
                 data: {
                     participants: updatedParticipantsArr,
@@ -3699,6 +3747,7 @@ export const respondToJoin = async (req, res, next) => {
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
                 },
             });
+            updatedRival = await enrichRivalWithRatings(updatedRival);
             broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
             emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: isFullNow });
             createNotification(
@@ -3758,7 +3807,7 @@ export const respondToJoin = async (req, res, next) => {
                 + (Array.isArray(joinReq.rival.senderTeam) ? joinReq.rival.senderTeam.filter(p => p?.id).length : 0)
                 + existingParticipants.filter(p => p?.id).length
                 + (Array.isArray(joinReq.rival.unassignedPlayers) ? joinReq.rival.unassignedPlayers.filter(p => p?.id).length : 0) >= 4;
-            const updatedRival = await prisma.activityRequest.update({
+            let updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },
                 data: { participants: existingParticipants, ...(isFull && { status: 'MATCHED', receiverId: joinReq.userId, reopenedAt: null }) },
                 include: {
@@ -3766,6 +3815,7 @@ export const respondToJoin = async (req, res, next) => {
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
                 },
             });
+            updatedRival = await enrichRivalWithRatings(updatedRival);
             broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
             emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: isFull });
             createNotification(
@@ -3788,7 +3838,7 @@ export const respondToJoin = async (req, res, next) => {
             // gibi alakasız bir hatayla reddediliyordu (asıl sebep cinsiyetti, doluluk değildi).
             const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender, alias: joinerInterestForAlias?.alias || null };
             const existingSubs = Array.isArray(joinReq.rival.substitutePlayers) ? joinReq.rival.substitutePlayers : [];
-            const updatedRival = await prisma.activityRequest.update({
+            let updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },
                 data: { substitutePlayers: [...existingSubs, joinerData] },
                 include: {
@@ -3796,6 +3846,7 @@ export const respondToJoin = async (req, res, next) => {
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
                 },
             });
+            updatedRival = await enrichRivalWithRatings(updatedRival);
             broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
             emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: false });
             // Bu istek ilan sahibinin daveti (initiatedBy=OWNER) OLABİLİR, ya da oyuncunun kendisinin
@@ -3848,7 +3899,7 @@ export const respondToJoin = async (req, res, next) => {
                 : joinReq.rival.matchType === 'DOUBLE'
                     ? 1 + countFilled(joinReq.rival.senderTeam) + countFilled(joinReq.rival.participants) + countFilled(nextUnassigned) >= 4
                     : false;
-            const updatedRival = await prisma.activityRequest.update({
+            let updatedRival = await prisma.activityRequest.update({
                 where: { id: joinReq.rivalId },
                 data: {
                     unassignedPlayers: nextUnassigned,
@@ -3859,6 +3910,7 @@ export const respondToJoin = async (req, res, next) => {
                     joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
                 },
             });
+            updatedRival = await enrichRivalWithRatings(updatedRival);
             broadcast('rivalUpdate', updatedRival); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
             emitToUser(joinReq.userId, 'joinAccepted', { rivalId: joinReq.rivalId, matched: isFull });
             createNotification(
@@ -4083,7 +4135,7 @@ export const respondToJoin = async (req, res, next) => {
             ...(updatedSubstitutePlayers && { substitutePlayers: updatedSubstitutePlayers }),
         };
 
-        const updated = await prisma.activityRequest.update({
+        let updated = await prisma.activityRequest.update({
             where: { id: rival.id },
             data: updateData,
             include: {
@@ -4109,6 +4161,10 @@ export const respondToJoin = async (req, res, next) => {
                 },
             },
         });
+        // Kullanıcı raporu: kabul edilince yeni katılımcının ELO'su ve kurucunun rozeti anlık
+        // kayboluyordu (bkz. enrichRivalWithRatings tanımındaki yorum) — hem doğrudan cevapta
+        // hem broadcast'te bu düzeltilmiş veri gidiyor.
+        updated = await enrichRivalWithRatings(updated);
 
         // Çiftler: partner eşi de kabul edildi olarak işaretlenir (ikisi birlikte tek takım kabul edildi)
         if (partnerJoinReqToAccept) {
