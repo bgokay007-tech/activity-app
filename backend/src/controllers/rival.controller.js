@@ -7162,10 +7162,11 @@ export const proposeSchedule = async (req, res, next) => {
         }
 
         const proposal = { userId: req.userId, date, time, location: location || null, courtName: courtName || null, proposedAt: new Date().toISOString() };
-        const updated = await prisma.activityRequest.update({
+        const updated = await enrichRivalWithRatings(await prisma.activityRequest.update({
             where: { id },
             data: { scheduleProposal: proposal },
-        });
+            include: { sender: { select: SENDER_SELECT } },
+        }));
 
         // Notify the other player(s)
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
@@ -7199,7 +7200,7 @@ export const acceptSchedule = async (req, res, next) => {
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
         const matchDateObj = new Date(proposal.date);
-        const updated = await prisma.activityRequest.update({
+        const updated = await enrichRivalWithRatings(await prisma.activityRequest.update({
             where: { id },
             data: {
                 matchDate: matchDateObj,
@@ -7209,7 +7210,8 @@ export const acceptSchedule = async (req, res, next) => {
                 scheduleProposal: null,
                 schedulingDeadline: null,
             },
-        });
+            include: { sender: { select: SENDER_SELECT } },
+        }));
 
         // Notify proposer
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
