@@ -135,10 +135,57 @@ async function searchSeatGeek({ sport, city, dateFrom, dateTo }) {
     } catch { return []; }
 }
 
+// Türkiye yerel bugünün tarihi (UTC+3) — YYYY-MM-DD. Kullanıcı raporu: tarihi geçmiş etkinlikler
+// hâlâ listede duruyordu, çünkü dateFrom sadece istemci (mobil) gönderirse uygulanıyordu; istemci
+// hiç göndermezse (veya geçmiş bir tarih gönderirse) alt sınır YOKTU. Artık sunucu HER ZAMAN en az
+// bugünü zorluyor — istemci daha ileri bir tarih isterse o kullanılır, ama asla bugünden geriye gidilemez.
+function todayTurkey() {
+    const now = new Date(Date.now() + 3 * 60 * 60 * 1000); // UTC+3'e kaydır
+    return now.toISOString().slice(0, 10);
+}
+
+// Aynı gerçek etkinlik farklı kaynaklarda (Ticketmaster/SeatGeek/ileride Biletix) AYRI birer
+// satır olarak dönüp listede tekrar (bilgi kirliliği) yaratmasın diye — isim+tarih+şehir
+// eşleşen olayları TEK satıra indirger. Kaynaklar arası ortak bir dış ID olmadığı için isim
+// bazlı bulanık (fuzzy) eşleştirme kullanılıyor: Türkçe karakterler sadeleştirilip küçük harfe
+// çevrilir, noktalama/boşluk farkları yok sayılır. Aynı grupta birden fazla kayıt varsa,
+// fiyat bilgisi olan (priceMin dolu) tercih edilir; o da yoksa kaynak önceliğine (TM > SeatGeek)
+// göre ilki tutulur — kullanıcıya aynı maç için 2-3 kez tekrar eden satır gösterilmez.
+function normalizeNameForDedup(name) {
+    if (!name) return '';
+    const TR_MAP = { 'ı': 'i', 'İ': 'i', 'ğ': 'g', 'Ğ': 'g', 'ü': 'u', 'Ü': 'u', 'ş': 's', 'Ş': 's', 'ö': 'o', 'Ö': 'o', 'ç': 'c', 'Ç': 'c' };
+    return name.toLowerCase()
+        .replace(/[ıİğĞüÜşŞöÖçÇ]/g, ch => TR_MAP[ch] || ch)
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+}
+const SOURCE_PRIORITY = { ticketmaster: 0, seatgeek: 1, biletix: 2 };
+function dedupeEvents(events) {
+    const groups = new Map();
+    for (const e of events) {
+        const key = `${normalizeNameForDedup(e.name)}|${e.date || ''}|${normalizeNameForDedup(e.city)}`;
+        const existing = groups.get(key);
+        if (!existing) { groups.set(key, e); continue; }
+        const existingHasPrice = existing.priceMin != null;
+        const currentHasPrice = e.priceMin != null;
+        if (currentHasPrice && !existingHasPrice) { groups.set(key, e); continue; }
+        if (currentHasPrice === existingHasPrice) {
+            const existingPriority = SOURCE_PRIORITY[existing.source] ?? 99;
+            const currentPriority = SOURCE_PRIORITY[e.source] ?? 99;
+            if (currentPriority < existingPriority) groups.set(key, e);
+        }
+    }
+    return [...groups.values()];
+}
+
 export const searchSportsTickets = async (req, res, next) => {
     try {
-        const { sport, city, dateFrom, dateTo } = req.query;
+        const { sport, city, dateTo } = req.query;
         if (!SPORT_CLASSIFICATION[sport]) return res.status(400).json({ message: 'Geçersiz spor dalı' });
+
+        // İstemci daha ileri bir tarih isteyebilir ama asla bugünden geriye gidilemez — bkz. todayTurkey.
+        const today = todayTurkey();
+        const dateFrom = req.query.dateFrom && req.query.dateFrom > today ? req.query.dateFrom : today;
 
         // Kullanıcı isteği: tüm kaynaklardan gelen turnuvalar TEK listede, aynı anda,
         // birlikte filtrelenebilir şekilde gösterilsin — kaynaklardan biri başarısız olursa
@@ -148,7 +195,7 @@ export const searchSportsTickets = async (req, res, next) => {
             searchSeatGeek({ sport, city, dateFrom, dateTo }),
         ]);
 
-        const events = [...tmEvents, ...sgEvents].sort((a, b) => {
+        const events = dedupeEvents([...tmEvents, ...sgEvents]).sort((a, b) => {
             if (!a.date) return 1;
             if (!b.date) return -1;
             return a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || '');
