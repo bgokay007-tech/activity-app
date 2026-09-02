@@ -904,6 +904,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [matchMediaList, setMatchMediaList] = useState([]);
     const [loadingMatchMedia, setLoadingMatchMedia] = useState(false);
     const [showMatchMediaList, setShowMatchMediaList] = useState(true);
+    // Kullanıcı isteği: "Gönderilen Davetler" listesi uzarsa "Medya" bölümündeki gibi kendi
+    // ok işaretiyle gizlenip gösterilebilsin.
+    const [showSentInvites, setShowSentInvites] = useState(true);
     const [matchMediaViewIdx, setMatchMediaViewIdx] = useState(null);
     const matchMediaViewUrl = (matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && !matchMediaList[matchMediaViewIdx].imageUrl)
         ? matchMediaList[matchMediaViewIdx].videoUrl : null;
@@ -3407,8 +3410,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         ve kişi ön yüzde onay sırasına göre, arka yüzde de rolüne göre görünür. */}
                     {joinRequests.filter(jr => jr.initiatedBy === 'OWNER').length > 0 && (
                         <View style={det.section}>
-                            <Text style={det.sectionTitle}>📨 Gönderilen Davetler</Text>
-                            {joinRequests.filter(jr => jr.initiatedBy === 'OWNER').map(jr => {
+                            {/* Kullanıcı isteği: liste uzarsa "Medya" bölümündeki gibi kendi ok
+                                işaretiyle gizlenip gösterilebilsin. */}
+                            <TouchableOpacity
+                                onPress={() => setShowSentInvites(v => !v)}
+                                style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}
+                            >
+                                <Text style={det.sectionTitle}>📨 Gönderilen Davetler ({joinRequests.filter(jr => jr.initiatedBy === 'OWNER').length})</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:16, transform:[{ rotate: showSentInvites ? '0deg' : '-90deg' }] }}>▼</Text>
+                            </TouchableOpacity>
+                            {showSentInvites && joinRequests.filter(jr => jr.initiatedBy === 'OWNER').map(jr => {
                                 const slotLabel = isRefereeAd ? '🟨 Hakemlik Daveti'
                                     : item.matchType !== 'DOUBLE' ? null
                                     : jr.isPartnerInvite ? 'Takım Arkadaşı'
@@ -5548,6 +5559,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // Kullanıcı isteği: "Yedek İstekleri" listesi yer kaplıyordu — en sağa dokununca açılıp
     // kapanan bir ok eklendi, varsayılan kapalı (yer tasarrufu için).
     const [subRequestsExpanded, setSubRequestsExpanded] = useState(false);
+    // Kullanıcı isteği: "Gönderilen Davetler" listesi uzarsa "Yedek İstekleri"ndeki gibi kendi
+    // ok işaretiyle gizlenip gösterilebilsin.
+    const [sentInvitesExpanded, setSentInvitesExpanded] = useState(true);
     // Kullanıcı isteği: Açık İlanlar'daki gibi bu kart (liste görünümündeki küçük özet, tam
     // ekran detay DEĞİL) de önlü-arkalı bir "digimon kart" — sağ üst 🔄 ile çevrilince arka
     // yüzde katılan herkes + elo puanı listeleniyor. RivalCard'daki AYNI iki aşamalı çevirme
@@ -5610,6 +5624,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [matchMediaList, setMatchMediaList] = useState([]);
     const [loadingMatchMedia, setLoadingMatchMedia] = useState(false);
     const [showMatchMediaList, setShowMatchMediaList] = useState(true);
+    // Kullanıcı isteği: "Gönderilen Davetler" listesi uzarsa "Medya" bölümündeki gibi kendi
+    // ok işaretiyle gizlenip gösterilebilsin.
+    const [showSentInvites, setShowSentInvites] = useState(true);
     const [matchMediaViewIdx, setMatchMediaViewIdx] = useState(null);
     const matchMediaViewUrl = (matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && !matchMediaList[matchMediaViewIdx].imageUrl)
         ? matchMediaList[matchMediaViewIdx].videoUrl : null;
@@ -7343,8 +7360,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         sadece sahipte kalır. */}
                     {subRequests.filter(jr => jr.initiatedBy === 'OWNER').length > 0 && (
                         <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:9, borderWidth:1, borderColor: colors.border, marginBottom:12 }}>
-                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8 }}>📨 Gönderilen Davetler</Text>
-                            {subRequests.filter(jr => jr.initiatedBy === 'OWNER').map(jr => (
+                            {/* Kullanıcı isteği: liste uzarsa "Yedek İstekleri"ndeki gibi kendi ok
+                                işaretiyle gizlenip gösterilebilsin. */}
+                            <TouchableOpacity onPress={() => setSentInvitesExpanded(v => !v)} style={{ flexDirection:'row', alignItems:'center' }}>
+                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8, flex:1 }}>📨 Gönderilen Davetler ({subRequests.filter(jr => jr.initiatedBy === 'OWNER').length})</Text>
+                                <Text style={{ color:'#fff', fontSize:14 }}>{sentInvitesExpanded ? '▼' : '◀'}</Text>
+                            </TouchableOpacity>
+                            {sentInvitesExpanded && subRequests.filter(jr => jr.initiatedBy === 'OWNER').map(jr => (
                                 <View key={jr.id} style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6 }}>
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={26} color={cfg.color} />
                                     <View style={{ flex:1 }}>
