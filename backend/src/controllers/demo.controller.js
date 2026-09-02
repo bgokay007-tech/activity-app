@@ -320,6 +320,45 @@ async function ensureDemoRivalPlayer(demo, subCategory) {
 // gerçek bir oyuncu başvurusuyla birebir aynı; demo oyuncu hangi takımda oynayacağını kendi
 // seçmiyor, ilan sahibi normal "İstekler" akışından kabul ettikçe (voleybol/team sporlarda
 // olduğu gibi) kendi aralarında yerleşiyor.
+// Cinsiyete göre efektif derece aralığı — sendJoinRequest'teki (rival.controller.js ~3028-3034)
+// ratingGenderSplit mantığının birebir aynısı. Ön filtre bunu hesaba katmazsa (eskiden
+// katmıyordu) gender-split'li ilanlarda TÜM havuz "uygun" sanılıp rastgele sıraya sokuluyor,
+// gerçek kontrolde çoğu reddediliyordu.
+function effRatingRangeForGender(rival, gender) {
+    if (rival.ratingGenderSplit) {
+        if (gender === 'MALE') return [rival.minRatingMale, rival.maxRatingMale];
+        if (gender === 'FEMALE') return [rival.minRatingFemale, rival.maxRatingFemale];
+        return [null, null];
+    }
+    return [rival.minRating, rival.maxRating];
+}
+
+// Kullanıcı raporu: STRICT (takas kapalı) çiftler ilanlarında demo başvuru HER ZAMAN "uygun
+// demo oyuncu kalmadı" hatası veriyordu — sebebi burada değil sendJoinRequest'teydi: STRICT
+// DOUBLE'da requestedSlot (partner/opp1/opp2) ZORUNLU ama bu fonksiyon her zaman boş body ({})
+// gönderiyordu, yani gerçekte uygun bir demo oyuncu olsa bile başvuru "hangi slota katılmak
+// istediğinizi seçin" hatasıyla deterministik olarak reddediliyordu (bkz. rival.controller.js
+// sendJoinRequest ~3094-3125). Aşağıdaki iki yardımcı, aynı slot/cinsiyet mantığını burada
+// tekrarlayıp demo oyuncu için uygun bir boş slot seçiyor.
+function isDoubleSlotOpen(rival, slot) {
+    const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+    const parts = Array.isArray(rival.participants) ? rival.participants : [];
+    if (slot === 'partner') return !(senderTeamArr.length > 0 && senderTeamArr[0]?.id);
+    if (slot === 'opp1') return !(parts[0] && parts[0].id);
+    if (slot === 'opp2') return !(parts[1] && parts[1].id);
+    return false;
+}
+function genderFitsSlot(gender, genderReq) {
+    return !gender || gender === 'OTHER' || !genderReq || genderReq === 'MIX' || gender === genderReq;
+}
+function pickStrictDoubleSlot(rival, gender) {
+    const slots = [['partner', rival.partnerGenderReq], ['opp1', rival.opp1GenderReq], ['opp2', rival.opp2GenderReq]];
+    for (const [slot, gReq] of slots) {
+        if (isDoubleSlotOpen(rival, slot) && genderFitsSlot(gender, gReq)) return slot;
+    }
+    return null;
+}
+
 export const seedRivalDemoJoin = async (req, res, next) => {
     try {
         const { rivalId } = req.body;
@@ -346,9 +385,16 @@ export const seedRivalDemoJoin = async (req, res, next) => {
             }
         }
 
+        const isStrictDouble = rival.matchType === 'DOUBLE' && rival.teamFlexibility === 'STRICT';
+
         let fullPool = DEMO_RIVAL_PLAYERS.filter(d => !alreadyApplied.has(d.username));
-        if (rival.minRating != null) fullPool = fullPool.filter(d => d.skillRating >= rival.minRating);
-        if (rival.maxRating != null) fullPool = fullPool.filter(d => d.skillRating <= rival.maxRating);
+        fullPool = fullPool.filter(d => {
+            const [effMin, effMax] = effRatingRangeForGender(rival, d.gender);
+            if (effMin != null && d.skillRating < effMin) return false;
+            if (effMax != null && d.skillRating > effMax) return false;
+            return true;
+        });
+        if (isStrictDouble) fullPool = fullPool.filter(d => pickStrictDoubleSlot(rival, d.gender) != null);
         if (fullPool.length === 0) {
             return res.status(400).json({ message: 'Uygun demo oyuncu kalmadı (hepsi başvurdu ya da şartları sağlamıyor)' });
         }
@@ -363,10 +409,11 @@ export const seedRivalDemoJoin = async (req, res, next) => {
             // requireActiveInterest o zaman "önce Aktivitelerim'e eklemelisin" hatası veriyordu
             // (kullanıcı raporu: bazen çalışıyor bazen "saçma" bir hata çıkıyor).
             const userId = (await ensureDemoRivalPlayer(demo, rival.subCategory)).id;
+            const body = isStrictDouble ? { requestedSlot: pickStrictDoubleSlot(rival, demo.gender) } : {};
             const { status } = await invokeControllerAs(sendJoinRequest, {
                 userId,
                 params: { id: rivalId },
-                body: {},
+                body,
             });
             if (status < 400) {
                 const updatedRival = await prisma.activityRequest.findUnique({
