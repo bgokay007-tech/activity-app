@@ -3185,16 +3185,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <Text style={[det.sectionTitle, { flex:1 }]}>📬 {t.requests || 'İstekler'} ({joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
                                 <Text style={{ color:'#fff', fontSize:14 }}>{requestsExpanded ? '▼' : '◀'}</Text>
                             </TouchableOpacity>
-                            {/* Kullanıcı raporu: ilan sahibi olmayan biri kabul/red'e dokununca backend'den
-                                çıplak "Forbidden" hatası dönüyordu — bu istekleri SADECE ilan sahibi
-                                yanıtlayabilir (bkz. respondToJoin). Sahibi değilse butonlar yerine ne
-                                yapabileceğini (davet gönderebilir mi, "kilit" açık mı) anlatan tek satırlık
-                                bir not gösterilir. */}
-                            {requestsExpanded && !isOwner && (
-                                <Text style={{ color: colors.textMuted, fontSize: moderateScale(10), marginBottom:6 }}>
-                                    {item.participantsCanInvite ? t.requestsOwnerOnlyCanInviteHint : t.requestsOwnerOnlyHint}
-                                </Text>
-                            )}
                             {requestsExpanded && (item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (() => {
                                 // STRICT çiftler maçında başvuran, hangi slota (Kurucu Takımı /
                                 // Rakip 1 / Rakip 2) başvurduğunu request sırasında zaten seçmişti
@@ -4357,6 +4347,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const filled = participants.filter(p => p?.id || p?.manualName).length;
     const isFull = filled >= required;
     const [localJoinStatus, setLocalJoinStatus] = useState(null);
+    // Kullanıcı isteği: "Katıl" derece anketi eksik olduğu için reddedilince artık çıplak bir
+    // hata gibi değil, ne yapması gerektiğini anlatan bir UYARI olarak gösterilsin ve anketi
+    // dolduracağı pencereye yönlendirsin — anket tamamlanınca (requireActivity'deki aynı
+    // patern) yarım kalan "Katıl" isteği otomatik devam eder.
+    const [joinAssessGate, setJoinAssessGate] = useState(null); // { interestId, ratingType, requestedSlot, positionPreferences }
     const mySentReq = localJoinStatus ?? item._myJoinStatus;
     const myInvite = (Array.isArray(item.joinRequests) ? item.joinRequests : []).find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER');
     const [detailVisible, setDetailVisible] = useState(false);
@@ -4537,6 +4532,31 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             if (!e?.response) { onRefresh(); return; } // network drop — sunucu aldı, yenile
             setLocalJoinStatus(null); // hata varsa geri al
             const msg = e.response.data?.message || '';
+            const code = e.response.data?.code;
+            // Derece anketi eksikliği bir "hata" değil, çözümü belli bir durum — kullanıcıyı
+            // suçlayan kırmızı bir Alert yerine bilgilendirici bir uyarı + doğrudan anketi
+            // dolduracağı pencereye yönlendirme (bkz. backend requireActiveInterest err.code).
+            if (['ASSESSMENT_REQUIRED', 'DOUBLES_ASSESSMENT_REQUIRED', 'SINGLES_ASSESSMENT_REQUIRED'].includes(code)) {
+                Alert.alert(
+                    '📋 Derecelendirme Anketi Gerekli',
+                    `${msg}\n\nAnketi şimdi doldurup katılım isteğini hemen ardından gönderebilirsin.`,
+                    [
+                        { text: 'Vazgeç', style: 'cancel' },
+                        { text: 'Anketi Doldur', onPress: async () => {
+                            try {
+                                const { data } = await api.get('/interests/my');
+                                const interest = Array.isArray(data) ? data.find(i => i.subCategory === sub) : null;
+                                if (!interest) return;
+                                const ratingType = code === 'DOUBLES_ASSESSMENT_REQUIRED' ? 'doubles'
+                                    : code === 'SINGLES_ASSESSMENT_REQUIRED' ? undefined
+                                    : (sub === 'padel' ? 'doubles' : undefined);
+                                setJoinAssessGate({ interestId: interest.id, ratingType, requestedSlot, positionPreferences });
+                            } catch {}
+                        }},
+                    ]
+                );
+                return;
+            }
             if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('no longer')) {
                 onRefresh();
                 if (msg.toLowerCase().includes('no longer')) Alert.alert(t.error, t.requestNoLongerOpen || 'Bu ilan artık açık değil.');
@@ -4967,6 +4987,23 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 t={t}
             />
         )}
+        {/* "Katıl" derece anketi eksik olduğu için reddedilince açılır (bkz. handleJoin catch) —
+            tamamlanınca yarım kalan katılım isteği otomatik tekrar gönderilir. Kullanıcının
+            interest'i zaten var (başka bir anketi tamamlamış olabilir), bu yüzden vazgeçince
+            root'taki ilk-kurulum akışının aksine interest SİLİNMEZ, sadece pencere kapanır. */}
+        <AssessmentModal
+            visible={!!joinAssessGate}
+            interestId={joinAssessGate?.interestId}
+            subCategory={sub}
+            ratingType={joinAssessGate?.ratingType || null}
+            mandatory
+            onClose={() => setJoinAssessGate(null)}
+            onComplete={() => {
+                const gate = joinAssessGate;
+                setJoinAssessGate(null);
+                if (gate) handleJoin(gate.requestedSlot, gate.positionPreferences);
+            }}
+        />
         {/* Kullanıcı isteği: voleybol takım maçına katılmadan önce hangi pozisyonda oynamak
             istediğini (öncelik sırasıyla, dokunma sırası = öncelik) seçebilsin — ilan sahibi
             İstekler listesinde bunu görüp kabul/red kararını buna göre versin. */}
@@ -5618,6 +5655,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const cfg = getConfig(match.subCategory);
     const isVolleyball = match.subCategory === 'volleyball';
     const opponent = isOwner ? match.participants?.[0] : match.sender;
+    // Tenis/padel'de yaklaşan/skor bekleyen maçlarda ELO etiketini bu maçın FORMATINA göre
+    // seçmek için (bkz. ratingBadgeText) — kullanıcı isteği: ELO puanı ilan sahibi dahil
+    // HERKESE görünür olmalı, sadece kendi puanına değil.
+    const isDoublesFmt = match.matchType === 'DOUBLE';
 
     const participantsArr = (Array.isArray(match.participants) ? match.participants : []).filter(p => p?.id);
     const senderTeamArr   = (Array.isArray(match.senderTeam)   ? match.senderTeam   : []).filter(p => p?.id);
@@ -6508,7 +6549,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     {/* Kullanıcı isteği: elo/derece puanı artık ilan sahibi dahil HERKESE
                                         görünsün (katılsın katılmasın) — önceki "sahip görmesin" kısıtı
                                         kaldırıldı. */}
-                                    {p.skillRating != null && <Text style={{ color:'#facc15', fontSize:10, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>}
+                                    {p.skillRating != null && <Text style={{ color:'#facc15', fontSize:10, fontWeight:'800' }}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, p.skillRating)}</Text>}
                                 </View>
                             ))}
                         </ScrollView>
@@ -6636,7 +6677,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 )}
                             </View>
                             {match.senderSkillRating != null && (
-                                <Text style={{ color:'#facc15', fontSize:moderateScale(11), fontWeight:'800' }}>{Number(match.senderSkillRating).toFixed(2)} ★</Text>
+                                <Text style={{ color:'#facc15', fontSize:moderateScale(11), fontWeight:'800' }}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, match.senderSkillRating)}</Text>
                             )}
                         </View>
                     </View>
@@ -6920,7 +6961,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                                 <Text style={{ color:'#fff', fontSize:10, fontWeight:'400' }} numberOfLines={1}>{i + 1}. {senderAlias(p)}</Text>
                                                             </View>
                                                             {p.skillRating != null && (
-                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
+                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, p.skillRating)}</Text>
                                                             )}
                                                         </View>
                                                     </View>
@@ -6956,13 +6997,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                             </TouchableOpacity>
                                                         )}
                                                         {founderTeamAvg != null && (
-                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {founderTeamAvg.toFixed(2)}★</Text>
+                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, founderTeamAvg)}</Text>
                                                         )}
                                                     </View>
                                                     <View style={{ borderRadius:5, paddingHorizontal:3, paddingVertical:2, backgroundColor:'#1e293b', marginBottom:4 }}>
                                                         <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                             {senderAlias(match.sender)} 🔒
-                                                            {match.senderSkillRating != null && <Text style={{ color:'#facc15', fontWeight:'800' }}>  {Number(match.senderSkillRating).toFixed(2)}★</Text>}
+                                                            {match.senderSkillRating != null && <Text style={{ color:'#facc15', fontWeight:'800' }}>  {ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, match.senderSkillRating)}</Text>}
                                                         </Text>
                                                     </View>
                                                     <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>{founderLabel2}</Text>
@@ -6977,7 +7018,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                             </TouchableOpacity>
                                                         )}
                                                         {oppTeamAvg != null && (
-                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {oppTeamAvg.toFixed(2)}★</Text>
+                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, oppTeamAvg)}</Text>
                                                         )}
                                                     </View>
                                                     <Text style={{ color:'#f87171', fontSize:8, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>{oppLabel1}</Text>
@@ -7332,7 +7373,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                             <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
                                                             <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{i + 1}. {senderAlias(p)}</Text>
                                                             {p.skillRating != null && (
-                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{Number(p.skillRating).toFixed(2)}★</Text>
+                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, p.skillRating)}</Text>
                                                             )}
                                                         </View>
                                                     </View>
@@ -8341,7 +8382,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         </View>
                                         <Text style={{ color:'#fff', fontWeight:'700' }}>{p.username}</Text>
                                         {p.skillRating != null && (
-                                            <Text style={{ color:'#facc15', fontSize:11 }}>{Number(p.skillRating).toFixed(2)} ★</Text>
+                                            <Text style={{ color:'#facc15', fontSize:11 }}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, p.skillRating)}</Text>
                                         )}
                                     </TouchableOpacity>
                                 );
