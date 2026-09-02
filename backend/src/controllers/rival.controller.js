@@ -2068,6 +2068,42 @@ export const createRivalRequest = async (req, res, next) => {
                 return res.status(400).json({ message: `Bu kısıtlamayı koyamazsınız: en fazla ${creatorEffMax}★ kabul ediyorsunuz ama kendi puanınız ${creatorRating.toFixed(2)}★.` });
         }
 
+        // Kullanıcı raporu (DB'den doğrulandı): DOUBLE ilanda partner/Rakip 1/Rakip 2'ye
+        // doğrudan davet gönderilirken (aşağıda ilan oluştuktan SONRA fire-and-forget
+        // gönderiliyor, bkz. partnerInviteId/opp1InviteId/opp2InviteId) derece kısıtlaması HİÇ
+        // kontrol edilmiyordu — inviteToRival'daki aynı kontrol sadece SONRADAN (ilan zaten
+        // varken) gönderilen davetlerde vardı. Burada ilan oluşmadan ÖNCE, sentezce reddedilir.
+        if (matchType.toUpperCase() === 'DOUBLE') {
+            const inviteIdsToCheck = [...new Set([partnerInviteId, opp1InviteId, opp2InviteId].filter(Boolean))];
+            if (inviteIdsToCheck.length > 0) {
+                const effMinMaxForGender = (gender) => {
+                    const pf = (v) => (v !== undefined && v !== null && v !== '' ? parseFloat(v) : null);
+                    if (!genderSplitOn) return [pf(minRating), pf(maxRating)];
+                    if (gender === 'MALE') return [pf(minRatingMale), pf(maxRatingMale)];
+                    if (gender === 'FEMALE') return [pf(minRatingFemale), pf(maxRatingFemale)];
+                    return [null, null];
+                };
+                const invitees = await prisma.user.findMany({
+                    where: { id: { in: inviteIdsToCheck } },
+                    select: {
+                        id: true, username: true, gender: true,
+                        interests: { where: { category, subCategory }, select: { skillRating: true, singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true } },
+                    },
+                });
+                for (const inv of invitees) {
+                    const [effMin, effMax] = effMinMaxForGender(inv.gender);
+                    if (effMin == null && effMax == null) continue;
+                    const invRating = getDisplayRating(inv.interests?.[0] || null, subCategory, true);
+                    if (effMin != null && invRating < effMin) {
+                        return res.status(400).json({ message: `Davet etmek istediğiniz @${inv.username} kişisinin derece puanı (${invRating.toFixed(2)}★) belirlemiş olduğunuz derece kısıtlamasına (en az ${effMin}★) uymamaktadır.` });
+                    }
+                    if (effMax != null && invRating > effMax) {
+                        return res.status(400).json({ message: `Davet etmek istediğiniz @${inv.username} kişisinin derece puanı (${invRating.toFixed(2)}★) belirlemiş olduğunuz derece kısıtlamasına (en fazla ${effMax}★) uymamaktadır.` });
+                    }
+                }
+            }
+        }
+
         if (genderCountMode === 'EXACT' && requiredMaleCount !== undefined && requiredMaleCount !== null && requiredMaleCount !== '') {
             const totalSlots = 2 * (Number(teamSize) || 1);
             const rmc = parseInt(requiredMaleCount, 10);
