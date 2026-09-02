@@ -2046,7 +2046,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     )}
                                 </View>
                                 {item.sender?.interests?.[0]?.assessmentCompleted && (
-                                    <Text style={{ color:'#facc15', fontSize:moderateScale(11), fontWeight:'800' }}>{ratingBadgeText(sub, isDoublesFmt, t.lang, item.sender.interests[0].skillRating)}</Text>
+                                    // "T ELO 3.45" gibi etiketli metin eskiden "3.45★"ten uzun — numberOfLines
+                                    // olmadan sol sütunu genişletip sağ taraftaki tarih/kort bilgisini sıkıştırıyordu
+                                    // (kullanıcı raporu). Diğer rozetlerle (isim, cinsiyet vb.) tutarlı korunuyor.
+                                    <Text style={{ color:'#facc15', fontSize:moderateScale(11), fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{ratingBadgeText(sub, isDoublesFmt, t.lang, item.sender.interests[0].skillRating)}</Text>
                                 )}
                                 {/* Kullanıcı isteği: kart'ta (RivalCard) zaten gösterilen tüm bilgiler
                                     (cinsiyet kısıtlaması, derece aralığı, iptal cezası, kort/salon
@@ -3108,6 +3111,39 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </View>
                                 </View>
                             )
+                        ) : !showTeamCards ? (
+                            // Kullanıcı raporu: SINGLE (1v1) ilanlarda çevirme butonu görünüyordu ama
+                            // arka yüz eskisiyle (Kurucu/Rakip listesi) BİREBİR AYNIYDI — showTeamCards
+                            // hiç kontrol edilmiyordu, kart çeviriliyormuş gibi dönüyordu ama içerik hiç
+                            // değişmiyordu ("arka yüzü yok" şikayeti buradan). Ön yüz artık DOUBLE/takım
+                            // sporlarındaki gibi sade bir "Katılan Oyuncular" havuzu (rol etiketsiz),
+                            // Kurucu/Rakip + derece + Çıkar detayları arka yüze taşındı.
+                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+                                <TouchableOpacity onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} style={{ alignItems:'center', width:'30%' }}>
+                                    <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(36)} color={cfg.color} />
+                                    <Text numberOfLines={1} style={{ color:'#fff', fontSize:10, fontWeight:'700', marginTop:3, textAlign:'center' }}>{playerDisplayName(item.sender)}</Text>
+                                    {item.sender?.interests?.[0]?.skillRating != null && (
+                                        <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }}>{ratingBadgeText(sub, isDoublesFmt, t.lang, item.sender.interests[0].skillRating)}</Text>
+                                    )}
+                                </TouchableOpacity>
+                                {participants.filter(p => p?.id).map((p, i) => (
+                                    <TouchableOpacity key={p.id || i} onPress={() => p.id && navigation.push('Profile', { userId: p.id })} style={{ alignItems:'center', width:'30%' }}>
+                                        <Avatar name={p.username} avatar={p.avatar} size={moderateScale(36)} color={cfg.color} />
+                                        <Text numberOfLines={1} style={{ color:'#fff', fontSize:10, fontWeight:'700', marginTop:3, textAlign:'center' }}>{playerDisplayName(p)}</Text>
+                                        {p.skillRating != null && (
+                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }}>{ratingBadgeText(sub, isDoublesFmt, t.lang, p.skillRating)}</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                ))}
+                                {Array.from({ length: Math.max(0, required - filled) }).map((_, i) => (
+                                    <View key={`empty-${i}`} style={{ alignItems:'center', width:'30%', opacity:0.55 }}>
+                                        <View style={{ width:moderateScale(36), height:moderateScale(36), borderRadius:moderateScale(18), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:14 }}>?</Text>
+                                        </View>
+                                        <Text style={{ color: colors.textMuted, fontSize:9, marginTop:3 }}>Bekleniyor</Text>
+                                    </View>
+                                ))}
+                            </View>
                         ) : (
                             <>
                                 <View style={det.playerRow}>
@@ -6679,7 +6715,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 )}
                             </View>
                             {match.senderSkillRating != null && (
-                                <Text style={{ color:'#facc15', fontSize:moderateScale(11), fontWeight:'800' }}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, match.senderSkillRating)}</Text>
+                                // bkz. ilan detayındaki (RivalDetailModal) aynı düzeltme — "T ELO 3.45" gibi
+                                // etiketli metin numberOfLines olmadan sütunu genişletip yan taraftaki
+                                // bilgileri sıkıştırabiliyordu.
+                                <Text style={{ color:'#facc15', fontSize:moderateScale(11), fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, match.senderSkillRating)}</Text>
                             )}
                         </View>
                     </View>
@@ -9010,6 +9049,10 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
     maleMin, maleMax, onSelectMaleMin, onSelectMaleMax,
     femaleMin, femaleMax, onSelectFemaleMin, onSelectFemaleMax,
     ownRating = null, ownGender = null, // ilan sahibinin kendi derece puanı/cinsiyeti — kendi puanına uymayan bir aralık seçemesin diye (backend'de submit'te de aynı kontrol var, bkz. createRivalRequest)
+    // Kullanıcı isteği: önce digimon karttan oyuncular seçilip SONRA kısıtlama konursa, zaten
+    // seçili birine uymayan bir aralık burada da anında engellensin — [{ label, gender, rating }]
+    // (bkz. CreateRivalModal rosterRatingChecks).
+    rosterChecks = [],
 }) {
     const t = useT();
     const insets = useSafeAreaInsets();
@@ -9028,7 +9071,12 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
     const numOf = (v) => (v === '' || v == null) ? null : parseFloat(v);
     // checkOwn=false, cinsiyete göre ayrılmış aralıkta ilan sahibinin cinsiyetiyle
     // eşleşmeyen (dolayısıyla kendisini hiç ilgilendirmeyen) tarafta kontrolü atlar.
-    const guardMin = (onSelect, otherMax, checkOwn = true) => (v) => {
+    // genderFilter verilmişse (erkek/kadın AYRI aralık modunda) sadece o cinsiyetteki zaten
+    // seçili oyuncular kontrol edilir — flat (ayrılmamış) modda genderFilter null, HERKES
+    // kontrol edilir.
+    const rosterViolator = (nv, cmp, genderFilter) => nv == null ? null
+        : rosterChecks.find(r => (!genderFilter || r.gender === genderFilter) && r.rating != null && cmp(r.rating, nv));
+    const guardMin = (onSelect, otherMax, checkOwn = true, genderFilter = null) => (v) => {
         const nv = numOf(v), om = numOf(otherMax);
         if (nv != null && om != null && nv > om) {
             Alert.alert('', 'Alt limit üst limitten büyük olamaz.');
@@ -9038,9 +9086,14 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
             Alert.alert('', `Bu kısıtlamayı koyamazsınız: kendi puanınız ${ownRating.toFixed(2)}★, en az ${nv}★ isteyemezsiniz.`);
             return;
         }
+        const violator = rosterViolator(nv, (r, n) => r < n, genderFilter);
+        if (violator) {
+            Alert.alert('', `${violator.label} kişisinden dolayı bu derece kısıtlamasını koyamazsınız: puanı ${violator.rating.toFixed(2)}★, en az ${nv}★ isteyemezsiniz. Ya kısıtlamayı değiştirin ya da bu kişiyi kadrodan çıkarıp davet edemezsiniz.`);
+            return;
+        }
         onSelect(v);
     };
-    const guardMax = (onSelect, otherMin, checkOwn = true) => (v) => {
+    const guardMax = (onSelect, otherMin, checkOwn = true, genderFilter = null) => (v) => {
         const nv = numOf(v), om = numOf(otherMin);
         if (nv != null && om != null && nv < om) {
             Alert.alert('', 'Üst limit alt limitten küçük olamaz.');
@@ -9048,6 +9101,11 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
         }
         if (checkOwn && ownRating != null && nv != null && ownRating > nv) {
             Alert.alert('', `Bu kısıtlamayı koyamazsınız: kendi puanınız ${ownRating.toFixed(2)}★, en fazla ${nv}★ diyemezsiniz.`);
+            return;
+        }
+        const violator = rosterViolator(nv, (r, n) => r > n, genderFilter);
+        if (violator) {
+            Alert.alert('', `${violator.label} kişisinden dolayı bu derece kısıtlamasını koyamazsınız: puanı ${violator.rating.toFixed(2)}★, en fazla ${nv}★ diyemezsiniz. Ya kısıtlamayı değiştirin ya da bu kişiyi kadrodan çıkarıp davet edemezsiniz.`);
             return;
         }
         onSelect(v);
@@ -9079,11 +9137,11 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
                         ) : (
                             <>
                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8 }}>{noEmojiStr(t.genderMale || '👨 Erkek')}</Text>
-                                <RatingGrid label={t.ratingMinHeader} value={maleMin} onSelect={guardMin(onSelectMaleMin, maleMax, ownGender === 'MALE')} ratings={ratings} t={t} />
-                                <RatingGrid label={t.ratingMaxHeader} value={maleMax} onSelect={guardMax(onSelectMaleMax, maleMin, ownGender === 'MALE')} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMinHeader} value={maleMin} onSelect={guardMin(onSelectMaleMin, maleMax, ownGender === 'MALE', 'MALE')} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMaxHeader} value={maleMax} onSelect={guardMax(onSelectMaleMax, maleMin, ownGender === 'MALE', 'MALE')} ratings={ratings} t={t} />
                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8, marginTop:6 }}>{noEmojiStr(t.genderFemale || '👩 Kadın')}</Text>
-                                <RatingGrid label={t.ratingMinHeader} value={femaleMin} onSelect={guardMin(onSelectFemaleMin, femaleMax, ownGender === 'FEMALE')} ratings={ratings} t={t} />
-                                <RatingGrid label={t.ratingMaxHeader} value={femaleMax} onSelect={guardMax(onSelectFemaleMax, femaleMin, ownGender === 'FEMALE')} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMinHeader} value={femaleMin} onSelect={guardMin(onSelectFemaleMin, femaleMax, ownGender === 'FEMALE', 'FEMALE')} ratings={ratings} t={t} />
+                                <RatingGrid label={t.ratingMaxHeader} value={femaleMax} onSelect={guardMax(onSelectFemaleMax, femaleMin, ownGender === 'FEMALE', 'FEMALE')} ratings={ratings} t={t} />
                             </>
                         )}
                     </ScrollView>
@@ -11759,6 +11817,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // seçilemesin, direkt çiftler anketine yönlendirilsin (backend zaten submit'te reddediyor,
     // ama kullanıcı formu doldurup gönderene kadar bunu öğrenmiyordu).
     const [doublesGateOpen, setDoublesGateOpen] = useState(false);
+    // Padel: çiftler anketi tekliyi karşılamıyor — biri sadece çiftler anketini tamamlamışsa
+    // (kullanıcı isteği: çiftler padel'de varsayılan/birincil) Tekli formatı seçilince de
+    // tekli anketine yönlendirilir. Tenis'te bu hiç oluşmaz çünkü tekli zaten en baştan şart.
+    const [singlesGateOpen, setSinglesGateOpen] = useState(false);
     const isTeamSport = TEAM_SPORTS.has(sub);
     const isFootball  = sub === 'football';
     const isVolleyball = sub === 'volleyball';
@@ -11976,6 +12038,30 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         if (raw == null && seed == null) return null;
         return Math.max(0, (raw ?? seed ?? 0) + offset);
     })();
+    // Kullanıcı isteği: önce digimon karttan partner/rakip seçilip SONRA derece kısıtlaması
+    // konursa, zaten seçili birine uymayan bir aralık RatingRangeModal içinde anında
+    // engellensin (bkz. oradaki rosterChecks parametresi) — "Y oyuncudan dolayı bu derece
+    // kısıtlamasını koyamazsınız" tarzı, ratingFitsSlot'un (seçim anındaki kontrol) tam tersi
+    // yönde tamamlayıcısı.
+    const rosterRatingChecks = () => {
+        if (sub !== 'tennis' && sub !== 'padel') return [];
+        const isDoublesFmt = f.matchType === 'DOUBLE';
+        const slots = f.matchType === 'DOUBLE'
+            ? [
+                [f.partner, t.founderTeamLabel || 'Takım Arkadaşı'],
+                [f.opp1Invite, t.opp1Label || 'Rakip 1'],
+                [f.opp2Invite, t.opp2Label || 'Rakip 2'],
+                [f.poolInvite1, '2. Oyuncu'], [f.poolInvite2, '3. Oyuncu'], [f.poolInvite3, '4. Oyuncu'],
+              ]
+            : [[Array.isArray(f.singleOppInvites) ? f.singleOppInvites[0] : null, t.opponentTeamShortLabel || 'Rakip']];
+        return slots
+            .filter(([u]) => u?.id)
+            .map(([u, roleLabel]) => ({
+                label: `${roleLabel} (@${u.username})`,
+                gender: u.gender,
+                rating: utrDisplayRating(u.interests?.find(i => i.subCategory === sub), sub, isDoublesFmt) ?? u.skillRating ?? 0,
+            }));
+    };
     // Düzenleme modunda ilk yüklemedeki gerçek rezervasyon kimliği burada sabit kalır —
     // f.venueId/venueCourtId kullanıcı yeni bir slot seçtikçe değişir, originalRef hiç
     // değişmez; submitEdit() aynı kort mu farklı kort mu ayrımını bununla yapar.
@@ -13117,6 +13203,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 setDoublesGateOpen(true);
                                                                 return;
                                                             }
+                                                            if (fmt.id === 'SINGLE' && sub === 'padel' && !myInterestForSub?.assessmentCompleted) {
+                                                                setActivePopup(null);
+                                                                setSinglesGateOpen(true);
+                                                                return;
+                                                            }
                                                             // Kullanıcı isteği: format seçilince kişi başı ücret otomatik
                                                             // hesaplanıp yazılmasın — bu, kullanıcının dikkatini formu kendi
                                                             // sırasıyla doldurmaktan o alana yönlendiriyordu ("odaklanma ile
@@ -13214,6 +13305,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 onSelectFemaleMax={(v) => set('maxRatingFemale', v)}
                                                 ownRating={myOwnRating}
                                                 ownGender={myUser?.gender}
+                                                rosterChecks={rosterRatingChecks()}
                                             />
                                         );
                                     })()}
@@ -14632,7 +14724,17 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         { field:'opp2GenderReq', label: t.opp2GenderLabel || 'Rakip 2 Cinsiyeti' },
                                     ] : [
                                         { field:'genderReq', label: t.genderReqLabel },
-                                    ]).map(row => (
+                                    ]).map(row => {
+                                    // Kullanıcı isteği: önce digimon karttan bu forma bir oyuncu seçilip
+                                    // SONRA cinsiyet kısıtlaması konursa, seçili oyuncuya uymayan bir
+                                    // kısıtlama burada da anında engellensin (genderFitsCheck'in — seçim
+                                    // anındaki kontrol — ters yönde tamamlayıcısı).
+                                    const slotUser = row.field === 'partnerGenderReq' ? f.partner
+                                        : row.field === 'opp1GenderReq' ? f.opp1Invite
+                                        : row.field === 'opp2GenderReq' ? f.opp2Invite
+                                        : row.field === 'genderReq' ? (Array.isArray(f.singleOppInvites) ? f.singleOppInvites[0] : null)
+                                        : null;
+                                    return (
                                         <View key={row.field} style={{ marginBottom:14 }}>
                                             <Text style={[s.fieldLabel, { marginBottom:6 }]}>{row.label}</Text>
                                             <View style={{ flexDirection:'row', gap:6 }}>
@@ -14642,6 +14744,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     { id:'FEMALE', label: noEmoji(t.genderFemale || '👩 Kadın') },
                                                 ].map(g => (
                                                     <TouchableOpacity key={g.id} onPress={() => {
+                                                        if (g.id !== 'MIX' && slotUser?.gender && slotUser.gender !== 'OTHER' && slotUser.gender !== g.id) {
+                                                            Alert.alert('', `@${slotUser.username} kişisinden dolayı bu cinsiyet kısıtlamasını koyamazsınız — kendisi ${slotUser.gender === 'MALE' ? 'erkek' : 'kadın'}. Ya kısıtlamayı değiştirin ya da bu kişiyi kadrodan çıkarıp davet edemezsiniz.`);
+                                                            return;
+                                                        }
                                                         set(row.field, g.id);
                                                         // SINGLE'da tekil cinsiyet seçilince ayrı erkek/kadın derece aralığı
                                                         // tutmanın anlamı kalmıyor — Derece modalı direkt o cinsiyetin
@@ -14654,7 +14760,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 ))}
                                             </View>
                                         </View>
-                                    ))}
+                                    );
+                                    })}
                                 </ScrollView>
                                 <TouchableOpacity onPress={() => { courtFeeInputRef.current?.blur(); setShowGenderReqModal(false); }}
                                     style={{ backgroundColor: cfg.color, borderRadius:10, paddingVertical:11, alignItems:'center' }}>
@@ -14678,6 +14785,21 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                         courtFeeInputRef.current?.blur();
                         setShowGenderReqModal(true);
                         setF(p => ({ ...p, matchType: 'DOUBLE', partner: p.partner }));
+                    }}
+                />
+
+                {/* Padel: Tekli formatı seçilirken tekli anketi tamamlanmamışsa burada açılır —
+                    sadece padel'de olur (tenis'te tekli zaten en baştan şart). */}
+                <AssessmentModal
+                    visible={singlesGateOpen}
+                    interestId={myInterestForSub?.id}
+                    subCategory={sub}
+                    onClose={() => setSinglesGateOpen(false)}
+                    onComplete={() => {
+                        setSinglesGateOpen(false);
+                        courtFeeInputRef.current?.blur();
+                        setShowGenderReqModal(true);
+                        setF(p => ({ ...p, matchType: 'SINGLE' }));
                     }}
                 />
 
@@ -19708,8 +19830,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                 );
                 return;
             }
-            if (RATING_REQUIRED_SUBS.has(sub) && !interest.assessmentCompleted) {
-                setGateAssessTarget({ interestId: interest.id, pendingAction: onOk });
+            // Padel: %99 çiftler oynanan bir spor olduğu için (kullanıcı isteği) çiftler anketi
+            // tekliyi de karşılar (varsayılan/birincil) — tenis'te hâlâ sadece tekli yeterli.
+            const generalAssessmentDone = sub === 'padel' ? (interest.assessmentCompleted || interest.doublesAssessmentCompleted) : interest.assessmentCompleted;
+            if (RATING_REQUIRED_SUBS.has(sub) && !generalAssessmentDone) {
+                setGateAssessTarget({ interestId: interest.id, pendingAction: onOk, ratingType: sub === 'padel' ? 'doubles' : undefined });
                 return;
             }
         } catch {
@@ -26553,6 +26678,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 visible={!!gateAssessTarget}
                 interestId={gateAssessTarget?.interestId}
                 subCategory={sub}
+                ratingType={gateAssessTarget?.ratingType || null}
                 mandatory
                 onClose={(hasProgress) => {
                     if (!hasProgress) { setGateAssessTarget(null); return; }
