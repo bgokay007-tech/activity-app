@@ -72,12 +72,22 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
             const updated = [...localInterests, data];
             setLocalInterests(updated);
             onInterestsChange?.(updated);
+            // Padel: %99 çiftler oynanan bir spor olduğu için (kullanıcı isteği) varsayılan/
+            // birincil anket ÇİFTLER — tekli anketi hiç gerekmeden bağımsız tamamlanabilir.
+            // Tenis'te hâlâ tekli varsayılan/birincil.
+            const isPadelDoublesDefault = subCategory === 'padel';
+            const alreadyAssessed = isPadelDoublesDefault
+                ? (data.assessmentCompleted || data.doublesAssessmentCompleted)
+                : data.assessmentCompleted;
             if (subCategory === 'friend_finding') {
                 setFfSurveyOpen(true);
-            } else if (!data.assessmentCompleted) {
+            } else if (!alreadyAssessed) {
                 // Daha once gizlenmis (ama 3+ mac gecmisi oldugu icin silinmemis) bir brans
                 // tekrar eklendiyse anketi tekrar acmiyoruz - puan/gecmis zaten korunuyor.
-                setAssessTarget({ interestId: data.id, subCategory, category, mandatory: RATING_REQUIRED_SUBS.has(subCategory) });
+                setAssessTarget({
+                    interestId: data.id, subCategory, category, mandatory: RATING_REQUIRED_SUBS.has(subCategory),
+                    ...(isPadelDoublesDefault && { ratingType: 'doubles' }),
+                });
             }
         } catch (e) { console.error(e); }
         finally { setLoadingId(null); }
@@ -151,7 +161,9 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                 setAssessTarget({ interestId: existing.id, subCategory: subId });
             }},
             { text: t.doublesAssessOption, onPress: () => {
-                if (!existing.assessmentCompleted) { Alert.alert(t.assessPickerTitle, t.doSinglesFirstMsg); return; }
+                // Padel'de çiftler tekliden BAĞIMSIZ (kullanıcı isteği: %99 çiftler oynanıyor) —
+                // sadece tenis'te çiftlerden önce tekli anketi tamamlanmış olmalı.
+                if (subId === 'tennis' && !existing.assessmentCompleted) { Alert.alert(t.assessPickerTitle, t.doSinglesFirstMsg); return; }
                 if (!canDoDoubles) { Alert.alert(t.assessPickerTitle, t.tooManyMatchesMsg); return; }
                 setAssessTarget({ interestId: existing.id, subCategory: subId, ratingType: 'doubles' });
             }},
@@ -192,16 +204,11 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
 
     const handleAssessComplete = (result) => {
         if (!result || !assessTarget) return;
-        // Çiftler anketi (tenis) tekli anketten AYRI bir alanı (doublesAssessmentCompleted/
-        // doublesSeedRating) günceller — result.interest zaten backend'den güncel haliyle
-        // dönüyor, doğrudan onu kullanmak en güvenlisi (tek tek alan kopyalamaya gerek yok).
-        const updated = localInterests.map(i => {
-            if (i.id !== assessTarget.interestId) return i;
-            if (assessTarget.ratingType === 'doubles') {
-                return { ...i, ...(result.interest || {}) };
-            }
-            return { ...i, skillRating: result.skillRating, level: result.level, assessmentCompleted: true };
-        });
+        // Backend her disiplinde (tekli/çiftler/diğer dallar) result.interest'i zaten
+        // withDisplayRatings ile (singlesDisplayRating/doublesDisplayRating dahil) güncel
+        // haliyle döndürüyor — doğrudan onu kullanmak, tekli tamamlanınca singlesDisplayRating'in
+        // güncellenmemesi gibi eksik-yansıma hatalarını önler.
+        const updated = localInterests.map(i => i.id === assessTarget.interestId ? { ...i, ...(result.interest || {}) } : i);
         setLocalInterests(updated);
         onInterestsChange?.(updated);
         setAssessTarget(null);

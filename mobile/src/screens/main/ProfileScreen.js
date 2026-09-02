@@ -15,6 +15,7 @@ import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ManageActivitiesModal from '../../components/ManageActivitiesModal';
+import AssessmentModal from '../../components/AssessmentModal';
 import SupportModal from '../../components/SupportModal';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import RainbowLogo from '../../components/RainbowLogo';
@@ -399,7 +400,7 @@ function TennisDailyAnimation({ color, lang }) {
     );
 }
 
-function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, onReservations, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile, userId, profileUserId, onViewTournament, onGoalsSaved }) {
+function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArchive, onReservations, isOwnProfile, aliasEditId, aliasValue, setAliasValue, onSaveAlias, onCancelAlias, onEditAlias, savingAlias, profile, userId, profileUserId, onViewTournament, onGoalsSaved, onAssessComplete }) {
     const insets = useSafeAreaInsets();
     const flipAnim = useRef(new Animated.Value(0)).current;
     const [isBack, setIsBack] = useState(false);
@@ -414,6 +415,12 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     const [showGoals, setShowGoals] = useState(false);
     const [showVolleyballRating, setShowVolleyballRating] = useState(false);
     const [showPadelRating, setShowPadelRating] = useState(false);
+    // Kullanıcı isteği: "Yönet" penceresindeki tekli/çiftli değerlendirme seçimi (bkz.
+    // ManageActivitiesModal openAssessPicker) burada da, kartın kendisinde senkronize
+    // şekilde bulunsun — henüz hiç değerlendirme yapılmamış (ilk 3 maç oynanmamış) bir
+    // tenis/padel dalında bile "Tekli -★ / Çiftler -★" ve altında bir "Değerlendir"
+    // butonu görünsün.
+    const [assessGate, setAssessGate] = useState(null); // { ratingType }
 
     useEffect(() => {
         if (!visible) {
@@ -422,9 +429,31 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
             setAnketScores({ stres: 0, fairplay: 0, beden: 0 });
             setCanRate(false); setAnketAverages(null); setSurveyLoaded(false);
             setShowAchievements(false); setShowGoals(false); setShowVolleyballRating(false);
-            setShowPadelRating(false);
+            setShowPadelRating(false); setAssessGate(null);
         }
     }, [visible]);
+
+    // ManageActivitiesModal'daki openAssessPicker ile birebir aynı kural: tekli/çiftler
+    // AYRI, 3+ maç oynanmış bir disiplin yeniden değerlendirilemez, tenis'te çiftlerden
+    // önce tekli tamamlanmış olmalı (padel'de bu şart yok, çiftler varsayılan/birincil).
+    const openAssessPicker = () => {
+        if (!item) return;
+        const canRedoSingles = ((item.singlesMatchCount ?? ((item.wins || 0) + (item.losses || 0))) < 3) || !item.assessmentCompleted;
+        const canDoDoubles = !item.doublesAssessmentCompleted || (item.doublesMatchCount || 0) < 3;
+        if (!canRedoSingles && !canDoDoubles) return;
+        Alert.alert(t.assessPickerTitle, t.assessPickerMessage, [
+            { text: t.singlesAssessOption, onPress: () => {
+                if (!canRedoSingles) { Alert.alert(t.assessPickerTitle, t.tooManyMatchesMsg); return; }
+                setAssessGate({ ratingType: null });
+            }},
+            { text: t.doublesAssessOption, onPress: () => {
+                if (item.subCategory === 'tennis' && !item.assessmentCompleted) { Alert.alert(t.assessPickerTitle, t.doSinglesFirstMsg); return; }
+                if (!canDoDoubles) { Alert.alert(t.assessPickerTitle, t.tooManyMatchesMsg); return; }
+                setAssessGate({ ratingType: 'doubles' });
+            }},
+            { text: t.assessPickerCancelBtn, style: 'cancel' },
+        ]);
+    };
 
     const handleFlip = () => {
         Animated.timing(flipAnim, { toValue: 0.5, duration: 180, useNativeDriver: true }).start(() => {
@@ -496,20 +525,29 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 {/* Kullanıcı isteği: onaylı antrenör/hakem rozeti olanlar, ELO puanının hemen
                                     altında (aynı kutu içinde) "Antrenör"/"Hakem" etiketiyle görünsün — bkz.
                                     backend interest.controller.js attachCoachRefereeBadges. */}
-                                {(item.assessmentCompleted || item.isCoach || item.isReferee) && (
+                                {(item.assessmentCompleted || item.isCoach || item.isReferee || (isOwnProfile && ['tennis','padel'].includes(item.subCategory))) && (
                                     <View style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 1, paddingHorizontal: 4, borderWidth: 1, borderColor: '#facc1540' }}>
                                         {/* Tenis/padel: tekli/çiftler puanı AYRI gösterilir (bkz. backend
-                                            utrRating.js) — ikisi de dokununca aynı ELO geçmişi grafiğini açar. */}
-                                        {item.assessmentCompleted && ['tennis','padel'].includes(item.subCategory) ? (
-                                            <TouchableOpacity onPress={() => setShowEloModal(true)} style={{ alignItems: 'center' }}>
-                                                <Text style={{ color: '#facc15', fontSize: 10, fontWeight: '900' }} numberOfLines={1}>
-                                                    {lang === 'tr' ? 'Tekli' : 'Singles'} {item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'}
-                                                </Text>
-                                                <Text style={{ color: '#facc15', fontSize: 10, fontWeight: '900' }} numberOfLines={1}>
-                                                    {lang === 'tr' ? 'Çiftler' : 'Doubles'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
-                                                </Text>
-                                                <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
-                                            </TouchableOpacity>
+                                            utrRating.js) — ikisi de dokununca aynı ELO geçmişi grafiğini açar.
+                                            Kullanıcı isteği: henüz hiç değerlendirme yapılmamışsa bile "—" ile
+                                            gösterilsin, altında "Değerlendir" butonu olsun (bkz. openAssessPicker). */}
+                                        {['tennis','padel'].includes(item.subCategory) ? (
+                                            <>
+                                                <TouchableOpacity onPress={() => item.assessmentCompleted && setShowEloModal(true)} disabled={!item.assessmentCompleted} style={{ alignItems: 'center' }}>
+                                                    <Text style={{ color: '#facc15', fontSize: 10, fontWeight: '900' }} numberOfLines={1}>
+                                                        {lang === 'tr' ? 'Tekli' : 'Singles'} {item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'}
+                                                    </Text>
+                                                    <Text style={{ color: '#facc15', fontSize: 10, fontWeight: '900' }} numberOfLines={1}>
+                                                        {lang === 'tr' ? 'Çiftler' : 'Doubles'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
+                                                    </Text>
+                                                    <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
+                                                </TouchableOpacity>
+                                                {isOwnProfile && (
+                                                    <TouchableOpacity onPress={openAssessPicker} style={{ marginTop: 2, backgroundColor: '#facc1530', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
+                                                        <Text style={{ color: '#facc15', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>📋 {lang === 'tr' ? 'Değerlendir' : 'Assess'}</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </>
                                         ) : item.assessmentCompleted && (
                                             <TouchableOpacity onPress={() => setShowEloModal(true)} style={{ alignItems: 'center' }}>
                                                 <Text style={{ color: '#facc15', fontSize: 13, fontWeight: '900' }}>{Number(item.skillRating).toFixed(2)}</Text>
@@ -784,6 +822,20 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 subjectId={profileUserId}
                 subCategory="padel"
                 onClose={() => setShowPadelRating(false)}
+            />
+            {/* Kartın kendisinden tekli/çiftli değerlendirme — bkz. openAssessPicker yorumu.
+                mandatory değil (dal zaten eklenmiş), vazgeçince aktivite silinmez. */}
+            <AssessmentModal
+                visible={!!assessGate}
+                interestId={item.id}
+                subCategory={item.subCategory}
+                ratingType={assessGate?.ratingType || null}
+                lang={lang}
+                onClose={() => setAssessGate(null)}
+                onComplete={(result) => {
+                    setAssessGate(null);
+                    if (result?.interest) onAssessComplete?.(item.id, result.interest);
+                }}
             />
         </Modal>
     );
@@ -3314,6 +3366,12 @@ export default function ProfileScreen({ route, navigation }) {
                 userId={myUser?.id}
                 profileUserId={profile?.id}
                 onGoalsSaved={(interestId, goals) => setInterests(prev => prev.map(i => i.id === interestId ? { ...i, goals } : i))}
+                onAssessComplete={(interestId, patch) => {
+                    setInterests(prev => prev.map(i => i.id === interestId ? { ...i, ...patch } : i));
+                    // Kart açıkken tamamlanırsa (kapatmadan) anında yeni puanı görsün diye
+                    // şu an açık olan kart snapshot'ı da güncellenir.
+                    setCardModalItem(prev => prev && prev.id === interestId ? { ...prev, ...patch } : prev);
+                }}
             />
 
             {/* ── Gönderiler modalı ── */}
