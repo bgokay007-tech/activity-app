@@ -794,7 +794,7 @@ async function placeInSubstituteOrRejectFull(rival, joinReq, joinerEntry, reques
         ).catch(() => {});
         return;
     }
-    const updated = await prisma.activityRequest.update({
+    let updated = await prisma.activityRequest.update({
         where: { id: rival.id },
         data: { substitutePlayers: [...subsArr, joinerEntry] },
         include: {
@@ -807,6 +807,7 @@ async function placeInSubstituteOrRejectFull(rival, joinReq, joinerEntry, reques
         },
     });
     await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
+    updated = await enrichRivalWithRatings(updated);
     broadcast('rivalUpdate', updated); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
     emitToUser(joinReq.userId, 'joinAccepted', { rivalId: rival.id, matched: false, toSubstitute: true });
     res.json({ message: '🔄 Yedek kadroya alındınız.', request: updated, matched: false, toSubstitute: true });
@@ -837,7 +838,7 @@ function isDoubleOrSingleRosterFull(rival) {
 // removeRivalParticipant'ta gerçekleşir.
 async function placeInDoubleWaitlistOrReject(rival, joinReq, joinerEntry, requestId, res) {
     const waitlist = Array.isArray(rival.waitlistPlayers) ? rival.waitlistPlayers : [];
-    const updated = await prisma.activityRequest.update({
+    let updated = await prisma.activityRequest.update({
         where: { id: rival.id },
         data: { waitlistPlayers: [...waitlist, joinerEntry] },
         include: {
@@ -850,6 +851,7 @@ async function placeInDoubleWaitlistOrReject(rival, joinReq, joinerEntry, reques
         },
     });
     await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'ACCEPTED' } });
+    updated = await enrichRivalWithRatings(updated);
     broadcast('rivalUpdate', updated);
     emitToUser(joinReq.userId, 'joinAccepted', { rivalId: rival.id, matched: false, toSubstitute: true });
     res.json({ message: '🔄 Yedek listesine alındınız.', request: updated, matched: false, toSubstitute: true });
@@ -1144,7 +1146,7 @@ export const swapMatchPositions = async (req, res, next) => {
         // kaymış" gibi görünüyordu). null'lar korunmalı ki konum anlamı bozulmasın.
         const newParticipants = [newOpp1, newOpp2];
 
-        const updated = await prisma.activityRequest.update({
+        let updated = await prisma.activityRequest.update({
             where: { id },
             data: { senderTeam: newSenderTeam, participants: newParticipants },
             include: {
@@ -1159,6 +1161,7 @@ export const swapMatchPositions = async (req, res, next) => {
                 },
             },
         });
+        updated = await enrichRivalWithRatings(updated);
 
         emitToUser(req.userId, 'rivalUpdate', updated);
         [...newParticipants, ...newSenderTeam].forEach(p => {
@@ -1190,13 +1193,22 @@ export const getRivalById = async (req, res, next) => {
                 // hata anlık ama görünür oluyordu.
                 sender: { select: SENDER_SELECT },
                 refereeUser: { select: SENDER_SELECT },
-                // where filtresi + alias ÖNEMLİ (bkz. yukarıdaki sender.interests yorumu ile
-                // aynı sebep) — davet listesindeki kişinin bu daldaki takma adı gösterilsin.
+                // alias ÖNEMLİ (bkz. yukarıdaki sender.interests yorumu ile aynı sebep) —
+                // davet listesindeki kişinin bu daldaki takma adı gösterilsin. NOT: burada
+                // interests'e category/subCategory'ye göre where filtresi UYGULANAMAZ — bu
+                // filtre `rival.category`/`rival.subCategory`'ye ihtiyaç duyar ama `rival`
+                // henüz bu sorgunun SONUCU (aşağıdaki const rival = await ... henüz atanmadı),
+                // yani kendi kendine referans verip "Cannot access 'rival' before
+                // initialization" ile HER çağrıda 500 patlıyordu (ilan detayı hiç açılamıyor,
+                // ekran eski/eksik veriyle kalıyordu — kullanıcı raporu: "istek attıkları yerde
+                // elo puanı gözükmüyor"). Bu yüzden burada filtresiz TÜM interests çekilip
+                // subCategory alanıyla birlikte döndürülüyor, mobil taraf zaten
+                // `.find(i => i.subCategory === sub)` ile doğru olanı kendisi seçiyor.
                 // interests select'i singlesRating/doublesRating/seed/offset alanlarını da
                 // içerir — mobil tarafta "Gelen İstekler"/"Gönderilen Davetler" listesinde
                 // kullanıcı isteğiyle format-doğru (tekli/çiftli) ELO etiketi ("T ELO"/"Ç ELO")
                 // gösterilebilsin diye (bkz. utrRating.js getDisplayRating ile aynı alanlar).
-                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: rival.category, subCategory: rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true, singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true } } } } } },
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true, singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true } } } } } },
                 // Hakem Arıyorum ilanları (matchType PLAYER_WANTED, positions:['REFEREE']) için:
                 // asıl maçın oyuncularını (kim başvuramaz) ve dolu/boş slot durumunu görebilmek için.
                 linkedRival: { select: { id: true, senderId: true, matchType: true, teamSize: true, participants: true, senderTeam: true, participantsCanInvite: true, sender: { select: SENDER_SELECT } } },
@@ -1838,7 +1850,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
         // Sadece kozmetik alanlar (adres, zemin, ücret vb.) değişmişse ya da hiçbir şey
         // değişmemişse — rezervasyon senkronizasyonuna gerek yok, direkt güncelle.
         if (!anyCourtTimeChange) {
-            const updated = await prisma.activityRequest.update({
+            let updated = await prisma.activityRequest.update({
                 where: { id: rival.id },
                 data: {
                     ...(courtName !== undefined && { courtName }),
@@ -1853,6 +1865,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
                 include: { sender: { select: SENDER_SELECT } },
             });
             if (updated.refereeRequested) syncRefereeAdCourt(rival.id, updated);
+            updated = await enrichRivalWithRatings(updated);
             broadcast('rivalUpdate', updated);
             return res.json(updated);
         }
@@ -1866,7 +1879,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
         if (!oldReservation) {
             const newMatchDateObj = dateChanged ? new Date(`${matchDate}T00:00:00`) : rival.matchDate;
             const newMatchTime = timeChanged ? matchTime : rival.matchTime;
-            const updated = await prisma.activityRequest.update({
+            let updated = await prisma.activityRequest.update({
                 where: { id: rival.id },
                 data: {
                     matchDate: newMatchDateObj, matchTime: newMatchTime,
@@ -1881,6 +1894,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
                 },
                 include: { sender: { select: SENDER_SELECT } },
             });
+            updated = await enrichRivalWithRatings(updated);
             notifyMatchParticipants(updated, {
                 title: '🔄 Maç Bilgisi Değişti',
                 body: `"${updated.courtName || 'Kort'}" için maç ${newMatchDateObj ? newMatchDateObj.toISOString().slice(0, 10) : ''} ${newMatchTime || ''} olarak güncellendi.`,
@@ -2017,7 +2031,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
             emitToUser(targetVenue.userId, 'notification', {});
         }
 
-        const updatedActivity = await prisma.activityRequest.update({
+        let updatedActivity = await prisma.activityRequest.update({
             where: { id: rival.id },
             data: {
                 matchDate: new Date(`${matchDate}T00:00:00`), matchTime, duration: newDuration,
@@ -2032,6 +2046,7 @@ async function updateMatchedRivalCourt(req, res, rival) {
             },
             include: { sender: { select: SENDER_SELECT } },
         });
+        updatedActivity = await enrichRivalWithRatings(updatedActivity);
 
         const oldCancelNote = (crossVenue && oldCancelNeedsApproval)
             ? ' Eski tesisteki rezervasyonunuzun iptali, iptal süresi geçtiği için o tesisin onayını bekliyor.'
@@ -2360,11 +2375,12 @@ export const createRivalRequest = async (req, res, next) => {
             },
             include: { sender: { select: SENDER_SELECT } },
         });
+        const enrichedRequest = await enrichRivalWithRatings(request);
 
-        res.status(201).json(request);
+        res.status(201).json(enrichedRequest);
 
         // Real-time: show new listing instantly on all screens
-        broadcast('rivalUpdate', request);
+        broadcast('rivalUpdate', enrichedRequest);
 
         // Hakem talebi: bu asıl maç ilanına bağlı, matchType PLAYER_WANTED ayrı bir
         // "Hakem Arıyorum" ilanı - Hakemler sekmesinde refereeMatches listesine düşer,
@@ -2457,13 +2473,14 @@ export const createRivalRequest = async (req, res, next) => {
                 },
             }).then(async () => {
                 // Güncel ilanı (joinRequests dahil) çek ve her iki tarafa ilet
-                const updatedRival = await prisma.activityRequest.findUnique({
+                let updatedRival = await prisma.activityRequest.findUnique({
                     where: { id: request.id },
                     include: {
                         sender: { select: SENDER_SELECT },
                         joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
                     },
                 });
+                updatedRival = await enrichRivalWithRatings(updatedRival);
                 if (updatedRival) {
                     emitToUser(creatorId, 'rivalUpdate', updatedRival);
                     emitToUser(partnerInviteId, 'rivalUpdate', updatedRival);
@@ -2495,13 +2512,14 @@ export const createRivalRequest = async (req, res, next) => {
             prisma.rivalJoinRequest.create({
                 data: { rivalId: request.id, userId: oppInviteId, initiatedBy: 'OWNER', requestedSlot: oppSlot },
             }).then(async () => {
-                const updatedRival = await prisma.activityRequest.findUnique({
+                let updatedRival = await prisma.activityRequest.findUnique({
                     where: { id: request.id },
                     include: {
                         sender: { select: SENDER_SELECT },
                         joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
                     },
                 });
+                updatedRival = await enrichRivalWithRatings(updatedRival);
                 if (updatedRival) {
                     emitToUser(creatorId, 'rivalUpdate', updatedRival);
                     emitToUser(oppInviteId, 'rivalUpdate', updatedRival);
@@ -2539,13 +2557,14 @@ export const createRivalRequest = async (req, res, next) => {
             prisma.rivalJoinRequest.create({
                 data: { rivalId: request.id, userId: oppInviteId, initiatedBy: 'OWNER', isOppTeamInvite: true, slotIndex },
             }).then(async () => {
-                const updatedRival = await prisma.activityRequest.findUnique({
+                let updatedRival = await prisma.activityRequest.findUnique({
                     where: { id: request.id },
                     include: {
                         sender: { select: SENDER_SELECT },
                         joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
                     },
                 });
+                updatedRival = await enrichRivalWithRatings(updatedRival);
                 if (updatedRival) {
                     emitToUser(creatorId, 'rivalUpdate', updatedRival);
                     emitToUser(oppInviteId, 'rivalUpdate', updatedRival);
@@ -2577,13 +2596,14 @@ export const createRivalRequest = async (req, res, next) => {
             prisma.rivalJoinRequest.create({
                 data: { rivalId: request.id, userId: founderInviteId, initiatedBy: 'OWNER', isPartnerInvite: true, slotIndex },
             }).then(async () => {
-                const updatedRival = await prisma.activityRequest.findUnique({
+                let updatedRival = await prisma.activityRequest.findUnique({
                     where: { id: request.id },
                     include: {
                         sender: { select: SENDER_SELECT },
                         joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
                     },
                 });
+                updatedRival = await enrichRivalWithRatings(updatedRival);
                 if (updatedRival) {
                     emitToUser(creatorId, 'rivalUpdate', updatedRival);
                     emitToUser(founderInviteId, 'rivalUpdate', updatedRival);
@@ -2610,13 +2630,14 @@ export const createRivalRequest = async (req, res, next) => {
             prisma.rivalJoinRequest.create({
                 data: { rivalId: request.id, userId: subInviteId, initiatedBy: 'OWNER', isSubstituteInvite: true },
             }).then(async () => {
-                const updatedRival = await prisma.activityRequest.findUnique({
+                let updatedRival = await prisma.activityRequest.findUnique({
                     where: { id: request.id },
                     include: {
                         sender: { select: SENDER_SELECT },
                         joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
                     },
                 });
+                updatedRival = await enrichRivalWithRatings(updatedRival);
                 if (updatedRival) {
                     emitToUser(creatorId, 'rivalUpdate', updatedRival);
                     emitToUser(subInviteId, 'rivalUpdate', updatedRival);
@@ -2645,13 +2666,14 @@ export const createRivalRequest = async (req, res, next) => {
             prisma.rivalJoinRequest.create({
                 data: { rivalId: request.id, userId: unassignedInviteId, initiatedBy: 'OWNER', isUnassignedInvite: true },
             }).then(async () => {
-                const updatedRival = await prisma.activityRequest.findUnique({
+                let updatedRival = await prisma.activityRequest.findUnique({
                     where: { id: request.id },
                     include: {
                         sender: { select: SENDER_SELECT },
                         joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: SENDER_SELECT } } },
                     },
                 });
+                updatedRival = await enrichRivalWithRatings(updatedRival);
                 if (updatedRival) {
                     emitToUser(creatorId, 'rivalUpdate', updatedRival);
                     emitToUser(unassignedInviteId, 'rivalUpdate', updatedRival);
@@ -3215,7 +3237,7 @@ export const sendJoinRequest = async (req, res, next) => {
 
         // Push updated rival data (with new join request) to everyone viewing this listing —
         // other solo joiners need to see this in real-time too (çiftler takım kartları).
-        const updatedRival = await prisma.activityRequest.findUnique({
+        let updatedRival = await prisma.activityRequest.findUnique({
             where: { id },
             include: {
                 // where filtresi ÖNEMLİ — filtresiz interests select'i, birden fazla spor
@@ -3228,6 +3250,12 @@ export const sendJoinRequest = async (req, res, next) => {
                 joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: request.category, subCategory: request.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true } } } } } },
             },
         });
+        // UTR-tipi dallarda (tenis/padel) participants/senderTeam/unassignedPlayers içindeki
+        // skillRating anlık davet geldiğinde eksik/bayat kalıp ELO rozetinin kaybolmasına ve
+        // bununla birlikte üst bilgi satırının (mod/tarih/saat/konum/fiyat) sola kayıp
+        // sıkışmasına sebep oluyordu — respondToJoin/updateRivalRequest'teki gibi burada da
+        // yayından önce zenginleştirilmesi gerekiyor.
+        updatedRival = await enrichRivalWithRatings(updatedRival);
         broadcast('rivalUpdate', updatedRival);
 
         // Kullanıcı isteği: uygulamanın tamamı Türkçe metin kullanıyor — bu mesaj yanlışlıkla
@@ -3285,7 +3313,7 @@ export const withdrawJoinRequest = async (req, res, next) => {
 
         await prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'REJECTED' } });
 
-        const updatedRival = await prisma.activityRequest.findUnique({
+        let updatedRival = await prisma.activityRequest.findUnique({
             where: { id: joinReq.rivalId },
             include: {
                 // where filtresi ÖNEMLİ — bkz. sendJoinRequest'teki aynı düzeltmenin yorumu.
@@ -3293,6 +3321,7 @@ export const withdrawJoinRequest = async (req, res, next) => {
                 joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: joinReq.rival.category, subCategory: joinReq.rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
             },
         });
+        updatedRival = await enrichRivalWithRatings(updatedRival);
         broadcast('rivalUpdate', updatedRival);
 
         res.json({ message: 'İstek geri çekildi.' });
@@ -3348,7 +3377,7 @@ export const setRivalJoinPartner = async (req, res, next) => {
             include: { user: { select: SENDER_SELECT } },
         });
 
-        const updatedRival = await prisma.activityRequest.findUnique({
+        let updatedRival = await prisma.activityRequest.findUnique({
             where: { id },
             include: {
                 // where filtresi ÖNEMLİ — bkz. sendJoinRequest'teki aynı düzeltmenin yorumu.
@@ -3356,6 +3385,7 @@ export const setRivalJoinPartner = async (req, res, next) => {
                 joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: request.category, subCategory: request.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
             },
         });
+        updatedRival = await enrichRivalWithRatings(updatedRival);
         broadcast('rivalUpdate', updatedRival);
 
         if (partnerId) {
@@ -3567,7 +3597,7 @@ export const inviteToRival = async (req, res, next) => {
             }
         ).catch(() => {});
 
-        const updatedRival = await prisma.activityRequest.findUnique({
+        let updatedRival = await prisma.activityRequest.findUnique({
             where: { id },
             include: {
                 // where filtresi ÖNEMLİ — bkz. sendJoinRequest'teki aynı düzeltmenin yorumu.
@@ -3575,6 +3605,7 @@ export const inviteToRival = async (req, res, next) => {
                 joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: rival.category, subCategory: rival.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, alias: true, assessmentCompleted: true } } } } } },
             },
         });
+        updatedRival = await enrichRivalWithRatings(updatedRival);
         emitToUser(userId, 'rivalUpdate', updatedRival);
 
         res.status(201).json({ message: 'Davet gönderildi.', request: updatedRival });
@@ -4099,7 +4130,7 @@ export const respondToJoin = async (req, res, next) => {
             // çalıştırılıp yanıt süresi kısaltıldı. interests'e de category/subCategory filtresi
             // eklendi (önceden kullanıcının TÜM ilgi alanları — diğer sporlar dahil — gereksiz
             // yere çekiliyordu, çok sayıda bekleyen istek varken bu sorguyu yavaşlatıyordu).
-            const [, refreshedRival] = await Promise.all([
+            let [, refreshedRival] = await Promise.all([
                 prisma.rivalJoinRequest.update({ where: { id: requestId }, data: { status: 'AWAITING_JOINER_CONFIRM' } }),
                 prisma.activityRequest.findUnique({
                     where: { id: joinReq.rivalId },
@@ -4120,6 +4151,7 @@ export const respondToJoin = async (req, res, next) => {
                     },
                 }),
             ]);
+            refreshedRival = await enrichRivalWithRatings(refreshedRival);
             emitToUser(joinReq.userId, 'joinLateAccepted', { rivalId: joinReq.rivalId, requestId });
 
             createNotification(
@@ -4381,6 +4413,7 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                                 data: { refereeQueue: [...queue, { userId: refUser.id, username: refUser.username, fullName: refUser.fullName, avatar: refUser.avatar, offerPrice: joinReq.offerPrice || null }] },
                                 include: { sender: { select: SENDER_SELECT }, refereeUser: { select: SENDER_SELECT } },
                             });
+                            updatedMain = await enrichRivalWithRatings(updatedMain);
                             broadcast('rivalUpdate', updatedMain);
                         } else {
                             updatedMain = mainMatch;
@@ -4394,6 +4427,7 @@ async function handleRefereeJoinResponse(req, res, joinReq) {
                             data: { refereeId: joinReq.userId, refereeDisputeVoterIds: [], ...(refereeShare && { refereeFeePerPerson: refereeShare }) },
                             include: { sender: { select: SENDER_SELECT }, refereeUser: { select: SENDER_SELECT } },
                         });
+                        updatedMain = await enrichRivalWithRatings(updatedMain);
                         broadcast('rivalUpdate', updatedMain);
                     }
                 }
@@ -4590,7 +4624,7 @@ export const confirmLateJoin = async (req, res, next) => {
             await prisma.rivalJoinRequest.update({ where: { id: partnerJoinReqToAccept.id }, data: { status: 'ACCEPTED' } });
         }
 
-        const updated = await prisma.activityRequest.update({
+        let updated = await prisma.activityRequest.update({
             where: { id: rival.id },
             data: {
                 participants: updatedParticipants,
@@ -4623,6 +4657,9 @@ export const confirmLateJoin = async (req, res, next) => {
                 },
             },
         });
+        // Bkz. enrichRivalWithRatings tanımındaki yorum — respondToJoin'de olduğu gibi geç
+        // kabul onayında da ELO rozeti anlık kayboluyordu.
+        updated = await enrichRivalWithRatings(updated);
 
         broadcast('rivalUpdate', updated); // (kullanıcı isteği: davet/kabul güncellemesini sadece ilan sahibine değil, ilanı görüntüleyen herkese anında yansıt)
         emitToUser(u.id, 'joinAccepted', { rivalId: rival.id, matched: isFull });
@@ -4987,7 +5024,7 @@ export const abandonMatch = async (req, res, next) => {
         // (maçı berabere/iptal etmek ya da yeni bir tarihe ertelemek) tek başına vermesi adil değil.
         if (request.subCategory !== 'volleyball') {
             const { updated, message } = await applyAbandonResolution(id, req.userId, reason, { newDate, newTime, newCourtName, newLocation, partialSets });
-            broadcast('rivalUpdate', updated);
+            broadcast('rivalUpdate', await enrichRivalWithRatings(updated));
             return res.json({ message });
         }
 
@@ -5021,10 +5058,11 @@ export const abandonMatch = async (req, res, next) => {
         }
 
         if (proposal.voterIds.length < majorityNeeded) {
-            const updated = await prisma.activityRequest.update({
+            let updated = await prisma.activityRequest.update({
                 where: { id }, data: { abandonProposal: proposal },
                 include: { sender: { select: SENDER_SELECT } },
             });
+            updated = await enrichRivalWithRatings(updated);
             broadcast('rivalUpdate', updated);
             const others = rosterIds.filter(uid => uid !== req.userId);
             const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
@@ -5039,7 +5077,7 @@ export const abandonMatch = async (req, res, next) => {
         }
 
         const { updated, message } = await applyAbandonResolution(id, req.userId, proposal.reason, proposal);
-        broadcast('rivalUpdate', updated);
+        broadcast('rivalUpdate', await enrichRivalWithRatings(updated));
         const nonVoters = rosterIds.filter(uid => !proposal.voterIds.includes(uid));
         for (const uid of nonVoters) {
             createNotification(uid, 'ABANDON_RESOLVED', '✅ Karar Alındı', message,
@@ -5308,10 +5346,15 @@ export async function runScoreConfirmation(request) {
             change: change?.change || 0,
         };
     }
-    const updated = await prisma.activityRequest.update({
+    let updated = await prisma.activityRequest.update({
         where: { id: request.id },
         data: { score: { ...request.score, ratingSnapshot } },
+        include: { sender: { select: SENDER_SELECT } },
     });
+    // Maç onaylanınca ELO değişimi anında UserInterest'e yazılıyor ama katılımcı dizisindeki
+    // (participants/senderTeam) skillRating snapshot'ı eski kalıyordu — maç detayında "puanlar
+    // güncellendi" bildirimi gelmesine rağmen kartta hâlâ eski ELO görünüyordu.
+    updated = await enrichRivalWithRatings(updated);
 
     // Emit to all players so their screens update in real-time
     const allPlayerIds2 = [...new Set([request.senderId, ...participants.filter(p => p?.id).map(p => p.id)])];
@@ -5841,13 +5884,14 @@ export const setTeamName = async (req, res, next) => {
         if (!allowed) return res.status(403).json({ message: 'Bu takımın ismini değiştiremezsiniz' });
 
         const trimmed = (name || '').trim().slice(0, 24);
-        const updated = await prisma.activityRequest.update({
+        let updated = await prisma.activityRequest.update({
             where: { id },
             data: side === 'founder'
                 ? { founderTeamName: trimmed || null }
                 : { opponentTeamName: trimmed || null },
             include: { sender: { select: SENDER_SELECT } },
         });
+        updated = await enrichRivalWithRatings(updated);
 
         broadcast('rivalUpdate', updated);
         res.json(updated);
@@ -5939,33 +5983,10 @@ export const assignPlayerToSide = async (req, res, next) => {
         // kayboluyordu — bu uç nokta (getUpcomingMatches/getRivalById'nin aksine) skillRating'i
         // hiç eklemeden ham diziyi yayınlıyordu, socket dinleyicisi bu ham veriyle önceden
         // zenginleştirilmiş listenin üzerine yazıyordu, sonraki onRefresh() düzeltene kadar
-        // puanlar görünmüyordu. Artık broadcast/response'tan ÖNCE aynı zenginleştirme burada da yapılıyor.
-        const teamUserIds = [...new Set([
-            ...(Array.isArray(updatedRaw.senderTeam) ? updatedRaw.senderTeam : []).filter(p => p?.id).map(p => p.id),
-            ...(Array.isArray(updatedRaw.participants) ? updatedRaw.participants : []).filter(p => p?.id).map(p => p.id),
-            ...(Array.isArray(updatedRaw.unassignedPlayers) ? updatedRaw.unassignedPlayers : []).filter(p => p?.id).map(p => p.id),
-            ...(Array.isArray(updatedRaw.substitutePlayers) ? updatedRaw.substitutePlayers : []).filter(p => p?.id).map(p => p.id),
-        ])];
-        const teamInterests = teamUserIds.length > 0
-            ? await prisma.userInterest.findMany({
-                where: { userId: { in: teamUserIds }, subCategory: updatedRaw.subCategory },
-                select: {
-                    userId: true, skillRating: true,
-                    singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true,
-                },
-            })
-            : [];
-        const updatedIsDoubles = isDoublesFormat(updatedRaw);
-        const withSkillRating = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id
-            ? { ...p, skillRating: teamDisplayRating(teamInterests.find(i => i.userId === p.id), updatedRaw.subCategory, updatedIsDoubles) }
-            : p);
-        const updated = {
-            ...updatedRaw,
-            senderTeam: withSkillRating(updatedRaw.senderTeam),
-            participants: withSkillRating(updatedRaw.participants),
-            unassignedPlayers: withSkillRating(updatedRaw.unassignedPlayers),
-            substitutePlayers: withSkillRating(updatedRaw.substitutePlayers),
-        };
+        // puanlar görünmüyordu. Artık broadcast/response'tan ÖNCE enrichRivalWithRatings ile
+        // (sender.interests dahil — önceki elle yazılmış versiyon sadece kadro dizilerini
+        // dolduruyor, kurucunun kendi rozetini hiç eklemiyordu) zenginleştiriliyor.
+        const updated = await enrichRivalWithRatings(updatedRaw);
 
         broadcast('rivalUpdate', updated);
         if (userId) emitToUser(userId, 'rivalUpdate', updated);
@@ -6041,6 +6062,7 @@ export const setParticipantPosition = async (req, res, next) => {
                 include: { sender: { select: SENDER_SELECT } },
             });
         }
+        updated = await enrichRivalWithRatings(updated);
 
         broadcast('rivalUpdate', updated);
         // Kullanıcı isteği: pozisyonu (ya da takımı) değişen kişiye her değişimde bildirim
@@ -6093,7 +6115,7 @@ export const suggestOwnPosition = async (req, res, next) => {
             ...existing.filter(s => s?.userId !== req.userId),
             { userId: req.userId, position, createdAt: new Date().toISOString() },
         ];
-        const updated = await prisma.activityRequest.update({ where: { id }, data: { positionSuggestions } });
+        const updated = await enrichRivalWithRatings(await prisma.activityRequest.update({ where: { id }, data: { positionSuggestions }, include: { sender: { select: SENDER_SELECT } } }));
         broadcast('rivalUpdate', updated);
         res.json(updated);
 
@@ -6149,10 +6171,12 @@ export const respondPositionSuggestion = async (req, res, next) => {
             updated = await prisma.activityRequest.update({
                 where: { id },
                 data: { senderTeam, participants, substitutePlayers, unassignedPlayers, positionSuggestions },
+                include: { sender: { select: SENDER_SELECT } },
             });
         } else {
-            updated = await prisma.activityRequest.update({ where: { id }, data: { positionSuggestions } });
+            updated = await prisma.activityRequest.update({ where: { id }, data: { positionSuggestions }, include: { sender: { select: SENDER_SELECT } } });
         }
+        updated = await enrichRivalWithRatings(updated);
         broadcast('rivalUpdate', updated);
         res.json(updated);
 
@@ -6229,11 +6253,12 @@ export const swapTeamPlayers = async (req, res, next) => {
         const targetSideErr = await perTeamGenderFeasible(rival, targetSide, targetSide === 'my' ? senderTeam : participants);
         if (targetSideErr) return res.status(400).json({ message: targetSideErr });
 
-        const updated = await prisma.activityRequest.update({
+        let updated = await prisma.activityRequest.update({
             where: { id },
             data: { senderTeam, participants },
             include: { sender: { select: SENDER_SELECT } },
         });
+        updated = await enrichRivalWithRatings(updated);
 
         broadcast('rivalUpdate', updated);
         if (userId) emitToUser(userId, 'rivalUpdate', updated);
@@ -6328,11 +6353,12 @@ export const addManualTeamPlayer = async (req, res, next) => {
             data.reopenedAt = null;
         }
 
-        const updated = await prisma.activityRequest.update({
+        let updated = await prisma.activityRequest.update({
             where: { id },
             data,
             include: { sender: { select: SENDER_SELECT } },
         });
+        updated = await enrichRivalWithRatings(updated);
 
         broadcast('rivalUpdate', updated);
 
@@ -6401,11 +6427,12 @@ export const assignDoubleSlot = async (req, res, next) => {
         else if (slot === 'opp2') nextParticipants[1] = player;
         else nextUnassigned.push(player);
 
-        const updated = await prisma.activityRequest.update({
+        let updated = await prisma.activityRequest.update({
             where: { id },
             data: { senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned },
             include: { sender: { select: SENDER_SELECT } },
         });
+        updated = await enrichRivalWithRatings(updated);
 
         broadcast('rivalUpdate', updated);
         emitToUser(userId, 'rivalUpdate', updated);
@@ -6443,7 +6470,7 @@ export const removeRivalParticipant = async (req, res, next) => {
         // mantığının hiçbiri geçerli değil — düz bir dizi filtrelemesi yeterli.
         if (inSubs && !inParticipants && !inSenderTeam && !inUnassigned) {
             const updatedSubs = subsArr.filter(p => p?.id !== userId);
-            const updated = await prisma.activityRequest.update({
+            let updated = await prisma.activityRequest.update({
                 where: { id },
                 data: { substitutePlayers: updatedSubs },
                 include: { sender: { select: SENDER_SELECT } },
@@ -6452,6 +6479,7 @@ export const removeRivalParticipant = async (req, res, next) => {
                 where: { rivalId: id, userId, status: 'ACCEPTED' },
                 data: { status: 'REJECTED' },
             });
+            updated = await enrichRivalWithRatings(updated);
             broadcast('rivalUpdate', updated);
             emitToUser(userId, 'rivalUpdate', updated);
             res.json({ removed: [userId], request: updated });
@@ -6540,7 +6568,7 @@ export const removeRivalParticipant = async (req, res, next) => {
         const promoted = promotedSub || promotedFromWaitlist;
         const staysMatched = !!promoted;
 
-        const updated = await prisma.activityRequest.update({
+        let updated = await prisma.activityRequest.update({
             where: { id },
             data: {
                 participants: finalParticipants,
@@ -6566,6 +6594,7 @@ export const removeRivalParticipant = async (req, res, next) => {
             },
             include: { sender: { select: SENDER_SELECT } },
         });
+        updated = await enrichRivalWithRatings(updated);
 
         // cancelMatch'teki AYNI ceza uygulaması — sadece kendi isteğiyle ayrılan kişiye.
         if (leaveWithinPenaltyWindow) {
@@ -6713,7 +6742,7 @@ export const leaveAsPromotedSubstitute = async (req, res, next) => {
         const restPromoted = { ...(rival.substitutePromotedAt || {}) };
         delete restPromoted[userId];
 
-        const updated = await prisma.activityRequest.update({
+        let updated = await prisma.activityRequest.update({
             where: { id },
             data: {
                 participants: finalParticipants,
@@ -6728,6 +6757,7 @@ export const leaveAsPromotedSubstitute = async (req, res, next) => {
             },
             include: { sender: { select: SENDER_SELECT } },
         });
+        updated = await enrichRivalWithRatings(updated);
 
         await prisma.rivalJoinRequest.updateMany({
             where: { rivalId: id, userId, status: 'ACCEPTED' },
@@ -6954,7 +6984,8 @@ export const cancelMatch = async (req, res, next) => {
                     ...(request.flexibleSchedule && { matchDate: null, matchTime: null }),
                 },
             });
-            const updated = await prisma.activityRequest.findUnique({ where: { id }, include: { sender: { select: SENDER_SELECT } } });
+            let updated = await prisma.activityRequest.findUnique({ where: { id }, include: { sender: { select: SENDER_SELECT } } });
+            updated = await enrichRivalWithRatings(updated);
             broadcast('rivalUpdate', updated);
             for (const uid of allPlayerIds) emitToUser(uid, 'rivalUpdate', updated);
             // İlana bekleyen istek göndermiş herkese de haber ver — belki artık uygun
