@@ -264,6 +264,12 @@ const SIMPLE_TAB_SUBS = new Set([
 // hemen sağında ayrı bir "Rotalar" sekmesi.
 const ROUTE_ENABLED_SUBS = new Set(['hiking', 'camping', 'running', 'motorcycle', 'sup_kano', 'climbing', 'walking']);
 
+// Backend'de gerçek bilet satışı entegre edilen ama getTabs'te henüz özel bir dal olmayıp
+// genel varsayılana düşen dallar — bkz. sportsTicket.controller.js SPORT_CLASSIFICATION.
+// golf/equestrian/ice_skating zaten SIMPLE_TAB_SUBS üzerinden "tickets" sekmesine sahip,
+// football/volleyball kendi özel satırlarında — bu sete eklenmelerine gerek yok.
+const TICKET_ENABLED_EXTRA_SUBS = new Set(['basketball', 'boxing', 'martial_arts', 'ice_hockey', 'cycling', 'handball']);
+
 // Bu dallarda gerçek bir "kort" kavramı yok (rezerve edilecek tesis/saat dilimi
 // söz konusu değil) — Etkinlik Oluştur formunda Mod/Format ve kort/il/ilçe/adres
 // arama bloğu tamamen kaldırılıp yerine basit Ücretli/Ücretsiz seçimi konur.
@@ -317,12 +323,14 @@ function getTabs(sub, category) {
     if (SIMPLE_TAB_SUBS.has(sub))
         return ['rivals', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
     if (sub === 'football')
-        return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', 'referee', 'media'];
+        return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', 'referee', 'media', 'tickets'];
     if (sub === 'volleyball')
         return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'equipment', 'media', 'tickets', 'archive'];
     // Kullanıcı isteği: badminton ve masa tenisi, padel ile aynı sekme setini kullanıyor.
     if (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis')
         return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
+    if (TICKET_ENABLED_EXTRA_SUBS.has(sub))
+        return ['rivals', 'tournaments', 'coaches', 'archive', 'media', 'tickets'];
     return ['rivals', 'tournaments', 'coaches', 'archive', 'media'];
 }
 

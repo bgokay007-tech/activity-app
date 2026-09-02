@@ -1,14 +1,19 @@
-// Ticketmaster Discovery API — tiyatro oyunu ilanlari icin dis kaynak (concert.controller.js
-// ile ayni proxy deseni, classificationName=theatre disinda). apikey sunucu tarafinda kalir.
-const TM_BASE = 'https://app.ticketmaster.com/discovery/v2';
+// Tiyatro oyunu ilanlari icin dis kaynaklar: Ticketmaster + SeatGeek, tek listede
+// birlestirilip tekillestiriliyor (bkz. ticketSearch.js — concert.controller.js ile ayni desen,
+// classificationName/taxonomy adi disinda).
+import { clampDateFrom, normalizeCityForSearch, dedupeEvents } from '../utils/ticketSearch.js';
 
-function normalizePlay(e) {
+const TM_BASE = 'https://app.ticketmaster.com/discovery/v2';
+const SEATGEEK_BASE = 'https://api.seatgeek.com/2';
+
+function normalizeTmPlay(e) {
     const venue = e._embedded?.venues?.[0] || null;
     const image = (e.images || []).sort((a, b) => (b.width || 0) - (a.width || 0))[0];
     const priceRange = (e.priceRanges || [])[0] || null;
 
     return {
-        id: e.id,
+        id: `tm_${e.id}`,
+        source: 'ticketmaster',
         name: e.name,
         city: venue?.city?.name || null,
         venueName: venue?.name || null,
@@ -25,6 +30,30 @@ function normalizePlay(e) {
     };
 }
 
+function normalizeSeatGeekPlay(e) {
+    const venue = e.venue || null;
+    const stats = e.stats || null;
+    const performerImage = (e.performers || []).find(p => p?.image)?.image || null;
+
+    return {
+        id: `sg_${e.id}`,
+        source: 'seatgeek',
+        name: e.title || e.short_title || null,
+        city: venue?.city || null,
+        venueName: venue?.name || null,
+        venueAddress: venue?.address || null,
+        venueLat: venue?.location?.lat != null ? Number(venue.location.lat) : null,
+        venueLng: venue?.location?.lon != null ? Number(venue.location.lon) : null,
+        date: e.datetime_local ? e.datetime_local.slice(0, 10) : null,
+        time: e.datetime_local ? e.datetime_local.slice(11, 16) : null,
+        imageUrl: performerImage,
+        priceMin: stats?.lowest_price ?? null,
+        priceMax: stats?.highest_price ?? null,
+        currency: 'USD',
+        ticketUrl: e.url || null,
+    };
+}
+
 async function fetchTmEvents(baseParams) {
     const response = await fetch(`${TM_BASE}/events.json?${baseParams.toString()}`, { signal: AbortSignal.timeout(8000) });
     if (!response.ok) return [];
@@ -32,13 +61,10 @@ async function fetchTmEvents(baseParams) {
     return data._embedded?.events || [];
 }
 
-export const searchTheaterEvents = async (req, res, next) => {
+async function searchTicketmasterPlays({ city, name, dateFrom, dateTo, lat, lng, radius }) {
+    const apiKey = process.env.TICKETMASTER_API_KEY;
+    if (!apiKey) return [];
     try {
-        const apiKey = process.env.TICKETMASTER_API_KEY;
-        if (!apiKey) return res.status(503).json({ message: 'Tiyatro arama şu anda yapılandırılmamış' });
-
-        const { city, name, dateFrom, dateTo, lat, lng, radius } = req.query;
-
         const buildParams = (extra) => {
             const p = new URLSearchParams({
                 apikey: apiKey,
@@ -57,7 +83,7 @@ export const searchTheaterEvents = async (req, res, next) => {
         if (lat && lng) {
             events = await fetchTmEvents(buildParams({ latlong: `${lat},${lng}`, radius: String(radius || 50), unit: 'km' }));
         } else if (city) {
-            events = await fetchTmEvents(buildParams({ city }));
+            events = await fetchTmEvents(buildParams({ city: normalizeCityForSearch(city) }));
         } else {
             // bkz. concert.controller.js — küçük "size" limiti yüzünden kısıtsız tek
             // sorgu Türkiye'yi eleyebiliyordu; TR + genel sorgu birleştirilip
@@ -73,8 +99,48 @@ export const searchTheaterEvents = async (req, res, next) => {
                 return true;
             });
         }
+        return events.map(normalizeTmPlay);
+    } catch { return []; }
+}
 
-        const plays = events.map(normalizePlay);
+async function searchSeatGeekPlays({ city, name, dateFrom, dateTo }) {
+    const clientId = process.env.SEATGEEK_CLIENT_ID;
+    if (!clientId) return [];
+    try {
+        const params = new URLSearchParams({
+            client_id: clientId,
+            'taxonomies.name': 'theater',
+            per_page: '30',
+            sort: 'datetime_local.asc',
+        });
+        if (name) params.set('q', name);
+        if (city) params.set('venue.city', normalizeCityForSearch(city));
+        if (dateFrom) params.set('datetime_local.gte', `${dateFrom}T00:00:00`);
+        if (dateTo) params.set('datetime_local.lte', `${dateTo}T23:59:59`);
+
+        const response = await fetch(`${SEATGEEK_BASE}/events?${params.toString()}`, { signal: AbortSignal.timeout(8000) });
+        if (!response.ok) return [];
+        const data = await response.json();
+        return (data.events || []).map(normalizeSeatGeekPlay);
+    } catch { return []; }
+}
+
+export const searchTheaterEvents = async (req, res, next) => {
+    try {
+        const { city, name, dateTo, lat, lng, radius } = req.query;
+        const dateFrom = clampDateFrom(req.query.dateFrom);
+
+        const [tmEvents, sgEvents] = await Promise.all([
+            searchTicketmasterPlays({ city, name, dateFrom, dateTo, lat, lng, radius }),
+            searchSeatGeekPlays({ city, name, dateFrom, dateTo }),
+        ]);
+
+        const plays = dedupeEvents([...tmEvents, ...sgEvents]).sort((a, b) => {
+            if (!a.date) return 1;
+            if (!b.date) return -1;
+            return a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || '');
+        });
+
         res.json({ plays });
     } catch (e) { next(e); }
 };
