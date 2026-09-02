@@ -10782,7 +10782,7 @@ function TeamSlotRow({ side, index, slot, placeholder, activeSlotKey, slotSugges
 // aynı mantık (kullanıcı isteği: "form a yazarak davet edicem açık ilandaki gibi"), sadece
 // burada ilan zaten var (açık ya da eşleşmiş) ve davet backend'e gidiyor (bkz. inviteToRival'daki
 // side parametresi), form state'ine değil.
-function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onOpenPicker, cfg, t, placeholder, genderReq, genderFitsCheck }) {
+function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onOpenPicker, cfg, t, placeholder, genderReq, genderFitsCheck, ratingFitsCheck }) {
     const [text, setText] = useState('');
     const [results, setResults] = useState([]);
     const [searching, setSearching] = useState(false);
@@ -10878,6 +10878,18 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                                     setText(''); setResults([]);
                                     Alert.alert(t.genderMismatchTitle, genderFitsCheck ? t.genderMismatchAnyMsg : t.genderMismatchMsg(genderReq));
                                     return;
+                                }
+                                // Kullanıcı isteği: derece kısıtlaması da cinsiyet kontrolüyle AYNI anda,
+                                // formaya tıklandığı anda söylensin — önceden bu sadece "İlan Oluştur"a
+                                // basılınca (backend'de, bkz. createRivalRequest) fark ediliyordu, kullanıcı
+                                // tüm formu doldurduktan sonra reddediliyordu.
+                                if (ratingFitsCheck) {
+                                    const mismatch = ratingFitsCheck(u);
+                                    if (mismatch) {
+                                        setText(''); setResults([]);
+                                        Alert.alert(t.ratingMismatchTitle, t.ratingMismatchMsg(mismatch.val, mismatch.min, mismatch.max));
+                                        return;
+                                    }
                                 }
                                 setText(''); setResults([]);
                                 // onPick verildiyse (ör. DOUBLE ilan oluşturma formu) seçim yerel
@@ -11099,6 +11111,26 @@ function SingleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, t, 
             )}
         </View>
     );
+    // Kullanıcı isteği: derece kısıtlaması formaya dokunulduğu ANDA kontrol edilsin (bkz.
+    // DoubleRosterCard'daki aynı fonksiyon) — burada maç her zaman SINGLE olduğu için tekli
+    // puan esas alınır.
+    const ratingFitsSlot = (u) => {
+        if (!UTR_MOBILE_SUBS.has(sub)) return null;
+        const parse = (v) => (v !== undefined && v !== null && v !== '' ? parseFloat(v) : null);
+        let effMin = null, effMax = null;
+        if (f.ratingGenderSplit) {
+            if (u.gender === 'MALE') { effMin = parse(f.minRatingMale); effMax = parse(f.maxRatingMale); }
+            else if (u.gender === 'FEMALE') { effMin = parse(f.minRatingFemale); effMax = parse(f.maxRatingFemale); }
+        } else {
+            effMin = parse(f.minRating); effMax = parse(f.maxRating);
+        }
+        if (effMin == null && effMax == null) return null;
+        const interest = u.interests?.find(i => i.subCategory === sub);
+        const val = utrDisplayRating(interest, sub, false) ?? 0;
+        if (effMin != null && val < effMin) return { val, min: effMin, max: effMax };
+        if (effMax != null && val > effMax) return { val, min: effMin, max: effMax };
+        return null;
+    };
     const oppInvites = Array.isArray(f.singleOppInvites) ? f.singleOppInvites : [];
     const oppSlot = oppInvites.length > 0 ? (
         <TouchableOpacity onPress={() => set('singleOppInvites', [])}
@@ -11114,7 +11146,7 @@ function SingleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, t, 
         </TouchableOpacity>
     ) : !editItem ? (
         <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={t.inviteOpponentTitle || t.opponentTeamShortLabel || 'Rakip'}
-            genderReq={f.genderReq}
+            genderReq={f.genderReq} ratingFitsCheck={ratingFitsSlot}
             onPick={(u) => set('singleOppInvites', [u])} onOpenPicker={onLongPressEmptySlot} />
     ) : null;
     return (
@@ -11201,6 +11233,27 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
         }
         set(field, u);
     };
+    // Kullanıcı isteği: derece kısıtlaması (minRating/maxRating, cinsiyete göre ayrılmışsa
+    // minRatingMale/Female) formaya dokunulduğu ANDA kontrol edilsin — backend'deki aynı
+    // kontrolle (createRivalRequest) birebir aynı mantık, sadece burada submit beklemeden.
+    // Maç her zaman DOUBLE olduğu için (bu kart sadece 2v2'de kullanılıyor) çiftler puanı esas alınır.
+    const ratingFitsSlot = (u) => {
+        if (!UTR_MOBILE_SUBS.has(sub)) return null;
+        const parse = (v) => (v !== undefined && v !== null && v !== '' ? parseFloat(v) : null);
+        let effMin = null, effMax = null;
+        if (f.ratingGenderSplit) {
+            if (u.gender === 'MALE') { effMin = parse(f.minRatingMale); effMax = parse(f.maxRatingMale); }
+            else if (u.gender === 'FEMALE') { effMin = parse(f.minRatingFemale); effMax = parse(f.maxRatingFemale); }
+        } else {
+            effMin = parse(f.minRating); effMax = parse(f.maxRating);
+        }
+        if (effMin == null && effMax == null) return null;
+        const interest = u.interests?.find(i => i.subCategory === sub);
+        const val = utrDisplayRating(interest, sub, true) ?? 0;
+        if (effMin != null && val < effMin) return { val, min: effMin, max: effMax };
+        if (effMax != null && val > effMax) return { val, min: effMin, max: effMax };
+        return null;
+    };
     const renderFrontSlot = (specificField, genericField, placeholder) => {
         const active = f[specificField] ? specificField : genericField;
         return f[active] ? (
@@ -11212,7 +11265,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
             </TouchableOpacity>
         ) : !editItem ? (
             <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={placeholder}
-                genderFitsCheck={fitsAnyGenderSlot}
+                genderFitsCheck={fitsAnyGenderSlot} ratingFitsCheck={ratingFitsSlot}
                 onPick={(u) => pickWithDupeCheck(genericField, u)} onOpenPicker={onLongPressEmptySlot} />
         ) : null;
     };
@@ -11228,7 +11281,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
         </TouchableOpacity>
     ) : !editItem ? (
         <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={placeholder}
-            genderReq={genderReq}
+            genderReq={genderReq} ratingFitsCheck={ratingFitsSlot}
             onPick={(u) => pickWithDupeCheck(field, u)} onOpenPicker={() => onLongPressEmptySlot(field)} />
     ) : null;
     // Voleybolün ilan oluşturma kartıyla BİREBİR AYNI davranış (kullanıcı isteği: "voleyboldeki

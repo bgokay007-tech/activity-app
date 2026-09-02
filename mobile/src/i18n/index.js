@@ -293,6 +293,13 @@ const en = {
     genderReqLabel: 'Gender Restriction', genderReqShortLabel: 'Gender', partnerGenderLabel: 'Partner Gender', opp1GenderLabel: 'Opp. 1 Gender', opp2GenderLabel: 'Opp. 2 Gender',
     genderMismatchTitle: 'Gender Mismatch', genderMismatchMsg: (gender) => `This slot only accepts ${gender === 'MALE' ? 'male' : 'female'} players.`,
     genderMismatchAnyMsg: 'This person does not fit any of the gender requirements for this match.',
+    ratingMismatchTitle: 'Rating Mismatch',
+    ratingMismatchMsg: (val, min, max) => {
+        const parts = [];
+        if (min != null) parts.push(`at least ${min}★`);
+        if (max != null) parts.push(`at most ${max}★`);
+        return `This person's rating (${val.toFixed(2)}★) does not meet your restriction (${parts.join(' / ')}).`;
+    },
     youAreInvitedHere: 'You were invited to this slot',
     applyForSlotBtn: '+ Apply for this slot',
     musicTitle: '🎵 Music', musicSearchPh: 'Search songs, artists...', musicSearchBtn: 'Search',
@@ -1852,6 +1859,13 @@ const tr = {
     genderReqLabel: 'Cinsiyet Kısıtlaması', genderReqShortLabel: 'Cinsiyet', partnerGenderLabel: 'Takım Arkadaşı Cinsiyeti', opp1GenderLabel: 'Rakip 1 Cinsiyeti', opp2GenderLabel: 'Rakip 2 Cinsiyeti',
     genderMismatchTitle: 'Cinsiyet Uymuyor', genderMismatchMsg: (gender) => `Bu forma yalnızca ${gender === 'MALE' ? 'erkek' : 'kadın'} oyuncu kabul ediyor.`,
     genderMismatchAnyMsg: 'Bu kişi maçın hiçbir cinsiyet gereksinimine uymuyor.',
+    ratingMismatchTitle: 'Derece Uymuyor',
+    ratingMismatchMsg: (val, min, max) => {
+        const parts = [];
+        if (min != null) parts.push(`en az ${min}★`);
+        if (max != null) parts.push(`en fazla ${max}★`);
+        return `Bu kişinin derece puanı (${val.toFixed(2)}★) belirlediğiniz kısıtlamaya (${parts.join(' / ')}) uymuyor.`;
+    },
     youAreInvitedHere: 'Buraya davet edildiniz',
     applyForSlotBtn: '+ Bu Slota Başvur',
     musicTitle: '🎵 Müzik', musicSearchPh: 'Şarkı, sanatçı ara...', musicSearchBtn: 'Ara',
