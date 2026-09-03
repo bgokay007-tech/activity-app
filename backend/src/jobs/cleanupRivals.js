@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from '../controllers/notification.controller.js';
 import { emitToUser } from '../config/socket.js';
+import { turkeyDateTimeToUtc } from '../utils/tzTime.js';
 
 export async function cleanupExpiredRivals() {
     try {
@@ -25,13 +26,7 @@ export async function cleanupExpiredRivals() {
         });
 
         const expired = openRequests.filter(r => {
-            const d = new Date(r.matchDate);
-            if (r.matchTime) {
-                const [h, m] = r.matchTime.split(':').map(Number);
-                d.setHours(h, m, 0, 0);
-            } else {
-                d.setHours(23, 59, 0, 0);
-            }
+            const d = turkeyDateTimeToUtc(r.matchDate, r.matchTime || '23:59');
             // Expired = match time + 5 minutes < now
             return d.getTime() + 5 * 60 * 1000 < now.getTime();
         });
@@ -98,13 +93,7 @@ export async function cleanupExpiredRivals() {
         });
 
         const expiredRefereeAds = openRefereeAds.filter(r => {
-            const d = new Date(r.matchDate);
-            if (r.matchTime) {
-                const [h, m] = r.matchTime.split(':').map(Number);
-                d.setHours(h, m, 0, 0);
-            } else {
-                d.setHours(23, 59, 0, 0);
-            }
+            const d = turkeyDateTimeToUtc(r.matchDate, r.matchTime || '23:59');
             return d.getTime() + 5 * 60 * 1000 < now.getTime();
         });
 

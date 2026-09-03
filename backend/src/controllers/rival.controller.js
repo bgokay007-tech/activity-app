@@ -17,6 +17,7 @@ import { RATING_REQUIRED_SUBCATEGORIES } from '../config/assessments.js';
 import { sanitizeExtraServices } from '../utils/extraServices.js';
 import { subCategoryTR } from '../utils/subCategoryLabels.js';
 import { removeSpectatorOnPromotion } from './spectator.controller.js';
+import { turkeyDateTimeToUtc } from '../utils/tzTime.js';
 
 // İlan açma/katılma öncesi ortak aktivite kontrolü: kullanıcı bu dalı "Aktivitelerim"e
 // eklememişse veya gizlemişse (hidden=true, gizliyken hiçbir şey yapamaz) reddedilir.
@@ -4699,9 +4700,7 @@ export const respondToRival = sendJoinRequest;
 
 const getMatchDeadline = (match) => {
     if (!match.matchDate || !match.matchTime) return null;
-    const [h, m] = match.matchTime.split(':').map(Number);
-    const d = new Date(match.matchDate);
-    d.setHours(h, m, 0, 0);
+    const d = turkeyDateTimeToUtc(match.matchDate, match.matchTime);
     return new Date(d.getTime() + ((match.duration || 90) + 24 * 60) * 60 * 1000);
 };
 
@@ -6522,9 +6521,7 @@ export const removeRivalParticipant = async (req, res, next) => {
         const leavePenaltyAmount = isVolleyballLeave ? 0.10 : 0.20;
         let leaveWithinPenaltyWindow = false;
         if (isSelfLeave && leavePenaltyWindowHours != null && rival.matchDate && rival.matchTime) {
-            const [lh, lm] = rival.matchTime.split(':').map(Number);
-            const matchStart = new Date(rival.matchDate);
-            matchStart.setUTCHours(lh, lm, 0, 0);
+            const matchStart = turkeyDateTimeToUtc(rival.matchDate, rival.matchTime);
             const hoursUntil = (matchStart - new Date()) / (1000 * 60 * 60);
             leaveWithinPenaltyWindow = hoursUntil > 0 && hoursUntil <= leavePenaltyWindowHours;
         }
@@ -6912,9 +6909,7 @@ export const cancelMatch = async (req, res, next) => {
         const penaltyAmount = isVolleyball ? 0.10 : 0.20;
         let withinPenaltyWindow = false;
         if (penaltyWindowHours != null && request.matchDate && request.matchTime) {
-            const [h, m] = request.matchTime.split(':').map(Number);
-            const matchStart = new Date(request.matchDate);
-            matchStart.setUTCHours(h, m, 0, 0);
+            const matchStart = turkeyDateTimeToUtc(request.matchDate, request.matchTime);
             const hoursUntil = (matchStart - new Date()) / (1000 * 60 * 60);
             withinPenaltyWindow = hoursUntil > 0 && hoursUntil <= penaltyWindowHours;
         }

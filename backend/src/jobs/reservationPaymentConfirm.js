@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from '../controllers/notification.controller.js';
+import { turkeyDateTimeToUtc } from '../utils/tzTime.js';
 
 // CASH/EFT ile ödenen rezervasyonlarda, kort saatinden 30dk sonra işletmeciye
 // "geldi mi / ödeme alındı mı" sorusu bildirimle iletilir. 90dk'da (30dk + 1 saat
@@ -25,9 +26,7 @@ export async function processReservationPaymentConfirms() {
         let autoConfirmedCount = 0;
 
         for (const r of candidates) {
-            const start = new Date(r.date);
-            const [h, m] = r.startTime.split(':').map(Number);
-            start.setHours(h, m, 0, 0);
+            const start = turkeyDateTimeToUtc(r.date, r.startTime);
             const minutesSinceStart = (now.getTime() - start.getTime()) / (60 * 1000);
 
             if (minutesSinceStart >= 90) {

@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { emitToUser } from '../config/socket.js';
 import { createNotification } from '../controllers/notification.controller.js';
 import { runScoreConfirmation } from '../controllers/rival.controller.js';
+import { turkeyDateTimeToUtc } from '../utils/tzTime.js';
 
 export async function autoCompleteExpiredMatches() {
     try {
@@ -25,11 +26,7 @@ export async function autoCompleteExpiredMatches() {
 
         const expiredIds = matched
             .filter(r => {
-                const d = new Date(r.matchDate);
-                if (r.matchTime) {
-                    const [h, m] = r.matchTime.split(':').map(Number);
-                    d.setHours(h, m, 0, 0);
-                }
+                const d = turkeyDateTimeToUtc(r.matchDate, r.matchTime);
                 d.setTime(d.getTime() + (r.duration || 0) * 60 * 1000);
                 return d.getTime() <= now.getTime();
             })

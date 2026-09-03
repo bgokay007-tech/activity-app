@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from '../controllers/notification.controller.js';
 import { subCategoryTR } from '../utils/subCategoryLabels.js';
+import { turkeyDateTimeToUtc } from '../utils/tzTime.js';
 
 // Ceza penceresi başlamadan (maça X saat kala) 1 saat önce, kadrodaki herkese (ilan sahibi
 // dahil) tek seferlik bir uyarı gönderir — "hâlâ cezasız iptal hakkın var ama 1 saat sonra
@@ -11,12 +12,10 @@ const PENALIZED_SUBS = ['tennis', 'padel', 'volleyball'];
 
 function getMatchStart(rival) {
     if (!rival.matchDate || !rival.matchTime) return null;
-    const [h, m] = rival.matchTime.split(':').map(Number);
-    const d = new Date(rival.matchDate);
-    // cancelMatch'teki gerçek ceza hesabıyla (setUTCHours) birebir aynı saat yorumu
-    // kullanılmazsa, bu uyarı gerçek ceza anına göre yanlış bir saatte tetiklenebilir.
-    d.setUTCHours(h, m, 0, 0);
-    return d;
+    // cancelMatch/removeRivalParticipant'taki gerçek ceza hesabıyla (turkeyDateTimeToUtc)
+    // birebir aynı saat yorumu kullanılmazsa, bu uyarı gerçek ceza anına göre yanlış bir
+    // saatte tetiklenebilir.
+    return turkeyDateTimeToUtc(rival.matchDate, rival.matchTime);
 }
 
 async function checkAndNotifyCancelPenaltyWarnings() {
