@@ -2485,6 +2485,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             };
 
                             const PartnerContent = senderTeamArr[0] || null;
+                            // Kullanıcı isteği: "takım maçı olduğu için tekil oyuncu puanı değil,
+                            // takımın ortalaması önemli" — double formatta kurucu+partner ve rakip1+
+                            // rakip2 ortalaması, Yaklaşan Maçlar'daki (founderTeamAvg/oppTeamAvg)
+                            // AYNI mantıkla burada (ilan detayı) da gösterilir.
+                            const avgOfPair = (list) => {
+                                const vals = list.filter(v => v != null);
+                                return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+                            };
+                            const founderTeamAvgDetail = avgOfPair([item.sender?.interests?.[0]?.skillRating, PartnerContent?.skillRating]);
+                            const oppTeamAvgDetail = avgOfPair([participants[0]?.skillRating, participants[1]?.skillRating]);
 
                             // Kabul edilmiş katılımcılar (kurucu hariç) — henüz Partner/Rakip 1/
                             // Rakip 2 kartlarına atanmış gibi değil, sırayla numaralı gösterilir.
@@ -2672,7 +2682,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     )}
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
                                         <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:5, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800', marginBottom:4 }}>👑 Kurucu Takımı</Text>
+                                            <View style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
+                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>👑 Kurucu Takımı</Text>
+                                                {founderTeamAvgDetail != null && (
+                                                    <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {ratingBadgeText(sub, isDoublesFmt, t.lang, founderTeamAvgDetail)}</Text>
+                                                )}
+                                            </View>
                                             {/* Kurucu sabit — taşınamaz */}
                                             {/* Kullanıcı isteği: derece puanı (elo) kurucu dahil herkeste görünsün —
                                                 item.sender'da düz skillRating yok, interests[0]'dan taşınıyor
@@ -2693,7 +2708,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 highlighted={highlightSlot?.doubleSlot === 'partner'} />
                                         </View>
                                         <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:5, marginBottom:6 }}>
-                                            <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }}>⚔️ Rakip Takımı</Text>
+                                            <View style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
+                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>⚔️ Rakip Takımı</Text>
+                                                {oppTeamAvgDetail != null && (
+                                                    <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {ratingBadgeText(sub, isDoublesFmt, t.lang, oppTeamAvgDetail)}</Text>
+                                                )}
+                                            </View>
                                             <SlotBox slot="opp1" p={participants[0]} fallback="Henüz katılan yok"
                                                 gReqLabel={genderLabel(opp1GenderReq)} gReqValue={opp1GenderReq}
                                                 highlighted={highlightSlot?.doubleSlot === 'opp1'}
@@ -4778,6 +4798,19 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         ...participants,
         ...(Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : []),
     ].filter(p => p?.id);
+    // Kullanıcı isteği: "takım oluşturulunca takımların elo ortalaması da yazsın" — açık
+    // ilanlar listesindeki kart (digimon kart arka yüzü) çiftler/takım maçında ilan detayı/
+    // Yaklaşan Maçlar'daki AYNI kurucu/rakip ortalaması özetini gösterir (bireysel oyuncu
+    // puanlarının hemen üstünde) — önceden burada sadece düz, takım ayrımı olmayan bir
+    // oyuncu havuzu listesi vardı.
+    const cardFounderTeamAvg = item.matchType === 'DOUBLE' ? (() => {
+        const vals = [item.sender?.interests?.[0]?.skillRating, senderTeamArr[0]?.skillRating].filter(v => v != null);
+        return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    })() : null;
+    const cardOppTeamAvg = item.matchType === 'DOUBLE' ? (() => {
+        const vals = [participants[0]?.skillRating, participants[1]?.skillRating].filter(v => v != null);
+        return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    })() : null;
 
     return (
         <>
@@ -4793,6 +4826,16 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 // "istek"/"Sipariş Ver" gibi kendi onPress'i olan öğeler yine kendi işlevini korur.
                 <TouchableOpacity activeOpacity={0.85} style={{ padding: moderateScale(9), flex:1 }} onPress={() => setDetailVisible(true)}>
                     <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'800', marginBottom:8 }}>👥 {t.rosterPoolLabel}</Text>
+                    {(cardFounderTeamAvg != null || cardOppTeamAvg != null) && (
+                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6, gap:6 }}>
+                            {cardFounderTeamAvg != null && (
+                                <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', flex:1 }} numberOfLines={1}>👑 Ort {ratingBadgeText(sub, true, t.lang, cardFounderTeamAvg)}</Text>
+                            )}
+                            {cardOppTeamAvg != null && (
+                                <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', flex:1, textAlign: cardFounderTeamAvg != null ? 'right' : 'left' }} numberOfLines={1}>⚔️ Ort {ratingBadgeText(sub, true, t.lang, cardOppTeamAvg)}</Text>
+                            )}
+                        </View>
+                    )}
                     {backFacePlayers.length === 0 ? (
                         <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
                     ) : (
