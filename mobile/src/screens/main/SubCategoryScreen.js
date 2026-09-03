@@ -2080,8 +2080,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     dokunmatik tuşlarıyla çakışıp basılamıyordu (kullanıcı raporu). */}
                 <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom: insets.bottom + 16 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" maintainVisibleContentPosition={{ minIndexForVisible: 0 }}>
 
-                    {/* Kurucu (sol) + Tarih/Saat/Kort/Fiyat (sağ, küçük) — tek satırda */}
-                    <View style={{ flexDirection:'row', alignItems:'flex-start', gap:moderateScale(8), marginBottom:item.message ? 8 : 12, paddingBottom:9, borderBottomWidth:1, borderBottomColor: colors.border }}>
+                    {/* Kurucu (sol) + Tarih/Saat/Kort/Fiyat (sağ, küçük) — kullanıcı isteği: tüm bu
+                        bilgiler (isim/resim/elo/format/cinsiyet kısıtlaması dahil tarih/konum/derece
+                        kısıtlamasına kadar) tek bir kutuda, en tepeden başlayarak toplansın. */}
+                    <View style={[det.section, { flexDirection:'row', alignItems:'flex-start', gap:moderateScale(8) }]}>
                         {/* Sol: kurucu */}
                         <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:moderateScale(8), minWidth:0 }}>
                             <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
@@ -6826,9 +6828,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
 
                     {/* Kullanıcı isteği: Yaklaşan Maçlar'daki bu ekran Açık İlanlar'daki (RivalDetailModal)
-                        detay ekranıyla AYNI stilde olsun — orada ilk satır her zaman "kurucu" (ilanı
-                        açan) avatar+isim+puanla başlıyor, burada hiç yoktu (sadece header alt
-                        başlığında düz metin olarak geçiyordu). */}
+                        detay ekranıyla AYNI stilde olsun — isim/resim/elo/format/cinsiyet kısıtlaması
+                        ile tarih/konum/derece kısıtlaması artık TEK bir kutuda, en tepeden başlıyor. */}
+                    <View style={det.section}>
                     <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:8 }}>
                         <Avatar name={match.sender?.username} avatar={match.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => match.senderId && onUserPress?.(match.senderId)} />
                         <View style={{ flex:1, minWidth:0 }}>
@@ -6884,8 +6886,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         })()}
                     </View>
 
-                    {/* Match info box */}
-                    <View style={{ backgroundColor: colors.surface2, borderRadius:14, padding:11, marginBottom:12, borderWidth:1, borderColor: colors.border }}>
+                    {/* Tarih/konum/derece kısıtlaması — artık ayrı kutu değil, yukarıdaki isim/format
+                        rozetleriyle aynı tek kutunun devamı. */}
+                    <View style={{ marginTop:4 }}>
                         <Text style={{ color: colors.textMuted, fontSize:13 }}>
                             {match.flexibleSchedule ? t.unknownDate : match.matchDate ? new Date(match.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' }) : t.unknownDate}
                             {!match.flexibleSchedule && match.matchTime ? ` · ${match.matchTime}` : ''}
@@ -7005,6 +7008,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 ))}
                             </View>
                         )}
+                    </View>
                     </View>
 
                     {/* DOUBLE team management */}
