@@ -1,0 +1,28 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="expo.modules.notifactions">
+
+    <application>
+        <!-- expo-notifications'ın kendi FCM servisi Android'de bilinen bir kütüphane hatası
+        yüzünden (github.com/expo/expo issue #31503, #36282) bildirim aksiyon butonlarını
+        uygulama arka planda/kapalıyken hiç render etmiyor. Onun yerine bu servis geçiyor —
+        aşağıdaki NotifActionsMessagingService, expo-notifications'ın normal davranışını
+        (super.onMessageReceived) DEĞİŞTİRMEDEN çağırıp üzerine sadece aksiyon butonu ekliyor. -->
+        <service
+            android:name="expo.modules.notifications.service.ExpoFirebaseMessagingService"
+            tools:node="remove" />
+
+        <service
+            android:name="expo.modules.notifactions.NotifActionsMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name="expo.modules.notifactions.NotifActionsReceiver"
+            android:exported="false" />
+    </application>
+
+</manifest>

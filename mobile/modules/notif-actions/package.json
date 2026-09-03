@@ -1,0 +1,7 @@
+{
+  "name": "notif-actions",
+  "version": "0.1.0",
+  "description": "Bildirim aksiyon butonlarini (Okundu Isaretle/Cevapla) uygulama arka planda/kapaliyken native olarak calistirir",
+  "main": "index.ts",
+  "license": "UNLICENSED"
+}

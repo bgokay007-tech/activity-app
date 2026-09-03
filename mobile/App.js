@@ -1,6 +1,15 @@
 import { Component, useEffect } from 'react';
 import { View, Text, LogBox, Alert, AppState } from 'react-native';
-import * as Updates from 'expo-updates';
+// Yerel (non-EAS) debug derlemelerinde ExpoUpdates native modülü linklenmeyebiliyor —
+// import'un kendisi bu durumda senkron olarak fırlıyor (üsttekiler bunu try/catch ile
+// yakalayamaz). EAS ile üretilen gerçek build'lerde modül her zaman mevcut, davranış
+// değişmiyor; sadece yerel test derlemesinin açılışta çökmesini engelliyor.
+let Updates;
+try {
+    Updates = require('expo-updates');
+} catch {
+    Updates = { isEnabled: false };
+}
 
 LogBox.ignoreLogs(['expo-notifications']);
 import { StatusBar } from 'expo-status-bar';
