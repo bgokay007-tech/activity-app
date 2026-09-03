@@ -751,6 +751,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // skillRating'ler bir cache'te tutulup, broadcast'te eksik gelen (null) puanlar bu
     // cache'ten doldurulur.
     const ratingsCacheRef = useRef({});
+    // ratingsCacheRef ile AYNI sebep, ama İstekler (joinRequests) satırları için: bazı
+    // rivalUpdate broadcast'leri jr.user.interests'i eksik/boş döndürdüğünde (ör. bir sonraki
+    // istek geldiğinde tetiklenen broadcast'te kullanıcının başka bir satırı zenginleştiren
+    // uç nokta interests'i yeniden hesaplamadıysa) T ELO/Ç ELO rozeti bir anlığına kaybolup
+    // metin genişliği değiştiği için satır sola kayıp sıkışıyordu (kullanıcı raporu: "elo puanı
+    // saliselik gözüküp kayboluyor... yazılarda kayma oluyor"). En son bilinen dolu interests
+    // burada userId bazında cache'lenip broadcast'te eksik gelirse buradan doldurulur.
+    const joinReqInterestCacheRef = useRef({});
     // Kullanıcı isteği: "bildirime tıklayınca ne oluyorsa maça tıklayıp detay açılınca da
     // aynısı olsun" — highlightSlotFromNotif SADECE bildirimden gelindiyse dolu (navigasyon
     // parametreleri). Burada AYRICA ilanın kendi joinRequests verisinden benim bekleyen
@@ -1272,7 +1280,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         const off = onSocket('rivalUpdate', (updated) => {
             if (updated.id !== item.id) return;
             const fillRatings = (arr) => (Array.isArray(arr) ? arr : []).map(p => (p?.id && p.skillRating == null && ratingsCacheRef.current[p.id] != null) ? { ...p, skillRating: ratingsCacheRef.current[p.id] } : p);
-            if (Array.isArray(updated.joinRequests)) setLocalJoinRequests(updated.joinRequests);
+            const fillJoinReqInterests = (arr) => (Array.isArray(arr) ? arr : []).map(jr => {
+                const uid = jr?.user?.id;
+                if (!uid) return jr;
+                const hasInterests = Array.isArray(jr.user.interests) && jr.user.interests.length > 0;
+                const cached = joinReqInterestCacheRef.current[uid];
+                if (!hasInterests && cached) return { ...jr, user: { ...jr.user, interests: cached } };
+                return jr;
+            });
+            if (Array.isArray(updated.joinRequests)) setLocalJoinRequests(fillJoinReqInterests(updated.joinRequests));
             if (Array.isArray(updated.participants)) setLocalParticipants(fillRatings(updated.participants));
             // Kullanıcı isteği: davet ettiği kişi (Takım Arkadaşı/Partner ya da Atanmamış
             // havuzu daveti) kabul edince ilan sahibi/diğer görüntüleyenler çıkıp girmeden
@@ -1361,6 +1377,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             });
         });
     }, [participants, senderTeamArr, unassignedArr]);
+    useEffect(() => {
+        joinRequests.forEach(jr => {
+            const uid = jr?.user?.id;
+            if (uid && Array.isArray(jr.user.interests) && jr.user.interests.length > 0) {
+                joinReqInterestCacheRef.current[uid] = jr.user.interests;
+            }
+        });
+    }, [joinRequests]);
     const reqTimeAgo = (dateStr) => {
         if (!dateStr) return '';
         const diff = Date.now() - new Date(dateStr).getTime();
