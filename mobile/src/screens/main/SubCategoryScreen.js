@@ -12630,6 +12630,17 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             // "zemin tipi toprak otomatik geldi ama açık alan neden gelmedi").
             venueType: court.indoor != null ? (court.indoor ? 'INDOOR' : 'OUTDOOR') : p.venueType,
         }));
+        // Kullanıcı isteği: işletme olmayan (uygulama içi rezervasyon yapılamayan) bir kort/salon
+        // seçilince "Kort Rezerve Edildi" onayı ayrıca sorulsun — kullanıcı bu kutucuğu elle
+        // işaretlemeyi unutabiliyor, "Evet" derse otomatik işaretlensin.
+        Alert.alert(
+            '',
+            isVolleyball ? t.volleyballReservedPromptQ : t.courtReservedPromptQ,
+            [
+                { text: t.courtReservedPromptNo, style: 'cancel' },
+                { text: t.courtReservedPromptYes, onPress: () => setF(p => ({ ...p, courtReserved: true })) },
+            ]
+        );
     };
 
     const reset = () => { setF(INIT); setRefereeInviteForm(null); pendingCourtChangeRef.current = null; };
