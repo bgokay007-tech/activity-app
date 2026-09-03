@@ -20507,8 +20507,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [tournSubTab, setTournSubTab] = useState(['open','inprogress'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
     // Kullanıcı isteği: "Derecelendirme Anketini Tekrar Doldurun" bildirimine dokununca sadece
     // Rakip Bul'a değil, doğrudan bildirimin belirttiği ankete (tekli/çiftler — bkz. backend
-    // ASSESSMENT_RECHECK, data.ratingType) yönlendirsin.
+    // ASSESSMENT_RECHECK, data.ratingType) yönlendirsin. myInterestForSub burada (SubCategoryScreen
+    // seviyesinde) yok — sadece CreateRivalModal'da var — bu yüzden interestId ayrıca çekiliyor.
     const [reassessRatingType, setReassessRatingType] = useState(null);
+    const [reassessInterestId, setReassessInterestId] = useState(null);
 
     // Kullanıcı isteği: "Oyuncuları Değerlendir" bildirimine (OS bildirimi ya da uygulama
     // içi liste) dokununca artık doğrudan anketi açmıyor — önce o maçın Arşiv'deki detayına
@@ -20530,9 +20532,14 @@ export default function SubCategoryScreen({ route, navigation }) {
     }, [route.params?.initialTournSubTab]);
 
     useEffect(() => {
-        if (route.params?.openReassessment) {
-            setReassessRatingType(route.params.openReassessment);
-        }
+        if (!route.params?.openReassessment) return;
+        api.get('/interests/my').then(({ data }) => {
+            const interest = Array.isArray(data) ? data.find(i => i.category === category && i.subCategory === sub) : null;
+            if (interest) {
+                setReassessInterestId(interest.id);
+                setReassessRatingType(route.params.openReassessment);
+            }
+        }).catch(() => {});
     }, [route.params?.openReassessment]);
 
     // "🏆 Turnuva Tamamlandı" bildirimine tıklayınca — kullanıcı raporu: eskiden Turnuvalar
@@ -27130,7 +27137,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 ASSESSMENT_RECHECK). */}
             <AssessmentModal
                 visible={!!reassessRatingType}
-                interestId={myInterestForSub?.id}
+                interestId={reassessInterestId}
                 subCategory={sub}
                 ratingType={reassessRatingType}
                 onClose={() => setReassessRatingType(null)}
