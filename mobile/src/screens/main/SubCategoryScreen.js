@@ -5352,7 +5352,9 @@ const sc = StyleSheet.create({
     colMe:        { flex:1, color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center' },
     colLabel:     { width:64, color: colors.textMuted, fontSize:11, fontWeight:'700', textAlign:'center' },
     colOpp:       { flex:1, color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center' },
-    teamPlayersText: { color: colors.textMuted, fontSize:9, textAlign:'center', marginTop:1 },
+    teamPlayerRow:  { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, marginTop:1 },
+    teamPlayerName: { color: colors.textMuted, fontSize:9, flexShrink:1 },
+    teamPlayerElo:  { color:'#facc15', fontSize:9, fontWeight:'800' },
     setRow:       { flexDirection:'row', alignItems:'center', paddingVertical:2 },
     setScore:     { flex:1, fontSize:22, fontWeight:'900', textAlign:'center' },
     setInputRow:  { flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 },
@@ -5853,17 +5855,20 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const opponentFallbackLabel = isDoublesFmt ? t.teamTwoLabel : t.opponentTeamShortLabel;
     const myScoreLabel  = isTeamMatch ? (iAmFounderSide ? (match.founderTeamName || founderFallbackLabel) : (match.opponentTeamName || opponentFallbackLabel)) : 'Sen';
     const oppScoreLabel = isTeamMatch ? (iAmFounderSide ? (match.opponentTeamName || opponentFallbackLabel) : (match.founderTeamName || founderFallbackLabel)) : 'Rakip';
-    // Takım isminin altında oyuncu adları — sadece çiftler formatında (voleybol gibi
-    // kalabalık takım maçlarında kadro zaten ayrıca gösteriliyor, burada tekrar gerekmiyor).
+    // Takım isminin altında oyuncu adları + format-doğru Elo puanları — sadece çiftler
+    // formatında (voleybol gibi kalabalık takım maçlarında kadro zaten ayrıca gösteriliyor,
+    // burada tekrar gerekmiyor). match.sender'ın kendi objesinde skillRating YOK — bu ayrı bir
+    // match.senderSkillRating alanı olarak geliyor (bkz. kart üstündeki kurucu avatarı), o
+    // yüzden burada normalize edilip senderTeam/participants'taki diğer oyuncularla aynı
+    // şekilde okunabiliyor.
     const playerLabel = (p) => p?.fullName || p?.username || '';
-    const founderSidePlayers = [match.sender, ...senderTeamArr].filter(Boolean);
+    const founderSidePlayers = [
+        match.sender ? { ...match.sender, skillRating: match.senderSkillRating } : null,
+        ...senderTeamArr,
+    ].filter(Boolean);
     const opponentSidePlayers = participantsArr;
-    const myTeamPlayersLabel = isDoublesFmt
-        ? (iAmFounderSide ? founderSidePlayers : opponentSidePlayers).map(playerLabel).filter(Boolean).join(' / ')
-        : '';
-    const oppTeamPlayersLabel = isDoublesFmt
-        ? (iAmFounderSide ? opponentSidePlayers : founderSidePlayers).map(playerLabel).filter(Boolean).join(' / ')
-        : '';
+    const myTeamPlayers  = isDoublesFmt ? (iAmFounderSide ? founderSidePlayers : opponentSidePlayers) : [];
+    const oppTeamPlayers = isDoublesFmt ? (iAmFounderSide ? opponentSidePlayers : founderSidePlayers) : [];
     // Voleybol: açık ilana sonradan katılıp henüz Kurucu/Rakip'e atanmamış oyuncular.
     const unassignedArr   = (Array.isArray(match.unassignedPlayers) ? match.unassignedPlayers : []).filter(p => p?.id);
     useEffect(() => {
@@ -7788,12 +7793,22 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             <View style={sc.headerRow}>
                                 <View style={{ flex: 1 }}>
                                     <Text style={sc.colMe} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{myScoreLabel}</Text>
-                                    {!!myTeamPlayersLabel && <Text style={sc.teamPlayersText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{myTeamPlayersLabel}</Text>}
+                                    {myTeamPlayers.map((p, idx) => (
+                                        <View key={p.id || idx} style={sc.teamPlayerRow}>
+                                            <Text style={sc.teamPlayerName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{playerLabel(p)}</Text>
+                                            {p.skillRating != null && <Text style={sc.teamPlayerElo} numberOfLines={1}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, p.skillRating)}</Text>}
+                                        </View>
+                                    ))}
                                 </View>
                                 <Text style={sc.colLabel}></Text>
                                 <View style={{ flex: 1 }}>
                                     <Text style={sc.colOpp} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{oppScoreLabel}</Text>
-                                    {!!oppTeamPlayersLabel && <Text style={sc.teamPlayersText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{oppTeamPlayersLabel}</Text>}
+                                    {oppTeamPlayers.map((p, idx) => (
+                                        <View key={p.id || idx} style={sc.teamPlayerRow}>
+                                            <Text style={sc.teamPlayerName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{playerLabel(p)}</Text>
+                                            {p.skillRating != null && <Text style={sc.teamPlayerElo} numberOfLines={1}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, p.skillRating)}</Text>}
+                                        </View>
+                                    ))}
                                 </View>
                             </View>
                             {existingSets.map((row, i) => {
@@ -7884,12 +7899,22 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             <View style={sc.headerRow}>
                                 <View style={{ flex: 1 }}>
                                     <Text style={sc.colMe} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{myScoreLabel}</Text>
-                                    {!!myTeamPlayersLabel && <Text style={sc.teamPlayersText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{myTeamPlayersLabel}</Text>}
+                                    {myTeamPlayers.map((p, idx) => (
+                                        <View key={p.id || idx} style={sc.teamPlayerRow}>
+                                            <Text style={sc.teamPlayerName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{playerLabel(p)}</Text>
+                                            {p.skillRating != null && <Text style={sc.teamPlayerElo} numberOfLines={1}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, p.skillRating)}</Text>}
+                                        </View>
+                                    ))}
                                 </View>
                                 <Text style={sc.colLabel}></Text>
                                 <View style={{ flex: 1 }}>
                                     <Text style={sc.colOpp} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{oppScoreLabel}</Text>
-                                    {!!oppTeamPlayersLabel && <Text style={sc.teamPlayersText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{oppTeamPlayersLabel}</Text>}
+                                    {oppTeamPlayers.map((p, idx) => (
+                                        <View key={p.id || idx} style={sc.teamPlayerRow}>
+                                            <Text style={sc.teamPlayerName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{playerLabel(p)}</Text>
+                                            {p.skillRating != null && <Text style={sc.teamPlayerElo} numberOfLines={1}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, p.skillRating)}</Text>}
+                                        </View>
+                                    ))}
                                 </View>
                             </View>
                             {sets.map((row, i) => (
@@ -20864,6 +20889,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [rivalPrefill, setRivalPrefill] = useState(null);
     const [upcomingExpanded, setUpcomingExpanded] = useState(true);
     const [playingExpanded, setPlayingExpanded] = useState(true);
+    // Kullanıcı isteği: Skor Bekleyen Maçlar diğerlerinden farklı olarak varsayılan KAPALI
+    // (kapalıyken ok sola dönük ›, açılınca aşağı döner ▼) — diğer bölümler varsayılan açık.
+    const [pendingScoreExpanded, setPendingScoreExpanded] = useState(false);
     const [openRivalsExpanded, setOpenRivalsExpanded] = useState(true);
     const [showCreatePW, setShowCreatePW] = useState(false);
     // Voleybol "Resmi Takım Adı" — kullanıcı isteği: Rakip Bul'daki "Rakip Aranıyor" ilanının
@@ -22776,6 +22804,12 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Birleştir: sunucudan gelen + client-side biten (id çakışmasını önle)
     const pendingScoreIds = new Set(pendingScore.map(m => m.id));
     const pendingScoreAll = [...pendingScore, ...clientEndedMatches.filter(m => !pendingScoreIds.has(m.id))];
+    // Skor Bekleyen Maçlar varsayılan kapalı — ama bildirimle (highlightRivalId) doğrudan
+    // skor bekleyen bir maça yönlendirildiyse bölüm kapalı kalırsa kart hiç render olmuyor,
+    // autoOpen tetiklenemiyor. Bu durumda bölüm otomatik açılır.
+    useEffect(() => {
+        if (highlightRivalId && pendingScoreAll.some(m => m.id === highlightRivalId)) setPendingScoreExpanded(true);
+    }, [highlightRivalId]);
 
     const filteredTournaments = tournaments.filter(tourn => {
         if (filterCity) {
@@ -23580,14 +23614,24 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* Skor Bekleyen Maçlar */}
                             {pendingScoreAll.length > 0 && (
                                 <>
-                                    <Text style={[s.sectionTitle, { color: '#f97316' }]}>{t.pendingScoreTitle}</Text>
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
-                                        {pendingScoreAll.map(m => (
-                                            <View key={m.id} style={{ width:'48.5%' }}>
-                                                <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
-                                            </View>
-                                        ))}
-                                    </View>
+                                    <TouchableOpacity
+                                        onPress={() => setPendingScoreExpanded(v => !v)}
+                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: pendingScoreExpanded ? 8 : 4 }}
+                                    >
+                                        <Text style={[s.sectionTitle, { color: '#f97316' }]}>{t.pendingScoreTitle} ({pendingScoreAll.length})</Text>
+                                        <Text style={{ color: colors.textSecondary, fontSize:18, fontWeight:'700', marginTop:-4 }}>
+                                            {pendingScoreExpanded ? '▼' : '›'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    {pendingScoreExpanded && (
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                            {pendingScoreAll.map(m => (
+                                                <View key={m.id} style={{ width:'48.5%' }}>
+                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
                                 </>
                             )}
                         </>

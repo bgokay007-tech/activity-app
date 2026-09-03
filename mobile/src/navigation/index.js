@@ -8,7 +8,7 @@ import { setCredentials, setUser } from '../store/slices/authSlice';
 import { setLang } from '../store/slices/langSlice';
 import { setUnreadCount, incrementUnread, clearUnread, decrementUnread } from '../store/slices/notificationSlice';
 import useT from '../hooks/useT';
-import { ActivityIndicator, View, Text, Platform } from 'react-native';
+import { ActivityIndicator, View, Text, Platform, Animated } from 'react-native';
 import RainbowLogo from '../components/RainbowLogo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
@@ -309,7 +309,7 @@ function NotificationsStackNav() {
     );
 }
 
-function TabIcon({ label, active }) {
+function TabIcon({ label, active, blinking }) {
     const icons = {
         Home:         active ? '🏠' : '🏡',
         Messages:     active ? '💬' : '💬',
@@ -317,9 +317,22 @@ function TabIcon({ label, active }) {
         Notifications:active ? '🔔' : '🔕',
         Profile:      active ? '👤' : '👤',
     };
+    // Kullanıcı isteği: skor girilmesi gereken bir maç olduğu sürece zil ikonu yanıp sönsün —
+    // sadece bildirimi okumak bunu durdurmaz, gerçekten skor girilene kadar sürer (bkz.
+    // AppTabs'taki pendingScoreCount, getMyPendingScoreCount'tan gelir).
+    const blinkOpacity = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+        if (!blinking) { blinkOpacity.setValue(1); return; }
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(blinkOpacity, { toValue: 0.25, duration: 500, useNativeDriver: true }),
+            Animated.timing(blinkOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [blinking]);
     return (
         <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 20 }}>{icons[label]}</Text>
+            <Animated.Text style={{ fontSize: 20, opacity: blinkOpacity }}>{icons[label]}</Animated.Text>
         </View>
     );
 }
@@ -337,8 +350,13 @@ function AppTabs() {
     // aynı state'i güncelliyor, 30sn'lik poll'u beklemeden rozet anında düşüyor.
     const unreadNotifs = useSelector(s => s.notifications.unreadCount);
     const [unreadMessages, setUnreadMessages] = useState(0);
+    // Skor girilmesi gereken maç sayısı — Bildirimler zilinin yanıp sönmesini tetikler (bkz.
+    // TabIcon). Bildirimlerin unreadCount'undan bağımsız: bildirimi okusa bile skoru gerçekten
+    // girmeden bu sayaç 0'a düşmez, aynı unreadMessages gibi 30sn'de bir sunucudan çekilir.
+    const [pendingScoreCount, setPendingScoreCount] = useState(0);
     const pollRef = useRef(null);
     const messagesPollRef = useRef(null);
+    const pendingScorePollRef = useRef(null);
 
     // Fetch unread count from backend — source of truth
     const syncBadge = useCallback(async () => {
@@ -358,6 +376,13 @@ function AppTabs() {
         } catch { /* silent */ }
     }, []);
 
+    const syncPendingScoreCount = useCallback(async () => {
+        try {
+            const { data } = await api.get('/rivals/my-pending-score-count');
+            setPendingScoreCount(data.pendingScoreCount || 0);
+        } catch { /* silent */ }
+    }, []);
+
     // Poll every 30s — keeps badge in sync with server after mark-all-read
     useEffect(() => {
         const t = setTimeout(syncBadge, 2000);
@@ -370,6 +395,12 @@ function AppTabs() {
         messagesPollRef.current = setInterval(syncMessagesBadge, 30000);
         return () => { clearTimeout(t); clearInterval(messagesPollRef.current); };
     }, [syncMessagesBadge]);
+
+    useEffect(() => {
+        const t = setTimeout(syncPendingScoreCount, 2000);
+        pendingScorePollRef.current = setInterval(syncPendingScoreCount, 30000);
+        return () => { clearTimeout(t); clearInterval(pendingScorePollRef.current); };
+    }, [syncPendingScoreCount]);
 
     // Socket connection — instant badge increment on new notification/message
     useEffect(() => {
@@ -461,7 +492,7 @@ function AppTabs() {
                 })}
                 options={{
                     tabBarLabel: t.alerts,
-                    tabBarIcon: ({ focused }) => <TabIcon label="Notifications" active={focused} />,
+                    tabBarIcon: ({ focused }) => <TabIcon label="Notifications" active={focused} blinking={pendingScoreCount > 0} />,
                     tabBarBadge: unreadNotifs > 0 ? unreadNotifs : undefined,
                     tabBarBadgeStyle: { backgroundColor: colors.purple, color: '#fff', fontSize: 10 },
                 }}
