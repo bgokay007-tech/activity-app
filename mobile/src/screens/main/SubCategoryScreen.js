@@ -20505,6 +20505,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [archiveDetailMatch, setArchiveDetailMatch] = useState(null);
     const [ratingSubject, setRatingSubject] = useState(null); // { userId, subCategory } — Voleybol oyuncu değerlendirme anketi (VolleyballRatingModal) hedefi
     const [tournSubTab, setTournSubTab] = useState(['open','inprogress'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
+    // Kullanıcı isteği: "Derecelendirme Anketini Tekrar Doldurun" bildirimine dokununca sadece
+    // Rakip Bul'a değil, doğrudan bildirimin belirttiği ankete (tekli/çiftler — bkz. backend
+    // ASSESSMENT_RECHECK, data.ratingType) yönlendirsin.
+    const [reassessRatingType, setReassessRatingType] = useState(null);
 
     // Kullanıcı isteği: "Oyuncuları Değerlendir" bildirimine (OS bildirimi ya da uygulama
     // içi liste) dokununca artık doğrudan anketi açmıyor — önce o maçın Arşiv'deki detayına
@@ -20524,6 +20528,12 @@ export default function SubCategoryScreen({ route, navigation }) {
             setTournSubTab(route.params.initialTournSubTab);
         }
     }, [route.params?.initialTournSubTab]);
+
+    useEffect(() => {
+        if (route.params?.openReassessment) {
+            setReassessRatingType(route.params.openReassessment);
+        }
+    }, [route.params?.openReassessment]);
 
     // "🏆 Turnuva Tamamlandı" bildirimine tıklayınca — kullanıcı raporu: eskiden Turnuvalar
     // sekmesine (Açık İlanlar/Devam Eden) gidiyordu ama tamamlanmış turnuvalar orada hiç
@@ -27112,6 +27122,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                     setGateAssessTarget(null);
                     pending?.();
                 }}
+            />
+
+            {/* "Derecelendirme Anketini Tekrar Doldurun" bildiriminden gelindiğinde açılır —
+                yukarıdaki gateAssessTarget'tan FARKLI olarak burada "vazgeçme" ilgiyi silmez,
+                kullanıcı istediği zaman kapatıp devam edebilir (bkz. NotificationsScreen
+                ASSESSMENT_RECHECK). */}
+            <AssessmentModal
+                visible={!!reassessRatingType}
+                interestId={myInterestForSub?.id}
+                subCategory={sub}
+                ratingType={reassessRatingType}
+                onClose={() => setReassessRatingType(null)}
+                onComplete={() => setReassessRatingType(null)}
             />
 
             {/* ── Kortlar Listesi Modal (tam ekran) ── */}

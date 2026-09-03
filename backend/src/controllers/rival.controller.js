@@ -238,12 +238,16 @@ async function applyCompetitivePoints(request, winnerUserId) {
         ];
 
         if (skipElo) {
+            // Kullanıcı isteği: bildirime dokununca hangi anketin (tekli/çiftler) yeniden
+            // doldurulması gerektiği bu maçın matchType'ından belli — mobil tarafta doğrudan
+            // o ankete yönlendirebilmek için ratingType bildirim verisine ekleniyor.
+            const ratingType = request.matchType === 'DOUBLE' ? 'doubles' : 'singles';
             for (const flag of reassessFlags) {
                 createNotification(
                     flag.userId, 'ASSESSMENT_RECHECK',
                     '📋 Derecelendirme Anketini Tekrar Doldurun',
                     `${subCategoryTR(request.subCategory)} dalında anketten sonraki ilk maçlarınızda dereceniz beklenenden farklı çıktı. Daha doğru bir eşleşme için lütfen derecelendirme anketini tekrar doldurun.`,
-                    { category: request.category, subCategory: request.subCategory }
+                    { category: request.category, subCategory: request.subCategory, ratingType }
                 ).catch(() => {});
             }
         }

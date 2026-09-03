@@ -287,6 +287,12 @@ export default function NotificationsScreen({ navigation }) {
             });
         } else if (type === 'SCORE_DISPUTED') {
             goToSub('rivals');
+        } else if (type === 'ASSESSMENT_RECHECK') {
+            // Kullanıcı isteği: bu bildirim hangi anketin (tekli/çiftler) yeniden doldurulması
+            // gerektiğini belirtiyor (bkz. backend ASSESSMENT_RECHECK, data.ratingType) —
+            // sadece Rakip Bul'a değil, doğrudan o ankete yönlendirsin.
+            if (!data.category || !data.subCategory) return;
+            navigation.push('SubCategory', { category: String(data.category).toUpperCase(), sub: data.subCategory, initialTab: 'rivals', openReassessment: data.ratingType || 'singles' });
         } else if (type === 'MATCH_MEDIA_PENDING' || type === 'MATCH_MEDIA_APPROVED' || type === 'MATCH_MEDIA_REJECTED') {
             goToSub('rivals');
         } else if (type === 'POSITION_SUGGESTED' || type === 'POSITION_SUGGESTION_APPROVED' || type === 'POSITION_SUGGESTION_REJECTED') {
