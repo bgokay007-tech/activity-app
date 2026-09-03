@@ -6812,15 +6812,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         <Text style={{ color:'#fff', fontSize:moderateScale(22), fontWeight:'300' }}>←</Text>
                     </TouchableOpacity>
                     <View style={{ flex:1 }}>
+                        {/* Kullanıcı isteği: en tepede sadece dal adı ("Tenis") yeterli — altında
+                            oyuncu/takım isimleri ayrıca yazmasın, bu bilgi zaten aşağıdaki kadro
+                            kartında (digimon kart) var, tekrar burada göstermek gereksizdi. */}
                         <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800' }}>{getSubCategoryLabel(match.subCategory, t.lang)}</Text>
-                        {/* Takım sporlarında (kadro kartı olan maçlarda) burada da gerçek kullanıcı
-                            isimleriyle sınırlı, eksik bir liste gösterip kafa karıştırıyordu — kadro
-                            kartı zaten tam listeyi gösteriyor (bkz. hasTeamRoster). */}
-                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(12), marginTop:1 }}>
-                            {hasTeamRoster
-                                ? `${match.founderTeamName || t.founderTeamShortLabel} vs ${match.opponentTeamName || t.opponentTeamShortLabel}`
-                                : allPlayers.filter(p => !p._emptySlot).map(p => senderAlias(p)).join(' · ')}
-                        </Text>
                     </View>
                 </View>
 
