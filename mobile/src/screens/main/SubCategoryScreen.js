@@ -20242,6 +20242,23 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [mediaComments, setMediaComments] = useState([]);
     const [mediaCommentText, setMediaCommentText] = useState('');
     const [sendingMediaComment, setSendingMediaComment] = useState(false);
+    // Kullanıcı isteği: akıştaki (feed) yorum ikonuna dokununca resmi büyütmeden, kart aşağı
+    // doğru genişleyerek yorumlar + yorum yaz kutusu açılsın — hangi gönderinin yorumları
+    // inline açık, onu tutar (fullscreen görüntüleyiciden BAĞIMSIZ).
+    const [inlineMediaCommentsPostId, setInlineMediaCommentsPostId] = useState(null);
+    const toggleInlineMediaComments = async (postId) => {
+        if (inlineMediaCommentsPostId === postId) {
+            setInlineMediaCommentsPostId(null);
+            return;
+        }
+        setInlineMediaCommentsPostId(postId);
+        setMediaCommentText('');
+        setMediaReplyingTo(null);
+        try {
+            const { data } = await api.get(`/posts/${postId}/comments`);
+            setMediaComments(data);
+        } catch { setMediaComments([]); }
+    };
     // Kullanıcı isteği: medya yorumlarında da maç yorumlarındaki (MatchComment) aynı algoritma —
     // silme (viewedBy ile "gören oldu mu" uyarısı), tek seviye yanıtlama (parentId) ve beğeni.
     const [mediaReplyingTo, setMediaReplyingTo] = useState(null); // yanıt yazılan yorumun id'si
@@ -26237,8 +26254,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                     <Text style={{ color: isLiked ? '#f43f5e' : colors.textMuted, fontSize: 22 }}>{isLiked ? '♥' : '♡'}</Text>
                                                                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{likeCount}</Text>
                                                                 </TouchableOpacity>
-                                                                <TouchableOpacity onPress={() => setMediaViewIdx(actualIdx)} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                                                                    <Text style={{ color: colors.textMuted, fontSize: 20 }}>💬</Text>
+                                                                {/* Kullanıcı isteği: yorum ikonuna dokununca resim/video büyütülmeden,
+                                                                    kart aşağı doğru genişleyerek yorumlar + yorum yaz kutusu açılsın. */}
+                                                                <TouchableOpacity onPress={() => toggleInlineMediaComments(post.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                                                    <Text style={{ color: inlineMediaCommentsPostId === post.id ? cfg.color : colors.textMuted, fontSize: 20 }}>💬</Text>
                                                                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{commentCount}</Text>
                                                                 </TouchableOpacity>
                                                             </View>
@@ -26251,6 +26270,87 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                     </Text>
                                                                 </View>
                                                             ) : <View style={{ paddingBottom: 1 }} />}
+                                                            {/* Inline yorumlar — kullanıcı isteği: medyayı büyütmeden burada
+                                                                yorum yapılabilsin, tek seviye yanıtlama + beğeni fullscreen'deki
+                                                                ile aynı mantık. */}
+                                                            {inlineMediaCommentsPostId === post.id && (() => {
+                                                                const topLevel = mediaComments.filter(c => !c.parentId);
+                                                                const repliesOf = (id) => mediaComments.filter(c => c.parentId === id);
+                                                                const goToProfile = (userId) => userId && navigation.push('Profile', { userId });
+                                                                const sendInlineComment = async () => {
+                                                                    const text = mediaCommentText.trim();
+                                                                    if (!text) return;
+                                                                    setSendingMediaComment(true);
+                                                                    try {
+                                                                        const { data } = await api.post(`/posts/${post.id}/comment`, { content: text, parentId: mediaReplyingTo || undefined });
+                                                                        setMediaCommentText('');
+                                                                        setMediaReplyingTo(null);
+                                                                        setMediaComments(prev => [...prev, data]);
+                                                                        setMediaCommentCounts(prev => ({ ...prev, [post.id]: (prev[post.id] ?? (post._count?.comments || 0)) + 1 }));
+                                                                    } catch {}
+                                                                    finally { setSendingMediaComment(false); }
+                                                                };
+                                                                const renderRow = (c, isReply) => {
+                                                                    const canDelete = c.userId === myId || post.userId === myId;
+                                                                    return (
+                                                                        <View key={c.id} style={{ marginBottom: 6, marginLeft: isReply ? 18 : 0 }}>
+                                                                            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 3 }}>
+                                                                                <TouchableOpacity onPress={() => goToProfile(c.user?.id)}>
+                                                                                    <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>{c.user?.username}</Text>
+                                                                                </TouchableOpacity>
+                                                                                <Text style={{ color: colors.textSecondary, fontSize: 12, flex: 1 }}>{c.content}</Text>
+                                                                                {canDelete && (
+                                                                                    <TouchableOpacity onPress={() => deleteMediaComment(c)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                                                                                        <Text style={{ color: '#f87171', fontSize: 12 }}>✕</Text>
+                                                                                    </TouchableOpacity>
+                                                                                )}
+                                                                            </View>
+                                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 }}>
+                                                                                <TouchableOpacity onPress={() => toggleMediaCommentLike(c.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                                                                                    <Text style={{ color: c.isLiked ? '#f43f5e' : colors.textMuted, fontSize: 12 }}>{c.isLiked ? '♥' : '♡'}</Text>
+                                                                                    {c.likeCount > 0 && <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700' }}>{c.likeCount}</Text>}
+                                                                                </TouchableOpacity>
+                                                                                {!isReply && (
+                                                                                    <TouchableOpacity onPress={() => setMediaReplyingTo(c.id)}>
+                                                                                        <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700' }}>Yanıtla</Text>
+                                                                                    </TouchableOpacity>
+                                                                                )}
+                                                                            </View>
+                                                                            {repliesOf(c.id).map(r => renderRow(r, true))}
+                                                                        </View>
+                                                                    );
+                                                                };
+                                                                return (
+                                                                    <View style={{ paddingHorizontal: 9, paddingBottom: 9, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
+                                                                        {topLevel.length === 0 ? (
+                                                                            <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 6 }}>{t.emptyComments || 'Henüz yorum yok'}</Text>
+                                                                        ) : topLevel.map(c => renderRow(c, false))}
+                                                                        {mediaReplyingTo && (
+                                                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                                                <Text style={{ color: colors.textMuted, fontSize: 11 }}>
+                                                                                    Yanıtlanıyor: {mediaComments.find(c => c.id === mediaReplyingTo)?.user?.username}
+                                                                                </Text>
+                                                                                <TouchableOpacity onPress={() => setMediaReplyingTo(null)}>
+                                                                                    <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>✕ Vazgeç</Text>
+                                                                                </TouchableOpacity>
+                                                                            </View>
+                                                                        )}
+                                                                        <View style={{ flexDirection: 'row', gap: 3 }}>
+                                                                            <TextInput
+                                                                                style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+                                                                                placeholder={mediaReplyingTo ? 'Yanıt yaz...' : 'Yorum yaz...'}
+                                                                                placeholderTextColor={colors.textMuted}
+                                                                                value={mediaCommentText}
+                                                                                onChangeText={setMediaCommentText}
+                                                                            />
+                                                                            <TouchableOpacity onPress={sendInlineComment} disabled={sendingMediaComment || !mediaCommentText.trim()}
+                                                                                style={{ backgroundColor: cfg.color, borderRadius: 8, paddingHorizontal: 11, justifyContent: 'center', opacity: !mediaCommentText.trim() ? 0.4 : 1 }}>
+                                                                                <Text style={{ color: '#fff', fontWeight: '900', fontSize: 14 }}>{sendingMediaComment ? '…' : '↑'}</Text>
+                                                                            </TouchableOpacity>
+                                                                        </View>
+                                                                    </View>
+                                                                );
+                                                            })()}
                                                         </View>
                                                     );
                                                 })}
@@ -27785,7 +27885,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                         const openMediaComments = async () => {
                             const next = !mediaShowComments;
                             setMediaShowComments(next);
-                            if (next && mediaComments.length === 0) {
+                            // Kullanıcı isteği: akıştaki (feed) yorum ikonuna dokununca da aynı
+                            // mediaComments state'i inline olarak dolduruluyor — burada başka bir
+                            // gönderinin bayat yorumları kalmasın diye her açılışta TAZE çekiliyor
+                            // (uzunluk kontrolüyle "zaten dolu" diye atlamak yanlış gönderinin
+                            // yorumlarını gösterebiliyordu).
+                            if (next) {
                                 try { const { data } = await api.get(`/posts/${mp.id}/comments`); setMediaComments(data); } catch {}
                             }
                         };
@@ -27925,19 +28030,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     );
                                 })()}
 
-                                {/* Prev/Next nav */}
-                                <View style={{ flexDirection: 'row', gap: 3, marginTop: 16 }}>
-                                    {mediaViewIdx > 0 && (
-                                        <TouchableOpacity style={s.storyNavBtn} onPress={() => { setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaReplyingTo(null); setMediaViewIdx(i => i - 1); }}>
-                                            <Text style={{ color: '#fff', fontWeight: '700' }}>‹ Önceki</Text>
-                                        </TouchableOpacity>
-                                    )}
-                                    {mediaViewIdx < mediaPosts.length - 1 && (
-                                        <TouchableOpacity style={s.storyNavBtn} onPress={() => { setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaReplyingTo(null); setMediaViewIdx(i => i + 1); }}>
-                                            <Text style={{ color: '#fff', fontWeight: '700' }}>Sonraki ›</Text>
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
                             </View>
                         );
                     })()}
