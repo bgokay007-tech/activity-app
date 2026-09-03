@@ -285,18 +285,16 @@ export const sendMessage = async (req, res, next) => {
             }),
         };
 
-        // notif.id, OS bildirim tepsisindeki "Okundu İşaretle"/"Cevapla" butonlarının (bkz.
-        // sendPushNotification categoryId) uygulama açılmadan hangi satırı işaretleyeceğini/kime
-        // cevap göndereceğini bilmesi için push data'sına gömülüyor — bu yüzden push'tan ÖNCE
-        // await ediliyor (yanıt zaten res.status(201) ile gönderildi, istemciye gecikme yok).
-        try {
-            const notif = await prisma.notification.create({
-                data: { userId: receiverId, type: 'MESSAGE', title: `@${senderUsername}`, body: notifBody, data: notifData },
-            });
-            if (receiver?.pushToken) {
-                sendPushNotification(receiver.pushToken, `@${senderUsername}`, notifBody, receiver.notificationMode, { ...notifData, notificationId: notif.id });
-            }
-        } catch (notifErr) { console.log('NOTIF_CREATE_FAIL:', notifErr?.message); }
+        // Kullanıcı isteği: mesajlar için Bildirimler ekranına AYRICA bir satır düşmesin —
+        // Mesajlar sekmesindeki okunmamış rozeti (bkz. getUnreadMessageCount) zaten bunu
+        // gösteriyor, ikisi birden bilgi kirliliği olurdu. Bu yüzden burada artık
+        // prisma.notification.create YOK — sadece gerçek OS push bildirimi gönderiliyor.
+        // notificationId push data'sında bilerek yok: notificationActions.js'teki "Okundu
+        // İşaretle" zaten data.notificationId olmadan da conversationId üzerinden mesajı
+        // okundu işaretliyor (bkz. handleNotificationAction).
+        if (receiver?.pushToken) {
+            sendPushNotification(receiver.pushToken, `@${senderUsername}`, notifBody, receiver.notificationMode, notifData);
+        }
     } catch (error) { next(error); }
 };
 
