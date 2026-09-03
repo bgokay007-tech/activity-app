@@ -11,6 +11,9 @@
     "preview": {
       "distribution": "internal",
       "channel": "development",
+      "env": {
+        "EXPO_USE_COMMUNITY_AUTOLINKING": "1"
+      },
       "android": {
         "buildType": "apk"
       }
