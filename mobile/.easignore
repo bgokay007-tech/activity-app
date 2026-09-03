@@ -1,0 +1,14 @@
+# EAS Build kendi sunucusunda "managed" prebuild yapar; yerel makinede zaten var olan
+# gitignore'lu /android klasörünü (ve build önbelleklerini) yükleyip "yeniden kullanmaya"
+# çalışmasın diye — bu, yerel denemelerden kalan bozuk/eski bir native proje durumunun
+# EAS derlemesine sızmasına (ve orada da aynı hataları tekrarlamasına) sebep oluyordu.
+/android
+/ios
+
+node_modules/
+.expo/
+dist/
+web-build/
+
+modules/*/android/build
+modules/*/android/.gradle
