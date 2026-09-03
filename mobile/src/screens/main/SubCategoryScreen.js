@@ -7310,6 +7310,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         return (
                                                             <View key={p.id} style={{ backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:4, flexDirection:'row', alignItems:'center', gap:4 }}>
                                                                 <Text style={{ color:'#fff', fontSize:11, fontWeight:'700', flex:1, minWidth:0 }} numberOfLines={1}>{playerDisplayName(p)}</Text>
+                                                                {/* Kullanıcı isteği: Atanmamış listesindeki oyuncuların sağında da,
+                                                                    takıma atanmışlardaki gibi (ör. Digimon kart havuzu) elo/derece
+                                                                    puanı görünsün — backend zaten veriyordu, sadece burada hiç
+                                                                    render edilmiyordu. */}
+                                                                {p.skillRating != null && (
+                                                                    <Text style={{ color:'#facc15', fontSize:10, fontWeight:'800' }} numberOfLines={1}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, p.skillRating)}</Text>
+                                                                )}
                                                                 {/* "Takımlara Ata" — kullanıcı isteği: tek bir buton, dokununca hangi
                                                                     slotlar (Katılımcı 1/2/3) hâlâ boşsa (ve cinsiyete uyuyorsa) onları
                                                                     listeleyen bir pencere açılsın, hangisine dokunulursa oraya atansın.

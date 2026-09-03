@@ -30,6 +30,10 @@ android {
 }
 
 dependencies {
-    implementation project(':expo-notifications')
+    // expo-notifications'a KASITLI OLARAK bagimli degil -- project(':expo-notifications')
+    // referansi, o proje autolinking tarafindan olusturulamadigi (EAS'ta bilinen bir
+    // react-native-community/cli autolinking hatasi) durumlarda TUM Gradle yapilandirmasini
+    // erkenden cokertiyordu. Bu modul kendi bildirimini sifirdan (Notification.Builder) insa
+    // ediyor, expo-notifications'in Kotlin siniflarina hic ihtiyac duymuyor.
     implementation 'com.google.firebase:firebase-messaging:24.0.1'
 }
