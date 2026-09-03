@@ -5809,7 +5809,54 @@ export const getCompletedMatches = async (req, res, next) => {
             const parts = Array.isArray(r.participants) ? r.participants : [];
             return parts.some(p => p?.id === myId);
         });
-        res.json(result);
+
+        // Kullanıcı raporu: Skor Bekleyen Maçlar'da (ve buradan girilen skor ekranında) ne
+        // Atanmamış listesinde ne de takım kartlarında elo/derece puanı hiç görünmüyordu, takım
+        // ortalaması da hesaplanamıyordu — getUpcomingMatches'in AKSİNE bu uç nokta hiçbir
+        // zenginleştirme yapmadan ham senderTeam/participants/unassignedPlayers döndürüyordu
+        // (hiçbirinde skillRating alanı yoktu). getUpcomingMatches'teki AYNI zenginleştirme
+        // burada da uygulanıyor — izole try/catch, başarısız olursa ham veri dönülür.
+        try {
+            const allUserIds = [...new Set([
+                ...result.map(m => m.senderId),
+                ...result.flatMap(m => (Array.isArray(m.participants) ? m.participants : []).filter(p => p?.id).map(p => p.id)),
+                ...result.flatMap(m => (Array.isArray(m.senderTeam) ? m.senderTeam : []).filter(p => p?.id).map(p => p.id)),
+                ...result.flatMap(m => (Array.isArray(m.substitutePlayers) ? m.substitutePlayers : []).filter(p => p?.id).map(p => p.id)),
+                ...result.flatMap(m => (Array.isArray(m.unassignedPlayers) ? m.unassignedPlayers : []).filter(p => p?.id).map(p => p.id)),
+            ].filter(Boolean))];
+            const interests = allUserIds.length > 0
+                ? await prisma.userInterest.findMany({
+                    where: { userId: { in: allUserIds } },
+                    select: {
+                        userId: true, subCategory: true, skillRating: true,
+                        singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true,
+                    },
+                })
+                : [];
+            const ratingFor = (userId, subCategory, isDoubles) => teamDisplayRating(interests.find(i => i.userId === userId && i.subCategory === subCategory), subCategory, isDoubles);
+            const enriched = result.map(m => {
+                const mIsDoubles = isDoublesFormat(m);
+                return {
+                    ...m,
+                    senderSkillRating: ratingFor(m.senderId, m.subCategory, mIsDoubles),
+                    participants: (Array.isArray(m.participants) ? m.participants : []).filter(p => p?.id).map(p => ({
+                        ...p, skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
+                    })),
+                    senderTeam: (Array.isArray(m.senderTeam) ? m.senderTeam : []).filter(p => p?.id).map(p => ({
+                        ...p, skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
+                    })),
+                    substitutePlayers: (Array.isArray(m.substitutePlayers) ? m.substitutePlayers : []).map(p => p?.id ? ({
+                        ...p, skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
+                    }) : p),
+                    unassignedPlayers: (Array.isArray(m.unassignedPlayers) ? m.unassignedPlayers : []).map(p => p?.id ? ({
+                        ...p, skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
+                    }) : p),
+                };
+            });
+            return res.json(enriched);
+        } catch (_) {
+            return res.json(result);
+        }
     } catch (error) { next(error); }
 };
 
