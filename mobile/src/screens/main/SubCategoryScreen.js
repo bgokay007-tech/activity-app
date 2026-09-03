@@ -7473,7 +7473,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         {/* Kullanıcı isteği: derece puanı (elo) burada da herkese görünsün. */}
                                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1}>
                                             {playerDisplayName(jr.user)}
-                                            {jr.user?.interests?.find(i => i.subCategory === sub)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === sub).skillRating).toFixed(2)} ★` : ''}
+                                            {jr.user?.interests?.find(i => i.subCategory === match.subCategory)?.skillRating != null ? `  ${Number(jr.user.interests.find(i => i.subCategory === match.subCategory).skillRating).toFixed(2)} ★` : ''}
                                         </Text>
                                         {/* Kullanıcı isteği: hangi takıma davet edildiği burada ayrıca yazılmasın —
                                             hem gereksiz tekrar hem de takım ismi sonradan değiştirilince burada
