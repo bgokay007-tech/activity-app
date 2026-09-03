@@ -7281,6 +7281,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                         { key: 'opp2', p: opp2 },
                                                     ].filter(s => s.key !== slotChangeTarget.slot && s.p?.id)
                                                         .map(s => ({ label: `🔁 ${senderAlias(s.p)} ile yer değiştir`, onPress: () => performSwap(slotChangeTarget.slot, s.key) })),
+                                                    // Kullanıcı isteği: sadece dolu bir slotla yer değiştirme değil, karşı tarafta
+                                                    // BOŞ ve oyuncunun cinsiyetine uygun bir slot varsa doğrudan oraya taşıma
+                                                    // seçeneği de olsun — Atanmamış'a atmaya gerek kalmadan.
+                                                    ...[
+                                                        { key: 'partner', label: SLOT_LABEL.partner, gReq: match.partnerGenderReq, p: partner },
+                                                        { key: 'opp1', label: SLOT_LABEL.opp1, gReq: match.opp1GenderReq, p: opp1 },
+                                                        { key: 'opp2', label: SLOT_LABEL.opp2, gReq: match.opp2GenderReq, p: opp2 },
+                                                    ].filter(s => s.key !== slotChangeTarget.slot && !s.p?.id
+                                                        && (!s.gReq || s.gReq === 'MIX' || s.gReq === slotChangeTarget.player?.gender))
+                                                        .map(s => ({ label: `➡️ ${s.label}'e Taşı`, onPress: () => assignDoubleSlot(slotChangeTarget.player.id, s.key) })),
                                                     { label: 'Atanmamış Listesine Ata', onPress: () => assignDoubleSlot(slotChangeTarget.player.id, null) },
                                                 ] : []}
                                             />
