@@ -32,32 +32,35 @@ async function requireActiveInterest(userId, category, subCategory, matchType = 
         err.status = 403; err.code = 'ACTIVITY_REQUIRED';
         throw err;
     }
-    // Padel: %99 çiftler oynanan bir spor olduğu için (kullanıcı isteği) çiftler anketi tekliden
-    // BAĞIMSIZ ve varsayılan/birincil olabilir — genel "bu dalı hiç kullanabilir miyim" kapısı
-    // padel'de İKİSİNDEN BİRİ (tekli VEYA çiftler) tamamlanmışsa açılır. Tenis'te hâlâ sadece
-    // tekli (assessmentCompleted) genel kapıyı açar.
-    const generalAssessmentDone = subCategory === 'padel'
+    // Tenis/padel: tekli ve çiftler TAMAMEN AYRI anketler (bkz. assessments.js). matchType
+    // biliniyorsa (ilan açma/katılma her zaman bilir) hangi anketin gerektiği doğrudan formata
+    // göre belirlenir — "genel" bir kapıdan geçip yanlışlıkla varsayılan (tekli) ankete
+    // yönlendirme riski olmasın diye bu kontrol genel kapıdan ÖNCE çalışır. Önceden hiç anketi
+    // olmayan biri ÇİFTLER ilanına başvurunca (matchType='DOUBLE'), aşağıdaki genel kapı sadece
+    // tekliye baktığı için yanlışlıkla tekli anketine yönlendiriliyordu (kullanıcı raporu).
+    const isTennisOrPadel = subCategory === 'tennis' || subCategory === 'padel';
+    if (isTennisOrPadel && RATING_REQUIRED_SUBCATEGORIES.has(subCategory) && matchType) {
+        if (matchType === 'DOUBLE' && !interest.doublesAssessmentCompleted) {
+            const err = new Error('Çiftler ilanı açabilmek/katılabilmek için önce çiftler derecelendirme anketini tamamlamalısın.');
+            err.status = 403; err.code = 'DOUBLES_ASSESSMENT_REQUIRED';
+            throw err;
+        }
+        if (matchType === 'SINGLE' && !interest.assessmentCompleted) {
+            const err = new Error('Tekli ilanı açabilmek/katılabilmek için önce tekli derecelendirme anketini tamamlamalısın.');
+            err.status = 403; err.code = 'SINGLES_ASSESSMENT_REQUIRED';
+            throw err;
+        }
+        return interest;
+    }
+    // matchType bilinmiyorsa (ör. genel "bu dalı hiç kullanabilir miyim" kontrolü) — tenis/
+    // padel'de İKİSİNDEN BİRİ (tekli VEYA çiftler) tamamlanmışsa genel kapı açılır, diğer
+    // dallarda eskisi gibi sadece tekli (assessmentCompleted) yeterli.
+    const generalAssessmentDone = isTennisOrPadel
         ? (interest.assessmentCompleted || interest.doublesAssessmentCompleted)
         : interest.assessmentCompleted;
     if (RATING_REQUIRED_SUBCATEGORIES.has(subCategory) && !generalAssessmentDone) {
         const err = new Error('Bu dalda ilan açabilmek/katılabilmek için önce derece anketini tamamlamalısın.');
         err.status = 403; err.code = 'ASSESSMENT_REQUIRED';
-        throw err;
-    }
-    // Tenis/padel çiftler: tekli anketten AYRI bir anket var (bkz. assessments.js
-    // QUESTIONS.tennis_doubles / padel'de aynı sorular ayrıca doldurulur) — çiftler ilanı
-    // açmadan/katılmadan önce o da tamamlanmış olmalı.
-    if ((subCategory === 'tennis' || subCategory === 'padel') && matchType === 'DOUBLE' && !interest.doublesAssessmentCompleted) {
-        const err = new Error('Çiftler ilanı açabilmek/katılabilmek için önce çiftler derecelendirme anketini tamamlamalısın.');
-        err.status = 403; err.code = 'DOUBLES_ASSESSMENT_REQUIRED';
-        throw err;
-    }
-    // Padel tekli: çiftler anketi tekliyi otomatik karşılamaz — tekli maç açmak/katılmak
-    // için gerçekten tekli anketi tamamlanmış olmalı (kullanıcı isteği: "tekli puanı yoksa
-    // tekli maç açamasın").
-    if (subCategory === 'padel' && matchType === 'SINGLE' && !interest.assessmentCompleted) {
-        const err = new Error('Tekli ilanı açabilmek/katılabilmek için önce tekli derecelendirme anketini tamamlamalısın.');
-        err.status = 403; err.code = 'SINGLES_ASSESSMENT_REQUIRED';
         throw err;
     }
     return interest;
