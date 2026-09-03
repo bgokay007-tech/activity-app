@@ -540,7 +540,8 @@ export default function Navigation() {
                 buttonTitle: lang === 'tr' ? 'Okundu İşaretle' : 'Mark as read',
                 options: { opensAppToForeground: false },
             },
-        ]).catch(() => {});
+        ]).then(r => console.log('[push] category default_notification registered:', JSON.stringify(r)))
+          .catch(e => console.error('[push] category default_notification FAILED:', e?.message, e));
         Notifications.setNotificationCategoryAsync('message_notification', [
             {
                 identifier: 'MARK_READ',
@@ -556,7 +557,8 @@ export default function Navigation() {
                 },
                 options: { opensAppToForeground: false },
             },
-        ]).catch(() => {});
+        ]).then(r => console.log('[push] category message_notification registered:', JSON.stringify(r)))
+          .catch(e => console.error('[push] category message_notification FAILED:', e?.message, e));
     }, [lang]);
 
     useEffect(() => {
