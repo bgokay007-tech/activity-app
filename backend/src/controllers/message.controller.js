@@ -29,7 +29,7 @@ async function isConversationMuted(userId, conversationId) {
 // kanallar mobil tarafta app açılışında (navigation/index.js) aynı id'lerle önceden kaydedilir.
 const CHANNEL_BY_MODE = { MUTE: 'silent', VIBRATE: 'vibrate', SOUND: 'default' };
 
-async function sendPushNotification(pushToken, title, body, notificationMode = 'SOUND') {
+async function sendPushNotification(pushToken, title, body, notificationMode = 'SOUND', data = {}) {
     if (!pushToken?.startsWith('ExponentPushToken')) return;
     try {
         await axios.post('https://exp.host/--/api/v2/push/send', {
@@ -38,7 +38,11 @@ async function sendPushNotification(pushToken, title, body, notificationMode = '
             body,
             sound: notificationMode === 'SOUND' ? 'default' : null,
             channelId: CHANNEL_BY_MODE[notificationMode] || 'default',
-            data: { type: 'MESSAGE' },
+            // Mobil tarafta (navigation/index.js) kaydedilen "message_notification" kategorisi —
+            // OS bildirim tepsisinde "Okundu İşaretle" + "Cevapla" (metin girişli) butonları,
+            // uygulama açılmadan çalışır (bkz. senderId/conversationId/notificationId altta).
+            categoryId: 'message_notification',
+            data: { type: 'MESSAGE', ...data },
         }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
     } catch { /* push failure is non-critical */ }
 }
@@ -265,32 +269,32 @@ export const sendMessage = async (req, res, next) => {
 
         const notifBody = content?.trim() ? content.trim().slice(0, 100) : (message.imageUrl ? '📷 Fotoğraf' : message.audioUrl ? '🎤 Sesli mesaj' : '');
         const senderUsername = sender?.username;
+        const notifData = {
+            senderId: req.userId, senderUsername, conversationId: conv.id,
+            ...(message.equipmentListing && {
+                listingId: message.equipmentListing.id,
+                category: message.equipmentListing.category,
+                subCategory: message.equipmentListing.subCategory,
+            }),
+            ...(message.coachListing && {
+                coachListingId: message.coachListing.id,
+                category: message.coachListing.category,
+                subCategory: message.coachListing.subCategory,
+            }),
+        };
 
-        if (receiver?.pushToken) {
-            sendPushNotification(receiver.pushToken, `@${senderUsername}`, notifBody, receiver.notificationMode);
-        }
-
-        prisma.notification.create({
-            data: {
-                userId: receiverId,
-                type: 'MESSAGE',
-                title: `@${senderUsername}`,
-                body: notifBody,
-                data: {
-                    senderId: req.userId, senderUsername, conversationId: conv.id,
-                    ...(message.equipmentListing && {
-                        listingId: message.equipmentListing.id,
-                        category: message.equipmentListing.category,
-                        subCategory: message.equipmentListing.subCategory,
-                    }),
-                    ...(message.coachListing && {
-                        coachListingId: message.coachListing.id,
-                        category: message.coachListing.category,
-                        subCategory: message.coachListing.subCategory,
-                    }),
-                },
-            },
-        }).catch(notifErr => console.log('NOTIF_CREATE_FAIL:', notifErr?.message));
+        // notif.id, OS bildirim tepsisindeki "Okundu İşaretle"/"Cevapla" butonlarının (bkz.
+        // sendPushNotification categoryId) uygulama açılmadan hangi satırı işaretleyeceğini/kime
+        // cevap göndereceğini bilmesi için push data'sına gömülüyor — bu yüzden push'tan ÖNCE
+        // await ediliyor (yanıt zaten res.status(201) ile gönderildi, istemciye gecikme yok).
+        try {
+            const notif = await prisma.notification.create({
+                data: { userId: receiverId, type: 'MESSAGE', title: `@${senderUsername}`, body: notifBody, data: notifData },
+            });
+            if (receiver?.pushToken) {
+                sendPushNotification(receiver.pushToken, `@${senderUsername}`, notifBody, receiver.notificationMode, { ...notifData, notificationId: notif.id });
+            }
+        } catch (notifErr) { console.log('NOTIF_CREATE_FAIL:', notifErr?.message); }
     } catch (error) { next(error); }
 };
 

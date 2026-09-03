@@ -6,7 +6,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setCredentials, setUser } from '../store/slices/authSlice';
 import { setLang } from '../store/slices/langSlice';
-import { setUnreadCount, incrementUnread, clearUnread } from '../store/slices/notificationSlice';
+import { setUnreadCount, incrementUnread, clearUnread, decrementUnread } from '../store/slices/notificationSlice';
 import useT from '../hooks/useT';
 import { ActivityIndicator, View, Text, Platform } from 'react-native';
 import RainbowLogo from '../components/RainbowLogo';
@@ -16,6 +16,7 @@ import * as ExpoLinking from 'expo-linking';
 import Constants from 'expo-constants';
 import api from '../services/api';
 import { connectSocket, disconnectSocket, onSocket } from '../services/socket';
+import { handleNotificationAction } from '../services/notificationActions';
 
 const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
 
@@ -490,6 +491,13 @@ export default function Navigation() {
         Notifications.getLastNotificationResponseAsync().then(response => {
             const data = response?.notification?.request?.content?.data;
             if (!data) return;
+            // MARK_READ/REPLY (bkz. setNotificationCategoryAsync altta) opensAppToForeground:false
+            // olduğu için normalde uygulamayı bu yoldan açmaz, ama savunmacı olarak burada da
+            // navigasyonu atlayıp sadece aksiyonu işliyoruz.
+            if (response.actionIdentifier === 'MARK_READ' || response.actionIdentifier === 'REPLY') {
+                handleNotificationAction(response.actionIdentifier, response.userText, data);
+                return;
+            }
             // onReady bu promise'ten önce zaten çalışmış olabilir (bootstrapping daha hızlı
             // bittiyse) — o durumda pendingNavRef'e yazmak hiç tüketilmezdi, burada navigator
             // zaten hazırsa direkt deneniyor.
@@ -498,6 +506,13 @@ export default function Navigation() {
         }).catch(() => {});
         const sub = Notifications.addNotificationResponseReceivedListener(response => {
             const data = response.notification.request.content.data || {};
+            // Bildirim tepsisindeki "Okundu İşaretle"/"Cevapla" butonu — uygulamayı açmaz
+            // (opensAppToForeground:false), sadece API çağrısı yapılır ve rozet anında düşürülür.
+            if (response.actionIdentifier === 'MARK_READ' || response.actionIdentifier === 'REPLY') {
+                handleNotificationAction(response.actionIdentifier, response.userText, data);
+                dispatch(decrementUnread());
+                return;
+            }
             // Uygulama arka plandayken bildirime dokunulup öne getirildiğinde bazı durumlarda
             // navigationRef henüz "ready" olmadan bu callback tetikleniyordu — navigateFromNotif
             // bu durumda veriyi sessizce atlıyordu (kullanıcı raporu: "ana ekrandan bildirime
@@ -511,6 +526,38 @@ export default function Navigation() {
         // mount'ta isBusiness=undefined ile kapanmasın diye — değiştiğinde listener güncel
         // değerle yeniden kurulur (navigateFromNotif işletme/normal hesap ayrımını doğru yapsın).
     }, [isBusiness]);
+
+    // Bildirim tepsisindeki aksiyon butonları — "Okundu İşaretle" tüm bildirim tiplerinde,
+    // mesaj bildirimlerinde ayrıca metin girişli "Cevapla" (Android'de bildirimin hemen
+    // üzerinde açılan inline yazı kutusu, uygulama hiç açılmadan gönderir). dil değişince
+    // buton başlıkları güncel dille yeniden kaydedilir (idempotent, OS'ta üzerine yazar).
+    const lang = useSelector(s => s.lang.lang);
+    useEffect(() => {
+        if (isExpoGo) return;
+        Notifications.setNotificationCategoryAsync('default_notification', [
+            {
+                identifier: 'MARK_READ',
+                buttonTitle: lang === 'tr' ? 'Okundu İşaretle' : 'Mark as read',
+                options: { opensAppToForeground: false },
+            },
+        ]).catch(() => {});
+        Notifications.setNotificationCategoryAsync('message_notification', [
+            {
+                identifier: 'MARK_READ',
+                buttonTitle: lang === 'tr' ? 'Okundu İşaretle' : 'Mark as read',
+                options: { opensAppToForeground: false },
+            },
+            {
+                identifier: 'REPLY',
+                buttonTitle: lang === 'tr' ? 'Cevapla' : 'Reply',
+                textInput: {
+                    submitButtonTitle: lang === 'tr' ? 'Gönder' : 'Send',
+                    placeholder: lang === 'tr' ? 'Mesaj yaz...' : 'Type a message...',
+                },
+                options: { opensAppToForeground: false },
+            },
+        ]).catch(() => {});
+    }, [lang]);
 
     useEffect(() => {
         ExpoLinking.getInitialURL().then(url => {

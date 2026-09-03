@@ -17,6 +17,9 @@ async function sendPush(pushToken, title, body, data = {}, priority = 'default',
             to: pushToken, title, body, data, priority,
             sound: notificationMode === 'SOUND' ? 'default' : null,
             channelId: CHANNEL_BY_MODE[notificationMode] || 'default',
+            // Mobil tarafta (navigation/index.js) kaydedilen "default_notification" kategorisi —
+            // OS bildirim tepsisinde "Okundu İşaretle" butonu, uygulama açılmadan çalışır.
+            categoryId: 'default_notification',
         }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
         const ticket = res.data?.data;
         if (ticket?.status === 'error') {
@@ -71,7 +74,9 @@ export async function createNotification(userId, type, title, body, data = {}, p
         ]);
         emitToUser(userId, 'notification', notif);
         console.log(`[push] user=${userId} hasToken=${!!user?.pushToken}`);
-        if (user?.pushToken) sendPush(user.pushToken, title, body, { ...data, type }, priority, user.notificationMode);
+        // notificationId: OS bildirim tepsisindeki "Okundu İşaretle" butonu (bkz. sendPush
+        // categoryId) uygulamayı açmadan hangi Notification satırını işaretleyeceğini bundan bilir.
+        if (user?.pushToken) sendPush(user.pushToken, title, body, { ...data, type, notificationId: notif.id }, priority, user.notificationMode);
         sendExternalNotification(userId, title, body);
         return notif;
     } catch { /* non-critical */ }
