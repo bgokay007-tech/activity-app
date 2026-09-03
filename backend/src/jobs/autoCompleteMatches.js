@@ -45,8 +45,22 @@ export async function autoCompleteExpiredMatches() {
 
             for (const r of updated) {
                 const participants = Array.isArray(r.participants) ? r.participants : [];
-                const allIds = new Set([r.senderId, ...participants.map(p => p.id)]);
-                for (const uid of allIds) emitToUser(uid, 'rivalUpdate', r);
+                const senderTeamArr = Array.isArray(r.senderTeam) ? r.senderTeam : [];
+                const allIds = new Set([r.senderId, ...senderTeamArr.map(p => p.id), ...participants.map(p => p.id)]);
+                for (const uid of allIds) {
+                    emitToUser(uid, 'rivalUpdate', r);
+                    // Kullanıcı isteği: maç "Skor Bekleyen Maçlar"a düşer düşmez katılımcılara
+                    // bunu hatırlatan bir bildirim gitsin — Bildirimler zilinin yanıp sönmesi
+                    // (mobil taraf, bkz. getMyPendingScoreCount) skoru girene kadar ayrıca sürer.
+                    if (r.matchType !== 'PLAYER_WANTED') {
+                        createNotification(
+                            uid, 'SCORE_ENTRY_REQUIRED',
+                            '📝 Skorunuzu Girin',
+                            'Maçınız sona erdi — sonucu girmeyi unutmayın.',
+                            { rivalId: r.id, category: r.category, subCategory: r.subCategory }
+                        ).catch(() => {});
+                    }
+                }
             }
 
             console.log(`[autoComplete] Completed ${expiredIds.length} expired match(es)`);

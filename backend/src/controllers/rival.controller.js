@@ -5090,6 +5090,29 @@ export const abandonMatch = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Kullanıcı isteği: skor girilmesi gereken bir maçı olduğu sürece Bildirimler sekmesindeki
+// zil ikonu yanıp sönsün — bu sayaç bildirimin OKUNDU durumundan bağımsız, gerçek maç
+// verisinden hesaplanır (bildirimi okusa bile skoru girmeden yanıp sönme durmaz). "COMPLETED
+// + scoreStatus NONE" durumundaki maçlar zaten kısa ömürlü (bkz. autoDrawUnscored, 4 saat
+// sonra otomatik 0-0 beraberlik) — bu yüzden tüm havuzu çekip bellekte filtrelemek güvenli
+// (autoCompleteMatches.js/demoBotResponder.js'teki aynı desen).
+export const getMyPendingScoreCount = async (req, res, next) => {
+    try {
+        const candidates = await prisma.activityRequest.findMany({
+            where: { status: 'COMPLETED', scoreStatus: 'NONE', matchType: { not: 'PLAYER_WANTED' } },
+            select: { senderId: true, senderTeam: true, participants: true },
+        });
+        const count = candidates.filter(r => {
+            const senderTeamArr = Array.isArray(r.senderTeam) ? r.senderTeam : [];
+            const participantsArr = Array.isArray(r.participants) ? r.participants : [];
+            return r.senderId === req.userId
+                || senderTeamArr.some(p => p?.id === req.userId)
+                || participantsArr.some(p => p?.id === req.userId);
+        }).length;
+        res.json({ pendingScoreCount: count });
+    } catch (error) { next(error); }
+};
+
 export const enterScore = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -5144,14 +5167,24 @@ export const enterScore = async (req, res, next) => {
         });
         res.json(updated);
 
-        const opponents = request.senderId === req.userId ? participants : [{ id: request.senderId }];
+        // Kullanıcı raporu: skor girilince karşı tarafa onay bildirimi gitmiyordu — sebep,
+        // bu hesabın SADECE request.senderId'ye bakmasıydı; DOUBLE/takım maçlarında skoru
+        // senderTeam'deki bir oyuncu girdiğinde (kurucunun kendisi değil) bu şart hep false
+        // çıkıyor, "opponents" yanlışlıkla kendi takım arkadaşı (senderId) oluyordu — gerçek
+        // rakip takıma hiç bildirim gitmiyordu. confirmScore'daki (aşağıda) aynı teamA/teamB
+        // mantığı burada da kullanılıyor artık.
+        const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
+        const teamAIds = [request.senderId, ...senderTeamArr.filter(m => m?.id).map(m => m.id)];
+        const teamBIds = participants.filter(p => p?.id).map(p => p.id);
+        const scorerInA = teamAIds.includes(req.userId);
+        const opponentIds = scorerInA ? teamBIds : teamAIds;
         prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } })
             .then(me => {
-                for (const opp of opponents) {
+                for (const oppId of opponentIds) {
                     createNotification(
-                        opp.id, 'SCORE_SUBMITTED',
-                        '📊 Score submitted — confirm?',
-                        `${me.fullName || me.username} entered the match score. Please confirm or dispute.`,
+                        oppId, 'SCORE_SUBMITTED',
+                        '📊 Skor Girildi — Onaylar mısın?',
+                        `${me.fullName || me.username} maç skorunu girdi. Lütfen onayla ya da itiraz et.`,
                         { rivalId: request.id, fromUserId: req.userId, category: request.category, subCategory: request.subCategory }
                     ).catch(() => {});
                 }

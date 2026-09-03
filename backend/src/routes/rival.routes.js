@@ -3,7 +3,7 @@ import {
     createRivalRequest, getRivalRequests, getRivalById, swapMatchPositions, setTeamName, assignPlayerToSide, swapTeamPlayers, assignDoubleSlot, addManualTeamPlayer, setParticipantPosition, suggestOwnPosition, respondPositionSuggestion,
     sendJoinRequest, respondToJoin, confirmLateJoin, withdrawJoinRequest, inviteToRival, setRivalJoinPartner,
     getUpcomingMatches, getMyRequests,
-    cancelRequest, enterScore, confirmScore, disputeScore, reportDispute, appealScore,
+    cancelRequest, enterScore, confirmScore, disputeScore, reportDispute, appealScore, getMyPendingScoreCount,
     archiveMatch, getCompletedMatches, getArchivedMatchesBySport,
     extendScoreDeadline, getCountsBySubCategory, getActiveSubCategories, getLocationSuggestions,
     abandonMatch, cancelMatch, removeRivalParticipant, leaveAsPromotedSubstitute,
@@ -29,6 +29,7 @@ router.patch('/:id',                 authenticate, updateRivalRequest);
 router.get('/upcoming',              authenticate, getUpcomingMatches);
 router.get('/my-upcoming',           authenticate, getMyUpcomingMatches);
 router.get('/my-history',            authenticate, getMyMatchHistory);
+router.get('/my-pending-score-count', authenticate, getMyPendingScoreCount);
 router.get('/completed',             authenticate, getCompletedMatches);
 router.get('/archived',              authenticate, getArchivedMatchesBySport);
 router.get('/my',                    authenticate, getMyRequests);
