@@ -5352,6 +5352,7 @@ const sc = StyleSheet.create({
     colMe:        { flex:1, color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center' },
     colLabel:     { width:64, color: colors.textMuted, fontSize:11, fontWeight:'700', textAlign:'center' },
     colOpp:       { flex:1, color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center' },
+    teamPlayersText: { color: colors.textMuted, fontSize:9, textAlign:'center', marginTop:1 },
     setRow:       { flexDirection:'row', alignItems:'center', paddingVertical:2 },
     setScore:     { flex:1, fontSize:22, fontWeight:'900', textAlign:'center' },
     setInputRow:  { flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 },
@@ -5840,9 +5841,29 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const iAmFounderSide = isOwner || senderTeamArr.some(p => p.id === myId);
     // Seyirci itirazı: sadece bu maçın kadrosundaki (iki takım) oyuncular itiraz edebilir.
     const isMatchRosterMember = iAmFounderSide || participantsArr.some(p => p.id === myId);
-    const isTeamMatch = (match.teamSize || 1) > 1;
-    const myScoreLabel  = isTeamMatch ? (iAmFounderSide ? (match.founderTeamName || t.founderTeamShortLabel) : (match.opponentTeamName || t.opponentTeamShortLabel)) : 'Sen';
-    const oppScoreLabel = isTeamMatch ? (iAmFounderSide ? (match.opponentTeamName || t.opponentTeamShortLabel) : (match.founderTeamName || t.founderTeamShortLabel)) : 'Rakip';
+    // Kullanıcı raporu: teamSize>1 (voleybol vb.) sadece bir yarı, tenis/padel/badminton/masa
+    // tenisi ÇİFTLER maçları (matchType='DOUBLE') teamSize'ı hiç kullanmıyor (hep 1 kalıyor),
+    // bu yüzden skor girişinde hâlâ "Sen"/"Rakip" görünüyordu — matchType='DOUBLE' de burada
+    // "takım maçı" sayılmalı.
+    const isTeamMatch = (match.teamSize || 1) > 1 || isDoublesFmt;
+    // Takım adı ilanda hiç girilmediyse (tenis/padel çiftlerinde bu zaten normal — orada
+    // "takım adı" diye bir alan yok), "Kurucu Takım"/"Rakip Takım" yerine kullanıcı isteğiyle
+    // sade "Takım 1"/"Takım 2" gösterilir; teamSize>1 (voleybol vb.) eski davranış aynen kalır.
+    const founderFallbackLabel = isDoublesFmt ? t.teamOneLabel : t.founderTeamShortLabel;
+    const opponentFallbackLabel = isDoublesFmt ? t.teamTwoLabel : t.opponentTeamShortLabel;
+    const myScoreLabel  = isTeamMatch ? (iAmFounderSide ? (match.founderTeamName || founderFallbackLabel) : (match.opponentTeamName || opponentFallbackLabel)) : 'Sen';
+    const oppScoreLabel = isTeamMatch ? (iAmFounderSide ? (match.opponentTeamName || opponentFallbackLabel) : (match.founderTeamName || founderFallbackLabel)) : 'Rakip';
+    // Takım isminin altında oyuncu adları — sadece çiftler formatında (voleybol gibi
+    // kalabalık takım maçlarında kadro zaten ayrıca gösteriliyor, burada tekrar gerekmiyor).
+    const playerLabel = (p) => p?.fullName || p?.username || '';
+    const founderSidePlayers = [match.sender, ...senderTeamArr].filter(Boolean);
+    const opponentSidePlayers = participantsArr;
+    const myTeamPlayersLabel = isDoublesFmt
+        ? (iAmFounderSide ? founderSidePlayers : opponentSidePlayers).map(playerLabel).filter(Boolean).join(' / ')
+        : '';
+    const oppTeamPlayersLabel = isDoublesFmt
+        ? (iAmFounderSide ? opponentSidePlayers : founderSidePlayers).map(playerLabel).filter(Boolean).join(' / ')
+        : '';
     // Voleybol: açık ilana sonradan katılıp henüz Kurucu/Rakip'e atanmamış oyuncular.
     const unassignedArr   = (Array.isArray(match.unassignedPlayers) ? match.unassignedPlayers : []).filter(p => p?.id);
     useEffect(() => {
@@ -7765,9 +7786,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {hasScore && (
                         <View style={sc.box}>
                             <View style={sc.headerRow}>
-                                <Text style={sc.colMe} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{myScoreLabel}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={sc.colMe} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{myScoreLabel}</Text>
+                                    {!!myTeamPlayersLabel && <Text style={sc.teamPlayersText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{myTeamPlayersLabel}</Text>}
+                                </View>
                                 <Text style={sc.colLabel}></Text>
-                                <Text style={sc.colOpp} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{oppScoreLabel}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={sc.colOpp} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{oppScoreLabel}</Text>
+                                    {!!oppTeamPlayersLabel && <Text style={sc.teamPlayersText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{oppTeamPlayersLabel}</Text>}
+                                </View>
                             </View>
                             {existingSets.map((row, i) => {
                                 const mySc  = iAmFounderSide ? row.sender : row.opponent;
@@ -7855,9 +7882,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {showScore && !hasScore && (
                         <View style={sc.box}>
                             <View style={sc.headerRow}>
-                                <Text style={sc.colMe} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{myScoreLabel}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={sc.colMe} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{myScoreLabel}</Text>
+                                    {!!myTeamPlayersLabel && <Text style={sc.teamPlayersText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{myTeamPlayersLabel}</Text>}
+                                </View>
                                 <Text style={sc.colLabel}></Text>
-                                <Text style={sc.colOpp} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{oppScoreLabel}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={sc.colOpp} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{oppScoreLabel}</Text>
+                                    {!!oppTeamPlayersLabel && <Text style={sc.teamPlayersText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{oppTeamPlayersLabel}</Text>}
+                                </View>
                             </View>
                             {sets.map((row, i) => (
                                 <View key={i} style={sc.setInputRow}>
