@@ -31,22 +31,24 @@ const CHANNEL_BY_MODE = { MUTE: 'silent', VIBRATE: 'vibrate', SOUND: 'default' }
 
 async function sendPushNotification(pushToken, title, body, notificationMode = 'SOUND', data = {}) {
     if (!pushToken?.startsWith('ExponentPushToken')) return;
-    console.log('[push] DEBUG full token:', pushToken, 'payload data:', JSON.stringify(data));
     try {
-        const debugRes = await axios.post('https://exp.host/--/api/v2/push/send', {
+        await axios.post('https://exp.host/--/api/v2/push/send', {
             to: pushToken,
             title,
             body,
             sound: notificationMode === 'SOUND' ? 'default' : null,
             channelId: CHANNEL_BY_MODE[notificationMode] || 'default',
             // Mobil tarafta (navigation/index.js) kaydedilen "message_notification" kategorisi —
-            // OS bildirim tepsisinde "Okundu İşaretle" + "Cevapla" (metin girişli) butonları,
-            // uygulama açılmadan çalışır (bkz. senderId/conversationId/notificationId altta).
+            // OS bildirim tepsisinde "Okundu İşaretle" + "Cevapla" (metin girişli) butonları.
+            // BİLİNEN SINIR: expo-notifications'ın Android'deki kendi kütüphane hatası yüzünden
+            // (bkz. github.com/expo/expo/issues/31503, #36282 — Expo ekibi tarafından "accepted")
+            // bu butonlar SADECE uygulama foreground'dayken görünüyor; arka plandayken/kapalıyken
+            // Android'de kategori/action hiç render edilmiyor. opensAppToForeground:false olsa da
+            // bu kütüphane seviyesinde bir kısıt, bizim kod tarafımızdan düzeltilemiyor.
             categoryId: 'message_notification',
             data: { type: 'MESSAGE', ...data },
         }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
-        console.log('[push] DEBUG expo response:', JSON.stringify(debugRes.data));
-    } catch (e) { console.log('[push] DEBUG send error:', e.message); }
+    } catch { /* push failure is non-critical */ }
 }
 
 export const getConversations = async (req, res, next) => {
