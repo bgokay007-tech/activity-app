@@ -31,8 +31,9 @@ const CHANNEL_BY_MODE = { MUTE: 'silent', VIBRATE: 'vibrate', SOUND: 'default' }
 
 async function sendPushNotification(pushToken, title, body, notificationMode = 'SOUND', data = {}) {
     if (!pushToken?.startsWith('ExponentPushToken')) return;
+    console.log('[push] DEBUG full token:', pushToken, 'payload data:', JSON.stringify(data));
     try {
-        await axios.post('https://exp.host/--/api/v2/push/send', {
+        const debugRes = await axios.post('https://exp.host/--/api/v2/push/send', {
             to: pushToken,
             title,
             body,
@@ -44,7 +45,8 @@ async function sendPushNotification(pushToken, title, body, notificationMode = '
             categoryId: 'message_notification',
             data: { type: 'MESSAGE', ...data },
         }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
-    } catch { /* push failure is non-critical */ }
+        console.log('[push] DEBUG expo response:', JSON.stringify(debugRes.data));
+    } catch (e) { console.log('[push] DEBUG send error:', e.message); }
 }
 
 export const getConversations = async (req, res, next) => {
