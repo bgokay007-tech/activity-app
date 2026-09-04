@@ -37,15 +37,16 @@ async function sendPushNotification(pushToken, title, body, notificationMode = '
             to: pushToken,
             title,
             body,
+            // priority:'high' -> FCM'e yüksek öncelikli mesaj olarak iletilir, Android'in pil
+            // tasarrufu/Doze modunda teslimatı geciktirmesini engeller. Bu olmadan mesaj push'ları
+            // bazı cihazlarda (özellikle agresif pil yönetimi olan Xiaomi/MIUI gibi) dakikalarca
+            // gecikebiliyor veya hiç teslim edilmeyebiliyordu.
+            priority: 'high',
             sound: notificationMode === 'SOUND' ? 'default' : null,
             channelId: CHANNEL_BY_MODE[notificationMode] || 'default',
-            // Mobil tarafta (navigation/index.js) kaydedilen "message_notification" kategorisi —
-            // OS bildirim tepsisinde "Okundu İşaretle" + "Cevapla" (metin girişli) butonları.
-            // BİLİNEN SINIR: expo-notifications'ın Android'deki kendi kütüphane hatası yüzünden
-            // (bkz. github.com/expo/expo/issues/31503, #36282 — Expo ekibi tarafından "accepted")
-            // bu butonlar SADECE uygulama foreground'dayken görünüyor; arka plandayken/kapalıyken
-            // Android'de kategori/action hiç render edilmiyor. opensAppToForeground:false olsa da
-            // bu kütüphane seviyesinde bir kısıt, bizim kod tarafımızdan düzeltilemiyor.
+            // Bildirim aksiyon butonları (Okundu İşaretle/Cevapla) artık native tarafta
+            // (mobile/modules/notif-actions) uçtan uca kendi kodumuzla inşa ediliyor,
+            // expo-notifications'a bağımlı değil — bkz. NotifActionsMessagingService.kt.
             categoryId: 'message_notification',
             data: { type: 'MESSAGE', ...data },
         }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
