@@ -251,6 +251,47 @@ function buildHighRatedDemoPool() {
     return pool;
 }
 
+// Orta dereceli havuz — kullanıcı isteği: tenis demo havuzunun neredeyse tamamı 4 üstüydü
+// (yukarıdaki HI havuz), 1-3 aralığında oyuncu yok denecek kadar azdı. 15 kadın + 15 erkek,
+// tekli VE çiftler puanı BİRBİRİNDEN BAĞIMSIZ rastgele üretiliyor (bkz.
+// backend/scripts/seedDemoUtrRatings.js'teki "ikisi hep aynıymış gibi görünmesin" notu —
+// aynı mantık burada da geçerli, ikisi aynı sayı OLABİLİR ama zorunlu değil). Değerler
+// index-bazlı deterministik bir sözde-rastgele fonksiyonla üretiliyor (gerçek Math.random()
+// DEĞİL) ki her sunucu yeniden başlatmasında AYNI 30 kullanıcı aynı puanla tekrar kullanılsın
+// — bkz. HI havuzundaki aynı gerekçe (ensureDemoRivalPlayer upsert'i).
+const MID_FEMALE_FIRST_NAMES = ['Aylin','Beren','Ceyda','Damla','Ebru','Filiz','Gonca','Hilal','Ilgın','Jale','Kader','Lale','Melis','Nihan','Özge'];
+const MID_MALE_FIRST_NAMES   = ['Arda','Barış','Cengiz','Deniz','Egemen','Fatih','Görkem','Hakan','İsmail','Kaya','Metin','Nurettin','Orhan','Polat','Serkan'];
+const MID_LAST_NAMES = ['Aksoy','Bulut','Coşkun','Duman','Erdem','Fırat','Güneş','Işık','Karaca','Nalçacı'];
+
+function pseudoRandom01(seed) {
+    const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+    return x - Math.floor(x);
+}
+
+function buildMidRatedDemoPool() {
+    const pool = [];
+    const buildGender = (firstNames, genderCode, genderLabel, seedOffset) => {
+        for (let i = 0; i < 15; i++) {
+            const first = firstNames[i];
+            const last = MID_LAST_NAMES[(i * 3 + 1) % MID_LAST_NAMES.length];
+            const singles = Math.round((1.00 + pseudoRandom01(seedOffset + i * 2) * 2) * 100) / 100;
+            const doubles = Math.round((1.00 + pseudoRandom01(seedOffset + i * 2 + 1) * 2) * 100) / 100;
+            pool.push({
+                username: `demo_r_mid_${genderCode}${String(i + 1).padStart(2, '0')}`,
+                fullName: `${first} ${last}`,
+                gender: genderLabel,
+                singlesRating: singles,
+                doublesRating: doubles,
+                // Genel (UTR-dışı dallar ve derece-filtresi) alanları için tekli değer mirror'lanır.
+                skillRating: singles,
+            });
+        }
+    };
+    buildGender(MID_FEMALE_FIRST_NAMES, 'k', 'FEMALE', 100);
+    buildGender(MID_MALE_FIRST_NAMES, 'e', 'MALE', 200);
+    return pool;
+}
+
 const DEMO_RIVAL_PLAYERS = [
     { username: 'demo_r_ada',   fullName: 'Ada Yılmaz',     gender: 'FEMALE', skillRating: 0.42 },
     { username: 'demo_r_kerem', fullName: 'Kerem Aydın',    gender: 'MALE',   skillRating: 0.78 },
@@ -263,6 +304,7 @@ const DEMO_RIVAL_PLAYERS = [
     { username: 'demo_r_sude',  fullName: 'Sude Koç',       gender: 'FEMALE', skillRating: 3.40 },
     { username: 'demo_r_yusuf', fullName: 'Yusuf Polat',    gender: 'MALE',   skillRating: 4.65 },
     ...buildHighRatedDemoPool(),
+    ...buildMidRatedDemoPool(),
 ];
 
 function levelForRating(r) {
@@ -294,17 +336,22 @@ async function ensureDemoRivalPlayer(demo, subCategory) {
     // olan çiftler anketini tamamlamamış sayılıp çiftler test ilanlarına katılamazdı.
     const isUtrSubCategory = subCategory === 'tennis' || subCategory === 'padel';
     const isTennis = subCategory === 'tennis';
+    // MID havuzu tekli/çiftler için AYRI değer taşıyor (bkz. demo.singlesRating/doublesRating) —
+    // diğer havuzlar (ADA/HI vb.) bu alanları hiç taşımıyor, o zaman düz skillRating ikisine de
+    // mirror'lanır (eski davranış, geriye dönük uyumlu).
+    const singlesVal = demo.singlesRating ?? demo.skillRating;
+    const doublesVal = demo.doublesRating ?? demo.skillRating;
     await prisma.userInterest.upsert({
         where: { userId_category_subCategory: { userId: user.id, category: 'SPORTS', subCategory } },
         update: {
             skillRating: demo.skillRating, level: levelForRating(demo.skillRating), assessmentCompleted: true,
-            ...(isUtrSubCategory && { singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date() }),
+            ...(isUtrSubCategory && { singlesSeedRating: singlesVal, doublesSeedRating: doublesVal, assessmentCompletedAt: new Date() }),
             ...(isTennis && { doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() }),
         },
         create: {
             userId: user.id, category: 'SPORTS', subCategory,
             skillRating: demo.skillRating, level: levelForRating(demo.skillRating), assessmentCompleted: true,
-            ...(isUtrSubCategory && { singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date() }),
+            ...(isUtrSubCategory && { singlesSeedRating: singlesVal, doublesSeedRating: doublesVal, assessmentCompletedAt: new Date() }),
             ...(isTennis && { doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() }),
         },
     });
