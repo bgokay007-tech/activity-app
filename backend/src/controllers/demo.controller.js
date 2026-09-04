@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { emitToUser } from '../config/socket.js';
 import { sendJoinRequest } from './rival.controller.js';
 import { invokeControllerAs } from '../utils/internalInvoke.js';
+import { getDisplayRating, isDoublesFormat } from '../utils/utrRating.js';
 
 const DEMO_TENNIS_PLAYERS = [
     { username: 'demo_t_rafael',  fullName: 'Rafael Moreno',    gender: 'MALE',   level: 'ADVANCED',     skillRating: 3.63, wins: 31, losses: 2  },
@@ -179,7 +180,7 @@ export const seedOneTournamentJoin = async (req, res, next) => {
         // doublesAssessmentCompleted da true olmalı — tenis çiftlerde artık AYRI bir anket
         // gerekiyor (bkz. requireActiveInterest), yoksa demo botlar çiftler test ilanlarına
         // hiç katılamazdı.
-        await prisma.userInterest.upsert({
+        const demoInterest = await prisma.userInterest.upsert({
             where: { userId_category_subCategory: { userId: user.id, category: 'SPORTS', subCategory: 'tennis' } },
             update: { skillRating: demo.skillRating, level: demo.level, wins: demo.wins, losses: demo.losses, assessmentCompleted: true, singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date(), doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() },
             create: {
@@ -189,6 +190,23 @@ export const seedOneTournamentJoin = async (req, res, next) => {
                 doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date(),
             },
         });
+
+        // Gerçek kullanıcıların katılım isteğinde uyguladığımız derece kısıtlamasını (bkz.
+        // joinTournament'taki aynı kontrol) demo oyuncular için de uyguluyoruz -- aksi halde
+        // bu araçla turnuvanın min/max derece aralığı dışındaki oyuncular da eklenebiliyordu.
+        const demoRating = getDisplayRating(demoInterest, tournament.subCategory, isDoublesFormat({ tournamentType: tournament.type }));
+        let effMinRating = tournament.minRating, effMaxRating = tournament.maxRating;
+        if (tournament.ratingGenderSplit) {
+            if (user.gender === 'MALE') { effMinRating = tournament.minRatingMale; effMaxRating = tournament.maxRatingMale; }
+            else if (user.gender === 'FEMALE') { effMinRating = tournament.minRatingFemale; effMaxRating = tournament.maxRatingFemale; }
+            else { effMinRating = null; effMaxRating = null; }
+        }
+        if (effMinRating != null && demoRating < effMinRating) {
+            return res.status(403).json({ message: `${demo.username} bu turnuvanın gerektirdiği en az ${effMinRating}★ dereceye sahip değil (${demoRating.toFixed(2)}★).` });
+        }
+        if (effMaxRating != null && demoRating > effMaxRating) {
+            return res.status(403).json({ message: `${demo.username} bu turnuvanın izin verdiği en fazla ${effMaxRating}★ derecesini aşıyor (${demoRating.toFixed(2)}★).` });
+        }
 
         const existing = await prisma.tournamentParticipant.findUnique({
             where: { tournamentId_userId: { tournamentId, userId: user.id } },
