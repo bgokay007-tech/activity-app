@@ -93,11 +93,17 @@ private fun showNotification(
         .setAutoCancel(true)
         .setContentIntent(contentPendingIntent)
 
-    if (!notificationId.isNullOrEmpty()) {
+    val conversationId = data["conversationId"]
+    // Mesaj bildirimlerinde notificationId YOK (Bildirimler ekranına ayrıca satır düşmesin diye
+    // backend orada hiç Notification satırı oluşturmuyor) — bu durumda "Okundu İşaretle"
+    // conversationId üzerinden çalışır (bkz. NotifActionsReceiver). Diğer (mesaj olmayan)
+    // bildirim türlerinde ise notificationId zorunlu.
+    val canMarkRead = !notificationId.isNullOrEmpty() || (isMessage && !conversationId.isNullOrEmpty())
+    if (canMarkRead) {
         val markReadIntent = Intent(context, NotifActionsReceiver::class.java).apply {
             action = ACTION_MARK_READ
             putExtra(EXTRA_NOTIFICATION_ID, notificationId)
-            putExtra(EXTRA_CONVERSATION_ID, data["conversationId"])
+            putExtra(EXTRA_CONVERSATION_ID, conversationId)
             putExtra(EXTRA_TYPE, data["type"])
             putExtra(EXTRA_TAG, tag)
             putExtra(EXTRA_INT_ID, id)
@@ -109,27 +115,27 @@ private fun showNotification(
         builder.addAction(
             Notification.Action.Builder(0, if (isTurkish) "Okundu İşaretle" else "Mark as read", markReadPendingIntent).build()
         )
+    }
 
-        if (isMessage && !data["senderId"].isNullOrEmpty()) {
-            val replyIntent = Intent(context, NotifActionsReceiver::class.java).apply {
-                action = ACTION_REPLY
-                putExtra(EXTRA_NOTIFICATION_ID, notificationId)
-                putExtra(EXTRA_SENDER_ID, data["senderId"])
-                putExtra(EXTRA_TAG, tag)
-                putExtra(EXTRA_INT_ID, id)
-            }
-            val replyPendingIntent = PendingIntent.getBroadcast(
-                context, (tag + "_reply").hashCode(), replyIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-            )
-            val remoteInput = RemoteInput.Builder(KEY_REPLY_TEXT)
-                .setLabel(if (isTurkish) "Mesaj yaz..." else "Type a message...")
-                .build()
-            val replyAction = Notification.Action.Builder(0, if (isTurkish) "Cevapla" else "Reply", replyPendingIntent)
-                .addRemoteInput(remoteInput)
-                .build()
-            builder.addAction(replyAction)
+    if (isMessage && !data["senderId"].isNullOrEmpty()) {
+        val replyIntent = Intent(context, NotifActionsReceiver::class.java).apply {
+            action = ACTION_REPLY
+            putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+            putExtra(EXTRA_SENDER_ID, data["senderId"])
+            putExtra(EXTRA_TAG, tag)
+            putExtra(EXTRA_INT_ID, id)
         }
+        val replyPendingIntent = PendingIntent.getBroadcast(
+            context, (tag + "_reply").hashCode(), replyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+        val remoteInput = RemoteInput.Builder(KEY_REPLY_TEXT)
+            .setLabel(if (isTurkish) "Mesaj yaz..." else "Type a message...")
+            .build()
+        val replyAction = Notification.Action.Builder(0, if (isTurkish) "Cevapla" else "Reply", replyPendingIntent)
+            .addRemoteInput(remoteInput)
+            .build()
+        builder.addAction(replyAction)
     }
 
     val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
