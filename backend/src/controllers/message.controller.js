@@ -269,6 +269,7 @@ export const sendMessage = async (req, res, next) => {
 
         prisma.conversation.update({ where: { id: conv.id }, data: { updatedAt: new Date() } }).catch(() => {});
 
+        console.log('[push] DEBUG3 receiverId:', receiverId, 'muted:', muted, 'hasToken:', !!receiver?.pushToken, 'tokenPrefix:', receiver?.pushToken?.substring(0, 30));
         // Karşı taraf bu sohbeti sessize almışsa (bkz. muteConversation) ne push ne de
         // zil bildirimi gönderilir — Mesajlar sekmesindeki okunmamış rozeti yeterlidir.
         if (muted) return;
