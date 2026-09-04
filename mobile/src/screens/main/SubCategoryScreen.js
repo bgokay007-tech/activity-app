@@ -6199,6 +6199,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             // uyarıyı okurken arka planda tamamlanıyor — uyarıyı kapattığında liste zaten doğru yerde.
             await onRefresh();
             Alert.alert('', t.scoreSent);
+            // Kullanıcı isteği: skor gönderilince "gönderildi" uyarısı çıkıyor ama detay ekranı
+            // açık kalıyordu, kullanıcı manuel kapatmak zorunda kalıyordu — artık otomatik kapanıyor
+            // (medya paylaşım akışı devam edecekse dokunmuyoruz, o ayrı bir modal üstte açılacak).
+            if (!pendingMediaAfterScore) setShowDetail(false);
             // Kullanıcı isteği: "Skor Gir ve Medya Paylaş" ile açıldıysa, skor başarıyla
             // gönderildikten hemen sonra galeri seçici otomatik açılır (bkz. pendingMediaAfterScore).
             if (pendingMediaAfterScore) {
@@ -6850,11 +6854,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === match.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : v.labelEn}`; })()}
                 </Text>
             )}
-            {/* Court */}
+            {/* Court — kullanıcı isteği: maç başladıktan sonra (Oynanan/Skor Bekleyen Maçlar'da)
+                konuma dokununca haritayı açma davranışı anlamsız, artık sadece Yaklaşan
+                Maçlar'da (matchEnded=false) tıklanabilir. */}
             {match.courtName && (
-                <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
-                    <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2, textDecorationLine:'underline' }]}>{isVolleyball ? '' : '🏟️ '}{match.courtName}</Text>
-                </TouchableOpacity>
+                matchEnded ? (
+                    <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2 }]}>{isVolleyball ? '' : '🏟️ '}{match.courtName}</Text>
+                ) : (
+                    <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
+                        <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2, textDecorationLine:'underline' }]}>{isVolleyball ? '' : '🏟️ '}{match.courtName}</Text>
+                    </TouchableOpacity>
+                )
             )}
             {match.refereeRequested && (match.refereeUser || match.manualRefereeName || !matchEnded) && (
                 <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'600', marginTop:4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
@@ -6982,9 +6992,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                         {match.location && <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4 }}>📍 {match.location}{match.district ? ` / ${match.district}` : ''}</Text>}
                         {match.courtName && (
-                            <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
-                                <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4, textDecorationLine:'underline' }}>🏟️ {match.courtName}</Text>
-                            </TouchableOpacity>
+                            matchEnded ? (
+                                <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4 }}>🏟️ {match.courtName}</Text>
+                            ) : (
+                                <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
+                                    <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4, textDecorationLine:'underline' }}>🏟️ {match.courtName}</Text>
+                                </TouchableOpacity>
+                            )
                         )}
                         {match.courtFeePerPerson > 0 && (
                             <Text style={{ color:'#4ade80', fontSize:13, marginTop:4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
@@ -8216,7 +8230,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         onPress={handleLeavePromotedPress} disabled={leavingPromoted}>
                                         <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'700' }}>{t.leavePromotedSubBtn}</Text>
                                     </TouchableOpacity>
-                                ) : (
+                                ) : !scoreUnlocked && (
+                                    // Kullanıcı isteği: maç süresi tamamen dolup Skor Bekleyen Maçlar'a
+                                    // düşünce "İptal" butonunun bir anlamı kalmıyor — maç zaten bitti,
+                                    // skor girilemiyorsa herkesin onayıyla sonuçsuz kapatılabiliyor,
+                                    // bu da rekabetçi modda bile Elo'yu etkilemiyor.
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618', alignItems:'center' }}
                                         onPress={handleCancelPress} disabled={cancelling}>
@@ -20989,6 +21007,11 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Kullanıcı isteği: Skor Bekleyen Maçlar diğerlerinden farklı olarak varsayılan KAPALI
     // (kapalıyken ok sola dönük ›, açılınca aşağı döner ▼) — diğer bölümler varsayılan açık.
     const [pendingScoreExpanded, setPendingScoreExpanded] = useState(false);
+    // Kullanıcı isteği: skor girilip karşı tarafın onayını bekleyen maçlar ayrı bir bölümde
+    // ("Skor Onaylanması Bekleyen Maçlar") — bu da varsayılan kapalı, AMA benim onayımı/itirazımı
+    // bekleyen (scoreEnteredBy başkasıysa) bir maç varsa otomatik açılıp dikkat çekmeli.
+    const [scoreConfirmExpanded, setScoreConfirmExpanded] = useState(false);
+    const scoreConfirmBlink = useRef(new Animated.Value(1)).current;
     const [openRivalsExpanded, setOpenRivalsExpanded] = useState(true);
     const [showCreatePW, setShowCreatePW] = useState(false);
     // Voleybol "Resmi Takım Adı" — kullanıcı isteği: Rakip Bul'daki "Rakip Aranıyor" ilanının
@@ -22900,13 +22923,35 @@ export default function SubCategoryScreen({ route, navigation }) {
     const clientEndedMatches = allFiltered.filter(m => matchHasEnded(m));
     // Birleştir: sunucudan gelen + client-side biten (id çakışmasını önle)
     const pendingScoreIds = new Set(pendingScore.map(m => m.id));
-    const pendingScoreAll = [...pendingScore, ...clientEndedMatches.filter(m => !pendingScoreIds.has(m.id))];
+    const pendingScoreAllRaw = [...pendingScore, ...clientEndedMatches.filter(m => !pendingScoreIds.has(m.id))];
+    // Kullanıcı isteği: skor girilmemiş "Skor Bekleyen Maçlar" ile skor girilip karşı tarafın
+    // onayını beklediği "Skor Onaylanması Bekleyen Maçlar" artık ayrı iki bölüm.
+    const pendingScoreAll = pendingScoreAllRaw.filter(m => m.scoreStatus !== 'PENDING');
+    const scoreConfirmPendingMatches = pendingScoreAllRaw.filter(m => m.scoreStatus === 'PENDING');
+    // Benim onayımı/itirazımı bekleyen (skoru ben girmediysem) bir maç varsa dikkat çekmeli.
+    const scoreConfirmNeedsMyAction = scoreConfirmPendingMatches.some(m => m.scoreEnteredBy && m.scoreEnteredBy !== myId);
     // Skor Bekleyen Maçlar varsayılan kapalı — ama bildirimle (highlightRivalId) doğrudan
     // skor bekleyen bir maça yönlendirildiyse bölüm kapalı kalırsa kart hiç render olmuyor,
-    // autoOpen tetiklenemiyor. Bu durumda bölüm otomatik açılır.
+    // autoOpen tetiklenemiyor. Bu durumda ilgili bölüm otomatik açılır.
     useEffect(() => {
-        if (highlightRivalId && pendingScoreAll.some(m => m.id === highlightRivalId)) setPendingScoreExpanded(true);
+        if (!highlightRivalId) return;
+        if (pendingScoreAll.some(m => m.id === highlightRivalId)) setPendingScoreExpanded(true);
+        if (scoreConfirmPendingMatches.some(m => m.id === highlightRivalId)) setScoreConfirmExpanded(true);
     }, [highlightRivalId]);
+    // Skor Onaylanması Bekleyen Maçlar — varsayılan kapalı, AMA benim onayımı bekleyen bir maç
+    // varsa (kullanıcı isteği: "dikkat çeken birşey olsun") otomatik açılır.
+    useEffect(() => {
+        if (scoreConfirmNeedsMyAction) setScoreConfirmExpanded(true);
+    }, [scoreConfirmNeedsMyAction]);
+    useEffect(() => {
+        if (!scoreConfirmNeedsMyAction) return;
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(scoreConfirmBlink, { toValue: 0.25, duration: 500, useNativeDriver: true }),
+            Animated.timing(scoreConfirmBlink, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [scoreConfirmNeedsMyAction]);
 
     const filteredTournaments = tournaments.filter(tourn => {
         if (filterCity) {
@@ -23723,6 +23768,33 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {pendingScoreExpanded && (
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                             {pendingScoreAll.map(m => (
+                                                <View key={m.id} style={{ width:'48.5%' }}>
+                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
+                                </>
+                            )}
+
+                            {/* Skor Onaylanması Bekleyen Maçlar — kullanıcı isteği: skoru biri girdikten
+                                sonra maç artık "Skor Bekleyen"de değil, burada görünüp karşı tarafın
+                                onayını bekler. Varsayılan kapalı, ama benim onayımı/itirazımı bekleyen
+                                bir maç varsa (scoreConfirmNeedsMyAction) otomatik açılır ve ok yanıp söner. */}
+                            {scoreConfirmPendingMatches.length > 0 && (
+                                <>
+                                    <TouchableOpacity
+                                        onPress={() => setScoreConfirmExpanded(v => !v)}
+                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: scoreConfirmExpanded ? 8 : 4 }}
+                                    >
+                                        <Text style={[s.sectionTitle, { color: '#f97316' }]}>{t.scoreConfirmPendingTitle} ({scoreConfirmPendingMatches.length})</Text>
+                                        <Animated.Text style={{ color: scoreConfirmNeedsMyAction ? '#ef4444' : colors.textSecondary, fontSize:18, fontWeight:'700', marginTop:-4, opacity: scoreConfirmNeedsMyAction ? scoreConfirmBlink : 1 }}>
+                                            {scoreConfirmExpanded ? '▼' : '›'}
+                                        </Animated.Text>
+                                    </TouchableOpacity>
+                                    {scoreConfirmExpanded && (
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                            {scoreConfirmPendingMatches.map(m => (
                                                 <View key={m.id} style={{ width:'48.5%' }}>
                                                     <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                                 </View>
