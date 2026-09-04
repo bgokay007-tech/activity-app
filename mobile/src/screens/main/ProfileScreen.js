@@ -156,9 +156,10 @@ function MatchListModal({ visible, matches, type, userId, lang, onClose }) {
     const filtered = (matches || []).filter(m => getMatchResult(m, userId) === type);
     const tr = lang === 'tr';
     const ru = lang === 'ru';
-    const label = type === 'win'  ? (tr ? '✅ Galibiyetler' : ru ? '✅ Победы' : '✅ Wins')
-                : type === 'loss' ? (tr ? '❌ Mağlubiyetler' : ru ? '❌ Поражения' : '❌ Losses')
-                :                   (tr ? '🤝 Beraberlikler' : ru ? '🤝 Ничьи' : '🤝 Draws');
+    const de = lang === 'de';
+    const label = type === 'win'  ? (tr ? '✅ Galibiyetler' : ru ? '✅ Победы' : de ? '✅ Siege' : '✅ Wins')
+                : type === 'loss' ? (tr ? '❌ Mağlubiyetler' : ru ? '❌ Поражения' : de ? '❌ Niederlagen' : '❌ Losses')
+                :                   (tr ? '🤝 Beraberlikler' : ru ? '🤝 Ничьи' : de ? '🤝 Unentschieden' : '🤝 Draws');
     const resultColor = type === 'win' ? '#4ade80' : type === 'loss' ? '#f87171' : '#facc15';
 
     const formatSets = (score, isOwner) => {
@@ -173,6 +174,7 @@ function MatchListModal({ visible, matches, type, userId, lang, onClose }) {
     const SURFACE_TR = { HARD:'Sert', CLAY:'Toprak', GRASS:'Çim', CARPET:'Suni', ARTIFICIAL:'Suni Çim', GLASS:'Cam', INDOOR:'Kapalı', HALI_SAHA:'Halı Saha', BEACH:'Plaj' };
     const SURFACE_EN = { HARD:'Hard', CLAY:'Clay', GRASS:'Grass', CARPET:'Carpet', ARTIFICIAL:'Artificial', GLASS:'Glass', INDOOR:'Indoor', HALI_SAHA:'Turf', BEACH:'Beach' };
     const SURFACE_RU = { HARD:'Хард', CLAY:'Грунт', GRASS:'Трава', CARPET:'Ковровое', ARTIFICIAL:'Искусственная трава', GLASS:'Стекло', INDOOR:'Закрытый корт', HALI_SAHA:'Ковровое поле', BEACH:'Пляж' };
+    const SURFACE_DE = { HARD:'Hartplatz', CLAY:'Sand', GRASS:'Rasen', CARPET:'Teppich', ARTIFICIAL:'Kunstrasen', GLASS:'Glas', INDOOR:'Halle', HALI_SAHA:'Kunstrasenplatz', BEACH:'Strand' };
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -190,20 +192,20 @@ function MatchListModal({ visible, matches, type, userId, lang, onClose }) {
                             const opponent = isOwner ? (m.receiver || (Array.isArray(m.participants) ? m.participants[0] : null)) : m.sender;
                             const delta = getEloDelta(m, userId);
                             const sets = formatSets(m.score, isOwner);
-                            const surface = m.surface ? ((tr ? SURFACE_TR : ru ? SURFACE_RU : SURFACE_EN)[m.surface?.toUpperCase()] || m.surface) : null;
+                            const surface = m.surface ? ((tr ? SURFACE_TR : ru ? SURFACE_RU : de ? SURFACE_DE : SURFACE_EN)[m.surface?.toUpperCase()] || m.surface) : null;
                             const date = m.completedAt
-                                ? new Date(m.completedAt).toLocaleDateString(tr ? 'tr-TR' : ru ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+                                ? new Date(m.completedAt).toLocaleDateString(tr ? 'tr-TR' : ru ? 'ru-RU' : de ? 'de-DE' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })
                                 : m.matchDate
-                                    ? new Date(m.matchDate).toLocaleDateString(tr ? 'tr-TR' : ru ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+                                    ? new Date(m.matchDate).toLocaleDateString(tr ? 'tr-TR' : ru ? 'ru-RU' : de ? 'de-DE' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })
                                     : '';
-                            const modeLabel = m.matchMode === 'COMPETITIVE' ? (tr ? '⚔️ Rekabetçi' : ru ? '⚔️ Соревновательный' : '⚔️ Competitive') : m.matchMode === 'PRACTICE' ? (tr ? '🎯 Antrenman' : ru ? '🎯 Тренировка' : '🎯 Practice') : '';
-                            const typeLabel = m.matchType === 'DOUBLE' ? (tr ? '👥 Çiftler' : ru ? '👥 Пары' : '👥 Doubles') : m.matchType === 'SINGLE' ? (tr ? '👤 Tekler' : ru ? '👤 Одиночный' : '👤 Singles') : '';
+                            const modeLabel = m.matchMode === 'COMPETITIVE' ? (tr ? '⚔️ Rekabetçi' : ru ? '⚔️ Соревновательный' : de ? '⚔️ Wettkampf' : '⚔️ Competitive') : m.matchMode === 'PRACTICE' ? (tr ? '🎯 Antrenman' : ru ? '🎯 Тренировка' : de ? '🎯 Training' : '🎯 Practice') : '';
+                            const typeLabel = m.matchType === 'DOUBLE' ? (tr ? '👥 Çiftler' : ru ? '👥 Пары' : de ? '👥 Doppel' : '👥 Doubles') : m.matchType === 'SINGLE' ? (tr ? '👤 Tekler' : ru ? '👤 Одиночный' : de ? '👤 Einzel' : '👤 Singles') : '';
                             return (
                                 <View key={m.id || idx} style={{ backgroundColor: '#ffffff06', borderRadius: 12, padding: 9, marginBottom: 10, borderWidth: 1, borderColor: '#ffffff0f', borderLeftWidth: 3, borderLeftColor: resultColor + '80' }}>
                                     {/* Satır 1: Rakip + ELO */}
                                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                                         <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>
-                                            {opponent ? `${opponent.username}` : (tr ? 'Rakip bilinmiyor' : ru ? 'Соперник неизвестен' : 'Unknown opponent')}
+                                            {opponent ? `${opponent.username}` : (tr ? 'Rakip bilinmiyor' : ru ? 'Соперник неизвестен' : de ? 'Unbekannter Gegner' : 'Unknown opponent')}
                                         </Text>
                                         {delta !== 0 && (
                                             <Text style={{ color: delta > 0 ? '#4ade80' : '#f87171', fontSize: 13, fontWeight: '900' }}>
@@ -337,7 +339,7 @@ function TennisDailyAnimation({ color, lang }) {
     return (
         <View style={{ alignItems: 'center', paddingTop: 1 }}>
             <Text style={{ color: color + '90', fontSize: 8, fontWeight: '900', letterSpacing: 2.5, marginBottom: 10 }}>
-                ✦ {lang === 'tr' ? 'GÜNÜN OYUNCUSU' : lang === 'ru' ? 'ИГРОК ДНЯ' : "TODAY'S PLAYER"} ✦
+                ✦ {lang === 'tr' ? 'GÜNÜN OYUNCUSU' : lang === 'ru' ? 'ИГРОК ДНЯ' : lang === 'de' ? 'SPIELER DES TAGES' : "TODAY'S PLAYER"} ✦
             </Text>
 
             {/* Animasyon alanı */}
@@ -500,7 +502,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     const BottomBtns = () => (
         <View style={[fc.btnRow, { bottom: 28 + insets.bottom }]}>
             <TouchableOpacity style={fc.backBtn} onPress={onClose}>
-                <Text style={fc.backBtnText}>← {lang === 'tr' ? 'Geri' : lang === 'ru' ? 'Назад' : 'Back'}</Text>
+                <Text style={fc.backBtnText}>← {lang === 'tr' ? 'Geri' : lang === 'ru' ? 'Назад' : lang === 'de' ? 'Zurück' : 'Back'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={fc.flipBtn} onPress={handleFlip}>
                 <Text style={fc.flipBtnText}>🔄</Text>
@@ -538,16 +540,16 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                             <>
                                                 <TouchableOpacity onPress={() => item.assessmentCompleted && setShowEloModal(true)} disabled={!item.assessmentCompleted} style={{ alignItems: 'center' }}>
                                                     <Text style={{ color: '#facc15', fontSize: 10, fontWeight: '900' }} numberOfLines={1}>
-                                                        {lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'Одиночный' : 'Singles'} {item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'}
+                                                        {lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'Одиночный' : lang === 'de' ? 'Einzel' : 'Singles'} {item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'}
                                                     </Text>
                                                     <Text style={{ color: '#facc15', fontSize: 10, fontWeight: '900' }} numberOfLines={1}>
-                                                        {lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'Пары' : 'Doubles'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
+                                                        {lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'Пары' : lang === 'de' ? 'Doppel' : 'Doubles'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
                                                     </Text>
                                                     <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
                                                 </TouchableOpacity>
                                                 {isOwnProfile && (
                                                     <TouchableOpacity onPress={openAssessPicker} style={{ marginTop: 2, backgroundColor: '#facc1530', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
-                                                        <Text style={{ color: '#facc15', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>📋 {lang === 'tr' ? 'Değerlendir' : lang === 'ru' ? 'Оценить' : 'Assess'}</Text>
+                                                        <Text style={{ color: '#facc15', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>📋 {lang === 'tr' ? 'Değerlendir' : lang === 'ru' ? 'Оценить' : lang === 'de' ? 'Bewerten' : 'Assess'}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </>
@@ -557,14 +559,14 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                                 <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
                                             </TouchableOpacity>
                                         )}
-                                        {item.isCoach && <Text style={{ color: '#4ade80', fontSize: 8, fontWeight: '800' }}>🎓 {lang==='tr' ? 'Antrenör' : lang==='ru' ? 'Тренер' : 'Coach'}</Text>}
-                                        {item.isReferee && <Text style={{ color: '#fbbf24', fontSize: 8, fontWeight: '800' }}>🟨 {lang==='tr' ? 'Hakem' : lang==='ru' ? 'Судья' : 'Referee'}</Text>}
+                                        {item.isCoach && <Text style={{ color: '#4ade80', fontSize: 8, fontWeight: '800' }}>🎓 {lang==='tr' ? 'Antrenör' : lang==='ru' ? 'Тренер' : lang==='de' ? 'Trainer' : 'Coach'}</Text>}
+                                        {item.isReferee && <Text style={{ color: '#fbbf24', fontSize: 8, fontWeight: '800' }}>🟨 {lang==='tr' ? 'Hakem' : lang==='ru' ? 'Судья' : lang==='de' ? 'Schiedsrichter' : 'Referee'}</Text>}
                                     </View>
                                 )}
                                 {[
-                                    { type: 'win',  count: winsCount,   label: lang==='tr' ? 'Galibiyet' : lang==='ru' ? 'Победа' : 'Wins',   color: '#4ade80' },
-                                    { type: 'loss', count: lossesCount, label: lang==='tr' ? 'Mağlubiyet' : lang==='ru' ? 'Поражение' : 'Losses', color: '#f87171' },
-                                    { type: 'draw', count: drawsCount,  label: lang==='tr' ? 'Beraberlik' : lang==='ru' ? 'Ничья' : 'Draws',  color: '#facc15' },
+                                    { type: 'win',  count: winsCount,   label: lang==='tr' ? 'Galibiyet' : lang==='ru' ? 'Победа' : lang==='de' ? 'Sieg' : 'Wins',   color: '#4ade80' },
+                                    { type: 'loss', count: lossesCount, label: lang==='tr' ? 'Mağlubiyet' : lang==='ru' ? 'Поражение' : lang==='de' ? 'Niederlage' : 'Losses', color: '#f87171' },
+                                    { type: 'draw', count: drawsCount,  label: lang==='tr' ? 'Beraberlik' : lang==='ru' ? 'Ничья' : lang==='de' ? 'Unentschieden' : 'Draws',  color: '#facc15' },
                                 ].map(({ type, count, label, color }) => (
                                     <TouchableOpacity key={type} onPress={() => setMatchListType(type)} style={fc.miniStatBtn}>
                                         <Text style={{ color, fontSize: 13, fontWeight: '900' }}>{count}</Text>
@@ -584,10 +586,10 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 {/* Sol: Yaklaşan / Arşiv / Takma Ad */}
                                 <View style={fc.actionCol}>
                                     <TouchableOpacity onPress={onUpcoming} style={fc.actionBtn}>
-                                        <Text style={[fc.actionTxt, { color: '#4ade80' }]}>⏰ {lang==='tr' ? 'Yaklaşan Maçlar' : lang==='ru' ? 'Предстоящие матчи' : 'Upcoming'}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}</Text>
+                                        <Text style={[fc.actionTxt, { color: '#4ade80' }]}>⏰ {lang==='tr' ? 'Yaklaşan Maçlar' : lang==='ru' ? 'Предстоящие матчи' : lang==='de' ? 'Bevorstehende Spiele' : 'Upcoming'}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={onArchive} style={fc.actionBtn}>
-                                        <Text style={[fc.actionTxt, { color: '#a855f7' }]}>🗃️ {lang==='tr' ? 'Maç Arşivi' : lang==='ru' ? 'Архив матчей' : 'Archive'}{item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}</Text>
+                                        <Text style={[fc.actionTxt, { color: '#a855f7' }]}>🗃️ {lang==='tr' ? 'Maç Arşivi' : lang==='ru' ? 'Архив матчей' : lang==='de' ? 'Spielarchiv' : 'Archive'}{item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}</Text>
                                     </TouchableOpacity>
                                     {isOwnProfile && (
                                         isEditingAlias ? (
@@ -617,15 +619,15 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 {/* Sağ: Başarılar / Hedefler / Anket Ortalaması */}
                                 <View style={fc.actionCol}>
                                     <TouchableOpacity style={fc.actionBtn} onPress={() => setShowAchievements(true)}>
-                                        <Text style={[fc.actionTxt, { color: '#f59e0b' }]}>🏆 {lang==='tr' ? 'Başarılar' : lang==='ru' ? 'Достижения' : 'Achievements'}</Text>
+                                        <Text style={[fc.actionTxt, { color: '#f59e0b' }]}>🏆 {lang==='tr' ? 'Başarılar' : lang==='ru' ? 'Достижения' : lang==='de' ? 'Erfolge' : 'Achievements'}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={fc.actionBtn} onPress={() => setShowGoals(true)}>
-                                        <Text style={[fc.actionTxt, { color: '#38bdf8' }]}>🎯 {lang==='tr' ? 'Hedefler' : lang==='ru' ? 'Цели' : 'Goals'}</Text>
+                                        <Text style={[fc.actionTxt, { color: '#38bdf8' }]}>🎯 {lang==='tr' ? 'Hedefler' : lang==='ru' ? 'Цели' : lang==='de' ? 'Ziele' : 'Goals'}</Text>
                                     </TouchableOpacity>
                                     {surveyLoaded && (
                                         <TouchableOpacity style={fc.actionBtn} onPress={() => anketAverages ? setShowAnketModal(true) : null}>
                                             <Text style={[fc.actionTxt, { color: anketAverages ? '#c084fc' : '#6b7280' }]}>
-                                                📊 {anketAverages ? (lang==='tr' ? 'Anket Ortalaması' : lang==='ru' ? 'Средний балл опроса' : 'Survey Avg') : (lang==='tr' ? 'Henüz Anket Yok' : lang==='ru' ? 'Опросов пока нет' : 'No Survey Yet')}
+                                                📊 {anketAverages ? (lang==='tr' ? 'Anket Ortalaması' : lang==='ru' ? 'Средний балл опроса' : lang==='de' ? 'Umfrage-Durchschnitt' : 'Survey Avg') : (lang==='tr' ? 'Henüz Anket Yok' : lang==='ru' ? 'Опросов пока нет' : lang==='de' ? 'Noch keine Umfrage' : 'No Survey Yet')}
                                             </Text>
                                         </TouchableOpacity>
                                     )}
@@ -648,14 +650,14 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                             {/* ── Sporcu Anketi (küçük) ── */}
                             {(!isOwnProfile || canRate || anketScores.stres > 0) && (
                                 <View style={fc.anketSection}>
-                                    <Text style={fc.anketSectionTitle}>📋 {lang === 'tr' ? 'Sporcu Anketi' : lang === 'ru' ? 'Опрос спортсмена' : 'Player Survey'}</Text>
+                                    <Text style={fc.anketSectionTitle}>📋 {lang === 'tr' ? 'Sporcu Anketi' : lang === 'ru' ? 'Опрос спортсмена' : lang === 'de' ? 'Spielerumfrage' : 'Player Survey'}</Text>
                                     {[
-                                        { key: 'stres',    emoji: '🧠', title: lang==='tr' ? 'Stres Yönetimi' : lang==='ru' ? 'Управление стрессом' : 'Stress Mgmt',
-                                          desc: lang==='tr' ? 'Zor durumlarda sakin kalabilme; öfke patlamaları disiplini yansıtır.' : lang==='ru' ? 'Способность сохранять спокойствие в сложных ситуациях.' : 'Staying calm in critical moments.' },
-                                        { key: 'fairplay', emoji: '🤝', title: lang==='tr' ? 'Adil Oyun' : lang==='ru' ? 'Честная игра' : 'Fair Play',
-                                          desc: lang==='tr' ? 'Tartışmalı topları kabul etme, hakemi yanıltmama.' : lang==='ru' ? 'Признание спорных мячей, честность с судьёй.' : 'Accepting disputed balls honestly.' },
-                                        { key: 'beden',    emoji: '💪', title: lang==='tr' ? 'Beden Dili' : lang==='ru' ? 'Язык тела' : 'Body Language',
-                                          desc: lang==='tr' ? 'Gerginlikte odaklanmayı sürdürme, mazeret üretmeme.' : lang==='ru' ? 'Сохранение концентрации под давлением, без отговорок.' : 'Maintaining focus under pressure.' },
+                                        { key: 'stres',    emoji: '🧠', title: lang==='tr' ? 'Stres Yönetimi' : lang==='ru' ? 'Управление стрессом' : lang==='de' ? 'Stressbewältigung' : 'Stress Mgmt',
+                                          desc: lang==='tr' ? 'Zor durumlarda sakin kalabilme; öfke patlamaları disiplini yansıtır.' : lang==='ru' ? 'Способность сохранять спокойствие в сложных ситуациях.' : lang==='de' ? 'Ruhig bleiben in schwierigen Situationen; Wutausbrüche zeigen fehlende Disziplin.' : 'Staying calm in critical moments.' },
+                                        { key: 'fairplay', emoji: '🤝', title: lang==='tr' ? 'Adil Oyun' : lang==='ru' ? 'Честная игра' : lang==='de' ? 'Fairplay' : 'Fair Play',
+                                          desc: lang==='tr' ? 'Tartışmalı topları kabul etme, hakemi yanıltmama.' : lang==='ru' ? 'Признание спорных мячей, честность с судьёй.' : lang==='de' ? 'Strittige Bälle anerkennen, den Schiedsrichter nicht täuschen.' : 'Accepting disputed balls honestly.' },
+                                        { key: 'beden',    emoji: '💪', title: lang==='tr' ? 'Beden Dili' : lang==='ru' ? 'Язык тела' : lang==='de' ? 'Körpersprache' : 'Body Language',
+                                          desc: lang==='tr' ? 'Gerginlikte odaklanmayı sürdürme, mazeret üretmeme.' : lang==='ru' ? 'Сохранение концентрации под давлением, без отговорок.' : lang==='de' ? 'Konzentration unter Druck bewahren, keine Ausreden suchen.' : 'Maintaining focus under pressure.' },
                                     ].map(({ key, emoji, title, desc }) => (
                                         <View key={key} style={fc.anketCard}>
                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 3 }}>
@@ -678,7 +680,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                             </View>
                                         </View>
                                     ))}
-                                    {!canRate && <Text style={{ color: '#6b7280', fontSize: 9, textAlign: 'center', marginTop: 4 }}>{lang==='tr' ? 'Bu sporda birlikte maç yapmanız gerekiyor.' : lang==='ru' ? 'Вам нужно сыграть вместе в этом виде спорта.' : 'You need to have played together.'}</Text>}
+                                    {!canRate && <Text style={{ color: '#6b7280', fontSize: 9, textAlign: 'center', marginTop: 4 }}>{lang==='tr' ? 'Bu sporda birlikte maç yapmanız gerekiyor.' : lang==='ru' ? 'Вам нужно сыграть вместе в этом виде спорта.' : lang==='de' ? 'Ihr müsst in dieser Sportart schon zusammen gespielt haben.' : 'You need to have played together.'}</Text>}
                                 </View>
                             )}
 
@@ -707,12 +709,12 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                         <View>
                                             {['tennis','padel'].includes(item.subCategory) ? (
                                                 <Text style={{ color: '#facc15', fontSize: 14, fontWeight: '900' }} numberOfLines={1}>
-                                                    ELO ★ {lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'О' : 'S'} {item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'} · {lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'П' : 'D'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
+                                                    ELO ★ {lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'О' : lang === 'de' ? 'E' : 'S'} {item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'} · {lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'П' : lang === 'de' ? 'D' : 'D'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
                                                 </Text>
                                             ) : (
                                                 <Text style={{ color: '#facc15', fontSize: 16, fontWeight: '900' }}>ELO ★ {Number(item.skillRating || 0).toFixed(2)}</Text>
                                             )}
-                                            <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{lang === 'tr' ? 'Puan Geçmişi' : lang === 'ru' ? 'История рейтинга' : 'Rating History'}</Text>
+                                            <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{lang === 'tr' ? 'Puan Geçmişi' : lang === 'ru' ? 'История рейтинга' : lang === 'de' ? 'Wertungsverlauf' : 'Rating History'}</Text>
                                         </View>
                                         <TouchableOpacity onPress={() => setShowEloModal(false)}>
                                             <Text style={{ color: '#6b7280', fontSize: 22 }}>✕</Text>
@@ -731,17 +733,17 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, paddingBottom: 33, borderWidth: 1, borderColor: '#a855f730' }}>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                                         <View>
-                                            <Text style={{ color: '#c084fc', fontSize: 16, fontWeight: '900' }}>📊 {lang==='tr' ? 'Anket Ortalaması' : lang==='ru' ? 'Средний балл опроса' : 'Survey Average'}</Text>
-                                            <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{anketAverages?.count || 0} {lang==='tr' ? 'değerlendirme' : lang==='ru' ? 'оценок' : 'ratings'}</Text>
+                                            <Text style={{ color: '#c084fc', fontSize: 16, fontWeight: '900' }}>📊 {lang==='tr' ? 'Anket Ortalaması' : lang==='ru' ? 'Средний балл опроса' : lang==='de' ? 'Umfragedurchschnitt' : 'Survey Average'}</Text>
+                                            <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{anketAverages?.count || 0} {lang==='tr' ? 'değerlendirme' : lang==='ru' ? 'оценок' : lang==='de' ? 'Bewertungen' : 'ratings'}</Text>
                                         </View>
                                         <TouchableOpacity onPress={() => setShowAnketModal(false)}>
                                             <Text style={{ color: '#6b7280', fontSize: 22 }}>✕</Text>
                                         </TouchableOpacity>
                                     </View>
                                     {anketAverages && [
-                                        { key: 'stres',    emoji: '🧠', label: lang==='tr' ? 'Stres Yönetimi' : lang==='ru' ? 'Управление стрессом' : 'Stress Management', val: anketAverages.stres },
-                                        { key: 'fairplay', emoji: '🤝', label: lang==='tr' ? 'Adil Oyun' : lang==='ru' ? 'Честная игра' : 'Fair Play',             val: anketAverages.fairplay },
-                                        { key: 'beden',    emoji: '💪', label: lang==='tr' ? 'Beden Dili' : lang==='ru' ? 'Язык тела' : 'Body Language',         val: anketAverages.beden },
+                                        { key: 'stres',    emoji: '🧠', label: lang==='tr' ? 'Stres Yönetimi' : lang==='ru' ? 'Управление стрессом' : lang==='de' ? 'Stressmanagement' : 'Stress Management', val: anketAverages.stres },
+                                        { key: 'fairplay', emoji: '🤝', label: lang==='tr' ? 'Adil Oyun' : lang==='ru' ? 'Честная игра' : lang==='de' ? 'Fairplay' : 'Fair Play',             val: anketAverages.fairplay },
+                                        { key: 'beden',    emoji: '💪', label: lang==='tr' ? 'Beden Dili' : lang==='ru' ? 'Язык тела' : lang==='de' ? 'Körpersprache' : 'Body Language',         val: anketAverages.beden },
                                     ].map(({ key, emoji, label, val }) => {
                                         const col = val <= 2 ? '#f87171' : val <= 3 ? '#facc15' : '#4ade80';
                                         const pct = (val / 5) * 100;
@@ -851,6 +853,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
 function GoalsModal({ visible, onClose, lang, cfg, interestId, subCategoryLabel, initialGoals, isOwnProfile, onSaved }) {
     const tr = lang === 'tr';
     const ru = lang === 'ru';
+    const de = lang === 'de';
     const color = cfg?.color || '#38bdf8';
     const [text, setText] = useState(initialGoals || '');
     const [editing, setEditing] = useState(false);
@@ -880,7 +883,7 @@ function GoalsModal({ visible, onClose, lang, cfg, interestId, subCategoryLabel,
                     <View style={{ backgroundColor:'#0f0f1a', borderTopLeftRadius:24, borderTopRightRadius:24, paddingBottom:31, maxHeight:'80%' }}>
                         <View style={{ flexDirection:'row', alignItems:'center', padding:13, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
                             <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', flex:1 }} numberOfLines={1}>
-                                🎯 {tr ? 'Hedefler' : ru ? 'Цели' : 'Goals'} — {subCategoryLabel}
+                                🎯 {tr ? 'Hedefler' : ru ? 'Цели' : de ? 'Ziele' : 'Goals'} — {subCategoryLabel}
                             </Text>
                             <TouchableOpacity onPress={onClose}><Text style={{ color:'#6b7280', fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
@@ -891,7 +894,9 @@ function GoalsModal({ visible, onClose, lang, cfg, interestId, subCategoryLabel,
                                     ? 'Bu dalda kendine koyduğun hedefleri, kendine verdiğin sözleri buraya yaz.'
                                     : ru
                                         ? 'Запиши здесь цели и обещания, которые ты поставил себе в этом виде спорта.'
-                                        : 'Write down the goals and promises you set for yourself in this branch.'}
+                                        : de
+                                            ? 'Schreib hier die Ziele und Versprechen auf, die du dir in dieser Sportart selbst gesetzt hast.'
+                                            : 'Write down the goals and promises you set for yourself in this branch.'}
                             </Text>
 
                             {isOwnProfile && editing ? (
@@ -901,14 +906,14 @@ function GoalsModal({ visible, onClose, lang, cfg, interestId, subCategoryLabel,
                                         onChangeText={setText}
                                         multiline
                                         maxLength={500}
-                                        placeholder={tr ? 'Örn: Bu ay 3 kez maç yap, servis isabetini artır...' : ru ? 'Напр.: сыграть 3 матча в этом месяце, улучшить точность подачи...' : 'E.g: Play 3 matches this month, improve serve accuracy...'}
+                                        placeholder={tr ? 'Örn: Bu ay 3 kez maç yap, servis isabetini artır...' : ru ? 'Напр.: сыграть 3 матча в этом месяце, улучшить точность подачи...' : de ? 'Z.B.: Diesen Monat 3 Spiele machen, Aufschlaggenauigkeit verbessern...' : 'E.g: Play 3 matches this month, improve serve accuracy...'}
                                         placeholderTextColor="#4b5563"
                                         style={{ color:'#fff', fontSize:14, minHeight:120, textAlignVertical:'top', backgroundColor:'#ffffff08', borderRadius:12, borderWidth:1, borderColor:'#ffffff15', padding:12, lineHeight:20 }}
                                     />
                                     <Text style={{ color:'#4b5563', fontSize:10, textAlign:'right' }}>{text.length}/500</Text>
                                     <TouchableOpacity onPress={save} disabled={saving}
                                         style={{ backgroundColor:color+'20', borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1, borderColor:color+'50', opacity: saving ? 0.6 : 1 }}>
-                                        {saving ? <ActivityIndicator color={color} /> : <Text style={{ color, fontWeight:'900', fontSize:14 }}>{tr ? 'Kaydet' : ru ? 'Сохранить' : 'Save'}</Text>}
+                                        {saving ? <ActivityIndicator color={color} /> : <Text style={{ color, fontWeight:'900', fontSize:14 }}>{tr ? 'Kaydet' : ru ? 'Сохранить' : de ? 'Speichern' : 'Save'}</Text>}
                                     </TouchableOpacity>
                                 </>
                             ) : isOwnProfile ? (
@@ -916,14 +921,14 @@ function GoalsModal({ visible, onClose, lang, cfg, interestId, subCategoryLabel,
                                     <Text style={{ color:'#fff', fontSize:14, lineHeight:20 }}>{text}</Text>
                                     <TouchableOpacity onPress={() => setEditing(true)}
                                         style={{ backgroundColor:'#ffffff10', borderRadius:10, paddingVertical:10, alignItems:'center' }}>
-                                        <Text style={{ color:'#9ca3af', fontWeight:'800', fontSize:13 }}>✏️ {tr ? 'Düzenle' : ru ? 'Изменить' : 'Edit'}</Text>
+                                        <Text style={{ color:'#9ca3af', fontWeight:'800', fontSize:13 }}>✏️ {tr ? 'Düzenle' : ru ? 'Изменить' : de ? 'Bearbeiten' : 'Edit'}</Text>
                                     </TouchableOpacity>
                                 </>
                             ) : text ? (
                                 <Text style={{ color:'#fff', fontSize:14, lineHeight:20 }}>{text}</Text>
                             ) : (
                                 <Text style={{ color:'#4b5563', fontSize:13, textAlign:'center', marginTop:10 }}>
-                                    {tr ? 'Henüz hedef belirlenmemiş.' : ru ? 'Цели пока не заданы.' : 'No goals set yet.'}
+                                    {tr ? 'Henüz hedef belirlenmemiş.' : ru ? 'Цели пока не заданы.' : de ? 'Noch keine Ziele festgelegt.' : 'No goals set yet.'}
                                 </Text>
                             )}
                         </ScrollView>
@@ -957,13 +962,13 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
 
     const pickProof = async () => {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) return Alert.alert('', lang === 'tr' ? 'Galeri izni gerekli' : lang === 'ru' ? 'Требуется доступ к галерее' : 'Gallery permission required');
+        if (!perm.granted) return Alert.alert('', lang === 'tr' ? 'Galeri izni gerekli' : lang === 'ru' ? 'Требуется доступ к галерее' : lang === 'de' ? 'Galeriezugriff erforderlich' : 'Gallery permission required');
         const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
         if (!result.canceled) setProofUri(result.assets[0].uri);
     };
 
     const submit = async () => {
-        if (!form.title.trim()) return Alert.alert('', lang === 'tr' ? 'Başlık zorunludur' : lang === 'ru' ? 'Заголовок обязателен' : 'Title is required');
+        if (!form.title.trim()) return Alert.alert('', lang === 'tr' ? 'Başlık zorunludur' : lang === 'ru' ? 'Заголовок обязателен' : lang === 'de' ? 'Titel ist erforderlich' : 'Title is required');
         setSubmitting(true);
         try {
             let proofUrl = null;
@@ -983,9 +988,9 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
     };
 
     const remove = async (id) => {
-        Alert.alert(lang === 'tr' ? 'Sil' : lang === 'ru' ? 'Удалить' : 'Delete', lang === 'tr' ? 'Bu başarıyı silmek istiyor musunuz?' : lang === 'ru' ? 'Удалить это достижение?' : 'Delete this achievement?', [
-            { text: lang === 'tr' ? 'İptal' : lang === 'ru' ? 'Отмена' : 'Cancel', style: 'cancel' },
-            { text: lang === 'tr' ? 'Sil' : lang === 'ru' ? 'Удалить' : 'Delete', style: 'destructive', onPress: async () => {
+        Alert.alert(lang === 'tr' ? 'Sil' : lang === 'ru' ? 'Удалить' : lang === 'de' ? 'Löschen' : 'Delete', lang === 'tr' ? 'Bu başarıyı silmek istiyor musunuz?' : lang === 'ru' ? 'Удалить это достижение?' : lang === 'de' ? 'Diesen Erfolg löschen?' : 'Delete this achievement?', [
+            { text: lang === 'tr' ? 'İptal' : lang === 'ru' ? 'Отмена' : lang === 'de' ? 'Abbrechen' : 'Cancel', style: 'cancel' },
+            { text: lang === 'tr' ? 'Sil' : lang === 'ru' ? 'Удалить' : lang === 'de' ? 'Löschen' : 'Delete', style: 'destructive', onPress: async () => {
                 try {
                     await api.delete(`/achievements/${id}`);
                     setData(prev => ({ ...prev, custom: prev.custom.filter(c => c.id !== id) }));
@@ -996,6 +1001,7 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
 
     const tr = lang === 'tr';
     const ru = lang === 'ru';
+    const de = lang === 'de';
     const color = cfg?.color || '#a855f7';
 
     return (
@@ -1004,11 +1010,11 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                 <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '88%', paddingBottom: 33 }}>
                     {/* Header */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#ffffff10' }}>
-                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900', flex: 1 }}>🏆 {tr ? 'Başarılar' : ru ? 'Достижения' : 'Achievements'}</Text>
+                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900', flex: 1 }}>🏆 {tr ? 'Başarılar' : ru ? 'Достижения' : de ? 'Erfolge' : 'Achievements'}</Text>
                         {isOwnProfile && !showAdd && (
                             <TouchableOpacity onPress={() => setShowAdd(true)}
                                 style={{ backgroundColor: color + '20', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: color + '50', marginRight: 10 }}>
-                                <Text style={{ color, fontWeight: '800', fontSize: 12 }}>+ {tr ? 'Ekle' : ru ? 'Добавить' : 'Add'}</Text>
+                                <Text style={{ color, fontWeight: '800', fontSize: 12 }}>+ {tr ? 'Ekle' : ru ? 'Добавить' : de ? 'Hinzufügen' : 'Add'}</Text>
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity onPress={onClose}><Text style={{ color: '#6b7280', fontSize: 22 }}>✕</Text></TouchableOpacity>
@@ -1018,10 +1024,10 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                         {/* Başarı ekleme formu */}
                         {showAdd && (
                             <View style={{ backgroundColor: '#ffffff08', borderRadius: 14, padding: 11, marginBottom: 18, borderWidth: 1, borderColor: color + '40' }}>
-                                <Text style={{ color, fontSize: 12, fontWeight: '800', marginBottom: 10 }}>✦ {tr ? 'Yeni Başarı Ekle' : ru ? 'Добавить достижение' : 'Add Achievement'}</Text>
+                                <Text style={{ color, fontSize: 12, fontWeight: '800', marginBottom: 10 }}>✦ {tr ? 'Yeni Başarı Ekle' : ru ? 'Добавить достижение' : de ? 'Erfolg hinzufügen' : 'Add Achievement'}</Text>
                                 <TextInput
                                     style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff20', marginBottom: 8 }}
-                                    placeholder={tr ? 'Başlık *' : ru ? 'Заголовок *' : 'Title *'}
+                                    placeholder={tr ? 'Başlık *' : ru ? 'Заголовок *' : de ? 'Titel *' : 'Title *'}
                                     placeholderTextColor="#6b7280"
                                     value={form.title}
                                     onChangeText={v => setForm(f => ({ ...f, title: v }))}
@@ -1029,7 +1035,7 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                 />
                                 <TextInput
                                     style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff20', marginBottom: 8, minHeight: 60, textAlignVertical: 'top' }}
-                                    placeholder={tr ? 'Açıklama (isteğe bağlı)' : ru ? 'Описание (необязательно)' : 'Description (optional)'}
+                                    placeholder={tr ? 'Açıklama (isteğe bağlı)' : ru ? 'Описание (необязательно)' : de ? 'Beschreibung (optional)' : 'Description (optional)'}
                                     placeholderTextColor="#6b7280"
                                     value={form.description}
                                     onChangeText={v => setForm(f => ({ ...f, description: v }))}
@@ -1038,7 +1044,7 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                 />
                                 <TextInput
                                     style={{ backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: '#ffffff20', marginBottom: 10 }}
-                                    placeholder={tr ? 'Tarih (ör. Haziran 2024)' : ru ? 'Дата (напр. Июнь 2024)' : 'Date (e.g. June 2024)'}
+                                    placeholder={tr ? 'Tarih (ör. Haziran 2024)' : ru ? 'Дата (напр. Июнь 2024)' : de ? 'Datum (z.B. Juni 2024)' : 'Date (e.g. June 2024)'}
                                     placeholderTextColor="#6b7280"
                                     value={form.achievedAt}
                                     onChangeText={v => setForm(f => ({ ...f, achievedAt: v }))}
@@ -1047,18 +1053,18 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                     style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#ffffff20', borderStyle: 'dashed', backgroundColor: '#ffffff08', marginBottom: 12, justifyContent: 'center' }}>
                                     <Text style={{ fontSize: 16 }}>📎</Text>
                                     <Text style={{ color: proofUri ? '#4ade80' : '#6b7280', fontSize: 12, fontWeight: '700' }}>
-                                        {proofUri ? (tr ? 'Belge seçildi ✓' : ru ? 'Файл выбран ✓' : 'Proof selected ✓') : (tr ? 'Belge / Fotoğraf Ekle' : ru ? 'Добавить файл / фото' : 'Add Proof / Photo')}
+                                        {proofUri ? (tr ? 'Belge seçildi ✓' : ru ? 'Файл выбран ✓' : de ? 'Beleg ausgewählt ✓' : 'Proof selected ✓') : (tr ? 'Belge / Fotoğraf Ekle' : ru ? 'Добавить файл / фото' : de ? 'Beleg / Foto hinzufügen' : 'Add Proof / Photo')}
                                     </Text>
                                 </TouchableOpacity>
                                 {proofUri && <Image source={{ uri: proofUri }} style={{ width: '100%', height: 120, borderRadius: 10, marginBottom: 10 }} resizeMode="cover" />}
                                 <View style={{ flexDirection: 'row', gap: 3 }}>
                                     <TouchableOpacity onPress={() => { setShowAdd(false); setForm({ title: '', description: '', achievedAt: '' }); setProofUri(null); }}
                                         style={{ flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center', backgroundColor: '#ffffff10' }}>
-                                        <Text style={{ color: '#6b7280', fontWeight: '700' }}>{tr ? 'İptal' : ru ? 'Отмена' : 'Cancel'}</Text>
+                                        <Text style={{ color: '#6b7280', fontWeight: '700' }}>{tr ? 'İptal' : ru ? 'Отмена' : de ? 'Abbrechen' : 'Cancel'}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={submit} disabled={submitting}
                                         style={{ flex: 2, paddingVertical: 7, borderRadius: 8, alignItems: 'center', backgroundColor: color, opacity: submitting ? 0.6 : 1 }}>
-                                        <Text style={{ color: '#fff', fontWeight: '900' }}>{submitting ? '...' : (tr ? 'Kaydet' : ru ? 'Сохранить' : 'Save')}</Text>
+                                        <Text style={{ color: '#fff', fontWeight: '900' }}>{submitting ? '...' : (tr ? 'Kaydet' : ru ? 'Сохранить' : de ? 'Speichern' : 'Save')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -1072,7 +1078,7 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                 {data.tournament.length > 0 && (
                                     <>
                                         <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 10 }}>
-                                            🏅 {tr ? 'TURNUVA BAŞARILARI' : ru ? 'ТУРНИРНЫЕ ДОСТИЖЕНИЯ' : 'TOURNAMENT ACHIEVEMENTS'}
+                                            🏅 {tr ? 'TURNUVA BAŞARILARI' : ru ? 'ТУРНИРНЫЕ ДОСТИЖЕНИЯ' : de ? 'TURNIERERFOLGE' : 'TOURNAMENT ACHIEVEMENTS'}
                                         </Text>
                                         {data.tournament.map((item, i) => (
                                             <TouchableOpacity key={i} activeOpacity={0.7}
@@ -1082,12 +1088,12 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{item.name}</Text>
                                                     <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '700', marginTop: 2 }}>
-                                                        {item.placement === 1 ? (tr ? '1. Yer' : ru ? '1-е место' : '1st Place') : item.placement === 2 ? (tr ? '2. Yer' : ru ? '2-е место' : '2nd Place') : (tr ? '3. Yer' : ru ? '3-е место' : '3rd Place')}
+                                                        {item.placement === 1 ? (tr ? '1. Yer' : ru ? '1-е место' : de ? '1. Platz' : '1st Place') : item.placement === 2 ? (tr ? '2. Yer' : ru ? '2-е место' : de ? '2. Platz' : '2nd Place') : (tr ? '3. Yer' : ru ? '3-е место' : de ? '3. Platz' : '3rd Place')}
                                                         {' · '}{getSubCategoryLabel(item.subCategory, lang)}
                                                     </Text>
                                                     {item.completedAt && (
                                                         <Text style={{ color: '#6b7280', fontSize: 10, marginTop: 2 }}>
-                                                            {new Date(item.completedAt).toLocaleDateString(tr ? 'tr-TR' : ru ? 'ru-RU' : 'en-US', { month: 'long', year: 'numeric' })}
+                                                            {new Date(item.completedAt).toLocaleDateString(tr ? 'tr-TR' : ru ? 'ru-RU' : de ? 'de-DE' : 'en-US', { month: 'long', year: 'numeric' })}
                                                         </Text>
                                                     )}
                                                 </View>
@@ -1102,7 +1108,7 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                 {data.custom.length > 0 && (
                                     <>
                                         <Text style={{ color: color, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 10 }}>
-                                            ✦ {tr ? 'KİŞİSEL BAŞARILAR' : ru ? 'ЛИЧНЫЕ ДОСТИЖЕНИЯ' : 'PERSONAL ACHIEVEMENTS'}
+                                            ✦ {tr ? 'KİŞİSEL BAŞARILAR' : ru ? 'ЛИЧНЫЕ ДОСТИЖЕНИЯ' : de ? 'PERSÖNLICHE ERFOLGE' : 'PERSONAL ACHIEVEMENTS'}
                                         </Text>
                                         {data.custom.map(item => (
                                             <View key={item.id} style={{ backgroundColor: '#ffffff08', borderRadius: 12, padding: 9, marginBottom: 8, borderWidth: 1, borderColor: '#ffffff15' }}>
@@ -1122,7 +1128,7 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                                     <TouchableOpacity onPress={() => Linking.openURL(item.proofUrl)} style={{ marginTop: 8 }}>
                                                         <Image source={{ uri: item.proofUrl }} style={{ width: '100%', height: 140, borderRadius: 8 }} resizeMode="cover" />
                                                         <Text style={{ color: color, fontSize: 10, fontWeight: '700', textAlign: 'center', marginTop: 4 }}>
-                                                            {tr ? '📎 Belgeyi Aç' : ru ? '📎 Открыть файл' : '📎 Open Proof'}
+                                                            {tr ? '📎 Belgeyi Aç' : ru ? '📎 Открыть файл' : de ? '📎 Beleg öffnen' : '📎 Open Proof'}
                                                         </Text>
                                                     </TouchableOpacity>
                                                 )}
@@ -1135,11 +1141,11 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                                     <View style={{ alignItems: 'center', paddingVertical: 37 }}>
                                         <Text style={{ fontSize: 48, marginBottom: 12 }}>🏆</Text>
                                         <Text style={{ color: '#6b7280', fontSize: 14, fontWeight: '700', textAlign: 'center' }}>
-                                            {tr ? 'Henüz başarı yok' : ru ? 'Пока нет достижений' : 'No achievements yet'}
+                                            {tr ? 'Henüz başarı yok' : ru ? 'Пока нет достижений' : de ? 'Noch keine Erfolge' : 'No achievements yet'}
                                         </Text>
                                         {isOwnProfile && (
                                             <Text style={{ color: '#4b5563', fontSize: 12, marginTop: 6, textAlign: 'center' }}>
-                                                {tr ? '+ Ekle butonuyla kendi başarılarını paylaş' : ru ? 'Нажми + Добавить, чтобы поделиться своими достижениями' : 'Tap + Add to share your achievements'}
+                                                {tr ? '+ Ekle butonuyla kendi başarılarını paylaş' : ru ? 'Нажми + Добавить, чтобы поделиться своими достижениями' : de ? 'Tippe auf + Hinzufügen, um deine Erfolge zu teilen' : 'Tap + Add to share your achievements'}
                                             </Text>
                                         )}
                                     </View>
@@ -1201,6 +1207,7 @@ const SUB_EMOJI = {
 
 const MONTHS_TR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const MONTHS_DE = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 
 function reservationMatchesSport(reservation, subCategory) {
     const b = (reservation?.venue?.branch || '').toLowerCase();
@@ -1309,7 +1316,7 @@ function privacyEmoji(p) {
 function joinDate(str, lang) {
     if (!str) return '';
     const d = new Date(str);
-    const months = lang === 'tr' ? MONTHS_TR : lang === 'ru' ? MONTHS_RU : MONTHS_EN;
+    const months = lang === 'tr' ? MONTHS_TR : lang === 'ru' ? MONTHS_RU : lang === 'de' ? MONTHS_DE : MONTHS_EN;
     return `${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
@@ -2824,7 +2831,7 @@ export default function ProfileScreen({ route, navigation }) {
 
                 {/* ── Activities / Interests ── */}
                 <View style={s.section}>
-                    <Text style={s.sectionTitle}>{isOwnProfile ? t.branchesSection : (lang === 'tr' ? '🏅 Sporlar' : lang === 'ru' ? '🏅 Виды спорта' : '🏅 Sports')}</Text>
+                    <Text style={s.sectionTitle}>{isOwnProfile ? t.branchesSection : (lang === 'tr' ? '🏅 Sporlar' : lang === 'ru' ? '🏅 Виды спорта' : lang === 'de' ? '🏅 Sportarten' : '🏅 Sports')}</Text>
                     {interests.length > 0 ? (
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 3, paddingVertical: 1 }}>
                             {[...interests].sort((a, b) => (a.hidden ? 1 : 0) - (b.hidden ? 1 : 0)).map(i => {
@@ -2856,10 +2863,10 @@ export default function ProfileScreen({ route, navigation }) {
                                             {['tennis','padel'].includes(i.subCategory) ? (
                                                 <View style={{ alignItems: 'center' }}>
                                                     <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '900' }} numberOfLines={1}>
-                                                        {lang === 'tr' ? 'T' : lang === 'ru' ? 'О' : 'S'}: {i.singlesDisplayRating != null ? Number(i.singlesDisplayRating).toFixed(2) : '—'}★
+                                                        {lang === 'tr' ? 'T' : lang === 'ru' ? 'О' : lang === 'de' ? 'E' : 'S'}: {i.singlesDisplayRating != null ? Number(i.singlesDisplayRating).toFixed(2) : '—'}★
                                                     </Text>
                                                     <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '900' }} numberOfLines={1}>
-                                                        {lang === 'tr' ? 'Ç' : lang === 'ru' ? 'П' : 'D'}: {i.doublesDisplayRating != null ? Number(i.doublesDisplayRating).toFixed(2) : '—'}★
+                                                        {lang === 'tr' ? 'Ç' : lang === 'ru' ? 'П' : lang === 'de' ? 'D' : 'D'}: {i.doublesDisplayRating != null ? Number(i.doublesDisplayRating).toFixed(2) : '—'}★
                                                     </Text>
                                                 </View>
                                             ) : (
@@ -4058,7 +4065,7 @@ export default function ProfileScreen({ route, navigation }) {
                             <View style={s.infoFieldHeader}>
                                 <Text style={s.fieldLabel}>🌐 Dil / Language</Text>
                                 <View style={{ flexDirection: 'row', gap: 3 }}>
-                                    {['tr', 'en', 'ru'].map(l => (
+                                    {['tr', 'en', 'ru', 'de'].map(l => (
                                         <TouchableOpacity
                                             key={l}
                                             onPress={() => dispatch(setLang(l))}
@@ -4068,7 +4075,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             ]}
                                         >
                                             <Text style={[s.langChipText, lang === l && { color: '#fff' }]}>
-                                                {l === 'tr' ? '🇹🇷 TR' : l === 'ru' ? '🇷🇺 RU' : '🇬🇧 EN'}
+                                                {l === 'tr' ? '🇹🇷 TR' : l === 'ru' ? '🇷🇺 RU' : l === 'de' ? '🇩🇪 DE' : '🇬🇧 EN'}
                                             </Text>
                                         </TouchableOpacity>
                                     ))}
