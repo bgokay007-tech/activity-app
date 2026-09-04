@@ -88,7 +88,7 @@ function eloSuffix(interest, sub, isDoubles, lang) {
     // sanıyordu, oysa o kişinin gerçekten hiç puanı yoktu. Artık "T ELO -" gibi açıkça
     // etiketlenmiş bir yer tutucu gösteriliyor, sessizce kaybolmuyor.
     const val = utrDisplayRating(interest, sub, isDoubles);
-    const label = lang === 'tr' ? (isDoubles ? 'Ç ELO' : 'T ELO') : (isDoubles ? 'D ELO' : 'S ELO');
+    const label = lang === 'tr' ? (isDoubles ? 'Ç ELO' : 'T ELO') : lang === 'ru' ? (isDoubles ? 'П ELO' : 'О ELO') : (isDoubles ? 'D ELO' : 'S ELO');
     return `  ${label} ${val != null ? val.toFixed(2) : '-'}`;
 }
 // Kadro/digimon kartlarında — sunucu zaten formata-doğru NUMERİK değeri hesaplayıp
@@ -98,7 +98,7 @@ function eloSuffix(interest, sub, isDoubles, lang) {
 function ratingBadgeText(sub, isDoubles, lang, value) {
     if (value == null) return null;
     if (!UTR_MOBILE_SUBS.has(sub)) return `${Number(value).toFixed(2)}★`;
-    const label = lang === 'tr' ? (isDoubles ? 'Ç ELO' : 'T ELO') : (isDoubles ? 'D ELO' : 'S ELO');
+    const label = lang === 'tr' ? (isDoubles ? 'Ç ELO' : 'T ELO') : lang === 'ru' ? (isDoubles ? 'П ELO' : 'О ELO') : (isDoubles ? 'D ELO' : 'S ELO');
     return `${label} ${Number(value).toFixed(2)}`;
 }
 
@@ -230,8 +230,8 @@ function genderFitsSlot(personGender, slotGenderReq) {
 // (K)/(E), EN'de (W)/(M). Tenis/padel/voleybol'un tümünde aynı — matchType/subCategory'den
 // bağımsız, tek yerden kullanılıyor (bkz. İstekler bölümü).
 function reqGenderParen(gender, lang) {
-    if (gender === 'FEMALE') return lang === 'tr' ? ' (K)' : ' (W)';
-    if (gender === 'MALE') return lang === 'tr' ? ' (E)' : ' (M)';
+    if (gender === 'FEMALE') return lang === 'tr' ? ' (K)' : lang === 'ru' ? ' (Ж)' : ' (W)';
+    if (gender === 'MALE') return lang === 'tr' ? ' (E)' : lang === 'ru' ? ' (М)' : ' (M)';
     return '';
 }
 
@@ -2061,6 +2061,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800' }}>{getSubCategoryLabel(item.subCategory, t.lang)}</Text>
                         <Text style={{ color: colors.textMuted, fontSize:moderateScale(12), marginTop:1 }}>{senderAlias(item.sender)}</Text>
                     </View>
+                    {/* Kullanıcı isteği: İptal Et artık alttaki buton satırında değil, header'ın
+                        sağındaki boş alanda — açık ilanın her yerinden (aşağı kaydırmadan) erişilebilsin. */}
+                    {isOwner && !isRefereeAd && (
+                        <TouchableOpacity
+                            style={{ paddingHorizontal:moderateScale(9), paddingVertical:moderateScale(6), borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618' }}
+                            onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
+                            <Text style={{ color:'#f87171', fontSize:moderateScale(12), fontWeight:'700' }} numberOfLines={1}>{t.cancelMatchBtn}</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
                 {/* Scrollable content */}
@@ -3332,23 +3341,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </View>
                                 ));
                             })() : item.matchType === 'DOUBLE' ? (() => {
-                                // Hâlâ boş olan koltukların cinsiyet gereksinimine uyan istekler
-                                // öne alınır — sahibi kotayı dolduracak adayları hemen görsün.
-                                const senderTeamNow = Array.isArray(item.senderTeam) ? item.senderTeam : [];
-                                const openGenderReqs = [
-                                    !senderTeamNow[0]?.id && partnerGenderReq,
-                                    !participants[0]?.id && opp1GenderReq,
-                                    !participants[1]?.id && opp2GenderReq,
-                                ].filter(g => g && g !== 'MIX');
-                                const fitsOpenSlot = (jr) => {
-                                    if (openGenderReqs.length === 0) return true;
-                                    const g = jr.user?.gender;
-                                    if (!g || g === 'OTHER') return true;
-                                    return openGenderReqs.includes(g);
-                                };
-                                const incoming = joinRequests.filter(jr => jr.initiatedBy !== 'OWNER')
-                                    .slice()
-                                    .sort((a, b) => (fitsOpenSlot(a) === fitsOpenSlot(b) ? 0 : fitsOpenSlot(a) ? -1 : 1));
+                                // Kullanıcı isteği: istekler her zaman istek atma sırasına (createdAt
+                                // artan) göre gösterilir — backend zaten bu sırayla döndürüyor (bkz.
+                                // getRivalById joinRequests orderBy). Önceden burada boş kalan slotun
+                                // cinsiyet gereksinimine uyanlar öne alınıyordu, kullanıcı isteğiyle
+                                // kaldırıldı.
+                                const incoming = joinRequests.filter(jr => jr.initiatedBy !== 'OWNER');
                                 const { pairs, solos, byUserId } = groupDoublesPairs(incoming);
                                 const solosWithPartnerLink = solos.filter(s => s.partnerId || solos.some(o => o.partnerId === s.userId && o.userId !== s.userId));
                                 const solosIndividual = solos.filter(s => !s.partnerId && !solos.some(o => o.partnerId === s.userId && o.userId !== s.userId));
@@ -3833,22 +3831,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </TouchableOpacity>
                                     </View>
                                 )}
-                                {/* Kullanıcı isteği: Sipariş Ver, İptal Et'in solunda — aynı satırda —
-                                    böylece ilan sahibi detaydan çıkmadan da tesis menüsünden sipariş
-                                    verebilir (bkz. VenueMenuOrderModal, RivalCard'daki ile aynı akış). */}
-                                <View style={{ flexDirection: 'row', gap: 3 }}>
-                                    {item.venueId && (
+                                {/* Kullanıcı isteği: İptal Et artık header'a taşındı (bkz. yukarısı) —
+                                    Sipariş Ver tek başına kaldığı için satır sadece o varken render edilir. */}
+                                {item.venueId && (
+                                    <View style={{ flexDirection: 'row', gap: 3 }}>
                                         <TouchableOpacity
                                             style={[s.cancelBtn, { flex: 1, backgroundColor:'#22c55e20', borderColor:'#22c55e50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
                                             onPress={() => setOrderVenueId(item.venueId)}
                                         >
                                             <Text style={[s.cancelBtnText, { color:'#22c55e', fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📋 Sipariş Ver</Text>
                                         </TouchableOpacity>
-                                    )}
-                                    <TouchableOpacity style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]} onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
-                                        <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>{t.cancelAdBtn}</Text>
-                                    </TouchableOpacity>
-                                </View>
+                                    </View>
+                                )}
                                 {/* Kullanıcı isteği: Demo Botları Başlat artık Paylaş/Düzenle/İptal
                                     satırının ALTINDA — demo botları ilerleyen zamanlarda tamamen
                                     kaldırılacak, şimdilik burada kalıyor. */}
@@ -6909,6 +6903,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             kartında (digimon kart) var, tekrar burada göstermek gereksizdi. */}
                         <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800' }}>{getSubCategoryLabel(match.subCategory, t.lang)}</Text>
                     </View>
+                    {/* Kullanıcı isteği: İptal Et artık alttaki buton satırında değil, header'ın
+                        sağındaki boş alanda — aynı görünürlük koşulu (bkz. aşağıdaki eski konum). */}
+                    {match.scoreStatus !== 'CONFIRMED' && !promotedWithinGrace && !matchStartedOver5Min && !scoreUnlocked && (
+                        <TouchableOpacity
+                            style={{ paddingHorizontal:moderateScale(9), paddingVertical:moderateScale(6), borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618' }}
+                            onPress={handleCancelPress} disabled={cancelling}>
+                            <Text style={{ color:'#f87171', fontSize:moderateScale(12), fontWeight:'700' }} numberOfLines={1}>{t.cancelMatchBtn}{withinPenaltyWindow ? ' ⚠️' : ''}</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
                 {/* Kullanıcı isteği: skor girerken açılan klavye, alttaki set giriş kutularını/
@@ -8229,21 +8232,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         <Text style={{ color:'#60a5fa', fontSize:13 }}>⏳ İstendi</Text>
                                     </View>
                                 )}
-                                {promotedWithinGrace ? (
+                                {/* İptal artık header'a taşındı (bkz. yukarısı) — burada sadece
+                                    promotedWithinGrace'in kendi butonu kalıyor. */}
+                                {promotedWithinGrace && (
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#22c55e50', backgroundColor:'#22c55e18', alignItems:'center' }}
                                         onPress={handleLeavePromotedPress} disabled={leavingPromoted}>
                                         <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'700' }}>{t.leavePromotedSubBtn}</Text>
-                                    </TouchableOpacity>
-                                ) : !matchStartedOver5Min && !scoreUnlocked && (
-                                    // Kullanıcı isteği: maç başladıktan 5 dakika sonra "İptal" butonunun
-                                    // bir anlamı kalmıyor — maç zaten oynanıyor, skor girilemiyorsa
-                                    // herkesin onayıyla sonuçsuz kapatılabiliyor, bu da rekabetçi
-                                    // modda bile Elo'yu etkilemiyor.
-                                    <TouchableOpacity
-                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618', alignItems:'center' }}
-                                        onPress={handleCancelPress} disabled={cancelling}>
-                                        <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>✕ İptal{withinPenaltyWindow ? ' ⚠️' : ''}</Text>
                                     </TouchableOpacity>
                                 )}
                             </>
