@@ -366,11 +366,15 @@ export default function Navbar({ onBack, backLabel, title }) {
                                 <div className="border-t border-gray-800" />
 
                                 <button
-                                    onClick={() => { const nl = lang === 'en' ? 'tr' : 'en'; dispatch(setLang(nl)); i18n.changeLanguage(nl); setMenuOpen(false); }}
+                                    onClick={() => {
+                                        const cycle = ['en', 'tr', 'ru'];
+                                        const nl = cycle[(cycle.indexOf(lang) + 1) % cycle.length];
+                                        dispatch(setLang(nl)); i18n.changeLanguage(nl); setMenuOpen(false);
+                                    }}
                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition text-left"
                                 >
-                                    <span className="text-lg">{lang === 'en' ? '🇬🇧' : '🇹🇷'}</span>
-                                    <span className="text-gray-300 text-sm font-bold">{lang === 'en' ? 'EN → TR' : 'TR → EN'}</span>
+                                    <span className="text-lg">{lang === 'en' ? '🇬🇧' : lang === 'tr' ? '🇹🇷' : '🇷🇺'}</span>
+                                    <span className="text-gray-300 text-sm font-bold">{lang === 'en' ? 'EN → TR' : lang === 'tr' ? 'TR → RU' : 'RU → EN'}</span>
                                 </button>
 
                                 <div className="border-t border-gray-800" />
