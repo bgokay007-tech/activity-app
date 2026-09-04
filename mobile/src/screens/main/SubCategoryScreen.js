@@ -10798,6 +10798,89 @@ const vb = StyleSheet.create({
     selSummaryTxt:{ color:'#4ade80', fontSize:13, fontWeight:'700', textAlign:'center' },
 });
 
+// ─── Arşiv — Bireysel Maç Kartı (digimon kart) ───────────────────────────────────
+// Kullanıcı isteği: kart artık diğer digimon kartlarla (RivalCard/UpcomingCard'daki
+// kadro kartı) AYNI önlü-arkalı desende — ön yüzde özet (tarih/saat/süre/format/mod/
+// takımlar/skor), arka yüzde katılan oyuncular. Sağ üstteki eski sonuç emojisi (✅/❌/🤝)
+// yerine 🔄 çevirme butonu var; kart üstündeki "Önce/Sonra" ortalama derece satırları
+// kaldırıldı — zaten karta dokununca açılan ArchiveMatchDetailModal'da mevcut.
+// Hooks (useState/useRef) kullandığı için kendi bileşeni olmak ZORUNDA — bir .map()
+// callback'i içine konulamaz (rules of hooks).
+function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
+    const t = useT();
+    const parts = Array.isArray(m.participants) ? m.participants : [];
+    // Çiftler (DOUBLE) maçlarda kurucunun partneri senderTeam'de tutulur — iki taraf
+    // ayrı ayrı (kurucu / rakip) gösterilir, tek karışık bir oyuncu havuzu yerine.
+    const senderTeamArr = Array.isArray(m.senderTeam) ? m.senderTeam : [];
+    const founderSide = [m.sender, ...senderTeamArr].filter(Boolean);
+    const opponentSide = parts.filter(Boolean);
+    const sets = m.score?.sets;
+    // Kullanıcı raporu: 2v2 (tenis/padel çiftleri) maçlar arşivde yanlışlıkla "1v1"
+    // gösteriyordu — sebep, format için matchType yerine matchMode'a ("TEAM" mi diye)
+    // bakılmasıydı; matchMode aslında Rekabetçi/Antrenman ayrımı, format değil. Takım
+    // sporlarında (voleybol vb., teamSize>1) NvN, çiftlerde (matchType=DOUBLE) 2v2,
+    // geri kalanında 1v1 — UpcomingCard'daki isTeamMatch ile aynı mantık.
+    const isTeamSport = (m.teamSize || 1) > 1;
+    const isDoublesFmt = m.matchType === 'DOUBLE';
+    const sizeTxt = isTeamSport ? `👥 ${m.teamSize}v${m.teamSize}` : isDoublesFmt ? '👥 2v2' : '⚔️ 1v1';
+    const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
+    const founderLabel = m.founderTeamName || (founderSide.length > 1 ? 'Kurucu Takım' : (founderSide[0] ? senderAlias(founderSide[0]) : 'Kurucu'));
+    const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? 'Rakip Takım' : (opponentSide[0] ? senderAlias(opponentSide[0]) : 'Rakip'));
+    const founderSetWins = sets ? sets.filter(s2 => s2.sender > s2.opponent).length : null;
+    const opponentSetWins = sets ? sets.filter(s2 => s2.opponent > s2.sender).length : null;
+
+    const [cardFlipped, setCardFlipped] = useState(false);
+    const cardFlipAnim = useRef(new Animated.Value(0)).current;
+    const flipCard = () => {
+        Animated.timing(cardFlipAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(() => {
+            setCardFlipped(b => !b);
+            Animated.timing(cardFlipAnim, { toValue: cardFlipped ? 0 : 1, duration: 150, useNativeDriver: true }).start();
+        });
+    };
+    const cardFlipRotate = cardFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
+
+    return (
+        <Animated.View style={[s.card, { width:'48%', paddingHorizontal:0, paddingTop:0, paddingBottom:0, minHeight:92 }, highlighted && { borderColor:'#f97316', borderWidth:2 }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
+            {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (detayı açmaz). */}
+            <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                style={{ position:'absolute', top:6, right:6, zIndex:10, backgroundColor:'#00000060', borderRadius:12, width:22, height:22, alignItems:'center', justifyContent:'center' }}>
+                <Text style={{ fontSize:12 }}>🔄</Text>
+            </TouchableOpacity>
+            {cardFlipped ? (
+                <TouchableOpacity activeOpacity={0.85} style={{ padding:9, flex:1 }} onPress={onPress}>
+                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', marginBottom:6, paddingRight:22 }}>👥 {t.rosterPoolLabel}</Text>
+                    <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800', marginBottom:2 }} numberOfLines={1}>{founderLabel}</Text>
+                    {founderSide.map(p => (
+                        <Text key={p.id} style={{ color: colors.textSecondary, fontSize:11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
+                    ))}
+                    <Text style={{ color:'#fca5a5', fontSize:10, fontWeight:'800', marginTop:6, marginBottom:2 }} numberOfLines={1}>{opponentLabel}</Text>
+                    {opponentSide.map(p => (
+                        <Text key={p.id} style={{ color: colors.textSecondary, fontSize:11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
+                    ))}
+                </TouchableOpacity>
+            ) : (
+                <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={{ padding:9 }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap', paddingRight:22 }}>
+                        <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{sizeTxt}</Text>
+                        {modeTxt ? <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text> : null}
+                        {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:11, fontWeight:'700' }}>{modeTxt}</Text> : null}
+                    </View>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:2 }}>
+                        <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{founderLabel}</Text>
+                        {sets && <Text style={{ color:'#fff', fontSize:14, fontWeight:'900' }}>{founderSetWins} - {opponentSetWins}</Text>}
+                        <Text style={{ color:'#fca5a5', fontSize:12, fontWeight:'700', flex:1, textAlign:'right' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{opponentLabel}</Text>
+                    </View>
+                    <Text style={{ color: colors.textMuted, fontSize:11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                        {m.flexibleSchedule ? '📅 Esnek' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
+                        {!m.flexibleSchedule && m.matchTime ? ` · 🕐 ${m.matchTime}` : ''}
+                        {m.duration != null ? ` · ⏱ ${m.duration} dk` : ''}
+                    </Text>
+                </TouchableOpacity>
+            )}
+        </Animated.View>
+    );
+}
+
 // ─── Archive Match Detail Modal ─────────────────────────────────────────────────
 // Arşivdeki bir maça dokununca tüm bilgileri (iki takım ayrı ayrı, set skorları,
 // puan değişimleri, kort/tarih/mod, itiraz/akran değerlendirme/hakem aksiyonları)
@@ -26040,81 +26123,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <EmptyState emoji="🗃️" text={t.emptyArchive} />
                             ) : (
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingVertical: 5 }}>
-                                    {archiveRivals.map(m => {
-                                        const isOwner = m.senderId === myId;
-                                        const parts = Array.isArray(m.participants) ? m.participants : [];
-                                        // Çiftler (DOUBLE) maçlarda kurucunun partneri senderTeam'de tutulur —
-                                        // eskiden buraya dahil edilmiyordu, bu yüzden hem eksik oyuncu (3 yerine 4)
-                                        // hem de yanlış taraf ataması (partner rakip gibi gösteriliyordu) oluyordu.
-                                        // Artık iki taraf ayrı satırlarda gösteriliyor (kurucu / rakip) — tek bir
-                                        // karışık satır yerine.
-                                        const senderTeamArr = Array.isArray(m.senderTeam) ? m.senderTeam : [];
-                                        const founderSide = [m.sender, ...senderTeamArr].filter(Boolean);
-                                        const opponentSide = parts.filter(Boolean);
-                                        const snapshot = m.score?.ratingSnapshot || {};
-                                        const sets = m.score?.sets;
-                                        const winner = m.score?.winner;
-                                        // Ben ilan sahibi olmasam da kurucunun partneriysem (senderTeam) yine
-                                        // "sender" tarafındayımdır — aksi halde çiftler maçında partner olan
-                                        // kullanıcı kendi kazandığı maçta bile ❌ görüyordu.
-                                        const iAmSenderSide = isOwner || senderTeamArr.some(st => st?.id === myId);
-                                        const myResult = winner === 'draw' ? '🤝' : winner === (iAmSenderSide ? 'sender' : 'opponent') ? '✅' : winner ? '❌' : '';
-                                        const isTeam = m.matchMode?.toUpperCase() === 'TEAM';
-                                        const sizeTxt = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
-                                        const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
-                                        // Kullanıcı isteği: kompakt arşiv kartında sadece takımlar, skor, takım
-                                        // ortalamaları, tarih/saat/süre/mod görünsün — oyuncu bazlı detaylar
-                                        // (derece/puan değişimi, set dökümü) ve itiraz/akran/hakem aksiyonları
-                                        // artık kartta değil, karta dokununca açılan detayda (bkz.
-                                        // ArchiveMatchDetailModal — bunların hepsi zaten orada var).
-                                        const founderLabel = m.founderTeamName || (founderSide.length > 1 ? 'Kurucu Takım' : (founderSide[0] ? senderAlias(founderSide[0]) : 'Kurucu'));
-                                        const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? 'Rakip Takım' : (opponentSide[0] ? senderAlias(opponentSide[0]) : 'Rakip'));
-                                        const founderSetWins = sets ? sets.filter(s2 => s2.sender > s2.opponent).length : null;
-                                        const opponentSetWins = sets ? sets.filter(s2 => s2.opponent > s2.sender).length : null;
-                                        // Kullanıcı isteği: takım ortalaması "maç öncesi" ve "maç sonrası" olarak
-                                        // ayrı ayrı belirtilsin — tek bir güncel ortalama yerine, oyuncu satırlarındaki
-                                        // "önceki puan → güncel puan" mantığının takım seviyesindeki karşılığı.
-                                        const avgOf = (side, key) => {
-                                            const rs = side.map(p => snapshot[p.id]?.[key]).filter(r => r != null);
-                                            return rs.length > 0 ? rs.reduce((a, b) => a + b, 0) / rs.length : null;
-                                        };
-                                        const founderAvgBefore = avgOf(founderSide, 'skillRating_before');
-                                        const founderAvgAfter = avgOf(founderSide, 'skillRating_after');
-                                        const opponentAvgBefore = avgOf(opponentSide, 'skillRating_before');
-                                        const opponentAvgAfter = avgOf(opponentSide, 'skillRating_after');
-                                        return (
-                                            <TouchableOpacity key={m.id} activeOpacity={0.8} onPress={() => setArchiveDetailMatch(m)} style={[s.card, { width:'48%', paddingHorizontal:0, paddingTop:0, paddingBottom:0 }, m.id === highlightRivalId && { borderColor:'#f97316', borderWidth:2 }]}>
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap' }}>
-                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{sizeTxt}</Text>
-                                                    {modeTxt ? <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text> : null}
-                                                    {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:11, fontWeight:'700' }}>{modeTxt}</Text> : null}
-                                                    {myResult ? <Text style={{ fontSize:14, marginLeft:'auto' }}>{myResult}</Text> : null}
-                                                </View>
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:2 }}>
-                                                    <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{founderLabel}</Text>
-                                                    {sets && <Text style={{ color:'#fff', fontSize:14, fontWeight:'900' }}>{founderSetWins} - {opponentSetWins}</Text>}
-                                                    <Text style={{ color:'#fca5a5', fontSize:12, fontWeight:'700', flex:1, textAlign:'right' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{opponentLabel}</Text>
-                                                </View>
-                                                {(founderAvgBefore != null || opponentAvgBefore != null) && (
-                                                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:1 }}>
-                                                        <Text style={{ color: colors.textMuted, fontSize:10, flex:1 }} numberOfLines={1}>{founderAvgBefore != null ? `Önce Ø ${founderAvgBefore.toFixed(2)} ★` : ''}</Text>
-                                                        <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'right' }} numberOfLines={1}>{opponentAvgBefore != null ? `Önce Ø ${opponentAvgBefore.toFixed(2)} ★` : ''}</Text>
-                                                    </View>
-                                                )}
-                                                {(founderAvgAfter != null || opponentAvgAfter != null) && (
-                                                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:3 }}>
-                                                        <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1}>{founderAvgAfter != null ? `Sonra Ø ${founderAvgAfter.toFixed(2)} ★` : ''}</Text>
-                                                        <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700', flex:1, textAlign:'right' }} numberOfLines={1}>{opponentAvgAfter != null ? `Sonra Ø ${opponentAvgAfter.toFixed(2)} ★` : ''}</Text>
-                                                    </View>
-                                                )}
-                                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                    {m.flexibleSchedule ? '📅 Esnek' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
-                                                    {!m.flexibleSchedule && m.matchTime ? ` · 🕐 ${m.matchTime}` : ''}
-                                                    {m.duration != null ? ` · ⏱ ${m.duration} dk` : ''}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
+                                    {archiveRivals.map(m => (
+                                        <ArchiveRivalCard
+                                            key={m.id}
+                                            m={m}
+                                            myId={myId}
+                                            cfg={cfg}
+                                            highlighted={m.id === highlightRivalId}
+                                            onPress={() => setArchiveDetailMatch(m)}
+                                        />
+                                    ))}
                                 </View>
                             )
                         )}
