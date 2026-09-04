@@ -28,12 +28,26 @@ const val KEY_REPLY_TEXT = "key_reply_text"
 // dogrudan backend'e istek atiyor.
 class NotifActionsMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
-        val data = remoteMessage.data
-        val title = remoteMessage.notification?.title ?: data["title"] ?: return
-        val body = remoteMessage.notification?.body ?: data["body"] ?: ""
+        val rawData = remoteMessage.data
+        // Backend artik SAF bir "data" mesaji gonderiyor (top-level title/body kasitli olarak
+        // YOK -- bkz. backend/src/controllers/message.controller.js). Expo'nun push servisi bu
+        // "data" nesnesini duz alanlar olarak DEGIL, FCM'in "body" adli tek bir data alaninin
+        // icine JSON string olarak paketliyor; kendi alanlarimiza (title/message/type/senderId/
+        // conversationId vb.) erismek icin burayi ayrica parse etmemiz gerekiyor.
+        val data: Map<String, String> = try {
+            val json = org.json.JSONObject(rawData["body"] ?: "{}")
+            val map = HashMap<String, String>()
+            json.keys().forEach { key -> map[key] = json.optString(key) }
+            map
+        } catch (e: Exception) {
+            emptyMap()
+        }
+
+        val title = data["title"] ?: return
+        val body = data["message"] ?: ""
         val notificationId = data["notificationId"]
         val isMessage = data["type"] == "MESSAGE"
-        val channelId = remoteMessage.notification?.channelId ?: data["channelId"] ?: "default"
+        val channelId = data["channelId"] ?: "default"
         val tag = data["tag"] ?: remoteMessage.messageId ?: System.currentTimeMillis().toString()
         val id = tag.hashCode()
 

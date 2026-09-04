@@ -14,12 +14,20 @@ async function sendPush(pushToken, title, body, data = {}, priority = 'default',
     }
     try {
         const res = await axios.post('https://exp.host/--/api/v2/push/send', {
-            to: pushToken, title, body, data, priority,
-            sound: notificationMode === 'SOUND' ? 'default' : null,
-            channelId: CHANNEL_BY_MODE[notificationMode] || 'default',
-            // Mobil tarafta (navigation/index.js) kaydedilen "default_notification" kategorisi —
-            // OS bildirim tepsisinde "Okundu İşaretle" butonu, uygulama açılmadan çalışır.
-            categoryId: 'default_notification',
+            to: pushToken,
+            priority,
+            // KASITLI OLARAK top-level title/body YOK -- bkz. message.controller.js
+            // sendPushNotification'daki aynı not: Expo'ya top-level title/body verilirse FCM
+            // tarafında bir "notification" alanı oluşuyor ve Android, uygulama arka
+            // plandayken/kapalıyken onMessageReceived'i hiç çağırmadan OS'un kendi otomatik
+            // bildirimiyle gösteriyor, "Okundu İşaretle" butonu hiç eklenemiyor. Saf "data" mesajı
+            // ile bildirimi her zaman native tarafta (NotifActionsMessagingService.kt) biz kuruyoruz.
+            data: {
+                title,
+                message: body,
+                channelId: CHANNEL_BY_MODE[notificationMode] || 'default',
+                ...data,
+            },
         }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
         const ticket = res.data?.data;
         if (ticket?.status === 'error') {

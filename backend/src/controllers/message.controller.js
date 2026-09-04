@@ -30,28 +30,29 @@ async function isConversationMuted(userId, conversationId) {
 const CHANNEL_BY_MODE = { MUTE: 'silent', VIBRATE: 'vibrate', SOUND: 'default' };
 
 async function sendPushNotification(pushToken, title, body, notificationMode = 'SOUND', data = {}) {
-    console.log('[push] DEBUG2 token:', pushToken?.substring(0, 50));
-    if (!pushToken?.startsWith('ExponentPushToken')) { console.log('[push] DEBUG2 invalid token, aborting'); return; }
+    if (!pushToken?.startsWith('ExponentPushToken')) return;
     try {
-        const debugRes2 = await axios.post('https://exp.host/--/api/v2/push/send', {
+        await axios.post('https://exp.host/--/api/v2/push/send', {
             to: pushToken,
-            title,
-            body,
             // priority:'high' -> FCM'e yüksek öncelikli mesaj olarak iletilir, Android'in pil
-            // tasarrufu/Doze modunda teslimatı geciktirmesini engeller. Bu olmadan mesaj push'ları
-            // bazı cihazlarda (özellikle agresif pil yönetimi olan Xiaomi/MIUI gibi) dakikalarca
-            // gecikebiliyor veya hiç teslim edilmeyebiliyordu.
+            // tasarrufu/Doze modunda teslimatı geciktirmesini engeller.
             priority: 'high',
-            sound: notificationMode === 'SOUND' ? 'default' : null,
-            channelId: CHANNEL_BY_MODE[notificationMode] || 'default',
-            // Bildirim aksiyon butonları (Okundu İşaretle/Cevapla) artık native tarafta
-            // (mobile/modules/notif-actions) uçtan uca kendi kodumuzla inşa ediliyor,
-            // expo-notifications'a bağımlı değil — bkz. NotifActionsMessagingService.kt.
-            categoryId: 'message_notification',
-            data: { type: 'MESSAGE', ...data },
+            // KASITLI OLARAK top-level title/body YOK: Expo bunları verince FCM tarafında bir
+            // "notification" alanı oluşturuyor, ve Android uygulama arka plandayken/kapalıyken bu
+            // tür mesajları onMessageReceived'e HİÇ iletmeden OS'un kendi otomatik bildirimiyle
+            // gösteriyor (bu yüzden Okundu İşaretle/Cevapla butonları hiç eklenemiyordu). Saf
+            // "data" mesajı göndererek onMessageReceived'in HER uygulama durumunda (foreground/
+            // background/kapalı) çalışmasını garantiliyoruz; bildirimi native tarafta
+            // (NotifActionsMessagingService.kt) biz inşa ediyoruz.
+            data: {
+                type: 'MESSAGE',
+                title,
+                message: body,
+                channelId: CHANNEL_BY_MODE[notificationMode] || 'default',
+                ...data,
+            },
         }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
-        console.log('[push] DEBUG2 expo response:', JSON.stringify(debugRes2.data));
-    } catch (e) { console.log('[push] DEBUG2 send FAILED:', e.message, e.response?.data ? JSON.stringify(e.response.data) : ''); }
+    } catch { /* push failure is non-critical */ }
 }
 
 export const getConversations = async (req, res, next) => {
@@ -270,7 +271,6 @@ export const sendMessage = async (req, res, next) => {
 
         prisma.conversation.update({ where: { id: conv.id }, data: { updatedAt: new Date() } }).catch(() => {});
 
-        console.log('[push] DEBUG3 receiverId:', receiverId, 'muted:', muted, 'hasToken:', !!receiver?.pushToken, 'tokenPrefix:', receiver?.pushToken?.substring(0, 30));
         // Karşı taraf bu sohbeti sessize almışsa (bkz. muteConversation) ne push ne de
         // zil bildirimi gönderilir — Mesajlar sekmesindeki okunmamış rozeti yeterlidir.
         if (muted) return;
