@@ -3380,16 +3380,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </View>
                                 );
                             })() : joinRequests.filter(jr => jr.initiatedBy !== 'OWNER')
-                                .slice()
-                                .sort((a, b) => {
-                                    const fits = (jr) => {
-                                        if (!genderReq || genderReq === 'MIX') return true;
-                                        const g = jr.user?.gender;
-                                        if (!g || g === 'OTHER') return true;
-                                        return g === genderReq;
-                                    };
-                                    return fits(a) === fits(b) ? 0 : fits(a) ? -1 : 1;
-                                })
+                                // Kullanıcı isteği: istekler her zaman istek atma sırasına göre
+                                // gösterilir — backend zaten createdAt artan sırayla döndürüyor,
+                                // burada ayrıca cinsiyet uygunluğuna göre öne alma kaldırıldı.
                                 .map(jr => (
                                 <View key={jr.id} style={det.playerRow}>
                                     <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
