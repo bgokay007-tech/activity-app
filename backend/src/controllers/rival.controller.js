@@ -2142,6 +2142,17 @@ export const createRivalRequest = async (req, res, next) => {
 
         const creatorInterest = await requireActiveInterest(creatorId, category, subCategory, matchType?.toUpperCase());
 
+        // Kullanıcı raporu: aynı kişi aynı tarih/saatte (dal farketmeksizin — ör. hem tenis hem
+        // voleybol) birden fazla ilan/maça sahip olabiliyordu, fiziksel olarak imkansız olmasına
+        // rağmen. sendJoinRequest'teki AYNI kontrol (findSchedulingConflict, aşağıda tanımlı) —
+        // önceden sadece KATILMA anında çalışıyordu, İLAN OLUŞTURMA anında hiç yoktu.
+        if (!flexibleSchedule && matchDate && matchTime) {
+            const conflict = await findSchedulingConflict(creatorId, matchDate, matchTime, req.body.duration ? Number(req.body.duration) : null, null);
+            if (conflict) {
+                return res.status(400).json({ message: `${conflict.matchTime} saatinde "${subCategoryTR(conflict.subCategory)}" için zaten bir ilanınız/maçınız var — aynı anda başka bir maç için ilan açamazsınız.` });
+            }
+        }
+
         // İlan sahibi kendi derece puanının dışında kalan bir aralık kısıtlaması koyamaz —
         // ör. kendi puanı 1.20 iken erkekler için 3-3.5 aralığı açması anlamsız, çünkü
         // kendisi zaten kurucu olarak maçın içinde ve bu kontrolden muaf tutuluyordu.
@@ -2967,7 +2978,11 @@ export const getRivalRequests = async (req, res, next) => {
 };
 
 // Kullanıcının aynı gün, çakışan saatte (hakem olsun oyuncu olsun, spor farketmeksizin)
-// zaten kesinleşmiş (MATCHED) bir maçı/hakemliği var mı — varsa çakışma bilgisini döner.
+// zaten bir maçı/ilanı/hakemliği var mı — varsa çakışma bilgisini döner. Kullanıcı raporu:
+// "aynı tarih/saatte hem tenis hem voleybol maçım oluyor" — MATCHED (kesinleşmiş) maçlarla
+// birlikte artık henüz eşleşmemiş OPEN ilanlar da (kurucusu/katılımcısı olarak) sayılıyor;
+// zaten dolu olmayan bir ilan bile "o saatte oynamayı planlıyorum" demektir, aynı saate
+// ikinci bir ilan/katılım anlamsız ve fiziksel olarak imkansız.
 async function findSchedulingConflict(userId, matchDate, matchTime, duration, excludeId) {
     if (!matchDate || !matchTime) return null; // esnek programda saat belli olmadığından kontrol edilemez
     const dateStr = new Date(matchDate).toISOString().slice(0, 10);
@@ -2981,17 +2996,18 @@ async function findSchedulingConflict(userId, matchDate, matchTime, duration, ex
     const sameDay = await prisma.activityRequest.findMany({
         where: {
             id: { not: excludeId },
-            status: 'MATCHED',
+            status: { in: ['OPEN', 'MATCHED'] },
             matchDate: { gte: dayStart, lte: dayEnd },
             matchTime: { not: null },
         },
-        select: { subCategory: true, matchTime: true, duration: true, participants: true, senderTeam: true, senderId: true, refereeId: true },
+        select: { subCategory: true, matchTime: true, duration: true, participants: true, senderTeam: true, unassignedPlayers: true, senderId: true, refereeId: true },
     });
 
     for (const cand of sameDay) {
         const isMine = cand.senderId === userId || cand.refereeId === userId
             || (Array.isArray(cand.participants) && cand.participants.some(p => p?.id === userId))
-            || (Array.isArray(cand.senderTeam) && cand.senderTeam.some(p => p?.id === userId));
+            || (Array.isArray(cand.senderTeam) && cand.senderTeam.some(p => p?.id === userId))
+            || (Array.isArray(cand.unassignedPlayers) && cand.unassignedPlayers.some(p => p?.id === userId));
         if (!isMine) continue;
         const [ch, cm] = cand.matchTime.split(':').map(Number);
         const cStart = ch * 60 + cm;
