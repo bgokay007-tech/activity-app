@@ -568,7 +568,7 @@ export default function Navigation() {
         Notifications.setNotificationCategoryAsync('default_notification', [
             {
                 identifier: 'MARK_READ',
-                buttonTitle: lang === 'tr' ? 'Okundu İşaretle' : lang === 'ru' ? 'Отметить как прочитанное' : 'Mark as read',
+                buttonTitle: lang === 'tr' ? 'Okundu İşaretle' : lang === 'ru' ? 'Отметить как прочитанное' : lang === 'de' ? 'Als gelesen markieren' : 'Mark as read',
                 options: { opensAppToForeground: false },
             },
         ]).then(r => console.log('[push] category default_notification registered:', JSON.stringify(r)))
@@ -576,15 +576,15 @@ export default function Navigation() {
         Notifications.setNotificationCategoryAsync('message_notification', [
             {
                 identifier: 'MARK_READ',
-                buttonTitle: lang === 'tr' ? 'Okundu İşaretle' : lang === 'ru' ? 'Отметить как прочитанное' : 'Mark as read',
+                buttonTitle: lang === 'tr' ? 'Okundu İşaretle' : lang === 'ru' ? 'Отметить как прочитанное' : lang === 'de' ? 'Als gelesen markieren' : 'Mark as read',
                 options: { opensAppToForeground: false },
             },
             {
                 identifier: 'REPLY',
-                buttonTitle: lang === 'tr' ? 'Cevapla' : lang === 'ru' ? 'Ответить' : 'Reply',
+                buttonTitle: lang === 'tr' ? 'Cevapla' : lang === 'ru' ? 'Ответить' : lang === 'de' ? 'Antworten' : 'Reply',
                 textInput: {
-                    submitButtonTitle: lang === 'tr' ? 'Gönder' : lang === 'ru' ? 'Отправить' : 'Send',
-                    placeholder: lang === 'tr' ? 'Mesaj yaz...' : lang === 'ru' ? 'Введите сообщение...' : 'Type a message...',
+                    submitButtonTitle: lang === 'tr' ? 'Gönder' : lang === 'ru' ? 'Отправить' : lang === 'de' ? 'Senden' : 'Send',
+                    placeholder: lang === 'tr' ? 'Mesaj yaz...' : lang === 'ru' ? 'Введите сообщение...' : lang === 'de' ? 'Nachricht schreiben...' : 'Type a message...',
                 },
                 options: { opensAppToForeground: false },
             },

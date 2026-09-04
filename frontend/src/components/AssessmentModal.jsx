@@ -143,10 +143,10 @@ export default function AssessmentModal({ interestId, subCategory, categoryColor
                 {needsPositionPick ? (
                     <div className="flex-1 overflow-y-auto px-6 py-6">
                         <p className="text-white font-bold text-lg mb-1">
-                            {lang === 'tr' ? 'Hangi mevkide oynuyorsun?' : lang === 'ru' ? 'На какой позиции ты играешь?' : 'Which position do you play?'}
+                            {lang === 'tr' ? 'Hangi mevkide oynuyorsun?' : lang === 'ru' ? 'На какой позиции ты играешь?' : lang === 'de' ? 'Auf welcher Position spielst du?' : 'Which position do you play?'}
                         </p>
                         <p className="text-gray-500 text-sm mb-5">
-                            {lang === 'tr' ? 'Sorular seçtiğin mevkiye göre özelleştirilecek.' : lang === 'ru' ? 'Вопросы будут адаптированы под выбранную позицию.' : 'Questions will be tailored to your position.'}
+                            {lang === 'tr' ? 'Sorular seçtiğin mevkiye göre özelleştirilecek.' : lang === 'ru' ? 'Вопросы будут адаптированы под выбранную позицию.' : lang === 'de' ? 'Die Fragen werden auf deine Position zugeschnitten.' : 'Questions will be tailored to your position.'}
                         </p>
                         <div className="space-y-2.5">
                             {positions.map(pos => (

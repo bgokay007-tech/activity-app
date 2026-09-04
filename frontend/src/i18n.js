@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next';
 import en from './locales/en.json';
 import tr from './locales/tr.json';
 import ru from './locales/ru.json';
+import de from './locales/de.json';
 
 const saved = localStorage.getItem('activity_lang') || 'en';
 
@@ -13,6 +14,7 @@ i18n
             en: { translation: en },
             tr: { translation: tr },
             ru: { translation: ru },
+            de: { translation: de },
         },
         lng: saved,
         fallbackLng: 'en',
