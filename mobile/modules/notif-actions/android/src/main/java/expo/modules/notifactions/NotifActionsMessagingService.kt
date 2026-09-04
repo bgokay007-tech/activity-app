@@ -107,6 +107,18 @@ private fun showNotification(
         .setAutoCancel(true)
         .setContentIntent(contentPendingIntent)
 
+    if (isMessage) {
+        // MessagingStyle olmadan MIUI (ve bazi diger OEM kabuklari) RemoteInput'lu "Cevapla"
+        // aksiyonu gordugunde bildirimi kendi hizli-yanit UI'siyla degistirip DIGER aksiyonlari
+        // (Okundu Isaretle) daraltilmis/kapali gorunumde gizliyordu. MessagingStyle + CATEGORY_MESSAGE,
+        // Android'in mesajlasma bildirimleri icin resmi/standart sekli oldugundan OEM'ler
+        // tarafindan daha tutarli destekleniyor -- iki aksiyon da butun cihazlarda gorunur oluyor.
+        @Suppress("DEPRECATION")
+        val style = Notification.MessagingStyle(if (isTurkish) "Sen" else "You")
+            .addMessage(body, System.currentTimeMillis(), title)
+        builder.setStyle(style).setCategory(Notification.CATEGORY_MESSAGE)
+    }
+
     val conversationId = data["conversationId"]
     // Mesaj bildirimlerinde notificationId YOK (Bildirimler ekranına ayrıca satır düşmesin diye
     // backend orada hiç Notification satırı oluşturmuyor) — bu durumda "Okundu İşaretle"
