@@ -72,12 +72,13 @@ async function respondMutualCancels() {
 
 // Kullanıcı isteği: "botlar skorları otomatik onaylamaya ayarlı olsun test için kullanıyorum
 // sonuçta botları" — skoru rakip taraf (scoreEnteredBy'ın olmadığı taraf) girdi, o tarafta
-// demo bot varsa 20 saniye sonra bot onaylar. Onay TEK kişilik yeterli (bkz. confirmScore),
-// bu yüzden karşı taraftaki ilk demo bot yeterli.
+// demo bot varsa bot onaylar. Onay TEK kişilik yeterli (bkz. confirmScore), bu yüzden karşı
+// taraftaki ilk demo bot yeterli. Diğer bot davranışlarının (davet/karşılıklı iptal) aksine
+// burada gecikme YOK — kullanıcı aktif test ederken 20sn beklemek istemiyor, bir sonraki 5sn'lik
+// tick'te (bkz. tick() altta) direkt onaylanır.
 async function respondPendingScores() {
-    const cutoff = new Date(Date.now() - AUTO_RESPOND_DELAY_MS);
     const pending = await prisma.activityRequest.findMany({
-        where: { scoreStatus: 'PENDING', completedAt: { lte: cutoff } },
+        where: { scoreStatus: 'PENDING' },
         select: { id: true, senderId: true, senderTeam: true, participants: true, scoreEnteredBy: true },
     });
     for (const rival of pending) {
