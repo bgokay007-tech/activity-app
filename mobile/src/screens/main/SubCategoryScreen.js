@@ -6872,14 +6872,21 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         </Animated.View>
 
         {/* Full-screen Detail Modal */}
-        <Modal visible={showDetail} animationType="slide" onRequestClose={() => setShowDetail(false)}>
+        <Modal visible={showDetail} animationType="slide" android_keyboardInputMode="adjustNothing" onRequestClose={() => {
+            // Kullanıcı isteği: skor formu açıkken telefonun geri tuşuna/gestüre basınca
+            // detaydan tamamen çıkılmasın, sadece skor formu kapanıp detayda kalınsın —
+            // "Skor Gir ve Medya Paylaş" yapacakken yanlışlıkla geri tuşuna basılırsa form
+            // hâlâ açık kalıyormuş gibi görünen kafa karışıklığının kaynağı buydu.
+            if (showScore) { setShowScore(false); return; }
+            setShowDetail(false);
+        }}>
             <View style={{ flex:1, backgroundColor: colors.bg }}>
                 {/* Header — kullanıcı isteği: Açık İlanlar'daki (RivalDetailModal) header'la
                     BİREBİR aynı boşluk/yazı boyutu değerleri (aynı "stil" hissi). */}
                 <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:5,
                     paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(14),
                     borderBottomWidth:1, borderBottomColor: colors.border }}>
-                    <TouchableOpacity onPress={() => setShowDetail(false)} style={{ marginRight:14, padding:1 }}>
+                    <TouchableOpacity onPress={() => (showScore ? setShowScore(false) : setShowDetail(false))} style={{ marginRight:14, padding:1 }}>
                         <Text style={{ color:'#fff', fontSize:moderateScale(22), fontWeight:'300' }}>←</Text>
                     </TouchableOpacity>
                     <View style={{ flex:1 }}>
@@ -6890,6 +6897,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     </View>
                 </View>
 
+                {/* Kullanıcı isteği: skor girerken açılan klavye, alttaki set giriş kutularını/
+                    kaydet butonunu kapatıyordu — android_keyboardInputMode="adjustNothing" ile
+                    Android'in kendiliğinden yeniden boyutlandırmasını kapatıp yerine bunu
+                    kullanıyoruz (bkz. RivalDetailModal'daki aynı desen, ekran-guvenli-alan.md). */}
+                <KeyboardAvoidingView behavior="padding" style={{ flex:1 }}>
                 {/* paddingBottom sadece 5 sabitti — "Medya" bölümünün ok işareti (gizle/aç) gibi
                     listenin en altındaki dokunulabilir öğeler telefonun ekrana gömülü alt
                     dokunmatik tuşlarıyla çakışıp basılamıyordu (kullanıcı raporu). */}
@@ -8382,6 +8394,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )
                     )}
                 </ScrollView>
+                </KeyboardAvoidingView>
             </View>
         </Modal>
 
