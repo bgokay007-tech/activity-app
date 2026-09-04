@@ -6472,54 +6472,76 @@ export const assignDoubleSlot = async (req, res, next) => {
         const { userId, slot } = req.body; // slot: 'partner' | 'opp1' | 'opp2' | null (null = atanmamışa geri al)
         if (![null, 'partner', 'opp1', 'opp2'].includes(slot)) return res.status(400).json({ message: 'Geçersiz slot' });
 
-        const rival = await prisma.activityRequest.findUnique({ where: { id } });
-        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
-        if (rival.matchType !== 'DOUBLE') return res.status(400).json({ message: 'Bu işlem sadece çiftler ilanlarında yapılabilir' });
-        const isOwner = rival.senderId === req.userId;
-        if (!isOwner && req.userId !== userId) return res.status(403).json({ message: 'Sadece ilan sahibi ya da kendiniz atama yapabilir' });
-        if (userId === rival.senderId) return res.status(400).json({ message: 'İlan sahibi taşınamaz' });
+        // Kullanıcı raporu: art arda hızlıca iki oyuncu taşınınca (ör. birini "karşıya taşı",
+        // hemen ardından "atanmamış"tan birini "takımlara ata") ikinci işlem bazen sessizce
+        // kayboluyordu — ikisi de AYNI ilanın eski (findUnique anındaki) kopyasını okuyup kendi
+        // hesapladığı senderTeam/participants/unassignedPlayers'ı YAZIYORDU, geç biten önceki
+        // işlemin sonucunu sessizce eziyordu (klasik "lost update" — hiçbir hata da dönmüyordu).
+        // Serializable izolasyonlu transaction + çakışmada tek seferlik yeniden deneme bunu
+        // önler: Postgres iki işlem aynı satırı çakışacak şekilde değiştirmeye çalışınca birini
+        // P2034 ile reddeder, o da baştan (GÜNCEL veriyle) tekrar dener.
+        let updated;
+        let attempt = 0;
+        while (true) {
+            attempt++;
+            try {
+                updated = await prisma.$transaction(async (tx) => {
+                    const rival = await tx.activityRequest.findUnique({ where: { id } });
+                    if (!rival) { const e = new Error('İlan bulunamadı'); e.status = 404; throw e; }
+                    if (rival.matchType !== 'DOUBLE') { const e = new Error('Bu işlem sadece çiftler ilanlarında yapılabilir'); e.status = 400; throw e; }
+                    const isOwner = rival.senderId === req.userId;
+                    if (!isOwner && req.userId !== userId) { const e = new Error('Sadece ilan sahibi ya da kendiniz atama yapabilir'); e.status = 403; throw e; }
+                    if (userId === rival.senderId) { const e = new Error('İlan sahibi taşınamaz'); e.status = 400; throw e; }
 
-        const senderTeam = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
-        const participants = Array.isArray(rival.participants) ? rival.participants : [];
-        const unassigned = Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : [];
-        const player = senderTeam.find(p => p?.id === userId) || participants.find(p => p?.id === userId) || unassigned.find(p => p?.id === userId);
-        if (!player) return res.status(404).json({ message: 'Oyuncu bu ilanda bulunamadı' });
+                    const senderTeam = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+                    const participants = Array.isArray(rival.participants) ? rival.participants : [];
+                    const unassigned = Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : [];
+                    const player = senderTeam.find(p => p?.id === userId) || participants.find(p => p?.id === userId) || unassigned.find(p => p?.id === userId);
+                    if (!player) { const e = new Error('Oyuncu bu ilanda bulunamadı'); e.status = 404; throw e; }
 
-        // Kendini atayan kişi (owner değilse) sadece atanmamışken hareket edebilir —
-        // zaten yerleşmiş birini owner dışında kimse oynatamaz.
-        const alreadyPlaced = senderTeam.some(p => p?.id === userId) || participants.some(p => p?.id === userId);
-        if (!isOwner && alreadyPlaced) return res.status(403).json({ message: 'Zaten bir slottasınız, yerinizi sadece ilan sahibi değiştirebilir' });
+                    // Kendini atayan kişi (owner değilse) sadece atanmamışken hareket edebilir —
+                    // zaten yerleşmiş birini owner dışında kimse oynatamaz.
+                    const alreadyPlaced = senderTeam.some(p => p?.id === userId) || participants.some(p => p?.id === userId);
+                    if (!isOwner && alreadyPlaced) { const e = new Error('Zaten bir slottasınız, yerinizi sadece ilan sahibi değiştirebilir'); e.status = 403; throw e; }
 
-        if (slot) {
-            const gReq = slot === 'partner' ? rival.partnerGenderReq : slot === 'opp1' ? rival.opp1GenderReq : rival.opp2GenderReq;
-            const occupant = slot === 'partner' ? senderTeam[0] : slot === 'opp1' ? participants[0] : participants[1];
-            if (occupant?.id && occupant.id !== userId) {
-                return res.status(400).json({ message: `${slot === 'partner' ? 'Takım Arkadaşı' : slot === 'opp1' ? 'Rakip 1' : 'Rakip 2'} slotu zaten dolu` });
-            }
-            if (gReq && gReq !== 'MIX') {
-                const gUser = await prisma.user.findUnique({ where: { id: userId }, select: { gender: true } });
-                if (gUser?.gender !== 'OTHER') {
-                    if (!gUser?.gender) return res.status(400).json({ message: 'Bu oyuncunun profilinde cinsiyet bilgisi girilmemiş, bu yüzden cinsiyete özel bir slota atanamıyor.' });
-                    if (gUser.gender !== gReq) return res.status(400).json({ message: `Bu slot için ilan yalnızca ${gReq === 'MALE' ? 'erkek' : 'kadın'} oyuncular kabul ediyor.` });
-                }
+                    if (slot) {
+                        const gReq = slot === 'partner' ? rival.partnerGenderReq : slot === 'opp1' ? rival.opp1GenderReq : rival.opp2GenderReq;
+                        const occupant = slot === 'partner' ? senderTeam[0] : slot === 'opp1' ? participants[0] : participants[1];
+                        if (occupant?.id && occupant.id !== userId) {
+                            const e = new Error(`${slot === 'partner' ? 'Takım Arkadaşı' : slot === 'opp1' ? 'Rakip 1' : 'Rakip 2'} slotu zaten dolu`); e.status = 400; throw e;
+                        }
+                        if (gReq && gReq !== 'MIX') {
+                            const gUser = await tx.user.findUnique({ where: { id: userId }, select: { gender: true } });
+                            if (gUser?.gender !== 'OTHER') {
+                                if (!gUser?.gender) { const e = new Error('Bu oyuncunun profilinde cinsiyet bilgisi girilmemiş, bu yüzden cinsiyete özel bir slota atanamıyor.'); e.status = 400; throw e; }
+                                if (gUser.gender !== gReq) { const e = new Error(`Bu slot için ilan yalnızca ${gReq === 'MALE' ? 'erkek' : 'kadın'} oyuncular kabul ediyor.`); e.status = 400; throw e; }
+                            }
+                        }
+                    }
+
+                    const nextSenderTeam = senderTeam.filter(p => p?.id !== userId);
+                    const nextParticipants = [participants[0]?.id === userId ? null : participants[0] || null, participants[1]?.id === userId ? null : participants[1] || null];
+                    const nextUnassigned = unassigned.filter(p => p?.id !== userId);
+                    if (slot === 'partner') nextSenderTeam.push(player);
+                    else if (slot === 'opp1') nextParticipants[0] = player;
+                    else if (slot === 'opp2') nextParticipants[1] = player;
+                    else nextUnassigned.push(player);
+
+                    return tx.activityRequest.update({
+                        where: { id },
+                        data: { senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned },
+                        include: { sender: { select: SENDER_SELECT } },
+                    });
+                }, { isolationLevel: 'Serializable' });
+                break;
+            } catch (err) {
+                if (err.code === 'P2034' && attempt < 3) continue; // çakışma — güncel veriyle tekrar dene
+                if (err.status) return res.status(err.status).json({ message: err.message });
+                throw err;
             }
         }
 
-        const nextSenderTeam = senderTeam.filter(p => p?.id !== userId);
-        const nextParticipants = [participants[0]?.id === userId ? null : participants[0] || null, participants[1]?.id === userId ? null : participants[1] || null];
-        const nextUnassigned = unassigned.filter(p => p?.id !== userId);
-        if (slot === 'partner') nextSenderTeam.push(player);
-        else if (slot === 'opp1') nextParticipants[0] = player;
-        else if (slot === 'opp2') nextParticipants[1] = player;
-        else nextUnassigned.push(player);
-
-        let updated = await prisma.activityRequest.update({
-            where: { id },
-            data: { senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned },
-            include: { sender: { select: SENDER_SELECT } },
-        });
         updated = await enrichRivalWithRatings(updated);
-
         broadcast('rivalUpdate', updated);
         emitToUser(userId, 'rivalUpdate', updated);
         res.json(updated);
