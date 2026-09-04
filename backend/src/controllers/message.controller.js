@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import axios from 'axios';
-import { emitToUser } from '../config/socket.js';
+import { emitToUser, isViewingConversation } from '../config/socket.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -274,6 +274,9 @@ export const sendMessage = async (req, res, next) => {
         // Karşı taraf bu sohbeti sessize almışsa (bkz. muteConversation) ne push ne de
         // zil bildirimi gönderilir — Mesajlar sekmesindeki okunmamış rozeti yeterlidir.
         if (muted) return;
+        // Karşı taraf zaten bu sohbeti ekranda açık tutuyorsa push atılmaz -- mesaj yukarıda
+        // socket ile zaten anlık düştü, üstten de bildirim gelmesi gereksiz bilgi kirliliği olurdu.
+        if (isViewingConversation(receiverId, conv.id)) return;
 
         const notifBody = content?.trim() ? content.trim().slice(0, 100) : (message.imageUrl ? '📷 Fotoğraf' : message.audioUrl ? '🎤 Sesli mesaj' : '');
         const senderUsername = sender?.username;

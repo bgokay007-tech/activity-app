@@ -2,7 +2,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import app from './app.js';
 import { PORT, CLIENT_URL } from './config/env.js';
-import { setIO } from './config/socket.js';
+import { setIO, setActiveConversation } from './config/socket.js';
 import { registerBatakHandlers } from './sockets/batak.js';
 import { registerOkeyHandlers } from './sockets/okey.js';
 import { registerTavlaHandlers } from './sockets/tavla.js';
@@ -118,6 +118,14 @@ io.on('connection', (socket) => {
     registerChessHandlers(io, socket);
     registerFriendFindingLiveHandlers(io, socket);
 
+    socket.on('conversation:open', (conversationId) => {
+        if (userId && conversationId) setActiveConversation(userId, conversationId);
+    });
+
+    socket.on('conversation:close', () => {
+        if (userId) setActiveConversation(userId, null);
+    });
+
     socket.on('presence:query', (userIds, cb) => {
         if (typeof cb !== 'function') return;
         const ids = Array.isArray(userIds) ? userIds : [];
@@ -127,7 +135,7 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         if (!userId) return;
         const count = (onlineUsers.get(userId) || 1) - 1;
-        if (count <= 0) { onlineUsers.delete(userId); io.emit('presence:changed', { userId, online: false }); }
+        if (count <= 0) { onlineUsers.delete(userId); io.emit('presence:changed', { userId, online: false }); setActiveConversation(userId, null); }
         else onlineUsers.set(userId, count);
     });
 });

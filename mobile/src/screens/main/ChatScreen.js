@@ -7,7 +7,7 @@ import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
-import { onSocket } from '../../services/socket';
+import { onSocket, getSocket, onSocketReconnect } from '../../services/socket';
 
 function Avatar({ user, size = 36 }) {
     return (
@@ -258,6 +258,7 @@ export default function ChatScreen({ route, navigation }) {
                     convIdRef.current = id;
                 }
                 if (id) {
+                    getSocket()?.emit('conversation:open', id);
                     await loadInitial(id);
                     setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
                 }
@@ -277,7 +278,18 @@ export default function ChatScreen({ route, navigation }) {
             refreshRecent(convIdRef.current);
         }, 10000);
 
-        return () => clearInterval(pollRef.current);
+        return () => {
+            clearInterval(pollRef.current);
+            getSocket()?.emit('conversation:close');
+        };
+    }, []);
+
+    // Bağlantı kopup yeniden kurulunca (arka planda/tünel kesintisi) backend'deki
+    // "şu an açık sohbet" bilgisi sıfırlanmış olur -- soket geri gelince tazeden bildir.
+    useEffect(() => {
+        return onSocketReconnect(() => {
+            if (convIdRef.current) getSocket()?.emit('conversation:open', convIdRef.current);
+        });
     }, []);
 
     // Socket ile gerçek zamanlı mesaj al
