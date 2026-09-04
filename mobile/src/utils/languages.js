@@ -2,6 +2,7 @@
 export const LANGUAGES = [
     { code: 'en', label: 'English', flag: '🇬🇧' },
     { code: 'tr', label: 'Türkçe', flag: '🇹🇷' },
+    { code: 'ru', label: 'Русский', flag: '🇷🇺' },
 ].sort((a, b) => a.label.localeCompare(b.label));
 
 export function getLanguageLabel(code) {

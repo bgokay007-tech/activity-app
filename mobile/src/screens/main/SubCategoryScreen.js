@@ -121,11 +121,11 @@ const FOOTBALL_SURFACES = [
 ];
 // Voleybolde bu alan "zemin" değil, dalın türünü seçtiriyor.
 const VOLLEYBALL_SURFACES = [
-    { id: 'INDOOR', label: 'Salon Voleybolu',    labelEn: 'Indoor Volleyball',  emoji: '🏟️' },
-    { id: 'BEACH',  label: 'Plaj Voleybolu',     labelEn: 'Beach Volleyball',   emoji: '🏖️' },
-    { id: 'GRASS',  label: 'Çimde Voleybol',     labelEn: 'Grass Volleyball',   emoji: '🌿' },
-    { id: 'STREET', label: 'Mahallede Voleybol', labelEn: 'Street Volleyball',  emoji: '🏘️' },
-    { id: 'CLAY',   label: 'Toprakta Voleybol',  labelEn: 'Clay Volleyball',    emoji: '🟤' },
+    { id: 'INDOOR', label: 'Salon Voleybolu',    labelEn: 'Indoor Volleyball',  labelRu: 'Волейбол в зале',    emoji: '🏟️' },
+    { id: 'BEACH',  label: 'Plaj Voleybolu',     labelEn: 'Beach Volleyball',   labelRu: 'Пляжный волейбол',   emoji: '🏖️' },
+    { id: 'GRASS',  label: 'Çimde Voleybol',     labelEn: 'Grass Volleyball',   labelRu: 'Волейбол на траве',  emoji: '🌿' },
+    { id: 'STREET', label: 'Mahallede Voleybol', labelEn: 'Street Volleyball',  labelRu: 'Дворовый волейбол',  emoji: '🏘️' },
+    { id: 'CLAY',   label: 'Toprakta Voleybol',  labelEn: 'Clay Volleyball',    labelRu: 'Волейбол на грунте', emoji: '🟤' },
 ];
 // "Kort" yerine hangi voleybol türü seçildiyse onun kısa adı gösterilsin diye (ör. "Salon/Saat",
 // "Plaj/Saat") — kullanıcı isteği. VOLLEYBALL_VENUE_NOUN'daki uzun ("Voleybol Salonu" gibi)
@@ -183,34 +183,34 @@ const TIME_OPTS = (() => {
 })();
 
 const SUB_CONFIG = {
-    tennis:     { name:'Tennis',     nameTR:'Tenis',      emoji:'🎾', color: colors.yellow  || '#eab308' },
-    padel:      { name:'Padel',      nameTR:'Padel',      emoji:'🏓', color: colors.cyan    || '#06b6d4' },
-    badminton:  { name:'Badminton',  nameTR:'Badminton',  emoji:'🏸', color:'#0d9488' },
-    table_tennis: { name:'Table Tennis', nameTR:'Masa Tenisi', emoji:'🏓', color:'#1d4ed8' },
-    football:   { name:'Football',   nameTR:'Futbol',     emoji:'⚽', color: colors.green   || '#16a34a' },
-    basketball: { name:'Basketball', nameTR:'Basketbol',  emoji:'🏀', color:'#f97316' },
-    volleyball: { name:'Volleyball', nameTR:'Voleybol',   emoji:'🏐', color:'#a855f7' },
-    airsoft:        { name:'Airsoft',        nameTR:'Airsoft',         emoji:'🪖', color:'#65a30d' },
-    archery:        { name:'Archery',        nameTR:'Okçuluk',         emoji:'🏹', color:'#b45309' },
-    camping:        { name:'Camping',        nameTR:'Kamp',            emoji:'🏕️', color:'#059669' },
-    climbing:       { name:'Climbing',       nameTR:'Tırmanış',        emoji:'🧗', color:'#dc2626' },
-    equestrian:     { name:'Equestrian',     nameTR:'Binicilik',       emoji:'🐎', color:'#92400e' },
-    extreme_sports: { name:'Extreme Sports', nameTR:'Ekstrem Sporlar', emoji:'🪂', color:'#e11d48' },
-    fitness_gym:    { name:'Fitness & Gym',  nameTR:'Fitness & Spor Salonu', emoji:'🏋️', color:'#f97316' },
-    foot_tennis:    { name:'Foot Tennis',    nameTR:'Ayak Tenisi',     emoji:'🦶', color:'#0891b2' },
-    paintball:      { name:'Paintball',      nameTR:'Paintball',       emoji:'🔫', color:'#7c3aed' },
-    sup_kano:       { name:'SUP & Canoe',    nameTR:'SUP & Kano',      emoji:'🛶', color:'#0284c7' },
-    running:        { name:'Running',        nameTR:'Koşu',            emoji:'🏃', color:'#16a34a' },
-    walking:        { name:'Walking',        nameTR:'Yürüyüş',         emoji:'🚶', color:'#0d9488' },
-    hiking:         { name:'Hiking',         nameTR:'Doğa Yürüyüşü',   emoji:'🥾', color:'#65a30d' },
-    wellness:         { name:'Yoga / Pilates / Reformer', nameTR:'Yoga / Pilates / Reformer', emoji:'🧘',  color:'#8b5cf6' },
-    shooting_hunting: { name:'Shooting & Hunting',        nameTR:'Atıcılık & Avcılık',         emoji:'🔫',  color:'#57534e' },
-    golf:             { name:'Golf',                      nameTR:'Golf',                       emoji:'⛳',  color:'#15803d' },
-    skiing_snowboard: { name:'Skiing & Snowboard',        nameTR:'Kayak & Snowboard',           emoji:'⛷️', color:'#0ea5e9' },
-    ice_skating:      { name:'Ice Skating',                nameTR:'Buz Pateni',                 emoji:'⛸️', color:'#0891b2' },
-    motorcycle:       { name:'Motorcycle Riding',          nameTR:'Motosiklet',                 emoji:'🏍️', color:'#b91c1c' },
-    sanal_alem:     { name:'Virtual World',  nameTR:'Sanal Alem',     emoji:'🌐', color:'#ec4899' },
-    default:    { name:'Sport',      nameTR:'Spor',       emoji:'🏅', color: colors.purple },
+    tennis:     { name:'Tennis',     nameTR:'Tenis',      nameRu:'Теннис',                      emoji:'🎾', color: colors.yellow  || '#eab308' },
+    padel:      { name:'Padel',      nameTR:'Padel',      nameRu:'Падел',                       emoji:'🏓', color: colors.cyan    || '#06b6d4' },
+    badminton:  { name:'Badminton',  nameTR:'Badminton',  nameRu:'Бадминтон',                   emoji:'🏸', color:'#0d9488' },
+    table_tennis: { name:'Table Tennis', nameTR:'Masa Tenisi', nameRu:'Настольный теннис',      emoji:'🏓', color:'#1d4ed8' },
+    football:   { name:'Football',   nameTR:'Futbol',     nameRu:'Футбол',                      emoji:'⚽', color: colors.green   || '#16a34a' },
+    basketball: { name:'Basketball', nameTR:'Basketbol',  nameRu:'Баскетбол',                   emoji:'🏀', color:'#f97316' },
+    volleyball: { name:'Volleyball', nameTR:'Voleybol',   nameRu:'Волейбол',                    emoji:'🏐', color:'#a855f7' },
+    airsoft:        { name:'Airsoft',        nameTR:'Airsoft',         nameRu:'Страйкбол',                     emoji:'🪖', color:'#65a30d' },
+    archery:        { name:'Archery',        nameTR:'Okçuluk',         nameRu:'Стрельба из лука',              emoji:'🏹', color:'#b45309' },
+    camping:        { name:'Camping',        nameTR:'Kamp',            nameRu:'Кемпинг',                       emoji:'🏕️', color:'#059669' },
+    climbing:       { name:'Climbing',       nameTR:'Tırmanış',        nameRu:'Скалолазание',                  emoji:'🧗', color:'#dc2626' },
+    equestrian:     { name:'Equestrian',     nameTR:'Binicilik',       nameRu:'Конный спорт',                  emoji:'🐎', color:'#92400e' },
+    extreme_sports: { name:'Extreme Sports', nameTR:'Ekstrem Sporlar', nameRu:'Экстремальные виды спорта',     emoji:'🪂', color:'#e11d48' },
+    fitness_gym:    { name:'Fitness & Gym',  nameTR:'Fitness & Spor Salonu', nameRu:'Фитнес и тренажёрный зал', emoji:'🏋️', color:'#f97316' },
+    foot_tennis:    { name:'Foot Tennis',    nameTR:'Ayak Tenisi',     nameRu:'Футтеннис',                     emoji:'🦶', color:'#0891b2' },
+    paintball:      { name:'Paintball',      nameTR:'Paintball',       nameRu:'Пейнтбол',                      emoji:'🔫', color:'#7c3aed' },
+    sup_kano:       { name:'SUP & Canoe',    nameTR:'SUP & Kano',      nameRu:'SUP и каноэ',                   emoji:'🛶', color:'#0284c7' },
+    running:        { name:'Running',        nameTR:'Koşu',            nameRu:'Бег',                           emoji:'🏃', color:'#16a34a' },
+    walking:        { name:'Walking',        nameTR:'Yürüyüş',         nameRu:'Ходьба',                        emoji:'🚶', color:'#0d9488' },
+    hiking:         { name:'Hiking',         nameTR:'Doğa Yürüyüşü',   nameRu:'Пеший туризм',                  emoji:'🥾', color:'#65a30d' },
+    wellness:         { name:'Yoga / Pilates / Reformer', nameTR:'Yoga / Pilates / Reformer', nameRu:'Йога / Пилатес / Реформер', emoji:'🧘',  color:'#8b5cf6' },
+    shooting_hunting: { name:'Shooting & Hunting',        nameTR:'Atıcılık & Avcılık',         nameRu:'Стрельба и охота',          emoji:'🔫',  color:'#57534e' },
+    golf:             { name:'Golf',                      nameTR:'Golf',                       nameRu:'Гольф',                     emoji:'⛳',  color:'#15803d' },
+    skiing_snowboard: { name:'Skiing & Snowboard',        nameTR:'Kayak & Snowboard',           nameRu:'Лыжи и сноуборд',           emoji:'⛷️', color:'#0ea5e9' },
+    ice_skating:      { name:'Ice Skating',                nameTR:'Buz Pateni',                 nameRu:'Катание на коньках',        emoji:'⛸️', color:'#0891b2' },
+    motorcycle:       { name:'Motorcycle Riding',          nameTR:'Motosiklet',                 nameRu:'Мотоциклы',                 emoji:'🏍️', color:'#b91c1c' },
+    sanal_alem:     { name:'Virtual World',  nameTR:'Sanal Alem',     nameRu:'Виртуальный мир', emoji:'🌐', color:'#ec4899' },
+    default:    { name:'Sport',      nameTR:'Spor',       nameRu:'Спорт',      emoji:'🏅', color: colors.purple },
 };
 
 function getConfig(sub) {
@@ -2061,15 +2061,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800' }}>{getSubCategoryLabel(item.subCategory, t.lang)}</Text>
                         <Text style={{ color: colors.textMuted, fontSize:moderateScale(12), marginTop:1 }}>{senderAlias(item.sender)}</Text>
                     </View>
-                    {/* Kullanıcı isteği: İptal Et artık alttaki buton satırında değil, header'ın
-                        sağındaki boş alanda — açık ilanın her yerinden (aşağı kaydırmadan) erişilebilsin. */}
-                    {isOwner && !isRefereeAd && (
-                        <TouchableOpacity
-                            style={{ paddingHorizontal:moderateScale(9), paddingVertical:moderateScale(6), borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618' }}
-                            onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
-                            <Text style={{ color:'#f87171', fontSize:moderateScale(12), fontWeight:'700' }} numberOfLines={1}>{t.cancelMatchBtn}</Text>
-                        </TouchableOpacity>
-                    )}
                 </View>
 
                 {/* Scrollable content */}
@@ -2207,7 +2198,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             )}
                             {item.subCategory === 'volleyball' && !!VOLLEYBALL_SURFACES.find(v => v.id === item.surface) && (
                                 <Text style={{ color: colors.textMuted, fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
-                                    {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === item.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : v.labelEn}`; })()}
+                                    {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === item.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : t.lang === 'ru' ? v.labelRu : v.labelEn}`; })()}
                                 </Text>
                             )}
                             {item.courtName && (
@@ -3341,12 +3332,23 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </View>
                                 ));
                             })() : item.matchType === 'DOUBLE' ? (() => {
-                                // Kullanıcı isteği: istekler her zaman istek atma sırasına (createdAt
-                                // artan) göre gösterilir — backend zaten bu sırayla döndürüyor (bkz.
-                                // getRivalById joinRequests orderBy). Önceden burada boş kalan slotun
-                                // cinsiyet gereksinimine uyanlar öne alınıyordu, kullanıcı isteğiyle
-                                // kaldırıldı.
-                                const incoming = joinRequests.filter(jr => jr.initiatedBy !== 'OWNER');
+                                // Hâlâ boş olan koltukların cinsiyet gereksinimine uyan istekler
+                                // öne alınır — sahibi kotayı dolduracak adayları hemen görsün.
+                                const senderTeamNow = Array.isArray(item.senderTeam) ? item.senderTeam : [];
+                                const openGenderReqs = [
+                                    !senderTeamNow[0]?.id && partnerGenderReq,
+                                    !participants[0]?.id && opp1GenderReq,
+                                    !participants[1]?.id && opp2GenderReq,
+                                ].filter(g => g && g !== 'MIX');
+                                const fitsOpenSlot = (jr) => {
+                                    if (openGenderReqs.length === 0) return true;
+                                    const g = jr.user?.gender;
+                                    if (!g || g === 'OTHER') return true;
+                                    return openGenderReqs.includes(g);
+                                };
+                                const incoming = joinRequests.filter(jr => jr.initiatedBy !== 'OWNER')
+                                    .slice()
+                                    .sort((a, b) => (fitsOpenSlot(a) === fitsOpenSlot(b) ? 0 : fitsOpenSlot(a) ? -1 : 1));
                                 const { pairs, solos, byUserId } = groupDoublesPairs(incoming);
                                 const solosWithPartnerLink = solos.filter(s => s.partnerId || solos.some(o => o.partnerId === s.userId && o.userId !== s.userId));
                                 const solosIndividual = solos.filter(s => !s.partnerId && !solos.some(o => o.partnerId === s.userId && o.userId !== s.userId));
@@ -3824,18 +3826,22 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </TouchableOpacity>
                                     </View>
                                 )}
-                                {/* Kullanıcı isteği: İptal Et artık header'a taşındı (bkz. yukarısı) —
-                                    Sipariş Ver tek başına kaldığı için satır sadece o varken render edilir. */}
-                                {item.venueId && (
-                                    <View style={{ flexDirection: 'row', gap: 3 }}>
+                                {/* Kullanıcı isteği: Sipariş Ver, İptal Et'in solunda — aynı satırda —
+                                    böylece ilan sahibi detaydan çıkmadan da tesis menüsünden sipariş
+                                    verebilir (bkz. VenueMenuOrderModal, RivalCard'daki ile aynı akış). */}
+                                <View style={{ flexDirection: 'row', gap: 3 }}>
+                                    {item.venueId && (
                                         <TouchableOpacity
                                             style={[s.cancelBtn, { flex: 1, backgroundColor:'#22c55e20', borderColor:'#22c55e50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
                                             onPress={() => setOrderVenueId(item.venueId)}
                                         >
                                             <Text style={[s.cancelBtnText, { color:'#22c55e', fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📋 Sipariş Ver</Text>
                                         </TouchableOpacity>
-                                    </View>
-                                )}
+                                    )}
+                                    <TouchableOpacity style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]} onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
+                                        <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>{t.cancelAdBtn}</Text>
+                                    </TouchableOpacity>
+                                </View>
                                 {/* Kullanıcı isteği: Demo Botları Başlat artık Paylaş/Düzenle/İptal
                                     satırının ALTINDA — demo botları ilerleyen zamanlarda tamamen
                                     kaldırılacak, şimdilik burada kalıyor. */}
@@ -4994,7 +5000,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     kort bilgisinin hemen üstünde bilgi satırı olarak gösteriliyor (kullanıcı isteği). */}
                 {item.subCategory === 'volleyball' && !!VOLLEYBALL_SURFACES.find(v => v.id === item.surface) && (
                     <Text style={{ fontSize:moderateScale(10), marginBottom:2, color: colors.textMuted, fontWeight:'700' }} numberOfLines={1}>
-                        {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === item.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : v.labelEn}`; })()}
+                        {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === item.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : t.lang === 'ru' ? v.labelRu : v.labelEn}`; })()}
                     </Text>
                 )}
                 {item.courtName && (
@@ -6842,7 +6848,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 bilgisinin hemen üstünde bilgi satırı (kullanıcı isteği). */}
             {match.subCategory === 'volleyball' && !!VOLLEYBALL_SURFACES.find(v => v.id === match.surface) && (
                 <Text style={[s.cardSub, { color: colors.textMuted, fontWeight:'700', marginTop:2 }]}>
-                    {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === match.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : v.labelEn}`; })()}
+                    {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === match.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : t.lang === 'ru' ? v.labelRu : v.labelEn}`; })()}
                 </Text>
             )}
             {/* Court — kullanıcı isteği: maç başladıktan sonra (Oynanan/Skor Bekleyen Maçlar'da)
@@ -6896,15 +6902,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             kartında (digimon kart) var, tekrar burada göstermek gereksizdi. */}
                         <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800' }}>{getSubCategoryLabel(match.subCategory, t.lang)}</Text>
                     </View>
-                    {/* Kullanıcı isteği: İptal Et artık alttaki buton satırında değil, header'ın
-                        sağındaki boş alanda — aynı görünürlük koşulu (bkz. aşağıdaki eski konum). */}
-                    {match.scoreStatus !== 'CONFIRMED' && !promotedWithinGrace && !matchStartedOver5Min && !scoreUnlocked && (
-                        <TouchableOpacity
-                            style={{ paddingHorizontal:moderateScale(9), paddingVertical:moderateScale(6), borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618' }}
-                            onPress={handleCancelPress} disabled={cancelling}>
-                            <Text style={{ color:'#f87171', fontSize:moderateScale(12), fontWeight:'700' }} numberOfLines={1}>{t.cancelMatchBtn}{withinPenaltyWindow ? ' ⚠️' : ''}</Text>
-                        </TouchableOpacity>
-                    )}
                 </View>
 
                 {/* Kullanıcı isteği: skor girerken açılan klavye, alttaki set giriş kutularını/
@@ -6987,7 +6984,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </Text>
                         {match.subCategory === 'volleyball' && !!VOLLEYBALL_SURFACES.find(v => v.id === match.surface) && (
                             <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4, fontWeight:'700' }}>
-                                {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === match.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : v.labelEn}`; })()}
+                                {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === match.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : t.lang === 'ru' ? v.labelRu : v.labelEn}`; })()}
                             </Text>
                         )}
                         {match.location && <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4 }}>📍 {match.location}{match.district ? ` / ${match.district}` : ''}</Text>}
@@ -8225,13 +8222,21 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         <Text style={{ color:'#60a5fa', fontSize:13 }}>⏳ İstendi</Text>
                                     </View>
                                 )}
-                                {/* İptal artık header'a taşındı (bkz. yukarısı) — burada sadece
-                                    promotedWithinGrace'in kendi butonu kalıyor. */}
-                                {promotedWithinGrace && (
+                                {promotedWithinGrace ? (
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#22c55e50', backgroundColor:'#22c55e18', alignItems:'center' }}
                                         onPress={handleLeavePromotedPress} disabled={leavingPromoted}>
                                         <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'700' }}>{t.leavePromotedSubBtn}</Text>
+                                    </TouchableOpacity>
+                                ) : !matchStartedOver5Min && !scoreUnlocked && (
+                                    // Kullanıcı isteği: maç başladıktan 5 dakika sonra "İptal" butonunun
+                                    // bir anlamı kalmıyor — maç zaten oynanıyor, skor girilemiyorsa
+                                    // herkesin onayıyla sonuçsuz kapatılabiliyor, bu da rekabetçi
+                                    // modda bile Elo'yu etkilemiyor.
+                                    <TouchableOpacity
+                                        style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618', alignItems:'center' }}
+                                        onPress={handleCancelPress} disabled={cancelling}>
+                                        <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>✕ İptal{withinPenaltyWindow ? ' ⚠️' : ''}</Text>
                                     </TouchableOpacity>
                                 )}
                             </>
@@ -18894,20 +18899,20 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             )}
 
                             {/* Court — airsoft'ta "kort" yerine "mekan" kavramı kullanılır */}
-                            <Text style={s.fieldLabelRed}>{isAirsoft ? (lang==='tr' ? 'Mekan' : 'Venue') : t.tournCourtLabel}</Text>
+                            <Text style={s.fieldLabelRed}>{isAirsoft ? (lang==='tr' ? 'Mekan' : lang === 'ru' ? 'Место' : 'Venue') : t.tournCourtLabel}</Text>
                             <View style={[s.chipRow, { marginBottom:8 }]}>
                                 <TouchableOpacity
                                     style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                     onPress={() => set('courtDecidedByPlayers', false)}>
                                     <Text style={[s.chipText, !f.courtDecidedByPlayers && { color: cfg.color, fontWeight:'800' }]}>
-                                        {isAirsoft ? (lang==='tr' ? '🏟️ Belirli Mekan' : '🏟️ Specific Venue') : t.tournCourtSpecific}
+                                        {isAirsoft ? (lang==='tr' ? '🏟️ Belirli Mekan' : lang === 'ru' ? '🏟️ Конкретное место' : '🏟️ Specific Venue') : t.tournCourtSpecific}
                                     </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                     onPress={() => { set('courtDecidedByPlayers', true); if (f.paymentMethod === 'CASH') set('paymentMethod', ''); }}>
                                     <Text style={[s.chipText, f.courtDecidedByPlayers && { color: cfg.color, fontWeight:'800' }]}>
-                                        {isAirsoft ? (lang==='tr' ? '🤝 Takımlar karşılıklı ortaklaşa mekan seçecek' : '🤝 Teams will jointly agree on a venue') : t.tournCourtPlayersDecide}
+                                        {isAirsoft ? (lang==='tr' ? '🤝 Takımlar karşılıklı ortaklaşa mekan seçecek' : lang === 'ru' ? '🤝 Команды совместно согласуют место' : '🤝 Teams will jointly agree on a venue') : t.tournCourtPlayersDecide}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -18916,7 +18921,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
                                         <TextInput style={[s.fieldInput, ti, { flex:1, marginBottom:0 }]} value={f.courtSearchText}
                                             onChangeText={searchCourts}
-                                            placeholder={isAirsoft ? (lang==='tr' ? 'Mekan Adı Ara' : 'Search Venue Name') : t.courtSearchPlaceholder}
+                                            placeholder={isAirsoft ? (lang==='tr' ? 'Mekan Adı Ara' : lang === 'ru' ? 'Поиск названия места' : 'Search Venue Name') : t.courtSearchPlaceholder}
                                             placeholderTextColor={colors.textMuted} />
                                         {searching && <ActivityIndicator size="small" color={cfg.color} />}
                                     </View>
@@ -19053,7 +19058,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 {isAirsoft && (
                                     <TouchableOpacity onPress={() => setShowTeamSizePicker(true)} style={{ alignSelf:'flex-start' }}>
                                         <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                            {lang==='tr' ? 'Takım Büyüklüğü' : 'Team Size'}
+                                            {lang==='tr' ? 'Takım Büyüklüğü' : lang === 'ru' ? 'Размер команды' : 'Team Size'}
                                         </Text>
                                         <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.teamSize ? cfg.color : colors.border }}>
                                             <Text style={{ color: f.teamSize ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
@@ -19071,7 +19076,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         <Text style={{ color: (isAirsoft ? f.teamRequiredMaleCount != null : f.genderType) ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
                                             {isAirsoft
                                                 ? (!f.teamSize
-                                                    ? (lang==='tr' ? 'Önce büyüklük' : 'Size first')
+                                                    ? (lang==='tr' ? 'Önce büyüklük' : lang === 'ru' ? 'Сначала размер' : 'Size first')
                                                     : f.teamRequiredMaleCount != null
                                                         ? `👨${f.teamRequiredMaleCount} 👩${parseInt(f.teamSize,10) - f.teamRequiredMaleCount}`
                                                         : t.genderCountFreeLabel)
@@ -19112,7 +19117,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             </View>
                             <OptionPickerModal
                                 visible={showTeamSizePicker}
-                                title={lang==='tr' ? 'Takım Büyüklüğü' : 'Team Size'}
+                                title={lang==='tr' ? 'Takım Büyüklüğü' : lang === 'ru' ? 'Размер команды' : 'Team Size'}
                                 options={Array.from({ length: 29 }, (_, i) => i + 2).map(n => ({ value: String(n), label: `${n}v${n}` }))}
                                 value={f.teamSize}
                                 onSelect={(v) => { set('teamSize', v); set('teamRequiredMaleCount', null); }}
@@ -19155,7 +19160,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     <>
                                         <View style={{ flex:1 }}>
                                             <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                {isAirsoft ? (lang==='tr' ? 'Play-Off Öncesi Savaş' : 'Battles Before Playoff') : t.tournMatchesBeforePlayoff}
+                                                {isAirsoft ? (lang==='tr' ? 'Play-Off Öncesi Savaş' : lang === 'ru' ? 'Боёв до плей-офф' : 'Battles Before Playoff') : t.tournMatchesBeforePlayoff}
                                             </Text>
                                             <TextInput style={[s.fieldInput, ti, { height:30, paddingVertical:0, textAlign:'center', fontSize:12 }]} value={f.matchesBeforePlayoff}
                                                 onChangeText={v => set('matchesBeforePlayoff', v.replace(/[^0-9]/g,''))}
@@ -19163,7 +19168,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         </View>
                                         <View style={{ flex:1 }}>
                                             <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                {isAirsoft ? (lang==='tr' ? "Play-Off'a Kalan Takım" : 'Teams in Playoff') : t.tournPlayoffQualifiers}
+                                                {isAirsoft ? (lang==='tr' ? "Play-Off'a Kalan Takım" : lang === 'ru' ? 'Команд в плей-офф' : 'Teams in Playoff') : t.tournPlayoffQualifiers}
                                             </Text>
                                             <TextInput style={[s.fieldInput, ti, { height:30, paddingVertical:0, textAlign:'center', fontSize:12 }]} value={f.playoffQualifiers}
                                                 onChangeText={v => set('playoffQualifiers', v.replace(/[^0-9]/g,''))}
@@ -19220,7 +19225,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
                             {/* Kort ücreti kim öder — ücretsizde ve ücretlide farklı seçenekler. Airsoft'ta
                                 "kort" yerine "mekan" denir, seçenekler (ortaklaşa/sponsor) aynı kalır. */}
-                            <Text style={s.fieldLabelRed}>{isAirsoft ? (lang==='tr' ? 'Mekan ücretlerini kim öder?' : 'Who pays the venue fees?') : t.tournCourtFeeWho}</Text>
+                            <Text style={s.fieldLabelRed}>{isAirsoft ? (lang==='tr' ? 'Mekan ücretlerini kim öder?' : lang === 'ru' ? 'Кто оплачивает аренду места?' : 'Who pays the venue fees?') : t.tournCourtFeeWho}</Text>
                             <View style={[s.chipRow, { marginBottom:10 }]}>
                                 {(f.isPaid
                                     ? [{ id:'INCLUDED', label: t.tournFeeIncluded }, { id:'SHARED', label: t.tournFeeShared }]
@@ -20268,7 +20273,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const insets = useSafeAreaInsets();
     const t = useT();
     const cfg = getConfig(sub);
-    const sportDisplayName = lang === 'tr' ? (cfg.nameTR || cfg.name) : cfg.name;
+    const sportDisplayName = lang === 'tr' ? (cfg.nameTR || cfg.name) : lang === 'ru' ? (cfg.nameRu || cfg.name) : cfg.name;
     const tabs = getTabs(sub, category);
     const tabLabel = (tab) => {
         if (category === 'ARTS') {
@@ -20277,9 +20282,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
         if (SIMPLE_TAB_SUBS.has(sub) || sub === 'hiking') {
             if (tab === 'rivals') return t.eventsTab || 'Etkinlikler';
-            if (tab === 'equipment') return lang === 'tr' ? `${sportDisplayName} Ekipmanları` : `${sportDisplayName} Equipment`;
+            if (tab === 'equipment') return lang === 'tr' ? `${sportDisplayName} Ekipmanları` : lang === 'ru' ? `${sportDisplayName} инвентарь` : `${sportDisplayName} Equipment`;
         }
-        if (tab === 'routes') return t.routesTab || (lang === 'tr' ? 'Rotalar' : 'Trails');
+        if (tab === 'routes') return t.routesTab || (lang === 'tr' ? 'Rotalar' : lang === 'ru' ? 'Маршруты' : 'Trails');
         // Voleybolde kullanıcı isteğiyle bu iki sekmenin etiketi diğer dallara göre TERS —
         // "rivals" sekmesi (kadro/takım kurma ilanları) burada "Oyuncu Ara" olarak, "player_wanted"
         // sekmesi ise "Rakip Bul" olarak gösteriliyor. Diğer dallarda (ör. futbol) değişmedi.
@@ -20288,7 +20293,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             if (tab === 'player_wanted') return t.rivalsTab;
             // Diğer sporlarda (ör. tenis) equipmentTab sabit "Tennis Equipment" metni —
             // voleybolde kullanıcı isteğiyle sporun adıyla "Voleybol Ekipmanları" gösteriliyor.
-            if (tab === 'equipment') return lang === 'tr' ? `${sportDisplayName} Ekipmanları` : `${sportDisplayName} Equipment`;
+            if (tab === 'equipment') return lang === 'tr' ? `${sportDisplayName} Ekipmanları` : lang === 'ru' ? `${sportDisplayName} инвентарь` : `${sportDisplayName} Equipment`;
         }
         return t[tab + 'Tab'];
     };
@@ -20703,7 +20708,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (archiveCity) parts.push(archiveCity);
         if (archiveDateFrom || archiveDateTo) parts.push(`${archiveDateFrom || '…'}–${archiveDateTo || '…'}`);
         if (archivePlayer) parts.push(archivePlayer.fullName || archivePlayer.username);
-        return parts.length ? parts.join(' · ') : (lang==='tr' ? 'Filtrele' : 'Filter');
+        return parts.length ? parts.join(' · ') : (lang==='tr' ? 'Filtrele' : lang === 'ru' ? 'Фильтр' : 'Filter');
     };
     // Kullanıcı isteği: arşiv tarih aralığı artık DateRangePickerModal (takvim) ile seçiliyor —
     // o bileşen Date nesnesiyle çalışıyor, archiveDateFrom/To ise API'ye "YYYY-AA-GG" string
@@ -22189,7 +22194,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const submitVenueReview = async () => {
-        if (!vrRating) return Alert.alert('', lang === 'tr' ? 'Lütfen puan seçin' : 'Please select a rating');
+        if (!vrRating) return Alert.alert('', lang === 'tr' ? 'Lütfen puan seçin' : lang === 'ru' ? 'Пожалуйста, выберите оценку' : 'Please select a rating');
         setVrSubmitting(true);
         try {
             if (venueReviewTarget.isBusinessVenue) {
@@ -22201,7 +22206,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 const { data } = await api.get(`/courts/${venueReviewTarget.id}/ratings`);
                 setVenueReviewTarget(prev => prev ? { ...prev, ...data } : null);
             }
-        } catch (e) { Alert.alert('', e?.response?.data?.message || (lang === 'tr' ? 'Hata oluştu' : 'An error occurred')); }
+        } catch (e) { Alert.alert('', e?.response?.data?.message || (lang === 'tr' ? 'Hata oluştu' : lang === 'ru' ? 'Произошла ошибка' : 'An error occurred')); }
         finally { setVrSubmitting(false); }
     };
 
@@ -23062,21 +23067,33 @@ export default function SubCategoryScreen({ route, navigation }) {
     const cityAlertDesc = {
         rivals:      lang === 'tr'
             ? `Seçtiğin illerde yeni ${sub} ile ilgili rakip arayan ilanların bildirimini alırsın.`
+            : lang === 'ru'
+            ? `Ты будешь получать уведомления о новых объявлениях поиска соперника по ${sub} в выбранных городах.`
             : `You'll get notified about new ${sub} opponent listings in your selected cities.`,
         tournaments: lang === 'tr'
             ? `Seçtiğin illerde yeni ${sub} turnuva ilanlarının bildirimini alırsın.`
+            : lang === 'ru'
+            ? `Ты будешь получать уведомления о новых турнирах по ${sub} в выбранных городах.`
             : `You'll get notified about new ${sub} tournament listings in your selected cities.`,
         coaches:     lang === 'tr'
             ? `Seçtiğin illerde yeni ${sub} destek ilanlarının bildirimini alırsın.`
+            : lang === 'ru'
+            ? `Ты будешь получать уведомления о новых объявлениях тренеров по ${sub} в выбранных городах.`
             : `You'll get notified about new ${sub} coach listings in your selected cities.`,
         equipment:   lang === 'tr'
             ? `Seçtiğin illerde yeni ${sub} ekipman ilanlarının bildirimini alırsın.`
+            : lang === 'ru'
+            ? `Ты будешь получать уведомления о новых объявлениях о снаряжении для ${sub} в выбранных городах.`
             : `You'll get notified about new ${sub} equipment listings in your selected cities.`,
         player_wanted: lang === 'tr'
             ? `Seçtiğin illerde yeni ${sub} oyuncu arama ilanlarının bildirimini alırsın.`
+            : lang === 'ru'
+            ? `Ты будешь получать уведомления о новых объявлениях поиска игрока по ${sub} в выбранных городах.`
             : `You'll get notified about new ${sub} player wanted listings in your selected cities.`,
         referees:    lang === 'tr'
             ? `Seçtiğin illerde yeni ${sub} hakem ilanlarının bildirimini alırsın.`
+            : lang === 'ru'
+            ? `Ты будешь получать уведомления о новых объявлениях судей по ${sub} в выбранных городах.`
             : `You'll get notified about new ${sub} referee listings in your selected cities.`,
     };
 
@@ -23156,21 +23173,21 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Dala göre mekan kavramının adı değişiyor — voleybolde salon, kort kavramı olmayan
     // dallarda (airsoft vb., SIMPLE_TAB_SUBS) mekan, diğerlerinde kort.
     const venueWord = () => {
-        if (sub === 'volleyball') return lang==='tr' ? 'Salon' : 'Hall';
-        if (SIMPLE_TAB_SUBS.has(sub)) return lang==='tr' ? 'Mekan' : 'Venue';
-        return lang==='tr' ? 'Kort' : 'Court';
+        if (sub === 'volleyball') return lang==='tr' ? 'Salon' : lang === 'ru' ? 'Зал' : 'Hall';
+        if (SIMPLE_TAB_SUBS.has(sub)) return lang==='tr' ? 'Mekan' : lang === 'ru' ? 'Место' : 'Venue';
+        return lang==='tr' ? 'Kort' : lang === 'ru' ? 'Корт' : 'Court';
     };
     const filterSummaryLabel = () => {
         const parts = [];
         if (sub === 'volleyball' && filterVolleyballType) {
             const v = VOLLEYBALL_SURFACES.find(sf => sf.id === filterVolleyballType);
-            if (v) parts.push(lang === 'tr' ? v.label : v.labelEn);
+            if (v) parts.push(lang === 'tr' ? v.label : lang === 'ru' ? v.labelRu : v.labelEn);
         }
         if (filterCity) parts.push(filterCity);
         if (filterVenueNames.length > 0) parts.push(filterVenueNames.join(', '));
         else if (filterVenueName) parts.push(filterVenueName);
         if (filterDate !== 'all') parts.push(dateFilterLabel());
-        return parts.length ? parts.join(' · ') : (lang==='tr' ? 'Filtrele' : 'Filter');
+        return parts.length ? parts.join(' · ') : (lang==='tr' ? 'Filtrele' : lang === 'ru' ? 'Фильтр' : 'Filter');
     };
     const CompactFilter = ({ showDateChips = true }) => (
         !showDateChips ? null : (
@@ -23451,7 +23468,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:16, paddingTop:17, paddingBottom: Math.max(20, insets.bottom + 16), maxHeight:'88%' }}>
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🔍 {lang==='tr' ? 'Filtrele' : 'Filter'}</Text>
+                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🔍 {lang==='tr' ? 'Filtrele' : lang === 'ru' ? 'Фильтр' : 'Filter'}</Text>
                             <TouchableOpacity onPress={() => setShowFilterModal(false)}><Text style={{ color:colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -23464,7 +23481,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         onPress={() => setFilterVolleyballType(null)}
                                         style={{ backgroundColor: !filterVolleyballType ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:7, paddingHorizontal:12, borderWidth:1, borderColor: !filterVolleyballType ? cfg.color : colors.border }}
                                     >
-                                        <Text style={{ color: !filterVolleyballType ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Tümü' : 'All'}</Text>
+                                        <Text style={{ color: !filterVolleyballType ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Tümü' : lang === 'ru' ? 'Все' : 'All'}</Text>
                                     </TouchableOpacity>
                                     {VOLLEYBALL_SURFACES.map(v => (
                                         <TouchableOpacity
@@ -23473,7 +23490,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             style={{ backgroundColor: filterVolleyballType === v.id ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:7, paddingHorizontal:12, borderWidth:1, borderColor: filterVolleyballType === v.id ? cfg.color : colors.border }}
                                         >
                                             <Text style={{ color: filterVolleyballType === v.id ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>
-                                                {v.emoji} {lang==='tr' ? v.label : v.labelEn}
+                                                {v.emoji} {lang==='tr' ? v.label : lang === 'ru' ? v.labelRu : v.labelEn}
                                             </Text>
                                         </TouchableOpacity>
                                     ))}
@@ -23482,10 +23499,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                         )}
 
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📍 {lang==='tr' ? 'Konum' : 'Location'}</Text>
+                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📍 {lang==='tr' ? 'Konum' : lang === 'ru' ? 'Локация' : 'Location'}</Text>
                             {filterCity ? (
                                 <TouchableOpacity onPress={() => setFilterCity('')}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : lang === 'ru' ? 'Сбросить' : 'Reset'}</Text>
                                 </TouchableOpacity>
                             ) : null}
                         </View>
@@ -23494,7 +23511,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, marginBottom:18 }}
                         >
                             <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:14, fontWeight:'700' }}>
-                                {filterCity || (lang==='tr' ? 'Tümü' : 'All')}
+                                {filterCity || (lang==='tr' ? 'Tümü' : lang === 'ru' ? 'Все' : 'All')}
                             </Text>
                             <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
                                 {filterCity ? (
@@ -23507,10 +23524,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                         </TouchableOpacity>
 
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>🏟️ {venueWord()} {lang==='tr' ? 'Adı' : 'Name'}</Text>
+                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>🏟️ {venueWord()} {lang==='tr' ? 'Adı' : lang === 'ru' ? 'Название' : 'Name'}</Text>
                             {(filterVenueNames.length > 0 || filterVenueName) ? (
                                 <TouchableOpacity onPress={() => { setFilterVenueNames([]); setFilterVenueName(''); }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : lang === 'ru' ? 'Сбросить' : 'Reset'}</Text>
                                 </TouchableOpacity>
                             ) : null}
                         </View>
@@ -23540,16 +23557,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     setFilterVenueName('');
                                 }}
                                 sport={sub}
-                                placeholder={lang==='tr' ? `${venueWord()} adı ara...` : `Search ${venueWord().toLowerCase()} name...`}
+                                placeholder={lang==='tr' ? `${venueWord()} adı ara...` : lang === 'ru' ? `Поиск названия: ${venueWord().toLowerCase()}...` : `Search ${venueWord().toLowerCase()} name...`}
                                 inputStyle={{ backgroundColor:colors.surface2, borderColor: filterVenueName ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
                             />
                         </View>
 
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📅 {lang==='tr' ? 'Zaman Aralığı' : 'Time Range'}</Text>
+                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📅 {lang==='tr' ? 'Zaman Aralığı' : lang === 'ru' ? 'Диапазон времени' : 'Time Range'}</Text>
                             {filterDate !== 'all' ? (
                                 <TouchableOpacity onPress={() => { setFilterDate('all'); setFilterDateFrom(null); setFilterDateTo(null); }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : lang === 'ru' ? 'Сбросить' : 'Reset'}</Text>
                                 </TouchableOpacity>
                             ) : null}
                         </View>
@@ -23558,16 +23575,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterDate!=='all' ? cfg.color : colors.border, paddingVertical:11, paddingHorizontal:13 }}
                         >
                             <Text style={{ color: filterDate!=='all' ? cfg.color : colors.textMuted, fontSize:13, fontWeight:'700' }}>
-                                {filterDate !== 'all' ? dateFilterLabel() : (lang==='tr' ? 'Özel Tarih Aralığı Seç' : 'Pick Custom Range')}
+                                {filterDate !== 'all' ? dateFilterLabel() : (lang==='tr' ? 'Özel Tarih Aralığı Seç' : lang === 'ru' ? 'Выбрать диапазон дат' : 'Pick Custom Range')}
                             </Text>
                             <Text style={{ color:colors.textMuted, fontSize:12 }}>▾</Text>
                         </TouchableOpacity>
 
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6, marginTop:18 }}>
-                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>🎯 {lang==='tr' ? 'Derece' : 'Rating'}</Text>
+                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>🎯 {lang==='tr' ? 'Derece' : lang === 'ru' ? 'Рейтинг' : 'Rating'}</Text>
                             {(filterMinRating || filterMaxRating || filterMinRatingMale || filterMaxRatingMale || filterMinRatingFemale || filterMaxRatingFemale) ? (
                                 <TouchableOpacity onPress={() => { setFilterMinRating(''); setFilterMaxRating(''); setFilterMinRatingMale(''); setFilterMaxRatingMale(''); setFilterMinRatingFemale(''); setFilterMaxRatingFemale(''); }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : lang === 'ru' ? 'Сбросить' : 'Reset'}</Text>
                                 </TouchableOpacity>
                             ) : null}
                         </View>
@@ -23585,7 +23602,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <RatingRangeModal
                             visible={showFilterRatingRange}
                             onClose={() => setShowFilterRatingRange(false)}
-                            title={lang==='tr' ? 'Derece Filtresi' : 'Rating Filter'}
+                            title={lang==='tr' ? 'Derece Filtresi' : lang === 'ru' ? 'Фильтр по рейтингу' : 'Rating Filter'}
                             minValue={filterMinRating} maxValue={filterMaxRating}
                             onSelectMin={setFilterMinRating} onSelectMax={setFilterMaxRating}
                             genderSplit={filterRatingGenderSplit}
@@ -23596,49 +23613,49 @@ export default function SubCategoryScreen({ route, navigation }) {
                             onSelectFemaleMin={setFilterMinRatingFemale} onSelectFemaleMax={setFilterMaxRatingFemale}
                         />
 
-                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>👥 {lang==='tr' ? 'Kimden' : 'From'}</Text>
+                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>👥 {lang==='tr' ? 'Kimden' : lang === 'ru' ? 'От' : 'From'}</Text>
                         <View style={{ flexDirection:'row', gap:6, marginBottom:18 }}>
                             <TouchableOpacity
                                 onPress={() => setFilterFriendsOnly(false)}
                                 style={{ flex:1, backgroundColor: !filterFriendsOnly ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1, borderColor: !filterFriendsOnly ? cfg.color : colors.border }}
                             >
-                                <Text style={{ color: !filterFriendsOnly ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Herkes' : 'Everyone'}</Text>
+                                <Text style={{ color: !filterFriendsOnly ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Herkes' : lang === 'ru' ? 'Все' : 'Everyone'}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={() => setFilterFriendsOnly(true)}
                                 style={{ flex:1, backgroundColor: filterFriendsOnly ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1, borderColor: filterFriendsOnly ? cfg.color : colors.border }}
                             >
-                                <Text style={{ color: filterFriendsOnly ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Arkadaşlarım' : 'Friends Only'}</Text>
+                                <Text style={{ color: filterFriendsOnly ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Arkadaşlarım' : lang === 'ru' ? 'Только друзья' : 'Friends Only'}</Text>
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>⚧ {lang==='tr' ? 'Boş Kontenjanda Aranan' : 'Open Slot Seeking'}</Text>
+                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>⚧ {lang==='tr' ? 'Boş Kontenjanda Aranan' : lang === 'ru' ? 'Кого ищут на свободное место' : 'Open Slot Seeking'}</Text>
                         <View style={{ flexDirection:'row', gap:6, marginBottom:18 }}>
                             <TouchableOpacity
                                 onPress={() => setFilterGenderSought(null)}
                                 style={{ flex:1, backgroundColor: !filterGenderSought ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1, borderColor: !filterGenderSought ? cfg.color : colors.border }}
                             >
-                                <Text style={{ color: !filterGenderSought ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Fark Etmez' : 'Any'}</Text>
+                                <Text style={{ color: !filterGenderSought ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Fark Etmez' : lang === 'ru' ? 'Любой' : 'Any'}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={() => setFilterGenderSought(filterGenderSought === 'MALE' ? null : 'MALE')}
                                 style={{ flex:1, backgroundColor: filterGenderSought === 'MALE' ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1, borderColor: filterGenderSought === 'MALE' ? cfg.color : colors.border }}
                             >
-                                <Text style={{ color: filterGenderSought === 'MALE' ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Erkek Aranıyor' : 'Male Sought'}</Text>
+                                <Text style={{ color: filterGenderSought === 'MALE' ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Erkek Aranıyor' : lang === 'ru' ? 'Ищут мужчину' : 'Male Sought'}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={() => setFilterGenderSought(filterGenderSought === 'FEMALE' ? null : 'FEMALE')}
                                 style={{ flex:1, backgroundColor: filterGenderSought === 'FEMALE' ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:9, alignItems:'center', borderWidth:1, borderColor: filterGenderSought === 'FEMALE' ? cfg.color : colors.border }}
                             >
-                                <Text style={{ color: filterGenderSought === 'FEMALE' ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Kadın Aranıyor' : 'Female Sought'}</Text>
+                                <Text style={{ color: filterGenderSought === 'FEMALE' ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{lang==='tr' ? 'Kadın Aranıyor' : lang === 'ru' ? 'Ищут женщину' : 'Female Sought'}</Text>
                             </TouchableOpacity>
                         </View>
 
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>💰 {lang==='tr' ? 'Fiyat Aralığı' : 'Price Range'}</Text>
+                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>💰 {lang==='tr' ? 'Fiyat Aralığı' : lang === 'ru' ? 'Диапазон цен' : 'Price Range'}</Text>
                             {(filterMinPrice || filterMaxPrice) ? (
                                 <TouchableOpacity onPress={() => { setFilterMinPrice(''); setFilterMaxPrice(''); }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : lang === 'ru' ? 'Сбросить' : 'Reset'}</Text>
                                 </TouchableOpacity>
                             ) : null}
                         </View>
@@ -23646,7 +23663,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <TextInput
                                 value={filterMinPrice}
                                 onChangeText={(v) => setFilterMinPrice(v.replace(/[^0-9]/g, ''))}
-                                placeholder={lang==='tr' ? 'Min ₺' : 'Min'}
+                                placeholder={lang==='tr' ? 'Min ₺' : lang === 'ru' ? 'Мин' : 'Min'}
                                 placeholderTextColor={colors.textMuted}
                                 keyboardType="number-pad"
                                 style={{ flex:1, backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterMinPrice ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
@@ -23655,7 +23672,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <TextInput
                                 value={filterMaxPrice}
                                 onChangeText={(v) => setFilterMaxPrice(v.replace(/[^0-9]/g, ''))}
-                                placeholder={lang==='tr' ? 'Maks ₺' : 'Max'}
+                                placeholder={lang==='tr' ? 'Maks ₺' : lang === 'ru' ? 'Макс' : 'Max'}
                                 placeholderTextColor={colors.textMuted}
                                 keyboardType="number-pad"
                                 style={{ flex:1, backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: filterMaxPrice ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
@@ -23673,7 +23690,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             onPress={() => setShowFilterModal(false)}
                             style={{ backgroundColor: cfg.color, borderRadius:12, paddingVertical:13, alignItems:'center', marginTop:14 }}
                         >
-                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>✓ {lang==='tr' ? 'Onayla' : 'Apply'}</Text>
+                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>✓ {lang==='tr' ? 'Onayla' : lang === 'ru' ? 'Применить' : 'Apply'}</Text>
                         </TouchableOpacity>
                     </View>
                     </KeyboardAvoidingView>
@@ -23707,7 +23724,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             "Salonlar" olsun (kort değil salon aranıyor). */}
                         <TouchableOpacity onPress={() => setShowVenuesSheet(true)}
                             style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
-                            <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{sub === 'volleyball' ? (lang === 'tr' ? 'Salonlar' : 'Halls') : (lang === 'tr' ? 'Kortlar' : 'Courts')}</Text>
+                            <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{sub === 'volleyball' ? (lang === 'tr' ? 'Salonlar' : lang === 'ru' ? 'Залы' : 'Halls') : (lang === 'tr' ? 'Kortlar' : lang === 'ru' ? 'Корты' : 'Courts')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => setShowRatingInfo(true)}>
                             <Text style={{ fontSize:19 }}>ℹ️</Text>
@@ -23749,7 +23766,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 {!SIMPLE_TAB_SUBS.has(sub) && (
                                     <TouchableOpacity style={s.courtResBtn} onPress={requireActivityThenVenueSearch} activeOpacity={0.8}>
                                         <Text style={s.courtResBtnText}>
-                                            {sub === 'volleyball' ? (lang === 'tr' ? 'Salon Ara' : 'Search Hall') : (lang === 'tr' ? 'Kort Rez.' : 'Court Res.')}
+                                            {sub === 'volleyball' ? (lang === 'tr' ? 'Salon Ara' : lang === 'ru' ? 'Поиск зала' : 'Search Hall') : (lang === 'tr' ? 'Kort Rez.' : lang === 'ru' ? 'Бронь корта' : 'Court Res.')}
                                         </Text>
                                     </TouchableOpacity>
                                 )}
@@ -25996,31 +26013,31 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                                 <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:16, paddingTop:17, paddingBottom: Math.max(20, insets.bottom + 16), maxHeight:'88%' }}>
                                     <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-                                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🔍 {lang==='tr' ? 'Filtrele' : 'Filter'}</Text>
+                                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🔍 {lang==='tr' ? 'Filtrele' : lang === 'ru' ? 'Фильтр' : 'Filter'}</Text>
                                         <TouchableOpacity onPress={() => setShowArchiveFilterModal(false)}><Text style={{ color:colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                                     </View>
                                     <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📍 {lang==='tr' ? 'Konum' : 'Location'}</Text>
+                                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📍 {lang==='tr' ? 'Konum' : lang === 'ru' ? 'Локация' : 'Location'}</Text>
                                             {archiveCity ? (
                                                 <TouchableOpacity onPress={() => setArchiveCity('')}>
-                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : lang === 'ru' ? 'Сбросить' : 'Reset'}</Text>
                                                 </TouchableOpacity>
                                             ) : null}
                                         </View>
                                         <TextInput
                                             value={archiveCity}
                                             onChangeText={setArchiveCity}
-                                            placeholder={lang==='tr' ? 'Şehir ara...' : 'Search city...'}
+                                            placeholder={lang==='tr' ? 'Şehir ara...' : lang === 'ru' ? 'Поиск города...' : 'Search city...'}
                                             placeholderTextColor={colors.textMuted}
                                             style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: archiveCity ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff', marginBottom:18 }}
                                         />
 
                                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📅 {lang==='tr' ? 'Tarih Aralığı' : 'Date Range'}</Text>
+                                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📅 {lang==='tr' ? 'Tarih Aralığı' : lang === 'ru' ? 'Диапазон дат' : 'Date Range'}</Text>
                                             {(archiveDateFrom || archiveDateTo) ? (
                                                 <TouchableOpacity onPress={() => { setArchiveDateFrom(''); setArchiveDateTo(''); }}>
-                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : lang === 'ru' ? 'Сбросить' : 'Reset'}</Text>
                                                 </TouchableOpacity>
                                             ) : null}
                                         </View>
@@ -26031,7 +26048,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: (archiveDateFrom || archiveDateTo) ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, marginBottom:18 }}
                                         >
                                             <Text style={{ color: (archiveDateFrom || archiveDateTo) ? '#fff' : colors.textMuted, fontSize:14, fontWeight:'700' }}>
-                                                {(archiveDateFrom || archiveDateTo) ? `${archiveDateFrom || '…'} — ${archiveDateTo || '…'}` : (lang==='tr' ? 'Tarih aralığı seç' : 'Select date range')}
+                                                {(archiveDateFrom || archiveDateTo) ? `${archiveDateFrom || '…'} — ${archiveDateTo || '…'}` : (lang==='tr' ? 'Tarih aralığı seç' : lang === 'ru' ? 'Выбрать диапазон дат' : 'Select date range')}
                                             </Text>
                                             <Text style={{ fontSize:14 }}>📅</Text>
                                         </TouchableOpacity>
@@ -26044,10 +26061,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         {archiveSubTab === 'rivals' && (
                                             <>
                                                 <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                                                    <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>🔍 {lang==='tr' ? 'Oyuncu' : 'Player'}</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>🔍 {lang==='tr' ? 'Oyuncu' : lang === 'ru' ? 'Игрок' : 'Player'}</Text>
                                                     {archivePlayer ? (
                                                         <TouchableOpacity onPress={() => { setArchivePlayer(null); setArchivePlayerQuery(''); }}>
-                                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : lang === 'ru' ? 'Сбросить' : 'Reset'}</Text>
                                                         </TouchableOpacity>
                                                     ) : null}
                                                 </View>
@@ -26063,7 +26080,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <TextInput
                                                             value={archivePlayerQuery}
                                                             onChangeText={setArchivePlayerQuery}
-                                                            placeholder={lang==='tr' ? 'Kullanıcı adı veya isim ara...' : 'Search username or name...'}
+                                                            placeholder={lang==='tr' ? 'Kullanıcı adı veya isim ara...' : lang === 'ru' ? 'Поиск по имени пользователя...' : 'Search username or name...'}
                                                             placeholderTextColor={colors.textMuted}
                                                             style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor:colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
                                                         />
@@ -26091,7 +26108,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         onPress={() => setShowArchiveFilterModal(false)}
                                         style={{ backgroundColor: cfg.color, borderRadius:12, paddingVertical:13, alignItems:'center', marginTop:14 }}
                                     >
-                                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>✓ {lang==='tr' ? 'Onayla' : 'Apply'}</Text>
+                                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>✓ {lang==='tr' ? 'Onayla' : lang === 'ru' ? 'Применить' : 'Apply'}</Text>
                                     </TouchableOpacity>
                                 </View>
                                 </KeyboardAvoidingView>
@@ -26615,7 +26632,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {[
                                                 { type: 'POST',  emoji: '🖼️', label: 'Gönderi',  desc: 'Fotoğraf veya video paylaş' },
                                                 { type: 'STORY', emoji: '⭕', label: 'Hikaye',   desc: '24 saat sonra kaybolur' },
-                                                { type: 'REEL',  emoji: '🎬', label: lang === 'tr' ? 'Film Rulosu' : 'Reels', desc: lang === 'tr' ? 'Kısa video paylaş' : 'Share a short video' },
+                                                { type: 'REEL',  emoji: '🎬', label: lang === 'tr' ? 'Film Rulosu' : lang === 'ru' ? 'Ролики' : 'Reels', desc: lang === 'tr' ? 'Kısa video paylaş' : lang === 'ru' ? 'Поделиться коротким видео' : 'Share a short video' },
                                             ].map(opt => (
                                                 <TouchableOpacity key={opt.type} onPress={() => pickMediaShare(opt.type)}
                                                     style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border }}>
@@ -26635,7 +26652,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
                                         <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, paddingBottom: 33 }}>
                                             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', marginBottom: 12 }}>
-                                                {mediaShareType === 'STORY' ? '⭕ Hikaye Paylaş' : mediaShareType === 'REEL' ? `🎬 ${lang === 'tr' ? 'Film Rulosu' : 'Reels'} Paylaş` : '🖼️ Gönderi Paylaş'}
+                                                {mediaShareType === 'STORY' ? '⭕ Hikaye Paylaş' : mediaShareType === 'REEL' ? `🎬 ${lang === 'tr' ? 'Film Rulosu' : lang === 'ru' ? 'Ролики' : 'Reels'} Paylaş` : '🖼️ Gönderi Paylaş'}
                                             </Text>
                                             {mediaShareUri && (
                                                 <View style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: shareMusic ? 0 : 12, overflow: 'hidden' }}>
@@ -26897,7 +26914,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             const parts = [];
                             if (newsKeyword.trim()) parts.push(newsKeyword.trim());
                             if (newsDateFrom || newsDateTo) parts.push(`${newsDateFrom || '…'}–${newsDateTo || '…'}`);
-                            return parts.length ? parts.join(' · ') : (lang === 'tr' ? 'Filtrele' : 'Filter');
+                            return parts.length ? parts.join(' · ') : (lang === 'tr' ? 'Filtrele' : lang === 'ru' ? 'Фильтр' : 'Filter');
                         };
                         const filteredNews = news.filter(item => {
                             if (newsKeyword.trim()) {
@@ -26921,7 +26938,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 : <>
                                     <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 5, marginBottom: 8 }}>
                                         <TouchableOpacity onPress={loadNews} style={{ paddingHorizontal: 7, paddingVertical: 1, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
-                                            <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>🔄 {lang === 'tr' ? 'Yenile' : 'Refresh'}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>🔄 {lang === 'tr' ? 'Yenile' : lang === 'ru' ? 'Обновить' : 'Refresh'}</Text>
                                         </TouchableOpacity>
                                         {/* Kullanıcı isteği: Yenile'nin hemen yanında, aynı ebatta, tıklanınca
                                             tarih aralığı + anahtar kelime seçilebilen tek bir filtre butonu. */}
@@ -26947,7 +26964,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 )}
                                                 {!!item.pubDate && (
                                                     <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 6 }}>
-                                                        {new Date(item.pubDate).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                        {new Date(item.pubDate).toLocaleDateString(lang === 'tr' ? 'tr-TR' : lang === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                     </Text>
                                                 )}
                                             </View>
@@ -26959,31 +26976,31 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
                                             <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 17, paddingBottom: Math.max(20, insets.bottom + 16), maxHeight: '88%' }}>
                                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                                                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900' }}>🔍 {lang === 'tr' ? 'Filtrele' : 'Filter'}</Text>
+                                                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900' }}>🔍 {lang === 'tr' ? 'Filtrele' : lang === 'ru' ? 'Фильтр' : 'Filter'}</Text>
                                                     <TouchableOpacity onPress={() => setShowNewsFilterModal(false)}><Text style={{ color: colors.textMuted, fontSize: 22 }}>✕</Text></TouchableOpacity>
                                                 </View>
                                                 <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                                                        <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>🔎 {lang === 'tr' ? 'Anahtar Kelime' : 'Keyword'}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>🔎 {lang === 'tr' ? 'Anahtar Kelime' : lang === 'ru' ? 'Ключевое слово' : 'Keyword'}</Text>
                                                         {newsKeyword ? (
                                                             <TouchableOpacity onPress={() => setNewsKeyword('')}>
-                                                                <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>{lang === 'tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                                                <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>{lang === 'tr' ? 'Sıfırla' : lang === 'ru' ? 'Сбросить' : 'Reset'}</Text>
                                                             </TouchableOpacity>
                                                         ) : null}
                                                     </View>
                                                     <TextInput
                                                         value={newsKeyword}
                                                         onChangeText={setNewsKeyword}
-                                                        placeholder={lang === 'tr' ? 'Başlık veya açıklamada ara...' : 'Search title or description...'}
+                                                        placeholder={lang === 'tr' ? 'Başlık veya açıklamada ara...' : lang === 'ru' ? 'Поиск по названию или описанию...' : 'Search title or description...'}
                                                         placeholderTextColor={colors.textMuted}
                                                         style={{ backgroundColor: colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: newsKeyword ? cfg.color + '60' : colors.border, paddingVertical: 11, paddingHorizontal: 13, fontSize: 14, fontWeight: '700', color: '#fff', marginBottom: 18 }}
                                                     />
 
                                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                                                        <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>📅 {lang === 'tr' ? 'Tarih Aralığı' : 'Date Range'}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>📅 {lang === 'tr' ? 'Tarih Aralığı' : lang === 'ru' ? 'Диапазон дат' : 'Date Range'}</Text>
                                                         {(newsDateFrom || newsDateTo) ? (
                                                             <TouchableOpacity onPress={() => { setNewsDateFrom(''); setNewsDateTo(''); }}>
-                                                                <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>{lang === 'tr' ? 'Sıfırla' : 'Reset'}</Text>
+                                                                <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>{lang === 'tr' ? 'Sıfırla' : lang === 'ru' ? 'Сбросить' : 'Reset'}</Text>
                                                             </TouchableOpacity>
                                                         ) : null}
                                                     </View>
@@ -27009,7 +27026,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     onPress={() => setShowNewsFilterModal(false)}
                                                     style={{ backgroundColor: cfg.color, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 14 }}
                                                 >
-                                                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>✓ {lang === 'tr' ? 'Onayla' : 'Apply'}</Text>
+                                                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>✓ {lang === 'tr' ? 'Onayla' : lang === 'ru' ? 'Применить' : 'Apply'}</Text>
                                                 </TouchableOpacity>
                                             </View>
                                             </KeyboardAvoidingView>
@@ -27061,7 +27078,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <View style={{ backgroundColor: colors.surface2, borderRadius: 12, padding: 9, marginBottom: 12, borderWidth: 1, borderColor: colors.border }}>
                                 <TextInput
                                     style={{ color: '#fff', fontSize: 14, minHeight: 70, textAlignVertical: 'top', lineHeight: 20 }}
-                                    placeholder={lang === 'tr' ? 'Bir şeyler yaz...' : 'Write something...'}
+                                    placeholder={lang === 'tr' ? 'Bir şeyler yaz...' : lang === 'ru' ? 'Напишите что-нибудь...' : 'Write something...'}
                                     placeholderTextColor={colors.textMuted}
                                     value={newPostText}
                                     onChangeText={setNewPostText}
@@ -27075,7 +27092,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         disabled={submittingPost || !newPostText.trim()}
                                         style={{ backgroundColor: newPostText.trim() ? cfg.color : colors.surface, borderRadius: 8, paddingHorizontal: 13, paddingVertical: 4, opacity: (!newPostText.trim() || submittingPost) ? 0.5 : 1 }}>
                                         <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>
-                                            {submittingPost ? '...' : (lang === 'tr' ? 'Paylaş' : 'Post')}
+                                            {submittingPost ? '...' : (lang === 'tr' ? 'Paylaş' : lang === 'ru' ? 'Опубликовать' : 'Post')}
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
@@ -27150,22 +27167,22 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     value={ticketCity}
                                     onChangeText={setTicketCity}
                                     onSelect={(c) => { setTicketCity(c.province); setTicketsLoaded(false); }}
-                                    placeholder={lang === 'tr' ? 'Şehir (opsiyonel)' : 'City (optional)'}
+                                    placeholder={lang === 'tr' ? 'Şehir (opsiyonel)' : lang === 'ru' ? 'Город (необязательно)' : 'City (optional)'}
                                 />
                             </View>
                             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                                 <TouchableOpacity onPress={() => setShowTicketFromPicker(true)} style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 9, justifyContent: 'center' }}>
                                     <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '600' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                        {ticketDateFrom ? fmtTicketDate(ticketDateFrom) : (lang === 'tr' ? 'Başlangıç tarihi' : 'Start date')}
+                                        {ticketDateFrom ? fmtTicketDate(ticketDateFrom) : (lang === 'tr' ? 'Başlangıç tarihi' : lang === 'ru' ? 'Дата начала' : 'Start date')}
                                     </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => setShowTicketToPicker(true)} style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 9, justifyContent: 'center' }}>
                                     <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '600' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                        {ticketDateTo ? fmtTicketDate(ticketDateTo) : (lang === 'tr' ? 'Bitiş tarihi' : 'End date')}
+                                        {ticketDateTo ? fmtTicketDate(ticketDateTo) : (lang === 'tr' ? 'Bitiş tarihi' : lang === 'ru' ? 'Дата окончания' : 'End date')}
                                     </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => { setTicketsLoaded(false); loadSportsTickets(); }} style={{ backgroundColor: cfg.color, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' }}>
-                                    <Text style={{ color: '#fff', fontWeight: '700' }}>{lang === 'tr' ? 'Ara' : 'Search'}</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '700' }}>{lang === 'tr' ? 'Ara' : lang === 'ru' ? 'Поиск' : 'Search'}</Text>
                                 </TouchableOpacity>
                             </View>
                             <CalendarPickerModal
@@ -27183,7 +27200,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {loadingTickets ? (
                                 <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
                             ) : sportsTickets.length === 0 ? (
-                                ticketsLoaded && <EmptyState emoji="🎟️" text={t.emptyTickets || (lang === 'tr' ? 'Bu filtrelere uyan bilet bulunamadı.' : 'No tickets found for these filters.')} />
+                                ticketsLoaded && <EmptyState emoji="🎟️" text={t.emptyTickets || (lang === 'tr' ? 'Bu filtrelere uyan bilet bulunamadı.' : lang === 'ru' ? 'Билеты по этим фильтрам не найдены.' : 'No tickets found for these filters.')} />
                             ) : (
                                 sportsTickets.map(ev => (
                                     <View key={ev.id} style={{ flexDirection: 'row', backgroundColor: colors.surface2, borderRadius: 12, marginBottom: 10, padding: 9, borderWidth: 1, borderColor: colors.border }}>
@@ -27216,7 +27233,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             )}
                                             {ev.ticketUrl && (
                                                 <TouchableOpacity onPress={() => Linking.openURL(ev.ticketUrl)} style={{ backgroundColor: cfg.color, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, alignSelf: 'flex-start', marginTop: 6 }}>
-                                                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{t.ticketBuyBtn || (lang === 'tr' ? '🎟️ Bilet Al' : '🎟️ Buy Ticket')}</Text>
+                                                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{t.ticketBuyBtn || (lang === 'tr' ? '🎟️ Bilet Al' : lang === 'ru' ? '🎟️ Купить билет' : '🎟️ Buy Ticket')}</Text>
                                                 </TouchableOpacity>
                                             )}
                                         </View>
@@ -27279,12 +27296,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                         {/* Header */}
                         <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingTop:52, paddingBottom:12, backgroundColor: colors.surface, borderBottomWidth:1, borderBottomColor: colors.border }}>
                             <TouchableOpacity onPress={() => setShowVenuesSheet(false)} style={{ paddingRight:12 }}>
-                                <Text style={{ color: cfg.color, fontSize:15, fontWeight:'700' }}>← {lang === 'tr' ? 'Geri' : 'Back'}</Text>
+                                <Text style={{ color: cfg.color, fontSize:15, fontWeight:'700' }}>← {lang === 'tr' ? 'Geri' : lang === 'ru' ? 'Назад' : 'Back'}</Text>
                             </TouchableOpacity>
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>
-                                🏟️ {lang === 'tr' ? 'Kayıtlı Kortlar' : 'Registered Courts'}
+                                🏟️ {lang === 'tr' ? 'Kayıtlı Kortlar' : lang === 'ru' ? 'Зарегистрированные корты' : 'Registered Courts'}
                             </Text>
-                            <Text style={{ color: colors.textMuted, fontSize:12 }}>{venuesTotal} {lang === 'tr' ? 'kort' : 'courts'}</Text>
+                            <Text style={{ color: colors.textMuted, fontSize:12 }}>{venuesTotal} {lang === 'tr' ? 'kort' : lang === 'ru' ? 'кортов' : 'courts'}</Text>
                         </View>
 
                         {/* Filtreler */}
@@ -27293,7 +27310,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <Text style={{ fontSize:14, marginRight:6 }}>🔍</Text>
                                 <TextInput
                                     style={{ flex:1, color:'#fff', fontSize:13, paddingVertical:9 }}
-                                    placeholder={lang === 'tr' ? 'Tesis / kort adı ara...' : 'Search venue / court name...'}
+                                    placeholder={lang === 'tr' ? 'Tesis / kort adı ara...' : lang === 'ru' ? 'Поиск названия объекта / корта...' : 'Search venue / court name...'}
                                     placeholderTextColor={colors.textMuted}
                                     value={venueFilterName}
                                     onChangeText={v => { setVenueFilterName(v); fetchVenues(venueFilterCity, v); }}
@@ -27309,7 +27326,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <Text style={{ fontSize:14, marginRight:6 }}>📍</Text>
                                 <TextInput
                                     style={{ flex:1, color:'#fff', fontSize:13, paddingVertical:9 }}
-                                    placeholder={lang === 'tr' ? 'Şehir / ilçe filtrele...' : 'Filter by city / district...'}
+                                    placeholder={lang === 'tr' ? 'Şehir / ilçe filtrele...' : lang === 'ru' ? 'Фильтр по городу / району...' : 'Filter by city / district...'}
                                     placeholderTextColor={colors.textMuted}
                                     value={venueFilterCity}
                                     onChangeText={v => { setVenueFilterCity(v); fetchVenues(v, venueFilterName); }}
@@ -27329,7 +27346,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             : <ScrollView contentContainerStyle={{ padding:14, paddingBottom:30 }} showsVerticalScrollIndicator={false}>
                                 {venuesList.length === 0
                                     ? <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:40, fontSize:14 }}>
-                                        {lang === 'tr' ? 'Kort bulunamadı' : 'No courts found'}
+                                        {lang === 'tr' ? 'Kort bulunamadı' : lang === 'ru' ? 'Корты не найдены' : 'No courts found'}
                                       </Text>
                                     : <>
                                         {venuesList.map(court => (
@@ -27347,19 +27364,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         </View>
                                                         <Text style={{ color: colors.textMuted, fontSize:12, marginTop:3 }}>📍 {court.city}{court.address ? ` · ${court.address}` : ''}</Text>
                                                         {court.isBusinessVenue && court.courtCount > 0 && (
-                                                            <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>🎾 {court.courtCount} {lang === 'tr' ? 'kort' : 'court'}</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>🎾 {court.courtCount} {lang === 'tr' ? 'kort' : lang === 'ru' ? 'корт' : 'court'}</Text>
                                                         )}
                                                         {!court.isBusinessVenue && (court.surface || court.indoor != null) && (
                                                             <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>
-                                                                {court.surface ? `⬜ ${court.surface}` : ''}{court.surface && court.indoor != null ? '  ·  ' : ''}{court.indoor != null ? (court.indoor ? (lang === 'tr' ? '🏠 Kapalı' : '🏠 Indoor') : (lang === 'tr' ? '☀️ Açık' : '☀️ Outdoor')) : ''}
+                                                                {court.surface ? `⬜ ${court.surface}` : ''}{court.surface && court.indoor != null ? '  ·  ' : ''}{court.indoor != null ? (court.indoor ? (lang === 'tr' ? '🏠 Kapalı' : lang === 'ru' ? '🏠 Закрытый' : '🏠 Indoor') : (lang === 'tr' ? '☀️ Açık' : lang === 'ru' ? '☀️ Открытый' : '☀️ Outdoor')) : ''}
                                                             </Text>
                                                         )}
                                                     </View>
                                                     <View style={{ alignItems:'flex-end', gap:3 }}>
                                                         {court.avgRating
                                                             ? <Text style={{ color:'#facc15', fontWeight:'800', fontSize:14 }}>⭐ {court.avgRating.toFixed(1)}</Text>
-                                                            : <Text style={{ color: colors.textMuted, fontSize:11 }}>{lang === 'tr' ? 'Puan yok' : 'No rating'}</Text>}
-                                                        <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang === 'tr' ? 'Değerlendir →' : 'Rate →'}</Text>
+                                                            : <Text style={{ color: colors.textMuted, fontSize:11 }}>{lang === 'tr' ? 'Puan yok' : lang === 'ru' ? 'Нет оценки' : 'No rating'}</Text>}
+                                                        <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang === 'tr' ? 'Değerlendir →' : lang === 'ru' ? 'Оценить →' : 'Rate →'}</Text>
                                                     </View>
                                                 </View>
                                             </TouchableOpacity>
@@ -27395,13 +27412,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         {venueReviewTarget.venueRating && (
                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, backgroundColor: colors.surface2, borderRadius: 10, padding: 9, borderWidth: 1, borderColor: colors.border }}>
                                                 <Text style={{ color: '#facc15', fontSize: 20, fontWeight: '900' }}>⭐ {venueReviewTarget.venueRating.toFixed(1)}</Text>
-                                                <Text style={{ color: colors.textMuted, fontSize: 12 }}>({venueReviewTarget.venueReviewCount} {lang === 'tr' ? 'değerlendirme' : 'review'})</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize: 12 }}>({venueReviewTarget.venueReviewCount} {lang === 'tr' ? 'değerlendirme' : lang === 'ru' ? 'отзыв' : 'review'})</Text>
                                             </View>
                                         )}
 
                                         {/* Yorum yaz */}
                                         <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700', marginBottom: 8 }}>
-                                            {lang === 'tr' ? 'Değerlendirmeni Yaz' : 'Write Your Review'}
+                                            {lang === 'tr' ? 'Değerlendirmeni Yaz' : lang === 'ru' ? 'Написать отзыв' : 'Write Your Review'}
                                         </Text>
                                         <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
                                             {[1, 2, 3, 4, 5].map(star => (
@@ -27413,7 +27430,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <View style={{ backgroundColor: colors.surface2, borderRadius: 10, padding: 9, marginBottom: 10, borderWidth: 1, borderColor: colors.border }}>
                                             <TextInput
                                                 style={{ color: '#fff', fontSize: 13, minHeight: 60, textAlignVertical: 'top' }}
-                                                placeholder={lang === 'tr' ? 'Yorum ekle (isteğe bağlı)' : 'Add a comment (optional)'}
+                                                placeholder={lang === 'tr' ? 'Yorum ekle (isteğe bağlı)' : lang === 'ru' ? 'Добавить комментарий (необязательно)' : 'Add a comment (optional)'}
                                                 placeholderTextColor={colors.textMuted}
                                                 value={vrComment}
                                                 onChangeText={setVrComment}
@@ -27427,14 +27444,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             style={{ backgroundColor: vrRating ? cfg.color : colors.surface2, borderRadius: 12, paddingVertical: 11, alignItems: 'center', marginBottom: 18, opacity: vrSubmitting ? 0.6 : 1 }}>
                                             {vrSubmitting
                                                 ? <ActivityIndicator size="small" color="#fff" />
-                                                : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>{lang === 'tr' ? 'Gönder' : 'Submit'}</Text>}
+                                                : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>{lang === 'tr' ? 'Gönder' : lang === 'ru' ? 'Отправить' : 'Submit'}</Text>}
                                         </TouchableOpacity>
 
                                         {/* Kort puanları */}
                                         {(venueReviewTarget.courtRatings?.length > 0) && (
                                             <>
                                                 <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700', marginBottom: 8 }}>
-                                                    {lang === 'tr' ? 'Kort Puanları' : 'Court Ratings'}
+                                                    {lang === 'tr' ? 'Kort Puanları' : lang === 'ru' ? 'Рейтинг кортов' : 'Court Ratings'}
                                                 </Text>
                                                 {venueReviewTarget.courtRatings.map(cr => (
                                                     <View key={cr.courtId} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface2, borderRadius: 9, padding: 9, marginBottom: 6, borderWidth: 1, borderColor: colors.border }}>
@@ -27453,7 +27470,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         {(venueReviewTarget.reviews?.filter(r => !r.courtId) || []).length > 0 && (
                                             <>
                                                 <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700', marginBottom: 8 }}>
-                                                    {lang === 'tr' ? 'Yorumlar' : 'Reviews'}
+                                                    {lang === 'tr' ? 'Yorumlar' : lang === 'ru' ? 'Отзывы' : 'Reviews'}
                                                 </Text>
                                                 {venueReviewTarget.reviews.filter(r => !r.courtId).map(r => (
                                                     <View key={r.id} style={{ backgroundColor: colors.surface2, borderRadius: 10, padding: 9, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
