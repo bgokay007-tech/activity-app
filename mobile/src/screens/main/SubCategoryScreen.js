@@ -6048,6 +6048,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         return d;
     };
     const matchStart = getMatchStart(match);
+    // Kullanıcı isteği: maç başladıktan 5 dakika sonra artık ne yedek isteği kabul etmenin ne de
+    // iptal etmenin bir anlamı kalmıyor — önceden İptal sadece maç TAMAMEN bitince (scoreUnlocked)
+    // kalkıyordu, bu çok daha erken (maçın süresine göre değil, başlangıcına göre) tetikleniyor.
+    const matchStartedOver5Min = !!matchStart && new Date() >= new Date(matchStart.getTime() + 5 * 60 * 1000);
     const hoursUntilMatch = matchStart ? (matchStart - new Date()) / (1000 * 60 * 60) : null;
     // Diğer dallarda sabit 5 saat/-0.20. Voleybolde genel kural hiç geçerli değil — kurucu
     // kendi eşiğini (cancelPenaltyHours) belirlediyse o kullanılır, belirlemediyse voleybol
@@ -7544,8 +7548,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {/* Yedek istekleri — maç zaten MATCHED olsa da boş Yedek kontenjanı olduğu
                         sürece gönderilebilen istekler (bkz. subRequests) — ilan sahibi burada
                         kabul/red eder. Kullanıcı isteği: liste herkese görünür (kabul/red butonları
-                        yine sadece sahipte). */}
-                    {subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
+                        yine sadece sahipte). Maç başladıktan 5 dakika sonra artık anlamsız,
+                        gizleniyor (bkz. matchStartedOver5Min). */}
+                    {!matchStartedOver5Min && subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
                         <View style={{ backgroundColor: colors.surface2, borderRadius:12, padding:9, borderWidth:1, borderColor: colors.border, marginBottom:12 }}>
                             {/* Kullanıcı isteği: yer tasarrufu için en sağdaki oka dokununca açılıp
                                 kapanıyor — varsayılan kapalı. */}
@@ -7571,7 +7576,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             ))}
                         </View>
                     )}
-                    {!isOwner && !isParticipant && substituteSlotsOpen && (
+                    {/* Kullanıcı isteği: maç başladıktan 5 dakika sonra yedek başvurusu da anlamsız. */}
+                    {!isOwner && !isParticipant && !matchStartedOver5Min && substituteSlotsOpen && (
                         subJoinSent || myPendingSubRequest ? (
                             <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700', textAlign:'center', marginBottom:12 }}>⏳ Yedek başvurun bekleniyor</Text>
                         ) : (
@@ -8077,19 +8083,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </View>
                     )}
 
-                    {/* Maçı Başlat — maç saati gelince (skor kilidi açılmadan çok önce), kamera
-                        kaydı ve/ya da saatten canlı skor takibi başlatılabilir. Kullanıcı isteğiyle
-                        sadece tenis/padel/voleybolde; sadece maça dahil olanlar başlatabilir.
-                        !scoreUnlocked şart — üst sınır yoktu, maçın süresi (matchEnd) çoktan
-                        geçmiş "skor bekleyen" bir maçta bile buton hâlâ görünüyordu (kullanıcı raporu:
-                        "3:30 başlamış 60dk süre, biteli kesin, buton hâlâ duruyor"). */}
-                    {isParticipant && !hasScore && !scoreUnlocked && matchStart && new Date() >= matchStart && ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis'].includes(match.subCategory) && (
-                        <TouchableOpacity
-                            style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor: cfg.color+'20', borderRadius:12, borderWidth:1, borderColor: cfg.color+'60', paddingVertical:10, marginBottom:8 }}
-                            onPress={() => setShowMatchStart(true)}>
-                            <Text style={{ color: cfg.color, fontSize:14, fontWeight:'800' }}>{t.matchStartBtn}</Text>
-                        </TouchableOpacity>
-                    )}
                     <MatchStartModal
                         visible={showMatchStart}
                         onClose={() => setShowMatchStart(false)}
@@ -8159,6 +8152,18 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         flex:1 olan butonlar hâlâ bozuktu). Kökten çözüm: bu satırdaki HİÇBİR butonda
                         artık flex:1 yok, hepsi İptal/Gelmedi gibi kendi içeriğine göre boyutlanıyor. */}
                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:8, marginBottom:20, alignItems:'flex-start' }}>
+                        {/* Maçı Başlat — kullanıcı isteği: İptal/Gelmedi ile aynı satıra taşındı,
+                            önceden kendi başına tam genişlik bir satırdı, gereksiz yer kaplıyordu.
+                            Koşulu aynı: maç saati gelince (skor kilidi açılmadan çok önce), kamera
+                            kaydı ve/ya da saatten canlı skor takibi başlatılabilir — sadece
+                            tenis/padel/voleybolde, sadece maça dahil olanlar başlatabilir. */}
+                        {isParticipant && !hasScore && !scoreUnlocked && matchStart && new Date() >= matchStart && ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis'].includes(match.subCategory) && (
+                            <TouchableOpacity
+                                style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: cfg.color+'60', backgroundColor: cfg.color+'20', alignItems:'center' }}
+                                onPress={() => setShowMatchStart(true)}>
+                                <Text style={{ color: cfg.color, fontSize:13, fontWeight:'700' }}>{t.matchStartBtn}</Text>
+                            </TouchableOpacity>
+                        )}
                         {!hasScore && scoreUnlocked && (
                             <>
                                 {/* Kullanıcı isteği: "Skor Gir" ve "Skor Gir ve Medya Paylaş" diye İKİ
@@ -8230,11 +8235,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         onPress={handleLeavePromotedPress} disabled={leavingPromoted}>
                                         <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'700' }}>{t.leavePromotedSubBtn}</Text>
                                     </TouchableOpacity>
-                                ) : !scoreUnlocked && (
-                                    // Kullanıcı isteği: maç süresi tamamen dolup Skor Bekleyen Maçlar'a
-                                    // düşünce "İptal" butonunun bir anlamı kalmıyor — maç zaten bitti,
-                                    // skor girilemiyorsa herkesin onayıyla sonuçsuz kapatılabiliyor,
-                                    // bu da rekabetçi modda bile Elo'yu etkilemiyor.
+                                ) : !matchStartedOver5Min && !scoreUnlocked && (
+                                    // Kullanıcı isteği: maç başladıktan 5 dakika sonra "İptal" butonunun
+                                    // bir anlamı kalmıyor — maç zaten oynanıyor, skor girilemiyorsa
+                                    // herkesin onayıyla sonuçsuz kapatılabiliyor, bu da rekabetçi
+                                    // modda bile Elo'yu etkilemiyor.
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618', alignItems:'center' }}
                                         onPress={handleCancelPress} disabled={cancelling}>
