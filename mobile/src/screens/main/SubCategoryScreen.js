@@ -7279,7 +7279,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                         { key: 'partner', p: partner },
                                                         { key: 'opp1', p: opp1 },
                                                         { key: 'opp2', p: opp2 },
-                                                    ].filter(s => s.key !== slotChangeTarget.slot && s.p?.id)
+                                                    ].filter(s => s.key !== slotChangeTarget.slot && s.p?.id
+                                                        // Kullanıcı isteği: geçersiz (cinsiyet uymayan) bir yer değiştirme hiç
+                                                        // seçenek olarak gösterilmesin — backend zaten reddediyordu
+                                                        // (swapMatchPositions'daki checkGender), ama kullanıcı deneyip hata
+                                                        // almadan önce burada filtrelenmeli. İKİ yöne de bakılır: karşı
+                                                        // taraftaki oyuncu benim slotuma, ben de onun slotuna uymalıyım.
+                                                        && genderFitsSlot(s.p.gender, slotGReq[slotChangeTarget.slot])
+                                                        && genderFitsSlot(slotChangeTarget.player?.gender, slotGReq[s.key]))
                                                         .map(s => ({ label: `🔁 ${senderAlias(s.p)} ile yer değiştir`, onPress: () => performSwap(slotChangeTarget.slot, s.key) })),
                                                     // Kullanıcı isteği: sadece dolu bir slotla yer değiştirme değil, karşı tarafta
                                                     // BOŞ ve oyuncunun cinsiyetine uygun bir slot varsa doğrudan oraya taşıma
