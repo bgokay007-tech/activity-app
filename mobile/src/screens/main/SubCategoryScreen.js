@@ -22801,8 +22801,13 @@ export default function SubCategoryScreen({ route, navigation }) {
         const offReconnect = onSocketReconnect(() => load());
         // Fallback: socket missed event → periyodik yenileme (30s)
         const pollInterval = setInterval(() => load(), 30000);
-        // Dakikada bir tick → maç saati geçince yaklaşan→skor bekleniyor geçişini anlık yansıt
-        const tickInterval = setInterval(() => setTimeTick(n => n + 1), 60000);
+        // Kullanıcı raporu: dakikada bir tick "anında" hissettirmiyordu, maç saati geçince kart
+        // Yaklaşan Maçlar'da görünmeye devam ediyor gibi kalıyordu — geri çıkıp tekrar girince
+        // (ekran yeniden mount olup taze veri çekince) hemen doğru yere geçiyordu, bu da sanki
+        // otomatik geçiş hiç çalışmıyormuş izlenimi veriyordu. 5 saniyeye düşürüldü — matchHasStarted/
+        // matchHasEnded zaten her render'da yeniden hesaplanıyor (bkz. aşağısı), tek eksik olan
+        // yeniden render'ı yeterince sık tetiklemekti.
+        const tickInterval = setInterval(() => setTimeTick(n => n + 1), 5000);
         return () => { offUpdate(); offDeleted(); offNewComment(); offReconnect(); clearInterval(pollInterval); clearInterval(tickInterval); };
     }, [category, sub]);
 
