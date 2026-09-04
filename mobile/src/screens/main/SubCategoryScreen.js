@@ -10847,13 +10847,22 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
             {cardFlipped ? (
                 <TouchableOpacity activeOpacity={0.85} style={{ padding:9, flex:1 }} onPress={onPress}>
                     <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', marginBottom:6, paddingRight:22 }}>👥 {t.rosterPoolLabel}</Text>
-                    <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800', marginBottom:2 }} numberOfLines={1}>{founderLabel}</Text>
+                    {/* Kullanıcı raporu: 1v1 maçlarda oyuncu ismi iki kere yazıyordu — tek kişilik
+                        bir tarafta founderLabel/opponentLabel zaten senderAlias(founderSide[0])'a
+                        (takım adı yokken kişinin kendi adına) düşüyor, altındaki .map de AYNI tek
+                        kişiyi tekrar listeliyordu. Etiket satırı sadece gerçek bir takım (2+ kişi)
+                        varken gösterilir; tek kişilik tarafta isim sadece roster satırında bir kez geçer. */}
+                    {founderSide.length > 1 && (
+                        <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800', marginBottom:2 }} numberOfLines={1}>{founderLabel}</Text>
+                    )}
                     {founderSide.map(p => (
                         <Text key={p.id} style={{ color: colors.textSecondary, fontSize:11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
                     ))}
-                    <Text style={{ color:'#fca5a5', fontSize:10, fontWeight:'800', marginTop:6, marginBottom:2 }} numberOfLines={1}>{opponentLabel}</Text>
+                    {opponentSide.length > 1 && (
+                        <Text style={{ color:'#fca5a5', fontSize:10, fontWeight:'800', marginTop:6, marginBottom:2 }} numberOfLines={1}>{opponentLabel}</Text>
+                    )}
                     {opponentSide.map(p => (
-                        <Text key={p.id} style={{ color: colors.textSecondary, fontSize:11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
+                        <Text key={p.id} style={{ color: colors.textSecondary, fontSize:11, marginTop: opponentSide.length > 1 ? 0 : 6 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
                     ))}
                 </TouchableOpacity>
             ) : (
