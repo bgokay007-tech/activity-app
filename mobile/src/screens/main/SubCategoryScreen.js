@@ -11003,6 +11003,14 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
                             {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>{Number(rBefore).toFixed(2)} ★</Text>}
                             {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'700' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
                             {rAfter != null && <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>→ <Text style={{ color:'#4ade80' }}>{Number(rAfter).toFixed(2)} ★</Text></Text>}
+                            {/* Kullanıcı isteği: takım kazandığı halde puanı düşen/az artan oyuncular
+                                "adaletsiz" görünüyordu — puan değişiminin yanına dokununca algoritmayı
+                                açıklayan bir bilgi butonu eklendi. */}
+                            {pts != null && pts !== 0 && (
+                                <TouchableOpacity onPress={() => Alert.alert(t.ratingChangeInfoTitle, t.ratingChangeInfoBody)} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:12, fontWeight:'900' }}>ⓘ</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
                     </TouchableOpacity>
                     {pSets && (
