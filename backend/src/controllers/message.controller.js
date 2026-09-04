@@ -30,9 +30,10 @@ async function isConversationMuted(userId, conversationId) {
 const CHANNEL_BY_MODE = { MUTE: 'silent', VIBRATE: 'vibrate', SOUND: 'default' };
 
 async function sendPushNotification(pushToken, title, body, notificationMode = 'SOUND', data = {}) {
-    if (!pushToken?.startsWith('ExponentPushToken')) return;
+    console.log('[push] DEBUG2 token:', pushToken?.substring(0, 50));
+    if (!pushToken?.startsWith('ExponentPushToken')) { console.log('[push] DEBUG2 invalid token, aborting'); return; }
     try {
-        await axios.post('https://exp.host/--/api/v2/push/send', {
+        const debugRes2 = await axios.post('https://exp.host/--/api/v2/push/send', {
             to: pushToken,
             title,
             body,
@@ -48,7 +49,8 @@ async function sendPushNotification(pushToken, title, body, notificationMode = '
             categoryId: 'message_notification',
             data: { type: 'MESSAGE', ...data },
         }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
-    } catch { /* push failure is non-critical */ }
+        console.log('[push] DEBUG2 expo response:', JSON.stringify(debugRes2.data));
+    } catch (e) { console.log('[push] DEBUG2 send FAILED:', e.message, e.response?.data ? JSON.stringify(e.response.data) : ''); }
 }
 
 export const getConversations = async (req, res, next) => {
