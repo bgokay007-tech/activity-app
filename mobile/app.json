@@ -31,7 +31,11 @@
         "UIBackgroundModes": [
           "audio",
           "location"
-        ]
+        ],
+        "NSHealthShareUsageDescription": "Maç bitince Sağlık uygulamandan kalori/nabız verini okuyup maç istatistiklerine ekleyebilmek için."
+      },
+      "entitlements": {
+        "com.apple.developer.healthkit": true
       }
     },
     "android": {
@@ -47,7 +51,9 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "android.permission.health.READ_HEART_RATE",
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
       ],
       "config": {
         "googleMaps": {
@@ -65,7 +71,10 @@
               "pathPrefix": "/share"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -119,6 +128,14 @@
           "photosPermission": "Kaydettiğin maç videolarını galerine kaydedebilmek için erişim istiyoruz.",
           "savePhotosPermission": "Maç videosunu galerine kaydedebilmek için izin istiyoruz.",
           "isAccessMediaLocationEnabled": false
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
         }
       ]
     ],

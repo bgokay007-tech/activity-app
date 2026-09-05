@@ -1,0 +1,7 @@
+{
+  "name": "health-bridge",
+  "version": "0.1.0",
+  "description": "Maç bitince Health Connect (Android) / HealthKit (iOS) üzerinden kalori ve nabız verisini okuyan köprü",
+  "main": "index.ts",
+  "license": "UNLICENSED"
+}

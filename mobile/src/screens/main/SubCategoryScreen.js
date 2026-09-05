@@ -18,6 +18,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import { addMatchUpdateListener, isWatchConnected } from '../../../modules/wear-bridge';
+import { isHealthAvailable, requestHealthPermissions, getWorkoutSummary } from '../../../modules/health-bridge';
+import { estimateCalories } from '../../utils/calorieEstimate';
 import api from '../../services/api';
 import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
@@ -5517,7 +5519,7 @@ function MatchStartModal({ visible, onClose, onStart, t }) {
 // Maçı Başlat sonrası açılan tam ekran: kamera kaydı ve/veya saatten gelen canlı skor.
 // İkisi de seçiliyse kamera tam ekran, üstünde küçük canlı skor kutusu (kullanıcı isteği:
 // spor yayınlarındaki skorbord gibi). Kayıt bitince telefonun galerisine kaydedilir.
-function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPhone, matchStartedAt, onMatchEnd, t }) {
+function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPhone, matchStartedAt, matchMode, myGender, onMatchEnd, t }) {
     const insets = useSafeAreaInsets();
     const [camPerm, requestCamPerm] = useCameraPermissions();
     const [micPerm, requestMicPerm] = useMicrophonePermissions();
@@ -5547,7 +5549,10 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
         setEngineTick(t => t + 1);
     }, [visible, tracking, profile, sub]);
 
-    const finishAndReport = () => {
+    // finishAndReport senkron başlar (skor/istatistik anında hesaplanır) ama sağlık verisi
+    // sorgusu asenkron olduğu için fonksiyonun kendisi async — çağıran taraflar (manuel
+    // dokunma/watch bitişi) sonucu beklemeden devam eder, onMatchEnd hazır olunca çağrılır.
+    const finishAndReport = async () => {
         const engine = engineRef.current;
         if (!engine || !onMatchEnd) { onClose(); return; }
         if (engine.profile === 'basketball' && !engine.matchWinner) basketballFinishMatch(engine);
@@ -5562,7 +5567,33 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
         } else if (engine.profile === 'basketball') {
             apiSets = [{ my: String(engine.totalA), opp: String(engine.totalB) }];
         }
-        onMatchEnd({ stats, sets: apiSets, winnerSide: engine.matchWinner, durationMs: matchStartedAt ? Date.now() - matchStartedAt : null });
+        const durationMs = matchStartedAt ? Date.now() - matchStartedAt : null;
+
+        // Sağlık verisi — saat/telefon Sağlık uygulamasından senkronize (Health Connect/
+        // HealthKit ikisi de saat verisini otomatik kapsar) veri varsa onu kullan, yoksa
+        // MET tabanlı tahmine düş. Bu adım native köprü gerektirdiği için (Faz 4) sadece
+        // yeni bir native build kurulduysa gerçek veri döner — eski build'lerde modül
+        // bulunamaz/isAvailable false döner, sessizce tahmine düşülür.
+        let workout = null;
+        try {
+            const available = await isHealthAvailable();
+            if (available && matchStartedAt) {
+                const granted = await requestHealthPermissions();
+                if (granted) {
+                    const summary = await getWorkoutSummary(new Date(matchStartedAt).toISOString(), new Date().toISOString());
+                    if (summary && (summary.avgHeartRate != null || summary.activeCalories != null)) {
+                        workout = { avgHeartRate: summary.avgHeartRate ?? null, maxHeartRate: summary.maxHeartRate ?? null, activeCalories: summary.activeCalories ?? null, source: 'synced' };
+                    }
+                }
+            }
+        } catch (e) { /* health-bridge yoksa (eski build) ya da hata verirse sessizce tahmine düş */ }
+        if (!workout) {
+            const estimated = estimateCalories({ sport: sub, matchMode, durationMinutes: durationMs ? durationMs / 60000 : null, gender: myGender });
+            if (estimated != null) workout = { avgHeartRate: null, maxHeartRate: null, activeCalories: estimated, source: 'estimated' };
+        }
+        if (workout) stats.workout = workout;
+
+        onMatchEnd({ stats, sets: apiSets, winnerSide: engine.matchWinner, durationMs });
         onClose();
     };
 
@@ -5790,6 +5821,9 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
 function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress, autoOpen = false, onAutoOpened, autoOpenOrder = false }) {
     const t = useT();
     const insets = useSafeAreaInsets();
+    // Sağlık verisi bulunamazsa (bkz. MatchLiveScreen finishAndReport) MET tabanlı tahmini
+    // kalori hesabı için kullanılıyor.
+    const myGender = useSelector(s => s.auth.user?.gender);
     const [showScore, setShowScore] = useState(false);
     // Kullanıcı isteği: "Yedek İstekleri" listesi yer kaplıyordu — en sağa dokununca açılıp
     // kapanan bir ok eklendi, varsayılan kapalı (yer tasarrufu için).
@@ -8262,6 +8296,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         wantWatch={matchLiveOptions.wantWatch}
                         wantPhone={matchLiveOptions.wantPhone}
                         matchStartedAt={matchStartedAtRef.current}
+                        matchMode={match.matchMode}
+                        myGender={myGender}
                         onMatchEnd={({ stats, sets: derivedSets, durationMs }) => {
                             // Kullanıcı isteği: canlı takip bitince skor formu ÖN DOLU açılsın,
                             // kullanıcı son kontrolü yapıp göndersin (tam otomatik değil).
