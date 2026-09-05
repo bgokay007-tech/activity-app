@@ -37,6 +37,12 @@ import TrailsTab from './TrailsTab';
 import { shareRival, shareTournament } from '../../utils/share';
 import { computeVarDurationPrice } from '../../utils/priceProration';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
+import {
+    sportProfile, createRacketMatch, racketRecordPoint,
+    createVolleyballMatch, volleyballRecordPoint,
+    createBasketballMatch, basketballRecordPoints, basketballEndQuarter, basketballFinishMatch,
+    deriveStats,
+} from '../../utils/liveMatchEngine';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -5465,8 +5471,13 @@ function MatchStartModal({ visible, onClose, onStart, t }) {
     const insets = useSafeAreaInsets();
     const [wantCamera, setWantCamera] = useState(false);
     const [wantWatch, setWantWatch] = useState(false);
+    // Kullanıcı isteği: saat yoksa/kullanılmıyorsa telefondan dokunarak ("Ben"/"Rakip") aynı
+    // detaylı istatistikleri (servis oyunu, break point, en uzun oyun vb.) üretebilsin —
+    // canlı skor kaynağı ("Saat" ile "Telefondan Canlı Takip") birbirini dışlar, ikisi de
+    // aynı anda skoru sürmeye çalışamaz; kamera ikisiyle de bağımsız birlikte açılabilir.
+    const [wantPhone, setWantPhone] = useState(false);
     useEffect(() => {
-        if (visible) { setWantCamera(false); setWantWatch(false); }
+        if (visible) { setWantCamera(false); setWantWatch(false); setWantPhone(false); }
     }, [visible]);
     const Toggle = ({ active, onPress, emoji, label, desc }) => (
         <TouchableOpacity onPress={onPress}
@@ -5490,10 +5501,11 @@ function MatchStartModal({ visible, onClose, onStart, t }) {
                         <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
                     </View>
                     <Toggle active={wantCamera} onPress={() => setWantCamera(v => !v)} emoji="📹" label={t.matchStartCameraLabel} desc={t.matchStartCameraDesc} />
-                    <Toggle active={wantWatch} onPress={() => setWantWatch(v => !v)} emoji="⌚" label={t.matchStartWatchLabel} desc={t.matchStartWatchDesc} />
-                    <TouchableOpacity onPress={() => onStart({ wantCamera, wantWatch })}
-                        disabled={!wantCamera && !wantWatch}
-                        style={{ backgroundColor: colors.purple, borderRadius:14, paddingVertical:12, alignItems:'center', marginTop:6, opacity: (!wantCamera && !wantWatch) ? 0.5 : 1 }}>
+                    <Toggle active={wantWatch} onPress={() => { setWantWatch(v => !v); setWantPhone(false); }} emoji="⌚" label={t.matchStartWatchLabel} desc={t.matchStartWatchDesc} />
+                    <Toggle active={wantPhone} onPress={() => { setWantPhone(v => !v); setWantWatch(false); }} emoji="📱" label={t.matchStartPhoneLabel} desc={t.matchStartPhoneDesc} />
+                    <TouchableOpacity onPress={() => onStart({ wantCamera, wantWatch, wantPhone })}
+                        disabled={!wantCamera && !wantWatch && !wantPhone}
+                        style={{ backgroundColor: colors.purple, borderRadius:14, paddingVertical:12, alignItems:'center', marginTop:6, opacity: (!wantCamera && !wantWatch && !wantPhone) ? 0.5 : 1 }}>
                         <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>{t.matchStartGoBtn}</Text>
                     </TouchableOpacity>
                 </View>
@@ -5505,7 +5517,7 @@ function MatchStartModal({ visible, onClose, onStart, t }) {
 // Maçı Başlat sonrası açılan tam ekran: kamera kaydı ve/veya saatten gelen canlı skor.
 // İkisi de seçiliyse kamera tam ekran, üstünde küçük canlı skor kutusu (kullanıcı isteği:
 // spor yayınlarındaki skorbord gibi). Kayıt bitince telefonun galerisine kaydedilir.
-function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, t }) {
+function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPhone, matchStartedAt, onMatchEnd, t }) {
     const insets = useSafeAreaInsets();
     const [camPerm, requestCamPerm] = useCameraPermissions();
     const [micPerm, requestMicPerm] = useMicrophonePermissions();
@@ -5515,6 +5527,96 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, t }) {
     const [saving, setSaving] = useState(false);
     const [wearConnected, setWearConnected] = useState(null); // null = henüz bilinmiyor
     const [wearScore, setWearScore] = useState(null);
+
+    // ── Canlı takip motoru (saat ya da telefon-içi manuel dokunma) — bkz. liveMatchEngine.js.
+    // Watch'tan gelen kümülatif güncellemeler (pointsA/B, gamesA/B, setsA/B) ardışık farkları
+    // alınarak (diffing) aynı motora sayı-sayı besleniyor; böylece saat tarafında HİÇBİR
+    // değişiklik yapmadan tam PointLog (break point dahil) yeniden inşa edilebiliyor.
+    const engineRef = useRef(null);
+    const prevWearRef = useRef(null);
+    const [engineTick, setEngineTick] = useState(0); // engine mutasyonlarından sonra re-render tetikler
+    const profile = sportProfile(sub);
+    const tracking = wantWatch || wantPhone;
+
+    useEffect(() => {
+        if (!visible || !tracking || !profile) return;
+        engineRef.current = profile === 'racket' ? createRacketMatch({ sport: sub })
+            : profile === 'volleyball' ? createVolleyballMatch({})
+            : createBasketballMatch({});
+        prevWearRef.current = null;
+        setEngineTick(t => t + 1);
+    }, [visible, tracking, profile, sub]);
+
+    const finishAndReport = () => {
+        const engine = engineRef.current;
+        if (!engine || !onMatchEnd) { onClose(); return; }
+        if (engine.profile === 'basketball' && !engine.matchWinner) basketballFinishMatch(engine);
+        const stats = deriveStats(engine);
+        let apiSets = [];
+        if (engine.profile === 'racket') {
+            apiSets = engine.currentSetGames.map(([ga, gb]) => ({ my: String(ga), opp: String(gb) }));
+            if (engine.gamesA > 0 || engine.gamesB > 0) apiSets.push({ my: String(engine.gamesA), opp: String(engine.gamesB) });
+        } else if (engine.profile === 'volleyball') {
+            apiSets = engine.currentSetPoints.map(([pa, pb]) => ({ my: String(pa), opp: String(pb) }));
+            if (engine.pointsA > 0 || engine.pointsB > 0) apiSets.push({ my: String(engine.pointsA), opp: String(engine.pointsB) });
+        } else if (engine.profile === 'basketball') {
+            apiSets = [{ my: String(engine.totalA), opp: String(engine.totalB) }];
+        }
+        onMatchEnd({ stats, sets: apiSets, winnerSide: engine.matchWinner, durationMs: matchStartedAt ? Date.now() - matchStartedAt : null });
+        onClose();
+    };
+
+    // Watch'tan gelen ham kümülatif skoru motora "point-point" besleyen diff mantığı.
+    const feedWearUpdate = (raw) => {
+        const engine = engineRef.current;
+        const prev = prevWearRef.current;
+        prevWearRef.current = raw;
+        if (!engine || !prev) return; // ilk güncelleme: sadece referans olarak saklanır, besleme yok
+        const recordFn = engine.profile === 'racket' ? racketRecordPoint : engine.profile === 'volleyball' ? volleyballRecordPoint : null;
+        if (!recordFn) return;
+        const boundaryHit = engine.profile === 'racket'
+            ? (raw.gamesA > prev.gamesA || raw.gamesB > prev.gamesB)
+            : (raw.setsA > prev.setsA || raw.setsB > prev.setsB);
+        if (boundaryHit) {
+            // Bu güncellemedeki sayı, oyunu/seti bitiren son sayı — hangi tarafın kazandığı
+            // games/sets artışından belli, motora o taraf için TEK bir sayı beslemek yeterli
+            // (motorun kendi iç pointsA/B'si zaten bu ana kadar aynı şekilde beslendiği için
+            // eşit durumda, bu son sayı oyunu/seti kendiliğinden kapatır).
+            const winner = engine.profile === 'racket'
+                ? (raw.gamesA > prev.gamesA ? 'A' : 'B')
+                : (raw.setsA > prev.setsA ? 'A' : 'B');
+            recordFn(engine, winner);
+        } else {
+            const diffA = raw.pointsA - prev.pointsA, diffB = raw.pointsB - prev.pointsB;
+            for (let i = 0; i < diffA; i++) recordFn(engine, 'A');
+            for (let i = 0; i < diffB; i++) recordFn(engine, 'B');
+        }
+        setEngineTick(t => t + 1);
+        if (engine.matchWinner) finishAndReport();
+    };
+
+    // Telefondan manuel dokunma (saat yoksa/istenmiyorsa) — aynı motoru doğrudan besler.
+    const manualPoint = (side) => {
+        const engine = engineRef.current;
+        if (!engine) return;
+        if (engine.profile === 'racket') racketRecordPoint(engine, side);
+        else if (engine.profile === 'volleyball') volleyballRecordPoint(engine, side);
+        setEngineTick(t => t + 1);
+        if (engine.matchWinner) finishAndReport();
+    };
+    const manualBasketballPoints = (side, pts) => {
+        const engine = engineRef.current;
+        if (!engine) return;
+        basketballRecordPoints(engine, side, pts);
+        setEngineTick(t => t + 1);
+    };
+    const manualEndQuarter = () => {
+        const engine = engineRef.current;
+        if (!engine) return;
+        basketballEndQuarter(engine);
+        setEngineTick(t => t + 1);
+        if (engine.matchWinner) finishAndReport();
+    };
 
     useEffect(() => {
         if (!visible || !wantCamera) return;
@@ -5526,7 +5628,7 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, t }) {
     useEffect(() => {
         if (!visible || !wantWatch) return;
         isWatchConnected().then(setWearConnected).catch(() => setWearConnected(false));
-        const subscription = addMatchUpdateListener((update) => { setWearConnected(true); setWearScore(update); });
+        const subscription = addMatchUpdateListener((update) => { setWearConnected(true); setWearScore(update); feedWearUpdate(update); });
         return () => subscription.remove();
     }, [visible, wantWatch]);
 
@@ -5558,6 +5660,53 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, t }) {
         ? (sub === 'volleyball' ? `${wearScore.pointsA}-${wearScore.pointsB}` : `${wearScore.pointLabelA}-${wearScore.pointLabelB}`)
         : null;
     const waitingLabel = wearConnected === false ? t.matchLiveWatchNotConnected : t.matchLiveWaitingScore;
+    const engine = engineRef.current; // eslint-disable-line no-unused-vars -- engineTick ile senkron okunur
+
+    // Telefondan manuel takip ekranı — iki büyük "Ben"/"Rakip" butonu (basketbolde 1/2/3 sayı
+    // seçimi + çeyrek bitirme). Kamera de açıksa bu, sağ üstteki küçük skor kutusunun yanına
+    // değil, kameranın ALTINA (yarı ekran) yerleşir — dokunmadan kayıt izlenebilsin diye.
+    const ManualTapUI = () => {
+        if (!engine) return null;
+        if (engine.profile === 'basketball') {
+            return (
+                <View style={{ flex:1, padding:14 }}>
+                    <Text style={{ color:'#facc15', fontSize:44, fontWeight:'900', textAlign:'center' }}>{engine.totalA}-{engine.totalB}</Text>
+                    <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginBottom:14 }}>{t.matchLiveQuarterLabel} {engine.quarter}</Text>
+                    {['A','B'].map(side => (
+                        <View key={side} style={{ flexDirection:'row', gap:8, marginBottom:10 }}>
+                            {[1,2,3].map(pts => (
+                                <TouchableOpacity key={pts} onPress={() => manualBasketballPoints(side, pts)}
+                                    style={{ flex:1, backgroundColor: side==='A' ? '#2563eb30' : '#dc262630', borderRadius:12, borderWidth:1, borderColor: side==='A' ? '#2563eb' : '#dc2626', paddingVertical:16, alignItems:'center' }}>
+                                    <Text style={{ color:'#fff', fontWeight:'900', fontSize:16 }}>+{pts}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    ))}
+                    <TouchableOpacity onPress={manualEndQuarter} style={{ backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, paddingVertical:12, alignItems:'center', marginTop:6 }}>
+                        <Text style={{ color:'#fff', fontWeight:'700' }}>{t.matchLiveEndQuarterBtn}</Text>
+                    </TouchableOpacity>
+                </View>
+            );
+        }
+        const pointsLine = engine.profile === 'racket' ? `${engine.pointsA}-${engine.pointsB}` : `${engine.pointsA}-${engine.pointsB}`;
+        return (
+            <View style={{ flex:1, padding:14, justifyContent:'center' }}>
+                <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', textAlign:'center', marginBottom:6 }}>{t.matchLiveSetsLabel} {engine.setsA}-{engine.setsB}</Text>
+                <Text style={{ color:'#facc15', fontSize:56, fontWeight:'900', textAlign:'center' }}>{pointsLine}</Text>
+                {engine.profile === 'racket' && (
+                    <Text style={{ color: colors.textMuted, fontSize:16, textAlign:'center', marginTop:6, marginBottom:20 }}>{t.matchLiveGamesLabel} {engine.gamesA}-{engine.gamesB}</Text>
+                )}
+                <View style={{ flexDirection:'row', gap:10, marginTop:20 }}>
+                    <TouchableOpacity onPress={() => manualPoint('A')} style={{ flex:1, backgroundColor:'#2563eb30', borderRadius:16, borderWidth:1, borderColor:'#2563eb', paddingVertical:26, alignItems:'center' }}>
+                        <Text style={{ color:'#fff', fontWeight:'900', fontSize:15 }}>{t.matchLivePointForMeBtn}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => manualPoint('B')} style={{ flex:1, backgroundColor:'#dc262630', borderRadius:16, borderWidth:1, borderColor:'#dc2626', paddingVertical:26, alignItems:'center' }}>
+                        <Text style={{ color:'#fff', fontWeight:'900', fontSize:15 }}>{t.matchLivePointForOpponentBtn}</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    };
 
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={recording ? undefined : onClose}>
@@ -5573,6 +5722,8 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, t }) {
                             </TouchableOpacity>
                         </View>
                     )
+                ) : wantPhone ? (
+                    <ManualTapUI />
                 ) : (
                     <View style={{ flex:1, alignItems:'center', justifyContent:'center' }}>
                         {wearScore ? (
@@ -5609,6 +5760,17 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, t }) {
                         <Text style={{ color:'#fff', fontSize:16 }}>✕</Text>
                     </TouchableOpacity>
                 </View>
+                {/* Kullanıcı isteği: canlı takip (saat ya da telefondan) sırasında maçı istediği
+                    an bitirip skor formuna aktarabilsin — maçın gerçekte kaç set/oyun sürdüğünü
+                    beklemeden de "Bitir"e basılabilir, o ana kadarki veriler kullanılır. */}
+                {(wantWatch || wantPhone) && engineRef.current && !engineRef.current.matchWinner && (
+                    <View style={{ position:'absolute', bottom: insets.bottom + 10, right:10 }}>
+                        <TouchableOpacity onPress={finishAndReport}
+                            style={{ backgroundColor: colors.purple, borderRadius:20, paddingHorizontal:16, height:38, alignItems:'center', justifyContent:'center' }}>
+                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{t.matchLiveFinishBtn}</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
                 {wantCamera && camPerm?.granted && micPerm?.granted && (
                     <View style={{ position:'absolute', bottom: insets.bottom + 24, left:0, right:0, alignItems:'center' }}>
                         <TouchableOpacity onPress={recording ? stopRecording : startRecording} disabled={saving}
@@ -5671,7 +5833,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // Maçı Başlat — kamera kaydı ve/ya da saatten canlı skor takibi.
     const [showMatchStart, setShowMatchStart] = useState(false);
     const [showMatchLive, setShowMatchLive] = useState(false);
-    const [matchLiveOptions, setMatchLiveOptions] = useState({ wantCamera: false, wantWatch: false });
+    const [matchLiveOptions, setMatchLiveOptions] = useState({ wantCamera: false, wantWatch: false, wantPhone: false });
+    // Canlı takip (saat ya da telefondan manuel) bittiğinde deriveStats() çıktısı + türetilmiş
+    // set skorları buraya düşer — skor giriş formu bunlarla ön dolu açılır, kullanıcı onaylayıp
+    // gönderir (tam otomatik değil, kullanıcı son kontrolü yapar).
+    const [pendingLiveStats, setPendingLiveStats] = useState(null);
+    const matchStartedAtRef = useRef(null);
     // Kullanıcı isteği: "maç skoru girerken media paylaş da olsun, o maç üzerinden paylaşılan
     // medialar o spor dalının mediasına düşsün" — skor girişiyle birlikte/yanında galeriden
     // foto/video seçip o sporun Medya sekmesine, maça bağlı (rivalId) olarak paylaşılabiliyor.
@@ -6180,7 +6347,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 sender:   iAmFounderSide ? (parseInt(r.my) || 0) : (parseInt(r.opp) || 0),
                 opponent: iAmFounderSide ? (parseInt(r.opp) || 0) : (parseInt(r.my) || 0),
             }));
-            const doRequest = () => api.patch(`/rivals/${match.id}/score`, { sets: apiSets, winner: autoWinner });
+            // stats içindeki A/B etiketleri her zaman "canlı takibi başlatan taraf = A" anlamına
+            // gelir (bkz. liveMatchEngine.js) — sender/opponent'a hangisinin karşılık geldiğini
+            // arşiv gösteriminin çözebilmesi için perspective alanı eklenir.
+            const statsToSend = pendingLiveStats ? { ...pendingLiveStats, perspective: iAmFounderSide ? 'sender' : 'opponent' } : null;
+            const doRequest = () => api.patch(`/rivals/${match.id}/score`, { sets: apiSets, winner: autoWinner, ...(statsToSend && { stats: statsToSend }) });
             try {
                 await doRequest();
             } catch (firstErr) {
@@ -6189,6 +6360,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             }
             setShowScore(false);
             setSets([{ my: '', opp: '' }]);
+            setPendingLiveStats(null);
             // Kullanıcı raporu: skor girince maç kartı, liste yenilenene kadar (~1sn) eski
             // konumunda (yedek arayan maçlar "Açık İlanlar" başlığı altında göründüğü için
             // orada) kalıp sonra "Skor Bekleyen Maçlar"a atlıyordu. Alert.alert (native, ekranı
@@ -8079,7 +8251,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     <MatchStartModal
                         visible={showMatchStart}
                         onClose={() => setShowMatchStart(false)}
-                        onStart={(opts) => { setMatchLiveOptions(opts); setShowMatchStart(false); setShowMatchLive(true); }}
+                        onStart={(opts) => { setMatchLiveOptions(opts); matchStartedAtRef.current = Date.now(); setShowMatchStart(false); setShowMatchLive(true); }}
                         t={t}
                     />
                     <MatchLiveScreen
@@ -8088,6 +8260,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         sub={match.subCategory}
                         wantCamera={matchLiveOptions.wantCamera}
                         wantWatch={matchLiveOptions.wantWatch}
+                        wantPhone={matchLiveOptions.wantPhone}
+                        matchStartedAt={matchStartedAtRef.current}
+                        onMatchEnd={({ stats, sets: derivedSets, durationMs }) => {
+                            // Kullanıcı isteği: canlı takip bitince skor formu ÖN DOLU açılsın,
+                            // kullanıcı son kontrolü yapıp göndersin (tam otomatik değil).
+                            if (Array.isArray(derivedSets) && derivedSets.length > 0) setSets(derivedSets);
+                            setPendingLiveStats(stats ? { ...stats, durationMs } : null);
+                            setShowScore(true);
+                        }}
                         t={t}
                     />
 
@@ -8150,7 +8331,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             Koşulu aynı: maç saati gelince (skor kilidi açılmadan çok önce), kamera
                             kaydı ve/ya da saatten canlı skor takibi başlatılabilir — sadece
                             tenis/padel/voleybolde, sadece maça dahil olanlar başlatabilir. */}
-                        {isParticipant && !hasScore && !scoreUnlocked && matchStart && new Date() >= matchStart && ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis'].includes(match.subCategory) && (
+                        {isParticipant && !hasScore && !scoreUnlocked && matchStart && new Date() >= matchStart && ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'basketball'].includes(match.subCategory) && (
                             <TouchableOpacity
                                 style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: cfg.color+'60', backgroundColor: cfg.color+'20', alignItems:'center' }}
                                 onPress={() => setShowMatchStart(true)}>
@@ -10844,6 +11025,13 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
                 style={{ position:'absolute', top:6, right:6, zIndex:10, backgroundColor:'#00000060', borderRadius:12, width:22, height:22, alignItems:'center', justifyContent:'center' }}>
                 <Text style={{ fontSize:12 }}>🔄</Text>
             </TouchableOpacity>
+            {/* Kullanıcı isteği: canlı takiple (saat/telefon) girilmiş, detaylı istatistikleri olan
+                maçlar küçük bir rozetle işaretlensin — detaya girmeden ayırt edilebilsin. */}
+            {m.score?.stats && (
+                <View style={{ position:'absolute', top:6, left:6, zIndex:10, backgroundColor:'#00000060', borderRadius:10, paddingHorizontal:5, paddingVertical:2 }}>
+                    <Text style={{ fontSize:10 }}>📊</Text>
+                </View>
+            )}
             {cardFlipped ? (
                 <TouchableOpacity activeOpacity={0.85} style={{ padding:9, flex:1 }} onPress={onPress}>
                     <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', marginBottom:6, paddingRight:22 }}>👥 {t.rosterPoolLabel}</Text>
@@ -10955,6 +11143,99 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
                 </View>
             </TouchableOpacity>
         </Modal>
+    );
+}
+
+// Canlı takip (saat/telefon) kullanılan maçlarda score.stats doldurulur (bkz. liveMatchEngine.js
+// deriveStats). Kullanılmadıysa stats undefined kalır ve bu bölüm hiç render edilmez — eski
+// maçlar/canlı takipsiz skor girişleri için geriye dönük hiçbir kırılma olmaz.
+function MatchStatsSection({ stats, iAmFounderSide, founderLabel, opponentLabel, t }) {
+    if (!stats) return null;
+    // stats içindeki A/B her zaman "canlı takibi başlatan taraf = A" demek (bkz. perspective).
+    const startedByFounder = (stats.perspective || 'sender') === 'sender';
+    const founderKey = startedByFounder ? 'A' : 'B';
+    const oppKey = startedByFounder ? 'B' : 'A';
+    const StatTile = ({ label, value, accent = colors.purple }) => (
+        <View style={{ flex:1, minWidth:'30%', backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor: accent+'40', padding:9 }}>
+            <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'800', letterSpacing:0.3 }} numberOfLines={1}>{label}</Text>
+            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', marginTop:2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{value}</Text>
+        </View>
+    );
+    const Group = ({ title, accent, children }) => (
+        <View style={{ marginBottom:12 }}>
+            <Text style={{ color: accent, fontSize:11, fontWeight:'800', marginBottom:6 }}>● {title}</Text>
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>{children}</View>
+        </View>
+    );
+
+    const total = stats.total;
+    const wonF = stats.wonBySide?.[founderKey], wonO = stats.wonBySide?.[oppKey];
+    const winRateF = total > 0 && wonF != null ? +(wonF / total * 100).toFixed(0) : null;
+
+    return (
+        <View style={{ marginTop:14, marginBottom:4 }}>
+            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8 }}>📊 {t.matchStatsTitle}</Text>
+
+            {total != null && (
+                <Group title={t.statOverview} accent="#4ade80">
+                    <StatTile label={t.statTotalPoints} value={total} accent="#4ade80" />
+                    <StatTile label={t.statPointsWon} value={`${wonF}-${wonO}`} accent="#4ade80" />
+                    {winRateF != null && <StatTile label={t.statWinRate} value={`${winRateF}%`} accent="#0ea5e9" />}
+                </Group>
+            )}
+
+            {stats.serve && stats.breakPoints && (
+                <>
+                    <Group title={t.statServeReturn} accent="#22c55e">
+                        <StatTile label={t.statServiceGamesWon} value={`${stats.serve[`serviceGamesWon${founderKey}`]}/${stats.serve[`serviceGamesTotal${founderKey}`]}`} accent="#22c55e" />
+                        <StatTile label={t.statReturnGamesWon} value={`${stats.serve[`returnGamesWon${founderKey}`]}/${stats.serve[`returnGamesTotal${founderKey}`]}`} accent="#0ea5e9" />
+                    </Group>
+                    <Group title={t.statBreakPoints} accent="#f97316">
+                        <StatTile label={t.statBreakPointsFaced} value={stats.breakPoints[`faced${founderKey}`]} accent="#f97316" />
+                        <StatTile label={t.statBreakPointsSaved} value={`${stats.breakPoints[`saved${founderKey}`]}/${stats.breakPoints[`faced${founderKey}`]}`} accent="#f97316" />
+                        <StatTile label={t.statBreakPointOpportunities} value={stats.breakPoints[`opportunities${founderKey}`]} accent="#a855f7" />
+                        <StatTile label={t.statBreakPointsConverted} value={`${stats.breakPoints[`convertedBy${founderKey}`]}/${stats.breakPoints[`opportunities${founderKey}`]}`} accent="#a855f7" />
+                    </Group>
+                </>
+            )}
+
+            {stats.serve && !stats.breakPoints && (
+                <Group title={t.statServeReturn} accent="#22c55e">
+                    <StatTile label={t.statServicePointsWon} value={`${stats.serve[`servicePointsWon${founderKey}`]}/${stats.serve[`servicePointsTotal${founderKey}`]}`} accent="#22c55e" />
+                    <StatTile label={t.statServicePointsWon + ' (' + opponentLabel + ')'} value={`${stats.serve[`servicePointsWon${oppKey}`]}/${stats.serve[`servicePointsTotal${oppKey}`]}`} accent="#0ea5e9" />
+                </Group>
+            )}
+
+            {stats.flow && !stats.quarters && (
+                <Group title={t.statMatchFlow} accent="#38bdf8">
+                    {stats.flow.recordedGames != null && <StatTile label={t.statRecordedGames} value={stats.flow.recordedGames} accent="#38bdf8" />}
+                    {stats.flow.recordedSets != null && <StatTile label={t.statRecordedSets} value={stats.flow.recordedSets} accent="#38bdf8" />}
+                    {stats.flow.longestGamePoints != null && <StatTile label={t.statLongestGame} value={stats.flow.longestGamePoints} accent="#38bdf8" />}
+                    {stats.flow.longestSetPoints != null && <StatTile label={t.statLongestSet} value={stats.flow.longestSetPoints} accent="#38bdf8" />}
+                    {stats.flow.avgPointsPerGame != null && <StatTile label={t.statAvgPointsPerGame} value={stats.flow.avgPointsPerGame} accent="#38bdf8" />}
+                    {stats.flow.biggestLead != null && <StatTile label={t.statBiggestLead} value={stats.flow.biggestLead} accent="#38bdf8" />}
+                </Group>
+            )}
+
+            {stats.quarters && (
+                <Group title={t.statQuarterScores} accent="#38bdf8">
+                    {stats.quarters.map((q, i) => (
+                        <StatTile key={i} label={`${t.matchLiveQuarterLabel} ${i + 1}`} value={startedByFounder ? `${q[0]}-${q[1]}` : `${q[1]}-${q[0]}`} accent="#38bdf8" />
+                    ))}
+                    {stats.flow?.biggestLead != null && <StatTile label={t.statBiggestLead} value={stats.flow.biggestLead} accent="#a855f7" />}
+                </Group>
+            )}
+
+            {stats.workout && (
+                <Group title={t.statWorkout} accent="#ef4444">
+                    {stats.workout.avgHeartRate != null && <StatTile label={t.statAvgHeartRate} value={`${stats.workout.avgHeartRate} bpm`} accent="#ef4444" />}
+                    {stats.workout.maxHeartRate != null && <StatTile label={t.statMaxHeartRate} value={`${stats.workout.maxHeartRate} bpm`} accent="#ef4444" />}
+                    {stats.workout.activeCalories != null && (
+                        <StatTile label={t.statCalories} value={`${Math.round(stats.workout.activeCalories)} kcal${stats.workout.source === 'estimated' ? ' ≈' : ''}`} accent="#f59e0b" />
+                    )}
+                </Group>
+            )}
+        </View>
     );
 }
 
@@ -11076,6 +11357,8 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
 
             <Text style={{ color:'#fca5a5', fontSize:12, fontWeight:'800', marginBottom:6, marginTop:8 }}>{opponentLabel}</Text>
             {opponentSide.length > 0 ? opponentSide.map(p => renderPlayer(p, false)) : <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>—</Text>}
+
+            <MatchStatsSection stats={m.score?.stats} iAmFounderSide={iAmFounderSide} founderLabel={founderLabel} opponentLabel={opponentLabel} t={t} />
 
             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:14 }}>
                 {m.scoreStatus === 'CONFIRMED' && !m.scoreAppeal && m.completedAt
