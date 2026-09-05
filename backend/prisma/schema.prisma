@@ -1020,7 +1020,14 @@ model ActivityRequest {
   // olabilir. Ayrıca bu ilana bekleyen istek göndermiş olan herkese "ilan tekrar açıldı"
   // bildirimi gider.
   reopenedAt      DateTime?
-  score           Json?                           // {sets:[{sender:6,opponent:3},...], winner:"sender"|"opponent"}
+  // {sets:[{sender:6,opponent:3},...], winner:"sender"|"opponent", ratingSnapshot:{[userId]:{...}} (runScoreConfirmation'da eklenir)}
+  // stats (opsiyonel, sadece canlı takip - saat veya telefon-içi manuel - kullanılan maçlarda dolu):
+  //   { total, wonBySide:{sender,opponent}, serve:{...}, flow:{...}, breakPoints:{...} (raket sporları) |
+  //     volley:{...} (voleybol) | quarters:[...] (basketbol),
+  //     workout:{avgHeartRate?,maxHeartRate?,activeCalories?,source:'watch'|'phone'|'estimated'} }
+  // stats tamamen mobile'daki liveMatchEngine.js'in ham PointLog'dan türettiği bir ÖZETTİR —
+  // ham nokta-nokta log asla backend'e gönderilmez/saklanmaz, sadece bu türetilmiş özet.
+  score           Json?
   scoreStatus     String       @default("NONE")   // NONE | PENDING | CONFIRMED | DISPUTED
   scoreEnteredBy  String?
   scoreAppeal       Boolean  @default(false)

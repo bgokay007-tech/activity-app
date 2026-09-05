@@ -5136,7 +5136,15 @@ export const getMyPendingScoreCount = async (req, res, next) => {
 export const enterScore = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { sets, winner } = req.body; // sets: [{sender, opponent}], winner: "sender"|"opponent"
+        const { sets, winner, stats } = req.body; // sets: [{sender, opponent}], winner: "sender"|"opponent"
+        // stats: mobile'daki liveMatchEngine.js'in canlı takipten (saat veya telefon-içi manuel)
+        // türettiği ÖZET bir obje (bkz. schema.prisma'daki score alanı yorumu) — opsiyonel, canlı
+        // takip kullanılmayan maçlarda undefined kalır. Ham nokta-nokta log asla buraya gelmez,
+        // bu yüzden boyut sınırı (20KB) kötüye kullanımı/yanlış istemciden dev veri gelmesini
+        // engellemek için yeterli — gerçek bir özet objesi bunun çok altında kalır.
+        if (stats !== undefined && (typeof stats !== 'object' || stats === null || Array.isArray(stats) || JSON.stringify(stats).length > 20000)) {
+            return res.status(400).json({ message: 'Geçersiz stats verisi' });
+        }
 
         const request = await prisma.activityRequest.findUnique({ where: { id } });
         if (!request) return res.status(404).json({ message: 'Not found' });
@@ -5177,7 +5185,7 @@ export const enterScore = async (req, res, next) => {
         const updated = await prisma.activityRequest.update({
             where: { id },
             data: {
-                score: { sets, winner },
+                score: { sets, winner, ...(stats && { stats }) },
                 status: 'COMPLETED',
                 scoreStatus: 'PENDING',
                 scoreEnteredBy: req.userId,
