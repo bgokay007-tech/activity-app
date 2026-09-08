@@ -2995,7 +2995,10 @@ async function findSchedulingConflict(userId, matchDate, matchTime, duration, ex
 
     const sameDay = await prisma.activityRequest.findMany({
         where: {
-            id: { not: excludeId },
+            // Yeni ilan oluştururken excludeId null — Prisma String @id alanında
+            // `{ not: null }` kabul etmiyor (ilan oluşturma bu yüzden patlıyordu).
+            // Katılımda ise kendi ilanı hariç tutulsun diye gerçek id gelir.
+            ...(excludeId && { id: { not: excludeId } }),
             status: { in: ['OPEN', 'MATCHED'] },
             matchDate: { gte: dayStart, lte: dayEnd },
             matchTime: { not: null },
