@@ -210,6 +210,7 @@ import FriendFindingLiveScreen from '../screens/main/FriendFindingLiveScreen';
 import MiniPlayer from '../components/MiniPlayer';
 import YoutubeAudioPlayer from '../components/YoutubeAudioPlayer';
 import colors from '../theme/colors';
+import { NEW_VISUAL } from '../theme/visual';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -438,7 +439,7 @@ function AppTabs() {
                 tabBarStyle: {
                     backgroundColor: colors.surface,
                     borderTopColor: colors.border,
-                    borderTopWidth: 1,
+                    borderTopWidth: NEW_VISUAL ? 0 : 1,
                     paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
                     paddingTop: 5,
                     height: tabBarHeight,
