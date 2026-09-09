@@ -1,5 +1,5 @@
 import prisma from '../config/prisma.js';
-import { respondToJoin, cancelMatch, confirmScore } from '../controllers/rival.controller.js';
+import { respondToJoin, cancelMatch, tryDemoAutoConfirmScore } from '../controllers/rival.controller.js';
 import { invokeControllerAs } from '../utils/internalInvoke.js';
 
 const AUTO_RESPOND_DELAY_MS = 20 * 1000;
@@ -71,29 +71,21 @@ async function respondMutualCancels() {
 }
 
 // Kullanıcı isteği: "botlar skorları otomatik onaylamaya ayarlı olsun test için kullanıyorum
-// sonuçta botları" — skoru rakip taraf (scoreEnteredBy'ın olmadığı taraf) girdi, o tarafta
-// demo bot varsa bot onaylar. Onay TEK kişilik yeterli (bkz. confirmScore), bu yüzden karşı
-// taraftaki ilk demo bot yeterli. Diğer bot davranışlarının (davet/karşılıklı iptal) aksine
-// burada gecikme YOK — kullanıcı aktif test ederken 20sn beklemek istemiyor, bir sonraki 5sn'lik
-// tick'te (bkz. tick() altta) direkt onaylanır.
+// sonuçta botları" — skoru girenin takımında olmayan bir demo bot varsa onaylar. Çiftler/
+// voleybolda botlar slota yazılmadan unassignedPlayers'da kalınca eski kod onları hiç
+// rakip saymıyordu. Gecikme YOK — enterScore da aynı fonksiyonu hemen çağırır; bu tick
+// yalnızca o an kaçırılan PENDING kayıtlar içindir.
 async function respondPendingScores() {
     const pending = await prisma.activityRequest.findMany({
         where: { scoreStatus: 'PENDING' },
-        select: { id: true, senderId: true, senderTeam: true, participants: true, scoreEnteredBy: true },
+        select: {
+            id: true, senderId: true, senderTeam: true, participants: true,
+            unassignedPlayers: true, substitutePlayers: true, scoreEnteredBy: true,
+        },
     });
     for (const rival of pending) {
-        const senderTeamIds = (Array.isArray(rival.senderTeam) ? rival.senderTeam : []).filter(p => p?.id).map(p => p.id);
-        const participantIds = (Array.isArray(rival.participants) ? rival.participants : []).filter(p => p?.id).map(p => p.id);
-        const teamAIds = [rival.senderId, ...senderTeamIds];
-        const scorerInA = teamAIds.includes(rival.scoreEnteredBy);
-        const confirmSideIds = scorerInA ? participantIds : teamAIds;
-        if (confirmSideIds.length === 0) continue;
-
-        const demoUser = await prisma.user.findFirst({ where: { id: { in: confirmSideIds }, isDemoUser: true }, select: { id: true } });
-        if (!demoUser) continue;
-
         try {
-            await invokeControllerAs(confirmScore, { userId: demoUser.id, params: { id: rival.id }, body: {} });
+            await tryDemoAutoConfirmScore(rival);
         } catch (e) {
             console.error('[demoBot] confirm score error:', e.message);
         }

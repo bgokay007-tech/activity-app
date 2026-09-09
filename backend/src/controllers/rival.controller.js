@@ -535,6 +535,22 @@ function mapRosterPreserveSlots(arr, mapFilled) {
     return (Array.isArray(arr) ? arr : []).map(p => (p?.id ? mapFilled(p) : (p ?? null)));
 }
 
+function rosterPlayerIds(arr) {
+    return (Array.isArray(arr) ? arr : []).filter(p => p?.id).map(p => p.id);
+}
+
+// Skoru onaylaması gereken taraf: girenin KENDİ takımı değil. Çiftler/voleybolda bot
+// kabul edilip slota yazılmadan unassignedPlayers/yedekte kalınca eski kod onları
+// hiç rakip saymıyordu — job da confirmScore da "Forbidden" deyip geçiyordu.
+function confirmSideIdsForScore(request) {
+    const teamA = [request.senderId, ...rosterPlayerIds(request.senderTeam)].filter(Boolean);
+    const teamB = rosterPlayerIds(request.participants);
+    const extra = [...rosterPlayerIds(request.unassignedPlayers), ...rosterPlayerIds(request.substitutePlayers)];
+    const scorer = request.scoreEnteredBy;
+    const scorerTeam = teamA.includes(scorer) ? teamA : (teamB.includes(scorer) ? teamB : (scorer ? [scorer] : []));
+    return [...new Set([...teamA, ...teamB, ...extra])].filter(id => id && !scorerTeam.includes(id));
+}
+
 function firstEmptyRosterIndex(arr, size) {
     for (let i = 0; i < size; i++) {
         if (!hasRosterSlot(arr[i])) return i;
@@ -5194,9 +5210,13 @@ export const enterScore = async (req, res, next) => {
         const request = await prisma.activityRequest.findUnique({ where: { id } });
         if (!request) return res.status(404).json({ message: 'Not found' });
 
-        // Must be sender or a participant
+        // Kurucu, rakip kadro, kurucu takımı, atanmamış havuz veya yedek — hepsi maçta
         const participants = Array.isArray(request.participants) ? request.participants : [];
-        const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId);
+        const isInvolved = request.senderId === req.userId
+            || participants.some(p => p?.id === req.userId)
+            || rosterPlayerIds(request.senderTeam).includes(req.userId)
+            || rosterPlayerIds(request.unassignedPlayers).includes(req.userId)
+            || rosterPlayerIds(request.substitutePlayers).includes(req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
         if (request.venueReservationId) {
@@ -5238,7 +5258,11 @@ export const enterScore = async (req, res, next) => {
                 // archived is intentionally not reset — auto-completed matches stay archived=true
             },
         });
-        res.json(updated);
+        // Test botları: rakip tarafta demo varsa 5sn'lik job'u beklemeden burada onayla
+        // (turnuva skorunun p1AllDemo/p2AllDemo davranışıyla aynı kolaylık).
+        const autoConfirmed = await tryDemoAutoConfirmScore(updated);
+        res.json(autoConfirmed || updated);
+        if (autoConfirmed) return;
 
         // Kullanıcı raporu: skor girilince karşı tarafa onay bildirimi gitmiyordu — sebep,
         // bu hesabın SADECE request.senderId'ye bakmasıydı; DOUBLE/takım maçlarında skoru
@@ -5246,11 +5270,7 @@ export const enterScore = async (req, res, next) => {
         // çıkıyor, "opponents" yanlışlıkla kendi takım arkadaşı (senderId) oluyordu — gerçek
         // rakip takıma hiç bildirim gitmiyordu. confirmScore'daki (aşağıda) aynı teamA/teamB
         // mantığı burada da kullanılıyor artık.
-        const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
-        const teamAIds = [request.senderId, ...senderTeamArr.filter(m => m?.id).map(m => m.id)];
-        const teamBIds = participants.filter(p => p?.id).map(p => p.id);
-        const scorerInA = teamAIds.includes(req.userId);
-        const opponentIds = scorerInA ? teamBIds : teamAIds;
+        const opponentIds = confirmSideIdsForScore(updated);
         prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } })
             .then(me => {
                 for (const oppId of opponentIds) {
@@ -5497,15 +5517,22 @@ export const confirmScore = async (req, res, next) => {
 
         const teamA = new Set([request.senderId, ...senderTeamArr.filter(m => m?.id).map(m => m.id)]);
         const teamB = new Set(participants.filter(p => p?.id).map(p => p.id));
+        const extra = new Set([
+            ...rosterPlayerIds(request.unassignedPlayers),
+            ...rosterPlayerIds(request.substitutePlayers),
+        ]);
 
         const confirmerInA = teamA.has(req.userId);
         const confirmerInB = teamB.has(req.userId);
-        if (!confirmerInA && !confirmerInB) return res.status(403).json({ message: 'Forbidden' });
+        const confirmerExtra = extra.has(req.userId);
+        if (!confirmerInA && !confirmerInB && !confirmerExtra) return res.status(403).json({ message: 'Forbidden' });
 
         const scorerInA = teamA.has(request.scoreEnteredBy);
-        // Block: same team as scorer
+        const scorerInB = teamB.has(request.scoreEnteredBy);
+        // Aynı takımdaki oyuncu onaylayamaz — atanmamış/yedek (extra) skoru girenin takımı
+        // sayılmaz, demo botlar slota yazılmadan da onaylayabilsin diye.
         if (scorerInA && confirmerInA) return res.status(400).json({ message: 'Your team entered this score — wait for opponents to confirm' });
-        if (!scorerInA && confirmerInB) return res.status(400).json({ message: 'Your team entered this score — wait for opponents to confirm' });
+        if (scorerInB && confirmerInB) return res.status(400).json({ message: 'Your team entered this score — wait for opponents to confirm' });
 
         const { updated, pointChanges } = await runScoreConfirmation(request);
 
@@ -5523,6 +5550,34 @@ export const confirmScore = async (req, res, next) => {
             ).catch(() => {})).catch(() => {});
     } catch (error) { next(error); }
 };
+
+// Rakip tarafta (veya henüz slota yazılmamış havuzda) demo bot varsa skoru onun adına onaylar.
+// enterScore hemen çağırır; job da bekleyen PENDING kayıtlar için yedek.
+export async function tryDemoAutoConfirmScore(request) {
+    const ids = confirmSideIdsForScore(request);
+    if (ids.length === 0) return null;
+    const demoUser = await prisma.user.findFirst({
+        where: { id: { in: ids }, OR: [{ isDemoUser: true }, { username: { startsWith: 'demo_' } }] },
+        select: { id: true },
+    });
+    if (!demoUser) return null;
+
+    const fakeReq = { userId: demoUser.id, params: { id: request.id }, body: {} };
+    const fakeRes = {
+        statusCode: 200,
+        body: null,
+        status(code) { this.statusCode = code; return this; },
+        json(payload) { this.body = payload; return this; },
+    };
+    let invokeErr = null;
+    await confirmScore(fakeReq, fakeRes, (err) => { invokeErr = err; });
+    if (invokeErr) throw invokeErr;
+    if (fakeRes.statusCode >= 400) {
+        console.error('[demoBot] confirm score rejected:', fakeRes.statusCode, fakeRes.body?.message, 'rival', request.id);
+        return null;
+    }
+    return fakeRes.body;
+}
 
 export const extendScoreDeadline = async (req, res, next) => {
     try {
@@ -7285,12 +7340,14 @@ export const getMyUpcomingMatches = async (req, res, next) => {
         // Takım sporlarında (voleybol) kurucunun eklediği takım arkadaşları (senderTeam)
         // buraya hiç dahil edilmiyordu — kabul ettikleri bir maç kendi "Yaklaşan Maçlar"
         // listelerinde hiç görünmüyordu, dolayısıyla maçtan ayrılma/skor girme gibi hiçbir
-        // aksiyonu da göremiyorlardı.
+        // aksiyonu da göremiyorlardı. Atanmamış/yedek oyuncular da katılmış sayılır.
         const mine = all.filter(r => {
             if (schedExpiredIds.has(r.id)) return false;
             if (r.senderId === myId) return true;
             if ((Array.isArray(r.participants) ? r.participants : []).some(p => p?.id === myId)) return true;
-            return (Array.isArray(r.senderTeam) ? r.senderTeam : []).some(p => p?.id === myId);
+            if ((Array.isArray(r.senderTeam) ? r.senderTeam : []).some(p => p?.id === myId)) return true;
+            if ((Array.isArray(r.unassignedPlayers) ? r.unassignedPlayers : []).some(p => p?.id === myId)) return true;
+            return (Array.isArray(r.substitutePlayers) ? r.substitutePlayers : []).some(p => p?.id === myId);
         });
 
         try {
