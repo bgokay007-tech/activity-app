@@ -180,32 +180,61 @@ export const seedOneTournamentJoin = async (req, res, next) => {
         // doublesAssessmentCompleted da true olmalı — tenis çiftlerde artık AYRI bir anket
         // gerekiyor (bkz. requireActiveInterest), yoksa demo botlar çiftler test ilanlarına
         // hiç katılamazdı.
+        // Interest turnuvanın gerçek alt dalına yazılır (tennis/padel/…) — eskiden hep 'tennis'
+        // idi; padel turnuvasında rating 0 görünüp minRating'e takılıyordu.
+        const sub = tournament.subCategory || 'tennis';
         const demoInterest = await prisma.userInterest.upsert({
-            where: { userId_category_subCategory: { userId: user.id, category: 'SPORTS', subCategory: 'tennis' } },
+            where: { userId_category_subCategory: { userId: user.id, category: tournament.category || 'SPORTS', subCategory: sub } },
             update: { skillRating: demo.skillRating, level: demo.level, wins: demo.wins, losses: demo.losses, assessmentCompleted: true, singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date(), doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() },
             create: {
-                userId: user.id, category: 'SPORTS', subCategory: 'tennis',
+                userId: user.id, category: tournament.category || 'SPORTS', subCategory: sub,
                 skillRating: demo.skillRating, level: demo.level, wins: demo.wins, losses: demo.losses, assessmentCompleted: true,
                 singlesSeedRating: demo.skillRating, doublesSeedRating: demo.skillRating, assessmentCompletedAt: new Date(),
                 doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date(),
             },
         });
 
+        // Cinsiyet kısıtı (KADIN/ERKEK) — uymayan demoyu atla (istemci sıradakine geçer).
+        if (tournament.genderType === 'KADIN' && user.gender !== 'FEMALE') {
+            return res.status(409).json({ message: 'Skipped: gender mismatch', skipped: true });
+        }
+        if (tournament.genderType === 'ERKEK' && user.gender !== 'MALE') {
+            return res.status(409).json({ message: 'Skipped: gender mismatch', skipped: true });
+        }
+
         // Gerçek kullanıcıların katılım isteğinde uyguladığımız derece kısıtlamasını (bkz.
-        // joinTournament'taki aynı kontrol) demo oyuncular için de uyguluyoruz -- aksi halde
-        // bu araçla turnuvanın min/max derece aralığı dışındaki oyuncular da eklenebiliyordu.
-        const demoRating = getDisplayRating(demoInterest, tournament.subCategory, isDoublesFormat({ tournamentType: tournament.type }));
+        // joinTournament'taki aynı kontrol) demo oyuncular için de uyguluyoruz — ama demo
+        // aracı test amaçlı olduğundan, aralık dışıysa botu REDDETMEK yerine puanını
+        // aralığa çekiyoruz. Aksi halde düşük puanlı botlarda (örn. 0.08★) client 403 alıp
+        // tüm demo sırasını 5. istekte durduruyordu.
+        let demoRating = getDisplayRating(demoInterest, sub, isDoublesFormat({ tournamentType: tournament.type }));
         let effMinRating = tournament.minRating, effMaxRating = tournament.maxRating;
         if (tournament.ratingGenderSplit) {
             if (user.gender === 'MALE') { effMinRating = tournament.minRatingMale; effMaxRating = tournament.maxRatingMale; }
             else if (user.gender === 'FEMALE') { effMinRating = tournament.minRatingFemale; effMaxRating = tournament.maxRatingFemale; }
             else { effMinRating = null; effMaxRating = null; }
         }
+        let clamped = demo.skillRating;
+        if (effMinRating != null && clamped < effMinRating) clamped = effMinRating;
+        if (effMaxRating != null && clamped > effMaxRating) clamped = effMaxRating;
+        if (clamped !== demo.skillRating) {
+            const updatedInterest = await prisma.userInterest.update({
+                where: { id: demoInterest.id },
+                data: {
+                    skillRating: clamped,
+                    singlesSeedRating: clamped,
+                    doublesSeedRating: clamped,
+                    singlesRating: clamped,
+                    doublesRating: clamped,
+                },
+            });
+            demoRating = getDisplayRating(updatedInterest, sub, isDoublesFormat({ tournamentType: tournament.type }));
+        }
         if (effMinRating != null && demoRating < effMinRating) {
-            return res.status(403).json({ message: `${demo.username} bu turnuvanın gerektirdiği en az ${effMinRating}★ dereceye sahip değil (${demoRating.toFixed(2)}★).` });
+            return res.status(409).json({ message: 'Skipped: below min rating', skipped: true });
         }
         if (effMaxRating != null && demoRating > effMaxRating) {
-            return res.status(403).json({ message: `${demo.username} bu turnuvanın izin verdiği en fazla ${effMaxRating}★ derecesini aşıyor (${demoRating.toFixed(2)}★).` });
+            return res.status(409).json({ message: 'Skipped: above max rating', skipped: true });
         }
 
         const existing = await prisma.tournamentParticipant.findUnique({
