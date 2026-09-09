@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Linking, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../theme/colors';
+import TelegramIcon from './TelegramIcon';
 
 const CHANNELS = [
     { value: null, icon: '🚫' },
     { value: 'WHATSAPP', icon: '💬' },
-    { value: 'TELEGRAM', icon: '✈️' },
+    { value: 'TELEGRAM', telegram: true },
     { value: 'SMS', icon: '📩' },
     { value: 'EMAIL', icon: '✉️' },
 ];
@@ -56,7 +57,9 @@ export default function ExtraNotifyChannelModal({
                                 style={[s.row, active && s.rowActive]}
                                 onPress={() => setLocalChannel(c.value)}
                             >
-                                <Text style={s.rowIcon}>{c.icon}</Text>
+                                {c.telegram
+                                    ? <View style={{ marginRight: 12 }}><TelegramIcon size={20} /></View>
+                                    : <Text style={s.rowIcon}>{c.icon}</Text>}
                                 <Text style={[s.rowLabel, active && s.rowLabelActive]}>
                                     {c.value ? t[`extraNotify_${c.value}`] : t.extraNotifyOff}
                                 </Text>
@@ -111,7 +114,12 @@ export default function ExtraNotifyChannelModal({
                                     <TouchableOpacity style={s.linkBtn} onPress={onLinkTelegram} disabled={linkingTelegram}>
                                         {linkingTelegram
                                             ? <ActivityIndicator color="#fff" size="small" />
-                                            : <Text style={s.linkBtnText}>✈️ {t.extraNotifyTelegramLink}</Text>}
+                                            : (
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                    <TelegramIcon size={16} color="#fff" />
+                                                    <Text style={s.linkBtnText}>{t.extraNotifyTelegramLink}</Text>
+                                                </View>
+                                            )}
                                     </TouchableOpacity>
                                 </>
                             )}

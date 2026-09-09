@@ -22,6 +22,7 @@ import RainbowLogo from '../../components/RainbowLogo';
 import CityPickerModal from '../../components/CityPickerModal';
 import VolleyballRatingModal from '../../components/VolleyballRatingModal';
 import ExtraNotifyChannelModal from '../../components/ExtraNotifyChannelModal';
+import TelegramIcon, { TELEGRAM_BLUE } from '../../components/TelegramIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Sport Card Flip Modal ────────────────────────────────────────────────────
@@ -2804,8 +2805,9 @@ export default function ProfileScreen({ route, navigation }) {
                                     const tg = profile.contactTelegram.startsWith('@') ? profile.contactTelegram.slice(1) : profile.contactTelegram;
                                     Linking.openURL(`https://t.me/${tg}`);
                                 }}
-                                style={[s.contactBtn, { backgroundColor:'#2CA5E0' }]}>
-                                <Text style={[s.contactBtnText, { color:'#fff' }]}>✈️ Telegram</Text>
+                                style={[s.contactBtn, { backgroundColor: TELEGRAM_BLUE, flexDirection:'row', alignItems:'center', gap:6 }]}>
+                                <TelegramIcon size={16} color="#fff" />
+                                <Text style={[s.contactBtnText, { color:'#fff' }]}>Telegram</Text>
                             </TouchableOpacity>
                         )}
                         {profile.contactEmail && (
@@ -4117,15 +4119,16 @@ export default function ProfileScreen({ route, navigation }) {
 
                             {[
                                 { field:'contactPhone',    emoji:'📞💬', emojiSize:11, ph:t.contactPhonePh,    privPrefix:'phone',    kbd:'phone-pad' },
-                                { field:'contactTelegram', emoji:'✈️',   emojiSize:16, ph:t.contactTelegramPh, privPrefix:'telegram', kbd:'default'   },
+                                { field:'contactTelegram', telegram:true, ph:t.contactTelegramPh, privPrefix:'telegram', kbd:'default'   },
                                 { field:'contactEmail',    emoji:'✉️',   emojiSize:16, ph:t.contactEmailPh,    privPrefix:'cEmail',   kbd:'email-address' },
                                 { field:'contactInstagram',emoji:'📸',   emojiSize:16, ph:t.contactInstagramPh,privPrefix:'instagram',kbd:'default'   },
-                            ].map(({ field, emoji, emojiSize, ph, privPrefix, kbd }) => (
+                            ].map(({ field, emoji, emojiSize, telegram, ph, privPrefix, kbd }) => (
                                 <View key={field} style={[s.contactFieldRow, { marginBottom:10 }]}>
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                                        {/* Emoji prefix */}
                                         <View style={{ width:42, height:44, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' }}>
-                                            <Text style={{ fontSize:emojiSize }}>{emoji}</Text>
+                                            {telegram
+                                                ? <TelegramIcon size={22} />
+                                                : <Text style={{ fontSize:emojiSize }}>{emoji}</Text>}
                                         </View>
                                         {/* Country code button — only for phone */}
                                         {field === 'contactPhone' && (
