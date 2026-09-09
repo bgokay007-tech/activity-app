@@ -20,7 +20,7 @@ function isValidTimeStr(t) {
     return /^\d{2}:\d{2}$/.test(n) && parseInt(n.slice(0, 2)) <= 24 && parseInt(n.slice(3)) < 60;
 }
 
-export default function TimePickerModal({ visible, title, value, onSelect, onClose, step = 15 }) {
+export default function TimePickerModal({ visible, title, value, onSelect, onClose, step = 15, minTime = null }) {
     const [manual, setManual] = useState(value || '');
     useEffect(() => { setManual(value || ''); }, [value, visible]);
 
@@ -31,9 +31,17 @@ export default function TimePickerModal({ visible, title, value, onSelect, onClo
         }
     }
 
+    const isTooEarly = (t) => {
+        if (!minTime) return false;
+        const n = normalizeTime(t);
+        const floor = normalizeTime(minTime);
+        return !!n && !!floor && n <= floor;
+    };
+
     const handleManualSubmit = () => {
         const n = normalizeTime(manual);
         if (!isValidTimeStr(n)) { Alert.alert('Hata', 'Geçerli saat girin (örn: 8, 8:30, 08:00)'); return; }
+        if (isTooEarly(n)) { Alert.alert('Hata', 'Geçmiş bir saat seçilemez.'); return; }
         onSelect(n);
         onClose();
     };
@@ -68,13 +76,15 @@ export default function TimePickerModal({ visible, title, value, onSelect, onClo
                         <View style={s.grid}>
                             {times.map(item => {
                                 const isSelected = item === value;
+                                const disabled = isTooEarly(item);
                                 return (
                                     <TouchableOpacity
                                         key={item}
-                                        style={[s.cell, isSelected && s.cellActive]}
-                                        onPress={() => { onSelect(item); onClose(); }}
+                                        style={[s.cell, isSelected && s.cellActive, disabled && s.cellDis]}
+                                        disabled={disabled}
+                                        onPress={() => { if (disabled) return; onSelect(item); onClose(); }}
                                     >
-                                        <Text style={[s.cellText, isSelected && s.cellTextActive]}>{item}</Text>
+                                        <Text style={[s.cellText, isSelected && s.cellTextActive, disabled && s.cellTextDis]}>{item}</Text>
                                     </TouchableOpacity>
                                 );
                             })}
@@ -102,6 +112,8 @@ const s = StyleSheet.create({
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     cell: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, minWidth: 70, alignItems: 'center' },
     cellActive: { backgroundColor: colors.purple, borderColor: colors.purple },
+    cellDis: { opacity: 0.28 },
     cellText: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
     cellTextActive: { color: '#fff', fontWeight: '800' },
+    cellTextDis: { color: colors.textMuted },
 });

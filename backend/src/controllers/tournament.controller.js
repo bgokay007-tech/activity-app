@@ -52,6 +52,21 @@ export function tournamentPollDeadline(tournament) {
     return new Date(`${dateStr}T${timeStr}:00+03:00`);
 }
 
+/** Son başvuru anı (TR UTC+3) — join kontrolüyle aynı mantık. */
+function registrationDeadlineMs(endDate, endTime) {
+    if (!endDate) return null;
+    const regEnd = new Date(endDate);
+    if (endTime) {
+        const [h, m] = String(endTime).split(':').map(Number);
+        regEnd.setUTCHours(h || 0, m || 0, 0, 0);
+        regEnd.setTime(regEnd.getTime() - 3 * 60 * 60 * 1000);
+    } else {
+        // Saat yoksa gün sonu TR 23:59
+        regEnd.setUTCHours(20, 59, 0, 0);
+    }
+    return regEnd.getTime();
+}
+
 // ─── Tournament bracket helpers ───────────────────────────────────────────────
 
 function nextPow2(n) { let p = 1; while (p < n) p *= 2; return p; }
@@ -807,6 +822,18 @@ export const createTournament = async (req, res, next) => {
         } = req.body;
         if (pollEnabled === true && !pollEndDate) {
             return res.status(400).json({ message: 'Anket bitiş tarihi zorunludur.' });
+        }
+        if (endDate) {
+            const ms = registrationDeadlineMs(endDate, endTime);
+            if (ms != null && ms <= Date.now()) {
+                return res.status(400).json({ message: 'Son başvuru tarih ve saati geçmiş olamaz.' });
+            }
+        }
+        if (pollEnabled === true && pollEndDate) {
+            const pollMs = registrationDeadlineMs(pollEndDate, pollEndTime || '23:59');
+            if (pollMs != null && pollMs <= Date.now()) {
+                return res.status(400).json({ message: 'Anket bitiş tarih ve saati geçmiş olamaz.' });
+            }
         }
         let cleanExtraServices = [];
         if (extraServices !== undefined) {
@@ -1688,6 +1715,15 @@ export const updateTournament = async (req, res, next) => {
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
         if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Not authorized' });
+
+        const nextEndDate = b.endDate !== undefined ? (b.endDate ? new Date(b.endDate) : null) : tournament.endDate;
+        const nextEndTime = b.endTime !== undefined ? (b.endTime || null) : tournament.endTime;
+        if (nextEndDate) {
+            const ms = registrationDeadlineMs(nextEndDate, nextEndTime);
+            if (ms != null && ms <= Date.now()) {
+                return res.status(400).json({ message: 'Son başvuru tarih ve saati geçmiş olamaz.' });
+            }
+        }
 
         let cleanExtraServices;
         if (b.extraServices !== undefined) {

@@ -17299,6 +17299,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         const minP = parseInt(editMin) || item.minPlayers;
         const maxP = parseInt(editMax) || item.maxPlayers;
         if (minP > maxP) { Alert.alert('', 'Min oyuncu, max oyuncudan büyük olamaz.'); return; }
+        if (editRegEndDate) {
+            const regDt = new Date(editRegEndDate);
+            const [rh, rm] = editRegEndTime ? editRegEndTime.split(':').map(Number) : [23, 59];
+            regDt.setHours(rh || 0, rm || 0, 0, 0);
+            if (regDt.getTime() <= Date.now()) {
+                Alert.alert('', t.tournRegEndPast);
+                return;
+            }
+        }
         setSaving(true);
         try {
             await api.patch(`/tournaments/${item.id}`, {
@@ -18822,7 +18831,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     onSelect={(date) => {
                         if (editDp === 'evStart') setEditEventDate(date);
                         else if (editDp === 'evEnd') setEditEventEndDate(date);
-                        else setEditRegEndDate(date);
+                        else {
+                            if (editRegEndTime) {
+                                const probe = new Date(date);
+                                const [h, m] = editRegEndTime.split(':').map(Number);
+                                probe.setHours(h || 0, m || 0, 0, 0);
+                                if (probe.getTime() <= Date.now()) {
+                                    setEditRegEndTime('');
+                                    Alert.alert('', t.tournRegEndPast);
+                                }
+                            }
+                            setEditRegEndDate(date);
+                        }
                         setEditDp(null);
                     }}
                     onClose={() => setEditDp(null)}
@@ -18831,10 +18851,27 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     visible={!!editTf}
                     title="Saat Seçin"
                     value={editTf === 'evStart' ? editEventTime : editTf === 'evEnd' ? editEventEndTime : editRegEndTime}
+                    minTime={(() => {
+                        if (editTf !== 'regEnd') return null;
+                        const d = editRegEndDate || new Date();
+                        const now = new Date();
+                        if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth() || d.getDate() !== now.getDate()) return null;
+                        return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+                    })()}
                     onSelect={(v) => {
                         if (editTf === 'evStart') setEditEventTime(v);
                         else if (editTf === 'evEnd') setEditEventEndTime(v);
-                        else setEditRegEndTime(v);
+                        else {
+                            const d = editRegEndDate || new Date();
+                            const probe = new Date(d);
+                            const [h, m] = v.split(':').map(Number);
+                            probe.setHours(h || 0, m || 0, 0, 0);
+                            if (probe.getTime() <= Date.now()) {
+                                Alert.alert('', t.tournRegEndPast);
+                                return;
+                            }
+                            setEditRegEndTime(v);
+                        }
                         setEditTf(null);
                     }}
                     onClose={() => setEditTf(null)}
@@ -19667,6 +19704,15 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         if (f.scope === 'YEREL' && !f.scopeCity.trim()) { Alert.alert('', t.tournMissingCity); return; }
         if (f.scope === 'ULUSAL' && !f.scopeCountry.trim()) { Alert.alert('', t.tournMissingCountry); return; }
         if (!f.regEndDate) { Alert.alert('', t.tournMissingRegEnd); return; }
+        {
+            const regDt = new Date(f.regEndDate);
+            const [rh, rm] = f.regEndTime ? f.regEndTime.split(':').map(Number) : [23, 59];
+            regDt.setHours(rh || 0, rm || 0, 0, 0);
+            if (regDt.getTime() <= Date.now()) {
+                Alert.alert('', t.tournRegEndPast);
+                return;
+            }
+        }
         if (f.eventStartDate && f.regEndDate) {
             const startDt = new Date(f.eventStartDate); startDt.setHours(...( f.eventStartTime ? f.eventStartTime.split(':').map(Number) : [0, 0] ), 0, 0);
             const regDt   = new Date(f.regEndDate);     regDt.setHours(...( f.regEndTime  ? f.regEndTime.split(':').map(Number)  : [23, 59] ), 0, 0);
@@ -20008,14 +20054,44 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <CalendarPickerModal
                                 visible={dpField === 'end'}
                                 value={f.regEndDate}
-                                onSelect={(date) => { set('regEndDate', date); setDpField(null); }}
+                                onSelect={(date) => {
+                                    const next = { regEndDate: date };
+                                    if (f.regEndTime) {
+                                        const probe = new Date(date);
+                                        const [h, m] = f.regEndTime.split(':').map(Number);
+                                        probe.setHours(h || 0, m || 0, 0, 0);
+                                        if (probe.getTime() <= Date.now()) {
+                                            next.regEndTime = '';
+                                            Alert.alert('', t.tournRegEndPast);
+                                        }
+                                    }
+                                    setF(prev => ({ ...prev, ...next }));
+                                    setDpField(null);
+                                }}
                                 onClose={() => setDpField(null)}
                             />
                             <TimePickerModal
                                 visible={timeField === 'end'}
                                 title={t.tournRegEndLabel}
                                 value={f.regEndTime}
-                                onSelect={(v) => { set('regEndTime', v); setTimeField(null); }}
+                                minTime={(() => {
+                                    const d = f.regEndDate || new Date();
+                                    const now = new Date();
+                                    if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth() || d.getDate() !== now.getDate()) return null;
+                                    return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+                                })()}
+                                onSelect={(v) => {
+                                    const d = f.regEndDate || new Date();
+                                    const probe = new Date(d);
+                                    const [h, m] = v.split(':').map(Number);
+                                    probe.setHours(h || 0, m || 0, 0, 0);
+                                    if (probe.getTime() <= Date.now()) {
+                                        Alert.alert('', t.tournRegEndPast);
+                                        return;
+                                    }
+                                    set('regEndTime', v);
+                                    setTimeField(null);
+                                }}
                                 onClose={() => setTimeField(null)}
                             />
                             <CalendarPickerModal
