@@ -219,11 +219,36 @@ const SUB_CONFIG = {
     ice_skating:      { name:'Ice Skating',                nameTR:'Buz Pateni',                 nameRu:'Катание на коньках',        nameDe:'Eislaufen',                 emoji:'⛸️', color:'#0891b2' },
     motorcycle:       { name:'Motorcycle Riding',          nameTR:'Motosiklet',                 nameRu:'Мотоциклы',                 nameDe:'Motorradfahren',            emoji:'🏍️', color:'#b91c1c' },
     sanal_alem:     { name:'Virtual World',  nameTR:'Sanal Alem',     nameRu:'Виртуальный мир', nameDe:'Virtuelle Welt', emoji:'🌐', color:'#ec4899' },
-    default:    { name:'Sport',      nameTR:'Spor',       nameRu:'Спорт',      nameDe:'Sport',      emoji:'🏅', color: colors.purple },
+    painting:       { name:'Painting',      nameTR:'Resim',         nameRu:'Живопись',        nameDe:'Malerei',        emoji:'🎨', color:'#db2777' },
+    music:          { name:'Music',         nameTR:'Müzik',         nameRu:'Музыка',          nameDe:'Musik',          emoji:'🎵', color:'#c026d3' },
+    theater:        { name:'Theater',       nameTR:'Tiyatro',       nameRu:'Театр',           nameDe:'Theater',        emoji:'🎭', color:'#a21caf' },
+    cinema:         { name:'Cinema',        nameTR:'Sinema',        nameRu:'Кино',            nameDe:'Kino',           emoji:'🎬', color:'#7c3aed' },
+    literature:     { name:'Literature',    nameTR:'Edebiyat',      nameRu:'Литература',      nameDe:'Literatur',      emoji:'📚', color:'#9333ea' },
+    sculpture:      { name:'Sculpture',     nameTR:'Heykel',        nameRu:'Скульптура',      nameDe:'Bildhauerei',    emoji:'🗿', color:'#78716c' },
+    architecture:   { name:'Architecture',  nameTR:'Mimari',        nameRu:'Архитектура',     nameDe:'Architektur',    emoji:'🏛️', color:'#57534e' },
+    opera:          { name:'Opera',         nameTR:'Opera',         nameRu:'Опера',           nameDe:'Oper',           emoji:'🎼', color:'#be185d' },
+    ceramics:       { name:'Ceramics',      nameTR:'Seramik',       nameRu:'Керамика',        nameDe:'Keramik',        emoji:'🏺', color:'#b45309' },
+    poetry:         { name:'Poetry',        nameTR:'Şiir',          nameRu:'Поэзия',          nameDe:'Poesie',         emoji:'✍️', color:'#7e22ce' },
+    photography:    { name:'Photography',   nameTR:'Fotoğrafçılık', nameRu:'Фотография',      nameDe:'Fotografie',     emoji:'📷', color:'#334155' },
+    friend_finding: { name:'Friend Finding', nameTR:'Arkadaş Bulma', nameRu:'Поиск друзей',   nameDe:'Freunde finden', emoji:'🎉', color:'#d97706' },
+    fps:            { name:'FPS',           nameTR:'FPS',           nameRu:'Шутер',           nameDe:'Ego-Shooter',    emoji:'🎯', color:'#2563eb' },
+    moba:           { name:'MOBA',          nameTR:'MOBA',          nameRu:'MOBA',            nameDe:'MOBA',           emoji:'⚔️', color:'#1d4ed8' },
+    strategy:       { name:'Strategy',      nameTR:'Strateji',      nameRu:'Стратегия',       nameDe:'Strategie',      emoji:'♟️', color:'#1e40af' },
+    sports_games:   { name:'Sports Games',  nameTR:'Spor Oyunları', nameRu:'Спортивные игры', nameDe:'Sportspiele',    emoji:'🎮', color:'#0369a1' },
+    boardgames:     { name:'Board Games',   nameTR:'Kutu Oyunları', nameRu:'Настольные игры', nameDe:'Brettspiele',    emoji:'🎲', color:'#0f766e' },
+    // Bilinmeyen dalda "Spor" yazmasın — edebiyat/sanat buraya düşünce başlık yanlış oluyordu.
+    default:    { name:'Activity',   nameTR:'Aktivite',    nameRu:'Занятие',    nameDe:'Aktivität', emoji:'✨', color: colors.purple },
 };
 
 function getConfig(sub) {
-    return SUB_CONFIG[sub] || { ...SUB_CONFIG.default, name: sub.charAt(0).toUpperCase()+sub.slice(1) };
+    if (SUB_CONFIG[sub]) return SUB_CONFIG[sub];
+    return {
+        ...SUB_CONFIG.default,
+        name: getSubCategoryLabel(sub, 'en'),
+        nameTR: getSubCategoryLabel(sub, 'tr'),
+        nameRu: getSubCategoryLabel(sub, 'ru'),
+        nameDe: getSubCategoryLabel(sub, 'de'),
+    };
 }
 
 // DOUBLE (tenis/padel 2v2) "Atanmamış" listesindeki atama butonları — bir slotun cinsiyet
@@ -7150,14 +7175,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const backFacePlayers = allPlayers.filter(p => p?.id && !p._emptySlot);
 
     return (
-        <>
-        {/* Compact card — tap opens detail */}
+        <View style={{ width: '48%', minWidth: 0 }}>
+        {/* Dış View ızgaranın tek çocuğu — Fragment + Modal kardeşleri satırı bozuyordu.
+            Açık ilanlardaki RivalCard ile aynı %48 / iki kolon. */}
         <Animated.View
             style={[s.card, {
-                // Açık ilanlardaki RivalCard (twoCol) ile aynı ızgara: genişlik kartın kendi
-                // üzerinde. flex:1 + dış sarmalayıcı yüzde, içeriğin min-width'i yüzünden
-                // kartı tam satıra şişirip ikinci kartı alta itiyordu.
-                width: '48%', minWidth: 0,
+                width: '100%', minWidth: 0,
                 borderRadius: moderateScale(14),
                 paddingHorizontal: 1, paddingTop: 1, paddingBottom: 1,
                 minHeight: moderateScale(110),
@@ -7204,16 +7227,20 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 </TouchableOpacity>
             ) : (
             <TouchableOpacity style={{ flex:1 }} activeOpacity={0.75} onPress={openDetail}>
-            {/* Kullanıcı raporu: kompakt kartın ÖN yüzünde katılan oyuncuların isim+puan listesi
-                gösteriliyordu — bu isimler kart 🔄 ile çevrilince açılan ARKA yüzde (backFacePlayers)
-                zaten var, ön yüzde tekrar gereksizdi. Takım sporlarında (hasTeamRoster) tekil oyuncu
-                ismi değil, sadece jenerik "Kurucu Takım vs Rakip Takım" etiketi kalıyor — o bir
-                kişinin ismi değil, formatın kendisi. */}
-            {hasTeamRoster && (
-                <Text style={s.cardName} numberOfLines={1}>
-                    {match.founderTeamName || t.founderTeamShortLabel} <Text style={{ color: colors.textMuted, fontWeight:'400' }}>vs</Text> {match.opponentTeamName || t.opponentTeamShortLabel}
-                </Text>
-            )}
+            <View style={{ flexDirection:'row', alignItems:'flex-start', gap:1, marginBottom:1 }}>
+                <Avatar name={match.sender?.username} avatar={match.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => match.senderId && onUserPress?.(match.senderId)} />
+                <View style={{ flex:1, minWidth:0 }}>
+                    <Text style={[s.cardName, { fontSize: moderateScale(13) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(match.sender)}</Text>
+                    {hasTeamRoster && (
+                        <Text style={{ color: colors.textMuted, fontSize: moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
+                            {match.founderTeamName || t.founderTeamShortLabel} vs {match.opponentTeamName || t.opponentTeamShortLabel}
+                        </Text>
+                    )}
+                    {match.senderSkillRating != null && (
+                        <Text style={[s.ratingText, { color: cfg.color, fontSize: moderateScale(10) }]}>{Number(match.senderSkillRating).toFixed(2)} ★</Text>
+                    )}
+                </View>
+            </View>
             {/* Format / mode badges */}
             <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginTop:3 }}>
                 <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
@@ -9204,7 +9231,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             }}
         />
         <MyOrderStatusModal visible={showMyOrder} rivalId={match.id} onClose={() => setShowMyOrder(false)} />
-        </>
+        </View>
     );
 }
 
@@ -20834,7 +20861,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const insets = useSafeAreaInsets();
     const t = useT();
     const cfg = getConfig(sub);
-    const sportDisplayName = lang === 'tr' ? (cfg.nameTR || cfg.name) : lang === 'ru' ? (cfg.nameRu || cfg.name) : lang === 'de' ? (cfg.nameDe || cfg.name) : cfg.name;
+    const sportDisplayName = getSubCategoryLabel(sub, lang) || (lang === 'tr' ? (cfg.nameTR || cfg.name) : lang === 'ru' ? (cfg.nameRu || cfg.name) : lang === 'de' ? (cfg.nameDe || cfg.name) : cfg.name);
     const tabs = getTabs(sub, category);
     const tabLabel = (tab) => {
         if (category === 'ARTS') {
@@ -20947,7 +20974,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     // (TAZE GET'lerden gelen doğru veriyi cache'leyip broadcast'teki eksiği doldurma) burada da
     // uygulanıyor.
     const senderInterestCacheRef = useRef({});
-    // Dakikada bir tick → zaman bazlı filtreler (matchHasEnded) yeniden hesaplanır
+    // Her saniye tick → Yaklaşan/Oynanan/Skor Bekleyen zaman filtreleri yenilenir
     const [, setTimeTick] = useState(0);
     const [textPosts, setTextPosts] = useState([]);
     const [mediaPosts, setMediaPosts] = useState([]);
@@ -23355,13 +23382,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         const offReconnect = onSocketReconnect(() => load());
         // Fallback: socket missed event → periyodik yenileme (30s)
         const pollInterval = setInterval(() => load(), 30000);
-        // Kullanıcı raporu: dakikada bir tick "anında" hissettirmiyordu, maç saati geçince kart
-        // Yaklaşan Maçlar'da görünmeye devam ediyor gibi kalıyordu — geri çıkıp tekrar girince
-        // (ekran yeniden mount olup taze veri çekince) hemen doğru yere geçiyordu, bu da sanki
-        // otomatik geçiş hiç çalışmıyormuş izlenimi veriyordu. 5 saniyeye düşürüldü — matchHasStarted/
-        // matchHasEnded zaten her render'da yeniden hesaplanıyor (bkz. aşağısı), tek eksik olan
-        // yeniden render'ı yeterince sık tetiklemekti.
-        const tickInterval = setInterval(() => setTimeTick(n => n + 1), 5000);
+        // Maç saati gelince Yaklaşan → Oynanan geçişi sayfa yenilemeden olsun diye her saniye
+        // yeniden hesaplanır. Eskiden +60sn tampon + 5sn tick yüzünden ~1 dk gecikiyordu.
+        const tickInterval = setInterval(() => setTimeTick(n => n + 1), 1000);
         return () => { offUpdate(); offDeleted(); offNewComment(); offReconnect(); clearInterval(pollInterval); clearInterval(tickInterval); };
     }, [category, sub]);
 
@@ -23551,7 +23574,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         const [h, min] = m.matchTime.split(':').map(Number);
         const d = new Date(m.matchDate);
         d.setHours(h, min, 0, 0);
-        return new Date() >= new Date(d.getTime() + 60 * 1000); // maç başladıktan 1 dk sonra
+        // Kullanıcı isteği: 1 dk tampon kalksın — saat gelince kart hemen Oynanan Maçlar'a
+        // geçsin ki detaydan kamera / canlı skor başlatılabilsin.
+        return new Date() >= d;
     };
     const matchHasEnded = (m) => {
         if (!m.matchDate || !m.matchTime) return false;
@@ -23577,6 +23602,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Oynanan Maçlar — maç saati gelmiş ama süresi henüz dolmamış maçlar (kullanıcı isteği:
     // maç saati geçer geçmez direkt "Skor Bekleyen"e düşmesin, önce burada görünsün).
     const playingMatches = allFiltered.filter(m => matchHasStarted(m) && !matchHasEnded(m));
+    useEffect(() => {
+        if (playingMatches.length > 0) setPlayingExpanded(true);
+    }, [playingMatches.length]);
     const clientEndedMatches = allFiltered.filter(m => matchHasEnded(m));
     // Birleştir: sunucudan gelen + client-side biten (id çakışmasını önle)
     const pendingScoreIds = new Set(pendingScore.map(m => m.id));
