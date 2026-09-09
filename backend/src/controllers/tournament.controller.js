@@ -7,7 +7,19 @@ import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisP
 import { UTR_SUBCATEGORIES, applyUtrRatingForTournamentMatch, getDisplayRating, isDoublesFormat } from '../utils/utrRating.js';
 import { computeTournamentPlacement } from './achievement.controller.js';
 import { sanitizeExtraServices } from '../utils/extraServices.js';
-import { ACTIVE_ENGINE_TYPES, resolveFormatOnCreate } from '../utils/tournamentFormats.js';
+import { ACTIVE_ENGINE_TYPES, resolveFormatOnCreate, isTeamEngineType } from '../utils/tournamentFormats.js';
+import {
+    swissRoundCount,
+    americanoRoundCount,
+    pairSwissRound,
+    swissMatchesFromPairing,
+    buildWinnersBracket,
+    winnersNextSlot,
+    losersDropTarget,
+    losersNextSlot,
+    pairAmericanoRound,
+    applyByeToStandings,
+} from '../utils/tournamentEngines.js';
 
 // Padel: %99 çiftler oynanan bir spor olduğu için (kullanıcı isteği) çiftler anketi tekliden
 // BAĞIMSIZ ve varsayılan/birincil olabilir — genel "bu dalı hiç kullanabilir miyim" kapısı
@@ -256,7 +268,7 @@ export async function resolveThirdPlaceByAveraj(match) {
  *  instead of deciding qualification by lot. */
 function compareStandingsCore(a, b, tournamentType) {
     if (b.points !== a.points) return b.points - a.points;
-    if (tournamentType === '1' || tournamentType === '2' || tournamentType === '3' || tournamentType === '4') {
+    if (['1', '2', '3', '4', '5', '6', '7'].includes(String(tournamentType))) {
         const averaj = (x) => {
             const total = x.gamesWon + x.gamesLost;
             return total === 0 ? 0 : x.gamesWon / total;
@@ -295,6 +307,8 @@ function computeStandings(players, matches, tournamentType, tournamentId) {
         if (sc.winner === 'p1') { s1.won++; s1.points += 3; s2.lost++; }
         else if (sc.winner === 'p2') { s2.won++; s2.points += 3; s1.lost++; }
     }
+    // Swiss bye: tek taraflı BYE maçı → +3 puan / +1 galibiyet
+    applyByeToStandings(stats, matches);
     return Object.values(stats).sort((a, b) => {
         const core = compareStandingsCore(a, b, tournamentType);
         if (core !== 0) return core;
@@ -419,6 +433,94 @@ function fullRoundRobinByElo(teams, tournamentId, baseDate) {
         });
     }
     return matches;
+}
+
+/** Americano bir tur: geçici takımlar + maçlar. history bracketData.americano'dan gelir. */
+async function createAmericanoRoundMatches(tournament, players, round, history, baseDate) {
+    const pairing = pairAmericanoRound(players, history, round);
+    if (pairing.courts.length === 0) return { matches: [], history };
+
+    const teamCreates = [];
+    const matchRows = [];
+    const deadline = new Date(baseDate);
+    deadline.setDate(deadline.getDate() + round * 7);
+
+    for (let idx = 0; idx < pairing.courts.length; idx++) {
+        const { a, b } = pairing.courts[idx];
+        const avg = (pair) => ((pair[0].skillRating || 0) + (pair[1].skillRating || 0)) / 2;
+        teamCreates.push({
+            tournamentId: tournament.id,
+            player1Id: a[0].id,
+            player1Name: a[0].fullName || a[0].username,
+            player2Id: a[1].id,
+            player2Name: a[1].fullName || a[1].username,
+            avgRating: avg(a),
+        });
+        teamCreates.push({
+            tournamentId: tournament.id,
+            player1Id: b[0].id,
+            player1Name: b[0].fullName || b[0].username,
+            player2Id: b[1].id,
+            player2Name: b[1].fullName || b[1].username,
+            avgRating: avg(b),
+        });
+    }
+
+    const createdTeams = await prisma.$transaction(teamCreates.map(td => prisma.tournamentTeam.create({ data: td })));
+    for (let i = 0; i < pairing.courts.length; i++) {
+        const t1 = createdTeams[i * 2];
+        const t2 = createdTeams[i * 2 + 1];
+        matchRows.push({
+            tournamentId: tournament.id,
+            round,
+            phase: 'GROUP',
+            matchIndex: i,
+            p1Id: t1.id,
+            p1Name: `${t1.player1Name} & ${t1.player2Name}`,
+            p2Id: t2.id,
+            p2Name: `${t2.player1Name} & ${t2.player2Name}`,
+            status: 'PENDING',
+            deadline,
+        });
+    }
+
+    const nextHistory = {
+        partners: [...(history.partners || []), ...(pairing.newPartners || [])],
+        opponents: [...(history.opponents || []), ...(pairing.newOpponents || [])],
+        sitOutLog: [...(history.sitOutLog || []), ...(pairing.sitOut || []).map(p => p.id)],
+    };
+    return { matches: matchRows, history: nextHistory };
+}
+
+async function generateNextSwissRound(tournament, players, nextRound, groupMatches) {
+    const standings = computeStandings(players, groupMatches, tournament.type, tournament.id);
+    const byId = new Map(players.map(p => [p.id, p]));
+    const enriched = standings.map(s => {
+        const base = byId.get(s.userId) || { id: s.userId, fullName: s.name, username: s.name };
+        const hadBye = groupMatches.some(m => m.status === 'BYE' && m.winnerId === s.userId);
+        return {
+            ...base,
+            id: s.userId,
+            points: s.points,
+            gamesWon: s.gamesWon,
+            gamesLost: s.gamesLost,
+            hadBye,
+        };
+    });
+    // standings'te olmayan (hiç oynamamış) oyuncular
+    for (const p of players) {
+        if (!enriched.find(e => e.id === p.id)) {
+            enriched.push({ ...p, points: 0, gamesWon: 0, gamesLost: 0, hadBye: false });
+        }
+    }
+    const playedPairKeys = groupMatches
+        .filter(m => m.p1Id && m.p2Id)
+        .map(m => [m.p1Id, m.p2Id].sort().join('|'));
+    const pairing = pairSwissRound(enriched, playedPairKeys);
+    const baseDate = tournamentBaseDate(tournament);
+    const deadline = new Date(baseDate);
+    deadline.setDate(deadline.getDate() + nextRound * 7);
+    return swissMatchesFromPairing(tournament.id, nextRound, pairing, deadline);
 }
 
 async function getCurrentPlayerRatings(tournament, userIds) {
@@ -1847,6 +1949,43 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
             d.setDate(d.getDate() + (m.round || 1) * 7);
             return { ...m, deadline: d };
         });
+    } else if (tournament.type === '5') {
+        // Swiss: round 1 puan/ELO ile; sonraki turlar skor sonrası dinamik.
+        const round1Players = players.map(p => ({ ...p, points: 0, gamesWon: 0, gamesLost: 0, hadBye: false }));
+        const pairing = pairSwissRound(round1Players, []);
+        const deadline = new Date(baseDate);
+        deadline.setDate(deadline.getDate() + 7);
+        matches = swissMatchesFromPairing(id, 1, pairing, deadline);
+        const totalRounds = swissRoundCount(players.length, tournament.matchesBeforePlayoff);
+        await prisma.tournament.update({
+            where: { id },
+            data: { bracketData: { engine: 'swiss', totalRounds } },
+        });
+    } else if (tournament.type === '6') {
+        // Çift eleme: kazananlar kurası + grand final iskeleti; kaybedenler dinamik.
+        if (players.length < 4) {
+            throw Object.assign(new Error('Çift eleme için en az 4 oyuncu gerekli.'), { status: 400 });
+        }
+        const built = buildWinnersBracket(players, id, 1);
+        matches = built.matches;
+        await prisma.tournament.update({
+            where: { id },
+            data: { bracketData: { engine: 'double_elim', wbRounds: built.wbRounds, size: built.size } },
+        });
+    } else if (tournament.type === '7') {
+        // Americano: bireysel kayıt, her tur geçici çiftler; min 4 oyuncu.
+        if (players.length < 4) {
+            throw Object.assign(new Error('Americano için en az 4 oyuncu gerekli.'), { status: 400 });
+        }
+        const totalRounds = americanoRoundCount(players.length, tournament.matchesBeforePlayoff);
+        const { matches: roundMatches, history } = await createAmericanoRoundMatches(
+            tournament, players, 1, { partners: [], opponents: [], sitOutLog: [] }, baseDate,
+        );
+        matches = roundMatches;
+        await prisma.tournament.update({
+            where: { id },
+            data: { bracketData: { engine: 'americano', totalRounds, americano: history } },
+        });
     } else {
         // Diğer türler
         const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(players.length - 1, 3);
@@ -1866,23 +2005,47 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         }
     }
 
+    // type 5/6'da bracketData yukarıda yazıldıysa status güncellemesi createMany ile birleşsin —
+    // tekrar overwrite etmemek için mevcut bracketData'yı koru.
+    const existingBracket = tournament.type === '5' || tournament.type === '6' || tournament.type === '7'
+        ? (await prisma.tournament.findUnique({ where: { id }, select: { bracketData: true } }))?.bracketData
+        : tournament.bracketData;
+
     await prisma.$transaction([
         prisma.tournamentMatch.createMany({ data: matches }),
-        prisma.tournament.update({ where: { id }, data: { status: 'IN_PROGRESS', startedAt: new Date() } }),
+        prisma.tournament.update({
+            where: { id },
+            data: {
+                status: 'IN_PROGRESS',
+                startedAt: new Date(),
+                ...(existingBracket ? { bracketData: existingBracket } : {}),
+            },
+        }),
     ]);
 
-    // Auto-advance BYEs in round 1
+    // Auto-advance BYEs in round 1 (playoff / winners)
     const byeMatches = await prisma.tournamentMatch.findMany({
         where: { tournamentId: id, status: 'BYE', round: tournament.type === '2' ? 1 : undefined },
     });
     for (const bye of byeMatches) {
-        if (bye.phase !== 'PLAYOFF') continue; // RR BYEs don't need bracket advancement
-        const slot = bye.matchIndex % 2 === 0 ? 'p1' : 'p2';
-        const winnerName = bye.p1Id === bye.winnerId ? bye.p1Name : bye.p2Name;
-        await prisma.tournamentMatch.updateMany({
-            where: { tournamentId: id, round: bye.round + 1, matchIndex: Math.floor(bye.matchIndex / 2), phase: 'PLAYOFF' },
-            data: slot === 'p1' ? { p1Id: bye.winnerId, p1Name: winnerName } : { p2Id: bye.winnerId, p2Name: winnerName },
-        });
+        if (bye.phase === 'PLAYOFF') {
+            const slot = bye.matchIndex % 2 === 0 ? 'p1' : 'p2';
+            const winnerName = bye.p1Id === bye.winnerId ? bye.p1Name : bye.p2Name;
+            await prisma.tournamentMatch.updateMany({
+                where: { tournamentId: id, round: bye.round + 1, matchIndex: Math.floor(bye.matchIndex / 2), phase: 'PLAYOFF' },
+                data: slot === 'p1' ? { p1Id: bye.winnerId, p1Name: winnerName } : { p2Id: bye.winnerId, p2Name: winnerName },
+            });
+        } else if (bye.phase === 'WINNERS' && bye.winnerId) {
+            const next = winnersNextSlot(bye);
+            const winnerName = bye.p1Id === bye.winnerId ? bye.p1Name : (bye.p2Name || bye.p1Name);
+            await prisma.tournamentMatch.updateMany({
+                where: { tournamentId: id, phase: 'WINNERS', round: next.round, matchIndex: next.matchIndex },
+                data: next.slot === 'p1'
+                    ? { p1Id: bye.winnerId, p1Name: winnerName }
+                    : { p2Id: bye.winnerId, p2Name: winnerName },
+            });
+            // Bye'da kaybeden yok — LB'ye düşmez
+        }
     }
 
     // Notify real (non-manual) participants + socket push for instant UI update
@@ -1954,7 +2117,7 @@ export const rematchTournament = async (req, res, next) => {
         if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
         if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Yetkiniz yok' });
         if (tournament.status !== 'IN_PROGRESS') return res.status(400).json({ message: 'Turnuva devam etmekte değil' });
-        if (tournament.type === '2' || tournament.type === '3' || tournament.type === '4') return res.status(400).json({ message: 'Eleme turnuvaları yeniden eşleştirilemez' });
+        if (tournament.type === '2' || tournament.type === '3' || tournament.type === '4' || tournament.type === '5' || tournament.type === '6' || tournament.type === '7') return res.status(400).json({ message: 'Eleme turnuvaları yeniden eşleştirilemez' });
 
         // Fetch participants with correct interest filter
         const rawParticipants = await prisma.tournamentParticipant.findMany({
@@ -2005,22 +2168,23 @@ export const getTournamentMatches = async (req, res, next) => {
         const tournament = await prisma.tournament.findUnique({ where: { id }, select: { category: true, subCategory: true } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
 
-        const [matches, myTeam, teams] = await Promise.all([
+        const [matches, myTeams, teams] = await Promise.all([
             prisma.tournamentMatch.findMany({
                 where: { tournamentId: id },
                 orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
             }),
-            // Çiftler Rekabetçi: maçlarda p1Id/p2Id takım id'sidir — istemcinin "bu maç bana mı ait"
-            // kontrolü yapabilmesi için kendi takım id'sini de döndürüyoruz.
-            prisma.tournamentTeam.findFirst({
+            // Çiftler / Americano: maçlarda p1Id/p2Id takım id'sidir — Americano'da oyuncu
+            // her tur farklı takımda olabilir, bu yüzden tüm takım id'lerini döndürürüz.
+            prisma.tournamentTeam.findMany({
                 where: { tournamentId: id, OR: [{ player1Id: req.userId }, { player2Id: req.userId }] },
+                select: { id: true, player1Id: true, player2Id: true },
             }),
-            // Takım üyeleri (id + ad) — güncel bireysel/ortalama puan ayrıca hesaplanır.
             prisma.tournamentTeam.findMany({
                 where: { tournamentId: id },
                 select: { id: true, player1Id: true, player1Name: true, player2Id: true, player2Name: true },
             }),
         ]);
+        const myTeam = myTeams[0] || null;
 
         // Her oyuncunun GÜNCEL bireysel puanı — takımın sabit avgRating snapshot'ı değil,
         // skor girildikten sonra değişen anlık skillRating'e göre hesaplanır (Bireysel ve
@@ -2062,7 +2226,7 @@ export const getTournamentMatches = async (req, res, next) => {
         });
         const myJokerUsed = myJokerParticipants.some(p => p.jokerUsed);
 
-        res.json({ matches, myTeamId: myTeam?.id || null, teams: teamsEnriched, playerRatings, myJokerUsed });
+        res.json({ matches, myTeamId: myTeam?.id || null, myTeamIds: myTeams.map(t => t.id), teams: teamsEnriched, playerRatings, myJokerUsed });
     } catch (e) { next(e); }
 };
 
@@ -2071,13 +2235,168 @@ export const getTournamentMatches = async (req, res, next) => {
  *  auto-draw), generates the next dynamic round / playoff bracket once the current
  *  round is fully resolved, and auto-completes the tournament once no PENDING
  *  matches remain. `tournament` must include `participants` (status ACCEPTED). */
+
+/** Çift eleme: WB/LB/GF ilerletme + kaybedeni LB'ye düşürme. */
+async function advanceDoubleElimAfterScore(tournament, match, winnerId, loserId, winnerName, loserName) {
+    const id = tournament.id;
+    const meta = (tournament.bracketData && typeof tournament.bracketData === 'object') ? tournament.bracketData : {};
+    const wbRounds = meta.wbRounds || Math.log2(meta.size || 2);
+
+    const fillSlot = async (phase, round, matchIndex, slot, playerId, playerName) => {
+        let row = await prisma.tournamentMatch.findFirst({
+            where: { tournamentId: id, phase, round, matchIndex },
+        });
+        if (!row) {
+            row = await prisma.tournamentMatch.create({
+                data: {
+                    tournamentId: id, phase, round, matchIndex, status: 'PENDING',
+                    ...(slot === 'p1' ? { p1Id: playerId, p1Name: playerName } : { p2Id: playerId, p2Name: playerName }),
+                },
+            });
+        } else {
+            await prisma.tournamentMatch.update({
+                where: { id: row.id },
+                data: slot === 'p1' ? { p1Id: playerId, p1Name: playerName } : { p2Id: playerId, p2Name: playerName },
+            });
+            row = await prisma.tournamentMatch.findUnique({ where: { id: row.id } });
+        }
+        if (row?.p1Id && row?.p2Id && row.status === 'PENDING') {
+            await markPlayoffMatchReadyDeadline(row.id);
+        }
+        return row;
+    };
+
+    const ensureGrandFinal = async (wbChampId, wbChampName, lbChampId, lbChampName) => {
+        if (!wbChampId || !lbChampId) return;
+        const existing = await prisma.tournamentMatch.findFirst({
+            where: { tournamentId: id, phase: 'GRAND_FINAL', matchIndex: 0 },
+        });
+        if (existing) {
+            await prisma.tournamentMatch.update({
+                where: { id: existing.id },
+                data: {
+                    p1Id: wbChampId, p1Name: wbChampName,
+                    p2Id: lbChampId, p2Name: lbChampName,
+                    ...(existing.readyAt ? {} : { readyAt: new Date() }),
+                },
+            });
+        } else {
+            await prisma.tournamentMatch.create({
+                data: {
+                    tournamentId: id, phase: 'GRAND_FINAL', round: wbRounds + 1, matchIndex: 0,
+                    p1Id: wbChampId, p1Name: wbChampName,
+                    p2Id: lbChampId, p2Name: lbChampName,
+                    status: 'PENDING', readyAt: new Date(),
+                },
+            });
+        }
+    };
+
+    if (match.phase === 'WINNERS') {
+        // Kazanan → sonraki WB (final değilse)
+        if (match.round < wbRounds) {
+            const next = winnersNextSlot(match);
+            await fillSlot('WINNERS', next.round, next.matchIndex, next.slot, winnerId, winnerName);
+        } else {
+            // WB şampiyonu → GF p1; LB şampiyonu varsa GF aç
+            const lbFinalRound = 2 * (wbRounds - 1);
+            const lbFinal = await prisma.tournamentMatch.findFirst({
+                where: {
+                    tournamentId: id, phase: 'LOSERS', round: lbFinalRound,
+                    status: { in: ['COMPLETED', 'BYE', 'FORFEIT'] },
+                },
+                orderBy: { matchIndex: 'asc' },
+            });
+            // LB final tek maç (matchIndex 0) beklenir
+            const lbChamp = lbFinal?.winnerId
+                ? { id: lbFinal.winnerId, name: lbFinal.winnerId === lbFinal.p1Id ? lbFinal.p1Name : lbFinal.p2Name }
+                : null;
+            await ensureGrandFinal(winnerId, winnerName, lbChamp?.id, lbChamp?.name);
+            // LB henüz bitmediyse GF'yi WB şampiyonuyla yarım bırak (p1 dolu)
+            if (!lbChamp) {
+                const gf = await prisma.tournamentMatch.findFirst({ where: { tournamentId: id, phase: 'GRAND_FINAL' } });
+                if (!gf) {
+                    await prisma.tournamentMatch.create({
+                        data: {
+                            tournamentId: id, phase: 'GRAND_FINAL', round: wbRounds + 1, matchIndex: 0,
+                            p1Id: winnerId, p1Name: winnerName, status: 'PENDING',
+                        },
+                    });
+                } else if (!gf.p1Id) {
+                    await prisma.tournamentMatch.update({
+                        where: { id: gf.id },
+                        data: { p1Id: winnerId, p1Name: winnerName },
+                    });
+                }
+            }
+        }
+
+        // Kaybeden → LB (bye değilse)
+        if (loserId) {
+            const fromWbRound = match.round; // startRound=1 varsayımı
+            const drop = losersDropTarget(fromWbRound, match.matchIndex, wbRounds);
+            await fillSlot('LOSERS', drop.round, drop.matchIndex, drop.slot, loserId, loserName);
+        }
+    } else if (match.phase === 'LOSERS') {
+        const next = losersNextSlot(match, wbRounds);
+        if (next.phase === 'GRAND_FINAL') {
+            const wbFinal = await prisma.tournamentMatch.findFirst({
+                where: {
+                    tournamentId: id, phase: 'WINNERS', round: wbRounds,
+                    status: { in: ['COMPLETED', 'BYE', 'FORFEIT'] },
+                },
+            });
+            const wbChampId = wbFinal?.winnerId;
+            const wbChampName = wbFinal
+                ? (wbFinal.winnerId === wbFinal.p1Id ? wbFinal.p1Name : wbFinal.p2Name)
+                : null;
+            await ensureGrandFinal(wbChampId, wbChampName, winnerId, winnerName);
+            if (!wbChampId) {
+                const gf = await prisma.tournamentMatch.findFirst({ where: { tournamentId: id, phase: 'GRAND_FINAL' } });
+                if (!gf) {
+                    await prisma.tournamentMatch.create({
+                        data: {
+                            tournamentId: id, phase: 'GRAND_FINAL', round: wbRounds + 1, matchIndex: 0,
+                            p2Id: winnerId, p2Name: winnerName, status: 'PENDING',
+                        },
+                    });
+                } else if (!gf.p2Id) {
+                    await prisma.tournamentMatch.update({
+                        where: { id: gf.id },
+                        data: { p2Id: winnerId, p2Name: winnerName },
+                    });
+                }
+            }
+        } else {
+            await fillSlot(next.phase, next.round, next.matchIndex, next.slot, winnerId, winnerName);
+        }
+    } else if (match.phase === 'GRAND_FINAL') {
+        // Bracket reset: LB şampiyonu (p2) kazanırsa bir reset maçı (matchIndex 1)
+        if (winnerId === match.p2Id) {
+            const resetExists = await prisma.tournamentMatch.findFirst({
+                where: { tournamentId: id, phase: 'GRAND_FINAL', matchIndex: 1 },
+            });
+            if (!resetExists) {
+                await prisma.tournamentMatch.create({
+                    data: {
+                        tournamentId: id, phase: 'GRAND_FINAL', round: match.round, matchIndex: 1,
+                        p1Id: match.p1Id, p1Name: match.p1Name,
+                        p2Id: match.p2Id, p2Name: match.p2Name,
+                        status: 'PENDING', readyAt: new Date(),
+                    },
+                });
+            }
+        }
+        // WB şampiyonu (p1) kazandıysa veya reset oynandıysa PENDING kalmaz → auto-complete
+    }
+}
+
 export async function advanceTournamentAfterMatch(tournament, match, isTeamTournament, isCorrection) {
     const id = tournament.id;
 
-    // Bireysel Rekabetçi (type '1'), Çiftler Rekabetçi (type '2') ve Bireysel Antrenman
-    // (type '3'): dinamik tur yönetimi. Sadece ilk skor girişinde — bir düzeltme zaten
-    // oluşturulmuş turu tekrar oluşturmasın
-    if (!isCorrection && (tournament.type === '1' || tournament.type === '2' || tournament.type === '3' || tournament.type === '4') && match.phase === 'GROUP') {
+    // Bireysel Rekabetçi (type '1'), Çiftler Rekabetçi (type '2'), Antrenman (3/4),
+    // Swiss (5) ve Americano (7): dinamik tur yönetimi.
+    if (!isCorrection && (tournament.type === '1' || tournament.type === '2' || tournament.type === '3' || tournament.type === '4' || tournament.type === '5' || tournament.type === '7') && match.phase === 'GROUP') {
         const allGroupMatches = await prisma.tournamentMatch.findMany({
             where: { tournamentId: id, phase: 'GROUP' },
         });
@@ -2106,34 +2425,66 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
         // otomatik tamamlama) kontrolüne düşmesi yeterli.
         if ((currentRoundDone || dynamicRoundDeadlinePassed) && match.round === maxRound) {
             const sideCount = isTeamTournament ? new Set(allGroupMatches.flatMap(m => [m.p1Id, m.p2Id]).filter(Boolean)).size : tournament.participants.length;
-            // type '2' ve '3': tüm turlar başta pre-generate edilir (full round-robin /
-            // rastgele kura), asla 3'e cap'lenmez ve dinamik tur üretilmez.
+            // type '2'/'3'/'4': tüm turlar başta pre-generate; '5'/'7' dinamik (swiss/americano)
             const preGenerated = tournament.type === '2' || tournament.type === '3' || tournament.type === '4';
+            const bracketMeta = (tournament.bracketData && typeof tournament.bracketData === 'object') ? tournament.bracketData : {};
             const matchesPerPlayer = tournament.type === '2'
                 ? sideCount - 1
-                : (tournament.matchesBeforePlayoff || Math.min(sideCount - 1, 3));
+                : tournament.type === '5'
+                    ? (bracketMeta.totalRounds || swissRoundCount(sideCount, tournament.matchesBeforePlayoff))
+                    : tournament.type === '7'
+                        ? (bracketMeta.totalRounds || americanoRoundCount(tournament.participants.length, tournament.matchesBeforePlayoff))
+                        : (tournament.matchesBeforePlayoff || Math.min(sideCount - 1, 3));
             const existingPlayoff = await prisma.tournamentMatch.findFirst({
                 where: { tournamentId: id, phase: 'PLAYOFF' },
             });
-            // type '2'/'3' rounds are pre-generated; only generate dynamically for type '1'
             const nextRoundAlreadyExists = allGroupMatches.some(m => m.round === maxRound + 1);
-            // Pre-generated tiplerde play-off'a sadece TÜM GROUP maçları (yalnızca en son
-            // tur değil) bitince geçilir — aksi halde henüz oynanmamış turlar varken
-            // erken play-off oluşturulabilir.
             const groupPhaseFullyDone = preGenerated
                 ? allGroupMatches.every(m => m.status === 'COMPLETED' || m.status === 'BYE' || m.status === 'FORFEIT')
                 : maxRound >= matchesPerPlayer;
 
             if (!preGenerated && maxRound < matchesPerPlayer && !existingPlayoff && !nextRoundAlreadyExists) {
-                // Sonraki GROUP turunu güncel ELO ile oluştur (sadece type '1')
-                const playedPairKeys = allGroupMatches
-                    .filter(m => m.p1Id && m.p2Id)
-                    .map(m => [m.p1Id, m.p2Id].sort().join('|'));
-                const nextRoundMatches = await generateNextEloRound(tournament, maxRound + 1, playedPairKeys);
-                if (nextRoundMatches.length > 0) {
-                    await prisma.tournamentMatch.createMany({ data: nextRoundMatches });
+                if (tournament.type === '5') {
+                    const players = tournament.participants.map(p => ({
+                        id: p.userId, fullName: p.user?.fullName, username: p.user?.username, skillRating: 0,
+                    }));
+                    const nextRoundMatches = await generateNextSwissRound(tournament, players, maxRound + 1, allGroupMatches);
+                    if (nextRoundMatches.length > 0) {
+                        await prisma.tournamentMatch.createMany({ data: nextRoundMatches });
+                    }
+                } else if (tournament.type === '7') {
+                    const players = tournament.participants.map(p => ({
+                        id: p.userId,
+                        fullName: p.user?.fullName,
+                        username: p.user?.username,
+                        skillRating: 0,
+                    })).filter(p => p.id);
+                    const history = bracketMeta.americano || { partners: [], opponents: [], sitOutLog: [] };
+                    const { matches: nextMatches, history: nextHistory } = await createAmericanoRoundMatches(
+                        tournament, players, maxRound + 1, history, tournamentBaseDate(tournament),
+                    );
+                    if (nextMatches.length > 0) {
+                        await prisma.tournamentMatch.createMany({ data: nextMatches });
+                        await prisma.tournament.update({
+                            where: { id },
+                            data: { bracketData: { ...bracketMeta, americano: nextHistory } },
+                        });
+                    }
+                } else {
+                    // Sonraki GROUP turunu güncel ELO ile oluştur (sadece type '1')
+                    const playedPairKeys = allGroupMatches
+                        .filter(m => m.p1Id && m.p2Id)
+                        .map(m => [m.p1Id, m.p2Id].sort().join('|'));
+                    const nextRoundMatches = await generateNextEloRound(tournament, maxRound + 1, playedPairKeys);
+                    if (nextRoundMatches.length > 0) {
+                        await prisma.tournamentMatch.createMany({ data: nextRoundMatches });
+                    }
                 }
             } else if (currentRoundDone && groupPhaseFullyDone && !existingPlayoff && !nextRoundAlreadyExists) {
+                // Swiss / Americano: play-off yok — turlar bitince turnuva tamamlanır (PENDING kalmazsa aşağıda).
+                if (tournament.type === '5' || tournament.type === '7') {
+                    // no-op: auto-complete bloğu PENDING=0 iken COMPLETED yapar
+                } else {
                 // Play-off'a geçiş joker gevşemesinden ETKİLENMEZ — son tur her zaman tam
                 // bitmeyi bekler (currentRoundDone yukarıdaki gevşetilmiş dynamicRoundDeadlinePassed
                 // değil, gerçek/tam bitiş).
@@ -2235,6 +2586,7 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                     }
                 }
                 }
+                } // end else (not swiss/americano)
             }
         }
     }
@@ -2303,7 +2655,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
 
         // Çiftler Rekabetçi (type '2'): p1Id/p2Id bir takım id'sidir, kullanıcı değil —
         // her tarafın 1 veya 2 üye kullanıcı id'sine çözülür.
-        const isTeamTournament = tournament.type === '2' || tournament.type === '4';
+        const isTeamTournament = isTeamEngineType(tournament.type);
         let p1Members = [match.p1Id].filter(Boolean);
         let p2Members = [match.p2Id].filter(Boolean);
         if (isTeamTournament) {
@@ -2608,8 +2960,12 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             },
         });
 
-        // Advance winner through PLAYOFF bracket
-        if (match.phase === 'PLAYOFF' && !match.isThirdPlaceMatch) {
+        // Advance winner through PLAYOFF / double-elim brackets
+        if (tournament.type === '6' && ['WINNERS', 'LOSERS', 'GRAND_FINAL'].includes(match.phase)) {
+            const wName = winner === 'p1' ? match.p1Name : match.p2Name;
+            const lName = winner === 'p1' ? match.p2Name : match.p1Name;
+            await advanceDoubleElimAfterScore(tournament, match, winnerId, loserId, wName, lName);
+        } else if (match.phase === 'PLAYOFF' && !match.isThirdPlaceMatch) {
             const winnerName = winner === 'p1' ? match.p1Name : match.p2Name;
             const slot = match.matchIndex % 2 === 0 ? 'p1' : 'p2';
             const nextMatch = await prisma.tournamentMatch.findFirst({
@@ -2733,7 +3089,7 @@ export const respondThirdPlaceMatch = async (req, res, next) => {
             // tamamlanıp arşive düşsün (kullanıcı raporu: "turnuvayı arşive almayı unutma").
             updated = await resolveThirdPlaceByAveraj(match);
             if (tournament) {
-                const isTeamTournament = tournament.type === '2' || tournament.type === '4';
+                const isTeamTournament = isTeamEngineType(tournament.type);
                 await advanceTournamentAfterMatch(tournament, updated, isTeamTournament, false);
             }
             createNotification(otherId, 'THIRD_PLACE_MATCH_DECLINED', "🥉 3.'lük Maçı İptal",
@@ -2803,7 +3159,7 @@ export const confirmTournamentMatchScore = async (req, res, next) => {
         if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadı.' });
         if (match.status !== 'COMPLETED') return res.status(400).json({ message: 'Bu maç için henüz skor girilmedi.' });
 
-        const isTeamTournament = tournament.type === '2' || tournament.type === '4';
+        const isTeamTournament = isTeamEngineType(tournament.type);
         let p1Members = [match.p1Id].filter(Boolean);
         let p2Members = [match.p2Id].filter(Boolean);
         if (isTeamTournament) {
@@ -2859,7 +3215,7 @@ export const useJoker = async (req, res, next) => {
         if (match.status !== 'PENDING') return res.status(400).json({ message: 'Bu maç zaten tamamlanmış.' });
 
         // Çiftler Rekabetçi: p1Id/p2Id takım id'sidir — kendi tarafımın üyelerine çözülür.
-        const isTeamTournament = tournament.type === '2' || tournament.type === '4';
+        const isTeamTournament = isTeamEngineType(tournament.type);
         let p1Members = [match.p1Id].filter(Boolean);
         let p2Members = [match.p2Id].filter(Boolean);
         if (isTeamTournament) {

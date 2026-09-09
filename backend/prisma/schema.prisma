@@ -1221,9 +1221,9 @@ model City {
 model Tournament {
   id             String       @id @default(uuid())
   name           String
-  type           String?      @default("mix_double") // motor: '1'..'4' (eski 5–8 kullanılmıyor) — anket açıksa (status=POLL) anket kapanana kadar null
+  type           String?      @default("mix_double") // motor: '1'..'7' (eski 8 kullanılmıyor) — anket açıksa (status=POLL) anket kapanana kadar null
   // Kullanıcının seçtiği paket/kurallar (presetId, entry, phase1/2, seeding…). Motor hâlâ `type` ile çalışır;
-  // bu alan arşiv/liste etiketleri ve gelecek Swiss/double-elim motorları için kaynak.
+  // 5=Swiss, 6=çift eleme, 7=Americano.
   formatConfig   Json?
   category       CategoryType
   subCategory    String

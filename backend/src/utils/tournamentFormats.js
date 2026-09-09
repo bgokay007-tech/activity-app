@@ -1,13 +1,23 @@
 // Mobildeki mobile/src/utils/tournamentFormats.js ile aynı sözleşme.
-// preset → engine type '1'..'4'; formatConfig JSON Tournament.formatConfig'e yazılır.
+// preset → engine type '1'..'7'; formatConfig JSON Tournament.formatConfig'e yazılır.
 
-export const ACTIVE_ENGINE_TYPES = ['1', '2', '3', '4'];
+export const ACTIVE_ENGINE_TYPES = ['1', '2', '3', '4', '5', '6', '7'];
+
+/** Sabit takım id'leri maç tarafı (p1Id/p2Id) — type 2/4 sabit çift; 7 Americano tur takımı. */
+export const TEAM_ENGINE_TYPES = ['2', '4', '7'];
+
+export function isTeamEngineType(type) {
+    return TEAM_ENGINE_TYPES.includes(String(type));
+}
 
 export const TOURNAMENT_PRESETS = [
-    { id: 'singles_elo_playoff', engineType: '1', entry: 'SINGLES', intensity: 'COMPETITIVE', phase1: 'DYNAMIC_ELO', phase2: 'SINGLE_ELIM', seeding: 'ELO' },
-    { id: 'doubles_rr_playoff', engineType: '2', entry: 'DOUBLES', intensity: 'COMPETITIVE', phase1: 'ROUND_ROBIN', phase2: 'SINGLE_ELIM', seeding: 'ELO' },
-    { id: 'singles_practice', engineType: '3', entry: 'SINGLES', intensity: 'PRACTICE', phase1: 'RANDOM_ROUNDS', phase2: 'SINGLE_ELIM', seeding: 'RANDOM' },
-    { id: 'doubles_practice', engineType: '4', entry: 'DOUBLES', intensity: 'PRACTICE', phase1: 'RANDOM_ROUNDS', phase2: 'SINGLE_ELIM', seeding: 'RANDOM' },
+    { id: 'singles_elo_playoff', engineType: '1', entry: 'SINGLES', intensity: 'COMPETITIVE', phase1: 'DYNAMIC_ELO', phase2: 'SINGLE_ELIM', seeding: 'ELO', accent: '#22c55e' },
+    { id: 'doubles_rr_playoff', engineType: '2', entry: 'DOUBLES', intensity: 'COMPETITIVE', phase1: 'ROUND_ROBIN', phase2: 'SINGLE_ELIM', seeding: 'ELO', accent: '#38bdf8' },
+    { id: 'singles_practice', engineType: '3', entry: 'SINGLES', intensity: 'PRACTICE', phase1: 'RANDOM_ROUNDS', phase2: 'SINGLE_ELIM', seeding: 'RANDOM', accent: '#a78bfa' },
+    { id: 'doubles_practice', engineType: '4', entry: 'DOUBLES', intensity: 'PRACTICE', phase1: 'RANDOM_ROUNDS', phase2: 'SINGLE_ELIM', seeding: 'RANDOM', accent: '#f472b6' },
+    { id: 'swiss', engineType: '5', entry: 'SINGLES', intensity: 'COMPETITIVE', phase1: 'SWISS', phase2: 'NONE', seeding: 'ELO', accent: '#fbbf24' },
+    { id: 'double_elim', engineType: '6', entry: 'SINGLES', intensity: 'COMPETITIVE', phase1: 'NONE', phase2: 'DOUBLE_ELIM', seeding: 'SEEDED', accent: '#fb7185' },
+    { id: 'americano', engineType: '7', entry: 'DOUBLES', intensity: 'PRACTICE', phase1: 'AMERICANO', phase2: 'NONE', seeding: 'RANDOM', accent: '#2dd4bf' },
 ];
 
 export function getPresetById(id) {

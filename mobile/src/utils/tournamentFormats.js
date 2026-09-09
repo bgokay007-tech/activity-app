@@ -1,7 +1,14 @@
-// Turnuva formatı: kullanıcıya anlamlı paketler; motor tarafında hâlâ type '1'..'4'.
-// formatConfig JSON olarak Tournament.formatConfig'e yazılır (görüntü + gelecek motorlar).
+// Turnuva formatı: kullanıcıya anlamlı paketler; motor tarafında type '1'..'7'.
+// formatConfig JSON olarak Tournament.formatConfig'e yazılır.
 
-export const ACTIVE_ENGINE_TYPES = ['1', '2', '3', '4'];
+export const ACTIVE_ENGINE_TYPES = ['1', '2', '3', '4', '5', '6', '7'];
+
+/** Sabit/tur takım id'leri maç tarafı — 2/4 sabit çift, 7 Americano tur takımı. */
+export const TEAM_ENGINE_TYPES = ['2', '4', '7'];
+
+export function isTeamEngineType(type) {
+    return TEAM_ENGINE_TYPES.includes(String(type));
+}
 
 /** @typedef {{
  *   id: string,
@@ -57,39 +64,35 @@ export const TOURNAMENT_PRESETS = [
         seeding: 'RANDOM',
         accent: '#f472b6',
     },
-    // Görünür ama henüz motoru yok — seçilemez.
     {
         id: 'swiss',
-        engineType: null,
+        engineType: '5',
         entry: 'SINGLES',
         intensity: 'COMPETITIVE',
         phase1: 'SWISS',
         phase2: 'NONE',
         seeding: 'ELO',
-        accent: '#94a3b8',
-        comingSoon: true,
+        accent: '#fbbf24',
     },
     {
         id: 'double_elim',
-        engineType: null,
+        engineType: '6',
         entry: 'SINGLES',
         intensity: 'COMPETITIVE',
         phase1: 'NONE',
         phase2: 'DOUBLE_ELIM',
         seeding: 'SEEDED',
-        accent: '#94a3b8',
-        comingSoon: true,
+        accent: '#fb7185',
     },
     {
         id: 'americano',
-        engineType: null,
+        engineType: '7',
         entry: 'DOUBLES',
         intensity: 'PRACTICE',
         phase1: 'AMERICANO',
         phase2: 'NONE',
         seeding: 'RANDOM',
-        accent: '#94a3b8',
-        comingSoon: true,
+        accent: '#2dd4bf',
     },
 ];
 
@@ -127,6 +130,11 @@ export function tournFormatLabel(tourn, t) {
         if (t[key]) return t[key];
     }
     const type = tourn?.type != null ? String(tourn.type) : '';
-    const legacy = { '1': t.tournType1, '2': t.tournType2, '3': t.tournType3, '4': t.tournType4 };
+    const legacy = {
+        '1': t.tournType1, '2': t.tournType2, '3': t.tournType3, '4': t.tournType4,
+        '5': t.tournPreset_swiss || t.tournType5,
+        '6': t.tournPreset_double_elim || t.tournType6,
+        '7': t.tournPreset_americano || t.tournType7,
+    };
     return legacy[type] || type || '—';
 }

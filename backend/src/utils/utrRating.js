@@ -28,9 +28,9 @@ const SEED_CONVERGE_MATCHES = 10; // bu kadar gerçek maçtan sonra anket ağır
 const SEED_WEIGHT_FLOOR = 0.1;
 
 // Rival ilanları matchType ('SINGLE'/'DOUBLE') taşır; turnuvalar kendi type kodunu taşır
-// ('2'/'4' = Çiftler Rekabetçi/Antrenman, bkz. tournament.controller.js VALID_TOURN_TYPES).
+// ('2'/'4' = Çiftler Rekabetçi/Antrenman, '7' = Americano — bkz. tournamentFormats.js).
 export function isDoublesFormat({ matchType, tournamentType }) {
-    if (tournamentType != null) return tournamentType === '2' || tournamentType === '4';
+    if (tournamentType != null) return tournamentType === '2' || tournamentType === '4' || tournamentType === '7';
     return matchType === 'DOUBLE';
 }
 
