@@ -68,14 +68,14 @@ class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
             lastUpdate != null || huaweiScoreboardOn
         }
 
-        AsyncFunction("hasWearOsWatch") Coroutine {
-            val context = notifyContext() ?: return@Coroutine false
-            withContext(Dispatchers.IO) { queryWearOsWatch(context) }
+        AsyncFunction("hasWearOsWatch") {
+            val context = notifyContext() ?: return@AsyncFunction false
+            queryWearOsWatch(context)
         }
 
-        AsyncFunction("hasHuaweiWatch") Coroutine {
-            val context = notifyContext() ?: return@Coroutine false
-            withContext(Dispatchers.IO) { HuaweiWatchNotify.isPresent(context) }
+        AsyncFunction("hasHuaweiWatch") {
+            val context = notifyContext() ?: return@AsyncFunction false
+            HuaweiWatchNotify.isPresent(context)
         }
 
         // Yalnızca Huawei GT/Fit (LiteOS): Wear Engine şablon bildirimi. Wear OS
