@@ -9,6 +9,7 @@ import useT from '../../hooks/useT';
 import CityAutocomplete from '../../components/CityAutocomplete';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
 import TimePickerModal from '../../components/TimePickerModal';
+import { prefetchClassicStream } from '../../utils/classicFilmStream';
 
 function fmtDate(d) {
     if (!d) return null;
@@ -133,7 +134,14 @@ export default function CinemaHomeScreen({ navigation }) {
 
     useEffect(() => { if (mainTab === 'classics' && !classicsLoaded) loadClassics(); }, [mainTab, classicsLoaded, loadClassics]);
 
+    // Kullanıcı raporu: film geliyordu ama geç — İzle'ye basınca archive.org metadata'sı
+    // sıfırdan çekiliyordu. Liste görünür görünmez ilk kartların adresini önden alıyoruz.
+    useEffect(() => {
+        classics.slice(0, 12).forEach((f) => prefetchClassicStream(f.id));
+    }, [classics]);
+
     const openClassicFilm = (film) => {
+        prefetchClassicStream(film.id);
         navigation.navigate('ClassicFilmPlayer', { filmId: film.id, filmTitle: film.title });
     };
 

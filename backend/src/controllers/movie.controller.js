@@ -205,8 +205,9 @@ export const getClassicFilms = async (req, res, next) => {
 };
 
 // Archive.org kaydında birden fazla türetilmiş dosya oluyor (512kb örnek, ogv, mpeg2).
-// Android ExoPlayer h.264 mp4 dışında çoğunu sessizce siyah ekranda bırakıyor; ilk
-// eşleşen .mp4'ü almak da küçük örnek klibi seçebiliyordu. En büyük h.264 türevi tercih edilir.
+// Android ExoPlayer h.264 mp4 dışında çoğunu sessizce siyah ekranda bırakıyor. En büyük
+// dosyayı seçmek (1080p/2GB) ilk kareyi dakikalarca geciktiriyordu — 480–720p türevi
+// hem codec olarak güvenli hem de daha çabuk tamponlanır.
 function pickPlayableClassicFile(files) {
     const scored = [];
     for (const f of files) {
@@ -218,9 +219,15 @@ function pickPlayableClassicFile(files) {
         const isMpeg4 = fmt === 'mpeg4';
         if (!isMp4 && !isH264 && !isMpeg4) continue;
         const size = parseInt(f.size, 10) || 0;
-        let score = size;
-        if (/_512kb|_64kb|sample|trailer/.test(name.toLowerCase()) || fmt.includes('512kb')) score = Math.floor(size * 0.01);
-        if (isH264) score += 1e15;
+        const width = parseInt(f.width, 10) || 0;
+        let score = 0;
+        if (isH264) score += 1000;
+        if (width >= 480 && width <= 720) score += 200;
+        else if (width > 720 && width <= 960) score += 80;
+        else if (width > 960) score += 20;
+        if (size >= 40e6 && size <= 500e6) score += 150;
+        else if (size > 800e6) score -= 250;
+        if (/_512kb|_64kb|sample|trailer/.test(name.toLowerCase()) || fmt.includes('512kb')) score -= 500;
         scored.push({ f, score });
     }
     scored.sort((a, b) => b.score - a.score);
@@ -237,12 +244,20 @@ function classicDirectUrl(data, id, videoFile) {
     return `${ARCHIVE_BASE}/download/${encodeURIComponent(id)}/${encodeURIComponent(videoFile.name)}`;
 }
 
+// Aynı filme tekrar basınca archive.org metadata'sı beklenmesin — Railway süreci
+// yaşadığı sürece 1 saat tutulur. Video dosyası yine doğrudan arşivden akar.
+const classicStreamCache = new Map();
+const CLASSIC_STREAM_TTL_MS = 60 * 60 * 1000;
+
 // Bir klasik filmin gerçek oynatılabilir video dosyasını bulur — liste ekranında
 // her film için bunu çağırmak yerine, kullanıcı bir filme tıkladığında (oynatma
 // anında) tek seferlik çözülür.
 export const getClassicFilmStream = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const hit = classicStreamCache.get(id);
+        if (hit && hit.exp > Date.now()) return res.json({ videoUrl: hit.videoUrl, title: hit.title });
+
         const response = await fetch(`${ARCHIVE_BASE}/metadata/${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(8000) });
         if (!response.ok) return res.status(502).json({ message: 'Film bilgisi alınamadı' });
         const data = await response.json();
@@ -250,6 +265,8 @@ export const getClassicFilmStream = async (req, res, next) => {
         const videoFile = pickPlayableClassicFile(files);
         if (!videoFile) return res.status(404).json({ message: 'Bu film için oynatılabilir dosya bulunamadı' });
         const videoUrl = classicDirectUrl(data, id, videoFile);
-        res.json({ videoUrl, title: data.metadata?.title || id });
+        const title = data.metadata?.title || id;
+        classicStreamCache.set(id, { videoUrl, title, exp: Date.now() + CLASSIC_STREAM_TTL_MS });
+        res.json({ videoUrl, title });
     } catch (e) { next(e); }
 };
