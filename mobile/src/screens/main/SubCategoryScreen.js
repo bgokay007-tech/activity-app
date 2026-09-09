@@ -20079,7 +20079,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </TouchableOpacity>
                                 {/* Airsoft'ta ayrı avantajlı/karar puanı sistemi yok — kullanıcı isteğiyle tek bir
                                     1-5 "Sayı Sistemi" (aşağıdaki setsPerMatch alanı, yeniden etiketlenmiş) yeterli. */}
-                                {!isAirsoft && (f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && (
+                                {!isAirsoft && ACTIVE_ENGINE_TYPES.includes(String(f.type)) && (
                                     <TouchableOpacity onPress={() => setShowScoringPicker(true)} style={{ alignSelf:'flex-start' }}>
                                         <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{t.tournScoringLabel}</Text>
                                         <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.advantageScoring !== undefined ? cfg.color : colors.border }}>
@@ -20139,16 +20139,19 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 Airsoft'ta Min/Max Oyuncu yerine Takım Büyüklüğü + cinsiyet dağılımı formu çıkar
                                 (aşağıdaki ayrı satır), Play-off etiketleri de "savaş"/"takım" diline çevrilir. */}
                             <View style={{ flexDirection:'row', gap:2, marginBottom:8 }}>
-                                {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && (
+                                {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4' || f.type === '5' || f.type === '7') && (
                                     <>
                                         <View style={{ flex:1 }}>
                                             <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                {isAirsoft ? (lang==='tr' ? 'Play-Off Öncesi Savaş' : lang === 'ru' ? 'Боёв до плей-офф' : lang === 'de' ? 'Kämpfe vor den Playoffs' : 'Battles Before Playoff') : t.tournMatchesBeforePlayoff}
+                                                {f.type === '5' || f.type === '7'
+                                                    ? (lang==='tr' ? 'Tur Sayısı' : lang === 'ru' ? 'Кол-во туров' : lang === 'de' ? 'Rundenanzahl' : 'Number of Rounds')
+                                                    : (isAirsoft ? (lang==='tr' ? 'Play-Off Öncesi Savaş' : lang === 'ru' ? 'Боёв до плей-офф' : lang === 'de' ? 'Kämpfe vor den Playoffs' : 'Battles Before Playoff') : t.tournMatchesBeforePlayoff)}
                                             </Text>
                                             <TextInput style={[s.fieldInput, ti, { height:30, paddingVertical:0, textAlign:'center', fontSize:12 }]} value={f.matchesBeforePlayoff}
                                                 onChangeText={v => set('matchesBeforePlayoff', v.replace(/[^0-9]/g,''))}
                                                 placeholder={t.tournMatchesPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                         </View>
+                                        {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && (
                                         <View style={{ flex:1 }}>
                                             <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                                                 {isAirsoft ? (lang==='tr' ? "Play-Off'a Kalan Takım" : lang === 'ru' ? 'Команд в плей-офф' : lang === 'de' ? 'Teams in den Playoffs' : 'Teams in Playoff') : t.tournPlayoffQualifiers}
@@ -20157,6 +20160,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                                 onChangeText={v => set('playoffQualifiers', v.replace(/[^0-9]/g,''))}
                                                 placeholder={t.tournPlayoffPh} placeholderTextColor={colors.textMuted} keyboardType="numeric" />
                                         </View>
+                                        )}
                                     </>
                                 )}
                                 {!isAirsoft && (
@@ -20521,6 +20525,69 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         'Bir takım kazandığında/kaybettiğinde iki oyuncu da bireysel olarak ELO puanı kazanır/kaybeder — miktar, diğer rekabetçi maçlarla aynı puan tablosu kullanılarak iki takımın ortalama ELO farkına göre belirlenir.',
                                         'Takımlar isterlerse iki taraf içinde müsaitlik durumu söz konusu ise yapacakları maçlar için iletişime geçerek daha erken maçlarını tamamlamak isterlerse tamamlayabilirler.',
                                     ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* İsviçre sistemi kuralları */}
+                            {!f.pollEnabled && f.type === '5' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_swiss}</Text>
+                                    {[
+                                        'Oyuncular bireysel katılır. İlk tur ELO\'ya yakınlığa göre, sonraki turlar güncel puana (ve averaja) göre eşleştirilir — benzer sıralamadakiler karşılaşır.',
+                                        'Aynı iki oyuncu mümkün olduğunca birden fazla kez eşleşmez. Tek sayı oyuncu varsa en düşük sıralı (henüz bye almamış tercih) bye alır; bye +3 puan / +1 galibiyet sayılır.',
+                                        'Tur sayısı organizatörün seçtiği değerdir; boş bırakılırsa yaklaşık log₂(oyuncu sayısı) tur oynanır. Play-off yoktur — sıralama final tablosuna göre belirlenir.',
+                                        'Sıralama: puan → averaj (kazanılan oyun / toplam oyun) → set oranı → oyun oranı → sabit kura.',
+                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
+                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; karşılıklı olduğu için joker hakları tükenmez.',
+                                        'Maçlar rekabetçidir; galibiyet/mağlubiyet ELO puanını etkiler. Anlaşma için maç kartındaki yorum bölümü kullanılır; skor karşılıklı onaylanır.',
+                                    ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5)).map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* Çift eleme kuralları */}
+                            {!f.pollEnabled && f.type === '6' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_double_elim}</Text>
+                                    {[
+                                        'Oyuncular bireysel katılır. En az 4 oyuncu gerekir. Kura ELO sıralamasına göre çekilir; eksik kontenjan bye ile tamamlanır.',
+                                        'Kazananlar kurası (üst bracket) ve kaybedenler kurası (alt bracket) vardır. Bir yenilgide alt kuraya düşersin; iki yenilgide elenirsin.',
+                                        'Üst kura şampiyonu ile alt kura şampiyonu Büyük Final\'de karşılaşır. Alt kura şampiyonu kazanırsa bir reset (ikinci) büyük final maçı oynanır.',
+                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
+                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; karşılıklı olduğu için joker hakları tükenmez.',
+                                        'Maçlar rekabetçidir; galibiyet/mağlubiyet ELO puanını etkiler. Skor karşılıklı onaylanır.',
+                                        'Play-off öncesi lig turu yoktur — tüm turnuva eleme formatındadır.',
+                                    ].filter((_, i) => !f.dayTrip || (i !== 3 && i !== 4)).map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* Americano / sosyal çiftler kuralları */}
+                            {!f.pollEnabled && f.type === '7' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_americano}</Text>
+                                    {[
+                                        'Oyuncular bireysel katılır (sabit partner yok). En az 4 oyuncu gerekir. Her tur geçici 2v2 çiftler oluşturulur; partner her tur değişir.',
+                                        'Mümkün olduğunca aynı kişiyle tekrar partner olunmaz ve aynı rakiplerle tekrar karşılaşılmaz. Oyuncu sayısı 4\'ün katı değilse oturanlar turlar arasında dönüşümlü seçilir.',
+                                        'Sıralama bireyseldir: her oyuncu, o turda takımının kazandığı oyun (game) sayısını puan olarak biriktirir. Play-off yoktur — en yüksek puanlılar önde biter.',
+                                        'Tur sayısı organizatörün seçtiği değerdir; boş bırakılırsa oyuncu sayısına göre (üst sınır 7) otomatik belirlenir.',
+                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan taraf hükmen yenilir.',
+                                        'Karşılıklı joker yapılırsa süre bir kez +7 uzar; joker hakları tükenmez.',
+                                        'Tenis/padel\'de çiftler puanı (Ç ELO) kullanılır. Skor karşılıklı onaylanır.',
+                                    ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
                                             <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
