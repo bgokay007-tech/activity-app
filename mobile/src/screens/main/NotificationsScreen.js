@@ -1,7 +1,7 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useState, useRef, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Alert, Animated } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
@@ -89,6 +89,84 @@ const TYPE_ICON = {
     default: '🔔',
 };
 
+// Kullanıcı isteği: skor girilmeyen maç yüzünden zil yanıp sönüyorsa Bildirimler
+// açılınca o SCORE_ENTRY_REQUIRED satırı da aynı ritimde yansın. Satır ekranın
+// altındaysa (veya kullanıcı geçip gittiyse) kaydırma oku, satır görünene kadar
+// yönlendirsin — oka dokununca da o satıra zıplasın.
+const SCORE_HINT_TYPE = 'SCORE_ENTRY_REQUIRED';
+const ROW_HEIGHT_EST = 88;
+
+function NotificationRow({ item, blinking, onPress, lang }) {
+    const blinkOpacity = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+        if (!blinking) { blinkOpacity.setValue(1); return; }
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(blinkOpacity, { toValue: 0.22, duration: 500, useNativeDriver: true }),
+            Animated.timing(blinkOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [blinking, blinkOpacity]);
+
+    const icon = TYPE_ICON[item.type] || TYPE_ICON.default;
+    const subLabel = getSubCategoryLabel(item.data?.subCategory, lang);
+    return (
+        <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+            <Animated.View style={[styles.item, !item.read && styles.itemUnread, blinking && styles.itemScoreHint, { opacity: blinkOpacity }]}>
+                <View style={styles.iconBox}>
+                    <Text style={styles.icon}>{icon}</Text>
+                </View>
+                <View style={styles.itemContent}>
+                    <Text style={styles.itemTitle}>{item.title}</Text>
+                    <Text style={styles.itemBody} numberOfLines={2}>{item.body}</Text>
+                    <Text style={styles.itemTime}>
+                        {new Date(item.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                </View>
+                {!item.read && <View style={styles.dot} />}
+                {!!subLabel && (
+                    <View style={styles.subBadge}>
+                        <Text style={styles.subBadgeText} numberOfLines={1}>{subLabel}</Text>
+                    </View>
+                )}
+            </Animated.View>
+        </TouchableOpacity>
+    );
+}
+
+function ScoreScrollHint({ dir, onPress, label }) {
+    const bounce = useRef(new Animated.Value(0)).current;
+    const blinkOpacity = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+        const bounceLoop = Animated.loop(Animated.sequence([
+            Animated.timing(bounce, { toValue: dir === 'up' ? -10 : 10, duration: 450, useNativeDriver: true }),
+            Animated.timing(bounce, { toValue: 0, duration: 450, useNativeDriver: true }),
+        ]));
+        const blinkLoop = Animated.loop(Animated.sequence([
+            Animated.timing(blinkOpacity, { toValue: 0.28, duration: 500, useNativeDriver: true }),
+            Animated.timing(blinkOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ]));
+        bounceLoop.start();
+        blinkLoop.start();
+        return () => { bounceLoop.stop(); blinkLoop.stop(); };
+    }, [dir, bounce, blinkOpacity]);
+
+    return (
+        <TouchableOpacity
+            style={[styles.scoreHintWrap, dir === 'up' ? styles.scoreHintTop : styles.scoreHintBottom]}
+            onPress={onPress}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={label}
+        >
+            <Animated.View style={[styles.scoreHintBtn, { opacity: blinkOpacity, transform: [{ translateY: bounce }] }]}>
+                <Text style={styles.scoreHintArrow}>{dir === 'up' ? '▲' : '▼'}</Text>
+                <Text style={styles.scoreHintLabel} numberOfLines={1}>{label}</Text>
+            </Animated.View>
+        </TouchableOpacity>
+    );
+}
+
 export default function NotificationsScreen({ navigation }) {
     const t = useT();
     const dispatch = useDispatch();
@@ -100,6 +178,33 @@ export default function NotificationsScreen({ navigation }) {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [modePickerVisible, setModePickerVisible] = useState(false);
+    const [hasPendingScore, setHasPendingScore] = useState(false);
+    const [hintDir, setHintDir] = useState(null);
+    const listRef = useRef(null);
+    const targetIndexRef = useRef(-1);
+    const targetIdRef = useRef(null);
+    const viewableRef = useRef({ ids: new Set(), minIdx: Infinity, maxIdx: -1 });
+
+    const applyHintFromViewable = useCallback(() => {
+        const idx = targetIndexRef.current;
+        if (idx < 0) { setHintDir(null); return; }
+        const { ids, minIdx, maxIdx } = viewableRef.current;
+        const targetId = targetIdRef.current;
+        if (targetId && ids.has(targetId)) { setHintDir(null); return; }
+        if (maxIdx < 0) { setHintDir(null); return; }
+        if (idx > maxIdx) setHintDir('down');
+        else if (idx < minIdx) setHintDir('up');
+        else setHintDir(null);
+    }, []);
+
+    const onViewableItemsChanged = useRef(({ viewableItems }) => {
+        const ids = new Set(viewableItems.map(v => v.item?.id).filter(Boolean));
+        const minIdx = viewableItems.reduce((m, v) => (v.index == null ? m : Math.min(m, v.index)), Infinity);
+        const maxIdx = viewableItems.reduce((m, v) => (v.index == null ? m : Math.max(m, v.index)), -1);
+        viewableRef.current = { ids, minIdx, maxIdx };
+        applyHintFromViewable();
+    }).current;
+    const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 55 }).current;
 
     const changeNotificationMode = async (mode) => {
         const prevMode = notificationMode;
@@ -129,8 +234,12 @@ export default function NotificationsScreen({ navigation }) {
     const load = async () => {
         try {
             await flushPendingReads();
-            const { data } = await api.get('/notifications');
+            const [{ data }, scoreRes] = await Promise.all([
+                api.get('/notifications'),
+                api.get('/rivals/my-pending-score-count').catch(() => ({ data: { pendingScoreCount: 0 } })),
+            ]);
             setNotifications(data.notifications || []);
+            setHasPendingScore((scoreRes.data?.pendingScoreCount || 0) > 0);
         } catch (e) { console.warn(e?.message); }
         finally { setLoading(false); setRefreshing(false); }
     };
@@ -376,34 +485,35 @@ export default function NotificationsScreen({ navigation }) {
 
     const unreadCount = notifications.filter(n => !n.read).length;
 
-    const renderItem = ({ item }) => {
-        const icon = TYPE_ICON[item.type] || TYPE_ICON.default;
-        const subLabel = getSubCategoryLabel(item.data?.subCategory, lang);
-        return (
-            <TouchableOpacity
-                style={[styles.item, !item.read && styles.itemUnread]}
-                onPress={() => handlePress(item)}
-                activeOpacity={0.7}
-            >
-                <View style={styles.iconBox}>
-                    <Text style={styles.icon}>{icon}</Text>
-                </View>
-                <View style={styles.itemContent}>
-                    <Text style={styles.itemTitle}>{item.title}</Text>
-                    <Text style={styles.itemBody} numberOfLines={2}>{item.body}</Text>
-                    <Text style={styles.itemTime}>
-                        {new Date(item.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                </View>
-                {!item.read && <View style={styles.dot} />}
-                {!!subLabel && (
-                    <View style={styles.subBadge}>
-                        <Text style={styles.subBadgeText} numberOfLines={1}>{subLabel}</Text>
-                    </View>
-                )}
-            </TouchableOpacity>
-        );
+    const scoreTargetIndex = useMemo(() => {
+        if (!hasPendingScore) return -1;
+        return notifications.findIndex(n => n.type === SCORE_HINT_TYPE);
+    }, [notifications, hasPendingScore]);
+
+    useEffect(() => {
+        targetIndexRef.current = scoreTargetIndex;
+        targetIdRef.current = scoreTargetIndex >= 0 ? notifications[scoreTargetIndex]?.id : null;
+        applyHintFromViewable();
+    }, [scoreTargetIndex, notifications, applyHintFromViewable]);
+
+    const scrollToScoreHint = () => {
+        const idx = targetIndexRef.current;
+        if (idx < 0 || !listRef.current) return;
+        try {
+            listRef.current.scrollToIndex({ index: idx, viewPosition: 0.25, animated: true });
+        } catch {
+            listRef.current.scrollToOffset({ offset: Math.max(0, idx * ROW_HEIGHT_EST - 40), animated: true });
+        }
     };
+
+    const renderItem = ({ item }) => (
+        <NotificationRow
+            item={item}
+            blinking={hasPendingScore && item.type === SCORE_HINT_TYPE}
+            onPress={() => handlePress(item)}
+            lang={lang}
+        />
+    );
 
     return (
         <View style={styles.container}>
@@ -433,17 +543,30 @@ export default function NotificationsScreen({ navigation }) {
                 <ActivityIndicator color={colors.purple} style={{ marginTop: 40 }} />
             ) : (
                 <FlatList
+                    ref={listRef}
                     data={notifications}
                     keyExtractor={item => item.id}
                     renderItem={renderItem}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.purple} />}
-                    contentContainerStyle={{ paddingBottom: 17 }}
+                    contentContainerStyle={{ paddingBottom: hintDir ? 96 : 17 }}
+                    onViewableItemsChanged={onViewableItemsChanged}
+                    viewabilityConfig={viewabilityConfig}
+                    onScrollToIndexFailed={({ index }) => {
+                        listRef.current?.scrollToOffset({ offset: Math.max(0, index * ROW_HEIGHT_EST - 40), animated: true });
+                    }}
                     ListEmptyComponent={
                         <View style={styles.empty}>
                             <Text style={styles.emptyEmoji}>🔕</Text>
                             <Text style={styles.emptyText}>{t.noNotificationsText}</Text>
                         </View>
                     }
+                />
+            )}
+            {hintDir && (
+                <ScoreScrollHint
+                    dir={hintDir}
+                    onPress={scrollToScoreHint}
+                    label={hintDir === 'up' ? t.notifScoreScrollUp : t.notifScoreScrollDown}
                 />
             )}
         </View>
@@ -463,6 +586,18 @@ const styles = StyleSheet.create({
     subBadge: { position: 'absolute', top: 8, right: 12, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: colors.border, maxWidth: 90 },
     subBadgeText: { color: colors.textMuted, fontSize: 9, fontWeight: '700' },
     itemUnread: { backgroundColor: colors.purple + '10' },
+    itemScoreHint: { backgroundColor: colors.purple + '22', borderLeftWidth: 3, borderLeftColor: colors.purple },
+    scoreHintWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 8 },
+    scoreHintTop: { top: 108 },
+    scoreHintBottom: { bottom: 16 },
+    scoreHintBtn: {
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        backgroundColor: colors.purple, borderRadius: 22,
+        paddingHorizontal: 16, paddingVertical: 10,
+        borderWidth: 1.5, borderColor: colors.purple,
+    },
+    scoreHintArrow: { color: colors.ctaText, fontSize: 18, fontWeight: '900' },
+    scoreHintLabel: { color: colors.ctaText, fontSize: 13, fontWeight: '800', maxWidth: 220 },
     iconBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface2, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
     icon: { fontSize: 18 },
     itemContent: { flex: 1 },
