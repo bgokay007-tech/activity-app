@@ -11,9 +11,8 @@ import org.json.JSONObject
 
 /**
  * HarmonyOS saat uygulamasından (harmony/) P2P skor JSON'u. Wear OS PhoneSync.kt
- * ile aynı şema. SDK 5.0.0.300'de Notify sınıfları yok (Action/Notification
- * unresolved) — GT/Fit skor butonları bu yüzden Android bildirimi + Huawei
- * Sağlık yansıtmasıyla gidiyor (bkz. WatchScoreNotification).
+ * ile aynı şema. GT/Fit skor butonları Wear Engine NotifyClient (5.0.1.300)
+ * şablon bildirimiyle gidiyor — bkz. HuaweiWatchNotify.
  */
 private const val PEER_WATCH_PACKAGE = "com.activity.app.harmony"
 private const val PEER_WATCH_FINGERPRINT = "TODO_HARMONY_APP_SHA256_FINGERPRINT"

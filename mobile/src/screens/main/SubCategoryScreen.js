@@ -18,6 +18,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import { addMatchUpdateListener, addWatchPointListener, isWatchConnected, startHuaweiScoreSession, updateHuaweiScoreSession, stopHuaweiScoreSession } from '../../../modules/wear-bridge';
+import * as Notifications from 'expo-notifications';
 import { isHealthAvailable, requestHealthPermissions, getWorkoutSummary } from '../../../modules/health-bridge';
 import { estimateCalories } from '../../utils/calorieEstimate';
 import api from '../../services/api';
@@ -4798,8 +4799,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const twoCol = !!NEW_VISUAL;
 
     return (
-        <>
-        <Animated.View style={[s.card, { width: (NEW_VISUAL && !twoCol) ? '100%' : '48%', borderRadius: twoCol ? moderateScale(14) : (NEW_VISUAL ? 24 : moderateScale(14)), paddingHorizontal: twoCol ? 1 : (NEW_VISUAL ? 12 : 0), paddingTop: twoCol ? 1 : (NEW_VISUAL ? 12 : 0), paddingBottom: twoCol ? 1 : (NEW_VISUAL ? 10 : 0), minHeight: NEW_VISUAL ? undefined : moderateScale(230), borderWidth: NEW_VISUAL ? 0 : 1 }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
+        // Tek View hücre — Fragment + Modal kardeşleri flexWrap satırına karışınca
+        // sonraki bölümdeki (Skor Bekleyen) kartların üstüne biniyordu.
+        <View style={s.listGridCell} collapsable={false}>
+        <Animated.View style={[s.card, { width: '100%', borderRadius: twoCol ? moderateScale(14) : (NEW_VISUAL ? 24 : moderateScale(14)), paddingHorizontal: twoCol ? 1 : (NEW_VISUAL ? 12 : 0), paddingTop: twoCol ? 1 : (NEW_VISUAL ? 12 : 0), paddingBottom: twoCol ? 1 : (NEW_VISUAL ? 10 : 0), minHeight: NEW_VISUAL ? undefined : moderateScale(230), borderWidth: NEW_VISUAL ? 0 : 1 }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
             {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (ilan detayını açmaz). */}
             <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
                 style={{ position:'absolute', top:6, right:6, zIndex:10, backgroundColor:'#00000060', borderRadius:12, width:22, height:22, alignItems:'center', justifyContent:'center' }}>
@@ -5278,7 +5281,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             </View>
         </Modal>
 
-        </>
+        </View>
     );
 }
 
@@ -5823,19 +5826,27 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
             const initial = engineToWearScore(engineRef.current, sub);
             if (initial) {
                 const volleyball = sub === 'volleyball';
-                startHuaweiScoreSession({
-                    title: 'AcTiViTy',
-                    text: volleyball
-                        ? `${initial.pointsA}-${initial.pointsB}  Set ${initial.setsA}-${initial.setsB}`
-                        : `${initial.pointLabelA}-${initial.pointLabelB}  ${initial.gamesA}-${initial.gamesB}`,
-                    buttonA: 'A +',
-                    buttonB: 'B +',
-                }).then((ok) => {
-                    if (ok) {
-                        setWearConnected(true);
-                        setWearScore(initial);
+                (async () => {
+                    try { await Notifications.requestPermissionsAsync(); } catch (_) {}
+                    try {
+                        const ok = await startHuaweiScoreSession({
+                            title: 'AcTiViTy',
+                            text: volleyball
+                                ? `${initial.pointsA}-${initial.pointsB}  Set ${initial.setsA}-${initial.setsB}`
+                                : `${initial.pointLabelA}-${initial.pointLabelB}  ${initial.gamesA}-${initial.gamesB}`,
+                            buttonA: 'A +',
+                            buttonB: 'B +',
+                        });
+                        if (ok) {
+                            setWearConnected(true);
+                            setWearScore(initial);
+                        } else {
+                            Alert.alert('', t.matchLiveWatchNotifyFail);
+                        }
+                    } catch (_) {
+                        Alert.alert('', t.matchLiveWatchNotifyFail);
                     }
-                }).catch(() => {});
+                })();
             }
         }
         return () => {
@@ -5996,6 +6007,7 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
                                 {sub !== 'volleyball' && (
                                     <Text style={{ color: colors.textMuted, fontSize:16, marginTop:10 }}>{t.matchLiveGamesLabel} {wearScore.gamesA}-{wearScore.gamesB}</Text>
                                 )}
+                                <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginTop:18, paddingHorizontal:24 }}>{t.matchLiveWatchHint}</Text>
                             </>
                         ) : (
                             <Text style={{ color: colors.textMuted, fontSize:14, textAlign:'center', paddingHorizontal:30 }}>{waitingLabel}</Text>
@@ -7218,9 +7230,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const backFacePlayers = allPlayers.filter(p => p?.id && !p._emptySlot);
 
     return (
-        <View style={{ width: '48%', minWidth: 0 }}>
-        {/* Dış View ızgaranın tek çocuğu — Fragment + Modal kardeşleri satırı bozuyordu.
-            Açık ilanlardaki RivalCard ile aynı %48 / iki kolon. */}
+        <View style={s.listGridCell} collapsable={false}>
+        {/* Hücre %50 — flexWrap+gap+%48 Android'de sonraki satırı aynı yere bindiriyordu. */}
         <Animated.View
             style={[s.card, {
                 width: '100%', minWidth: 0,
@@ -7238,7 +7249,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             </TouchableOpacity>
             {cardFlipped ? (
                 // Kullanıcı isteği: arka yüzden (oyuncu listesi) de dokununca ilan detayı açılsın.
-                <TouchableOpacity activeOpacity={0.85} style={{ flex:1 }} onPress={openDetail}>
+                <TouchableOpacity activeOpacity={0.85} onPress={openDetail}>
                     <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', marginBottom:6 }}>👥 {t.rosterPoolLabel}</Text>
                     {backFacePlayers.length === 0 ? (
                         <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
@@ -7269,7 +7280,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     )}
                 </TouchableOpacity>
             ) : (
-            <TouchableOpacity style={{ flex:1 }} activeOpacity={0.75} onPress={openDetail}>
+            <TouchableOpacity activeOpacity={0.75} onPress={openDetail}>
             <View style={{ flexDirection:'row', alignItems:'flex-start', gap:1, marginBottom:1 }}>
                 <Avatar name={match.sender?.username} avatar={match.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => match.senderId && onUserPress?.(match.senderId)} />
                 <View style={{ flex:1, minWidth:0 }}>
@@ -11326,7 +11337,8 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
     const cardFlipRotate = cardFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
 
     return (
-        <Animated.View style={[s.card, { width:'48%', paddingHorizontal:0, paddingTop:0, paddingBottom:0, minHeight:92 }, highlighted && { borderColor:'#f97316', borderWidth:2 }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
+        <View style={s.listGridCell} collapsable={false}>
+        <Animated.View style={[s.card, { width:'100%', paddingHorizontal:0, paddingTop:0, paddingBottom:0, minHeight:92 }, highlighted && { borderColor:'#f97316', borderWidth:2 }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
             {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (detayı açmaz). */}
             <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
                 style={{ position:'absolute', top:6, right:6, zIndex:10, backgroundColor:'#00000060', borderRadius:12, width:22, height:22, alignItems:'center', justifyContent:'center' }}>
@@ -24468,7 +24480,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Text>
                                     </TouchableOpacity>
                                     {upcomingExpanded && (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, alignItems:'flex-start' }}>
+                                        <View style={s.listGrid}>
                                             {upcomingSubsFull.map(m => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
@@ -24490,7 +24502,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Text>
                                     </TouchableOpacity>
                                     {playingExpanded && (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, alignItems:'flex-start' }}>
+                                        <View style={s.listGrid}>
                                             {playingMatches.map(m => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
@@ -24512,7 +24524,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Text>
                                     </TouchableOpacity>
                                     {pendingScoreExpanded && (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, alignItems:'flex-start' }}>
+                                        <View style={s.listGrid}>
                                             {pendingScoreAll.map(m => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
@@ -24537,7 +24549,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Animated.Text>
                                     </TouchableOpacity>
                                     {scoreConfirmExpanded && (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, alignItems:'flex-start' }}>
+                                        <View style={s.listGrid}>
                                             {scoreConfirmPendingMatches.map(m => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
@@ -24577,7 +24589,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {playerWanted.length === 0
                                 ? <EmptyState emoji="👤" text={sub === 'volleyball' ? t.emptyOpponentWanted : t.emptyPlayerWanted} />
                                 : (
-                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'flex-start' }}>
+                                    <View style={s.listGrid}>
                                         {playerWanted.map(item => (
                                             <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} />
                                         ))}
@@ -25344,7 +25356,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {refereeMatches.length === 0
                                         ? <EmptyState emoji="🟨" text={t.emptyRefereeMatches} />
                                         : (
-                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'flex-start' }}>
+                                            <View style={s.listGrid}>
                                                 {refereeMatches.map(item => (
                                                     <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
                                                 ))}
@@ -28997,6 +29009,10 @@ const s = StyleSheet.create({
     tabTextActive:    { color:'#fff' },
 
     list:             { paddingHorizontal:1, gap:3, paddingBottom:57 },
+    // gap + width:'48%' Android Yoga'da sonraki satırı aynı hücreye bindiriyor
+    // (Skor Bekleyen kartlarının üst üste binmesi). Hücre %50 + iç padding.
+    listGrid:         { flexDirection:'row', flexWrap:'wrap' },
+    listGridCell:     { width:'50%', paddingHorizontal:2, paddingBottom:8 },
     sectionTitle:     { color: colors.textSecondary, fontSize:12, fontWeight:'800', marginTop:4, marginBottom:4 },
 
     createBtn:        { backgroundColor: colors.surface, borderRadius:10, height:30, justifyContent:'center', paddingHorizontal:7, alignItems:'center', borderWidth:1, borderStyle:'dashed' },

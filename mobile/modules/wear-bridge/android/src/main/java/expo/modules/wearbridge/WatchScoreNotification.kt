@@ -10,13 +10,12 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 
 /**
- * Huawei GT/Fit LiteOS saatlere üçüncü parti uygulama kurulamadığı için skor
- * sayacı, telefonda ongoing bir bildirim olarak basılır. Huawei Sağlık bu
- * bildirimi (aksiyon butonları dahil) saate yansıtır — Wear Engine 5.0.0.300
- * Notify API'si olmadığı için (derleme hatası) bu yol kullanılıyor.
+ * Wear Engine şablonu gidemezse yedek: telefonda gerçek (sessiz olmayan) bildirim.
+ * Eski kanal silent+ongoing idi — Huawei Sağlık onu saate hiç basmazdı. Kanal id
+ * değişti çünkü Android kanal ayarları oluşturulduktan sonra güncellenmez.
  */
 object WatchScoreNotification {
-    const val CHANNEL_ID = "activity_watch_score"
+    const val CHANNEL_ID = "activity_watch_score_v2"
     const val NOTIF_ID = 7101
     const val ACTION_POINT_A = "expo.modules.wearbridge.SCORE_A"
     const val ACTION_POINT_B = "expo.modules.wearbridge.SCORE_B"
@@ -32,19 +31,14 @@ object WatchScoreNotification {
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setOngoing(true)
+            .setOngoing(false)
             .setOnlyAlertOnce(true)
-            .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setDefaults(NotificationCompat.DEFAULT_VIBRATE)
             .addAction(actionA)
             .addAction(actionB)
-            .extend(
-                NotificationCompat.WearableExtender()
-                    .addAction(actionA)
-                    .addAction(actionB)
-            )
             .build()
         return try {
             NotificationManagerCompat.from(context).notify(NOTIF_ID, notification)
@@ -69,8 +63,6 @@ object WatchScoreNotification {
             .setAction(action)
             .addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
         val pending = PendingIntent.getBroadcast(context, requestCode, intent, flags)
-        // setShowsUserInterface(false): saatten/üstten butona basınca uygulama
-        // öne gelmesin, sadece sayı yazılsın (Okundu İşaretle ile aynı tuzak).
         return NotificationCompat.Action.Builder(0, title, pending)
             .setShowsUserInterface(false)
             .build()
@@ -83,12 +75,12 @@ object WatchScoreNotification {
         manager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
-                "Live match score",
+                "Canlı maç skoru",
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
-                description = "Score buttons mirrored to Huawei / Wear OS watches"
-                setSound(null, null)
-                enableVibration(false)
+                description = "Huawei / Wear OS saate yansıyan A+/B+ skor butonları"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 250, 120, 250)
             }
         )
     }

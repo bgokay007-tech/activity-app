@@ -15,7 +15,8 @@
         "EXPO_USE_COMMUNITY_AUTOLINKING": "1"
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "applicationArchivePath": "android/app/build/outputs/apk/release/app-release.apk"
       }
     },
     "production": {
