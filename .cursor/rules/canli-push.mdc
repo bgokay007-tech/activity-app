@@ -3,9 +3,9 @@ description: Canlı görmek için her biten işi sormadan main'e pushla. Kullan�
 alwaysApply: true
 ---
 
-# Canlı = her zaman push
+# Canlı = her zaman push (KAZINDI)
 
-Kullanıcı canlı görmek için **her zaman push** ister. Bitirdiğin işi “push edeyim mi?” diye sorma.
+Kullanıcı bunu kalıcı kazıdı: canlı görmek için **her zaman push**. “Push edeyim mi?” / “commit atayım mı?” **yasak**. İş bitince commit + `git push -u origin HEAD`.
 
 ## Her iş bitince (sormadan)
 
