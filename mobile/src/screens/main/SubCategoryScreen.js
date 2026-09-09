@@ -17085,13 +17085,19 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         try {
             const { data } = await api.post('/demo/tournament-join', { tournamentId: item.id, playerIndex: idx });
             setDemoIdx(idx + 1);
-            setRequests(prev => prev.some(r => r.userId === data.participant.userId) ? prev : [...prev, data.participant]);
+            if (data?.participant && !data?.skipped) {
+                setRequests(prev => prev.some(r => r.userId === data.participant.userId) ? prev : [...prev, data.participant]);
+            }
             if (demoStop.current) { setDemoRunning(false); return; }
             const delay = 1000 + Math.random() * 1000;
             setTimeout(() => runDemo(idx + 1), delay);
         } catch (e) {
-            if (e?.response?.status === 409) {
-                // Already sent — skip to next
+            // 409 = zaten katılmış / atlandı; 403 = derece/cinsiyet — demo sırasını
+            // kesme, bir sonrakine geç (eskiden 403'te durduğu için 5. istekte takılıyordu).
+            const status = e?.response?.status;
+            if (status === 409 || status === 403 || status === 400) {
+                setDemoIdx(idx + 1);
+                if (demoStop.current) { setDemoRunning(false); return; }
                 setTimeout(() => runDemo(idx + 1), 300);
             } else {
                 setDemoRunning(false);
