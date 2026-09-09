@@ -46,6 +46,10 @@ export async function sendUpdate(context: common.Context, config: MatchConfig, s
     sport: sportName(config.sport),
     pointLabelA: gamePointLabel(config, state, Team.A),
     pointLabelB: gamePointLabel(config, state, Team.B),
+    // Wear OS PhoneSync.kt ile aynı ham sayı — voleybolde pointLabel tenis usulü
+    // kaldığı için telefon feedWearUpdate bu alanları diff'ler.
+    pointsA: state.pointsA,
+    pointsB: state.pointsB,
     gamesA: state.gamesA,
     gamesB: state.gamesB,
     setsA: state.setsWonA,

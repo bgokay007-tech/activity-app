@@ -11,6 +11,9 @@ export const RACKET_SPORTS = new Set(['tennis', 'padel', 'table_tennis', 'badmin
 export const RALLY_RACKET_SPORTS = new Set(['table_tennis', 'badminton']); // deuce/avantaj yok, direkt sayı
 export const VOLLEYBALL_SPORTS = new Set(['volleyball']);
 export const BASKETBALL_SPORTS = new Set(['basketball']);
+// Tek telefon kamerasıyla otomatik hat yok; bu dallarda kullanıcı son 8 sn replay'den
+// IN/OUT işaretler. Masa tenisi/badminton/basketbol çizgi itirazı bu üründe yok.
+export const LINE_CALL_SPORTS = new Set(['tennis', 'padel', 'volleyball']);
 
 export function sportProfile(sport) {
     if (RACKET_SPORTS.has(sport)) return 'racket';
@@ -20,9 +23,17 @@ export function sportProfile(sport) {
 }
 
 // ─── Ortak PointLog yardımcıları ───────────────────────────────────────────────
-// log: [{ts, event:'POINT'|'GAME'|'SET'|'QUARTER', side, server?, points?}]
+// log: [{ts, event:'POINT'|'GAME'|'SET'|'QUARTER'|'LINE_CALL', side, server?, points?, verdict?}]
 function pushEvent(state, event, extra = {}) {
     state.log.push({ ts: Date.now(), event, ...extra });
+}
+
+// Kamera replay'inden gelen manuel çizgi kararı. Sayıyı otomatik yazmaz — kullanıcı
+// (telefon veya saat) hâlâ kimin kazandığını ayrıca işaretler. Ham log backend'e gitmez.
+export function recordLineCall(state, verdict) {
+    if (!state || (verdict !== 'IN' && verdict !== 'OUT')) return state;
+    pushEvent(state, 'LINE_CALL', { verdict });
+    return state;
 }
 
 // ─── Raket sporları (tenis/padel/masa tenisi/badminton) ────────────────────────
@@ -210,11 +221,23 @@ export function basketballFinishMatch(state) {
 }
 
 // ─── deriveStats — PointLog'dan backend'e gidecek özet ────────────────────────
+function deriveLineCalls(state) {
+    const calls = state.log.filter(e => e.event === 'LINE_CALL');
+    if (!calls.length) return undefined;
+    const inn = calls.filter(c => c.verdict === 'IN').length;
+    return { in: inn, out: calls.length - inn, total: calls.length };
+}
+
 export function deriveStats(state) {
-    if (state.profile === 'racket') return deriveRacketStats(state);
-    if (state.profile === 'volleyball') return deriveVolleyballStats(state);
-    if (state.profile === 'basketball') return deriveBasketballStats(state);
-    return null;
+    const stats = state.profile === 'racket' ? deriveRacketStats(state)
+        : state.profile === 'volleyball' ? deriveVolleyballStats(state)
+        : state.profile === 'basketball' ? deriveBasketballStats(state)
+        : null;
+    if (stats) {
+        const lineCalls = deriveLineCalls(state);
+        if (lineCalls) stats.lineCalls = lineCalls;
+    }
+    return stats;
 }
 
 function deriveRacketStats(state) {
@@ -338,5 +361,51 @@ function deriveBasketballStats(state) {
         wonBySide: { A: state.totalA, B: state.totalB },
         quarters: state.quarterScores,
         flow: { biggestLead, longestRun, longestRunSide },
+    };
+}
+
+const TENNIS_POINT_LABELS = ['0', '15', '30', '40'];
+
+// Wear OS / Huawei bildirim metni — motor ham sayaç tutar, etiket burada üretilir.
+export function racketPointLabel(engine, side) {
+    const mine = side === 'A' ? engine.pointsA : engine.pointsB;
+    const theirs = side === 'A' ? engine.pointsB : engine.pointsA;
+    if (engine.isRally) return String(mine);
+    if (mine >= 3 && theirs >= 3) {
+        if (mine === theirs) return '40';
+        if (mine === theirs + 1) return 'Adv';
+        return '40';
+    }
+    return TENNIS_POINT_LABELS[mine] ?? String(mine);
+}
+
+export function engineToWearScore(engine, sport) {
+    if (!engine) return null;
+    if (engine.profile === 'basketball') {
+        return {
+            sport,
+            pointLabelA: String(engine.totalA),
+            pointLabelB: String(engine.totalB),
+            pointsA: engine.totalA,
+            pointsB: engine.totalB,
+            gamesA: 0,
+            gamesB: 0,
+            setsA: 0,
+            setsB: 0,
+            matchWinner: engine.matchWinner ?? null,
+        };
+    }
+    const volleyball = engine.profile === 'volleyball';
+    return {
+        sport,
+        pointLabelA: volleyball ? String(engine.pointsA) : racketPointLabel(engine, 'A'),
+        pointLabelB: volleyball ? String(engine.pointsB) : racketPointLabel(engine, 'B'),
+        pointsA: engine.pointsA,
+        pointsB: engine.pointsB,
+        gamesA: engine.gamesA ?? 0,
+        gamesB: engine.gamesB ?? 0,
+        setsA: engine.setsA,
+        setsB: engine.setsB,
+        matchWinner: engine.matchWinner ?? null,
     };
 }

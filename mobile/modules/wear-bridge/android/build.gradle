@@ -31,9 +31,7 @@ android {
 
 dependencies {
     implementation "com.google.android.gms:play-services-wearable:18.1.0"
-    // Huawei Wear Engine Kit köprüsü geçici olarak devre dışı — com.huawei.wearengine:
-    // wearengine:1.0.0 Huawei'nin Maven deposunda artık yok (com.huawei.hms:wearengine:
-    // 5.0.0.300'e taşınmış), bu bağımlılık her Android build'ini Gradle aşamasında
-    // FAILURE'a düşürüyordu. Bkz. HuaweiWearEngineListener.kt.disabled ve
-    // WearBridgeModule.kt'teki not — yeniden açmak için ikisi birlikte güncellenmeli.
+    // Eski com.huawei.wearengine:wearengine:1.0.0 Maven'da yoktu; HMS koordinatı
+    // (5.0.0.300) resmi Wear Engine kod laboratuvarındaki güncel paket.
+    implementation "com.huawei.hms:wearengine:5.0.0.300"
 }

@@ -17,7 +17,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import * as DocumentPicker from 'expo-document-picker';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
-import { addMatchUpdateListener, isWatchConnected } from '../../../modules/wear-bridge';
+import { addMatchUpdateListener, addWatchPointListener, isWatchConnected, startHuaweiScoreSession, updateHuaweiScoreSession, stopHuaweiScoreSession } from '../../../modules/wear-bridge';
 import { isHealthAvailable, requestHealthPermissions, getWorkoutSummary } from '../../../modules/health-bridge';
 import { estimateCalories } from '../../utils/calorieEstimate';
 import api from '../../services/api';
@@ -44,7 +44,7 @@ import {
     sportProfile, createRacketMatch, racketRecordPoint,
     createVolleyballMatch, volleyballRecordPoint,
     createBasketballMatch, basketballRecordPoints, basketballEndQuarter, basketballFinishMatch,
-    deriveStats, recordLineCall, LINE_CALL_SPORTS,
+    deriveStats, recordLineCall, LINE_CALL_SPORTS, engineToWearScore,
 } from '../../utils/liveMatchEngine';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -5799,7 +5799,50 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
         if (!visible || !wantWatch) return;
         isWatchConnected().then(setWearConnected).catch(() => setWearConnected(false));
         const subscription = addMatchUpdateListener((update) => { setWearConnected(true); setWearScore(update); feedWearUpdate(update); });
-        return () => subscription.remove();
+        // Huawei GT/Fit: üçüncü parti saat uygulaması yok, Wear Engine şablon
+        // bildirimindeki A+/B+ butonu telefona onWatchPoint basar — aynı motor.
+        const huaweiSub = addWatchPointListener((p) => {
+            if (p?.side !== 'A' && p?.side !== 'B') return;
+            setWearConnected(true);
+            manualPoint(p.side);
+            const next = engineToWearScore(engineRef.current, sub);
+            if (next) {
+                setWearScore(next);
+                const volleyball = sub === 'volleyball';
+                updateHuaweiScoreSession({
+                    title: 'AcTiViTy',
+                    text: volleyball
+                        ? `${next.pointsA}-${next.pointsB}  Set ${next.setsA}-${next.setsB}`
+                        : `${next.pointLabelA}-${next.pointLabelB}  ${next.gamesA}-${next.gamesB}`,
+                    buttonA: 'A +',
+                    buttonB: 'B +',
+                }).catch(() => {});
+            }
+        });
+        if (profile !== 'basketball') {
+            const initial = engineToWearScore(engineRef.current, sub);
+            if (initial) {
+                const volleyball = sub === 'volleyball';
+                startHuaweiScoreSession({
+                    title: 'AcTiViTy',
+                    text: volleyball
+                        ? `${initial.pointsA}-${initial.pointsB}  Set ${initial.setsA}-${initial.setsB}`
+                        : `${initial.pointLabelA}-${initial.pointLabelB}  ${initial.gamesA}-${initial.gamesB}`,
+                    buttonA: 'A +',
+                    buttonB: 'B +',
+                }).then((ok) => {
+                    if (ok) {
+                        setWearConnected(true);
+                        setWearScore(initial);
+                    }
+                }).catch(() => {});
+            }
+        }
+        return () => {
+            subscription.remove();
+            huaweiSub.remove();
+            stopHuaweiScoreSession().catch(() => {});
+        };
     }, [visible, wantWatch]);
 
     const stopRecording = () => {

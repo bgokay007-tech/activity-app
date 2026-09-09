@@ -10,39 +10,105 @@ import org.json.JSONObject
 // Wear OS'taki maç ekranının (bkz. wear/ projesi PhoneSync.kt) her sayı
 // değişiminde bu path'e gönderdiği mesajı dinler ve JS tarafına "onMatchUpdate"
 // olayı olarak iletir — canlı skor takibi için tek yönlü (saat -> telefon) köprü.
+// Huawei GT/Fit için ayrıca HuaweiWearEngineListener Notify butonları
+// "onWatchPoint" üretir (saat uygulaması kurulamadığı için).
 private const val MATCH_UPDATE_PATH = "/activity/match-update"
 
 class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
     private var lastUpdate: JSONObject? = null
-    // Huawei/HarmonyOS köprüsü (HuaweiWearEngineListener) geçici olarak devre dışı —
-    // com.huawei.wearengine:wearengine:1.0.0 paketi Huawei'nin Maven deposunda artık
-    // yok (bkz. com.huawei.hms:wearengine:5.0.0.300'e taşınmış), bu yüzden her Android
-    // build'i (APK dahil) Gradle aşamasında başarısız oluyordu. Google Wear OS köprüsü
-    // (aşağıdaki MessageClient) bundan etkilenmiyor, çalışmaya devam ediyor. Yeniden
-    // açmak için: build.gradle'daki bağımlılığı com.huawei.hms:wearengine:5.0.0.300
-    // yap, HuaweiWearEngineListener.kt.disabled dosyasını .kt'ye geri çevir (paket
-    // isimleri yeni SDK'da değişmiş olabilir, doğrulanması gerekir), sonra buradaki
-    // huaweiListener alanını/OnCreate-OnDestroy çağrılarını geri ekle.
+    private var huaweiListener: HuaweiWearEngineListener? = null
+    private var huaweiScoreboardOn = false
 
     override fun definition() = ModuleDefinition {
         Name("WearBridge")
 
-        Events("onMatchUpdate")
+        Events("onMatchUpdate", "onWatchPoint")
 
         OnCreate {
-            appContext.reactContext?.let { context ->
+            val context = appContext.reactContext ?: appContext.currentActivity ?: return@OnCreate
+            try {
                 Wearable.getMessageClient(context).addListener(this@WearBridgeModule)
+            } catch (_: Exception) {
+                // GMS / Wearable bazı cihazlarda (Play Services yok, Realme/ColorOS
+                // kısıtlaması) açılışta fırlatıyor — uygulama çökmesin, saat köprüsü
+                // bu telefonda sessizce kapalı kalsın.
+            }
+            try {
+                huaweiListener = HuaweiWearEngineListener(
+                    context,
+                    onP2pUpdate = { json -> emitUpdate(json) },
+                    onWatchPoint = { side ->
+                        sendEvent("onWatchPoint", mapOf("side" to side))
+                    },
+                )
+                huaweiListener?.start()
+            } catch (_: Exception) {
+                huaweiListener = null
             }
         }
 
         OnDestroy {
-            appContext.reactContext?.let {
-                Wearable.getMessageClient(it).removeListener(this@WearBridgeModule)
+            try {
+                appContext.reactContext?.let {
+                    Wearable.getMessageClient(it).removeListener(this@WearBridgeModule)
+                }
+            } catch (_: Exception) {
             }
+            try {
+                huaweiListener?.stop()
+            } catch (_: Exception) {
+            }
+            huaweiListener = null
+            huaweiScoreboardOn = false
         }
 
         AsyncFunction("isWatchConnected") {
-            lastUpdate != null
+            lastUpdate != null || huaweiScoreboardOn
+        }
+
+        // Huawei GT/Fit: saate A+/B+ butonlu skor bildirimi bas. true = Wear Engine
+        // cihaz buldu ve notify çağrısı fırlatıldı (Huawei Sağlık yoksa false).
+        AsyncFunction("startHuaweiScoreSession") { params: Map<String, String> ->
+            ensureHuaweiListener()
+            val ok = huaweiListener?.startScoreboard(
+                params["title"] ?: "AcTiViTy",
+                params["text"] ?: "0-0",
+                params["buttonA"] ?: "A +",
+                params["buttonB"] ?: "B +",
+            ) ?: false
+            huaweiScoreboardOn = ok
+            ok
+        }
+
+        AsyncFunction("updateHuaweiScoreSession") { params: Map<String, String> ->
+            huaweiListener?.updateScoreboard(
+                params["title"] ?: "AcTiViTy",
+                params["text"] ?: "0-0",
+                params["buttonA"] ?: "A +",
+                params["buttonB"] ?: "B +",
+            ) ?: false
+        }
+
+        AsyncFunction("stopHuaweiScoreSession") {
+            huaweiListener?.stopScoreboard()
+            huaweiScoreboardOn = false
+        }
+    }
+
+    private fun ensureHuaweiListener() {
+        if (huaweiListener != null) return
+        val context = appContext.reactContext ?: appContext.currentActivity ?: return
+        try {
+            huaweiListener = HuaweiWearEngineListener(
+                context,
+                onP2pUpdate = { json -> emitUpdate(json) },
+                onWatchPoint = { side ->
+                    sendEvent("onWatchPoint", mapOf("side" to side))
+                },
+            )
+            huaweiListener?.start()
+        } catch (_: Exception) {
+            huaweiListener = null
         }
     }
 

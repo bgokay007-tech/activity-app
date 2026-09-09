@@ -7,10 +7,21 @@ public class WearBridgeModule: Module {
     public func definition() -> ModuleDefinition {
         Name("WearBridge")
 
-        Events("onMatchUpdate")
+        Events("onMatchUpdate", "onWatchPoint")
 
         AsyncFunction("isWatchConnected") { () -> Bool in
             return false
+        }
+
+        AsyncFunction("startHuaweiScoreSession") { (_: [String: String]) -> Bool in
+            return false
+        }
+
+        AsyncFunction("updateHuaweiScoreSession") { (_: [String: String]) -> Bool in
+            return false
+        }
+
+        AsyncFunction("stopHuaweiScoreSession") { () in
         }
     }
 }
