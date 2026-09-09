@@ -204,6 +204,39 @@ export const getClassicFilms = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+// Archive.org kaydında birden fazla türetilmiş dosya oluyor (512kb örnek, ogv, mpeg2).
+// Android ExoPlayer h.264 mp4 dışında çoğunu sessizce siyah ekranda bırakıyor; ilk
+// eşleşen .mp4'ü almak da küçük örnek klibi seçebiliyordu. En büyük h.264 türevi tercih edilir.
+function pickPlayableClassicFile(files) {
+    const scored = [];
+    for (const f of files) {
+        const name = f.name || '';
+        const fmt = (f.format || '').toLowerCase();
+        if (!name || /\.(ogv|ogg|avi|mpeg|mpg|mkv|wmv|flv|webm)$/i.test(name)) continue;
+        const isMp4 = /\.mp4$/i.test(name);
+        const isH264 = fmt === 'h.264' || fmt.includes('h.264');
+        const isMpeg4 = fmt === 'mpeg4';
+        if (!isMp4 && !isH264 && !isMpeg4) continue;
+        const size = parseInt(f.size, 10) || 0;
+        let score = size;
+        if (/_512kb|_64kb|sample|trailer/.test(name.toLowerCase()) || fmt.includes('512kb')) score = Math.floor(size * 0.01);
+        if (isH264) score += 1e15;
+        scored.push({ f, score });
+    }
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0]?.f || null;
+}
+
+function classicDirectUrl(data, id, videoFile) {
+    // /download/ 302'si bazı oynatıcılarda takılıyor; metadata'daki d1+dir doğrudan HTTPS dosya.
+    const host = data.d1 || data.server;
+    const dir = data.dir;
+    if (host && dir && videoFile?.name) {
+        return `https://${host}${dir}/${encodeURIComponent(videoFile.name)}`;
+    }
+    return `${ARCHIVE_BASE}/download/${encodeURIComponent(id)}/${encodeURIComponent(videoFile.name)}`;
+}
+
 // Bir klasik filmin gerçek oynatılabilir video dosyasını bulur — liste ekranında
 // her film için bunu çağırmak yerine, kullanıcı bir filme tıkladığında (oynatma
 // anında) tek seferlik çözülür.
@@ -214,9 +247,9 @@ export const getClassicFilmStream = async (req, res, next) => {
         if (!response.ok) return res.status(502).json({ message: 'Film bilgisi alınamadı' });
         const data = await response.json();
         const files = Array.isArray(data.files) ? data.files : [];
-        const videoFile = files.find(f => f.format === 'h.264' || /\.mp4$/i.test(f.name || ''));
+        const videoFile = pickPlayableClassicFile(files);
         if (!videoFile) return res.status(404).json({ message: 'Bu film için oynatılabilir dosya bulunamadı' });
-        const videoUrl = `${ARCHIVE_BASE}/download/${encodeURIComponent(id)}/${encodeURIComponent(videoFile.name)}`;
+        const videoUrl = classicDirectUrl(data, id, videoFile);
         res.json({ videoUrl, title: data.metadata?.title || id });
     } catch (e) { next(e); }
 };

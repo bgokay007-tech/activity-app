@@ -10,6 +10,7 @@ export default function ClassicFilmPlayerScreen({ route, navigation }) {
     const { filmId, filmTitle } = route.params;
     const [videoUrl, setVideoUrl] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [buffering, setBuffering] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -23,9 +24,38 @@ export default function ClassicFilmPlayerScreen({ route, navigation }) {
         return () => { cancelled = true; };
     }, [filmId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const player = useVideoPlayer(videoUrl || null, (p) => {
-        if (videoUrl) p.play();
-    });
+    // Kullanıcı raporu: "İzle'ye basınca siyah ekran, film gelmiyor" — useVideoPlayer'ın
+    // setup callback'i SADECE player ilk oluşturulduğunda (source hâlâ null iken) bir kez
+    // çalışıyor; URL sonradan gelse bile kaynak kendiliğinden yüklenmiyor. Medya sekmesinde
+    // aynı hata replaceAsync ile düzeltilmişti (bkz. SubCategoryScreen MediaTile).
+    const player = useVideoPlayer(null);
+    useEffect(() => {
+        if (!videoUrl) {
+            player.pause();
+            return undefined;
+        }
+        let cancelled = false;
+        setBuffering(true);
+        player.replaceAsync({ uri: videoUrl, metadata: { title: filmTitle || '' } })
+            .then(() => { if (!cancelled) player.play(); })
+            .catch(() => {
+                if (cancelled) return;
+                Alert.alert(t.error || 'Hata', t.cinemaStreamError || 'Film oynatılamıyor.');
+                navigation.goBack();
+            });
+        return () => { cancelled = true; player.pause(); };
+    }, [videoUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        const sub = player.addListener('statusChange', ({ status, error }) => {
+            if (status === 'readyToPlay') setBuffering(false);
+            if (status === 'error') {
+                setBuffering(false);
+                Alert.alert(t.error || 'Hata', error?.message || t.cinemaStreamError || 'Film oynatılamıyor.');
+            }
+        });
+        return () => sub.remove();
+    }, [player]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <View style={s.root}>
@@ -42,7 +72,14 @@ export default function ClassicFilmPlayerScreen({ route, navigation }) {
                     <ActivityIndicator color={colors.purple} size="large" />
                 </View>
             ) : (
-                <VideoView player={player} style={s.video} allowsFullscreen allowsPictureInPicture nativeControls />
+                <View style={s.videoWrap}>
+                    <VideoView player={player} style={s.video} contentFit="contain" allowsFullscreen allowsPictureInPicture nativeControls />
+                    {buffering ? (
+                        <View style={s.bufferOverlay} pointerEvents="none">
+                            <ActivityIndicator color={colors.purple} size="large" />
+                        </View>
+                    ) : null}
+                </View>
             )}
         </View>
     );
@@ -55,5 +92,7 @@ const s = StyleSheet.create({
     closeBtnText: { color: '#fff', fontSize: 18 },
     title: { color: '#fff', fontSize: 14, fontWeight: '700', flex: 1 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    videoWrap: { flex: 1, backgroundColor: '#000' },
     video: { flex: 1, backgroundColor: '#000' },
+    bufferOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
 });
