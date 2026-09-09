@@ -13,6 +13,14 @@ public class WearBridgeModule: Module {
             return false
         }
 
+        AsyncFunction("hasWearOsWatch") { () -> Bool in
+            return false
+        }
+
+        AsyncFunction("hasHuaweiWatch") { () -> Bool in
+            return false
+        }
+
         AsyncFunction("startHuaweiScoreSession") { (_: [String: String]) -> Bool in
             return false
         }

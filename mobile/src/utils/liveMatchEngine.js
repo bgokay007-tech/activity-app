@@ -42,15 +42,78 @@ export function createRacketMatch({ sport, padelSimple = false, setsToWin = 2, i
     const isRally = RALLY_RACKET_SPORTS.has(sport) || (sport === 'padel' && padelSimple);
     const rallyTarget = sport === 'table_tennis' ? 11 : sport === 'badminton' ? 21 : 21; // padel simple: 21 varsayılan
     return {
-        sport, profile: 'racket', isRally, rallyTarget, setsToWin,
+        sport, profile: 'racket', isRally, rallyTarget, setsToWin, padelSimple, initialServer,
         pointsA: 0, pointsB: 0, gamesA: 0, gamesB: 0, setsA: 0, setsB: 0,
         currentSetGames: [], // tamamlanan setlerin [gamesA, gamesB] çiftleri
         currentGameServer: initialServer, // sadece deuce/avantaj modunda (oyun bazlı rotasyon)
         pointServer: initialServer, // sadece rally modunda (sayı bazlı rotasyon)
         pointsPlayedInGame: 0, // rally modunda servis rotasyonu için
+        inTiebreak: false, // 6-6 sonrası 7 sayı (2 fark) tiebreak
         matchWinner: null,
         log: [],
     };
+}
+
+function racketConfigFrom(state) {
+    return {
+        sport: state.sport,
+        padelSimple: !!state.padelSimple,
+        setsToWin: state.setsToWin,
+        initialServer: state.initialServer || 'A',
+    };
+}
+
+function racketResetAndReplay(state, pointSides) {
+    const fresh = createRacketMatch(racketConfigFrom(state));
+    for (const side of pointSides) racketRecordPoint(fresh, side);
+    Object.keys(state).forEach(k => { delete state[k]; });
+    Object.assign(state, fresh);
+    return state;
+}
+
+// Yanlış tıklama: o tarafın son sayısını (15/30/40/AD adımı) geri alır; arada rakip
+// sayı almış olsa bile o tarafın son POINT'i log'dan çıkarılıp maç yeniden kurulur.
+export function racketUndoPointForSide(state, side) {
+    if (!state) return state;
+    const points = state.log.filter(e => e.event === 'POINT');
+    let lastIdx = -1;
+    for (let i = points.length - 1; i >= 0; i--) {
+        if (points[i].side === side) { lastIdx = i; break; }
+    }
+    if (lastIdx < 0) return state;
+    return racketResetAndReplay(state, points.filter((_, i) => i !== lastIdx).map(p => p.side));
+}
+
+// Game − : o tarafın kazandığı son oyunu (ve o oyundan sonraki sayıları) geri alır.
+export function racketUndoGameForSide(state, side) {
+    if (!state) return state;
+    const startG = side === 'A' ? state.gamesA : state.gamesB;
+    const startS = side === 'A' ? state.setsA : state.setsB;
+    if (startG === 0 && startS === 0) return state;
+    const points = state.log.filter(e => e.event === 'POINT').map(p => p.side);
+    for (let n = points.length; n >= 0; n--) {
+        const tmp = createRacketMatch(racketConfigFrom(state));
+        for (let i = 0; i < n; i++) racketRecordPoint(tmp, points[i]);
+        const g = side === 'A' ? tmp.gamesA : tmp.gamesB;
+        const s = side === 'A' ? tmp.setsA : tmp.setsB;
+        if (s < startS || (s === startS && g < startG)) return racketResetAndReplay(state, points.slice(0, n));
+    }
+    return state;
+}
+
+// Set − : o tarafın kazandığı son seti geri alır.
+export function racketUndoSetForSide(state, side) {
+    if (!state) return state;
+    const startS = side === 'A' ? state.setsA : state.setsB;
+    if (startS === 0) return state;
+    const points = state.log.filter(e => e.event === 'POINT').map(p => p.side);
+    for (let n = points.length; n >= 0; n--) {
+        const tmp = createRacketMatch(racketConfigFrom(state));
+        for (let i = 0; i < n; i++) racketRecordPoint(tmp, points[i]);
+        const s = side === 'A' ? tmp.setsA : tmp.setsB;
+        if (s < startS) return racketResetAndReplay(state, points.slice(0, n));
+    }
+    return state;
 }
 
 function racketNextServerAfterPoint(state, winnerSide) {
@@ -92,7 +155,26 @@ function racketRecordRallyPoint(state, side) {
     if (gameOver) racketCompleteSet(state, state.pointsA > state.pointsB ? 'A' : 'B');
 }
 
+function racketRecordTiebreakPoint(state, side) {
+    if (side === 'A') state.pointsA += 1; else state.pointsB += 1;
+    const a = state.pointsA, b = state.pointsB;
+    const hi = Math.max(a, b), lo = Math.min(a, b);
+    // Standart tiebreak: 7 sayı, en az 2 fark.
+    if (hi >= 7 && hi - lo >= 2) {
+        const winner = a > b ? 'A' : 'B';
+        pushEvent(state, 'GAME', { side: winner, tiebreak: true, server: state.currentGameServer });
+        if (winner === 'A') state.gamesA += 1; else state.gamesB += 1;
+        state.inTiebreak = false;
+        state.pointsA = 0; state.pointsB = 0;
+        racketCompleteSet(state, winner);
+    }
+}
+
 function racketRecordDeucePoint(state, side) {
+    if (state.inTiebreak) {
+        racketRecordTiebreakPoint(state, side);
+        return;
+    }
     // Klasik tenis/padel sayı etiketleri: 0/15/30/40/AD — burada sadece iç sayaç tutuluyor,
     // etiketleme mobile UI'da (mevcut wear payload'ındaki pointLabel mantığına benzer) yapılabilir.
     const server = state.currentGameServer;
@@ -124,9 +206,15 @@ function racketRecordDeucePoint(state, side) {
 function racketCheckSetOver(state) {
     const ga = state.gamesA, gb = state.gamesB;
     const hi = Math.max(ga, gb), lo = Math.min(ga, gb);
-    // 6 oyuna en az 2 fark, ya da 7-6 (tiebreak varsayımı basitleştirilmiş — 7-5/7-6 ile biter)
-    const setOver = (hi >= 6 && hi - lo >= 2) || hi === 7;
-    if (setOver) racketCompleteSet(state, ga > gb ? 'A' : 'B');
+    // 6-6: tiebreak oyununa gir (sayılar 7'ye 2 fark, set 7-6 biter).
+    if (ga === 6 && gb === 6) {
+        state.inTiebreak = true;
+        return;
+    }
+    // 6 oyuna en az 2 fark (6-4, 6-3…) ya da tiebreak sonrası 7-6.
+    if ((hi >= 6 && hi - lo >= 2) || (hi === 7 && lo === 6)) {
+        racketCompleteSet(state, ga > gb ? 'A' : 'B');
+    }
 }
 
 function racketCompleteSet(state, winnerSide) {
@@ -136,6 +224,7 @@ function racketCompleteSet(state, winnerSide) {
     state.currentSetGames.push([state.gamesA, state.gamesB, state.pointsA, state.pointsB]);
     if (winnerSide === 'A') state.setsA += 1; else state.setsB += 1;
     state.pointsA = 0; state.pointsB = 0; state.gamesA = 0; state.gamesB = 0;
+    state.inTiebreak = false;
     if (state.setsA >= state.setsToWin) state.matchWinner = 'A';
     else if (state.setsB >= state.setsToWin) state.matchWinner = 'B';
 }
@@ -370,10 +459,10 @@ const TENNIS_POINT_LABELS = ['0', '15', '30', '40'];
 export function racketPointLabel(engine, side) {
     const mine = side === 'A' ? engine.pointsA : engine.pointsB;
     const theirs = side === 'A' ? engine.pointsB : engine.pointsA;
-    if (engine.isRally) return String(mine);
+    if (engine.isRally || engine.inTiebreak) return String(mine);
     if (mine >= 3 && theirs >= 3) {
         if (mine === theirs) return '40';
-        if (mine === theirs + 1) return 'Adv';
+        if (mine === theirs + 1) return 'AD';
         return '40';
     }
     return TENNIS_POINT_LABELS[mine] ?? String(mine);

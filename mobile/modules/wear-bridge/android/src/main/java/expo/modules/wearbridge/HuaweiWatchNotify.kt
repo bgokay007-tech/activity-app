@@ -1,6 +1,7 @@
 package expo.modules.wearbridge
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import com.huawei.hmf.tasks.Tasks
 import com.huawei.wearengine.HiWear
@@ -24,6 +25,26 @@ import java.util.concurrent.TimeUnit
 object HuaweiWatchNotify {
     private const val TAG = "HuaweiWatchNotify"
     @Volatile private var permissionsGranted = false
+
+    /**
+     * İzin penceresi açmadan: bağlı Huawei saat veya Huawei/Honor + Sağlık.
+     * Samsung/Pixel'te false dönmeli — Wear OS yolu ayrı.
+     */
+    fun isPresent(context: Context): Boolean {
+        if (connectedDevice(context) != null) return true
+        try {
+            val available = Tasks.await(
+                HiWear.getDeviceClient(context).hasAvailableDevices(),
+                8,
+                TimeUnit.SECONDS,
+            )
+            if (available == true) return true
+        } catch (_: Exception) {
+        }
+        val mfr = Build.MANUFACTURER.lowercase()
+        val huaweiPhone = mfr.contains("huawei") || mfr.contains("honor")
+        return huaweiPhone && healthCompanionInstalled(context)
+    }
 
     fun send(context: Context, title: String, text: String, buttonA: String, buttonB: String): Boolean {
         return try {
@@ -97,11 +118,27 @@ object HuaweiWatchNotify {
     }
 
     private fun connectedDevice(context: Context): Device? {
-        val devices = Tasks.await(
-            HiWear.getDeviceClient(context).getBondedDevices(),
-            12,
-            TimeUnit.SECONDS,
-        ) ?: return null
-        return devices.firstOrNull { it.isConnected }
+        return try {
+            val devices = Tasks.await(
+                HiWear.getDeviceClient(context).getBondedDevices(),
+                8,
+                TimeUnit.SECONDS,
+            ) ?: return null
+            devices.firstOrNull { it.isConnected }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun healthCompanionInstalled(context: Context): Boolean {
+        val packages = arrayOf("com.huawei.health", "com.huawei.health.lite", "com.huawei.bone")
+        return packages.any { pkg ->
+            try {
+                context.packageManager.getPackageInfo(pkg, 0)
+                true
+            } catch (_: Exception) {
+                false
+            }
+        }
     }
 }

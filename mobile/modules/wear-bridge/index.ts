@@ -24,6 +24,8 @@ export type HuaweiScoreboardPayload = {
 
 type WearBridgeNativeModule = {
     isWatchConnected(): Promise<boolean>;
+    hasWearOsWatch(): Promise<boolean>;
+    hasHuaweiWatch(): Promise<boolean>;
     startHuaweiScoreSession(params: HuaweiScoreboardPayload): Promise<boolean>;
     updateHuaweiScoreSession(params: HuaweiScoreboardPayload): Promise<boolean>;
     stopHuaweiScoreSession(): Promise<void>;
@@ -60,6 +62,18 @@ export function addWatchPointListener(listener: (update: { side: 'A' | 'B' }) =>
 
 function hasFn(name: keyof WearBridgeNativeModule): boolean {
     return typeof (nativeModule as any)?.[name] === 'function';
+}
+
+// Samsung / Pixel / diğer Wear OS — saat uygulaması PhoneSync ile skor gönderir.
+export function hasWearOsWatch(): Promise<boolean> {
+    if (!hasFn('hasWearOsWatch')) return Promise.resolve(false);
+    return nativeModule!.hasWearOsWatch();
+}
+
+// Huawei GT/Fit (LiteOS) veya bağlı Wear Engine cihazı — şablon bildirim yolu.
+export function hasHuaweiWatch(): Promise<boolean> {
+    if (!hasFn('hasHuaweiWatch')) return Promise.resolve(false);
+    return nativeModule!.hasHuaweiWatch();
 }
 
 export function startHuaweiScoreSession(params: HuaweiScoreboardPayload): Promise<boolean> {

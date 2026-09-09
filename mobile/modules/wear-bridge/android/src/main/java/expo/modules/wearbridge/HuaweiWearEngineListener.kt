@@ -2,8 +2,6 @@ package expo.modules.wearbridge
 
 import android.content.Context
 import com.huawei.wearengine.HiWear
-import com.huawei.wearengine.auth.AuthCallback
-import com.huawei.wearengine.auth.Permission
 import com.huawei.wearengine.device.Device
 import com.huawei.wearengine.p2p.Message
 import com.huawei.wearengine.p2p.Receiver
@@ -35,16 +33,9 @@ class HuaweiWearEngineListener(
     }
 
     fun start() {
-        try {
-            HiWear.getAuthClient(context).requestPermission(object : AuthCallback {
-                override fun onOk(permissions: Array<out Permission>) {
-                    bindConnectedDevice()
-                }
-
-                override fun onCancel() {}
-            }, Permission.DEVICE_MANAGER)
-        } catch (_: Exception) {
-        }
+        // İzin penceresi açma — Samsung/Pixel'te Wear Engine diyaloğu çıkmasın.
+        // Harmony P2P zaten parmak izi TODO; bağlı cihaz varsa sessiz dinle.
+        bindConnectedDevice()
     }
 
     private fun bindConnectedDevice() {

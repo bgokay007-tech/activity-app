@@ -78,7 +78,7 @@ object WatchScoreNotification {
                 "Canlı maç skoru",
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
-                description = "Huawei / Wear OS saate yansıyan A+/B+ skor butonları"
+                description = "Huawei GT/Fit yedek A+/B+ skor butonları"
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 250, 120, 250)
             }

@@ -1,6 +1,7 @@
 package expo.modules.wearbridge
 
 import android.content.Context
+import com.google.android.gms.tasks.Tasks as GmsTasks
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
@@ -10,6 +11,7 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 
 // Wear OS'taki maç ekranının (bkz. wear/ projesi PhoneSync.kt) her sayı
 // değişiminde bu path'e gönderdiği mesajı dinler ve JS tarafına "onMatchUpdate"
@@ -66,8 +68,19 @@ class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
             lastUpdate != null || huaweiScoreboardOn
         }
 
-        // Huawei GT/Fit: Wear Engine şablon bildirimi (saatte A+/B+). Android
-        // bildirimi yedek. Auth dialog ana thread'i kilitlemesin diye IO'da.
+        AsyncFunction("hasWearOsWatch") Coroutine {
+            val context = notifyContext() ?: return@Coroutine false
+            withContext(Dispatchers.IO) { queryWearOsWatch(context) }
+        }
+
+        AsyncFunction("hasHuaweiWatch") Coroutine {
+            val context = notifyContext() ?: return@Coroutine false
+            withContext(Dispatchers.IO) { HuaweiWatchNotify.isPresent(context) }
+        }
+
+        // Yalnızca Huawei GT/Fit (LiteOS): Wear Engine şablon bildirimi. Wear OS
+        // (Samsung/Pixel) bu metoda hiç girmemeli — JS hasWearOsWatch ile ayırır;
+        // native de saat yoksa Android bildirimi basmaz.
         AsyncFunction("startHuaweiScoreSession") Coroutine { params: Map<String, String> ->
             val context = notifyContext() ?: return@Coroutine false
             val title = params["title"] ?: "AcTiViTy"
@@ -75,6 +88,10 @@ class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
             val buttonA = params["buttonA"] ?: "A +"
             val buttonB = params["buttonB"] ?: "B +"
             withContext(Dispatchers.IO) {
+                if (!HuaweiWatchNotify.isPresent(context)) {
+                    huaweiScoreboardOn = false
+                    return@withContext false
+                }
                 val watchOk = HuaweiWatchNotify.send(context, title, text, buttonA, buttonB)
                 val phoneOk = WatchScoreNotification.show(context, title, text, buttonA, buttonB)
                 val ok = watchOk || phoneOk
@@ -85,6 +102,7 @@ class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
 
         AsyncFunction("updateHuaweiScoreSession") Coroutine { params: Map<String, String> ->
             val context = notifyContext() ?: return@Coroutine false
+            if (!huaweiScoreboardOn) return@Coroutine false
             val title = params["title"] ?: "AcTiViTy"
             val text = params["text"] ?: "0-0"
             val buttonA = params["buttonA"] ?: "A +"
@@ -104,6 +122,19 @@ class WearBridgeModule : Module(), MessageClient.OnMessageReceivedListener {
     private fun notifyContext(): Context? {
         // Wear Engine izin penceresi Activity ister — Application context yetmez.
         return appContext.currentActivity ?: appContext.reactContext
+    }
+
+    private fun queryWearOsWatch(context: Context): Boolean {
+        return try {
+            val nodes = GmsTasks.await(
+                Wearable.getNodeClient(context).connectedNodes,
+                8,
+                TimeUnit.SECONDS,
+            )
+            !nodes.isNullOrEmpty()
+        } catch (_: Exception) {
+            false
+        }
     }
 
     override fun onMessageReceived(event: MessageEvent) {

@@ -17,7 +17,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import * as DocumentPicker from 'expo-document-picker';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
-import { addMatchUpdateListener, addWatchPointListener, isWatchConnected, startHuaweiScoreSession, updateHuaweiScoreSession, stopHuaweiScoreSession } from '../../../modules/wear-bridge';
+import { addMatchUpdateListener, addWatchPointListener, isWatchConnected, hasWearOsWatch, hasHuaweiWatch, startHuaweiScoreSession, updateHuaweiScoreSession, stopHuaweiScoreSession } from '../../../modules/wear-bridge';
 import * as Notifications from 'expo-notifications';
 import { isHealthAvailable, requestHealthPermissions, getWorkoutSummary } from '../../../modules/health-bridge';
 import { estimateCalories } from '../../utils/calorieEstimate';
@@ -42,7 +42,8 @@ import { shareRival, shareTournament } from '../../utils/share';
 import { computeVarDurationPrice } from '../../utils/priceProration';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import {
-    sportProfile, createRacketMatch, racketRecordPoint,
+    sportProfile, createRacketMatch, racketRecordPoint, racketPointLabel,
+    racketUndoPointForSide, racketUndoGameForSide, racketUndoSetForSide,
     createVolleyballMatch, volleyballRecordPoint,
     createBasketballMatch, basketballRecordPoints, basketballEndQuarter, basketballFinishMatch,
     deriveStats, recordLineCall, LINE_CALL_SPORTS, engineToWearScore,
@@ -5591,6 +5592,77 @@ function MatchLineReplayOverlay({ uri, t, insets, canAwardPoint, watchHint, onDe
     );
 }
 
+function ScoreStepBtn({ label, color, onPress, disabled, compact }) {
+    return (
+        <TouchableOpacity onPress={onPress} disabled={disabled}
+            style={{
+                minWidth: compact ? 28 : 44, height: compact ? 28 : 40, borderRadius: compact ? 8 : 12,
+                alignItems: 'center', justifyContent: 'center',
+                backgroundColor: color + '28', borderWidth: 1, borderColor: color + '90',
+                opacity: disabled ? 0.35 : 1,
+            }}>
+            <Text style={{ color: '#fff', fontWeight: '900', fontSize: compact ? 14 : 18 }}>{label}</Text>
+        </TouchableOpacity>
+    );
+}
+
+// Tenis/padel canlı takip: 0-15-30-40-AD, game/set otomatik; yanlış tıklama için −.
+function PhoneScorePad({ engine, compact, t, onPoint, onUndoPoint, onUndoGame, onUndoSet }) {
+    if (!engine || engine.profile !== 'racket') return null;
+    const ended = !!engine.matchWinner;
+    const deuce = !engine.isRally;
+    const labelA = deuce ? racketPointLabel(engine, 'A') : String(engine.pointsA);
+    const labelB = deuce ? racketPointLabel(engine, 'B') : String(engine.pointsB);
+    const canPointA = engine.pointsA > 0;
+    const canPointB = engine.pointsB > 0;
+    const canGameA = engine.gamesA > 0 || engine.setsA > 0;
+    const canGameB = engine.gamesB > 0 || engine.setsB > 0;
+    const pad = compact ? 8 : 14;
+    const pointSize = compact ? 26 : 52;
+    return (
+        <View style={{ padding: pad, backgroundColor: compact ? '#000000d0' : 'transparent', borderRadius: compact ? 12 : 0 }}>
+            {engine.inTiebreak && (
+                <Text style={{ color: '#facc15', fontSize: compact ? 10 : 12, fontWeight: '800', textAlign: 'center', marginBottom: 4 }}>{t.matchLiveTiebreakLabel}</Text>
+            )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: compact ? 8 : 14, marginBottom: compact ? 6 : 10 }}>
+                <ScoreStepBtn label="−" color="#a78bfa" compact={compact} disabled={engine.setsA <= 0} onPress={() => onUndoSet('A')} />
+                <View style={{ alignItems: 'center', minWidth: compact ? 72 : 100 }}>
+                    <Text style={{ color: colors.textMuted, fontSize: compact ? 9 : 12, fontWeight: '700' }}>{t.matchLiveSetsLabel}</Text>
+                    <Text style={{ color: '#fff', fontSize: compact ? 16 : 22, fontWeight: '900' }}>{engine.setsA} – {engine.setsB}</Text>
+                </View>
+                <ScoreStepBtn label="−" color="#a78bfa" compact={compact} disabled={engine.setsB <= 0} onPress={() => onUndoSet('B')} />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: compact ? 8 : 14, marginBottom: compact ? 6 : 12 }}>
+                <ScoreStepBtn label="−" color="#38bdf8" compact={compact} disabled={!canGameA} onPress={() => onUndoGame('A')} />
+                <View style={{ alignItems: 'center', minWidth: compact ? 72 : 100 }}>
+                    <Text style={{ color: colors.textMuted, fontSize: compact ? 9 : 12, fontWeight: '700' }}>{t.matchLiveGamesLabel}</Text>
+                    <Text style={{ color: '#fff', fontSize: compact ? 16 : 22, fontWeight: '900' }}>{engine.gamesA} – {engine.gamesB}</Text>
+                </View>
+                <ScoreStepBtn label="−" color="#38bdf8" compact={compact} disabled={!canGameB} onPress={() => onUndoGame('B')} />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: compact ? 8 : 16 }}>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={{ color: '#93c5fd', fontSize: compact ? 10 : 13, fontWeight: '800', marginBottom: 4 }} numberOfLines={1}>{t.matchLivePointForMeBtn}</Text>
+                    <Text style={{ color: '#facc15', fontSize: pointSize, fontWeight: '900', lineHeight: pointSize + 4 }}>{labelA}</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                        <ScoreStepBtn label="−" color="#60a5fa" compact={compact} disabled={!canPointA} onPress={() => onUndoPoint('A')} />
+                        <ScoreStepBtn label="+" color="#2563eb" compact={compact} disabled={ended} onPress={() => onPoint('A')} />
+                    </View>
+                </View>
+                <Text style={{ color: colors.textMuted, fontSize: compact ? 14 : 22, fontWeight: '800' }}>–</Text>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={{ color: '#fca5a5', fontSize: compact ? 10 : 13, fontWeight: '800', marginBottom: 4 }} numberOfLines={1}>{t.matchLivePointForOpponentBtn}</Text>
+                    <Text style={{ color: '#facc15', fontSize: pointSize, fontWeight: '900', lineHeight: pointSize + 4 }}>{labelB}</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                        <ScoreStepBtn label="−" color="#f87171" compact={compact} disabled={!canPointB} onPress={() => onUndoPoint('B')} />
+                        <ScoreStepBtn label="+" color="#dc2626" compact={compact} disabled={ended} onPress={() => onPoint('B')} />
+                    </View>
+                </View>
+            </View>
+        </View>
+    );
+}
+
 // Maç saati gelince "Maçı Başlat" ile açılan seçim ekranı — kamera kaydı ve/ya da saatten
 // canlı skor takibi arasında seçim yapılır (kullanıcı isteği: ikisi de olabilir, biri de).
 function MatchStartModal({ visible, onClose, onStart, t }) {
@@ -5645,6 +5717,7 @@ function MatchStartModal({ visible, onClose, onStart, t }) {
 // spor yayınlarındaki skorbord gibi). Kayıt bitince telefonun galerisine kaydedilir.
 function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPhone, matchStartedAt, matchMode, myGender, onMatchEnd, t }) {
     const insets = useSafeAreaInsets();
+    const { width: winW, height: winH } = useWindowDimensions();
     const [camPerm, requestCamPerm] = useCameraPermissions();
     const [micPerm, requestMicPerm] = useMicrophonePermissions();
     const [, requestMediaPerm] = MediaLibrary.usePermissions();
@@ -5653,6 +5726,8 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
     const [saving, setSaving] = useState(false);
     const [wearConnected, setWearConnected] = useState(null); // null = henüz bilinmiyor
     const [wearScore, setWearScore] = useState(null);
+    const [huaweiNotifyOn, setHuaweiNotifyOn] = useState(false);
+    const huaweiNotifyRef = useRef(false);
     // Çizgi replay: kayıt sürerken durdurulup last clip oynatılır, overlay kapanınca kayıt
     // yeniden başlar. expo-camera in-progress dosyaya seek etmediği için başka yolu yok.
     const [lastClipUri, setLastClipUri] = useState(null);
@@ -5661,6 +5736,9 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
     const replayAfterStopRef = useRef(false);
     const resumeAfterReplayRef = useRef(false);
     const lineCallSport = LINE_CALL_SPORTS.has(sub);
+    // KameraView, üstteki seçim/detay modalı kapanmadan mount edilirse Android native
+    // surface çöküp uygulamayı anasayfaya atıyordu — bir kare gecikmeyle takıyoruz.
+    const [camMounted, setCamMounted] = useState(false);
 
     // ── Canlı takip motoru (saat ya da telefon-içi manuel dokunma) — bkz. liveMatchEngine.js.
     // Watch'tan gelen kümülatif güncellemeler (pointsA/B, gamesA/B, setsA/B) ardışık farkları
@@ -5678,8 +5756,17 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
             : profile === 'volleyball' ? createVolleyballMatch({})
             : createBasketballMatch({});
         prevWearRef.current = null;
-        setEngineTick(t => t + 1);
+        setEngineTick(n => n + 1);
     }, [visible, tracking, profile, sub]);
+
+    useEffect(() => {
+        if (!visible || !wantCamera) {
+            setCamMounted(false);
+            return undefined;
+        }
+        const id = setTimeout(() => setCamMounted(true), 280);
+        return () => { clearTimeout(id); setCamMounted(false); };
+    }, [visible, wantCamera]);
 
     useEffect(() => {
         if (!visible) {
@@ -5775,7 +5862,26 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
         if (engine.profile === 'racket') racketRecordPoint(engine, side);
         else if (engine.profile === 'volleyball') volleyballRecordPoint(engine, side);
         setEngineTick(t => t + 1);
-        if (engine.matchWinner) finishAndReport();
+        // Teniste son sayı maçı bitirse bile otomatik kapanmasın — yanlış tıklama − ile geri alınsın.
+        if (engine.matchWinner && engine.profile !== 'racket') finishAndReport();
+    };
+    const manualUndoPoint = (side) => {
+        const engine = engineRef.current;
+        if (!engine || engine.profile !== 'racket') return;
+        racketUndoPointForSide(engine, side);
+        setEngineTick(n => n + 1);
+    };
+    const manualUndoGame = (side) => {
+        const engine = engineRef.current;
+        if (!engine || engine.profile !== 'racket') return;
+        racketUndoGameForSide(engine, side);
+        setEngineTick(n => n + 1);
+    };
+    const manualUndoSet = (side) => {
+        const engine = engineRef.current;
+        if (!engine || engine.profile !== 'racket') return;
+        racketUndoSetForSide(engine, side);
+        setEngineTick(n => n + 1);
     };
     const manualBasketballPoints = (side, pts) => {
         const engine = engineRef.current;
@@ -5800,10 +5906,13 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
 
     useEffect(() => {
         if (!visible || !wantWatch) return;
+        let cancelled = false;
+        huaweiNotifyRef.current = false;
+        setHuaweiNotifyOn(false);
         isWatchConnected().then(setWearConnected).catch(() => setWearConnected(false));
+        // Wear OS (Samsung/Pixel/…) + Harmony P2P: saat uygulaması JSON basar.
         const subscription = addMatchUpdateListener((update) => { setWearConnected(true); setWearScore(update); feedWearUpdate(update); });
-        // Huawei GT/Fit: üçüncü parti saat uygulaması yok, Wear Engine şablon
-        // bildirimindeki A+/B+ butonu telefona onWatchPoint basar — aynı motor.
+        // Huawei GT/Fit LiteOS: üçüncü parti saat uygulaması yok — A+/B+ onWatchPoint.
         const huaweiSub = addWatchPointListener((p) => {
             if (p?.side !== 'A' && p?.side !== 'B') return;
             setWearConnected(true);
@@ -5811,6 +5920,7 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
             const next = engineToWearScore(engineRef.current, sub);
             if (next) {
                 setWearScore(next);
+                if (!huaweiNotifyRef.current) return;
                 const volleyball = sub === 'volleyball';
                 updateHuaweiScoreSession({
                     title: 'AcTiViTy',
@@ -5827,6 +5937,14 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
             if (initial) {
                 const volleyball = sub === 'volleyball';
                 (async () => {
+                    let wearOs = false;
+                    let huawei = false;
+                    try { wearOs = await hasWearOsWatch(); } catch (_) {}
+                    try { huawei = await hasHuaweiWatch(); } catch (_) {}
+                    if (cancelled) return;
+                    // Wear OS bağlıysa saat uygulaması skor gönderir; Huawei
+                    // bildirim oturumu Samsung'da 0-0 / telefon bildirimi basmasın.
+                    if (!huawei || wearOs) return;
                     try { await Notifications.requestPermissionsAsync(); } catch (_) {}
                     try {
                         const ok = await startHuaweiScoreSession({
@@ -5837,19 +5955,25 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
                             buttonA: 'A +',
                             buttonB: 'B +',
                         });
+                        if (cancelled) return;
                         if (ok) {
+                            huaweiNotifyRef.current = true;
+                            setHuaweiNotifyOn(true);
                             setWearConnected(true);
                             setWearScore(initial);
                         } else {
                             Alert.alert('', t.matchLiveWatchNotifyFail);
                         }
                     } catch (_) {
-                        Alert.alert('', t.matchLiveWatchNotifyFail);
+                        if (!cancelled) Alert.alert('', t.matchLiveWatchNotifyFail);
                     }
                 })();
             }
         }
         return () => {
+            cancelled = true;
+            huaweiNotifyRef.current = false;
+            setHuaweiNotifyOn(false);
             subscription.remove();
             huaweiSub.remove();
             stopHuaweiScoreSession().catch(() => {});
@@ -5936,9 +6060,7 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
     const waitingLabel = wearConnected === false ? t.matchLiveWatchNotConnected : t.matchLiveWaitingScore;
     const engine = engineRef.current; // eslint-disable-line no-unused-vars -- engineTick ile senkron okunur
 
-    // Telefondan manuel takip ekranı — iki büyük "Ben"/"Rakip" butonu (basketbolde 1/2/3 sayı
-    // seçimi + çeyrek bitirme). Kamera de açıksa bu, sağ üstteki küçük skor kutusunun yanına
-    // değil, kameranın ALTINA (yarı ekran) yerleşir — dokunmadan kayıt izlenebilsin diye.
+    // Telefondan manuel takip — tenis/padelde 15-40-AD + game/set − ; diğer dallarda eski butonlar.
     const ManualTapUI = () => {
         if (!engine) return null;
         if (engine.profile === 'basketball') {
@@ -5962,14 +6084,25 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
                 </View>
             );
         }
-        const pointsLine = engine.profile === 'racket' ? `${engine.pointsA}-${engine.pointsB}` : `${engine.pointsA}-${engine.pointsB}`;
+        if (engine.profile === 'racket') {
+            return (
+                <View style={{ flex:1, justifyContent:'center', paddingHorizontal:8 }}>
+                    <PhoneScorePad
+                        engine={engine}
+                        compact={false}
+                        t={t}
+                        onPoint={manualPoint}
+                        onUndoPoint={manualUndoPoint}
+                        onUndoGame={manualUndoGame}
+                        onUndoSet={manualUndoSet}
+                    />
+                </View>
+            );
+        }
         return (
             <View style={{ flex:1, padding:14, justifyContent:'center' }}>
                 <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', textAlign:'center', marginBottom:6 }}>{t.matchLiveSetsLabel} {engine.setsA}-{engine.setsB}</Text>
-                <Text style={{ color:'#facc15', fontSize:56, fontWeight:'900', textAlign:'center' }}>{pointsLine}</Text>
-                {engine.profile === 'racket' && (
-                    <Text style={{ color: colors.textMuted, fontSize:16, textAlign:'center', marginTop:6, marginBottom:20 }}>{t.matchLiveGamesLabel} {engine.gamesA}-{engine.gamesB}</Text>
-                )}
+                <Text style={{ color:'#facc15', fontSize:56, fontWeight:'900', textAlign:'center' }}>{engine.pointsA}-{engine.pointsB}</Text>
                 <View style={{ flexDirection:'row', gap:10, marginTop:20 }}>
                     <TouchableOpacity onPress={() => manualPoint('A')} style={{ flex:1, backgroundColor:'#2563eb30', borderRadius:16, borderWidth:1, borderColor:'#2563eb', paddingVertical:26, alignItems:'center' }}>
                         <Text style={{ color:'#fff', fontWeight:'900', fontSize:15 }}>{t.matchLivePointForMeBtn}</Text>
@@ -5982,12 +6115,18 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
         );
     };
 
+    const cameraReady = !!(camPerm?.granted && micPerm?.granted && camMounted);
+
     return (
-        <Modal visible={visible} animationType="slide" onRequestClose={recording ? undefined : onClose}>
-            <View style={{ flex:1, backgroundColor:'#000' }}>
+        <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" statusBarTranslucent onRequestClose={recording ? undefined : onClose}>
+            <View style={{ flex:1, width: winW, height: winH, backgroundColor:'#000' }}>
                 {!visible ? null : wantCamera ? (
-                    camPerm?.granted && micPerm?.granted ? (
-                        <CameraView ref={cameraRef} style={{ flex:1 }} mode="video" facing="back" />
+                    cameraReady ? (
+                        <CameraView ref={cameraRef} style={StyleSheet.absoluteFillObject} mode="video" facing="back" />
+                    ) : camPerm?.granted && micPerm?.granted ? (
+                        <View style={{ flex:1, alignItems:'center', justifyContent:'center' }}>
+                            <ActivityIndicator color="#fff" />
+                        </View>
                     ) : (
                         <View style={{ flex:1, alignItems:'center', justifyContent:'center', padding:20 }}>
                             <Text style={{ color:'#fff', fontSize:14, textAlign:'center', marginBottom:14 }}>{t.matchCameraPermMsg}</Text>
@@ -6007,7 +6146,9 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
                                 {sub !== 'volleyball' && (
                                     <Text style={{ color: colors.textMuted, fontSize:16, marginTop:10 }}>{t.matchLiveGamesLabel} {wearScore.gamesA}-{wearScore.gamesB}</Text>
                                 )}
-                                <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginTop:18, paddingHorizontal:24 }}>{t.matchLiveWatchHint}</Text>
+                                {huaweiNotifyOn ? (
+                                    <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginTop:18, paddingHorizontal:24 }}>{t.matchLiveWatchHint}</Text>
+                                ) : null}
                             </>
                         ) : (
                             <Text style={{ color: colors.textMuted, fontSize:14, textAlign:'center', paddingHorizontal:30 }}>{waitingLabel}</Text>
@@ -6029,6 +6170,33 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
                         )}
                     </View>
                 )}
+                {wantPhone && wantCamera && engine && engine.profile === 'racket' && !replayUri && (
+                    <View style={{ position:'absolute', top: insets.top + 6, left: 48, right: 8 }}>
+                        <PhoneScorePad
+                            engine={engine}
+                            compact
+                            t={t}
+                            onPoint={manualPoint}
+                            onUndoPoint={manualUndoPoint}
+                            onUndoGame={manualUndoGame}
+                            onUndoSet={manualUndoSet}
+                        />
+                    </View>
+                )}
+                {wantPhone && wantCamera && engine && engine.profile !== 'racket' && engine.profile !== 'basketball' && !replayUri && (
+                    <View style={{ position:'absolute', top: insets.top + 6, left: 48, right: 8, backgroundColor:'#000000d0', borderRadius:12, padding:8 }}>
+                        <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', textAlign:'center' }}>{t.matchLiveSetsLabel} {engine.setsA}-{engine.setsB}</Text>
+                        <Text style={{ color:'#facc15', fontSize:20, fontWeight:'900', textAlign:'center' }}>{engine.pointsA}-{engine.pointsB}</Text>
+                        <View style={{ flexDirection:'row', gap:8, marginTop:6 }}>
+                            <TouchableOpacity onPress={() => manualPoint('A')} style={{ flex:1, backgroundColor:'#2563eb40', borderRadius:10, paddingVertical:8, alignItems:'center' }}>
+                                <Text style={{ color:'#fff', fontWeight:'800', fontSize:11 }}>{t.matchLivePointForMeBtn}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => manualPoint('B')} style={{ flex:1, backgroundColor:'#dc262640', borderRadius:10, paddingVertical:8, alignItems:'center' }}>
+                                <Text style={{ color:'#fff', fontWeight:'800', fontSize:11 }}>{t.matchLivePointForOpponentBtn}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
                 <View style={{ position:'absolute', top: insets.top + 10, left:10 }}>
                     <TouchableOpacity onPress={onClose} disabled={recording || !!replayUri}
                         style={{ backgroundColor:'#000000c0', borderRadius:20, width:38, height:38, alignItems:'center', justifyContent:'center', opacity: recording ? 0.4 : 1 }}>
@@ -6039,7 +6207,7 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
                     an bitirip skor formuna aktarabilsin — maçın gerçekte kaç set/oyun sürdüğünü
                     beklemeden de "Bitir"e basılabilir, o ana kadarki veriler kullanılır. */}
                 {(wantWatch || wantPhone) && engineRef.current && !engineRef.current.matchWinner && !replayUri && (
-                    <View style={{ position:'absolute', bottom: insets.bottom + 10, right:10 }}>
+                    <View style={{ position:'absolute', bottom: insets.bottom + (wantCamera ? 110 : 10), right:10 }}>
                         <TouchableOpacity onPress={finishAndReport}
                             style={{ backgroundColor: colors.purple, borderRadius:20, paddingHorizontal:16, height:38, alignItems:'center', justifyContent:'center' }}>
                             <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{t.matchLiveFinishBtn}</Text>
@@ -8565,32 +8733,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         </View>
                     )}
 
-                    <MatchStartModal
-                        visible={showMatchStart}
-                        onClose={() => setShowMatchStart(false)}
-                        onStart={(opts) => { setMatchLiveOptions(opts); matchStartedAtRef.current = Date.now(); setShowMatchStart(false); setShowMatchLive(true); }}
-                        t={t}
-                    />
-                    <MatchLiveScreen
-                        visible={showMatchLive}
-                        onClose={() => setShowMatchLive(false)}
-                        sub={match.subCategory}
-                        wantCamera={matchLiveOptions.wantCamera}
-                        wantWatch={matchLiveOptions.wantWatch}
-                        wantPhone={matchLiveOptions.wantPhone}
-                        matchStartedAt={matchStartedAtRef.current}
-                        matchMode={match.matchMode}
-                        myGender={myGender}
-                        onMatchEnd={({ stats, sets: derivedSets, durationMs }) => {
-                            // Kullanıcı isteği: canlı takip bitince skor formu ÖN DOLU açılsın,
-                            // kullanıcı son kontrolü yapıp göndersin (tam otomatik değil).
-                            if (Array.isArray(derivedSets) && derivedSets.length > 0) setSets(derivedSets);
-                            setPendingLiveStats(stats ? { ...stats, durationMs } : null);
-                            setShowScore(true);
-                        }}
-                        t={t}
-                    />
-
                     {/* Lock message */}
                     {!hasScore && !scoreUnlocked && matchEnd && (
                         <Text style={sc.lockedTxt}>{t.matchNotStarted}</Text>
@@ -8913,6 +9055,40 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 </KeyboardAvoidingView>
             </View>
         </Modal>
+
+        {/* Kamera/canlı takip detay modalının İÇİNDE olursa Android native kamera yüzeyi
+            çöküp uygulamayı anasayfaya atıyordu — kardeş modal; detay kapanınca açılır. */}
+        <MatchStartModal
+            visible={showMatchStart}
+            onClose={() => setShowMatchStart(false)}
+            onStart={(opts) => {
+                setMatchLiveOptions(opts);
+                matchStartedAtRef.current = Date.now();
+                setShowMatchStart(false);
+                setShowDetail(false);
+                setTimeout(() => setShowMatchLive(true), 350);
+            }}
+            t={t}
+        />
+        <MatchLiveScreen
+            visible={showMatchLive}
+            onClose={() => { setShowMatchLive(false); setShowDetail(true); }}
+            sub={match.subCategory}
+            wantCamera={matchLiveOptions.wantCamera}
+            wantWatch={matchLiveOptions.wantWatch}
+            wantPhone={matchLiveOptions.wantPhone}
+            matchStartedAt={matchStartedAtRef.current}
+            matchMode={match.matchMode}
+            myGender={myGender}
+            onMatchEnd={({ stats, sets: derivedSets, durationMs }) => {
+                // Kullanıcı isteği: canlı takip bitince skor formu ÖN DOLU açılsın,
+                // kullanıcı son kontrolü yapıp göndersin (tam otomatik değil).
+                if (Array.isArray(derivedSets) && derivedSets.length > 0) setSets(derivedSets);
+                setPendingLiveStats(stats ? { ...stats, durationMs } : null);
+                setShowScore(true);
+            }}
+            t={t}
+        />
 
         {/* Kullanıcı isteği: medya seçildikten sonra nereye paylaşılacağı seçenek olarak
             sorulsun — bu maç + o sporun Medya sekmesi otomatik (aynı gönderi rivalId ile
