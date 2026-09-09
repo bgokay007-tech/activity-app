@@ -23,6 +23,7 @@ import { estimateCalories } from '../../utils/calorieEstimate';
 import api from '../../services/api';
 import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
+import { NEW_VISUAL } from '../../theme/visual';
 import { moderateScale } from '../../theme/scale';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
@@ -43,7 +44,7 @@ import {
     sportProfile, createRacketMatch, racketRecordPoint,
     createVolleyballMatch, volleyballRecordPoint,
     createBasketballMatch, basketballRecordPoints, basketballEndQuarter, basketballFinishMatch,
-    deriveStats,
+    deriveStats, recordLineCall, LINE_CALL_SPORTS,
 } from '../../utils/liveMatchEngine';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -232,6 +233,12 @@ function getConfig(sub) {
 // dolu değilse "zaten dolu" gibi alakasız bir hatayla reddediliyordu).
 function genderFitsSlot(personGender, slotGenderReq) {
     return !slotGenderReq || slotGenderReq === 'MIX' || personGender === 'OTHER' || personGender === slotGenderReq;
+}
+
+// Forma dolu mu? null / {} / {skillRating} hayaletleri "dolu" sayılmaz. Aksi halde
+// Katılımcı 2 hayalet dolu görünür, 3'e yazılan oyuncu 2 gibi kayar, erkek slota giremez.
+function rosterFilled(p) {
+    return !!(p && (p.id || p.manualName));
 }
 
 // Gelen maç isteklerinde derece puanının sağında kısa cinsiyet kodu — kullanıcı isteği: TR'de
@@ -1441,14 +1448,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const teamSizeNForAssign = item.teamSize || 1;
     const founderFullForAssign = 1 + senderTeamArr.filter(p => p && (p.id || p.manualName)).length >= teamSizeNForAssign;
     const oppFullForAssign = participants.filter(p => p && (p.id || p.manualName)).length + oppManualNames.length >= teamSizeNForAssign;
-    const promptAssignTeam = (p) => {
-        const name = p.id ? playerDisplayName(p) : p.manualName;
-        const doAssign = (side) => p.id ? assignUnassignedToSide(p.id, side) : assignManualToSide(p.manualName, side);
-        const buttons = [{ text: 'Vazgeç', style: 'cancel' }];
-        if (!founderFullForAssign) buttons.push({ text: item.founderTeamName || t.myTeamLabel, onPress: () => doAssign('my') });
-        if (!oppFullForAssign) buttons.push({ text: item.opponentTeamName || t.oppTeamLabel, onPress: () => doAssign('opp') });
-        Alert.alert(name, buttons.length > 1 ? 'Hangi takıma atansın?' : 'İki takım da dolu — önce birinden yer açman gerekiyor.', buttons);
-    };
+    const promptAssignTeam = (p) => setSlotActionTarget({ p, side: null, mode: 'assignJersey' });
     // Çiftlerde (DOUBLE) toplam kapasite sabit 4 (2 taraf x 2) ve "required" zaten
     // rakip tarafta kalan boş kontenjanı ifade eder. Takım sporlarında (voleybol 6v6 vb.)
     // "required" tek bir tarafın TAM boyutu (teamSize) — iki tarafı da saymadan
@@ -1609,8 +1609,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // "Atanmamış" havuzundaki (veya zaten bir tarafa atanmış) gerçek bir kullanıcıyı
     // Kurucu/Rakip'e atar/geri alır — Yaklaşan Maçlar'daki (assignPlayerToSide) ile aynı
     // uç nokta, ilan henüz MATCHED olmasa da çalışır.
-    const assignUnassignedToSide = (userId, side) => {
-        api.patch(`/rivals/${item.id}/assign-player`, { userId, side })
+    const assignUnassignedToSide = (userId, side, slotIndex) => {
+        api.patch(`/rivals/${item.id}/assign-player`, { userId, side, slotIndex })
             .then(({ data }) => {
                 if (Array.isArray(data?.participants)) setLocalParticipants(data.participants);
                 if (Array.isArray(data?.senderTeam)) setLocalSenderTeam(data.senderTeam);
@@ -1622,8 +1622,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // Uygulamayı kullanmayan (kayıtsız, manuel isim) "Atanmamış" kişiler için — assignPlayerToSide
     // artık manualName ile de eşleştirebiliyor (bkz. backend). Önceden bu kişilere dokununca
     // hiçbir şey olmuyordu (kullanıcı raporu: "takım isimleri gelmiyor").
-    const assignManualToSide = (manualName, side) => {
-        api.patch(`/rivals/${item.id}/assign-player`, { manualName, side })
+    const assignManualToSide = (manualName, side, slotIndex) => {
+        api.patch(`/rivals/${item.id}/assign-player`, { manualName, side, slotIndex })
             .then(({ data }) => {
                 if (Array.isArray(data?.participants)) setLocalParticipants(data.participants);
                 if (Array.isArray(data?.senderTeam)) setLocalSenderTeam(data.senderTeam);
@@ -1775,6 +1775,31 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 { label: `🚫 ${t.positionSuggestionRejectFullBtn}`, onPress: () => respondPositionSuggestionApi(p.id, 'reject', 'POSITION_FULL') },
             ];
             return { visible: true, title: name, actions: reviewActions };
+        }
+        if (mode === 'assignJersey') {
+            const doAssign = (assignSide, slotIndex) => p.id ? assignUnassignedToSide(p.id, assignSide, slotIndex) : assignManualToSide(p.manualName, assignSide, slotIndex);
+            const jerseyActions = [];
+            const founderName = item.founderTeamName || t.myTeamLabel;
+            const oppName = item.opponentTeamName || t.oppTeamLabel;
+            for (let i = 1; i < teamSizeNForAssign; i++) {
+                if (!rosterFilled(senderTeamArr[i - 1])) {
+                    jerseyActions.push({ label: `${founderName} · ${t.teamSlotPh(i + 1)}`, onPress: () => doAssign('my', i) });
+                }
+            }
+            for (let i = 0; i < teamSizeNForAssign; i++) {
+                if (!rosterFilled(participants[i])) {
+                    jerseyActions.push({ label: `${oppName} · ${t.teamSlotPh(i + 1)}`, onPress: () => doAssign('opp', i) });
+                }
+            }
+            return { visible: true, title: name, actions: jerseyActions };
+        }
+        if (mode === 'assignDoubleJersey') {
+            const doubleActions = [
+                !rosterFilled(senderTeamArr[0]) && genderFitsSlot(p.gender, partnerGenderReq) && { label: `${t.cardParticipantLabel(1)}'e Ata`, onPress: () => assignDoubleSlot(p.id, 'partner') },
+                !rosterFilled(participants[0]) && genderFitsSlot(p.gender, opp1GenderReq) && { label: `${t.cardParticipantLabel(2)}'e Ata`, onPress: () => assignDoubleSlot(p.id, 'opp1') },
+                !rosterFilled(participants[1]) && genderFitsSlot(p.gender, opp2GenderReq) && { label: `${t.cardParticipantLabel(3)}'e Ata`, onPress: () => assignDoubleSlot(p.id, 'opp2') },
+            ].filter(Boolean);
+            return { visible: true, title: name, actions: doubleActions };
         }
         const oppositeSide = side === 'my' ? 'opp' : 'my';
         const oppositeFull = oppositeSide === 'my' ? founderFullForAssign : oppFullForAssign;
@@ -2492,7 +2517,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 );
                             };
 
-                            const PartnerContent = senderTeamArr[0] || null;
+                            const PartnerContent = rosterFilled(senderTeamArr[0]) ? senderTeamArr[0] : null;
                             // Kullanıcı isteği: "takım maçı olduğu için tekil oyuncu puanı değil,
                             // takımın ortalaması önemli" — double formatta kurucu+partner ve rakip1+
                             // rakip2 ortalaması, Yaklaşan Maçlar'daki (founderTeamAvg/oppTeamAvg)
@@ -2510,34 +2535,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             const gParen = (g) => g === 'MALE' ? ' (Erkek)' : g === 'FEMALE' ? ' (Kadın)' : '';
                             const allTeamSlots = [
                                 { key: 'partner', p: PartnerContent, gReq: partnerGenderReq },
-                                { key: 'opp1', p: participants[0], gReq: opp1GenderReq },
-                                { key: 'opp2', p: participants[1], gReq: opp2GenderReq },
+                                { key: 'opp1', p: rosterFilled(participants[0]) ? participants[0] : null, gReq: opp1GenderReq },
+                                { key: 'opp2', p: rosterFilled(participants[1]) ? participants[1] : null, gReq: opp2GenderReq },
                             ];
                             const teamSlots = allTeamSlots.filter(sl => sl.p?.id);
                             const acceptedOthers = teamSlots.map(sl => sl.p);
                             const unassignedDoubleSlots = unassignedArr.filter(p => p?.id);
-                            // Kullanıcı isteği: ön yüzde artık sabit slot sırası (partner/opp1/opp2)
-                            // yerine gerçekten katılmış (dolu) formalar önce, boş/bekleyen formalar
-                            // sonra gösteriliyor — her slotun farklı cinsiyet kısıtlaması olduğunda
-                            // sabit sıra "cinsiyete göre sıralanmış" gibi yanıltıcı görünüyordu.
-                            // Kullanıcı raporu: kabul edilmiş ama henüz named slota (Takım Arkadaşı/
-                            // Rakip1/Rakip2) atanmamış oyuncular önceden TÜM slotlardan (dolu VEYA boş)
-                            // SONRA render ediliyordu — bu yüzden "Bekleniyor" yazan BOŞ kutular ekranda
-                            // atanmış bir katılımcının ÜSTÜNDE görünüyordu, üstelik numaralandırma da
-                            // çakışıyordu (hem boş slot hem atanmamış oyuncu aynı "Katılımcı N" numarasını
-                            // alabiliyordu — ikisi de ayrı ayrı `i+1`den başlıyordu). Artık TEK bir sıralı
-                            // numara dizisi var: önce dolu named slotlar, sonra atanmamış (kabul edilmiş)
-                            // oyuncular — ARADA HİÇ BOŞLUK OLMADAN — en son da gerçekten boş kalan
-                            // "Bekleniyor" slotları, numaralandırma kaldığı yerden devam ediyor.
-                            // DİKKAT: allTeamSlots sadece 3 adlandırılmış slot (partner/rakip1/rakip2)
-                            // içerir — kapasite kurucu hariç 3 kişidir. Atanmamış havuzdaki her oyuncu
-                            // da bu 3 kapasiteden birini ZATEN dolduruyor (henüz hangi role gideceği
-                            // belli değil, ama bir kişilik yer kaplıyor). Bunu düşmeden ham
-                            // "adı boş olan slot" listesini göstermek fazladan hayalet kutu üretiyordu
-                            // (ör. 1 atanmamış oyuncu + 3 boş adlandırılmış slot = 4 "Katılımcı" kutusu,
-                            // halbuki 2v2'de kurucu hariç sadece 3 kişilik yer var).
-                            const emptyNamedSlots = allTeamSlots.filter(sl => !sl.p?.id).slice(unassignedDoubleSlots.length);
-                            const acceptedCount = teamSlots.length + unassignedDoubleSlots.length;
 
                             if (!showTeamCards) {
                                 // Kullanıcı isteğiyle ön yüzde her satıra 2 oyuncu sığıyor (önceden tek
@@ -2566,7 +2569,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </View>
                                             </TouchableOpacity>
                                         </View>
-                                        {teamSlots.map((sl, i) => (
+                                        {allTeamSlots.map((sl, i) => sl.p?.id ? (
                                             <View key={sl.key} style={cardBox}>
                                                 <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => sl.p.id && navigation.push('Profile', { userId: sl.p.id })}>
                                                     <Avatar name={sl.p.username} avatar={sl.p.avatar} size={moderateScale(28)} color={cfg.color} />
@@ -2574,8 +2577,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         <View style={{ flexDirection:'row', alignItems:'center' }}>
                                                             <Text style={[det.playerName, { flexShrink:1 }]} numberOfLines={1}>
                                                                 {playerDisplayName(sl.p)}
-                                                                {/* Kullanıcı isteği: isim yanında (voleyboldaki gibi) kısa cinsiyet
-                                                                    parantezi — (E)/(K). */}
                                                                 {(sl.p.gender === 'MALE' || sl.p.gender === 'FEMALE') && (
                                                                     <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({sl.p.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})</Text>
                                                                 )}
@@ -2585,17 +2586,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                                     <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
                                                                 </TouchableOpacity>
                                                             )}
-                                                            {/* Kullanıcı isteği: derece puanı (elo) isimlerin sağında. */}
                                                             {sl.p.skillRating != null && (
                                                                 <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{ratingBadgeText(sub, isDoublesFmt, t.lang, sl.p.skillRating)}</Text>
                                                             )}
                                                         </View>
-                                                        {/* Kullanıcı raporu: ön yüzde slot bazlı cinsiyet etiketi ("Katılımcı 1
-                                                            (kadın)") kafa karıştırıyordu — kabul sırasına göre yerleşen biri
-                                                            o numarada göründüğü için, cinsiyeti farklı biri kabul edilince
-                                                            sanki "yanlış cinsiyete atandı" gibi bir izlenim veriyordu. Cinsiyet
-                                                            artık SADECE arka yüzdeki takım kartında (spesifik role bağlı
-                                                            olduğu yerde) gösteriliyor, ön yüz salt sıra numarası. */}
                                                         <Text style={det.playerSub} numberOfLines={1}>{t.cardParticipantLabel(i + 1)}</Text>
                                                     </View>
                                                 </TouchableOpacity>
@@ -2605,15 +2599,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
+                                        ) : (
+                                            <View key={sl.key} style={[cardBox, { opacity:0.55, flexDirection:'row', alignItems:'center', gap:6 }]}>
+                                                <View style={{ width:moderateScale(28), height:moderateScale(28), borderRadius:moderateScale(14), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
+                                                    <Text style={{ color: colors.textMuted, fontSize:13 }}>?</Text>
+                                                </View>
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={[det.playerSub, { color: colors.textMuted }]} numberOfLines={1}>{t.cardParticipantLabel(i + 1)}</Text>
+                                                    <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>Bekleniyor</Text>
+                                                </View>
+                                            </View>
                                         ))}
-                                        {/* Kullanıcı isteği: kabul edilmiş ama henüz Takım Arkadaşı/Rakip1/
-                                            Rakip2'ye ATANMAMIŞ oyuncular ön yüzde "Atanmamış" diye uyarı gibi
-                                            DEĞİL, tıpkı named slotlardaki gibi (dolu slotların HEMEN ardından,
-                                            boş "Bekleniyor" kutularından ÖNCE) sıradaki "Katılımcı N" olarak
-                                            görünür — hangi spesifik role gideceği (arka yüzdeki "Atanmamış"
-                                            listesinden, bkz. promptAssignTeam) SADECE ilan sahibini ilgilendiren
-                                            bir arka yüz detayı, ön yüzde katılımcı sayılmaları için önemli değil. */}
-                                        {unassignedDoubleSlots.map((p, i) => (
+                                        {unassignedDoubleSlots.map((p) => (
                                             <View key={p.id} style={cardBox}>
                                                 <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => navigation.push('Profile', { userId: p.id })}>
                                                     <Avatar name={p.username} avatar={p.avatar} size={moderateScale(28)} color={cfg.color} />
@@ -2634,12 +2631,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                                 <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{ratingBadgeText(sub, isDoublesFmt, t.lang, p.skillRating)}</Text>
                                                             )}
                                                         </View>
-                                                        <Text style={det.playerSub} numberOfLines={1}>{t.cardParticipantLabel(teamSlots.length + i + 1)}</Text>
+                                                        <Text style={[det.playerSub, { color:'#fbbf24' }]} numberOfLines={1}>{t.unassignedLabel}</Text>
                                                     </View>
                                                 </TouchableOpacity>
-                                                {/* Kullanıcı raporu: named slottaki (Takım Arkadaşı/Rakip1/Rakip2)
-                                                    dolu formalarda olduğu gibi, atanmamış havuzdaki oyuncular için
-                                                    de Çıkar butonu eksikti. */}
                                                 {isOwner && (
                                                     <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ marginTop:3, alignSelf:'flex-end' }}>
                                                         <Text style={{ color:'#f87171', fontSize:moderateScale(10), fontWeight:'700' }}>Çıkar</Text>
@@ -2647,32 +2641,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 )}
                                             </View>
                                         ))}
-                                        {/* Kullanıcı isteği: bekleyen (henüz yanıtlanmamış) davet ön yüzde
-                                            ayrıca isim+"Onay Bekleniyor" kutusu olarak GÖSTERİLMİYOR — bu
-                                            zaten "📨 Gönderilen Davetler" bölümünde var, tekrar burada
-                                            göstermek yanıltıcı ("kabul edilmiş gibi" görünüyordu). Partner
-                                            slotu da (daveti bekleyen dahil) diğer boş slotlar gibi düz
-                                            "Bekleniyor" kutusuna düşer, aşağıdaki emptyNamedSlots döngüsünde. */}
-                                        {emptyNamedSlots.map((sl, i) => {
-                                            // Kullanıcı raporu: ön yüzdeki ("Katılan Oyuncular") boş formalara
-                                            // arka yüzdeki (SlotBox) gibi doğrudan davet arama alanı eklenmişti
-                                            // — ön yüz sadece görüntüleme olmalı, davet/atama SADECE arka yüzdeki
-                                            // "Takımları Düzenle" ekranından yapılır. Bu yüzden isOwner'a bakmadan
-                                            // her zaman salt-okunur "Bekleniyor" kutusuna düşer.
-                                            return (
-                                                <View key={sl.key} style={[cardBox, { opacity:0.55, flexDirection:'row', alignItems:'center', gap:6 }]}>
-                                                    <View style={{ width:moderateScale(28), height:moderateScale(28), borderRadius:moderateScale(14), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
-                                                        <Text style={{ color: colors.textMuted, fontSize:13 }}>?</Text>
-                                                    </View>
-                                                    <View style={{ flex:1 }}>
-                                                        {/* Cinsiyet burada da (boş "Bekleniyor" kutusunda) gösterilmiyor —
-                                                            bkz. yukarıdaki dolu slot yorumu, aynı gerekçe. */}
-                                                        <Text style={[det.playerSub, { color: colors.textMuted }]} numberOfLines={1}>{t.cardParticipantLabel(acceptedCount + i + 1)}</Text>
-                                                        <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>Bekleniyor</Text>
-                                                    </View>
-                                                </View>
-                                            );
-                                        })}
                                         {acceptedOthers.length === 0 && unassignedDoubleSlots.length === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
                                     </View>
                                 );
@@ -2722,7 +2690,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {ratingBadgeText(sub, isDoublesFmt, t.lang, oppTeamAvgDetail)}</Text>
                                                 )}
                                             </View>
-                                            <SlotBox slot="opp1" p={participants[0]} fallback="Henüz katılan yok"
+                                            <SlotBox slot="opp1" p={rosterFilled(participants[0]) ? participants[0] : null} fallback="Henüz katılan yok"
                                                 gReqLabel={genderLabel(opp1GenderReq)} gReqValue={opp1GenderReq}
                                                 highlighted={highlightSlot?.doubleSlot === 'opp1'}
                                                 onRemove={isOwner && participants[0] ? () => removeRivalParticipant(participants[0].id, participants[0].username) : null}
@@ -2734,7 +2702,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             {/* gReqLabel=null: cinsiyet etiketi zaten hemen üstündeki "+" satırında
                                                 gösteriliyor (bkz. yukarıdaki genderLabel(opp2GenderReq)) — burada da
                                                 geçilirse "♀ Kadın" iki kez üst üste yazılıyordu (kullanıcı raporu). */}
-                                            <SlotBox slot="opp2" p={participants[1]} fallback="Henüz katılan yok"
+                                            <SlotBox slot="opp2" p={rosterFilled(participants[1]) ? participants[1] : null} fallback="Henüz katılan yok"
                                                 gReqLabel={null} gReqValue={opp2GenderReq}
                                                 highlighted={highlightSlot?.doubleSlot === 'opp2'}
                                                 onRemove={isOwner && participants[1] ? () => removeRivalParticipant(participants[1].id, participants[1].username) : null}
@@ -2760,20 +2728,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800', marginBottom:4 }}>Atanmamış</Text>
                                             {unassignedDoubleSlots.map(p => {
                                                 const isMe = p.id === myId;
-                                                // Kullanıcı raporu: partner slotu kendisi (PartnerContent) boş
-                                                // olduğu sürece, BAŞKA birine gönderilmiş bekleyen bir davet
-                                                // (pendingPartnerInvite) varsa bile "Kendi Takımıma Ata"
-                                                // seçeneği hâlâ sunulmalı — o davet henüz kabul edilmedi,
-                                                // slotu gerçekten dolduran bir şey yok. assignDoubleSlot zaten
-                                                // gerçek dolulukta ("senderTeam[0]") kontrol yapıyor, davetlerle
-                                                // ilgilenmiyor (bkz. backend), bu yüzden burada da engellenmemeli.
-                                                const canTeam1 = !PartnerContent && genderFitsSlot(p.gender, partnerGenderReq);
-                                                const team2Slot = [
-                                                    !participants[0]?.id && genderFitsSlot(p.gender, opp1GenderReq) && 'opp1',
-                                                    !participants[1]?.id && genderFitsSlot(p.gender, opp2GenderReq) && 'opp2',
-                                                ].find(Boolean);
-                                                const team1Label = item.founderTeamName || t.founderTeamShortLabel || 'Takım 1';
-                                                const team2Label = item.opponentTeamName || t.opponentTeamShortLabel || 'Takım 2';
+                                                // Takım adına değil BOŞ FORMANIN numarasına ata. Eski "Takım 2'ye
+                                                // Ata" ilk uyan slota (genelde Katılımcı 2) yazıyordu; kadın slota
+                                                // (Katılımcı 3) gidecek Elif 2'ye düşüp erkek oyuncuyu kilitliyordu.
+                                                const canAssignDouble = (isOwner || isMe) && (
+                                                    (!rosterFilled(senderTeamArr[0]) && genderFitsSlot(p.gender, partnerGenderReq))
+                                                    || (!rosterFilled(participants[0]) && genderFitsSlot(p.gender, opp1GenderReq))
+                                                    || (!rosterFilled(participants[1]) && genderFitsSlot(p.gender, opp2GenderReq))
+                                                );
                                                 return (
                                                     <View key={p.id} style={{ backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:4, flexDirection:'row', alignItems:'center', gap:4 }}>
                                                         <Text style={{ color:'#fff', fontSize:11, fontWeight:'700', flex:1, minWidth:0 }} numberOfLines={1}>
@@ -2785,16 +2747,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                                 <Text style={{ color:'#facc15', fontWeight:'800' }}>  {ratingBadgeText(sub, isDoublesFmt, t.lang, p.skillRating)}</Text>
                                                             )}
                                                         </Text>
-                                                        {(isOwner || isMe) && canTeam1 && (
-                                                            <TouchableOpacity onPress={() => assignDoubleSlot(p.id, 'partner')}
+                                                        {canAssignDouble && (
+                                                            <TouchableOpacity onPress={() => setSlotActionTarget({ p, mode: 'assignDoubleJersey' })}
                                                                 style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{team1Label}'a Ata</Text>
-                                                            </TouchableOpacity>
-                                                        )}
-                                                        {(isOwner || isMe) && team2Slot && (
-                                                            <TouchableOpacity onPress={() => assignDoubleSlot(p.id, team2Slot)}
-                                                                style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{team2Label}'a Ata</Text>
+                                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>Takımlara Ata</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                         {isOwner && (
@@ -2816,7 +2772,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         // partner'ın (genelde farklı cinsiyet) kuralına göre kontrol ediliyordu —
                                         // "2./3./4. oyuncu formundan davet ediyorum, hep kadın kabul ediyor" hatası
                                         // buradan geliyordu (kullanıcı raporu).
-                                        const rawEmptyKeys = ['partner', 'opp1', 'opp2'].filter(k => !({ partner: PartnerContent, opp1: participants[0], opp2: participants[1] }[k]));
+                                        const rawEmptyKeys = ['partner', 'opp1', 'opp2'].filter(k => !rosterFilled(({ partner: PartnerContent, opp1: participants[0], opp2: participants[1] }[k])));
                                         const emptyKeys = doubleInviteFromSlot && rawEmptyKeys.includes(doubleInviteFromSlot)
                                             ? [doubleInviteFromSlot, ...rawEmptyKeys.filter(k => k !== doubleInviteFromSlot)]
                                             : rawEmptyKeys;
@@ -4812,10 +4768,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         const vals = [participants[0]?.skillRating, participants[1]?.skillRating].filter(v => v != null);
         return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
     })() : null;
+    // Her dalda açık ilanlar 2'li ızgara (eski tenis twoCol). Tam genişlik kartlar
+    // yaklaşan/oynanan/skor bekleyen ile aynı satıra sığmıyordu (kullanıcı isteği).
+    const twoCol = !!NEW_VISUAL;
 
     return (
         <>
-        <Animated.View style={[s.card, { width:'48%', borderRadius: moderateScale(14), paddingHorizontal:0, paddingTop:0, paddingBottom:0, minHeight: moderateScale(230) }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
+        <Animated.View style={[s.card, { width: (NEW_VISUAL && !twoCol) ? '100%' : '48%', borderRadius: twoCol ? moderateScale(14) : (NEW_VISUAL ? 24 : moderateScale(14)), paddingHorizontal: twoCol ? 1 : (NEW_VISUAL ? 12 : 0), paddingTop: twoCol ? 1 : (NEW_VISUAL ? 12 : 0), paddingBottom: twoCol ? 1 : (NEW_VISUAL ? 10 : 0), minHeight: NEW_VISUAL ? undefined : moderateScale(230), borderWidth: NEW_VISUAL ? 0 : 1 }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
             {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (ilan detayını açmaz). */}
             <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
                 style={{ position:'absolute', top:6, right:6, zIndex:10, backgroundColor:'#00000060', borderRadius:12, width:22, height:22, alignItems:'center', justifyContent:'center' }}>
@@ -4825,7 +4784,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 // Kullanıcı isteği: arka yüzden (oyuncu listesi) de dokununca ilan detayı açılsın —
                 // önceden sadece ön yüz açıyordu, arka yüzde dokunmanın hiçbir etkisi yoktu. İçindeki
                 // "istek"/"Sipariş Ver" gibi kendi onPress'i olan öğeler yine kendi işlevini korur.
-                <TouchableOpacity activeOpacity={0.85} style={{ padding: moderateScale(9), flex:1 }} onPress={() => setDetailVisible(true)}>
+                <TouchableOpacity activeOpacity={0.85} style={{ padding: twoCol ? 1 : moderateScale(9), flex:1 }} onPress={() => setDetailVisible(true)}>
                     <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'800', marginBottom:8 }}>👥 {t.rosterPoolLabel}</Text>
                     {(cardFounderTeamAvg != null || cardOppTeamAvg != null) && (
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6, gap:6 }}>
@@ -4885,11 +4844,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)} style={{ flex:1 }}>
 
                 {/* Avatar + isim/puan + mod/format */}
-                <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:3 }}>
-                    <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
+                <View style={{ flexDirection:'row', alignItems:'flex-start', gap: twoCol ? 1 : (NEW_VISUAL ? 10 : 3), marginBottom: twoCol ? 1 : (NEW_VISUAL ? 8 : 3) }}>
+                    <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={twoCol ? moderateScale(34) : (NEW_VISUAL ? 52 : moderateScale(34))} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
                     <View style={{ flex:1, minWidth:0 }}>
                         <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                            <Text style={[s.cardName, { fontSize: moderateScale(13), flexShrink:1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(item.sender)}</Text>
+                            <Text style={[s.cardName, { fontSize: twoCol ? moderateScale(13) : (NEW_VISUAL ? 16 : moderateScale(13)), flexShrink:1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(item.sender)}</Text>
                             {item.sender?.interests?.[0]?.assessmentCompleted && (
                                 <Text style={[s.ratingText, { color: cfg.color, fontSize: moderateScale(10) }]}>
                                     {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
@@ -5112,6 +5071,17 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 (Katıl) artık YOK — kullanıcı önce detaya girip kadroyu vs. inceleyip ona göre
                 istek atsın. Kart zaten tıklanınca detayı açıyor, tüm bu aksiyonlar orada var. */}
             <View>
+                {NEW_VISUAL && !isOwner && item.senderId && item.senderId !== myId && !mySentReq && !myInvite && !isFull ? (
+                    <TouchableOpacity
+                        style={{ backgroundColor: colors.purple, borderRadius: twoCol ? 10 : 14, paddingVertical: twoCol ? 6 : 11, alignItems: 'center', marginTop: twoCol ? 1 : 8 }}
+                        onPress={() => navigation.navigate('MessagesTab', {
+                            screen: 'Chat',
+                            params: { other: { id: item.senderId, username: item.sender?.username, fullName: item.sender?.fullName }, conversation: { id: null, _userId: item.senderId } },
+                        })}
+                    >
+                        <Text style={{ color: colors.ctaText, fontSize: 14, fontWeight: '700' }}>{t.messageCtaShort}</Text>
+                    </TouchableOpacity>
+                ) : null}
                 {isOwner ? null : isLinkedMatchPlayer ? (
                     <Text style={{ color: colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }} numberOfLines={2}>Bu maça oyuncu olarak katıldığınız için hakemlik başvurusu yapamazsınız.</Text>
                 ) : myInvite ? (() => {
@@ -5467,6 +5437,132 @@ function TeamSlot({ slot, player, color, label, disabled, isSelected, isTarget, 
     );
 }
 
+// expo-camera recordAsync bitmeden dosyaya seek edilemez; tartışmalı topte kaydı durdurup
+// son 8 sn'yi yavaş oynatıyoruz. Ayrı bileşen: useVideoPlayer hook kuralları (MediaTile gibi).
+const LINE_REPLAY_SECONDS = 8;
+function MatchLineReplayOverlay({ uri, t, insets, canAwardPoint, watchHint, onDecide, onAwardPoint, onClose }) {
+    const player = useVideoPlayer(null);
+    const replayStartRef = useRef(0);
+    const [ready, setReady] = useState(false);
+    const [verdict, setVerdict] = useState(null);
+
+    useEffect(() => {
+        if (!uri) return;
+        let cancelled = false;
+        setReady(false);
+        setVerdict(null);
+        replayStartRef.current = 0;
+        player.loop = false;
+        player.muted = false;
+        let tries = 0;
+        const seekWhenReady = () => {
+            if (cancelled) return;
+            const d = player.duration || 0;
+            if (d > 0) {
+                const start = Math.max(0, d - LINE_REPLAY_SECONDS);
+                replayStartRef.current = start;
+                player.currentTime = start;
+                try { player.playbackRate = 0.5; } catch (e) { /* bazı Android sürümleri 0.5x desteklemez */ }
+                player.play();
+                setReady(true);
+            } else if (tries++ < 25) {
+                setTimeout(seekWhenReady, 160);
+            } else {
+                setReady(true);
+            }
+        };
+        player.replaceAsync(uri).then(seekWhenReady).catch(() => { if (!cancelled) setReady(true); });
+        let timeSub;
+        try {
+            player.timeUpdateEventInterval = 0.2;
+            timeSub = player.addListener('timeUpdate', ({ currentTime }) => {
+                const d = player.duration || 0;
+                if (!d) return;
+                if (currentTime >= d - 0.08) {
+                    player.currentTime = replayStartRef.current;
+                    player.play();
+                }
+            });
+        } catch (e) { /* timeUpdate bazı sürümlerde yok — clip bir kez oynar */ }
+        return () => {
+            cancelled = true;
+            timeSub?.remove();
+            player.pause();
+        };
+    }, [uri, player]);
+
+    const pick = (v) => {
+        setVerdict(v);
+        onDecide(v);
+    };
+
+    return (
+        <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'#000', zIndex:20 }}>
+            <VideoView player={player} style={{ flex:1 }} contentFit="contain" nativeControls={false} />
+            {!ready && (
+                <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0, alignItems:'center', justifyContent:'center' }}>
+                    <ActivityIndicator color="#fff" />
+                </View>
+            )}
+            <View style={{ position:'absolute', top: insets.top + 10, left:10, right:10, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', backgroundColor:'#000000c0', borderRadius:10, paddingHorizontal:10, paddingVertical:6 }}>
+                    {t.matchLineCallReplayTitle}
+                </Text>
+                <TouchableOpacity onPress={onClose}
+                    style={{ backgroundColor:'#000000c0', borderRadius:20, width:38, height:38, alignItems:'center', justifyContent:'center' }}>
+                    <Text style={{ color:'#fff', fontSize:16 }}>✕</Text>
+                </TouchableOpacity>
+            </View>
+            <View style={{ position:'absolute', left:12, right:12, bottom: Math.max(16, insets.bottom + 12) }}>
+                {verdict ? (
+                    <Text style={{ color: verdict === 'IN' ? '#4ade80' : '#f87171', fontSize:22, fontWeight:'900', textAlign:'center', marginBottom:10 }}>
+                        {verdict === 'IN' ? t.matchLineCallIn : t.matchLineCallOut}
+                    </Text>
+                ) : null}
+                {!verdict ? (
+                    <View style={{ flexDirection:'row', gap:10 }}>
+                        <TouchableOpacity onPress={() => pick('IN')}
+                            style={{ flex:1, backgroundColor:'#166534', borderRadius:16, paddingVertical:18, alignItems:'center', borderWidth:1, borderColor:'#22c55e' }}>
+                            <Text style={{ color:'#fff', fontWeight:'900', fontSize:18 }}>{t.matchLineCallIn}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => pick('OUT')}
+                            style={{ flex:1, backgroundColor:'#7f1d1d', borderRadius:16, paddingVertical:18, alignItems:'center', borderWidth:1, borderColor:'#ef4444' }}>
+                            <Text style={{ color:'#fff', fontWeight:'900', fontSize:18 }}>{t.matchLineCallOut}</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : canAwardPoint ? (
+                    <>
+                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', textAlign:'center', marginBottom:10 }}>{t.matchLineCallAwardHint}</Text>
+                        <View style={{ flexDirection:'row', gap:10 }}>
+                            <TouchableOpacity onPress={() => onAwardPoint('A')}
+                                style={{ flex:1, backgroundColor:'#2563eb30', borderRadius:14, borderWidth:1, borderColor:'#2563eb', paddingVertical:16, alignItems:'center' }}>
+                                <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>{t.matchLivePointForMeBtn}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => onAwardPoint('B')}
+                                style={{ flex:1, backgroundColor:'#dc262630', borderRadius:14, borderWidth:1, borderColor:'#dc2626', paddingVertical:16, alignItems:'center' }}>
+                                <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>{t.matchLivePointForOpponentBtn}</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <TouchableOpacity onPress={onClose} style={{ marginTop:10, alignItems:'center', paddingVertical:8 }}>
+                            <Text style={{ color: colors.textMuted, fontWeight:'700', fontSize:13 }}>{t.matchLineCallSkip}</Text>
+                        </TouchableOpacity>
+                    </>
+                ) : (
+                    <>
+                        {watchHint ? (
+                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginBottom:10 }}>{t.matchLineCallWatchHint}</Text>
+                        ) : null}
+                        <TouchableOpacity onPress={onClose}
+                            style={{ backgroundColor: colors.purple, borderRadius:14, paddingVertical:14, alignItems:'center' }}>
+                            <Text style={{ color:'#fff', fontWeight:'800' }}>{t.matchLineCallDone}</Text>
+                        </TouchableOpacity>
+                    </>
+                )}
+            </View>
+        </View>
+    );
+}
+
 // Maç saati gelince "Maçı Başlat" ile açılan seçim ekranı — kamera kaydı ve/ya da saatten
 // canlı skor takibi arasında seçim yapılır (kullanıcı isteği: ikisi de olabilir, biri de).
 function MatchStartModal({ visible, onClose, onStart, t }) {
@@ -5529,6 +5625,14 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
     const [saving, setSaving] = useState(false);
     const [wearConnected, setWearConnected] = useState(null); // null = henüz bilinmiyor
     const [wearScore, setWearScore] = useState(null);
+    // Çizgi replay: kayıt sürerken durdurulup last clip oynatılır, overlay kapanınca kayıt
+    // yeniden başlar. expo-camera in-progress dosyaya seek etmediği için başka yolu yok.
+    const [lastClipUri, setLastClipUri] = useState(null);
+    const [replayUri, setReplayUri] = useState(null);
+    const [preparingReplay, setPreparingReplay] = useState(false);
+    const replayAfterStopRef = useRef(false);
+    const resumeAfterReplayRef = useRef(false);
+    const lineCallSport = LINE_CALL_SPORTS.has(sub);
 
     // ── Canlı takip motoru (saat ya da telefon-içi manuel dokunma) — bkz. liveMatchEngine.js.
     // Watch'tan gelen kümülatif güncellemeler (pointsA/B, gamesA/B, setsA/B) ardışık farkları
@@ -5548,6 +5652,16 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
         prevWearRef.current = null;
         setEngineTick(t => t + 1);
     }, [visible, tracking, profile, sub]);
+
+    useEffect(() => {
+        if (!visible) {
+            setLastClipUri(null);
+            setReplayUri(null);
+            setPreparingReplay(false);
+            replayAfterStopRef.current = false;
+            resumeAfterReplayRef.current = false;
+        }
+    }, [visible]);
 
     // finishAndReport senkron başlar (skor/istatistik anında hesaplanır) ama sağlık verisi
     // sorgusu asenkron olduğu için fonksiyonun kendisi async — çağıran taraflar (manuel
@@ -5666,17 +5780,67 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
     const stopRecording = () => {
         cameraRef.current?.stopRecording();
     };
+    const finishReplay = () => {
+        const resume = resumeAfterReplayRef.current && !engineRef.current?.matchWinner;
+        resumeAfterReplayRef.current = false;
+        setReplayUri(null);
+        if (resume) {
+            setTimeout(() => { if (cameraRef.current) startRecording(); }, 500);
+        }
+    };
+    const requestReplay = () => {
+        if (replayUri || saving || preparingReplay) return;
+        if (recording) {
+            replayAfterStopRef.current = true;
+            resumeAfterReplayRef.current = true;
+            setPreparingReplay(true);
+            cameraRef.current?.stopRecording();
+            return;
+        }
+        if (lastClipUri) {
+            resumeAfterReplayRef.current = false;
+            setReplayUri(lastClipUri);
+            return;
+        }
+        Alert.alert(t.matchLineCallNeedClipTitle, t.matchLineCallNeedClip);
+    };
+    const decideLineCall = (verdict) => {
+        if (engineRef.current) {
+            recordLineCall(engineRef.current, verdict);
+            setEngineTick(n => n + 1);
+        }
+    };
+    const awardFromReplay = (side) => {
+        manualPoint(side);
+        if (engineRef.current?.matchWinner) resumeAfterReplayRef.current = false;
+        finishReplay();
+    };
     const startRecording = async () => {
         if (!cameraRef.current) return;
         try {
             setRecording(true);
             const video = await cameraRef.current.recordAsync();
             if (video?.uri) {
+                setLastClipUri(video.uri);
                 setSaving(true);
-                await MediaLibrary.saveToLibraryAsync(video.uri);
-                Alert.alert(t.matchRecordSavedTitle, t.matchRecordSavedMsg);
+                try { await MediaLibrary.saveToLibraryAsync(video.uri); } catch (e) { /* galeri izni yoksa replay yine çalışsın */ }
+                if (replayAfterStopRef.current) {
+                    replayAfterStopRef.current = false;
+                    setPreparingReplay(false);
+                    setReplayUri(video.uri);
+                } else {
+                    Alert.alert(t.matchRecordSavedTitle, t.matchRecordSavedMsg);
+                }
+            } else if (replayAfterStopRef.current) {
+                replayAfterStopRef.current = false;
+                resumeAfterReplayRef.current = false;
+                setPreparingReplay(false);
+                Alert.alert(t.error, t.actionFailed);
             }
         } catch (e) {
+            replayAfterStopRef.current = false;
+            resumeAfterReplayRef.current = false;
+            setPreparingReplay(false);
             Alert.alert(t.error, t.actionFailed);
         } finally {
             setRecording(false);
@@ -5786,7 +5950,7 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
                     </View>
                 )}
                 <View style={{ position:'absolute', top: insets.top + 10, left:10 }}>
-                    <TouchableOpacity onPress={onClose} disabled={recording}
+                    <TouchableOpacity onPress={onClose} disabled={recording || !!replayUri}
                         style={{ backgroundColor:'#000000c0', borderRadius:20, width:38, height:38, alignItems:'center', justifyContent:'center', opacity: recording ? 0.4 : 1 }}>
                         <Text style={{ color:'#fff', fontSize:16 }}>✕</Text>
                     </TouchableOpacity>
@@ -5794,7 +5958,7 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
                 {/* Kullanıcı isteği: canlı takip (saat ya da telefondan) sırasında maçı istediği
                     an bitirip skor formuna aktarabilsin — maçın gerçekte kaç set/oyun sürdüğünü
                     beklemeden de "Bitir"e basılabilir, o ana kadarki veriler kullanılır. */}
-                {(wantWatch || wantPhone) && engineRef.current && !engineRef.current.matchWinner && (
+                {(wantWatch || wantPhone) && engineRef.current && !engineRef.current.matchWinner && !replayUri && (
                     <View style={{ position:'absolute', bottom: insets.bottom + 10, right:10 }}>
                         <TouchableOpacity onPress={finishAndReport}
                             style={{ backgroundColor: colors.purple, borderRadius:20, paddingHorizontal:16, height:38, alignItems:'center', justifyContent:'center' }}>
@@ -5802,7 +5966,7 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
                         </TouchableOpacity>
                     </View>
                 )}
-                {wantCamera && camPerm?.granted && micPerm?.granted && (
+                {wantCamera && camPerm?.granted && micPerm?.granted && !replayUri && (
                     <View style={{ position:'absolute', bottom: insets.bottom + 24, left:0, right:0, alignItems:'center' }}>
                         <TouchableOpacity onPress={recording ? stopRecording : startRecording} disabled={saving}
                             style={{ width:70, height:70, borderRadius:35, backgroundColor: recording ? '#dc2626' : '#fff', alignItems:'center', justifyContent:'center', borderWidth:4, borderColor:'#ffffff80' }}>
@@ -5813,6 +5977,28 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
                         <Text style={{ color:'#fff', fontSize:12, marginTop:8 }}>{recording ? t.matchRecordingLabel : t.matchTapToRecordLabel}</Text>
                     </View>
                 )}
+                {wantCamera && lineCallSport && camPerm?.granted && micPerm?.granted && !replayUri && (
+                    <View style={{ position:'absolute', bottom: insets.bottom + 32, left:14 }}>
+                        <TouchableOpacity onPress={requestReplay} disabled={saving || preparingReplay}
+                            style={{ backgroundColor:'#000000c0', borderRadius:16, paddingHorizontal:14, paddingVertical:12, borderWidth:1, borderColor:'#eab30880', opacity: (saving || preparingReplay) ? 0.4 : 1 }}>
+                            {preparingReplay
+                                ? <ActivityIndicator color="#facc15" />
+                                : <Text style={{ color:'#facc15', fontSize:13, fontWeight:'900' }}>{t.matchLineCallBtn}</Text>}
+                        </TouchableOpacity>
+                    </View>
+                )}
+                {replayUri ? (
+                    <MatchLineReplayOverlay
+                        uri={replayUri}
+                        t={t}
+                        insets={insets}
+                        canAwardPoint={!!wantPhone && !!engineRef.current && !engineRef.current.matchWinner}
+                        watchHint={!!wantWatch && !wantPhone}
+                        onDecide={decideLineCall}
+                        onAwardPoint={awardFromReplay}
+                        onClose={finishReplay}
+                    />
+                ) : null}
             </View>
         </Modal>
     );
@@ -6967,7 +7153,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         <>
         {/* Compact card — tap opens detail */}
         <Animated.View
-            style={[s.card, { flex:1, paddingHorizontal:3, paddingTop:3, paddingBottom:3, minHeight: moderateScale(110),
+            style={[s.card, {
+                // Açık ilanlardaki RivalCard (twoCol) ile aynı ızgara: genişlik kartın kendi
+                // üzerinde. flex:1 + dış sarmalayıcı yüzde, içeriğin min-width'i yüzünden
+                // kartı tam satıra şişirip ikinci kartı alta itiyordu.
+                width: '48%', minWidth: 0,
+                borderRadius: moderateScale(14),
+                paddingHorizontal: 1, paddingTop: 1, paddingBottom: 1,
+                minHeight: moderateScale(110),
                 borderColor: isMatched ? '#16a34a60' : '#a855f740',
                 backgroundColor: isMatched ? '#16a34a08' : undefined,
                 transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}
@@ -7316,15 +7509,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         // değişkenine referans vardı, render anında "Property 'locked' doesn't
                         // exist" hatasına sebep oluyordu).
                         const locked = match.teamFlexibility === 'STRICT';
-                        const partner = senderTeamArr[0] || null;
-                        // DİKKAT: participants[0]=Rakip 1, participants[1]=Rakip 2 sabit konumludur —
-                        // önceden boş slotları filtrelenmiş participantsArr üzerinden indexleniyordu,
-                        // bu da Rakip 1 boşalınca Rakip 2'deki oyuncunun index 0'a kayıp yanlışlıkla
-                        // "Rakip 1" olarak gösterilmesine sebep oluyordu. Ham diziden (boşluklar
-                        // korunarak) okunmalı.
+                        // senderTeamArr burada .filter(p=>p?.id) ile sıkıştırılmış — partner'ı
+                        // oradan almak [null, X] → X yapıp yanlış formaya yazar. Ham diziden oku.
+                        const rawSenderTeam = Array.isArray(match.senderTeam) ? match.senderTeam : [];
                         const rawParticipants = Array.isArray(match.participants) ? match.participants : [];
-                        const opp1 = rawParticipants[0] || null;
-                        const opp2 = rawParticipants[1] || null;
+                        const partner = rosterFilled(rawSenderTeam[0]) ? rawSenderTeam[0] : null;
+                        const opp1 = rosterFilled(rawParticipants[0]) ? rawParticipants[0] : null;
+                        const opp2 = rosterFilled(rawParticipants[1]) ? rawParticipants[1] : null;
                         const SLOT_LABEL = { partner: t.cardParticipantLabel(1), opp1: t.cardParticipantLabel(2), opp2: t.cardParticipantLabel(3) };
                         // Slotta cinsiyet kısıtı varsa etiketin yanında belli olsun.
                         const genderTag = (req) => req === 'MALE' ? ' ♂' : req === 'FEMALE' ? ' ♀' : '';
@@ -7403,7 +7594,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         // numaralı "Katılımcı N" olarak, voleyboldeki TeamAssignCard'ın ön yüzüyle
                         // AYNI görsel dil (kullanıcı isteği: atanmamış olmak ön yüzde bir "uyarı"
                         // gibi görünmemeli — hangi role gideceği sadece arka yüzü ilgilendirir).
-                        const doublePool = [{ ...match.sender, skillRating: match.senderSkillRating }, partner, opp1, opp2, ...unassignedArr].filter(p => p && (p.id || p.manualName));
+                        // Sabit 4 forma: 1 kurucu + Katılımcı 1/2/3. Boşları süzmek Elif'i
+                        // 3'ten 2'ye kaydırıyordu; atanmamışlar bu numaralara GİRMEZ.
+                        const doublePool = [
+                            { p: { ...match.sender, skillRating: match.senderSkillRating }, filled: true, label: t.founder || 'Kurucu' },
+                            { p: partner, filled: rosterFilled(partner), label: t.cardParticipantLabel(1) },
+                            { p: opp1, filled: rosterFilled(opp1), label: t.cardParticipantLabel(2) },
+                            { p: opp2, filled: rosterFilled(opp2), label: t.cardParticipantLabel(3) },
+                        ];
                         const rotateY = doubleFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
                         return (
                             <View style={{ marginBottom:12 }}>
@@ -7422,15 +7620,19 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                 gibi görünür. Hangi role gideceği sadece arka yüzdeki "Atanmamış"
                                                 listesinden (aşağıda) ilgilendiriyor. */}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:1 }}>
-                                                {doublePool.map((p, i) => (
-                                                    <View key={p.id || `m-${i}`} style={{ width:'48%' }}>
-                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
-                                                            <Avatar name={p.username} avatar={p.avatar} size={14} color={cfg.color} />
+                                                {doublePool.map((slot, i) => (
+                                                    <View key={slot.p?.id || `m-${i}`} style={{ width:'48%' }}>
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5, opacity: slot.filled ? 1 : 0.55 }}>
+                                                            {slot.filled
+                                                                ? <Avatar name={slot.p.username} avatar={slot.p.avatar} size={14} color={cfg.color} />
+                                                                : <Text style={{ color: colors.textMuted, fontSize:12 }}>?</Text>}
                                                             <View style={{ flex:1 }}>
-                                                                <Text style={{ color:'#fff', fontSize:10, fontWeight:'400' }} numberOfLines={1}>{i + 1}. {senderAlias(p)}</Text>
+                                                                <Text style={{ color: slot.filled ? '#fff' : colors.textMuted, fontSize:10, fontWeight:'400' }} numberOfLines={1}>
+                                                                    {slot.filled ? `${slot.label} · ${senderAlias(slot.p)}` : `${slot.label} · —`}
+                                                                </Text>
                                                             </View>
-                                                            {p.skillRating != null && (
-                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, p.skillRating)}</Text>
+                                                            {slot.filled && slot.p.skillRating != null && (
+                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, slot.p.skillRating)}</Text>
                                                             )}
                                                         </View>
                                                     </View>
@@ -7645,8 +7847,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             myId={myId}
                             positionSuggestions={Array.isArray(match.positionSuggestions) ? match.positionSuggestions : []}
                             t={t}
-                            onAssign={(userId, side, manualName) => {
-                                api.patch(`/rivals/${match.id}/assign-player`, userId ? { userId, side } : { manualName, side })
+                            onAssign={(userId, side, manualName, slotIndex) => {
+                                api.patch(`/rivals/${match.id}/assign-player`, userId ? { userId, side, slotIndex } : { manualName, side, slotIndex })
                                     .then(() => onRefresh())
                                     .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
                             }}
@@ -9084,13 +9286,12 @@ function SlotActionSheet({ visible, title, actions, onClose }) {
 // kutularıyla aynı desen).
 function MiniDropdown({ visible, options, value, onSelect, onClose, minWidth }) {
     if (!visible) return null;
-    // Sabit maxHeight:170, 6 seçenekli listelerde (Takım Büyüklüğü, Yedek Sayısı) son
-    // 1-2 satırı kırpıyordu ve iç içe ScrollView bazı cihazlarda kaydırmayı almıyordu —
-    // liste kısaysa (≤7 satır) hiç kaydırma gerekmeyecek şekilde tam yükseklik veriliyor,
-    // uzun listelerde (öneri vb.) yine 220'de sınırlanıp kaydırılıyor.
-    const rowH = 32;
+    // Satır ~48px: 32px'de (padding 7 + font 12) Antrenman/Rekabetçi/1v1/6v6 seçeneklerine
+    // parmak değmiyordu. maxHeight de 6-7 satır (voleybol 1v1–6v6) kaydırmasız sığsın diye
+    // 220'den yükseltildi — iç içe ScrollView bazı cihazlarda kaydırmayı almıyordu.
+    const rowH = 48;
     const fullH = options.length * rowH + 2;
-    const maxH = Math.min(fullH, 220);
+    const maxH = Math.min(fullH, 340);
     // minWidth verilirse right:0 KULLANILMAZ — tetikleyici kutu dar (ör. "Mod Seç" placeholder'ı
     // kısa) olsa bile liste kendi metnine (ör. "Rekabetçi") göre genişleyebilsin diye; aksi halde
     // dar tetikleyicinin genişliğine sıkışıp metin alt satıra kayıyordu.
@@ -9099,9 +9300,9 @@ function MiniDropdown({ visible, options, value, onSelect, onClose, minWidth }) 
             <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} scrollEnabled={fullH > maxH}>
                 {options.map(o => (
                     <TouchableOpacity key={o.value} onPress={() => { onSelect(o.value); onClose(); }}
-                        style={{ paddingVertical:7, paddingHorizontal:10, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth:1, borderBottomColor: colors.border }}>
-                        <Text style={{ color: value === o.value ? '#fff' : colors.textSecondary, fontSize:12, fontWeight: value === o.value ? '800' : '600' }} numberOfLines={1}>{o.label}</Text>
-                        {value === o.value && <Text style={{ color: colors.purple, fontSize:12, marginLeft:6 }}>✓</Text>}
+                        style={{ minHeight:48, paddingVertical:12, paddingHorizontal:14, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth:1, borderBottomColor: colors.border }}>
+                        <Text style={{ color: value === o.value ? '#fff' : colors.textSecondary, fontSize:15, fontWeight: value === o.value ? '800' : '600' }} numberOfLines={1}>{o.label}</Text>
+                        {value === o.value && <Text style={{ color: colors.purple, fontSize:15, marginLeft:8 }}>✓</Text>}
                     </TouchableOpacity>
                 ))}
             </ScrollView>
@@ -11262,6 +11463,14 @@ function MatchStatsSection({ stats, iAmFounderSide, founderLabel, opponentLabel,
                 </Group>
             )}
 
+            {stats.lineCalls && stats.lineCalls.total > 0 && (
+                <Group title={t.statLineCalls} accent="#eab308">
+                    <StatTile label={t.statLineCallsIn} value={stats.lineCalls.in} accent="#22c55e" />
+                    <StatTile label={t.statLineCallsOut} value={stats.lineCalls.out} accent="#ef4444" />
+                    <StatTile label={t.statLineCallsTotal} value={stats.lineCalls.total} accent="#eab308" />
+                </Group>
+            )}
+
             {stats.workout && (
                 <Group title={t.statWorkout} accent="#ef4444">
                     {stats.workout.avgHeartRate != null && <StatTile label={t.statAvgHeartRate} value={`${stats.workout.avgHeartRate} bpm`} accent="#ef4444" />}
@@ -12277,17 +12486,41 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
             return { visible: true, title: name, actions };
         }
         if (side == null) {
-            // Atanmamış oyuncu — kullanıcı isteği: "Kurucu Takıma Ata"/"Rakip Takıma Ata" iki
-            // ayrı buton yerine tek "Takıma Ata" dokunuşuyla açılan bu seçenek listesi (isim
-            // değiştirildiyse gerçek takım ismiyle gösterilir). Dolu takım hiç çıkmaz.
-            if (!founderFull) actions.push({ label: `${founderTeamName || t.founderTeamShortLabel}'e Ata`, onPress: () => onAssign(p.id, 'my', p.id ? undefined : p.manualName) });
-            if (!oppFull) actions.push({ label: `${opponentTeamName || t.opponentTeamShortLabel}'ye Ata`, onPress: () => onAssign(p.id, 'opp', p.id ? undefined : p.manualName) });
+            // Atanmamış oyuncu — takım adına değil BOŞ FORMANIN numarasına ata. Aksi halde
+            // push ilk boş olmayan sıraya kaydırıp (ör. 3. kadın slota yazılan Elif 2.'ye
+            // düşüyor) sonraki erkek oyuncuyu sıkıştırıyordu.
+            const founderName = founderTeamName || t.founderTeamShortLabel;
+            const oppName = opponentTeamName || t.opponentTeamShortLabel;
+            for (let i = 1; i < teamSize; i++) {
+                const occupied = founderPlayers[i] && (founderPlayers[i].id || founderPlayers[i].manualName);
+                if (!occupied) {
+                    actions.push({ label: `${founderName} · ${t.teamSlotPh(i + 1)}`, onPress: () => onAssign(p.id, 'my', p.id ? undefined : p.manualName, i) });
+                }
+            }
+            for (let i = 0; i < teamSize; i++) {
+                const occupied = oppPlayers[i] && (oppPlayers[i].id || oppPlayers[i].manualName);
+                if (!occupied) {
+                    actions.push({ label: `${oppName} · ${t.teamSlotPh(i + 1)}`, onPress: () => onAssign(p.id, 'opp', p.id ? undefined : p.manualName, i) });
+                }
+            }
         } else {
             const oppositeSide = side === 'my' ? 'opp' : 'my';
             const oppositeFull = oppositeSide === 'my' ? founderFull : oppFull;
             const oppositeLabel = oppositeSide === 'my' ? (founderTeamName || t.founderTeamShortLabel) : (opponentTeamName || t.opponentTeamShortLabel);
             if (!oppositeFull) {
-                actions.push({ label: `${oppositeLabel}'a Taşı`, onPress: () => onAssign(p.id, oppositeSide, p.id ? undefined : p.manualName) });
+                if (oppositeSide === 'my') {
+                    for (let i = 1; i < teamSize; i++) {
+                        if (!rosterFilled(founderPlayers[i])) {
+                            actions.push({ label: `${oppositeLabel} · ${t.teamSlotPh(i + 1)}`, onPress: () => onAssign(p.id, 'my', p.id ? undefined : p.manualName, i) });
+                        }
+                    }
+                } else {
+                    for (let i = 0; i < teamSize; i++) {
+                        if (!rosterFilled(oppPlayers[i])) {
+                            actions.push({ label: `${oppositeLabel} · ${t.teamSlotPh(i + 1)}`, onPress: () => onAssign(p.id, 'opp', p.id ? undefined : p.manualName, i) });
+                        }
+                    }
+                }
             } else if (onSwap) {
                 // Kullanıcı isteği: karşı taraf doluyken atanmamışa atıp sonra yeniden dağıtmakla
                 // uğraşmak yerine, doğrudan karşı taraftaki bir oyuncuyla yer değiştirilebilsin.
@@ -13880,7 +14113,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         dallarda (SIMPLIFIED_FEE_SUBS) anlamsız, tamamen gizlenir. */}
                                     {!SIMPLIFIED_FEE_SUBS.has(sub) && (
                                     <View style={{ flexDirection:'row', flexWrap:'nowrap', gap:1, marginBottom:8 }}>
-                                        <View style={[s.triBtn, { flex:1, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'mode' ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
+                                        <View style={[s.triBtn, { flex:1, height:36, justifyContent:'center', position:'relative', zIndex: activePopup === 'mode' ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
                                             <TouchableOpacity onPress={() => toggleActivePopup('mode')}>
                                                 <Text style={[s.triValue, { fontSize:11 }, !f.matchMode && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                                                     {f.matchMode ? noEmoji(f.matchMode === 'BOTH' ? t.bothMode : f.matchMode === 'COMPETITIVE' ? t.competitiveMode : t.practiceMode) : `${t.modLabel} ${t.courtSurfaceSelectPlaceholder}`}
@@ -13893,7 +14126,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 satırında. Eski chip mantığı (tenis/padelde ikinciye dokununca BOTH'a
                                                 birleşme) hiç değişmeden, sadece her satır artık alt alta. */}
                                             {activePopup === 'mode' && (
-                                                <View style={{ position:'absolute', top:'100%', left:0, minWidth:120, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, overflow:'hidden' }}>
+                                                <View style={{ position:'absolute', top:'100%', left:0, minWidth:168, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, overflow:'hidden' }}>
                                                     {((sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis') ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map((mode, mi, arr) => {
                                                         const isActive = (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis')
                                                             ? (f.matchMode === mode || f.matchMode === 'BOTH')
@@ -13916,25 +14149,25 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         };
                                                         return (
                                                             <TouchableOpacity key={mode} onPress={handleModePress}
-                                                                style={{ paddingVertical:7, paddingHorizontal:10, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth: mi < arr.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
-                                                                <Text style={{ color: isActive ? '#fff' : colors.textSecondary, fontSize:12, fontWeight: isActive ? '800' : '600' }} numberOfLines={1}>
+                                                                style={{ minHeight:48, paddingVertical:12, paddingHorizontal:14, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth: mi < arr.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+                                                                <Text style={{ color: isActive ? '#fff' : colors.textSecondary, fontSize:15, fontWeight: isActive ? '800' : '600' }} numberOfLines={1}>
                                                                     {noEmoji(mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode)}
                                                                 </Text>
-                                                                {isActive && <Text style={{ color: colors.purple, fontSize:12, marginLeft:6 }}>✓</Text>}
+                                                                {isActive && <Text style={{ color: colors.purple, fontSize:15, marginLeft:8 }}>✓</Text>}
                                                             </TouchableOpacity>
                                                         );
                                                     })}
                                                 </View>
                                             )}
                                         </View>
-                                        <View style={[s.triBtn, { flex:1, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'format' ? 51 : 1 }, f.matchType && s.triBtnFilled]}>
+                                        <View style={[s.triBtn, { flex:1, height:36, justifyContent:'center', position:'relative', zIndex: activePopup === 'format' ? 51 : 1 }, f.matchType && s.triBtnFilled]}>
                                             <TouchableOpacity onPress={() => toggleActivePopup('format')}>
                                                 <Text style={[s.triValue, { fontSize:11 }, !f.matchType && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                                                     {f.matchType ? (f.matchType === 'DOUBLE' ? t.doubleFormat : t.singleFormat) : `${t.formatLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                 </Text>
                                             </TouchableOpacity>
                                             {activePopup === 'format' && (
-                                                <View style={{ position:'absolute', top:'100%', left:0, minWidth:120, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, overflow:'hidden' }}>
+                                                <View style={{ position:'absolute', top:'100%', left:0, minWidth:168, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, overflow:'hidden' }}>
                                                     {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map((fmt, fi, arr) => (
                                                         <TouchableOpacity key={fmt.id} onPress={() => {
                                                             setActivePopup(null);
@@ -13975,9 +14208,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             }));
                                                         }}
                                                             disabled={editHasParticipants}
-                                                            style={{ paddingVertical:7, paddingHorizontal:10, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth: fi < arr.length - 1 ? 1 : 0, borderBottomColor: colors.border, opacity: editHasParticipants ? 0.5 : 1 }}>
-                                                            <Text style={{ color: f.matchType===fmt.id ? '#fff' : colors.textSecondary, fontSize:12, fontWeight: f.matchType===fmt.id ? '800' : '600' }} numberOfLines={1}>{fmt.label}</Text>
-                                                            {f.matchType===fmt.id && <Text style={{ color: colors.purple, fontSize:12, marginLeft:6 }}>✓</Text>}
+                                                            style={{ minHeight:48, paddingVertical:12, paddingHorizontal:14, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth: fi < arr.length - 1 ? 1 : 0, borderBottomColor: colors.border, opacity: editHasParticipants ? 0.5 : 1 }}>
+                                                            <Text style={{ color: f.matchType===fmt.id ? '#fff' : colors.textSecondary, fontSize:15, fontWeight: f.matchType===fmt.id ? '800' : '600' }} numberOfLines={1}>{fmt.label}</Text>
+                                                            {f.matchType===fmt.id && <Text style={{ color: colors.purple, fontSize:15, marginLeft:8 }}>✓</Text>}
                                                         </TouchableOpacity>
                                                     ))}
                                                 </View>
@@ -13992,7 +14225,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             const showSplit = f.ratingGenderSplit && !(f.matchType === 'SINGLE' && f.genderReq && f.genderReq !== 'MIX') && !isUniformGenderDouble;
                                             return (
                                                 <TouchableOpacity
-                                                    style={[s.triBtn, { flex:1, height:30, justifyContent:'center', paddingHorizontal:6 }, ((showSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]}
+                                                    style={[s.triBtn, { flex:1, height:36, justifyContent:'center', paddingHorizontal:6 }, ((showSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]}
                                                     onPress={() => setShowRatingRange(true)}>
                                                     <Text style={[s.triValue, { fontSize:11 }, ((showSplit ? !(f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : !(f.minRating || f.maxRating)) && s.triPlaceholder)]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                                                         {showSplit
@@ -14021,7 +14254,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     ]
                                                 );
                                             }}
-                                            style={[s.triBtn, { flex:0, width:40, height:30, justifyContent:'center', marginLeft:'auto' }, f.participantsCanInvite && { borderColor:'#22c55e70', backgroundColor:'#22c55e20' }]}
+                                            style={[s.triBtn, { flex:0, width:42, height:36, justifyContent:'center', marginLeft:'auto' }, f.participantsCanInvite && { borderColor:'#22c55e70', backgroundColor:'#22c55e20' }]}
                                         >
                                             <Text style={{ fontSize:14 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
                                         </TouchableOpacity>
@@ -14084,7 +14317,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             set('matchMode', mode);
                                                             setActivePopup(null);
                                                         }}
-                                                            style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isVolleyball && { flex:1, height:30, alignItems:'center', justifyContent:'center', paddingHorizontal:6 }, isActive && {
+                                                            style={[s.chipBtn, { paddingHorizontal:0, paddingVertical:0 }, isVolleyball && { flex:1, height:36, alignItems:'center', justifyContent:'center', paddingHorizontal:6 }, isActive && {
                                                                 backgroundColor: mode==='COMPETITIVE' ? '#dc262620' : mode==='BOTH' ? '#a855f720' : '#2563eb20',
                                                                 borderColor:     mode==='COMPETITIVE' ? '#dc2626'   : mode==='BOTH' ? '#a855f7'   : '#2563eb',
                                                             }]}>
@@ -14111,12 +14344,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         // genişliyor (flex:0). Sığmayan kutular flexWrap ile alt satıra kayar.
                                         return (
                                             <View style={[s.triRow, { flexWrap:'wrap', gap:1, marginBottom:10, alignItems:'flex-start' }]}>
-                                                <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center' }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
+                                                <TouchableOpacity style={[s.triBtn, { flex:0, height:36, justifyContent:'center' }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
                                                     <Text style={[s.triValue, { fontSize:11 }, !f.surface && s.triPlaceholder]} numberOfLines={1}>
                                                         {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : `${t.volleyballTypeLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                     </Text>
                                                 </TouchableOpacity>
-                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'volleyballMod' ? 51 : 1, elevation: activePopup === 'volleyballMod' ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
+                                                <View style={[s.triBtn, { flex:0, height:36, justifyContent:'center', position:'relative', zIndex: activePopup === 'volleyballMod' ? 51 : 1, elevation: activePopup === 'volleyballMod' ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
                                                     <TouchableOpacity onPress={() => toggleActivePopup('volleyballMod')}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.matchMode && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.matchMode ? noEmoji(f.matchMode === 'COMPETITIVE' ? t.competitiveMode : t.practiceMode) : `${t.modLabel} ${t.courtSurfaceSelectPlaceholder}`}
@@ -14124,7 +14357,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </TouchableOpacity>
                                                     <MiniDropdown
                                                         visible={activePopup === 'volleyballMod'}
-                                                        minWidth={110}
+                                                        minWidth={168}
                                                         options={[
                                                             { value: 'PRACTICE', label: noEmoji(t.practiceMode) },
                                                             { value: 'COMPETITIVE', label: noEmoji(t.competitiveMode) },
@@ -14137,7 +14370,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         onClose={() => setActivePopup(null)}
                                                     />
                                                 </View>
-                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'teamSize' ? 51 : 1, elevation: activePopup === 'teamSize' ? 51 : 1 }]}>
+                                                <View style={[s.triBtn, { flex:0, height:36, justifyContent:'center', position:'relative', zIndex: activePopup === 'teamSize' ? 51 : 1, elevation: activePopup === 'teamSize' ? 51 : 1 }]}>
                                                     <TouchableOpacity onPress={() => toggleActivePopup('teamSize')}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.teamSize && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.teamSize ? `${f.teamSize}v${f.teamSize}` : `${t.teamSizeLabel} ${t.courtSurfaceSelectPlaceholder}`}
@@ -14145,7 +14378,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </TouchableOpacity>
                                                     <MiniDropdown
                                                         visible={activePopup === 'teamSize'}
-                                                        minWidth={70}
+                                                        minWidth={100}
                                                         options={VOLLEYBALL_SIZES.map(n => ({ value: n, label: `${n}v${n}` }))}
                                                         value={f.teamSize}
                                                         onSelect={(v) => setTeamSize(v)}
@@ -14158,7 +14391,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     kurulduktan sonraki bir kural) — kullanıcı isteğiyle Takım Büyüklüğü
                                                     seçilene kadar hiçbiri gösterilmiyor. */}
                                                 {!!f.teamSize && (
-                                                <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: activePopup === 'subCount' ? 51 : 1, elevation: activePopup === 'subCount' ? 51 : 1 }]}>
+                                                <View style={[s.triBtn, { flex:0, height:36, justifyContent:'center', position:'relative', zIndex: activePopup === 'subCount' ? 51 : 1, elevation: activePopup === 'subCount' ? 51 : 1 }]}>
                                                     <TouchableOpacity onPress={() => toggleActivePopup('subCount')}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.subCount && s.triPlaceholder]} numberOfLines={1}>
                                                             {f.subCount ? String(f.subCount) : `${t.subCountLabel} ${t.courtSurfaceSelectPlaceholder}`}
@@ -14166,7 +14399,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </TouchableOpacity>
                                                     <MiniDropdown
                                                         visible={activePopup === 'subCount'}
-                                                        minWidth={60}
+                                                        minWidth={80}
                                                         options={[0, 1, 2, 3, 4, 5].map(n => ({ value: n, label: String(n) }))}
                                                         value={f.subCount}
                                                         onSelect={(v) => setSubCount(v)}
@@ -14175,7 +14408,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </View>
                                                 )}
                                                 {!!f.teamSize && (
-                                                    <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', position:'relative', zIndex: showGenderCountPicker ? 51 : 1 }]}>
+                                                    <View style={[s.triBtn, { flex:0, height:36, justifyContent:'center', position:'relative', zIndex: showGenderCountPicker ? 51 : 1 }]}>
                                                         <TouchableOpacity onPress={openGenderCountPicker}>
                                                             <Text style={[s.triValue, { fontSize:11 }, genderCountBtnLabel == null && s.triPlaceholder]} numberOfLines={1}>
                                                                 {genderCountBtnLabel != null ? genderCountBtnLabel : `${t.genderCountLabel} ${t.courtSurfaceSelectPlaceholder}`}
@@ -14194,7 +14427,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     </View>
                                                 )}
                                                 {!!f.teamSize && (
-                                                <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center' }, ((f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]} onPress={() => setShowRatingRange(true)}>
+                                                <TouchableOpacity style={[s.triBtn, { flex:0, height:36, justifyContent:'center' }, ((f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) && s.triBtnFilled)]} onPress={() => setShowRatingRange(true)}>
                                                     <Text style={[s.triValue, { fontSize:11 }, ((f.ratingGenderSplit ? !(f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : !(f.minRating || f.maxRating)) && s.triPlaceholder)]} numberOfLines={1}>
                                                         {f.ratingGenderSplit
                                                             ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '5'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '5'}`
@@ -14203,7 +14436,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 </TouchableOpacity>
                                                 )}
                                                 {!!f.teamSize && !isMatchedEdit && (
-                                                    <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center' }, f.cancelPenaltyHours !== '' && s.triBtnFilled]}
+                                                    <TouchableOpacity style={[s.triBtn, { flex:0, height:36, justifyContent:'center' }, f.cancelPenaltyHours !== '' && s.triBtnFilled]}
                                                         onPress={() => {
                                                             const presets = [1,2,3,4,5,6,7,8,9,10,12,24,30,36,48].map(String);
                                                             setCancelPenaltyManualText(f.cancelPenaltyHours && !presets.includes(f.cancelPenaltyHours) ? f.cancelPenaltyHours : '');
@@ -14231,7 +14464,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             ]
                                                         );
                                                     }}
-                                                    style={[s.triBtn, { flex:0, width:40, height:30, justifyContent:'center' }, f.participantsCanInvite && { borderColor:'#22c55e70', backgroundColor:'#22c55e20' }]}
+                                                    style={[s.triBtn, { flex:0, width:42, height:36, justifyContent:'center' }, f.participantsCanInvite && { borderColor:'#22c55e70', backgroundColor:'#22c55e20' }]}
                                                 >
                                                     <Text style={{ fontSize:14 }}>{f.participantsCanInvite ? '🔓' : '🔒'}</Text>
                                                 </TouchableOpacity>
@@ -14783,18 +15016,18 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             zaten kortun kendi bilgisinden otomatik doluyor (bkz. selectCourt), burada
                                             sadece gerekirse düzeltmek için duruyor. */}
                                         {(f.selectedCourt || f.showManualCourt) && (isVolleyball ? null : isPadel ? (
-                                            <View style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6 }]}>
+                                            <View style={[s.triBtn, { flex:0, height:36, justifyContent:'center', paddingHorizontal:6 }]}>
                                                 <Text style={[s.triValue, { fontSize:11 }]} numberOfLines={1}>Suni Çim</Text>
                                             </View>
                                         ) : (
-                                            <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6 }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
+                                            <TouchableOpacity style={[s.triBtn, { flex:0, height:36, justifyContent:'center', paddingHorizontal:6 }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
                                                 <Text style={[s.triValue, { fontSize:11 }, !f.surface && s.triPlaceholder]} numberOfLines={1}>
                                                     {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : `${t.surfaceLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                 </Text>
                                             </TouchableOpacity>
                                         ))}
                                         {!isVolleyball && (f.selectedCourt || f.showManualCourt) && (
-                                            <TouchableOpacity style={[s.triBtn, { flex:0, height:30, justifyContent:'center', paddingHorizontal:6 }, f.venueType && s.triBtnFilled]} onPress={() => setShowVenueTypePicker(true)}>
+                                            <TouchableOpacity style={[s.triBtn, { flex:0, height:36, justifyContent:'center', paddingHorizontal:6 }, f.venueType && s.triBtnFilled]} onPress={() => setShowVenueTypePicker(true)}>
                                                 <Text style={[s.triValue, { fontSize:11 }, !f.venueType && s.triPlaceholder]} numberOfLines={1}>
                                                     {f.venueType ? noEmoji((isPadel ? { OUTDOOR:t.outdoor, INDOOR:t.indoor, INDOOR_AC:t.indoorAc } : { OUTDOOR:t.outdoor, INDOOR:t.indoor })[f.venueType] || '') : `${t.venueLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                 </Text>
@@ -20539,7 +20772,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId, inviteSide, inviteSlotIndex, inviteDoubleSlot, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
             openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor,
-            openEquipmentId, initialCoachSubTab, openCoachId, initialArchiveSubTab, openArchiveTournamentId, autoOpenOrder } = route.params;
+            openEquipmentId, initialCoachSubTab, openCoachId, initialArchiveSubTab, openArchiveTournamentId, autoOpenOrder, initialDateFilter } = route.params;
     const dispatch = useDispatch();
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
@@ -21079,7 +21312,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [tabFilterVenueName, setTabFilterVenueName] = useState({});
     const [tabFilterVenueNames, setTabFilterVenueNames] = useState({});
     const [tabFilterVolleyballType, setTabFilterVolleyballType] = useState({});
-    const [tabFilterDate, setTabFilterDate] = useState({});
+    const [tabFilterDate, setTabFilterDate] = useState(
+        initialDateFilter === 'today' ? { rivals: 'today', player_wanted: 'today' } : {}
+    );
     const [tabFilterDateFrom, setTabFilterDateFrom] = useState({});
     const [tabFilterDateTo, setTabFilterDateTo] = useState({});
 
@@ -24086,12 +24321,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                 )}
             </View>
 
-            {/* Tabs */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={s.tabBarInner}>
+            {/* Tüm sekmeler tek yatay şerit — "Daha fazla" yok. */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={[s.tabBarInner, NEW_VISUAL && s.tabBarInnerCompact]}>
                 {tabs.map(tab => (
                     <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)}
-                        style={[s.tab, activeTab===tab && { backgroundColor: cfg.color, borderColor: cfg.color }]}>
-                        <Text style={[s.tabText, activeTab===tab && s.tabTextActive]}>{tabLabel(tab)}</Text>
+                        style={[s.tab, NEW_VISUAL && s.tabCompact, activeTab===tab && { backgroundColor: cfg.color, borderColor: cfg.color }]}>
+                        <Text style={[s.tabText, NEW_VISUAL && s.tabTextCompact, activeTab===tab && s.tabTextActive]}>{tabLabel(tab)}</Text>
                     </TouchableOpacity>
                 ))}
             </ScrollView>
@@ -24133,7 +24368,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 (filteredRivals.length === 0 && upcomingNeedingSubs.length === 0)
                                     ? <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />
                                     : (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'flex-start' }}>
                                             {filteredRivals.map(item => (
                                                 <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} refereeListings={refereeListings} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
@@ -24143,9 +24378,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 (matchHasStarted) bu listeden otomatik çıkıp Oynanan Maçlar'a geçer — yedeksiz
                                                 kalması maçın iptaline yol açmaz. */}
                                             {upcomingNeedingSubs.map(m => (
-                                                <View key={m.id} style={{ width:'48.5%' }}>
-                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
-                                                </View>
+                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
                                         </View>
                                     )
@@ -24164,11 +24397,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Text>
                                     </TouchableOpacity>
                                     {upcomingExpanded && (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, alignItems:'flex-start' }}>
                                             {upcomingSubsFull.map(m => (
-                                                <View key={m.id} style={{ width:'48.5%' }}>
-                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
-                                                </View>
+                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
                                         </View>
                                     )}
@@ -24188,11 +24419,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Text>
                                     </TouchableOpacity>
                                     {playingExpanded && (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, alignItems:'flex-start' }}>
                                             {playingMatches.map(m => (
-                                                <View key={m.id} style={{ width:'48.5%' }}>
-                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
-                                                </View>
+                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
                                         </View>
                                     )}
@@ -24212,11 +24441,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Text>
                                     </TouchableOpacity>
                                     {pendingScoreExpanded && (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, alignItems:'flex-start' }}>
                                             {pendingScoreAll.map(m => (
-                                                <View key={m.id} style={{ width:'48.5%' }}>
-                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
-                                                </View>
+                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
                                         </View>
                                     )}
@@ -24239,11 +24466,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Animated.Text>
                                     </TouchableOpacity>
                                     {scoreConfirmExpanded && (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, alignItems:'flex-start' }}>
                                             {scoreConfirmPendingMatches.map(m => (
-                                                <View key={m.id} style={{ width:'48.5%' }}>
-                                                    <UpcomingCard match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
-                                                </View>
+                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
                                         </View>
                                     )}
@@ -24281,7 +24506,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {playerWanted.length === 0
                                 ? <EmptyState emoji="👤" text={sub === 'volleyball' ? t.emptyOpponentWanted : t.emptyPlayerWanted} />
                                 : (
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'flex-start' }}>
                                         {playerWanted.map(item => (
                                             <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} />
                                         ))}
@@ -25048,7 +25273,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {refereeMatches.length === 0
                                         ? <EmptyState emoji="🟨" text={t.emptyRefereeMatches} />
                                         : (
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'flex-start' }}>
                                                 {refereeMatches.map(item => (
                                                     <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
                                                 ))}
@@ -28693,8 +28918,11 @@ const s = StyleSheet.create({
 
     tabBar:           { flexGrow:0, marginBottom:3 },
     tabBarInner:      { paddingHorizontal:13, gap:3 },
+    tabBarInnerCompact:{ paddingHorizontal:16, gap:6, paddingBottom:2 },
     tab:              { paddingHorizontal:11, paddingTop:4, paddingBottom:8, borderRadius:20, backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
+    tabCompact:       { paddingHorizontal:9, paddingTop:3, paddingBottom:5, borderRadius:14 },
     tabText:          { color: colors.textSecondary, fontSize:12, fontWeight:'700', lineHeight:20, includeFontPadding: false },
+    tabTextCompact:   { fontSize:11, lineHeight:16 },
     tabTextActive:    { color:'#fff' },
 
     list:             { paddingHorizontal:1, gap:3, paddingBottom:57 },
@@ -28721,7 +28949,7 @@ const s = StyleSheet.create({
     emptyEmoji:       { fontSize:48, marginBottom:12 },
     emptyText:        { color: colors.textSecondary, fontSize:15, fontWeight:'600' },
     emptyBtn:         { marginTop:16, backgroundColor: colors.purple, borderRadius:12, paddingHorizontal:17, paddingVertical:7 },
-    emptyBtnText:     { color:'#fff', fontWeight:'700' },
+    emptyBtnText:     { color: colors.ctaText, fontWeight:'700' },
 
     card:             { backgroundColor: colors.surface, borderRadius:14, paddingHorizontal:7, paddingTop:5, paddingBottom:5, borderWidth:1, borderColor: colors.border, overflow:'hidden' },
     cardHeader:       { flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:2 },
@@ -28796,11 +29024,11 @@ const s = StyleSheet.create({
     refQChip:         { color: colors.textSecondary, fontSize:11, backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor: colors.border },
     compactLocInput:  { height:32, paddingVertical:0, paddingHorizontal:7, fontSize:11, marginBottom:0, borderRadius:8 },
     chipRow:          { flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:14 },
-    chipBtn:          { paddingHorizontal:7, paddingVertical:3, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    chipBtn:          { paddingHorizontal:9, paddingVertical:6, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
     chipBtnActive:    { backgroundColor: colors.purple, borderColor: colors.purple },
     chipBtnText:      { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
     chipBtnTextActive:{ color:'#fff' },
-    compactSelectBtn: { height:30, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, paddingHorizontal:6, alignItems:'center', justifyContent:'center' },
+    compactSelectBtn: { height:36, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, paddingHorizontal:6, alignItems:'center', justifyContent:'center' },
     compactSelectText:{ color:'#fff', fontSize:11, fontWeight:'700' },
     submitBtn:        { backgroundColor: colors.purple, borderRadius:14, paddingVertical:11, alignItems:'center', marginTop:8 },
     submitBtnText:    { color:'#fff', fontWeight:'800', fontSize:15 },
@@ -28845,7 +29073,7 @@ const s = StyleSheet.create({
     checkLabel:       { color: colors.textSecondary, fontSize:13, fontWeight:'600' },
 
     triRow:           { flexDirection:'row', gap:3, marginBottom:12 },
-    triBtn:           { flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:4, paddingHorizontal:5, borderWidth:1, borderColor: colors.border, alignItems:'center' },
+    triBtn:           { flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:7, paddingHorizontal:6, borderWidth:1, borderColor: colors.border, alignItems:'center' },
     triBtnFilled:     { borderColor: colors.purple+'80' },
     triLabel:         { color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:2 },
     triValue:         { color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center' },

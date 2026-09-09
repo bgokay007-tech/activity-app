@@ -1,0 +1,26 @@
+---
+description: Kullanıcı her mobil değişikliği telefonda anında görmek ister. Metro yetmezse EAS Update bas.
+alwaysApply: true
+---
+
+# Canlı görünüm (telefonda anında)
+
+Kurulu APK çoğu zaman **preview/release** — Metro’ya bağlanmaz, Expo OTA paketini açar.
+Ekran hâlâ eski ızgara/futbol sahasıysa Metro bağlı değildir; `eas update` şart.
+
+## Her `mobile/` UI işinde
+
+1. Metro (CI yok): `cd mobile && npx expo start --dev-client --tunnel --port 8081`
+2. Telefona gerçekten gitsin diye hemen:
+
+```bash
+cd mobile
+$env:EAS_SKIP_AUTO_FINGERPRINT='1'
+npx eas-cli update --channel development --message "kisa TR mesaj" --non-interactive
+npx eas-cli update --channel preview --message "kisa TR mesaj" --non-interactive
+```
+
+Kullanıcıya: uygulamayı **normal aç**, 10 sn bekle, Ana Ekran’a çık, geri gir. Durmaya zorlama.
+
+Mobil paket için `git push` / GitHub Action’a güvenme — Action düşer, OTA çıkmaz; `eas update` şart.
+Backend canlısı için `main`’e push şart (`canli-push.mdc`) — sormadan yap.

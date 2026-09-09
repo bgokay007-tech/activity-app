@@ -525,6 +525,36 @@ function setAtFounderSlot(senderTeamArr, peoplePositionalIndex, value) {
     return setAtSlot(senderTeamArr, idx, value);
 }
 
+function hasRosterSlot(p) {
+    return !!(p && (p.id || p.manualName));
+}
+
+// Boş forma (null) ve kayıtsız {manualName} slotlarını silme — filter(p => p?.id)
+// [null, Elif] → [Elif] yapıp Kadın/Katılımcı 3'ü Katılımcı 2 gibi gösteriyordu.
+function mapRosterPreserveSlots(arr, mapFilled) {
+    return (Array.isArray(arr) ? arr : []).map(p => (p?.id ? mapFilled(p) : (p ?? null)));
+}
+
+function firstEmptyRosterIndex(arr, size) {
+    for (let i = 0; i < size; i++) {
+        if (!hasRosterSlot(arr[i])) return i;
+    }
+    return null;
+}
+
+// JSON body'si slotIndex'i bazen "2" string olarak yollar — Number.isInteger("2")
+// false olduğu için ilk boş formaya düşülüyordu (Elif 3 seçilince 2'ye yazılması).
+function parseSlotIndex(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const n = typeof value === 'number' ? value : Number(value);
+    return Number.isInteger(n) ? n : null;
+}
+
+function padRoster(arr, size) {
+    const src = Array.isArray(arr) ? arr : [];
+    return Array.from({ length: Math.max(0, size) }, (_, i) => src[i] ?? null);
+}
+
 // İlan oluştururken kurucu/rakip/yedek/atanmamış için girilen manuel (uygulamayı kullanmayan)
 // isimler eskiden düz metin diziydi (cinsiyetsiz) — artık {name, gender} nesnesi de kabul
 // ediliyor (Antrenman modunda manuel oyuncu eklerken cinsiyet seçimi zorunlu, bkz. mobil
@@ -4847,12 +4877,12 @@ export const getUpcomingMatches = async (req, res, next) => {
                 ...m,
                 senderSkillRating: ratingFor(m.senderId, m.subCategory, mIsDoubles),
                 senderAlias: interests.find(i => i.userId === m.senderId && i.subCategory === m.subCategory)?.alias || null,
-                participants: (Array.isArray(m.participants) ? m.participants : []).filter(p => p?.id).map(p => ({
+                participants: mapRosterPreserveSlots(m.participants, p => ({
                     ...p,
                     skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
                     alias: p.alias || interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.alias || null,
                 })),
-                senderTeam: (Array.isArray(m.senderTeam) ? m.senderTeam : []).filter(p => p?.id).map(p => ({
+                senderTeam: mapRosterPreserveSlots(m.senderTeam, p => ({
                     ...p,
                     skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
                     alias: p.alias || interests.find(i => i.userId === p.id && i.subCategory === m.subCategory)?.alias || null,
@@ -5878,10 +5908,10 @@ export const getCompletedMatches = async (req, res, next) => {
                 return {
                     ...m,
                     senderSkillRating: ratingFor(m.senderId, m.subCategory, mIsDoubles),
-                    participants: (Array.isArray(m.participants) ? m.participants : []).filter(p => p?.id).map(p => ({
+                    participants: mapRosterPreserveSlots(m.participants, p => ({
                         ...p, skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
                     })),
-                    senderTeam: (Array.isArray(m.senderTeam) ? m.senderTeam : []).filter(p => p?.id).map(p => ({
+                    senderTeam: mapRosterPreserveSlots(m.senderTeam, p => ({
                         ...p, skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
                     })),
                     substitutePlayers: (Array.isArray(m.substitutePlayers) ? m.substitutePlayers : []).map(p => p?.id ? ({
@@ -6035,74 +6065,93 @@ export const assignPlayerToSide = async (req, res, next) => {
         // kişiler için — önceden sadece userId destekleniyordu, "Atanmamış" listesindeki
         // manuel isimlere dokununca hiçbir şey olmuyordu (kullanıcı raporu).
         const { userId, manualName, side } = req.body;
+        const slotIndex = parseSlotIndex(req.body.slotIndex);
         if (![null, 'my', 'opp'].includes(side)) return res.status(400).json({ message: 'Geçersiz taraf' });
         if (!userId && !manualName) return res.status(400).json({ message: 'Oyuncu belirtilmedi' });
 
-        const rival = await prisma.activityRequest.findUnique({ where: { id } });
-        if (!rival) return res.status(404).json({ message: 'İlan bulunamadı' });
-        if (rival.senderId !== req.userId) return res.status(403).json({ message: 'Sadece ilan sahibi oyuncu atayabilir' });
-        if (!['volleyball', 'airsoft'].includes(rival.subCategory) || (rival.teamSize || 1) <= 1) {
-            return res.status(400).json({ message: 'Bu işlem sadece takım maçlarında yapılabilir' });
-        }
-        if (userId && userId === rival.senderId) return res.status(400).json({ message: 'İlan sahibi taşınamaz' });
+        let rival;
+        let nextSenderTeam;
+        let nextParticipants;
+        let nextUnassigned;
+        let player;
+        let updatedRaw;
+        let attempt = 0;
+        while (true) {
+            attempt++;
+            try {
+                updatedRaw = await prisma.$transaction(async (tx) => {
+                    rival = await tx.activityRequest.findUnique({ where: { id } });
+                    if (!rival) { const e = new Error('İlan bulunamadı'); e.status = 404; throw e; }
+                    if (rival.senderId !== req.userId) { const e = new Error('Sadece ilan sahibi oyuncu atayabilir'); e.status = 403; throw e; }
+                    if (!['volleyball', 'airsoft'].includes(rival.subCategory) || (rival.teamSize || 1) <= 1) {
+                        const e = new Error('Bu işlem sadece takım maçlarında yapılabilir'); e.status = 400; throw e;
+                    }
+                    if (userId && userId === rival.senderId) { const e = new Error('İlan sahibi taşınamaz'); e.status = 400; throw e; }
 
-        const senderTeam = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
-        const participants = Array.isArray(rival.participants) ? rival.participants : [];
-        const unassigned = Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : [];
-        const matchPlayer = (p) => userId ? p?.id === userId : (!p?.id && p?.manualName === manualName);
-        const player = senderTeam.find(matchPlayer) || participants.find(matchPlayer) || unassigned.find(matchPlayer);
-        if (!player) return res.status(404).json({ message: 'Oyuncu bu ilanda bulunamadı' });
+                    const senderTeam = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+                    const participants = Array.isArray(rival.participants) ? rival.participants : [];
+                    const unassigned = Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : [];
+                    const matchPlayer = (p) => userId ? p?.id === userId : (!p?.id && p?.manualName === manualName);
+                    player = senderTeam.find(matchPlayer) || participants.find(matchPlayer) || unassigned.find(matchPlayer);
+                    if (!player) { const e = new Error('Oyuncu bu ilanda bulunamadı'); e.status = 404; throw e; }
 
-        const nextSenderTeam = senderTeam.filter(p => !matchPlayer(p));
-        const nextParticipants = participants.filter(p => !matchPlayer(p));
-        const nextUnassigned = unassigned.filter(p => !matchPlayer(p));
-        // Her tarafın kontenjanı Takım Büyüklüğü ile sınırlı — kurucu zaten 1 kişilik sabit
-        // slotu tuttuğu için senderTeam en fazla (teamSize-1) kişi alır, Rakip Takımı ise
-        // tam teamSize. Bu kontrol nextSenderTeam/nextParticipants HENÜZ push() edilmeden
-        // ÖNCE yapılıyor — yani "dolu mu" değil "push'tan SONRA dolacak/taşacak mı" sorusu
-        // soruluyor, bu yüzden >= gerekiyor. Önceden > kullanılıyordu: takım TAM kapasitedeyken
-        // (ör. 6v6'da senderTeam.length===5) kontrol yanlışlıkla geçiyor, 6. kişi push edilip
-        // kapasite sessizce taşıyordu — o kişi de renderColumn'ın sabit slotsCount döngüsünde
-        // (i=0..5) hiç render edilmediği için arayüzden "kayboluyordu" (kullanıcı raporu).
-        const teamSizeN = rival.teamSize || 1;
-        if (side === 'my' && nextSenderTeam.length >= teamSizeN - 1) {
-            return res.status(400).json({ message: `Kurucu Takımı zaten dolu (${teamSizeN} kişilik kontenjan).` });
-        }
-        if (side === 'opp' && nextParticipants.length >= teamSizeN) {
-            return res.status(400).json({ message: `Rakip Takımı zaten dolu (${teamSizeN} kişilik kontenjan).` });
-        }
-        if (side === 'my' || side === 'opp') {
-            const sideArrFinal = [...(side === 'my' ? nextSenderTeam : nextParticipants), player];
-            const perTeamGenderError = await perTeamGenderFeasible(rival, side, sideArrFinal);
-            if (perTeamGenderError) return res.status(400).json({ message: perTeamGenderError });
-            // Kendi tarafı için kapasite uygun olsa bile, bu atama karşı tarafı (ve havuzdaki
-            // kalan kişileri) hesaba katınca iki tarafın da minimumunu imkansız hale
-            // getirebilir (bkz. poolWideGenderFeasible) — ör. iki kadın da aynı tarafa atanırsa.
-            const nextSenderTeamFinal = side === 'my' ? [...nextSenderTeam, player] : nextSenderTeam;
-            const nextParticipantsFinal = side === 'opp' ? [...nextParticipants, player] : nextParticipants;
-            const poolWideError = await poolWideGenderFeasible(rival, nextSenderTeamFinal, nextParticipantsFinal, nextUnassigned);
-            if (poolWideError) return res.status(400).json({ message: poolWideError });
-        }
-        if (side === 'my') nextSenderTeam.push(player);
-        else if (side === 'opp') nextParticipants.push(player);
-        else nextUnassigned.push(player);
+                    // Eski yerinde HOLE bırak — filter ile çıkarmak 3. formadaki oyuncuyu 2. formaya kaydırıyordu.
+                    nextSenderTeam = senderTeam.map(p => (matchPlayer(p) ? null : p));
+                    nextParticipants = participants.map(p => (matchPlayer(p) ? null : p));
+                    nextUnassigned = unassigned.filter(p => !matchPlayer(p));
+                    const teamSizeN = rival.teamSize || 1;
+                    if (side === 'my') {
+                        const emptyFounder = firstEmptyRosterIndex(nextSenderTeam, teamSizeN - 1);
+                        const visualIndex = slotIndex != null ? slotIndex : (emptyFounder == null ? null : emptyFounder + 1);
+                        if (visualIndex == null || visualIndex < 1 || visualIndex >= teamSizeN) {
+                            const e = new Error(`Kurucu Takımı zaten dolu (${teamSizeN} kişilik kontenjan).`); e.status = 400; throw e;
+                        }
+                        const occupant = nextSenderTeam[visualIndex - 1];
+                        if (hasRosterSlot(occupant)) {
+                            const e = new Error(`${visualIndex + 1}. forma zaten dolu.`); e.status = 400; throw e;
+                        }
+                        nextSenderTeam = setAtFounderSlot(nextSenderTeam, visualIndex, player);
+                    } else if (side === 'opp') {
+                        const idx = slotIndex != null ? slotIndex : firstEmptyRosterIndex(nextParticipants, teamSizeN);
+                        if (idx == null || idx < 0 || idx >= teamSizeN) {
+                            const e = new Error(`Rakip Takımı zaten dolu (${teamSizeN} kişilik kontenjan).`); e.status = 400; throw e;
+                        }
+                        if (hasRosterSlot(nextParticipants[idx])) {
+                            const e = new Error(`${idx + 1}. forma zaten dolu.`); e.status = 400; throw e;
+                        }
+                        nextParticipants = setAtSlot(nextParticipants, idx, player);
+                    } else {
+                        nextUnassigned.push(player);
+                    }
 
-        // Kullanıcı isteği/bug raporu: bu fonksiyon sadece kimin hangi tarafta olduğunu
-        // değiştiriyordu (toplam kadro dolulugunu ETKİLEMİYOR — atanmamış havuzu da zaten
-        // dolu sayılıyor), ama status hiç kontrol edilmiyordu. Eğer bir önceki kabul adımı
-        // (bkz. respondToJoin/isUnassignedInvite) kadroyu tamamlamış ama status hâlâ OPEN
-        // kalmışsa, buradaki atama da o eksikliği fark etmeden geçiyordu — sonuç: dolu bir
-        // kadro maç saati gelince "yeterli oyuncu bulunamadı" diye yanlışlıkla otomatik
-        // iptal ediliyordu (bkz. cleanupRivals.js). Burada da (self-healing) kontrol edilir.
-        const isFull = teamFilledCount(rival, { senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned }) >= totalPlayerCount(rival);
-        const updatedRaw = await prisma.activityRequest.update({
-            where: { id },
-            data: {
-                senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned,
-                ...(isFull && rival.status !== 'MATCHED' && { status: 'MATCHED', reopenedAt: null }),
-            },
-            include: { sender: { select: SENDER_SELECT } },
-        });
+                    nextSenderTeam = padRoster(nextSenderTeam, teamSizeN - 1);
+                    nextParticipants = padRoster(nextParticipants, teamSizeN);
+
+                    if (side === 'my' || side === 'opp') {
+                        const sideArrFinal = side === 'my' ? nextSenderTeam : nextParticipants;
+                        const perTeamGenderError = await perTeamGenderFeasible(rival, side, sideArrFinal);
+                        if (perTeamGenderError) { const e = new Error(perTeamGenderError); e.status = 400; throw e; }
+                        const poolWideError = await poolWideGenderFeasible(rival, nextSenderTeam, nextParticipants, nextUnassigned);
+                        if (poolWideError) { const e = new Error(poolWideError); e.status = 400; throw e; }
+                    }
+
+                    const isFull = teamFilledCount(rival, { senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned }) >= totalPlayerCount(rival);
+                    return tx.activityRequest.update({
+                        where: { id },
+                        data: {
+                            senderTeam: nextSenderTeam, participants: nextParticipants, unassignedPlayers: nextUnassigned,
+                            ...(isFull && rival.status !== 'MATCHED' && { status: 'MATCHED', reopenedAt: null }),
+                        },
+                        include: { sender: { select: SENDER_SELECT } },
+                    });
+                }, { isolationLevel: 'Serializable' });
+                break;
+            } catch (err) {
+                if (err.code === 'P2034' && attempt < 3) continue;
+                if (err.status) return res.status(err.status).json({ message: err.message });
+                throw err;
+            }
+        }
 
         // Kullanıcı raporu: atama sonrası oyuncuların yıldız/derece puanı bir anlığına
         // kayboluyordu — bu uç nokta (getUpcomingMatches/getRivalById'nin aksine) skillRating'i
@@ -6546,7 +6595,7 @@ export const assignDoubleSlot = async (req, res, next) => {
                     if (slot) {
                         const gReq = slot === 'partner' ? rival.partnerGenderReq : slot === 'opp1' ? rival.opp1GenderReq : rival.opp2GenderReq;
                         const occupant = slot === 'partner' ? senderTeam[0] : slot === 'opp1' ? participants[0] : participants[1];
-                        if (occupant?.id && occupant.id !== userId) {
+                        if (hasRosterSlot(occupant) && occupant.id !== userId) {
                             const e = new Error(`${slot === 'partner' ? 'Takım Arkadaşı' : slot === 'opp1' ? 'Rakip 1' : 'Rakip 2'} slotu zaten dolu`); e.status = 400; throw e;
                         }
                         if (gReq && gReq !== 'MIX') {
@@ -6558,10 +6607,17 @@ export const assignDoubleSlot = async (req, res, next) => {
                         }
                     }
 
-                    const nextSenderTeam = senderTeam.filter(p => p?.id !== userId);
-                    const nextParticipants = [participants[0]?.id === userId ? null : participants[0] || null, participants[1]?.id === userId ? null : participants[1] || null];
+                    // Katılımcı 1 = senderTeam[0], 2 = participants[0], 3 = participants[1].
+                    // filter+push 3'e yazılanı 2'ye kaydırıyordu; boş forma null olarak kalır.
+                    const nextSenderTeam = [
+                        senderTeam[0]?.id === userId ? null : (hasRosterSlot(senderTeam[0]) ? senderTeam[0] : null),
+                    ];
+                    const nextParticipants = [
+                        participants[0]?.id === userId ? null : (hasRosterSlot(participants[0]) ? participants[0] : null),
+                        participants[1]?.id === userId ? null : (hasRosterSlot(participants[1]) ? participants[1] : null),
+                    ];
                     const nextUnassigned = unassigned.filter(p => p?.id !== userId);
-                    if (slot === 'partner') nextSenderTeam.push(player);
+                    if (slot === 'partner') nextSenderTeam[0] = player;
                     else if (slot === 'opp1') nextParticipants[0] = player;
                     else if (slot === 'opp2') nextParticipants[1] = player;
                     else nextUnassigned.push(player);
@@ -7271,7 +7327,11 @@ export const getMyUpcomingMatches = async (req, res, next) => {
                 return {
                 ...m,
                 senderSkillRating: ratingFor(m.senderId, m.subCategory, mIsDoubles),
-                participants: (Array.isArray(m.participants) ? m.participants : []).map(p => ({
+                participants: mapRosterPreserveSlots(m.participants, p => ({
+                    ...p,
+                    skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
+                })),
+                senderTeam: mapRosterPreserveSlots(m.senderTeam, p => ({
                     ...p,
                     skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
                 })),

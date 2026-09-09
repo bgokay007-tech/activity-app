@@ -1,0 +1,17 @@
+---
+description: Canlı görmek için her biten işi sormadan main'e pushla. Kullanıcı bunu kalıcı istedi.
+alwaysApply: true
+---
+
+# Canlı = her zaman push
+
+Kullanıcı canlı görmek için **her zaman push** ister. Bitirdiğin işi “push edeyim mi?” diye sorma.
+
+## Her iş bitince (sormadan)
+
+1. İlgili dosyaları commit et (ilgisiz WIP / sırlar / `.env` karışmasın).
+2. `git push -u origin HEAD` — genelde `main`. Railway backend’i `main` push ile alır.
+3. `mobile/` UI değiştiyse ayrıca EAS Update bas (`canli-metro.mdc`). Push, OTA’nın yerine geçmez.
+4. Kullanıcıya söyle: backend Railway (~1–2 dk); uygulamayı normal aç, 10 sn bekle, home, geri gir.
+
+Force-push / `main` rewrite yok. Commit mesajı kısa, neden odaklı.
