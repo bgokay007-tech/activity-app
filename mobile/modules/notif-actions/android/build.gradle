@@ -36,4 +36,8 @@ dependencies {
     // erkenden cokertiyordu. Bu modul kendi bildirimini sifirdan (Notification.Builder) insa
     // ediyor, expo-notifications'in Kotlin siniflarina hic ihtiyac duymuyor.
     implementation 'com.google.firebase:firebase-messaging:24.0.1'
+    // NotificationCompat.Action.setShowsUserInterface — framework Notification.Action'da
+    // yok (EAS Kotlin derlemesi Unresolved reference verdi). Heads-up'ta "Okundu
+    // İşaretle"nin uygulamayı açmaması bu API'ye bağlı.
+    implementation 'androidx.core:core-ktx:1.13.1'
 }

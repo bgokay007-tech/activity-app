@@ -1,13 +1,13 @@
 package expo.modules.notifactions
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.RemoteInput
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.RemoteInput
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -100,21 +100,14 @@ private fun showNotification(
 
     val iconRes = context.resources.getIdentifier("notification_icon", "drawable", context.packageName)
 
-    val builder = Notification.Builder(context, channelId)
+    val builder = NotificationCompat.Builder(context, channelId)
         .setContentTitle(title)
         .setContentText(body)
         .setSmallIcon(if (iconRes != 0) iconRes else android.R.drawable.ic_dialog_info)
         .setAutoCancel(true)
         .setContentIntent(contentPendingIntent)
-
-    // Kullanıcı raporu: üstten (heads-up) bildirimde "Okundu olarak işaretle"ye basınca
-    // uygulama açılıyordu. Android aksiyonun varsayılanını "UI açar" sanıp content
-    // intent'i (uygulamayı) çalıştırıyor; MessagingStyle bildirimlere de kendi
-    // "Okundu olarak işaretle"sini ekleyip onu uygulamayı açacak şekilde bağlıyor.
-    // Sistem üretimi aksiyonu kapat, bizim buton UI açmasın.
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        builder.setAllowSystemGeneratedContextualActions(false)
-    }
+        .setPriority(NotificationCompat.PRIORITY_HIGH)
+        .setAllowSystemGeneratedContextualActions(false)
 
     if (isMessage) {
         // MessagingStyle olmadan MIUI (ve bazi diger OEM kabuklari) RemoteInput'lu "Cevapla"
@@ -123,9 +116,9 @@ private fun showNotification(
         // Android'in mesajlasma bildirimleri icin resmi/standart sekli oldugundan OEM'ler
         // tarafindan daha tutarli destekleniyor -- iki aksiyon da butun cihazlarda gorunur oluyor.
         @Suppress("DEPRECATION")
-        val style = Notification.MessagingStyle(if (isTurkish) "Sen" else "You")
+        val style = NotificationCompat.MessagingStyle(if (isTurkish) "Sen" else "You")
             .addMessage(body, System.currentTimeMillis(), title)
-        builder.setStyle(style).setCategory(Notification.CATEGORY_MESSAGE)
+        builder.setStyle(style).setCategory(NotificationCompat.CATEGORY_MESSAGE)
     }
 
     val conversationId = data["conversationId"]
@@ -152,8 +145,7 @@ private fun showNotification(
             buildSilentAction(
                 if (isTurkish) "Okundu İşaretle" else "Mark as read",
                 markReadPendingIntent,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-                    Notification.Action.SEMANTIC_ACTION_MARK_AS_READ else 0,
+                NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ,
             )
         )
     }
@@ -177,8 +169,7 @@ private fun showNotification(
             buildSilentAction(
                 if (isTurkish) "Cevapla" else "Reply",
                 replyPendingIntent,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-                    Notification.Action.SEMANTIC_ACTION_REPLY else 0,
+                NotificationCompat.Action.SEMANTIC_ACTION_REPLY,
                 remoteInput,
             )
         )
@@ -196,14 +187,10 @@ private fun buildSilentAction(
     pendingIntent: PendingIntent,
     semanticAction: Int,
     remoteInput: RemoteInput? = null,
-): Notification.Action {
-    val builder = Notification.Action.Builder(0, title, pendingIntent)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        builder.setShowsUserInterface(false)
-    }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && semanticAction != 0) {
-        builder.setSemanticAction(semanticAction)
-    }
+): NotificationCompat.Action {
+    val builder = NotificationCompat.Action.Builder(0, title, pendingIntent)
+        .setShowsUserInterface(false)
+        .setSemanticAction(semanticAction)
     if (remoteInput != null) builder.addRemoteInput(remoteInput)
     return builder.build()
 }
