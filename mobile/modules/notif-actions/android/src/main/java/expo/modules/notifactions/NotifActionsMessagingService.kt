@@ -107,6 +107,15 @@ private fun showNotification(
         .setAutoCancel(true)
         .setContentIntent(contentPendingIntent)
 
+    // Kullanıcı raporu: üstten (heads-up) bildirimde "Okundu olarak işaretle"ye basınca
+    // uygulama açılıyordu. Android aksiyonun varsayılanını "UI açar" sanıp content
+    // intent'i (uygulamayı) çalıştırıyor; MessagingStyle bildirimlere de kendi
+    // "Okundu olarak işaretle"sini ekleyip onu uygulamayı açacak şekilde bağlıyor.
+    // Sistem üretimi aksiyonu kapat, bizim buton UI açmasın.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        builder.setAllowSystemGeneratedContextualActions(false)
+    }
+
     if (isMessage) {
         // MessagingStyle olmadan MIUI (ve bazi diger OEM kabuklari) RemoteInput'lu "Cevapla"
         // aksiyonu gordugunde bildirimi kendi hizli-yanit UI'siyla degistirip DIGER aksiyonlari
@@ -133,13 +142,19 @@ private fun showNotification(
             putExtra(EXTRA_TYPE, data["type"])
             putExtra(EXTRA_TAG, tag)
             putExtra(EXTRA_INT_ID, id)
+            addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
         }
         val markReadPendingIntent = PendingIntent.getBroadcast(
             context, (tag + "_read").hashCode(), markReadIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
         builder.addAction(
-            Notification.Action.Builder(0, if (isTurkish) "Okundu İşaretle" else "Mark as read", markReadPendingIntent).build()
+            buildSilentAction(
+                if (isTurkish) "Okundu İşaretle" else "Mark as read",
+                markReadPendingIntent,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                    Notification.Action.SEMANTIC_ACTION_MARK_AS_READ else 0,
+            )
         )
     }
 
@@ -158,12 +173,37 @@ private fun showNotification(
         val remoteInput = RemoteInput.Builder(KEY_REPLY_TEXT)
             .setLabel(if (isTurkish) "Mesaj yaz..." else "Type a message...")
             .build()
-        val replyAction = Notification.Action.Builder(0, if (isTurkish) "Cevapla" else "Reply", replyPendingIntent)
-            .addRemoteInput(remoteInput)
-            .build()
-        builder.addAction(replyAction)
+        builder.addAction(
+            buildSilentAction(
+                if (isTurkish) "Cevapla" else "Reply",
+                replyPendingIntent,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                    Notification.Action.SEMANTIC_ACTION_REPLY else 0,
+                remoteInput,
+            )
+        )
     }
 
     val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     nm.notify(tag, id, builder.build())
+}
+
+// Heads-up (üstten) bildirimde aksiyonun varsayılanı "bu buton bir Activity açar".
+// setShowsUserInterface(false) olmazsa Android content intent'i de çalıştırıp
+// uygulamayı öne getiriyor — kullanıcı "Okundu İşaretle"ye basınca uygulama açılıyordu.
+private fun buildSilentAction(
+    title: String,
+    pendingIntent: PendingIntent,
+    semanticAction: Int,
+    remoteInput: RemoteInput? = null,
+): Notification.Action {
+    val builder = Notification.Action.Builder(0, title, pendingIntent)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        builder.setShowsUserInterface(false)
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && semanticAction != 0) {
+        builder.setSemanticAction(semanticAction)
+    }
+    if (remoteInput != null) builder.addRemoteInput(remoteInput)
+    return builder.build()
 }
