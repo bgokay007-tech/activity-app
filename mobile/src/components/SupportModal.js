@@ -99,9 +99,9 @@ export default function SupportModal({ visible, onClose }) {
     const close = () => { onClose(); setView('list'); setActiveTicket(null); };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={close} android_keyboardInputMode="adjustNothing">
             <View style={{ flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end' }}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ maxHeight: '90%' }}>
+                <KeyboardAvoidingView behavior="padding" style={{ maxHeight: '90%' }}>
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 17, paddingBottom: Math.max(20, insets.bottom + 12), maxHeight: '100%' }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                             {view === 'thread' ? (

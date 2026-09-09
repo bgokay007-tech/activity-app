@@ -23,6 +23,7 @@ import CityPickerModal from '../../components/CityPickerModal';
 import VolleyballRatingModal from '../../components/VolleyballRatingModal';
 import ExtraNotifyChannelModal from '../../components/ExtraNotifyChannelModal';
 import TelegramIcon, { TELEGRAM_BLUE } from '../../components/TelegramIcon';
+import KeyboardSafeModal from '../../components/KeyboardSafeModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Sport Card Flip Modal ────────────────────────────────────────────────────
@@ -878,7 +879,7 @@ function GoalsModal({ visible, onClose, lang, cfg, interestId, subCategoryLabel,
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
                 <KeyboardAvoidingView behavior="padding">
                     <View style={{ backgroundColor:'#0f0f1a', borderTopLeftRadius:24, borderTopRightRadius:24, paddingBottom:31, maxHeight:'80%' }}>
@@ -1006,8 +1007,9 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
     const color = cfg?.color || '#a855f7';
 
     return (
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
+                <KeyboardAvoidingView behavior="padding" style={{ width: '100%' }}>
                 <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '88%', paddingBottom: 33 }}>
                     {/* Header */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#ffffff10' }}>
@@ -1021,7 +1023,7 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                         <TouchableOpacity onPress={onClose}><Text style={{ color: '#6b7280', fontSize: 22 }}>✕</Text></TouchableOpacity>
                     </View>
 
-                    <ScrollView contentContainerStyle={{ padding: 15 }} showsVerticalScrollIndicator={false}>
+                    <ScrollView contentContainerStyle={{ padding: 15 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                         {/* Başarı ekleme formu */}
                         {showAdd && (
                             <View style={{ backgroundColor: '#ffffff08', borderRadius: 14, padding: 11, marginBottom: 18, borderWidth: 1, borderColor: color + '40' }}>
@@ -1155,6 +1157,7 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
                         )}
                     </ScrollView>
                 </View>
+                </KeyboardAvoidingView>
             </View>
         </Modal>
     );
@@ -1940,7 +1943,7 @@ export default function ProfileScreen({ route, navigation }) {
         const load = async () => {
             try {
                 const [profileRes, intRes, storiesRes, reelsRes, postsRes, upcomingRes, historyRes, reservationsRes] = await Promise.all([
-                    api.get(isOwnProfile ? '/auth/me' : `/users/${userId}`),
+                    api.get(isOwnProfile ? '/users/me' : `/users/${userId}`),
                     api.get(isOwnProfile ? '/interests/my?includeHidden=true' : `/interests/user/${userId}`).catch(() => ({ data: [] })),
                     api.get(`/posts/user/${userId}?type=STORY`).catch(() => ({ data: [] })),
                     api.get(`/posts/user/${userId}?type=REEL`).catch(() => ({ data: [] })),
@@ -2020,7 +2023,7 @@ export default function ProfileScreen({ route, navigation }) {
                 }
                 if (isOwnProfile && Array.isArray(upcomingRes.data)) setMyUpcoming(upcomingRes.data);
                 if (isOwnProfile && Array.isArray(historyRes.data)) setMyHistory(historyRes.data);
-                if (isOwnProfile) dispatch(setUser(profileRes.data));
+                if (isOwnProfile) dispatch(setUser({ ...myUser, ...profileRes.data }));
                 if (!isOwnProfile) {
                     api.get(`/friends/status/${userId}`)
                         .then(({ data }) => setFriendStatus({ status: data.status || 'NONE', isSender: data.isSender, friendshipId: data.friendshipId }))
@@ -2046,9 +2049,9 @@ export default function ProfileScreen({ route, navigation }) {
             api.get(`/posts/user/${userId}?type=STORY`).then(({ data }) => {
                 if (Array.isArray(data)) setStories(data);
             }).catch(() => {});
-            api.get(isOwnProfile ? '/auth/me' : `/users/${userId}`).then(({ data }) => {
+            api.get(isOwnProfile ? '/users/me' : `/users/${userId}`).then(({ data }) => {
                 setProfile(data);
-                if (isOwnProfile) dispatch(setUser(data));
+                if (isOwnProfile) dispatch(setUser({ ...myUser, ...data }));
             }).catch(() => {});
             // Kullanıcı raporu: başka bir ekranda (ör. ilan oluşturma sırasında açılan anket
             // gate'i) tamamlanan bir değerlendirme, profile dönüldüğünde hâlâ eski (bayat)
@@ -2387,7 +2390,7 @@ export default function ProfileScreen({ route, navigation }) {
                 instagramSelected:infoForm.instagramSelected,
             });
             setProfile(p => ({ ...p, ...data }));
-            dispatch(setUser({ ...profile, ...data }));
+            dispatch(setUser({ ...myUser, ...profile, ...data }));
             setProfileInfoOpen(false);
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Kaydedilemedi.'); }
         finally { setSavingInfo(false); }
@@ -3333,8 +3336,9 @@ export default function ProfileScreen({ route, navigation }) {
             </Modal>
 
             {/* ── Arkadaş Ara & Ekle ── */}
-            <Modal visible={showAddFriendModal} animationType="slide" transparent onRequestClose={() => setShowAddFriendModal(false)}>
+            <Modal visible={showAddFriendModal} animationType="slide" transparent onRequestClose={() => setShowAddFriendModal(false)} android_keyboardInputMode="adjustNothing">
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
+                    <KeyboardAvoidingView behavior="padding" style={{ width:'100%' }}>
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:17 }}>
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
                             <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>Arkadaş Ara</Text>
@@ -3396,6 +3400,7 @@ export default function ProfileScreen({ route, navigation }) {
                             ))}
                         </ScrollView>
                     </View>
+                    </KeyboardAvoidingView>
                 </View>
             </Modal>
 
@@ -4051,17 +4056,20 @@ export default function ProfileScreen({ route, navigation }) {
             </Modal>
 
             {/* ── Profile Info Modal ── */}
-            <Modal visible={profileInfoOpen} animationType="slide" transparent onRequestClose={() => setProfileInfoOpen(false)}>
-                <View style={s.modalOverlay}>
-                    <View style={s.modalBox}>
-                        <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>/ Kişisel Bilgiler</Text>
-                            <TouchableOpacity onPress={() => setProfileInfoOpen(false)}>
-                                <Text style={s.modalClose}>✕</Text>
-                            </TouchableOpacity>
-                        </View>
+            <KeyboardSafeModal visible={profileInfoOpen} onClose={() => setProfileInfoOpen(false)}>
+                <View style={s.modalHeader}>
+                    <Text style={s.modalTitle}>/ Kişisel Bilgiler</Text>
+                    <TouchableOpacity onPress={() => setProfileInfoOpen(false)}>
+                        <Text style={s.modalClose}>✕</Text>
+                    </TouchableOpacity>
+                </View>
 
-                        <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    style={{ maxHeight: 420 }}
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={{ paddingBottom: 24 }}
+                >
 
                             {/* ── Language ── */}
                             <View style={s.infoFieldHeader}>
@@ -4299,9 +4307,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 <Text style={s.saveBtnText}>{savingInfo ? t.savingText : t.saveBtn}</Text>
                             </TouchableOpacity>
                         </View>
-                    </View>
-                </View>
-            </Modal>
+            </KeyboardSafeModal>
 
             <ExtraNotifyChannelModal
                 visible={notifyChannelModalOpen}
@@ -4329,22 +4335,19 @@ export default function ProfileScreen({ route, navigation }) {
             />
 
             {/* ── Profil Değişiklik Talebi Modal ── */}
-            <Modal visible={changeReqOpen} animationType="slide" transparent onRequestClose={() => setChangeReqOpen(false)}>
-                <View style={s.modalOverlay}>
-                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width:'100%' }}>
-                        <View style={[s.modalBox, { maxHeight:'90%' }]}>
-                            <View style={s.modalHeader}>
-                                <Text style={s.modalTitle}>
-                                    {changeReqField === 'fullName' ? t.changeReqTitleFullName
-                                        : changeReqField === 'gender' ? t.changeReqTitleGender
-                                        : t.changeReqTitleBirthDate}
-                                </Text>
-                                <TouchableOpacity onPress={() => setChangeReqOpen(false)}>
-                                    <Text style={s.modalClose}>✕</Text>
-                                </TouchableOpacity>
-                            </View>
+            <KeyboardSafeModal visible={changeReqOpen} onClose={() => setChangeReqOpen(false)}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>
+                                {changeReqField === 'fullName' ? t.changeReqTitleFullName
+                                    : changeReqField === 'gender' ? t.changeReqTitleGender
+                                    : t.changeReqTitleBirthDate}
+                            </Text>
+                            <TouchableOpacity onPress={() => setChangeReqOpen(false)}>
+                                <Text style={s.modalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
 
-                            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight:400 }}>
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight:400 }} keyboardShouldPersistTaps="handled">
                                 {/* Mevcut bekleyen talep uyarısı */}
                                 {myChangeRequests.filter(r => r.field === changeReqField && r.status === 'PENDING').length > 0 && (
                                     <View style={{ backgroundColor:'#f59e0b12', borderRadius:10, padding:9, marginBottom:12, borderWidth:1, borderColor:'#f59e0b40' }}>
@@ -4422,10 +4425,7 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={s.saveBtnText}>{changeReqLoading ? t.sendingText : t.sendRequestBtn}</Text>
                                 </TouchableOpacity>
                             </View>
-                        </View>
-                    </KeyboardAvoidingView>
-                </View>
-            </Modal>
+            </KeyboardSafeModal>
 
             {/* ── Destek Mesajı Modal ── */}
             {/* Kullanıcı isteği: konu bazlı sohbetler, bkz. paylaşılan SupportModal. */}

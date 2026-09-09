@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Linking, ActivityIndicator } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Linking, ActivityIndicator, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../theme/colors';
 import TelegramIcon from './TelegramIcon';
@@ -38,15 +38,17 @@ export default function ExtraNotifyChannelModal({
     }, [visible]);
 
     return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
+            <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
             <View style={s.overlay}>
-                <Animated.View style={[s.sheet, { marginTop: insets.top, transform: [{ translateY }] }]}>
+                <Animated.View style={[s.sheet, { marginTop: insets.top, transform: [{ translateY }], maxHeight: '92%' }]}>
                     <View style={s.header}>
                         <Text style={s.title}>{t.extraNotifyTitle}</Text>
                         <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                             <Text style={s.closeBtn}>✕</Text>
                         </TouchableOpacity>
                     </View>
+                    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: Math.max(20, insets.bottom + 16) }}>
                     <Text style={s.desc}>{t.extraNotifyDesc}</Text>
 
                     {CHANNELS.map(c => {
@@ -133,8 +135,10 @@ export default function ExtraNotifyChannelModal({
                     >
                         {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.saveBtnText}>{t.saveBtn}</Text>}
                     </TouchableOpacity>
+                    </ScrollView>
                 </Animated.View>
             </View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 }

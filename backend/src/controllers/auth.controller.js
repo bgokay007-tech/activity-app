@@ -271,12 +271,32 @@ export const getMe = async (req, res, next) => {
                 fullNamePrivacy: true, fullNameExclude: true,
                 cityPrivacy: true, genderPrivacy: true, birthDatePrivacy: true,
                 cityExclude: true, genderExclude: true, birthDateExclude: true,
+                postsPrivacy: true, postsExclude: true,
+                reelsPrivacy: true, reelsExclude: true,
+                friendsListPrivacy: true, friendsListExclude: true,
+                activitiesPrivacy: true, activitiesExclude: true,
+                likesCommentsPrivacy: true, likesCommentsExclude: true,
+                // Profil Kişisel Bilgiler bunları /auth/me ile yüklüyordu; select'te
+                // yoktu, kaydedilse bile uygulama kapanınca form boş açılıyordu.
+                contactPhone: true, contactTelegram: true, contactEmail: true, contactInstagram: true,
+                phonePrivacy: true, phoneSelected: true,
+                telegramPrivacy: true, telegramSelected: true,
+                cEmailPrivacy: true, cEmailSelected: true,
+                instagramPrivacy: true, instagramSelected: true,
+                extraNotifyChannel: true, extraNotifyPhone: true, extraNotifyEmail: true,
+                telegramChatId: true,
                 interests: { include: { skills: true } },
                 cards: true,
                 _count: { select: { posts: true, sentFriendReqs: { where: { status: 'ACCEPTED' } }, receivedFriendReqs: { where: { status: 'ACCEPTED' } } } },
             },
         });
-        res.json(user);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        res.json({
+            ...user,
+            telegramLinked: !!user.telegramChatId,
+            accountPhone: user.phone,
+            accountEmail: user.email,
+        });
     } catch (error) {
         next(error);
     }
