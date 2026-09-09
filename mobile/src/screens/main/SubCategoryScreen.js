@@ -11642,74 +11642,101 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
     );
 }
 
+function formatArchiveDuration(stats, listingMinutes) {
+    if (stats?.durationMs != null && stats.durationMs > 0) {
+        const minutes = Math.round(stats.durationMs / 60000);
+        if (minutes < 60) return `${minutes}m`;
+        return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+    }
+    if (listingMinutes != null && listingMinutes > 0) {
+        const minutes = Math.round(listingMinutes);
+        if (minutes < 60) return `${minutes}m`;
+        return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+    }
+    return null;
+}
+
+function workoutSourceLabel(source, t) {
+    if (source === 'synced') return t.statWorkoutSourceSynced;
+    if (source === 'estimated') return t.statWorkoutSourceEstimated;
+    if (source === 'watch') return t.statWorkoutSourceWatch;
+    if (source === 'phone') return t.statWorkoutSourcePhone;
+    return null;
+}
+
 // Canlı takip (saat/telefon) kullanılan maçlarda score.stats doldurulur (bkz. liveMatchEngine.js
 // deriveStats). Kullanılmadıysa stats undefined kalır ve bu bölüm hiç render edilmez — eski
 // maçlar/canlı takipsiz skor girişleri için geriye dönük hiçbir kırılma olmaz.
-function MatchStatsSection({ stats, iAmFounderSide, founderLabel, opponentLabel, t }) {
+function MatchStatsSection({ stats, iAmFounderSide, founderLabel, opponentLabel, listingDurationMin, t }) {
     if (!stats) return null;
     // stats içindeki A/B her zaman "canlı takibi başlatan taraf = A" demek (bkz. perspective).
     const startedByFounder = (stats.perspective || 'sender') === 'sender';
     const founderKey = startedByFounder ? 'A' : 'B';
     const oppKey = startedByFounder ? 'B' : 'A';
+    const myKey = iAmFounderSide ? founderKey : oppKey;
+    const theirKey = iAmFounderSide ? oppKey : founderKey;
     const StatTile = ({ label, value, accent = colors.purple }) => (
-        <View style={{ flex:1, minWidth:'30%', backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor: accent+'40', padding:9 }}>
-            <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'800', letterSpacing:0.3 }} numberOfLines={1}>{label}</Text>
-            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', marginTop:2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{value}</Text>
+        <View style={{ flex:1, minWidth:'30%', backgroundColor:'#0f172a', borderRadius:12, borderWidth:1, borderColor: accent+'55', padding:10 }}>
+            <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'800', letterSpacing:0.3 }} numberOfLines={2}>{label}</Text>
+            <Text style={{ color:'#fff', fontSize:18, fontWeight:'900', marginTop:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{value}</Text>
         </View>
     );
     const Group = ({ title, accent, children }) => (
-        <View style={{ marginBottom:12 }}>
-            <Text style={{ color: accent, fontSize:11, fontWeight:'800', marginBottom:6 }}>● {title}</Text>
-            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>{children}</View>
+        <View style={{ marginBottom:14, backgroundColor:'#1e293bcc', borderRadius:14, padding:12, borderWidth:1, borderColor: accent+'30' }}>
+            <Text style={{ color: accent, fontSize:12, fontWeight:'900', marginBottom:8, letterSpacing:0.4 }}>{title}</Text>
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>{children}</View>
         </View>
     );
 
     const total = stats.total;
-    const wonF = stats.wonBySide?.[founderKey], wonO = stats.wonBySide?.[oppKey];
-    const winRateF = total > 0 && wonF != null ? +(wonF / total * 100).toFixed(0) : null;
+    const wonMe = stats.wonBySide?.[myKey], wonThem = stats.wonBySide?.[theirKey];
+    const winRateMe = total > 0 && wonMe != null ? +(wonMe / total * 100).toFixed(0) : null;
+    const liveDuration = formatArchiveDuration(stats, listingDurationMin);
+    const sourceTxt = workoutSourceLabel(stats.workout?.source, t);
 
     return (
-        <View style={{ marginTop:14, marginBottom:4 }}>
-            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8 }}>📊 {t.matchStatsTitle}</Text>
+        <View style={{ marginTop:16, marginBottom:4 }}>
+            <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', marginBottom:10 }}>{t.matchStatsTitle}</Text>
 
             {total != null && (
                 <Group title={t.statOverview} accent="#4ade80">
                     <StatTile label={t.statTotalPoints} value={total} accent="#4ade80" />
-                    <StatTile label={t.statPointsWon} value={`${wonF}-${wonO}`} accent="#4ade80" />
-                    {winRateF != null && <StatTile label={t.statWinRate} value={`${winRateF}%`} accent="#0ea5e9" />}
+                    <StatTile label={t.statPointsWon} value={`${wonMe ?? 0}-${wonThem ?? 0}`} accent="#4ade80" />
+                    {winRateMe != null && <StatTile label={t.statWinRate} value={`${winRateMe}%`} accent="#0ea5e9" />}
                 </Group>
             )}
 
             {stats.serve && stats.breakPoints && (
                 <>
                     <Group title={t.statServeReturn} accent="#22c55e">
-                        <StatTile label={t.statServiceGamesWon} value={`${stats.serve[`serviceGamesWon${founderKey}`]}/${stats.serve[`serviceGamesTotal${founderKey}`]}`} accent="#22c55e" />
-                        <StatTile label={t.statReturnGamesWon} value={`${stats.serve[`returnGamesWon${founderKey}`]}/${stats.serve[`returnGamesTotal${founderKey}`]}`} accent="#0ea5e9" />
+                        <StatTile label={t.statServiceGamesWon} value={`${stats.serve[`serviceGamesWon${myKey}`]}/${stats.serve[`serviceGamesTotal${myKey}`]}`} accent="#22c55e" />
+                        <StatTile label={t.statReturnGamesWon} value={`${stats.serve[`returnGamesWon${myKey}`]}/${stats.serve[`returnGamesTotal${myKey}`]}`} accent="#0ea5e9" />
                     </Group>
                     <Group title={t.statBreakPoints} accent="#f97316">
-                        <StatTile label={t.statBreakPointsFaced} value={stats.breakPoints[`faced${founderKey}`]} accent="#f97316" />
-                        <StatTile label={t.statBreakPointsSaved} value={`${stats.breakPoints[`saved${founderKey}`]}/${stats.breakPoints[`faced${founderKey}`]}`} accent="#f97316" />
-                        <StatTile label={t.statBreakPointOpportunities} value={stats.breakPoints[`opportunities${founderKey}`]} accent="#a855f7" />
-                        <StatTile label={t.statBreakPointsConverted} value={`${stats.breakPoints[`convertedBy${founderKey}`]}/${stats.breakPoints[`opportunities${founderKey}`]}`} accent="#a855f7" />
+                        <StatTile label={t.statBreakPointsFaced} value={stats.breakPoints[`faced${myKey}`]} accent="#f97316" />
+                        <StatTile label={t.statBreakPointsSaved} value={`${stats.breakPoints[`saved${myKey}`]}/${stats.breakPoints[`faced${myKey}`]}`} accent="#f97316" />
+                        <StatTile label={t.statBreakPointOpportunities} value={stats.breakPoints[`opportunities${myKey}`]} accent="#a855f7" />
+                        <StatTile label={t.statBreakPointsConverted} value={`${stats.breakPoints[`convertedBy${myKey}`]}/${stats.breakPoints[`opportunities${myKey}`]}`} accent="#a855f7" />
                     </Group>
                 </>
             )}
 
             {stats.serve && !stats.breakPoints && (
                 <Group title={t.statServeReturn} accent="#22c55e">
-                    <StatTile label={t.statServicePointsWon} value={`${stats.serve[`servicePointsWon${founderKey}`]}/${stats.serve[`servicePointsTotal${founderKey}`]}`} accent="#22c55e" />
-                    <StatTile label={t.statServicePointsWon + ' (' + opponentLabel + ')'} value={`${stats.serve[`servicePointsWon${oppKey}`]}/${stats.serve[`servicePointsTotal${oppKey}`]}`} accent="#0ea5e9" />
+                    <StatTile label={t.statServicePointsWon} value={`${stats.serve[`servicePointsWon${myKey}`]}/${stats.serve[`servicePointsTotal${myKey}`]}`} accent="#22c55e" />
+                    <StatTile label={t.statServicePointsWon + ' (' + opponentLabel + ')'} value={`${stats.serve[`servicePointsWon${theirKey}`]}/${stats.serve[`servicePointsTotal${theirKey}`]}`} accent="#0ea5e9" />
                 </Group>
             )}
 
-            {stats.flow && !stats.quarters && (
+            {(stats.flow || liveDuration) && !stats.quarters && (
                 <Group title={t.statMatchFlow} accent="#38bdf8">
-                    {stats.flow.recordedGames != null && <StatTile label={t.statRecordedGames} value={stats.flow.recordedGames} accent="#38bdf8" />}
-                    {stats.flow.recordedSets != null && <StatTile label={t.statRecordedSets} value={stats.flow.recordedSets} accent="#38bdf8" />}
-                    {stats.flow.longestGamePoints != null && <StatTile label={t.statLongestGame} value={stats.flow.longestGamePoints} accent="#38bdf8" />}
-                    {stats.flow.longestSetPoints != null && <StatTile label={t.statLongestSet} value={stats.flow.longestSetPoints} accent="#38bdf8" />}
-                    {stats.flow.avgPointsPerGame != null && <StatTile label={t.statAvgPointsPerGame} value={stats.flow.avgPointsPerGame} accent="#38bdf8" />}
-                    {stats.flow.biggestLead != null && <StatTile label={t.statBiggestLead} value={stats.flow.biggestLead} accent="#38bdf8" />}
+                    {stats.flow?.recordedGames != null && <StatTile label={t.statRecordedGames} value={stats.flow.recordedGames} accent="#38bdf8" />}
+                    {stats.flow?.recordedSets != null && <StatTile label={t.statRecordedSets} value={stats.flow.recordedSets} accent="#38bdf8" />}
+                    {stats.flow?.longestGamePoints != null && <StatTile label={t.statLongestGame} value={stats.flow.longestGamePoints} accent="#38bdf8" />}
+                    {stats.flow?.longestSetPoints != null && <StatTile label={t.statLongestSet} value={stats.flow.longestSetPoints} accent="#38bdf8" />}
+                    {stats.flow?.avgPointsPerGame != null && <StatTile label={t.statAvgPointsPerGame} value={stats.flow.avgPointsPerGame} accent="#38bdf8" />}
+                    {stats.flow?.biggestLead != null && <StatTile label={t.statBiggestLead} value={stats.flow.biggestLead} accent="#38bdf8" />}
+                    {liveDuration && <StatTile label={t.statMatchDuration} value={liveDuration} accent="#38bdf8" />}
                 </Group>
             )}
 
@@ -11719,6 +11746,7 @@ function MatchStatsSection({ stats, iAmFounderSide, founderLabel, opponentLabel,
                         <StatTile key={i} label={`${t.matchLiveQuarterLabel} ${i + 1}`} value={startedByFounder ? `${q[0]}-${q[1]}` : `${q[1]}-${q[0]}`} accent="#38bdf8" />
                     ))}
                     {stats.flow?.biggestLead != null && <StatTile label={t.statBiggestLead} value={stats.flow.biggestLead} accent="#a855f7" />}
+                    {liveDuration && <StatTile label={t.statMatchDuration} value={liveDuration} accent="#38bdf8" />}
                 </Group>
             )}
 
@@ -11732,13 +11760,20 @@ function MatchStatsSection({ stats, iAmFounderSide, founderLabel, opponentLabel,
 
             {stats.workout && (
                 <Group title={t.statWorkout} accent="#ef4444">
-                    {stats.workout.avgHeartRate != null && <StatTile label={t.statAvgHeartRate} value={`${stats.workout.avgHeartRate} bpm`} accent="#ef4444" />}
-                    {stats.workout.maxHeartRate != null && <StatTile label={t.statMaxHeartRate} value={`${stats.workout.maxHeartRate} bpm`} accent="#ef4444" />}
+                    {stats.workout.avgHeartRate != null && <StatTile label={t.statAvgHeartRate} value={`${Math.round(stats.workout.avgHeartRate)} bpm`} accent="#ef4444" />}
+                    {stats.workout.maxHeartRate != null && <StatTile label={t.statMaxHeartRate} value={`${Math.round(stats.workout.maxHeartRate)} bpm`} accent="#ef4444" />}
                     {stats.workout.activeCalories != null && (
                         <StatTile label={t.statCalories} value={`${Math.round(stats.workout.activeCalories)} kcal${stats.workout.source === 'estimated' ? ' ≈' : ''}`} accent="#f59e0b" />
                     )}
                 </Group>
             )}
+
+            {sourceTxt ? (
+                <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:2, marginBottom:4 }}>
+                    <View style={{ width:7, height:7, borderRadius:4, backgroundColor:'#4ade80' }} />
+                    <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', letterSpacing:0.3 }}>{sourceTxt}</Text>
+                </View>
+            ) : null}
         </View>
     );
 }
@@ -11776,6 +11811,30 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
         : isTeamMatch ? `🏆 ${winningLabel} Kazandı`
         : winner === (iAmFounderSide ? 'sender' : 'opponent') ? '✅ Kazandın' : '❌ Kaybettin';
     const myResultColor = winner === 'draw' ? '#fbbf24' : winner === (iAmFounderSide ? 'sender' : 'opponent') ? '#4ade80' : '#f87171';
+    const stats = m.score?.stats || null;
+    const myWon = winner === (iAmFounderSide ? 'sender' : 'opponent');
+    const theyWon = winner === (iAmFounderSide ? 'opponent' : 'sender');
+    const resultBadge = winner === 'draw' ? { text: t.archiveResultDraw, color: '#fbbf24', bg: '#fbbf2420' }
+        : myWon ? { text: t.archiveResultWon, color: '#4ade80', bg: '#4ade8020' }
+        : theyWon ? { text: t.archiveResultLost, color: '#f87171', bg: '#f8717120' }
+        : (sets && m.score?.partial) ? { text: t.archiveResultStopped, color: '#fb7185', bg: '#fb718520' }
+        : null;
+    const viewerSets = sets ? sets.map(s2 => ({
+        me: iAmFounderSide ? Number(s2.sender) || 0 : Number(s2.opponent) || 0,
+        them: iAmFounderSide ? Number(s2.opponent) || 0 : Number(s2.sender) || 0,
+    })) : [];
+    const scoreLine = viewerSets.length ? viewerSets.map(s2 => `${s2.me}-${s2.them}`).join('  ') : null;
+    const mySetWins = viewerSets.filter(s2 => s2.me > s2.them).length;
+    const theirSetWins = viewerSets.filter(s2 => s2.them > s2.me).length;
+    const myGames = viewerSets.reduce((n, s2) => n + s2.me, 0);
+    const theirGames = viewerSets.reduce((n, s2) => n + s2.them, 0);
+    const liveDuration = formatArchiveDuration(stats, m.duration);
+    const youLabel = t.archiveYouLabel;
+    const themLabel = iAmFounderSide ? opponentLabel : founderLabel;
+    const formatBits = [
+        isTeamMatch ? `${m.teamSize || '?'}v${m.teamSize || '?'}` : (m.matchType === 'DOUBLE' ? '2v2' : t.archiveSingles),
+        m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : null,
+    ].filter(Boolean);
 
     const renderPlayer = (p, isFounderSidePlayer) => {
         const hist = snapshot[p.id];
@@ -11833,28 +11892,62 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
         // tek-çocuk boyutlandırma varsayımı bozulup sheet küçük kalıyordu. Bu artık düz bir
         // Fragment — kaydırma tamamen dış ScrollView'da (bkz. ArchiveMatchDetailModal).
         <>
-            {myResultText && <Text style={{ fontSize:14, fontWeight:'800', marginBottom:10, color: myResultColor }}>{myResultText}</Text>}
-            <View style={{ marginBottom:14 }}>
-                <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:2 }}>
-                    {m.flexibleSchedule ? '📅 Esnek Program' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : ''}
+            {resultBadge && (
+                <View style={{ alignSelf:'flex-start', backgroundColor: resultBadge.bg, borderRadius:999, paddingHorizontal:10, paddingVertical:4, marginBottom:10, borderWidth:1, borderColor: resultBadge.color + '55' }}>
+                    <Text style={{ color: resultBadge.color, fontSize:11, fontWeight:'900', letterSpacing:0.6 }}>{resultBadge.text}</Text>
+                </View>
+            )}
+            {!resultBadge && myResultText && <Text style={{ fontSize:14, fontWeight:'800', marginBottom:10, color: myResultColor }}>{myResultText}</Text>}
+
+            {scoreLine ? (
+                <Text style={{ color:'#fff', fontSize:34, fontWeight:'900', letterSpacing:1, marginBottom:4 }}>{scoreLine}</Text>
+            ) : null}
+            {formatBits.length > 0 && (
+                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700', marginBottom:12 }}>{formatBits.join(' · ')}</Text>
+            )}
+
+            {viewerSets.length > 0 && (
+                <View style={{ backgroundColor:'#1e293b', borderRadius:14, padding:12, marginBottom:12, borderWidth:1, borderColor:'#334155' }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', marginBottom:8 }}>
+                        <Text style={{ flex:1.4, color: colors.textMuted, fontSize:10, fontWeight:'800' }} />
+                        {viewerSets.map((_, i) => (
+                            <Text key={i} style={{ flex:1, color: colors.textMuted, fontSize:10, fontWeight:'800', textAlign:'center' }}>S{i + 1}</Text>
+                        ))}
+                        <Text style={{ flex:1, color:'#4ade80', fontSize:10, fontWeight:'900', textAlign:'center' }}>{t.archiveColSets}</Text>
+                        <Text style={{ flex:1, color:'#4ade80', fontSize:10, fontWeight:'900', textAlign:'center' }}>{t.archiveColGames}</Text>
+                    </View>
+                    {[
+                        { name: youLabel, sets: viewerSets.map(s2 => s2.me), setWins: mySetWins, games: myGames, me: true },
+                        { name: themLabel, sets: viewerSets.map(s2 => s2.them), setWins: theirSetWins, games: theirGames, me: false },
+                    ].map(row => (
+                        <View key={row.name} style={{ flexDirection:'row', alignItems:'center', paddingVertical:6, borderTopWidth:1, borderTopColor:'#33415566' }}>
+                            <View style={{ flex:1.4, flexDirection:'row', alignItems:'center', gap:6, paddingRight:4 }}>
+                                <View style={{ width:7, height:7, borderRadius:4, backgroundColor: row.me ? '#94a3b8' : '#4ade80' }} />
+                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', flexShrink:1 }} numberOfLines={1}>{row.name}</Text>
+                            </View>
+                            {row.sets.map((v, i) => (
+                                <Text key={i} style={{ flex:1, color:'#e2e8f0', fontSize:14, fontWeight:'800', textAlign:'center' }}>{v}</Text>
+                            ))}
+                            <Text style={{ flex:1, color:'#fff', fontSize:14, fontWeight:'900', textAlign:'center' }}>{row.setWins}</Text>
+                            <Text style={{ flex:1, color:'#fff', fontSize:14, fontWeight:'900', textAlign:'center' }}>{row.games}</Text>
+                        </View>
+                    ))}
+                </View>
+            )}
+
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10, marginBottom:14 }}>
+                <Text style={{ color: colors.textMuted, fontSize:12 }}>
+                    {m.flexibleSchedule ? `📅 ${t.flexibleSchedule || 'Esnek Program'}` : m.matchDate ? `📅 ${new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' })}` : ''}
                     {!m.flexibleSchedule && m.matchTime ? ` · 🕐 ${m.matchTime}` : ''}
                 </Text>
-                {(m.courtName || m.location) && (
-                    <Text style={{ color: colors.textMuted, fontSize:12 }}>
-                        🏟️ {m.courtName || m.location}{m.courtName && m.location ? ` · 📍 ${m.location}` : ''}
-                    </Text>
-                )}
-                {m.duration != null && (
-                    <Text style={{ color: colors.textMuted, fontSize:12, marginTop:2 }}>
-                        ⏱ {m.duration} dakika
-                    </Text>
-                )}
-                {m.matchMode && (
-                    <Text style={{ color: m.matchMode.toUpperCase()==='COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:12, fontWeight:'700', marginTop:2 }}>
-                        {m.matchMode.toUpperCase()==='COMPETITIVE' ? '🔥 Rekabetçi' : '🎾 Antrenman'}
-                    </Text>
-                )}
+                {liveDuration ? <Text style={{ color: colors.textMuted, fontSize:12 }}>⏱ {liveDuration}</Text> : null}
+                {stats?.workout ? <Text style={{ color:'#fb7185', fontSize:12, fontWeight:'700' }}>♥ {t.statWorkout}</Text> : null}
             </View>
+            {(m.courtName || m.location) && (
+                <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>
+                    🏟️ {m.courtName || m.location}{m.courtName && m.location ? ` · 📍 ${m.location}` : ''}
+                </Text>
+            )}
 
             <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'800', marginBottom:6 }}>{founderLabel}</Text>
             {founderSide.length > 0 ? founderSide.map(p => renderPlayer(p, true)) : <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>—</Text>}
@@ -11862,7 +11955,13 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
             <Text style={{ color:'#fca5a5', fontSize:12, fontWeight:'800', marginBottom:6, marginTop:8 }}>{opponentLabel}</Text>
             {opponentSide.length > 0 ? opponentSide.map(p => renderPlayer(p, false)) : <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>—</Text>}
 
-            <MatchStatsSection stats={m.score?.stats} iAmFounderSide={iAmFounderSide} founderLabel={founderLabel} opponentLabel={opponentLabel} t={t} />
+            <MatchStatsSection stats={stats} iAmFounderSide={iAmFounderSide} founderLabel={founderLabel} opponentLabel={opponentLabel} listingDurationMin={m.duration} t={t} />
+
+            {!stats && (
+                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:10, lineHeight:16 }}>
+                    {t.archiveStatsHint}
+                </Text>
+            )}
 
             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:14 }}>
                 {m.scoreStatus === 'CONFIRMED' && !m.scoreAppeal && m.completedAt
