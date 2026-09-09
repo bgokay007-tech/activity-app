@@ -11392,6 +11392,7 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
                 </TouchableOpacity>
             )}
         </Animated.View>
+        </View>
     );
 }
 
@@ -24451,19 +24452,26 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 (filteredRivals.length === 0 && upcomingNeedingSubs.length === 0)
                                     ? <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />
                                     : (
-                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'flex-start' }}>
+                                        <>
+                                        <View style={s.listGrid}>
                                             {filteredRivals.map(item => (
                                                 <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} refereeListings={refereeListings} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
-                                            {/* Yedek kadrosu (substituteCount) henüz dolmamış eşleşmiş maçlar — kullanıcı isteği:
-                                                as kadro dolsa bile yedek dolana kadar Yaklaşan Maçlar'a değil, Açık İlanlar'da
-                                                kalsın (herkes hâlâ yedek olarak başvurabileceğini görsün). Maç saati gelince
-                                                (matchHasStarted) bu listeden otomatik çıkıp Oynanan Maçlar'a geçer — yedeksiz
-                                                kalması maçın iptaline yol açmaz. */}
+                                        </View>
+                                        {/* Yedek kadrosu (substituteCount) henüz dolmamış eşleşmiş maçlar — kullanıcı isteği:
+                                            as kadro dolsa bile yedek dolana kadar Yaklaşan Maçlar'a değil, Açık İlanlar'da
+                                            kalsın (herkes hâlâ yedek olarak başvurabileceğini görsün). Maç saati gelince
+                                            (matchHasStarted) bu listeden otomatik çıkıp Oynanan Maçlar'a geçer — yedeksiz
+                                            kalması maçın iptaline yol açmaz. Ayrı ızgara: %50 hücre + gap aynı wrap'te
+                                            üçüncü kartı Skor Bekleyen'in üstüne bindiriyordu. */}
+                                        {upcomingNeedingSubs.length > 0 && (
+                                        <View style={s.listGrid}>
                                             {upcomingNeedingSubs.map(m => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             ))}
                                         </View>
+                                        )}
+                                        </>
                                     )
                             )}
 
@@ -26793,7 +26801,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             ) : archiveRivals.length === 0 ? (
                                 <EmptyState emoji="🗃️" text={t.emptyArchive} />
                             ) : (
-                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingVertical: 5 }}>
+                                <View style={[s.listGrid, { paddingVertical: 5 }]}>
                                     {archiveRivals.map(m => (
                                         <ArchiveRivalCard
                                             key={m.id}
@@ -29009,10 +29017,9 @@ const s = StyleSheet.create({
     tabTextActive:    { color:'#fff' },
 
     list:             { paddingHorizontal:1, gap:3, paddingBottom:57 },
-    // gap + width:'48%' Android Yoga'da sonraki satırı aynı hücreye bindiriyor
-    // (Skor Bekleyen kartlarının üst üste binmesi). Hücre %50 + iç padding.
-    listGrid:         { flexDirection:'row', flexWrap:'wrap' },
-    listGridCell:     { width:'50%', paddingHorizontal:2, paddingBottom:8 },
+    // gap + %50 hücre Android Yoga'da sığmaz, sonraki satır Skor Bekleyen'in üstüne biner.
+    listGrid:         { flexDirection:'row', flexWrap:'wrap', alignItems:'flex-start', alignContent:'flex-start' },
+    listGridCell:     { width:'50%', maxWidth:'50%', flexGrow:0, flexShrink:0, paddingHorizontal:2, paddingBottom:8 },
     sectionTitle:     { color: colors.textSecondary, fontSize:12, fontWeight:'800', marginTop:4, marginBottom:4 },
 
     createBtn:        { backgroundColor: colors.surface, borderRadius:10, height:30, justifyContent:'center', paddingHorizontal:7, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
