@@ -1,10 +1,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="expo.modules.wearbridge">
-    <!-- Huawei Wear Engine: cihaz listesi + saate şablon bildirim (GT/Fit skor butonları) -->
+    <!-- Huawei Wear Engine P2P (HarmonyOS saat uygulaması) + skor bildirimi -->
     <uses-permission android:name="com.huawei.wearengine.permission.DEVICE_MANAGER" />
-    <uses-permission android:name="com.huawei.wearengine.permission.NOTIFY" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <queries>
         <package android:name="com.huawei.health" />
         <package android:name="com.huawei.wearengine" />
     </queries>
+    <application>
+        <receiver
+            android:name=".WatchScoreReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="expo.modules.wearbridge.SCORE_A" />
+                <action android:name="expo.modules.wearbridge.SCORE_B" />
+            </intent-filter>
+        </receiver>
+    </application>
 </manifest>

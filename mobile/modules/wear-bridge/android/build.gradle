@@ -31,7 +31,8 @@ android {
 
 dependencies {
     implementation "com.google.android.gms:play-services-wearable:18.1.0"
-    // Eski com.huawei.wearengine:wearengine:1.0.0 Maven'da yoktu; HMS koordinatı
-    // (5.0.0.300) resmi Wear Engine kod laboratuvarındaki güncel paket.
+    implementation "androidx.core:core-ktx:1.13.1"
+    // P2P (HarmonyOS saat uygulaması). Notify sınıfları 5.0.0.300'de yok —
+    // GT/Fit skor butonları WatchScoreNotification (Android bildirimi) ile.
     implementation "com.huawei.hms:wearengine:5.0.0.300"
 }
