@@ -1024,6 +1024,7 @@ model ActivityRequest {
   // stats (opsiyonel, sadece canlı takip - saat veya telefon-içi manuel - kullanılan maçlarda dolu):
   //   { total, wonBySide:{sender,opponent}, serve:{...}, flow:{...}, breakPoints:{...} (raket sporları) |
   //     volley:{...} (voleybol) | quarters:[...] (basketbol),
+  //     lineCalls:{in,out,total} (tenis/padel/voleybol — kamera replay'inden manuel IN/OUT),
   //     workout:{avgHeartRate?,maxHeartRate?,activeCalories?,source:'watch'|'phone'|'estimated'} }
   // stats tamamen mobile'daki liveMatchEngine.js'in ham PointLog'dan türettiği bir ÖZETTİR —
   // ham nokta-nokta log asla backend'e gönderilmez/saklanmaz, sadece bu türetilmiş özet.
@@ -1220,7 +1221,10 @@ model City {
 model Tournament {
   id             String       @id @default(uuid())
   name           String
-  type           String?      @default("mix_double") // '1'..'8' (bkz. TOURN_TYPES) — anket açıksa (status=POLL) anket kapanana kadar null
+  type           String?      @default("mix_double") // motor: '1'..'4' (eski 5–8 kullanılmıyor) — anket açıksa (status=POLL) anket kapanana kadar null
+  // Kullanıcının seçtiği paket/kurallar (presetId, entry, phase1/2, seeding…). Motor hâlâ `type` ile çalışır;
+  // bu alan arşiv/liste etiketleri ve gelecek Swiss/double-elim motorları için kaynak.
+  formatConfig   Json?
   category       CategoryType
   subCategory    String
   description    String?

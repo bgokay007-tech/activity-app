@@ -7,6 +7,7 @@ import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisP
 import { UTR_SUBCATEGORIES, applyUtrRatingForTournamentMatch, getDisplayRating, isDoublesFormat } from '../utils/utrRating.js';
 import { computeTournamentPlacement } from './achievement.controller.js';
 import { sanitizeExtraServices } from '../utils/extraServices.js';
+import { ACTIVE_ENGINE_TYPES, resolveFormatOnCreate } from '../utils/tournamentFormats.js';
 
 // Padel: %99 çiftler oynanan bir spor olduğu için (kullanıcı isteği) çiftler anketi tekliden
 // BAĞIMSIZ ve varsayılan/birincil olabilir — genel "bu dalı hiç kullanabilir miyim" kapısı
@@ -18,11 +19,10 @@ function hasGeneralAssessment(interest, subCategory) {
     return interest.assessmentCompleted;
 }
 
-// Geçerli turnuva türü ID'leri — bkz. mobil TOURN_TYPES. '1' (Bireysel Rekabetçi), '2'
-// (Çiftler Rekabetçi), '3' (Bireysel Antrenman) ve '4' (Çiftler Antrenman) tam olarak
-// kurallandırılmış/skorlanabilir; '5'-'8' zamanla gerçek formatlara dönüştürülecek yer
-// tutuculardır, ama anketlerde ve doğrudan seçimde şimdiden kullanılabilir.
+// Motor türleri '1'..'4'. Eski anketlerde '5'..'8' oyları varsa kabul edilmeye devam eder
+// (geriye dönük); yeni oluşturmada sadece aktif motorlar + formatConfig kullanılır.
 export const VALID_TOURN_TYPES = ['1', '2', '3', '4', '5', '6', '7', '8'];
+export { ACTIVE_ENGINE_TYPES };
 
 // Turnuva başlangıç tarihini Turkey local time (UTC+3) olarak döner
 export function tournamentBaseDate(tournament) {
@@ -701,6 +701,7 @@ export const createTournament = async (req, res, next) => {
             eventDate, eventTime, eventEndDate, eventEndTime,
             startDate, startTime, endDate, endTime,
             pollEnabled, pollEndDate, pollEndTime, pollTypes,
+            formatConfig: rawFormatConfig,
         } = req.body;
         if (pollEnabled === true && !pollEndDate) {
             return res.status(400).json({ message: 'Anket bitiş tarihi zorunludur.' });
@@ -712,16 +713,22 @@ export const createTournament = async (req, res, next) => {
         }
         let validPollTypes = null;
         if (pollEnabled === true) {
-            const uniq = Array.isArray(pollTypes) ? [...new Set(pollTypes)].filter(tp => VALID_TOURN_TYPES.includes(tp)) : [];
+            const uniq = Array.isArray(pollTypes)
+                ? [...new Set(pollTypes)].filter(tp => ACTIVE_ENGINE_TYPES.includes(String(tp)))
+                : [];
             if (uniq.length < 2) {
-                return res.status(400).json({ message: 'Anket için en az 2 turnuva türü seçmelisiniz.' });
+                return res.status(400).json({ message: 'Anket için en az 2 turnuva formatı seçmelisiniz.' });
             }
             validPollTypes = uniq;
         }
+        const resolved = pollEnabled === true
+            ? { type: null, formatConfig: null }
+            : resolveFormatOnCreate({ type, formatConfig: rawFormatConfig, matchmakingType });
         const tournament = await prisma.tournament.create({
             data: {
                 name,
-                type: pollEnabled === true ? null : (type || '1'),
+                type: pollEnabled === true ? null : resolved.type,
+                formatConfig: pollEnabled === true ? null : resolved.formatConfig,
                 status: pollEnabled === true ? 'POLL' : 'OPEN',
                 pollEndDate: pollEnabled === true ? new Date(pollEndDate) : null,
                 pollEndTime: pollEnabled === true ? (pollEndTime || null) : null,

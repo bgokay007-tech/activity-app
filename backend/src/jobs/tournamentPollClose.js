@@ -2,14 +2,13 @@ import prisma from '../config/prisma.js';
 import { createNotification } from '../controllers/notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 import { tournamentPollDeadline, checkPollAutoJoinEligibility } from '../controllers/tournament.controller.js';
+import { resolveFormatOnCreate } from '../utils/tournamentFormats.js';
 
-// Mobildeki TOURN_TYPE_LABELS ile aynı isimler ('5'-'8' henüz kesinleşmemiş yer
-// tutucular, oradaki gibi burada da genel "Tür N" olarak anılır).
 function typeLabel(tp) {
-    if (tp === '1') return 'Bireysel Rekabetçi';
-    if (tp === '2') return 'Çiftler Rekabetçi';
-    if (tp === '3') return 'Bireysel Antrenman';
-    if (tp === '4') return 'Çiftler Antrenman';
+    if (tp === '1') return 'Tekler · ELO Grup + Eleme';
+    if (tp === '2') return 'Çiftler · Lig + Eleme';
+    if (tp === '3') return 'Tekler · Antrenman';
+    if (tp === '4') return 'Çiftler · Antrenman';
     return `Tür ${tp}`;
 }
 
@@ -121,10 +120,11 @@ async function closeDuePolls() {
         for (const tournament of due) {
             try {
                 const winner = await pickPollWinner(tournament);
+                const resolved = resolveFormatOnCreate({ type: winner, matchmakingType: tournament.matchmakingType });
 
                 await prisma.tournament.update({
                     where: { id: tournament.id },
-                    data: { type: winner, status: 'OPEN' },
+                    data: { type: resolved.type, formatConfig: resolved.formatConfig, status: 'OPEN' },
                 });
 
                 const joinedCount = await autoJoinWinningVoters(tournament, winner);

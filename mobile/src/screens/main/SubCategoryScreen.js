@@ -48,6 +48,7 @@ import {
     createBasketballMatch, basketballRecordPoints, basketballEndQuarter, basketballFinishMatch,
     deriveStats, recordLineCall, LINE_CALL_SPORTS, engineToWearScore,
 } from '../../utils/liveMatchEngine';
+import { TOURNAMENT_PRESETS, getPresetById, buildFormatConfig, tournFormatLabel } from '../../utils/tournamentFormats';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -16497,7 +16498,12 @@ function CreateRefereeMatchModal({ visible, onClose, category, sub, onCreated })
 
 // ─── Tournament Card ──────────────────────────────────────────────────────────
 
-const TOURN_TYPE_LABELS = (t) => ({ '1': t.tournType1, '2': t.tournType2, '3': t.tournType3, '4': t.tournType4 });
+const TOURN_TYPE_LABELS = (t) => ({
+    '1': t.tournPreset_singles_elo_playoff || t.tournType1,
+    '2': t.tournPreset_doubles_rr_playoff || t.tournType2,
+    '3': t.tournPreset_singles_practice || t.tournType3,
+    '4': t.tournPreset_doubles_practice || t.tournType4,
+});
 const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' };
 const getSurface = (t, id) => t['surface' + (id?.toUpperCase())] || id || '';
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
@@ -19481,7 +19487,7 @@ const tp = StyleSheet.create({
     statusDesc:  { color: colors.textSecondary, fontSize:13, textAlign:'center', lineHeight:18 },
 });
 
-const TOURN_TYPES   = ['1', '2', '3', '4', '5', '6', '7', '8'];
+const TOURN_TYPES   = ['1', '2', '3', '4']; // motor ID — UI preset kartlarından seçilir
 const TOURN_SCOPES  = ['YEREL', 'ULUSAL', 'ULUSLARARASI'];
 const TOURN_GENDERS = ['KADIN', 'ERKEK', 'MIX'];
 
@@ -19495,10 +19501,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     // birkaç noktada özelleştiriliyor (mekan sözcüğü, sayı sistemi, playoff, takım
     // cinsiyet dağılımı, mekan ücreti kim öder, turnuva türü kaldırıldı — şimdilik sadece airsoft).
     const isAirsoft = sub === 'airsoft';
+    const presets = TOURNAMENT_PRESETS;
 
     const INIT = {
         name: '', scope: '', scopeCity: '', scopeDistrict: '', scopeCountry: '',
-        type: '1', minPlayers: '', maxPlayers: '', minRating: '', maxRating: '',
+        type: '1', presetId: 'singles_elo_playoff',
+        minPlayers: '', maxPlayers: '', minRating: '', maxRating: '',
         ratingGenderSplit: false,
         minRatingMale: '', maxRatingMale: '',
         minRatingFemale: '', maxRatingFemale: '',
@@ -19693,6 +19701,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                     matchesBeforePlayoff: f.matchesBeforePlayoff ? parseInt(f.matchesBeforePlayoff) : undefined,
                     playoffQualifiers: f.playoffQualifiers ? parseInt(f.playoffQualifiers) : undefined,
                 }),
+                ...(!f.pollEnabled && f.presetId ? {
+                    formatConfig: buildFormatConfig(getPresetById(f.presetId), { matchmakingType: f.matchmakingType }),
+                } : {}),
                 ...(isAirsoft && {
                     teamSize: f.teamSize ? parseInt(f.teamSize) : undefined,
                     teamRequiredMaleCount: f.teamRequiredMaleCount,
@@ -20253,54 +20264,94 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             </View>
 
-                            {/* Tournament type — kendim seçerim / kullanıcılar oylasın. Airsoft'ta kullanıcı
-                                isteğiyle turnuva türü seçimi şimdilik tamamen kaldırıldı (varsayılan type='1',
-                                pollEnabled=false kalıyor — playoff/sayı sistemi alanları bunu bekliyor zaten). */}
+                            {/* Turnuva formatı — preset kartları. İzinli kullanıcılar (admin /
+                                onaylı turnuva izni) bu modalı zaten dışarıdan açabiliyor.
+                                Airsoft'ta format seçimi yok (varsayılan type='1'). */}
                             {!isAirsoft && (
                             <>
-                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8, gap:3 }}>
-                                <Text style={s.fieldLabelRed}>{t.tournTypeLabel}</Text>
-                                <TouchableOpacity
-                                    onPress={() => set('pollEnabled', !f.pollEnabled)}
-                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
-                                    <Text style={[s.chipText, f.pollEnabled && { color: cfg.color, fontWeight:'800' }]}>{f.pollEnabled ? '✅ ' : ''}{t.tournTypePollToggle}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={() => set('dayTrip', !f.dayTrip)}
-                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.dayTrip && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
-                                    <Text style={[s.chipText, f.dayTrip && { color: cfg.color, fontWeight:'800' }]}>{f.dayTrip ? '✅ ' : ''}{t.tournDayTrip}</Text>
-                                </TouchableOpacity>
+                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8, gap:6, flexWrap:'wrap' }}>
+                                <Text style={s.fieldLabelRed}>{t.tournFormatLabel}</Text>
+                                <View style={{ flexDirection:'row', gap:4, flexWrap:'wrap' }}>
+                                    <TouchableOpacity
+                                        onPress={() => set('pollEnabled', !f.pollEnabled)}
+                                        style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
+                                        <Text style={[s.chipText, f.pollEnabled && { color: cfg.color, fontWeight:'800' }]}>{f.pollEnabled ? '✅ ' : ''}{t.tournTypePollToggle}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => set('dayTrip', !f.dayTrip)}
+                                        style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.dayTrip && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
+                                        <Text style={[s.chipText, f.dayTrip && { color: cfg.color, fontWeight:'800' }]}>{f.dayTrip ? '✅ ' : ''}{t.tournDayTrip}</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
+                            <Text style={{ color: colors.textMuted, fontSize:11, lineHeight:15, marginBottom:10 }}>{t.tournFormatHint}</Text>
 
                             {!f.pollEnabled && (
-                                <View style={[s.chipRow, { marginBottom:8 }]}>
-                                    {TOURN_TYPES.map(tp => (
-                                        <TouchableOpacity key={tp}
-                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.type === tp && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                            onPress={() => set('type', tp)}>
-                                            <Text style={[s.chipText, f.type === tp && { color: cfg.color, fontWeight:'800' }]}>
-                                                {TOURN_TYPE_LABELS(t)[tp]}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
+                                <View style={{ gap:8, marginBottom:12 }}>
+                                    {presets.map(p => {
+                                        const selected = !p.comingSoon && f.presetId === p.id;
+                                        const title = t[`tournPreset_${p.id}`] || p.id;
+                                        const desc = t[`tournPresetDesc_${p.id}`] || '';
+                                        const badge = p.comingSoon ? t.tournComingSoon
+                                            : (p.entry === 'DOUBLES' ? t.tournEntryDoubles : t.tournEntrySingles);
+                                        return (
+                                            <TouchableOpacity
+                                                key={p.id}
+                                                disabled={!!p.comingSoon}
+                                                activeOpacity={0.85}
+                                                onPress={() => {
+                                                    if (p.comingSoon) return;
+                                                    setF(prev => ({
+                                                        ...prev,
+                                                        presetId: p.id,
+                                                        type: p.engineType,
+                                                        matchmakingType: p.seeding === 'RANDOM' ? 'RANDOM' : (prev.matchmakingType === 'RANDOM' ? 'ELO' : prev.matchmakingType || 'ELO'),
+                                                    }));
+                                                }}
+                                                style={{
+                                                    borderRadius:14, padding:12,
+                                                    backgroundColor: selected ? p.accent + '18' : '#0f172a',
+                                                    borderWidth:1.5,
+                                                    borderColor: selected ? p.accent : '#334155',
+                                                    opacity: p.comingSoon ? 0.55 : 1,
+                                                }}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:4 }}>
+                                                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', flex:1 }} numberOfLines={1}>{title}</Text>
+                                                    <View style={{ backgroundColor: (p.comingSoon ? '#64748b' : p.accent) + '33', borderRadius:999, paddingHorizontal:8, paddingVertical:3 }}>
+                                                        <Text style={{ color: p.comingSoon ? '#94a3b8' : p.accent, fontSize:10, fontWeight:'800' }}>{badge}</Text>
+                                                    </View>
+                                                </View>
+                                                <Text style={{ color:'#94a3b8', fontSize:11, lineHeight:15 }}>{desc}</Text>
+                                                {selected ? (
+                                                    <Text style={{ color: p.accent, fontSize:11, fontWeight:'800', marginTop:6 }}>✓ {t.tournFormatSelected}</Text>
+                                                ) : null}
+                                            </TouchableOpacity>
+                                        );
+                                    })}
                                 </View>
                             )}
 
                             {f.pollEnabled && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:9, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
-                                    <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:16, marginBottom:9 }}>{t.tournPollInfoText}</Text>
-
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:12, padding:12, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:16, marginBottom:10 }}>{t.tournPollInfoText}</Text>
                                     <Text style={s.fieldLabelRed}>{t.tournPollTypesLabel} *</Text>
-                                    <View style={[s.chipRow, { marginBottom:9 }]}>
-                                        {TOURN_TYPES.map(tp => {
-                                            const selected = f.pollTypes.includes(tp);
+                                    <View style={{ gap:8, marginBottom:10 }}>
+                                        {presets.filter(p => !p.comingSoon).map(p => {
+                                            const selected = f.pollTypes.includes(p.engineType);
                                             return (
-                                                <TouchableOpacity key={tp}
-                                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, selected && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                                    onPress={() => set('pollTypes', selected ? f.pollTypes.filter(x => x !== tp) : [...f.pollTypes, tp])}>
-                                                    <Text style={[s.chipText, selected && { color: cfg.color, fontWeight:'800' }]}>
-                                                        {selected ? '✓ ' : ''}{TOURN_TYPE_LABELS(t)[tp]}
+                                                <TouchableOpacity key={p.id}
+                                                    onPress={() => set('pollTypes', selected
+                                                        ? f.pollTypes.filter(x => x !== p.engineType)
+                                                        : [...f.pollTypes, p.engineType])}
+                                                    style={{
+                                                        borderRadius:12, padding:10,
+                                                        backgroundColor: selected ? p.accent + '18' : '#0f172a',
+                                                        borderWidth:1, borderColor: selected ? p.accent : '#334155',
+                                                    }}>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>
+                                                        {selected ? '✓ ' : ''}{t[`tournPreset_${p.id}`]}
                                                     </Text>
+                                                    <Text style={{ color:'#94a3b8', fontSize:11, marginTop:2 }} numberOfLines={2}>{t[`tournPresetDesc_${p.id}`]}</Text>
                                                 </TouchableOpacity>
                                             );
                                         })}
@@ -20342,7 +20393,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             {/* Bireysel Rekabetçi kuralları */}
                             {!f.pollEnabled && f.type === '1' && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Bireysel Rekabetçi Kuralları</Text>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_singles_elo_playoff}</Text>
                                     {[
                                         'Oyuncular bireysel katılır. Play-off öncesi her tur bittikten sonra güncel ELO\'ya göre en yakın, daha önce eşleşmemiş rakiplerle yeni tur oluşturulur.',
                                         'Play-off\'larda da ELO puanı en yakın oyuncular eşleşir.',
@@ -27223,7 +27274,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             ) : (
                                 <View style={{ gap:3, paddingVertical:5 }}>
                                     {archiveTournaments.map(tourn => {
-                                        const typeLabel = TOURN_TYPE_LABELS(t)[tourn.type] || tourn.type;
+                                        const typeLabel = tournFormatLabel(tourn, t);
                                         const participated = tourn.participants?.length > 0 || tourn.creatorId === myId;
                                         return (
                                             <View key={tourn.id} style={[s.card, { padding:9 }]}>
@@ -28780,7 +28831,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     <View style={[s.modalBox, { maxHeight:'92%' }]}>
                         {selectedArchiveTournament && (() => {
                             const tourn = selectedArchiveTournament;
-                            const typeLabel = TOURN_TYPE_LABELS(t)[tourn.type] || tourn.type;
+                            const typeLabel = tournFormatLabel(tourn, t);
                             const row = (label, value) => value ? (
                                 <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', paddingVertical:7, borderBottomWidth:1, borderBottomColor:colors.border }}>
                                     <Text style={{ color:colors.textMuted, fontSize:13, fontWeight:'600', flex:1 }}>{label}</Text>
