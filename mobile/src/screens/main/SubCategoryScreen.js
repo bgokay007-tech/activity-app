@@ -16511,7 +16511,7 @@ const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' }
 const getSurface = (t, id) => t['surface' + (id?.toUpperCase())] || id || '';
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
 
-function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, openChatTournamentId, onChatOpened, openMatchId, openMatchTournamentId, onMatchOpened }) {
+function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, openChatTournamentId, onChatOpened, openMatchId, openMatchTournamentId, onMatchOpened, onUserPress }) {
     const myPart = item.participants?.[0];
     const [myStatus, setMyStatus] = useState(myPart?.status ?? null);
     useEffect(() => { setMyStatus(myPart?.status ?? null); }, [myPart?.status]);
@@ -17412,6 +17412,29 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
     const infoColor = cfg.color;
 
+    const openTournPhone = (phone) => {
+        if (!phone) return;
+        const digits = String(phone).replace(/\D/g, '');
+        const waDigits = digits.startsWith('0') ? `90${digits.slice(1)}` : digits;
+        const buttons = [
+            { text: t.callBtn || 'Ara', onPress: () => Linking.openURL(`tel:${phone}`).catch(() => {}) },
+        ];
+        const finish = (withWa) => {
+            if (withWa) {
+                buttons.push({
+                    text: t.whatsappBtn || 'WhatsApp',
+                    onPress: () => Linking.openURL(`whatsapp://send?phone=${waDigits}`).catch(() =>
+                        Linking.openURL(`https://wa.me/${waDigits}`).catch(() => {})),
+                });
+            }
+            buttons.push({ text: t.cancelBtn || 'Vazgeç', style: 'cancel' });
+            Alert.alert(phone, '', buttons);
+        };
+        Linking.canOpenURL(`whatsapp://send?phone=${waDigits}`)
+            .then(ok => finish(!!ok))
+            .catch(() => finish(false));
+    };
+
     const skillRatingMap = (() => {
         const map = {};
         const src = requests.length > 0 ? requests : participants;
@@ -17519,356 +17542,230 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     return (
         <>
         <View style={[s.card, { marginBottom:10 }, (item.status === 'OPEN' || item.status === 'POLL') && { borderColor: infoColor + '55', borderWidth:1.5, paddingTop:10, paddingBottom:8 }]}>
-            {/* Header */}
-            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
-                <View style={{ flex:1, gap:3, paddingRight:6 }}>
-                    {item.status === 'IN_PROGRESS' ? (
-                        <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:3 }} onPress={() => setCollapsed(c => !c)}>
-                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', letterSpacing:0.2 }}>{item.name}</Text>
-                            <Text style={{ color: colors.textMuted, fontSize:13 }}>{collapsed ? '▶' : '▼'}</Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', letterSpacing:0.2, lineHeight:21 }}>{item.name}</Text>
-                    )}
-                    {!collapsed && (<>
-                    {/* Üst meta: format / cinsiyet / kapsam */}
-                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:5, marginTop:6 }}>
-                        <View style={{ backgroundColor: infoColor + '18', borderRadius:999, paddingHorizontal:9, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
+            {/* Üst satır: isim · tür · konum */}
+            <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:6 }}>
+                {item.status === 'IN_PROGRESS' ? (
+                    <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:4, maxWidth:'100%' }} onPress={() => setCollapsed(c => !c)}>
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', letterSpacing:0.2, flexShrink:1 }} numberOfLines={2}>{item.name}</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:12 }}>{collapsed ? '▶' : '▼'}</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', letterSpacing:0.2, lineHeight:20, flexShrink:1 }} numberOfLines={2}>{item.name}</Text>
+                )}
+                {!collapsed && (
+                    <>
+                        <View style={{ backgroundColor: infoColor + '18', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
                             <Text style={{ color: infoColor, fontSize:10, fontWeight:'800' }}>{tournFormatLabel(item, t) || typeLabels[item.type] || item.type}</Text>
                         </View>
-                        {item.genderType ? (
-                            <View style={{ backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:9, paddingVertical:3, borderWidth:1, borderColor:'#334155' }}>
-                                <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'700' }}>
-                                    {t['tournGender' + item.genderType.charAt(0) + item.genderType.slice(1).toLowerCase()] || item.genderType}
-                                </Text>
-                            </View>
-                        ) : null}
-                        <View style={{ backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:9, paddingVertical:3, borderWidth:1, borderColor:'#334155' }}>
-                            <Text style={{ color:'#94a3b8', fontSize:10, fontWeight:'700' }}>
-                                {SCOPE_EMOJI[item.scope] || '📍'} {item.city || (item.scope === 'ULUSLARARASI' ? 'Dünya' : item.scope === 'ULUSAL' ? 'Ulusal' : 'Yerel')}
+                        <View style={{ backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
+                            <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'700' }} numberOfLines={1}>
+                                📍 {item.location || item.city || (item.scope === 'ULUSLARARASI' ? 'Dünya' : item.scope === 'ULUSAL' ? 'Ulusal' : 'Yerel')}
                             </Text>
                         </View>
-                        {item.dayTrip ? (
-                            <View style={{ backgroundColor:'#f59e0b18', borderRadius:999, paddingHorizontal:9, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b40' }}>
-                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>☀️ Günübirlik</Text>
-                            </View>
-                        ) : null}
-                    </View>
-
-                    <Text style={{ color: colors.textMuted, fontSize:11, marginTop:8 }}>
-                        👤 {item.creator?.fullName || item.creator?.username}
-                        {item.contactPhone ? `  ·  📞 ${item.contactPhone}` : ''}
-                    </Text>
-
-                    {/* Özet kutular */}
-                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:10 }}>
-                        {item.endDate ? (
-                            <View style={{ width:'48%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
-                                <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>SON BAŞVURU</Text>
-                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
-                                    {new Date(item.endDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}
-                                    {item.endTime ? ` · ${item.endTime}` : ''}
-                                </Text>
-                            </View>
-                        ) : null}
-                        <View style={{ width: item.endDate ? '48%' : '100%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
-                            <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>KADRO</Text>
-                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
-                                {(() => {
-                                    const max = item.maxPlayers;
-                                    const asCount = max ? Math.min(participantCount, max) : participantCount;
-                                    const yedek = max ? Math.max(0, participantCount - max) : 0;
-                                    const base = max ? `${asCount} / ${max}` : `${participantCount}`;
-                                    return yedek > 0 ? `${base}  (+${yedek} yedek)` : base;
-                                })()}
-                                {item.minPlayers > 2 ? `  · min ${item.minPlayers}` : ''}
+                        <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : item.status === 'POLL' ? '#a855f720' : infoColor + '20', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : item.status === 'POLL' ? '#a855f750' : infoColor + '50' }}>
+                            <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : item.status === 'COMPLETED' ? '#94a3b8' : item.status === 'POLL' ? '#c084fc' : infoColor, fontSize:10, fontWeight:'800' }}>
+                                {item.status === 'IN_PROGRESS' ? '🏆 Devam Ediyor' : item.status === 'COMPLETED' ? '✅ Tamamlandı' : item.status === 'POLL' ? t.tournStatusPoll : t.tournStatusOpen}
                             </Text>
                         </View>
-                        {item.eventDate ? (
-                            <View style={{ width:'48%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
-                                <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>BAŞLANGIÇ</Text>
-                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
-                                    {new Date(item.eventDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}
-                                    {item.eventTime ? ` · ${item.eventTime}` : ''}
-                                </Text>
-                            </View>
-                        ) : null}
-                        {item.eventEndDate ? (
-                            <View style={{ width:'48%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
-                                <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>TAHMİNİ BİTİŞ</Text>
-                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
-                                    {new Date(item.eventEndDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}
-                                    {item.eventEndTime ? ` · ${item.eventEndTime}` : ''}
-                                </Text>
-                            </View>
-                        ) : null}
-                        <View style={{ width:'100%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor: item.location ? '#2563eb40' : '#334155' }}>
-                            <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>MEKAN</Text>
-                            {item.location
-                                ? <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'700' }}>🏟️ {item.location}{item.surface ? `  ·  ${getSurface(t, item.surface)}` : ''}{item.isIndoor ? '  ·  Kapalı' : ''}</Text>
-                                : <Text style={{ color: colors.textMuted, fontSize:12 }}>
-                                    🤝 {item.subCategory === 'airsoft' ? 'Takımlar ortaklaşa mekan seçecek' : t.tournCourtPlayersDecide}
-                                  </Text>
-                            }
-                        </View>
-                    </View>
-
-                    {/* Derece + maç ayarları */}
-                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:5, marginTop:8 }}>
-                        {((item.minRating !== null && item.minRating !== undefined) || (item.maxRating !== null && item.maxRating !== undefined)) ? (
-                            <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2440' }}>
-                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
-                                    ⭐ {item.minRating !== null && item.minRating !== undefined ? item.minRating : '0'}–{item.maxRating !== null && item.maxRating !== undefined ? item.maxRating : '5'}★
-                                </Text>
-                            </View>
-                        ) : null}
-                        {item.setsPerMatch ? (
-                            <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Set: {item.setsPerMatch}</Text>
-                            </View>
-                        ) : null}
-                        {item.advantageScoring !== undefined ? (
-                            <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
-                                    {item.advantageScoring === null ? t.tournFreeScoring : item.advantageScoring ? t.tournAdvantage : t.tournDeciding}
-                                </Text>
-                            </View>
-                        ) : null}
-                        {item.matchesBeforePlayoff ? (
-                            <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
-                                    {(['5','7'].includes(String(item.type)) ? 'Tur' : 'Ön maç')}: {item.matchesBeforePlayoff}
-                                </Text>
-                            </View>
-                        ) : null}
-                        {item.playoffQualifiers ? (
-                            <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Play-off: {item.playoffQualifiers}</Text>
-                            </View>
-                        ) : null}
-                        {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' ? (
-                            <View style={{ backgroundColor:'#1e3a8a20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#1e3a8a50' }}>
-                                <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800' }}>
-                                    {item.matchFrequency === 'WEEKLY_1' ? '📅 Haftada 1  ·  🃏 1 joker' : '📅 Haftada 2  ·  🃏 2 joker'}
-                                </Text>
-                            </View>
-                        ) : null}
-                    </View>
-
-                    {/* Ücret / ödeme */}
-                    {item.isPaid ? (
-                        <View style={{ marginTop:10, backgroundColor:'#42200633', borderRadius:12, padding:10, borderWidth:1, borderColor:'#fbbf2440' }}>
-                            <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'900', marginBottom:4 }}>
-                                💰 Ücretli{item.playerFee ? `  ·  ${item.playerFee}₺ / oyuncu` : ''}
-                            </Text>
-                            {item.feeType === 'INCLUDED'
-                                ? <Text style={{ color:'#fde68a', fontSize:10 }}>Kort ücreti dahil</Text>
-                                : item.feeType === 'SHARED'
-                                ? <Text style={{ color:'#fde68a', fontSize:10 }}>Kort ücreti ortaklaşa</Text>
-                                : null}
-                            {item.paymentMethod === 'CASH' && <Text style={{ color:'#4ade80', fontSize:10, marginTop:3 }}>💵 Kortta nakit</Text>}
-                            {item.paymentMethod === 'EFT' && (
-                                <View style={{ marginTop:3, gap:2 }}>
-                                    <Text style={{ color:'#60a5fa', fontSize:10 }}>🏦 EFT ile ödeme</Text>
-                                    {item.ibanHolder ? <Text style={{ color:'#cbd5e1', fontSize:10 }}>Hesap: {item.ibanHolder}</Text> : null}
-                                    {item.ibanNumber ? <Text style={{ color:'#cbd5e1', fontSize:10 }}>IBAN: {item.ibanNumber}</Text> : null}
-                                </View>
-                            )}
-                        </View>
-                    ) : (
-                        (item.feeType === 'SHARED' || item.feeType === 'SPONSORED') ? (
-                            <View style={{ marginTop:10, backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
-                                <Text style={{ color: colors.textSecondary, fontSize:11 }}>
-                                    {item.feeType === 'SPONSORED' ? '🏟️ Kort ücretleri sponsorlar karşılar' : '🏟️ Kort ücretleri ortaklaşa karşılanır'}
-                                </Text>
-                            </View>
-                        ) : null
-                    )}
-
-                    {/* Ödüller */}
-                    {(item.prize1 || item.prize2 || item.prize3 || item.surpriseGifts) ? (
-                        <View style={{ marginTop:10, backgroundColor:'#0f172a', borderRadius:12, padding:10, borderWidth:1, borderColor:'#fbbf2430', gap:4 }}>
-                            <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'900', marginBottom:2 }}>ÖDÜLLER</Text>
-                            {item.prize1 ? <Text style={{ color:'#fde68a', fontSize:12, fontWeight:'700' }}>🥇 {item.prize1}</Text> : null}
-                            {item.prize2 ? <Text style={{ color:'#e2e8f0', fontSize:12, fontWeight:'600' }}>🥈 {item.prize2}</Text> : null}
-                            {item.prize3 ? <Text style={{ color:'#d6a87a', fontSize:12, fontWeight:'600' }}>🥉 {item.prize3}</Text> : null}
-                            {item.surpriseGifts ? <Text style={{ color:'#d8b4fe', fontSize:11 }}>🎁 {item.surpriseGifts}</Text> : null}
-                        </View>
-                    ) : null}
-
-                    {Array.isArray(item.extraServices) && item.extraServices.length > 0 ? (
-                        <View style={{ marginTop:8, backgroundColor:'#0f172a', borderRadius:12, padding:10, borderWidth:1, borderColor:'#334155', gap:3 }}>
-                            <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'800', marginBottom:2 }}>EKSTRA HİZMETLER</Text>
-                            {item.extraServices.map(sv => (
-                                <Text key={sv.id} style={{ color:'#e5e7eb', fontSize:11 }}>
-                                    🎉 {sv.name} — {sv.included ? <Text style={{ color:'#4ade80' }}>Dahil</Text> : `+${sv.price}₺`}
-                                </Text>
-                            ))}
-                        </View>
-                    ) : null}
-                    </>)}
-                </View>
-                {!collapsed && (
-                <View style={{ alignItems:'flex-end', gap:3 }}>
-                    <TouchableOpacity
-                        style={{ backgroundColor: infoColor + '15', borderRadius:8, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: infoColor + '40' }}
-                        onPress={() => shareTournament(item, t)}
-                    >
-                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'800' }}>{t.shareBtn || '📤 Paylaş'}</Text>
-                    </TouchableOpacity>
-                    <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : item.status === 'POLL' ? '#a855f720' : infoColor + '20', borderRadius:8, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : item.status === 'POLL' ? '#a855f750' : infoColor + '50' }}>
-                        <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : item.status === 'COMPLETED' ? '#94a3b8' : item.status === 'POLL' ? '#c084fc' : infoColor, fontSize:10, fontWeight:'800' }}>
-                            {item.status === 'IN_PROGRESS' ? '🏆 Devam Ediyor' : item.status === 'COMPLETED' ? '✅ Tamamlandı' : item.status === 'POLL' ? t.tournStatusPoll : t.tournStatusOpen}
-                        </Text>
-                    </View>
-                    {item.status === 'POLL' && (
-                        <View style={{ alignItems:'flex-end', gap:3 }}>
-                            {(Array.isArray(item.pollTypes) ? item.pollTypes : ['1', '2']).map(tp => {
-                                const votes = (item.typeVotes || []).filter(v => v.votedType === tp).length;
-                                const voted = (item.typeVotes || []).find(v => v.userId === myId)?.votedType === tp;
-                                return (
-                                    <TouchableOpacity key={tp}
-                                        style={{ backgroundColor: voted ? '#a855f730' : '#a855f715', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: voted ? '#a855f770' : '#a855f740', minWidth:120 }}
-                                        onPress={() => handleVoteType(tp)}
-                                        disabled={voting}>
-                                        <Text style={{ color: voted ? '#c084fc' : '#d8b4fe', fontSize:10, fontWeight:'700' }}>
-                                            {voted ? '✓ ' : ''}{TOURN_TYPE_LABELS(t)[tp]} · {votes}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                            {(item.pollEndDate) && (
-                                <Text style={{ color:'#a78bfa', fontSize:9 }}>
-                                    {t.tournPollEndLabel}: {new Date(item.pollEndDate).toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' })}{item.pollEndTime ? ` ${item.pollEndTime}` : ''}
-                                </Text>
-                            )}
-                        </View>
-                    )}
-                    {item.status !== 'POLL' && (isCreator ? (<>
-                        {myStatus === null && !isEventStarted() && (
-                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor: infoColor + '50' }} onPress={handleJoinPress}>
-                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>+ {t.tournJoinBtn}</Text>
-                            </TouchableOpacity>
-                        )}
-                        {myStatus === 'ACCEPTED' && (
-                            <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
-                                <Text style={{ color:'#4ade80', fontSize:10 }}>✓ Katıldın</Text>
-                            </View>
-                        )}
-                        <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => setShowEditModal(true)}>
-                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.tournEditBtn}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650', alignItems:'center' }} onPress={() => onDelete(item.id)}>
-                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700', textAlign:'center' }}>Turnuvayı{'\n'}🗑️ Sil</Text>
-                        </TouchableOpacity>
-                        {item.status === 'OPEN' && participantCount >= (item.minPlayers || 2) && (
-                            <TouchableOpacity
-                                style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}
-                                onPress={handleStartTournament}
-                                disabled={starting}>
-                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>
-                                    {starting ? '...' : '🏆 Başlat'}
-                                </Text>
-                            </TouchableOpacity>
-                        )}
-                        {item.status === 'IN_PROGRESS' && item.type !== '2' && item.type !== '3' && item.type !== '4' && (
-                            <TouchableOpacity
-                                style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}
-                                onPress={handleRematch}>
-                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>🔀 Tekrar{'\n'}Eşleştir</Text>
-                            </TouchableOpacity>
-                        )}
-                        {item.status === 'IN_PROGRESS' && item.type === '1' && (
-                            <>
-                                <TouchableOpacity
-                                    style={{ backgroundColor:'#0e7490' + '30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#0e7490' + '60' }}
-                                    onPress={handleFixDeadlines}>
-                                    <Text style={{ color:'#67e8f9', fontSize:10, fontWeight:'700' }}>⏱️ Süre{'\n'}Düzelt</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={{ backgroundColor:'#7c3aed20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#7c3aed50' }}
-                                    onPress={handleRegenRound}>
-                                    <Text style={{ color:'#a78bfa', fontSize:10, fontWeight:'700' }}>🔁 Turu{'\n'}Düzelt</Text>
-                                </TouchableOpacity>
-                            </>
-                        )}
-                        <View style={{ flexDirection:'row', gap:3 }}>
-                            <TouchableOpacity
-                                style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:3, paddingVertical:2, borderWidth:1, borderColor:'#16a34a40' }}
-                                onPress={() => { fetchChat(); fetchChatNotifyPref(); setShowChatModal(true); }}>
-                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
-                                    {'Mesajlar'.split('').join('\n')}
-                                </Text>
-                                <Text style={{ color:'#4ade80', fontSize:10, marginTop:3 }}>›</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:3, paddingVertical:2, borderWidth:1, borderColor:'#1e40af40' }}
-                                onPress={() => { fetchRequests(); setShowListModal(true); }}>
-                                {requests.length > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{requests.length}</Text>}
-                                <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
-                                    {'Başvurular'.split('').join('\n')}
-                                </Text>
-                                <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>›</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </>) : (<>
-                        {myStatus === null && ['OPEN', 'IN_PROGRESS'].includes(item.status) && !isEventStarted() && !isRegEnded() && (
-                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor: infoColor + '50' }} onPress={handleJoinPress}>
-                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.tournJoinBtn}</Text>
-                            </TouchableOpacity>
-                        )}
-                        {myStatus === 'PENDING' && (<>
-                            <View style={{ backgroundColor:'#a855f720', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor:'#a855f750', maxWidth:120 }}>
-                                <Text style={{ color:'#c084fc', fontSize:10, flexWrap:'wrap' }}>{t.tournJoinPending}</Text>
-                            </View>
-                            {!isEventStarted() && (
-                                <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onCancelJoin(item.id)}>
-                                    <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.tournCancelJoinBtn}</Text>
-                                </TouchableOpacity>
-                            )}
-                        </>)}
-                        {myStatus === 'ACCEPTED' && !myPart?.cancelRequested && (
-                            <View style={{ gap:3 }}>
-                                <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
-                                    <Text style={{ color:'#4ade80', fontSize:10 }}>{t.tournJoinAccepted}</Text>
-                                </View>
-                                {!isEventStarted() && (
-                                    <TouchableOpacity style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262640' }} onPress={handleCancelAttempt}>
-                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>İptal</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        )}
-                        {myStatus === 'ACCEPTED' && myPart?.cancelRequested && (
-                            <View style={{ backgroundColor:'#f59e0b15', borderRadius:6, paddingHorizontal:3, paddingVertical:1, borderWidth:1, borderColor:'#f59e0b40' }}>
-                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>⏳ İptal onay bekliyor</Text>
-                            </View>
-                        )}
-                        <View style={{ flexDirection:'row', gap:3 }}>
-                            {myStatus === 'ACCEPTED' && (
-                                <TouchableOpacity
-                                    style={{ alignItems:'center', backgroundColor:'#16a34a15', borderRadius:6, paddingHorizontal:3, paddingVertical:2, borderWidth:1, borderColor:'#16a34a40' }}
-                                    onPress={() => { fetchChat(); fetchChatNotifyPref(); setShowChatModal(true); }}>
-                                    <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
-                                        {'Mesajlar'.split('').join('\n')}
-                                    </Text>
-                                    <Text style={{ color:'#4ade80', fontSize:10, marginTop:3 }}>›</Text>
-                                </TouchableOpacity>
-                            )}
-                            <TouchableOpacity
-                                style={{ alignItems:'center', backgroundColor:'#1e40af15', borderRadius:6, paddingHorizontal:3, paddingVertical:2, borderWidth:1, borderColor:'#1e40af40' }}
-                                onPress={() => { (item.type === '2' || item.type === '4') ? fetchRequests() : fetchParticipants(); setShowListModal(true); }}>
-                                {participantCount > 0 && <Text style={{ color:'#60a5fa', fontSize:9, fontWeight:'800', marginBottom:2 }}>{participantCount}</Text>}
-                                <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'600', textAlign:'center', lineHeight:13 }}>
-                                    {'Katılımcı'.split('').join('\n')}
-                                </Text>
-                                <Text style={{ color:'#60a5fa', fontSize:10, marginTop:3 }}>›</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </>))}
-                </View>
+                    </>
                 )}
             </View>
+
+            {!collapsed && (<>
+            {/* Oluşturan + telefon */}
+            <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:8, marginTop:8 }}>
+                <TouchableOpacity
+                    disabled={!item.creatorId || !onUserPress}
+                    onPress={() => item.creatorId && onUserPress?.(item.creatorId)}
+                    style={{ flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor: onUserPress ? infoColor + '50' : '#334155' }}
+                >
+                    <Text style={{ color: onUserPress ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800', textDecorationLine: onUserPress ? 'underline' : 'none' }}>
+                        👤 {item.creator?.fullName || item.creator?.username || '—'}
+                    </Text>
+                </TouchableOpacity>
+                {item.contactPhone ? (
+                    <TouchableOpacity
+                        onPress={() => openTournPhone(item.contactPhone)}
+                        style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#16a34a18', borderRadius:999, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#16a34a50' }}
+                    >
+                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>📞 {item.contactPhone}</Text>
+                    </TouchableOpacity>
+                ) : null}
+            </View>
+
+            {/* Cinsiyet → derece → set → sayı sistemi → zemin → ön maç → play-off */}
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:5, marginTop:10 }}>
+                {item.genderType ? (
+                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
+                        <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'700' }}>
+                            {t['tournGender' + item.genderType.charAt(0) + item.genderType.slice(1).toLowerCase()] || item.genderType}
+                        </Text>
+                    </View>
+                ) : null}
+                {((item.minRating !== null && item.minRating !== undefined) || (item.maxRating !== null && item.maxRating !== undefined)) ? (
+                    <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2440' }}>
+                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
+                            ⭐ {item.minRating !== null && item.minRating !== undefined ? item.minRating : '0'}–{item.maxRating !== null && item.maxRating !== undefined ? item.maxRating : '5'}★
+                        </Text>
+                    </View>
+                ) : null}
+                {item.setsPerMatch ? (
+                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
+                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Set: {item.setsPerMatch}</Text>
+                    </View>
+                ) : null}
+                {item.advantageScoring !== undefined ? (
+                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
+                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
+                            {item.advantageScoring === null ? t.tournFreeScoring : item.advantageScoring ? t.tournAdvantage : t.tournDeciding}
+                        </Text>
+                    </View>
+                ) : null}
+                {(item.surface || item.isIndoor) ? (
+                    <View style={{ backgroundColor:'#0ea5e915', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#0ea5e940' }}>
+                        <Text style={{ color:'#7dd3fc', fontSize:10, fontWeight:'700' }}>
+                            {item.surface ? getSurface(t, item.surface) : (item.isIndoor ? 'Kapalı' : 'Açık')}
+                            {item.surface && item.isIndoor ? ' · Kapalı' : ''}
+                            {item.surface && !item.isIndoor ? ' · Açık' : ''}
+                        </Text>
+                    </View>
+                ) : null}
+                {item.matchesBeforePlayoff ? (
+                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
+                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
+                            {(['5','7'].includes(String(item.type)) ? 'Tur' : 'Öncesi maç')}: {item.matchesBeforePlayoff}
+                        </Text>
+                    </View>
+                ) : null}
+                {item.playoffQualifiers ? (
+                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
+                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Sonrası / Play-off: {item.playoffQualifiers}</Text>
+                    </View>
+                ) : null}
+                {item.dayTrip ? (
+                    <View style={{ backgroundColor:'#f59e0b18', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#f59e0b40' }}>
+                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>☀️ Günübirlik</Text>
+                    </View>
+                ) : null}
+                {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' ? (
+                    <View style={{ backgroundColor:'#1e3a8a20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#1e3a8a50' }}>
+                        <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800' }}>
+                            {item.matchFrequency === 'WEEKLY_1' ? '📅 Haftada 1  ·  🃏 1 joker' : '📅 Haftada 2  ·  🃏 2 joker'}
+                        </Text>
+                    </View>
+                ) : null}
+                <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
+                    <Text style={{ color:'#94a3b8', fontSize:10, fontWeight:'700' }}>
+                        {SCOPE_EMOJI[item.scope] || '📍'} {item.scope === 'ULUSLARARASI' ? 'Uluslararası' : item.scope === 'ULUSAL' ? 'Ulusal' : 'Yerel'}
+                        {item.city ? ` · ${item.city}` : ''}
+                    </Text>
+                </View>
+            </View>
+
+            {/* Özet kutular */}
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:10 }}>
+                {item.endDate ? (
+                    <View style={{ width:'48%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
+                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>SON BAŞVURU</Text>
+                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
+                            {new Date(item.endDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}
+                            {item.endTime ? ` · ${item.endTime}` : ''}
+                        </Text>
+                    </View>
+                ) : null}
+                <View style={{ width: item.endDate ? '48%' : '100%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
+                    <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>KADRO</Text>
+                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
+                        {(() => {
+                            const max = item.maxPlayers;
+                            const asCount = max ? Math.min(participantCount, max) : participantCount;
+                            const yedek = max ? Math.max(0, participantCount - max) : 0;
+                            const base = max ? `${asCount} / ${max}` : `${participantCount}`;
+                            return yedek > 0 ? `${base}  (+${yedek} yedek)` : base;
+                        })()}
+                        {item.minPlayers > 2 ? `  · min ${item.minPlayers}` : ''}
+                    </Text>
+                </View>
+                {item.eventDate ? (
+                    <View style={{ width:'48%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
+                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>BAŞLANGIÇ</Text>
+                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
+                            {new Date(item.eventDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}
+                            {item.eventTime ? ` · ${item.eventTime}` : ''}
+                        </Text>
+                    </View>
+                ) : null}
+                {item.eventEndDate ? (
+                    <View style={{ width:'48%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
+                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>TAHMİNİ BİTİŞ</Text>
+                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
+                            {new Date(item.eventEndDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}
+                            {item.eventEndTime ? ` · ${item.eventEndTime}` : ''}
+                        </Text>
+                    </View>
+                ) : null}
+                {!item.location ? (
+                    <View style={{ width:'100%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
+                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>MEKAN</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:12 }}>
+                            🤝 {item.subCategory === 'airsoft' ? 'Takımlar ortaklaşa mekan seçecek' : t.tournCourtPlayersDecide}
+                        </Text>
+                    </View>
+                ) : null}
+            </View>
+
+            {/* Ücret / ödeme */}
+            {item.isPaid ? (
+                <View style={{ marginTop:10, backgroundColor:'#42200633', borderRadius:12, padding:10, borderWidth:1, borderColor:'#fbbf2440' }}>
+                    <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'900', marginBottom:4 }}>
+                        💰 Ücretli{item.playerFee ? `  ·  ${item.playerFee}₺ / oyuncu` : ''}
+                    </Text>
+                    {item.feeType === 'INCLUDED'
+                        ? <Text style={{ color:'#fde68a', fontSize:10 }}>Kort ücreti dahil</Text>
+                        : item.feeType === 'SHARED'
+                        ? <Text style={{ color:'#fde68a', fontSize:10 }}>Kort ücreti ortaklaşa</Text>
+                        : null}
+                    {item.paymentMethod === 'CASH' && <Text style={{ color:'#4ade80', fontSize:10, marginTop:3 }}>💵 Kortta nakit</Text>}
+                    {item.paymentMethod === 'EFT' && (
+                        <View style={{ marginTop:3, gap:2 }}>
+                            <Text style={{ color:'#60a5fa', fontSize:10 }}>🏦 EFT ile ödeme</Text>
+                            {item.ibanHolder ? <Text style={{ color:'#cbd5e1', fontSize:10 }}>Hesap: {item.ibanHolder}</Text> : null}
+                            {item.ibanNumber ? <Text style={{ color:'#cbd5e1', fontSize:10 }}>IBAN: {item.ibanNumber}</Text> : null}
+                        </View>
+                    )}
+                </View>
+            ) : (
+                (item.feeType === 'SHARED' || item.feeType === 'SPONSORED') ? (
+                    <View style={{ marginTop:10, backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
+                        <Text style={{ color: colors.textSecondary, fontSize:11 }}>
+                            {item.feeType === 'SPONSORED' ? '🏟️ Kort ücretleri sponsorlar karşılar' : '🏟️ Kort ücretleri ortaklaşa karşılanır'}
+                        </Text>
+                    </View>
+                ) : null
+            )}
+
+            {/* Ödüller */}
+            {(item.prize1 || item.prize2 || item.prize3 || item.surpriseGifts) ? (
+                <View style={{ marginTop:10, backgroundColor:'#0f172a', borderRadius:12, padding:10, borderWidth:1, borderColor:'#fbbf2430', gap:4 }}>
+                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'900', marginBottom:2 }}>ÖDÜLLER</Text>
+                    {item.prize1 ? <Text style={{ color:'#fde68a', fontSize:12, fontWeight:'700' }}>🥇 {item.prize1}</Text> : null}
+                    {item.prize2 ? <Text style={{ color:'#e2e8f0', fontSize:12, fontWeight:'600' }}>🥈 {item.prize2}</Text> : null}
+                    {item.prize3 ? <Text style={{ color:'#d6a87a', fontSize:12, fontWeight:'600' }}>🥉 {item.prize3}</Text> : null}
+                    {item.surpriseGifts ? <Text style={{ color:'#d8b4fe', fontSize:11 }}>🎁 {item.surpriseGifts}</Text> : null}
+                </View>
+            ) : null}
+
+            {Array.isArray(item.extraServices) && item.extraServices.length > 0 ? (
+                <View style={{ marginTop:8, backgroundColor:'#0f172a', borderRadius:12, padding:10, borderWidth:1, borderColor:'#334155', gap:3 }}>
+                    <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'800', marginBottom:2 }}>EKSTRA HİZMETLER</Text>
+                    {item.extraServices.map(sv => (
+                        <Text key={sv.id} style={{ color:'#e5e7eb', fontSize:11 }}>
+                            🎉 {sv.name} — {sv.included ? <Text style={{ color:'#4ade80' }}>Dahil</Text> : `+${sv.price}₺`}
+                        </Text>
+                    ))}
+                </View>
+            ) : null}
+            </>)}
 
         {/* IN_PROGRESS / COMPLETED: matches modal open button */}
         {(item.status === 'IN_PROGRESS' || item.status === 'COMPLETED') && (
@@ -19466,8 +19363,153 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 </View>
             )}
 
+            {/* Alt aksiyonlar: paylaş / katılım / düzenle / sil / mesajlar / başvurular */}
+            {!collapsed && (
+            <View style={{ marginTop:12, paddingTop:10, borderTopWidth:1, borderTopColor:'#334155', gap:8 }}>
+                {item.status === 'POLL' && (
+                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
+                        {(Array.isArray(item.pollTypes) ? item.pollTypes : ['1', '2']).map(tp => {
+                            const votes = (item.typeVotes || []).filter(v => v.votedType === tp).length;
+                            const voted = (item.typeVotes || []).find(v => v.userId === myId)?.votedType === tp;
+                            return (
+                                <TouchableOpacity key={tp}
+                                    style={{ backgroundColor: voted ? '#a855f730' : '#a855f715', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor: voted ? '#a855f770' : '#a855f740' }}
+                                    onPress={() => handleVoteType(tp)}
+                                    disabled={voting}>
+                                    <Text style={{ color: voted ? '#c084fc' : '#d8b4fe', fontSize:11, fontWeight:'700' }}>
+                                        {voted ? '✓ ' : ''}{TOURN_TYPE_LABELS(t)[tp]} · {votes}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                        {item.pollEndDate ? (
+                            <Text style={{ color:'#a78bfa', fontSize:10, alignSelf:'center' }}>
+                                {t.tournPollEndLabel}: {new Date(item.pollEndDate).toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' })}{item.pollEndTime ? ` ${item.pollEndTime}` : ''}
+                            </Text>
+                        ) : null}
+                    </View>
+                )}
+
+                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
+                    <TouchableOpacity
+                        style={{ backgroundColor: infoColor + '15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: infoColor + '40' }}
+                        onPress={() => shareTournament(item, t)}
+                    >
+                        <Text style={{ color: infoColor, fontSize:11, fontWeight:'800' }}>{t.shareBtn || '📤 Paylaş'}</Text>
+                    </TouchableOpacity>
+
+                    {item.status !== 'POLL' && isCreator && (<>
+                        {myStatus === null && !isEventStarted() && (
+                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: infoColor + '50' }} onPress={handleJoinPress}>
+                                <Text style={{ color: infoColor, fontSize:11, fontWeight:'700' }}>+ {t.tournJoinBtn}</Text>
+                            </TouchableOpacity>
+                        )}
+                        {myStatus === 'ACCEPTED' && (
+                            <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a50', justifyContent:'center' }}>
+                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>✓ Katıldın</Text>
+                            </View>
+                        )}
+                        <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => setShowEditModal(true)}>
+                            <Text style={{ color: infoColor, fontSize:11, fontWeight:'700' }}>{t.tournEditBtn}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onDelete(item.id)}>
+                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>🗑️ Turnuvayı Sil</Text>
+                        </TouchableOpacity>
+                        {item.status === 'OPEN' && participantCount >= (item.minPlayers || 2) && (
+                            <TouchableOpacity
+                                style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a50' }}
+                                onPress={handleStartTournament}
+                                disabled={starting}>
+                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>
+                                    {starting ? '...' : '🏆 Başlat'}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                        {item.status === 'IN_PROGRESS' && item.type !== '2' && item.type !== '3' && item.type !== '4' && (
+                            <TouchableOpacity
+                                style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#f59e0b50' }}
+                                onPress={handleRematch}>
+                                <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>🔀 Tekrar Eşleştir</Text>
+                            </TouchableOpacity>
+                        )}
+                        {item.status === 'IN_PROGRESS' && item.type === '1' && (
+                            <>
+                                <TouchableOpacity
+                                    style={{ backgroundColor:'#0e749030', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#0e749060' }}
+                                    onPress={handleFixDeadlines}>
+                                    <Text style={{ color:'#67e8f9', fontSize:11, fontWeight:'700' }}>⏱️ Süre Düzelt</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#7c3aed50' }}
+                                    onPress={handleRegenRound}>
+                                    <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }}>🔁 Turu Düzelt</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+                        <TouchableOpacity
+                            style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a40' }}
+                            onPress={() => { fetchChat(); fetchChatNotifyPref(); setShowChatModal(true); }}>
+                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>💬 Mesajlar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={{ backgroundColor:'#1e40af15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#1e40af40' }}
+                            onPress={() => { fetchRequests(); setShowListModal(true); }}>
+                            <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>
+                                📋 Başvurular{requests.length > 0 ? ` (${requests.length})` : ''}
+                            </Text>
+                        </TouchableOpacity>
+                    </>)}
+
+                    {item.status !== 'POLL' && !isCreator && (<>
+                        {myStatus === null && ['OPEN', 'IN_PROGRESS'].includes(item.status) && !isEventStarted() && !isRegEnded() && (
+                            <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: infoColor + '50' }} onPress={handleJoinPress}>
+                                <Text style={{ color: infoColor, fontSize:11, fontWeight:'700' }}>{t.tournJoinBtn}</Text>
+                            </TouchableOpacity>
+                        )}
+                        {myStatus === 'PENDING' && (<>
+                            <View style={{ backgroundColor:'#a855f720', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#a855f750', justifyContent:'center' }}>
+                                <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'700' }}>{t.tournJoinPending}</Text>
+                            </View>
+                            {!isEventStarted() && (
+                                <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onCancelJoin(item.id)}>
+                                    <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.tournCancelJoinBtn}</Text>
+                                </TouchableOpacity>
+                            )}
+                        </>)}
+                        {myStatus === 'ACCEPTED' && !myPart?.cancelRequested && (<>
+                            <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a50', justifyContent:'center' }}>
+                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>{t.tournJoinAccepted}</Text>
+                            </View>
+                            {!isEventStarted() && (
+                                <TouchableOpacity style={{ backgroundColor:'#dc262615', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262640' }} onPress={handleCancelAttempt}>
+                                    <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>İptal</Text>
+                                </TouchableOpacity>
+                            )}
+                            <TouchableOpacity
+                                style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a40' }}
+                                onPress={() => { fetchChat(); fetchChatNotifyPref(); setShowChatModal(true); }}>
+                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>💬 Mesajlar</Text>
+                            </TouchableOpacity>
+                        </>)}
+                        {myStatus === 'ACCEPTED' && myPart?.cancelRequested && (
+                            <View style={{ backgroundColor:'#f59e0b15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#f59e0b40', justifyContent:'center' }}>
+                                <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>⏳ İptal onay bekliyor</Text>
+                            </View>
+                        )}
+                        <TouchableOpacity
+                            style={{ backgroundColor:'#1e40af15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#1e40af40' }}
+                            onPress={() => { (item.type === '2' || item.type === '4') ? fetchRequests() : fetchParticipants(); setShowListModal(true); }}>
+                            <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>
+                                👥 Katılımcılar{participantCount > 0 ? ` (${participantCount})` : ''}
+                            </Text>
+                        </TouchableOpacity>
+                    </>)}
+                </View>
+            </View>
+            )}
+
             {/* Demo button (creator only) */}
-            {isCreator && (
+            {isCreator && !collapsed && (
                 <TouchableOpacity
                     style={[s.joinBtn, { marginTop:10, backgroundColor: demoRunning ? '#dc262620' : '#7c3aed20', borderColor: demoRunning ? '#dc262650' : '#7c3aed50' }]}
                     onPress={demoRunning ? stopDemo : startDemo}>
@@ -25224,6 +25266,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 openMatchId={openMatchId}
                                 openMatchTournamentId={openMatchTournamentId}
                                 onMatchOpened={() => navigation.setParams({ openMatchId: undefined, openMatchTournamentId: undefined })}
+                                onUserPress={setProfileUserId}
                             />
                         );
                         return (
