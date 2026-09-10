@@ -17673,44 +17673,59 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 ) : null}
             </View>
 
-            {/* Tarih / ücret / ödül / mekan — tek satır kompakt chip'ler */}
-            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:2, marginTop:6 }}>
+            {/* Tahmini süre + ücret / ödeme + ödül / mekan */}
+            <View style={{ gap:2, marginTop:6 }}>
                 {(item.eventDate || item.eventEndDate) ? (
-                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
-                        <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'700' }} numberOfLines={1}>
-                            📅 {[
-                                item.eventDate
-                                    ? `${new Date(item.eventDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}${item.eventTime ? ` ${item.eventTime}` : ''}`
-                                    : null,
-                                item.eventEndDate
-                                    ? `${new Date(item.eventEndDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}${item.eventEndTime ? ` ${item.eventEndTime}` : ''}`
-                                    : null,
-                            ].filter(Boolean).join(' → ')}
+                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor:'#334155' }}>
+                        <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'700' }}>
+                            {(() => {
+                                const fmt = (d, tm) => {
+                                    const base = new Date(d).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }).toLocaleUpperCase('tr-TR');
+                                    return tm ? `${base} ${tm}` : base;
+                                };
+                                const start = item.eventDate ? fmt(item.eventDate, item.eventTime) : null;
+                                const end = item.eventEndDate ? fmt(item.eventEndDate, item.eventEndTime) : null;
+                                const range = [start, end].filter(Boolean).join('- ');
+                                return `TAHMİNİ TURNUVA BAŞLANGIÇ VE BİTİŞ TARİHLERİ: ${range}`;
+                            })()}
                         </Text>
                     </View>
                 ) : null}
-                {item.isPaid ? (
-                    <View style={{ backgroundColor:'#42200633', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2440', maxWidth:'100%' }}>
-                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }} numberOfLines={1}>
-                            💰 {[
-                                item.playerFee ? `${item.playerFee}₺/oyuncu` : 'Ücretli',
-                                item.feeType === 'INCLUDED' ? 'kort dahil' : item.feeType === 'SHARED' ? 'kort ortaklaşa' : null,
-                                item.paymentMethod === 'CASH' ? 'nakit' : item.paymentMethod === 'EFT' ? 'EFT' : null,
-                                item.paymentMethod === 'EFT' && item.ibanHolder ? item.ibanHolder : null,
-                                item.paymentMethod === 'EFT' && item.ibanNumber ? item.ibanNumber : null,
-                            ].filter(Boolean).join(' · ')}
+                {(item.isPaid || item.feeType === 'SHARED' || item.feeType === 'SPONSORED' || item.feeType === 'INCLUDED') ? (
+                    <View style={{ backgroundColor: item.isPaid ? '#42200633' : '#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:6, borderWidth:1, borderColor: item.isPaid ? '#fbbf2440' : '#334155', gap:2 }}>
+                        {item.isPaid ? (
+                            <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
+                                Katılım Ücreti: {item.playerFee != null && item.playerFee !== '' ? `${item.playerFee}₺` : '—'}/oyuncu
+                            </Text>
+                        ) : null}
+                        <Text style={{ color: item.isPaid ? '#fde68a' : colors.textSecondary, fontSize:10, fontWeight:'700' }}>
+                            Kort Ücretleri: {item.feeType === 'INCLUDED'
+                                ? 'Katılım ücretine dahil'
+                                : item.feeType === 'SPONSORED'
+                                ? 'Sponsorlar tarafından karşılanır'
+                                : 'Oyuncular tarafından ortaklaşa'}
                         </Text>
-                    </View>
-                ) : (item.feeType === 'SHARED' || item.feeType === 'SPONSORED') ? (
-                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
-                        <Text style={{ color: colors.textSecondary, fontSize:10, fontWeight:'700' }} numberOfLines={1}>
-                            🏟️ {item.feeType === 'SPONSORED' ? 'Kort ücreti sponsor' : 'Kort ücreti ortaklaşa'}
-                        </Text>
+                        {item.isPaid && item.paymentMethod ? (
+                            <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
+                                Ödeme: {(() => {
+                                    const m = String(item.paymentMethod || '').toUpperCase();
+                                    if (m === 'EFT_CASH' || m === 'BOTH' || m === 'EFT+CASH') return 'EFT-Nakit';
+                                    if (m === 'EFT') return 'EFT';
+                                    if (m === 'CASH') return 'Nakit';
+                                    return m;
+                                })()}
+                            </Text>
+                        ) : null}
+                        {item.isPaid && (String(item.paymentMethod || '').toUpperCase().includes('EFT')) && (item.ibanHolder || item.ibanNumber) ? (
+                            <Text style={{ color:'#fde68a', fontSize:10, fontWeight:'700' }}>
+                                EFT Bilgileri: {[item.ibanHolder, item.ibanNumber].filter(Boolean).join(' ')}
+                            </Text>
+                        ) : null}
                     </View>
                 ) : null}
                 {(item.prize1 || item.prize2 || item.prize3 || item.surpriseGifts) ? (
-                    <View style={{ backgroundColor:'#0f172a', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2430', maxWidth:'100%' }}>
-                        <Text style={{ color:'#fde68a', fontSize:10, fontWeight:'700' }} numberOfLines={1}>
+                    <View style={{ backgroundColor:'#0f172a', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2430' }}>
+                        <Text style={{ color:'#fde68a', fontSize:10, fontWeight:'700' }} numberOfLines={2}>
                             {[
                                 item.prize1 ? `🥇 ${item.prize1}` : null,
                                 item.prize2 ? `🥈 ${item.prize2}` : null,
@@ -17721,9 +17736,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     </View>
                 ) : null}
                 {!item.location ? (
-                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
+                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
                         <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }} numberOfLines={1}>
-                            🤝 {item.subCategory === 'airsoft' ? 'Takımlar ortaklaşa mekan seçecek' : t.tournCourtPlayersDecide}
+                            {item.subCategory === 'airsoft' ? 'Takımlar ortaklaşa mekan seçecek' : t.tournCourtPlayersDecide}
                         </Text>
                     </View>
                 ) : null}
