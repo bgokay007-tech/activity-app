@@ -17543,7 +17543,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         <>
         <View style={[s.card, { marginBottom:10 }, (item.status === 'OPEN' || item.status === 'POLL') && { borderColor: infoColor + '55', borderWidth:1.5, paddingTop:10, paddingBottom:8 }]}>
             {/* Üst satır: isim · tür · konum */}
-            <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:6 }}>
+            <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:2 }}>
                 {item.status === 'IN_PROGRESS' ? (
                     <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:4, maxWidth:'100%' }} onPress={() => setCollapsed(c => !c)}>
                         <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', letterSpacing:0.2, flexShrink:1 }} numberOfLines={2}>{item.name}</Text>
@@ -17559,7 +17559,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </View>
                         <View style={{ backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
                             <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'700' }} numberOfLines={1}>
-                                📍 {item.location || item.city || (item.scope === 'ULUSLARARASI' ? 'Dünya' : item.scope === 'ULUSAL' ? 'Ulusal' : 'Yerel')}
+                                {item.location || item.city || (item.scope === 'ULUSLARARASI' ? 'Dünya' : item.scope === 'ULUSAL' ? 'Ulusal' : 'Yerel')}
                             </Text>
                         </View>
                         {item.status !== 'OPEN' ? (
@@ -17575,35 +17575,35 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
             {!collapsed && (<>
             {/* Oluşturan + telefon + son başvuru */}
-            <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:8, marginTop:8 }}>
+            <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:2, marginTop:6 }}>
                 <TouchableOpacity
                     disabled={!item.creatorId || !onUserPress}
                     onPress={() => item.creatorId && onUserPress?.(item.creatorId)}
-                    style={{ flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor: onUserPress ? infoColor + '50' : '#334155' }}
+                    style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: onUserPress ? infoColor + '50' : '#334155' }}
                 >
                     <Text style={{ color: onUserPress ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800', textDecorationLine: onUserPress ? 'underline' : 'none' }}>
-                        👤 {item.creator?.fullName || item.creator?.username || '—'}
+                        {item.creator?.fullName || item.creator?.username || '—'}
                     </Text>
                 </TouchableOpacity>
                 {item.contactPhone ? (
                     <TouchableOpacity
                         onPress={() => openTournPhone(item.contactPhone)}
-                        style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#16a34a18', borderRadius:999, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#16a34a50' }}
+                        style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#16a34a18', borderRadius:999, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#16a34a50' }}
                     >
-                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>📞 {item.contactPhone}</Text>
+                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>{item.contactPhone}</Text>
                     </TouchableOpacity>
                 ) : null}
                 {item.endDate ? (
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#dc262618', borderRadius:999, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#dc262650' }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#dc262618', borderRadius:999, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }}>
                         <Text style={{ color:'#f87171', fontSize:11, fontWeight:'800' }}>
-                            ⏳ Son başvuru: {new Date(item.endDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}{item.endTime ? ` · ${item.endTime}` : ''}
+                            Son başvuru: {new Date(item.endDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}{item.endTime ? ` · ${item.endTime}` : ''}
                         </Text>
                     </View>
                 ) : null}
             </View>
 
             {/* Cinsiyet → derece → set → sayı sistemi → zemin → ön maç → play-off */}
-            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:5, marginTop:10 }}>
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:2, marginTop:6 }}>
                 {item.genderType ? (
                     <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
                         <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'700' }}>
@@ -17626,7 +17626,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 {item.advantageScoring !== undefined ? (
                     <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
                         <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
-                            {item.advantageScoring === null ? t.tournFreeScoring : item.advantageScoring ? t.tournAdvantage : t.tournDeciding}
+                            {String(item.advantageScoring === null ? t.tournFreeScoring : item.advantageScoring ? t.tournAdvantage : t.tournDeciding).replace(/^[^\p{L}\p{N}]+/u, '').trim()}
                         </Text>
                     </View>
                 ) : null}
@@ -17655,7 +17655,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             const yedek = max ? Math.max(0, participantCount - max) : 0;
                             const base = max ? `${asCount}/${max}` : `${participantCount}`;
                             const txt = yedek > 0 ? `${base} (+${yedek} yedek)` : base;
-                            return `👥 Kadro: ${txt}${item.minPlayers > 2 ? ` · min ${item.minPlayers}` : ''}`;
+                            return `Kadro: ${txt}${item.minPlayers > 2 ? ` · min ${item.minPlayers}` : ''}`;
                         })()}
                     </Text>
                 </View>
@@ -17673,76 +17673,61 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 ) : null}
             </View>
 
-            {/* Özet kutular */}
-            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:10 }}>
-                {item.eventDate ? (
-                    <View style={{ width: item.eventEndDate ? '48%' : '100%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
-                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>BAŞLANGIÇ</Text>
-                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
-                            {new Date(item.eventDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}
-                            {item.eventTime ? ` · ${item.eventTime}` : ''}
+            {/* Tarih / ücret / ödül / mekan — tek satır kompakt chip'ler */}
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:2, marginTop:6 }}>
+                {(item.eventDate || item.eventEndDate) ? (
+                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
+                        <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'700' }} numberOfLines={1}>
+                            📅 {[
+                                item.eventDate
+                                    ? `${new Date(item.eventDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}${item.eventTime ? ` ${item.eventTime}` : ''}`
+                                    : null,
+                                item.eventEndDate
+                                    ? `${new Date(item.eventEndDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}${item.eventEndTime ? ` ${item.eventEndTime}` : ''}`
+                                    : null,
+                            ].filter(Boolean).join(' → ')}
                         </Text>
                     </View>
                 ) : null}
-                {item.eventEndDate ? (
-                    <View style={{ width:'48%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
-                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>TAHMİNİ BİTİŞ</Text>
-                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
-                            {new Date(item.eventEndDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}
-                            {item.eventEndTime ? ` · ${item.eventEndTime}` : ''}
+                {item.isPaid ? (
+                    <View style={{ backgroundColor:'#42200633', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2440', maxWidth:'100%' }}>
+                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }} numberOfLines={1}>
+                            💰 {[
+                                item.playerFee ? `${item.playerFee}₺/oyuncu` : 'Ücretli',
+                                item.feeType === 'INCLUDED' ? 'kort dahil' : item.feeType === 'SHARED' ? 'kort ortaklaşa' : null,
+                                item.paymentMethod === 'CASH' ? 'nakit' : item.paymentMethod === 'EFT' ? 'EFT' : null,
+                                item.paymentMethod === 'EFT' && item.ibanHolder ? item.ibanHolder : null,
+                                item.paymentMethod === 'EFT' && item.ibanNumber ? item.ibanNumber : null,
+                            ].filter(Boolean).join(' · ')}
+                        </Text>
+                    </View>
+                ) : (item.feeType === 'SHARED' || item.feeType === 'SPONSORED') ? (
+                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
+                        <Text style={{ color: colors.textSecondary, fontSize:10, fontWeight:'700' }} numberOfLines={1}>
+                            🏟️ {item.feeType === 'SPONSORED' ? 'Kort ücreti sponsor' : 'Kort ücreti ortaklaşa'}
+                        </Text>
+                    </View>
+                ) : null}
+                {(item.prize1 || item.prize2 || item.prize3 || item.surpriseGifts) ? (
+                    <View style={{ backgroundColor:'#0f172a', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2430', maxWidth:'100%' }}>
+                        <Text style={{ color:'#fde68a', fontSize:10, fontWeight:'700' }} numberOfLines={1}>
+                            {[
+                                item.prize1 ? `🥇 ${item.prize1}` : null,
+                                item.prize2 ? `🥈 ${item.prize2}` : null,
+                                item.prize3 ? `🥉 ${item.prize3}` : null,
+                                item.surpriseGifts ? `🎁 ${item.surpriseGifts}` : null,
+                            ].filter(Boolean).join(' · ')}
                         </Text>
                     </View>
                 ) : null}
                 {!item.location ? (
-                    <View style={{ width:'100%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
-                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>MEKAN</Text>
-                        <Text style={{ color: colors.textMuted, fontSize:12 }}>
+                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
+                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }} numberOfLines={1}>
                             🤝 {item.subCategory === 'airsoft' ? 'Takımlar ortaklaşa mekan seçecek' : t.tournCourtPlayersDecide}
                         </Text>
                     </View>
                 ) : null}
             </View>
-
-            {/* Ücret / ödeme */}
-            {item.isPaid ? (
-                <View style={{ marginTop:10, backgroundColor:'#42200633', borderRadius:12, padding:10, borderWidth:1, borderColor:'#fbbf2440' }}>
-                    <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'900', marginBottom:4 }}>
-                        💰 Ücretli{item.playerFee ? `  ·  ${item.playerFee}₺ / oyuncu` : ''}
-                    </Text>
-                    {item.feeType === 'INCLUDED'
-                        ? <Text style={{ color:'#fde68a', fontSize:10 }}>Kort ücreti dahil</Text>
-                        : item.feeType === 'SHARED'
-                        ? <Text style={{ color:'#fde68a', fontSize:10 }}>Kort ücreti ortaklaşa</Text>
-                        : null}
-                    {item.paymentMethod === 'CASH' && <Text style={{ color:'#4ade80', fontSize:10, marginTop:3 }}>💵 Kortta nakit</Text>}
-                    {item.paymentMethod === 'EFT' && (
-                        <View style={{ marginTop:3, gap:2 }}>
-                            <Text style={{ color:'#60a5fa', fontSize:10 }}>🏦 EFT ile ödeme</Text>
-                            {item.ibanHolder ? <Text style={{ color:'#cbd5e1', fontSize:10 }}>Hesap: {item.ibanHolder}</Text> : null}
-                            {item.ibanNumber ? <Text style={{ color:'#cbd5e1', fontSize:10 }}>IBAN: {item.ibanNumber}</Text> : null}
-                        </View>
-                    )}
-                </View>
-            ) : (
-                (item.feeType === 'SHARED' || item.feeType === 'SPONSORED') ? (
-                    <View style={{ marginTop:10, backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
-                        <Text style={{ color: colors.textSecondary, fontSize:11 }}>
-                            {item.feeType === 'SPONSORED' ? '🏟️ Kort ücretleri sponsorlar karşılar' : '🏟️ Kort ücretleri ortaklaşa karşılanır'}
-                        </Text>
-                    </View>
-                ) : null
-            )}
-
-            {/* Ödüller */}
-            {(item.prize1 || item.prize2 || item.prize3 || item.surpriseGifts) ? (
-                <View style={{ marginTop:10, backgroundColor:'#0f172a', borderRadius:12, padding:10, borderWidth:1, borderColor:'#fbbf2430', gap:4 }}>
-                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'900', marginBottom:2 }}>ÖDÜLLER</Text>
-                    {item.prize1 ? <Text style={{ color:'#fde68a', fontSize:12, fontWeight:'700' }}>🥇 {item.prize1}</Text> : null}
-                    {item.prize2 ? <Text style={{ color:'#e2e8f0', fontSize:12, fontWeight:'600' }}>🥈 {item.prize2}</Text> : null}
-                    {item.prize3 ? <Text style={{ color:'#d6a87a', fontSize:12, fontWeight:'600' }}>🥉 {item.prize3}</Text> : null}
-                    {item.surpriseGifts ? <Text style={{ color:'#d8b4fe', fontSize:11 }}>🎁 {item.surpriseGifts}</Text> : null}
-                </View>
-            ) : null}
 
             {Array.isArray(item.extraServices) && item.extraServices.length > 0 ? (
                 <View style={{ marginTop:8, backgroundColor:'#0f172a', borderRadius:12, padding:10, borderWidth:1, borderColor:'#334155', gap:3 }}>
