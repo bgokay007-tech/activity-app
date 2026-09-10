@@ -17562,11 +17562,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 📍 {item.location || item.city || (item.scope === 'ULUSLARARASI' ? 'Dünya' : item.scope === 'ULUSAL' ? 'Ulusal' : 'Yerel')}
                             </Text>
                         </View>
-                        <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : item.status === 'POLL' ? '#a855f720' : infoColor + '20', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : item.status === 'POLL' ? '#a855f750' : infoColor + '50' }}>
-                            <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : item.status === 'COMPLETED' ? '#94a3b8' : item.status === 'POLL' ? '#c084fc' : infoColor, fontSize:10, fontWeight:'800' }}>
-                                {item.status === 'IN_PROGRESS' ? '🏆 Devam Ediyor' : item.status === 'COMPLETED' ? '✅ Tamamlandı' : item.status === 'POLL' ? t.tournStatusPoll : t.tournStatusOpen}
-                            </Text>
-                        </View>
+                        {item.status !== 'OPEN' ? (
+                            <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : item.status === 'POLL' ? '#a855f720' : infoColor + '20', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : item.status === 'POLL' ? '#a855f750' : infoColor + '50' }}>
+                                <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : item.status === 'COMPLETED' ? '#94a3b8' : item.status === 'POLL' ? '#c084fc' : infoColor, fontSize:10, fontWeight:'800' }}>
+                                    {item.status === 'IN_PROGRESS' ? '🏆 Devam Ediyor' : item.status === 'COMPLETED' ? '✅ Tamamlandı' : item.status === 'POLL' ? t.tournStatusPoll : t.tournStatusOpen}
+                                </Text>
+                            </View>
+                        ) : null}
                     </>
                 )}
             </View>
@@ -17621,13 +17623,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </Text>
                     </View>
                 ) : null}
-                {(item.surface || item.isIndoor) ? (
+                {item.surface ? (
                     <View style={{ backgroundColor:'#0ea5e915', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#0ea5e940' }}>
-                        <Text style={{ color:'#7dd3fc', fontSize:10, fontWeight:'700' }}>
-                            {item.surface ? getSurface(t, item.surface) : (item.isIndoor ? 'Kapalı' : 'Açık')}
-                            {item.surface && item.isIndoor ? ' · Kapalı' : ''}
-                            {item.surface && !item.isIndoor ? ' · Açık' : ''}
-                        </Text>
+                        <Text style={{ color:'#7dd3fc', fontSize:10, fontWeight:'700' }}>{getSurface(t, item.surface)}</Text>
                     </View>
                 ) : null}
                 {item.matchesBeforePlayoff ? (
@@ -17642,6 +17640,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Sonrası / Play-off: {item.playoffQualifiers}</Text>
                     </View>
                 ) : null}
+                <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2440' }}>
+                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
+                        {(() => {
+                            const max = item.maxPlayers;
+                            const asCount = max ? Math.min(participantCount, max) : participantCount;
+                            const yedek = max ? Math.max(0, participantCount - max) : 0;
+                            const base = max ? `${asCount}/${max}` : `${participantCount}`;
+                            const txt = yedek > 0 ? `${base} (+${yedek} yedek)` : base;
+                            return `👥 Kadro: ${txt}${item.minPlayers > 2 ? ` · min ${item.minPlayers}` : ''}`;
+                        })()}
+                    </Text>
+                </View>
                 {item.dayTrip ? (
                     <View style={{ backgroundColor:'#f59e0b18', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#f59e0b40' }}>
                         <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>☀️ Günübirlik</Text>
@@ -17654,12 +17664,6 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </Text>
                     </View>
                 ) : null}
-                <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
-                    <Text style={{ color:'#94a3b8', fontSize:10, fontWeight:'700' }}>
-                        {SCOPE_EMOJI[item.scope] || '📍'} {item.scope === 'ULUSLARARASI' ? 'Uluslararası' : item.scope === 'ULUSAL' ? 'Ulusal' : 'Yerel'}
-                        {item.city ? ` · ${item.city}` : ''}
-                    </Text>
-                </View>
             </View>
 
             {/* Özet kutular */}
@@ -17673,21 +17677,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </Text>
                     </View>
                 ) : null}
-                <View style={{ width: item.endDate ? '48%' : '100%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
-                    <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>KADRO</Text>
-                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
-                        {(() => {
-                            const max = item.maxPlayers;
-                            const asCount = max ? Math.min(participantCount, max) : participantCount;
-                            const yedek = max ? Math.max(0, participantCount - max) : 0;
-                            const base = max ? `${asCount} / ${max}` : `${participantCount}`;
-                            return yedek > 0 ? `${base}  (+${yedek} yedek)` : base;
-                        })()}
-                        {item.minPlayers > 2 ? `  · min ${item.minPlayers}` : ''}
-                    </Text>
-                </View>
                 {item.eventDate ? (
-                    <View style={{ width:'48%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
+                    <View style={{ width: item.endDate ? '48%' : '100%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
                         <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>BAŞLANGIÇ</Text>
                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
                             {new Date(item.eventDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}
