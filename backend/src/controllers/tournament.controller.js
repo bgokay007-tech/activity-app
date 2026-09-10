@@ -829,6 +829,18 @@ export const createTournament = async (req, res, next) => {
                 return res.status(400).json({ message: 'Son başvuru tarih ve saati geçmiş olamaz.' });
             }
         }
+        if (eventDate && eventTime) {
+            const ms = registrationDeadlineMs(eventDate, eventTime);
+            if (ms != null && ms <= Date.now()) {
+                return res.status(400).json({ message: 'Turnuva başlangıç tarih ve saati geçmiş olamaz.' });
+            }
+        }
+        if (eventEndDate && eventEndTime) {
+            const ms = registrationDeadlineMs(eventEndDate, eventEndTime);
+            if (ms != null && ms <= Date.now()) {
+                return res.status(400).json({ message: 'Tahmini bitiş tarih ve saati geçmiş olamaz.' });
+            }
+        }
         if (pollEnabled === true && pollEndDate) {
             const pollMs = registrationDeadlineMs(pollEndDate, pollEndTime || '23:59');
             if (pollMs != null && pollMs <= Date.now()) {
@@ -1722,6 +1734,23 @@ export const updateTournament = async (req, res, next) => {
             const ms = registrationDeadlineMs(nextEndDate, nextEndTime);
             if (ms != null && ms <= Date.now()) {
                 return res.status(400).json({ message: 'Son başvuru tarih ve saati geçmiş olamaz.' });
+            }
+        }
+
+        const nextEventDate = b.eventDate !== undefined ? (b.eventDate ? new Date(b.eventDate) : null) : tournament.eventDate;
+        const nextEventTime = b.eventTime !== undefined ? (b.eventTime || null) : tournament.eventTime;
+        if (nextEventDate && nextEventTime) {
+            const ms = registrationDeadlineMs(nextEventDate, nextEventTime);
+            if (ms != null && ms <= Date.now()) {
+                return res.status(400).json({ message: 'Turnuva başlangıç tarih ve saati geçmiş olamaz.' });
+            }
+        }
+        const nextEventEndDate = b.eventEndDate !== undefined ? (b.eventEndDate ? new Date(b.eventEndDate) : null) : tournament.eventEndDate;
+        const nextEventEndTime = b.eventEndTime !== undefined ? (b.eventEndTime || null) : tournament.eventEndTime;
+        if (nextEventEndDate && nextEventEndTime) {
+            const ms = registrationDeadlineMs(nextEventEndDate, nextEventEndTime);
+            if (ms != null && ms <= Date.now()) {
+                return res.status(400).json({ message: 'Tahmini bitiş tarih ve saati geçmiş olamaz.' });
             }
         }
 

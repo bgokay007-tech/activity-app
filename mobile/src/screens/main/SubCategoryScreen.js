@@ -17314,6 +17314,24 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 return;
             }
         }
+        if (editEventDate && editEventTime) {
+            const startDt = new Date(editEventDate);
+            const [sh, sm] = editEventTime.split(':').map(Number);
+            startDt.setHours(sh || 0, sm || 0, 0, 0);
+            if (startDt.getTime() <= Date.now()) {
+                Alert.alert('', t.tournEventStartPast);
+                return;
+            }
+        }
+        if (editEventEndDate && editEventEndTime) {
+            const endDt = new Date(editEventEndDate);
+            const [eh, em] = editEventEndTime.split(':').map(Number);
+            endDt.setHours(eh || 0, em || 0, 0, 0);
+            if (endDt.getTime() <= Date.now()) {
+                Alert.alert('', t.tournEventEndPast);
+                return;
+            }
+        }
         setSaving(true);
         try {
             await api.patch(`/tournaments/${item.id}`, {
@@ -18777,9 +18795,29 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     visible={!!editDp}
                     value={editDp === 'evStart' ? editEventDate : editDp === 'evEnd' ? editEventEndDate : editRegEndDate}
                     onSelect={(date) => {
-                        if (editDp === 'evStart') setEditEventDate(date);
-                        else if (editDp === 'evEnd') setEditEventEndDate(date);
-                        else {
+                        if (editDp === 'evStart') {
+                            if (editEventTime) {
+                                const probe = new Date(date);
+                                const [h, m] = editEventTime.split(':').map(Number);
+                                probe.setHours(h || 0, m || 0, 0, 0);
+                                if (probe.getTime() <= Date.now()) {
+                                    setEditEventTime('');
+                                    Alert.alert('', t.tournEventStartPast);
+                                }
+                            }
+                            setEditEventDate(date);
+                        } else if (editDp === 'evEnd') {
+                            if (editEventEndTime) {
+                                const probe = new Date(date);
+                                const [h, m] = editEventEndTime.split(':').map(Number);
+                                probe.setHours(h || 0, m || 0, 0, 0);
+                                if (probe.getTime() <= Date.now()) {
+                                    setEditEventEndTime('');
+                                    Alert.alert('', t.tournEventEndPast);
+                                }
+                            }
+                            setEditEventEndDate(date);
+                        } else {
                             if (editRegEndTime) {
                                 const probe = new Date(date);
                                 const [h, m] = editRegEndTime.split(':').map(Number);
@@ -18800,16 +18838,28 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     title="Saat Seçin"
                     value={editTf === 'evStart' ? editEventTime : editTf === 'evEnd' ? editEventEndTime : editRegEndTime}
                     minTime={(() => {
-                        if (editTf !== 'regEnd') return null;
-                        const d = editRegEndDate || new Date();
+                        const d = editTf === 'evStart'
+                            ? (editEventDate || new Date())
+                            : editTf === 'evEnd'
+                            ? (editEventEndDate || new Date())
+                            : (editRegEndDate || new Date());
                         const now = new Date();
                         if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth() || d.getDate() !== now.getDate()) return null;
                         return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
                     })()}
                     onSelect={(v) => {
-                        if (editTf === 'evStart') setEditEventTime(v);
-                        else if (editTf === 'evEnd') setEditEventEndTime(v);
-                        else {
+                        if (editTf === 'evStart' || editTf === 'evEnd') {
+                            const d = editTf === 'evStart' ? (editEventDate || new Date()) : (editEventEndDate || new Date());
+                            const probe = new Date(d);
+                            const [h, m] = v.split(':').map(Number);
+                            probe.setHours(h || 0, m || 0, 0, 0);
+                            if (probe.getTime() <= Date.now()) {
+                                Alert.alert('', editTf === 'evStart' ? t.tournEventStartPast : t.tournEventEndPast);
+                                return;
+                            }
+                            if (editTf === 'evStart') setEditEventTime(v);
+                            else setEditEventEndTime(v);
+                        } else {
                             const d = editRegEndDate || new Date();
                             const probe = new Date(d);
                             const [h, m] = v.split(':').map(Number);
@@ -19814,6 +19864,24 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 return;
             }
         }
+        if (f.eventStartDate && f.eventStartTime) {
+            const startDt = new Date(f.eventStartDate);
+            const [sh, sm] = f.eventStartTime.split(':').map(Number);
+            startDt.setHours(sh || 0, sm || 0, 0, 0);
+            if (startDt.getTime() <= Date.now()) {
+                Alert.alert('', t.tournEventStartPast);
+                return;
+            }
+        }
+        if (f.eventEndDate && f.eventEndTime) {
+            const endDt = new Date(f.eventEndDate);
+            const [eh, em] = f.eventEndTime.split(':').map(Number);
+            endDt.setHours(eh || 0, em || 0, 0, 0);
+            if (endDt.getTime() <= Date.now()) {
+                Alert.alert('', t.tournEventEndPast);
+                return;
+            }
+        }
         if (f.eventStartDate && f.regEndDate) {
             const startDt = new Date(f.eventStartDate); startDt.setHours(...( f.eventStartTime ? f.eventStartTime.split(':').map(Number) : [0, 0] ), 0, 0);
             const regDt   = new Date(f.regEndDate);     regDt.setHours(...( f.regEndTime  ? f.regEndTime.split(':').map(Number)  : [23, 59] ), 0, 0);
@@ -20198,14 +20266,49 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <CalendarPickerModal
                                 visible={dpField === 'evStart' || dpField === 'evEnd'}
                                 value={dpField === 'evStart' ? f.eventStartDate : f.eventEndDate}
-                                onSelect={(date) => { set(dpField === 'evStart' ? 'eventStartDate' : 'eventEndDate', date); setDpField(null); }}
+                                onSelect={(date) => {
+                                    const isStart = dpField === 'evStart';
+                                    const timeKey = isStart ? 'eventStartTime' : 'eventEndTime';
+                                    const dateKey = isStart ? 'eventStartDate' : 'eventEndDate';
+                                    const curTime = isStart ? f.eventStartTime : f.eventEndTime;
+                                    const next = { [dateKey]: date };
+                                    if (curTime) {
+                                        const probe = new Date(date);
+                                        const [h, m] = curTime.split(':').map(Number);
+                                        probe.setHours(h || 0, m || 0, 0, 0);
+                                        if (probe.getTime() <= Date.now()) {
+                                            next[timeKey] = '';
+                                            Alert.alert('', isStart ? t.tournEventStartPast : t.tournEventEndPast);
+                                        }
+                                    }
+                                    setF(prev => ({ ...prev, ...next }));
+                                    setDpField(null);
+                                }}
                                 onClose={() => setDpField(null)}
                             />
                             <TimePickerModal
                                 visible={timeField === 'evStart' || timeField === 'evEnd'}
                                 title={timeField === 'evStart' ? t.tournEventStartLabel : t.tournEventEndLabel}
                                 value={timeField === 'evStart' ? f.eventStartTime : f.eventEndTime}
-                                onSelect={(v) => { set(timeField === 'evStart' ? 'eventStartTime' : 'eventEndTime', v); setTimeField(null); }}
+                                minTime={(() => {
+                                    const d = (timeField === 'evStart' ? f.eventStartDate : f.eventEndDate) || new Date();
+                                    const now = new Date();
+                                    if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth() || d.getDate() !== now.getDate()) return null;
+                                    return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+                                })()}
+                                onSelect={(v) => {
+                                    const isStart = timeField === 'evStart';
+                                    const d = (isStart ? f.eventStartDate : f.eventEndDate) || new Date();
+                                    const probe = new Date(d);
+                                    const [h, m] = v.split(':').map(Number);
+                                    probe.setHours(h || 0, m || 0, 0, 0);
+                                    if (probe.getTime() <= Date.now()) {
+                                        Alert.alert('', isStart ? t.tournEventStartPast : t.tournEventEndPast);
+                                        return;
+                                    }
+                                    set(isStart ? 'eventStartTime' : 'eventEndTime', v);
+                                    setTimeField(null);
+                                }}
                                 onClose={() => setTimeField(null)}
                             />
 
