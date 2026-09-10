@@ -17675,17 +17675,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
             {/* Özet kutular */}
             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:10 }}>
-                {item.endDate ? (
-                    <View style={{ width:'48%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
-                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>SON BAŞVURU</Text>
-                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
-                            {new Date(item.endDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}
-                            {item.endTime ? ` · ${item.endTime}` : ''}
-                        </Text>
-                    </View>
-                ) : null}
                 {item.eventDate ? (
-                    <View style={{ width: item.endDate ? '48%' : '100%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
+                    <View style={{ width: item.eventEndDate ? '48%' : '100%', backgroundColor:'#0f172a', borderRadius:12, padding:9, borderWidth:1, borderColor:'#334155' }}>
                         <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:3 }}>BAŞLANGIÇ</Text>
                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
                             {new Date(item.eventDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}
