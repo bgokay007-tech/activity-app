@@ -17574,7 +17574,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             </View>
 
             {!collapsed && (<>
-            {/* Oluşturan + telefon */}
+            {/* Oluşturan + telefon + son başvuru */}
             <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:8, marginTop:8 }}>
                 <TouchableOpacity
                     disabled={!item.creatorId || !onUserPress}
@@ -17592,6 +17592,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     >
                         <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>📞 {item.contactPhone}</Text>
                     </TouchableOpacity>
+                ) : null}
+                {item.endDate ? (
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#dc262618', borderRadius:999, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#dc262650' }}>
+                        <Text style={{ color:'#f87171', fontSize:11, fontWeight:'800' }}>
+                            ⏳ Son başvuru: {new Date(item.endDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}{item.endTime ? ` · ${item.endTime}` : ''}
+                        </Text>
+                    </View>
                 ) : null}
             </View>
 
