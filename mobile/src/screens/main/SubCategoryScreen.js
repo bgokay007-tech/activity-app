@@ -5,6 +5,7 @@ import {
     RefreshControl, ActivityIndicator, TextInput, Modal,
     Alert, KeyboardAvoidingView, Platform, Switch, Linking, Image,
     InteractionManager, PanResponder, Animated, BackHandler, useWindowDimensions, Keyboard,
+    Clipboard,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { setUser } from '../../store/slices/authSlice';
@@ -17735,9 +17736,33 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             </Text>
                         ) : null}
                         {item.isPaid && (String(item.paymentMethod || '').toUpperCase().includes('EFT')) && (item.ibanHolder || item.ibanNumber) ? (
-                            <Text style={{ color:'#fde68a', fontSize:10, fontWeight:'700' }}>
-                                EFT Bilgileri: {[item.ibanHolder, item.ibanNumber].filter(Boolean).join(' ')}
-                            </Text>
+                            <View style={{ marginTop:4, gap:6 }}>
+                                <Text style={{ color:'#fde68a', fontSize:10, fontWeight:'800' }}>EFT Bilgileri</Text>
+                                {item.ibanHolder ? (
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            Clipboard.setString(String(item.ibanHolder));
+                                            Alert.alert('', 'İsim kopyalandı');
+                                        }}
+                                        style={{ backgroundColor:'#42200655', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#fbbf2440' }}
+                                    >
+                                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:2 }}>İsim Soyisim · dokununca kopyala</Text>
+                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', textDecorationLine:'underline' }}>{item.ibanHolder}</Text>
+                                    </TouchableOpacity>
+                                ) : null}
+                                {item.ibanNumber ? (
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            Clipboard.setString(String(item.ibanNumber).replace(/\s+/g, ''));
+                                            Alert.alert('', 'IBAN kopyalandı');
+                                        }}
+                                        style={{ backgroundColor:'#42200655', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#fbbf2440' }}
+                                    >
+                                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:2 }}>IBAN · dokununca kopyala</Text>
+                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', letterSpacing:0.3, textDecorationLine:'underline' }}>{item.ibanNumber}</Text>
+                                    </TouchableOpacity>
+                                ) : null}
+                            </View>
                         ) : null}
                     </View>
                 ) : null}
