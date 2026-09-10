@@ -29646,7 +29646,7 @@ const s = StyleSheet.create({
     tabBarInner:      { paddingHorizontal:13, gap:3 },
     tabBarInnerCompact:{ paddingHorizontal:16, gap:6, paddingBottom:2 },
     tab:              { paddingHorizontal:11, paddingTop:4, paddingBottom:8, borderRadius:20, backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
-    tabCompact:       { paddingHorizontal:9, paddingTop:3, paddingBottom:5, borderRadius:14 },
+    tabCompact:       { paddingHorizontal:9, paddingTop:3, paddingBottom:5, borderRadius:14, height:30 },
     tabText:          { color: colors.textSecondary, fontSize:12, fontWeight:'700', lineHeight:20, includeFontPadding: false },
     tabTextCompact:   { fontSize:11, lineHeight:16 },
     tabTextActive:    { color:'#fff' },
