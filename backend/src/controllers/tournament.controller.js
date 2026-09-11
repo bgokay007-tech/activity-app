@@ -8,6 +8,7 @@ import { UTR_SUBCATEGORIES, applyUtrRatingForTournamentMatch, getDisplayRating, 
 import { computeTournamentPlacement } from './achievement.controller.js';
 import { sanitizeExtraServices } from '../utils/extraServices.js';
 import { ACTIVE_ENGINE_TYPES, resolveFormatOnCreate, isTeamEngineType } from '../utils/tournamentFormats.js';
+import { ensureTournamentChatTables, isMissingChatTable } from '../utils/ensureTournamentChatTables.js';
 import {
     swissRoundCount,
     americanoRoundCount,
@@ -3373,6 +3374,16 @@ export const useJoker = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+async function withChatTables(fn) {
+    try {
+        return await fn();
+    } catch (e) {
+        if (!isMissingChatTable(e)) throw e;
+        await ensureTournamentChatTables();
+        return fn();
+    }
+}
+
 // Turnuva grup sohbeti — sadece turnuva sahibi ve AS/yedek olarak onaylanmış (ACCEPTED) katılımcılar
 export const getTournamentChat = async (req, res, next) => {
     try {
@@ -3387,12 +3398,12 @@ export const getTournamentChat = async (req, res, next) => {
             if (!participant) return res.status(403).json({ message: 'Bu turnuvanın sohbetine erişiminiz yok.' });
         }
 
-        const messages = await prisma.tournamentMessage.findMany({
+        const messages = await withChatTables(() => prisma.tournamentMessage.findMany({
             where: { tournamentId: id },
             include: { sender: { select: { id: true, username: true, fullName: true, avatar: true } } },
             orderBy: { createdAt: 'asc' },
             take: 200,
-        });
+        }));
         res.json(messages);
     } catch (e) { next(e); }
 };
@@ -3413,10 +3424,10 @@ export const sendTournamentChatMessage = async (req, res, next) => {
         const isParticipant = tournament.participants.some(p => p.userId === req.userId);
         if (!isCreator && !isParticipant) return res.status(403).json({ message: 'Bu turnuvanın sohbetine erişiminiz yok.' });
 
-        const message = await prisma.tournamentMessage.create({
+        const message = await withChatTables(() => prisma.tournamentMessage.create({
             data: { tournamentId: id, senderId: req.userId, content: content.trim().slice(0, 1000) },
             include: { sender: { select: { id: true, username: true, fullName: true, avatar: true } } },
-        });
+        }));
 
         const recipientIds = new Set([tournament.creatorId, ...tournament.participants.map(p => p.userId).filter(Boolean)]);
         recipientIds.delete(req.userId);
@@ -3454,10 +3465,10 @@ export const sendTournamentChatMessage = async (req, res, next) => {
 export const getChatNotifyPref = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const pref = await prisma.tournamentChatNotify.findFirst({
+        const pref = await withChatTables(() => prisma.tournamentChatNotify.findFirst({
             where: { tournamentId: id, userId: req.userId },
             select: { enabled: true },
-        });
+        }));
         // Kayıt yoksa bildirim açık kabul edilir.
         res.json({ enabled: pref ? !!pref.enabled : true });
     } catch (e) { next(e); }
@@ -3478,10 +3489,10 @@ export const setChatNotifyPref = async (req, res, next) => {
             if (!participant) return res.status(403).json({ message: 'Bu turnuvanın sohbetine erişiminiz yok.' });
         }
         const enabled = req.body.enabled;
-        const existing = await prisma.tournamentChatNotify.findFirst({
+        const existing = await withChatTables(() => prisma.tournamentChatNotify.findFirst({
             where: { tournamentId: id, userId: req.userId },
             select: { id: true },
-        });
+        }));
         const pref = existing
             ? await prisma.tournamentChatNotify.update({ where: { id: existing.id }, data: { enabled } })
             : await prisma.tournamentChatNotify.create({ data: { tournamentId: id, userId: req.userId, enabled } });

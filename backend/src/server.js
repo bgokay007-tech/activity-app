@@ -25,6 +25,7 @@ import { startDemoBotResponderJob } from './jobs/demoBotResponder.js';
 import { startCancelPenaltyWarningJob } from './jobs/cancelPenaltyWarning.js';
 import { startCoachApprovalExpiryJob } from './jobs/coachApprovalExpiry.js';
 import prisma from './config/prisma.js';
+import { ensureTournamentChatTables } from './utils/ensureTournamentChatTables.js';
 
 const PROVINCES = [
     'Adana','Adıyaman','Afyonkarahisar','Ağrı','Aksaray','Amasya','Ankara','Antalya',
@@ -86,6 +87,13 @@ async function ensureTables() {
         console.log('✅ TeamNameRequest unique index ready');
     } catch (e) {
         console.error('❌ TeamNameRequest index error:', e.message);
+    }
+
+    try {
+        await ensureTournamentChatTables();
+        console.log('✅ TournamentMessage / TournamentChatNotify ready');
+    } catch (e) {
+        console.error('❌ Tournament chat tables error:', e.message);
     }
 }
 
