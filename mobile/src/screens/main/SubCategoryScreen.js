@@ -16714,6 +16714,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [loadingChat, setLoadingChat] = useState(false);
     const [chatInput, setChatInput] = useState('');
     const [sendingChat, setSendingChat] = useState(false);
+    const chatInputRef = useRef(null);
 
     const fetchChat = useCallback(async () => {
         setLoadingChat(true);
@@ -16726,15 +16727,21 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
     const sendChatMessage = async () => {
         const content = chatInput.trim();
-        if (!content) return;
+        if (!content || sendingChat) return;
+        // Klavyeyi kapatma — sadece telefonun geri tuşu kapatsın. Odak burada kalsın.
+        chatInputRef.current?.focus();
         setSendingChat(true);
         try {
             const { data } = await api.post(`/tournaments/${item.id}/chat`, { content });
             setChatMessages(prev => [...prev, data]);
             setChatInput('');
+            chatInputRef.current?.focus();
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
-        } finally { setSendingChat(false); }
+        } finally {
+            setSendingChat(false);
+            chatInputRef.current?.focus();
+        }
     };
 
     const [chatNotifyEnabled, setChatNotifyEnabled] = useState(true);
@@ -19368,7 +19375,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             {loadingChat ? (
                                 <ActivityIndicator color="#4ade80" style={{ marginTop:30 }} />
                             ) : (
-                                <ScrollView style={{ flex:1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom:7 }}>
+                                <ScrollView style={{ flex:1 }} keyboardShouldPersistTaps="always" keyboardDismissMode="none" contentContainerStyle={{ paddingBottom:7 }}>
                                     {chatMessages.length === 0
                                         ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz mesaj yok</Text>
                                         : chatMessages.map(m => {
@@ -19385,14 +19392,21 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     }
                                 </ScrollView>
                             )}
-                            <View style={{ flexDirection:'row', gap:3, marginTop:8, alignItems:'flex-end' }}>
+                            <ScrollView
+                                keyboardShouldPersistTaps="always"
+                                keyboardDismissMode="none"
+                                scrollEnabled={false}
+                                style={{ flexGrow: 0 }}
+                                contentContainerStyle={{ flexDirection:'row', gap:3, marginTop:8, alignItems:'flex-end' }}>
                                 <TextInput
+                                    ref={chatInputRef}
                                     style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:10, paddingHorizontal:9, paddingVertical:6, borderWidth:1, borderColor: colors.border, fontSize:13, maxHeight:80 }}
                                     placeholder="Mesaj yaz..."
                                     placeholderTextColor="#475569"
                                     value={chatInput}
                                     onChangeText={setChatInput}
                                     multiline
+                                    blurOnSubmit={false}
                                     maxLength={500}
                                 />
                                 <TouchableOpacity
@@ -19401,7 +19415,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     style={{ backgroundColor:'#16a34a', borderRadius:10, paddingHorizontal:11, paddingVertical:7, opacity: (sendingChat || !chatInput.trim()) ? 0.5 : 1 }}>
                                     <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>{sendingChat ? '...' : t.sendBtn}</Text>
                                 </TouchableOpacity>
-                            </View>
+                            </ScrollView>
                         </View>
                     </KeyboardAvoidingView>
                 </View>
