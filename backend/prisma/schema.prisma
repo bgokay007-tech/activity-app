@@ -1310,12 +1310,12 @@ model TournamentMessage {
   sender       User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
 }
 
-// Turnuva sohbeti icin kisi bazli bildirim tercihi — varsayilan kapali, kullanici acarsa bildirim gider
+// Turnuva sohbeti icin kisi bazli sessize alma — varsayilan acik, kullanici zili kapatirsa bildirim gitmez
 model TournamentChatNotify {
   id           String  @id @default(uuid())
   tournamentId String
   userId       String
-  enabled      Boolean @default(false)
+  enabled      Boolean @default(true)
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)

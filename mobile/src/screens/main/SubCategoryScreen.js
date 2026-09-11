@@ -16513,6 +16513,7 @@ const getSurface = (t, id) => t['surface' + (id?.toUpperCase())] || id || '';
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
 
 function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, openChatTournamentId, onChatOpened, openMatchId, openMatchTournamentId, onMatchOpened, onUserPress }) {
+    const insets = useSafeAreaInsets();
     const myPart = item.participants?.[0];
     const [myStatus, setMyStatus] = useState(myPart?.status ?? null);
     useEffect(() => { setMyStatus(myPart?.status ?? null); }, [myPart?.status]);
@@ -16736,7 +16737,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         } finally { setSendingChat(false); }
     };
 
-    const [chatNotifyEnabled, setChatNotifyEnabled] = useState(false);
+    const [chatNotifyEnabled, setChatNotifyEnabled] = useState(true);
     const [togglingChatNotify, setTogglingChatNotify] = useState(false);
 
     const fetchChatNotifyPref = useCallback(async () => {
@@ -19353,8 +19354,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             {/* Turnuva grup sohbeti — sahip + AS/yedek onaylanmış katılımcılar */}
             <Modal visible={showChatModal} animationType="slide" transparent onRequestClose={() => setShowChatModal(false)} android_keyboardInputMode="adjustNothing">
                 <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
-                    <KeyboardAvoidingView behavior="padding">
-                        <View style={{ backgroundColor:'#0f172a', borderTopLeftRadius:20, borderTopRightRadius:20, padding:13, height:520 }}>
+                    <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
+                        <View style={{ backgroundColor:'#0f172a', borderTopLeftRadius:20, borderTopRightRadius:20, paddingHorizontal:13, paddingTop:13, paddingBottom: Math.max(18, insets.bottom + 12), height:'72%', maxHeight:'88%' }}>
                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                                 <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>💬 Turnuva Sohbeti</Text>
                                 <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
@@ -19367,7 +19368,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             {loadingChat ? (
                                 <ActivityIndicator color="#4ade80" style={{ marginTop:30 }} />
                             ) : (
-                                <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingBottom:7 }}>
+                                <ScrollView style={{ flex:1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom:7 }}>
                                     {chatMessages.length === 0
                                         ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz mesaj yok</Text>
                                         : chatMessages.map(m => {
