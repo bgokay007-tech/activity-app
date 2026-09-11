@@ -16512,6 +16512,18 @@ const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' }
 const getSurface = (t, id) => t['surface' + (id?.toUpperCase())] || id || '';
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
 
+// Turnuva sohbetinde @username parçalarını yeşil vurgula.
+function renderTournamentChatContent(content, mentionColor = '#4ade80') {
+    const text = String(content || '');
+    const parts = text.split(/(@[A-Za-z0-9._]+)/g);
+    if (parts.length === 1) return text;
+    return parts.map((part, i) => (
+        part.startsWith('@')
+            ? <Text key={i} style={{ color: mentionColor, fontWeight: '800' }}>{part}</Text>
+            : <Text key={i}>{part}</Text>
+    ));
+}
+
 function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, openChatTournamentId, onChatOpened, openMatchId, openMatchTournamentId, onMatchOpened, onUserPress }) {
     const insets = useSafeAreaInsets();
     const myPart = item.participants?.[0];
@@ -16715,15 +16727,51 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [chatInput, setChatInput] = useState('');
     const [sendingChat, setSendingChat] = useState(false);
     const chatInputRef = useRef(null);
+    const [chatMessageCount, setChatMessageCount] = useState(item._count?.messages ?? 0);
+    const [chatMentionUsers, setChatMentionUsers] = useState([]);
+
+    useEffect(() => {
+        setChatMessageCount(item._count?.messages ?? 0);
+    }, [item.id, item._count?.messages]);
 
     const fetchChat = useCallback(async () => {
         setLoadingChat(true);
         try {
             const { data } = await api.get(`/tournaments/${item.id}/chat`);
-            setChatMessages(Array.isArray(data) ? data : []);
+            const list = Array.isArray(data) ? data : [];
+            setChatMessages(list);
+            setChatMessageCount(list.length);
         } catch { /* silent */ }
         finally { setLoadingChat(false); }
     }, [item.id]);
+
+    const loadChatMentionUsers = useCallback(async () => {
+        try {
+            const { data } = await api.get(`/tournaments/${item.id}/participants`);
+            const rows = Array.isArray(data) ? data : [];
+            const map = new Map();
+            if (item.creator?.id && item.creator.id !== myId) {
+                map.set(item.creator.id, {
+                    id: item.creator.id,
+                    username: item.creator.username,
+                    fullName: item.creator.fullName,
+                });
+            }
+            for (const p of rows) {
+                const u = p.user || p;
+                if (!u?.id || u.id === myId || !u.username) continue;
+                map.set(u.id, { id: u.id, username: u.username, fullName: u.fullName });
+            }
+            setChatMentionUsers([...map.values()]);
+        } catch { /* silent */ }
+    }, [item.id, item.creator, myId]);
+
+    const openChatModal = () => {
+        fetchChat();
+        fetchChatNotifyPref();
+        loadChatMentionUsers();
+        setShowChatModal(true);
+    };
 
     const sendChatMessage = async () => {
         const content = chatInput.trim();
@@ -16734,6 +16782,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         try {
             const { data } = await api.post(`/tournaments/${item.id}/chat`, { content });
             setChatMessages(prev => [...prev, data]);
+            setChatMessageCount(c => c + 1);
             setChatInput('');
             chatInputRef.current?.focus();
         } catch (e) {
@@ -16742,6 +16791,21 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             setSendingChat(false);
             chatInputRef.current?.focus();
         }
+    };
+
+    const mentionQueryMatch = chatInput.match(/@([A-Za-z0-9._]*)$/);
+    const mentionQuery = mentionQueryMatch ? mentionQueryMatch[1].toLowerCase() : null;
+    const mentionSuggestions = mentionQuery === null
+        ? []
+        : chatMentionUsers
+            .filter(u => !mentionQuery || String(u.username || '').toLowerCase().includes(mentionQuery) || String(u.fullName || '').toLowerCase().includes(mentionQuery))
+            .slice(0, 8);
+
+    const insertChatMention = (user) => {
+        const username = user?.username;
+        if (!username) return;
+        setChatInput(prev => prev.replace(/@([A-Za-z0-9._]*)$/, `@${username} `));
+        chatInputRef.current?.focus();
     };
 
     const [chatNotifyEnabled, setChatNotifyEnabled] = useState(true);
@@ -16768,9 +16832,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     // Mesaj bildirimine tıklanınca bu turnuvanın sohbeti otomatik açılsın
     useEffect(() => {
         if (openChatTournamentId && openChatTournamentId === item.id) {
-            fetchChat();
-            fetchChatNotifyPref();
-            setShowChatModal(true);
+            openChatModal();
             onChatOpened?.();
         }
     }, [openChatTournamentId, item.id]);
@@ -16794,8 +16856,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
     useEffect(() => {
         const off = onSocket('tournament:chat_message', ({ tournamentId, message }) => {
-            if (tournamentId !== item.id) return;
-            setChatMessages(prev => prev.some(m => m.id === message.id) ? prev : [...prev, message]);
+            if (tournamentId !== item.id || !message?.id) return;
+            let added = false;
+            setChatMessages(prev => {
+                if (prev.some(m => m.id === message.id)) return prev;
+                added = true;
+                return [...prev, message];
+            });
+            if (added) setChatMessageCount(c => (Number.isFinite(c) ? c : 0) + 1);
         });
         return off;
     }, [item.id]);
@@ -17810,12 +17878,24 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
         {/* IN_PROGRESS / COMPLETED: matches modal open button */}
         {(item.status === 'IN_PROGRESS' || item.status === 'COMPLETED') && (
-            <TouchableOpacity
-                style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#16a34a40', marginTop:8, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
-                onPress={() => { fetchMatches(); if (!isCreator && participants.length === 0) fetchParticipants(); setShowMatchesModal(true); }}>
-                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>📋 Maçlar & Puan Tablosu</Text>
-                <Text style={{ color:'#4ade80', fontSize:12 }}>›</Text>
-            </TouchableOpacity>
+            <View style={{ marginTop:8, gap:6 }}>
+                <TouchableOpacity
+                    style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#16a34a40', flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
+                    onPress={() => { fetchMatches(); if (!isCreator && participants.length === 0) fetchParticipants(); setShowMatchesModal(true); }}>
+                    <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>📋 Maçlar & Puan Tablosu</Text>
+                    <Text style={{ color:'#4ade80', fontSize:12 }}>›</Text>
+                </TouchableOpacity>
+                {(isCreator || myStatus === 'ACCEPTED') && (
+                    <TouchableOpacity
+                        style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#16a34a40', flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
+                        onPress={openChatModal}>
+                        <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>
+                            💬 {t.tournMessagesBtn}{chatMessageCount > 0 ? ` (${chatMessageCount})` : ''}
+                        </Text>
+                        <Text style={{ color:'#4ade80', fontSize:12 }}>›</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
         )}
 
         {/* IN_PROGRESS: matches & standings Modal */}
@@ -19364,7 +19444,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                         <View style={{ backgroundColor:'#0f172a', borderTopLeftRadius:20, borderTopRightRadius:20, paddingHorizontal:13, paddingTop:13, paddingBottom: Math.max(18, insets.bottom + 12), height:'72%', maxHeight:'88%' }}>
                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-                                <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>💬 Turnuva Sohbeti</Text>
+                                <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>💬 {t.tournMessagesBtn}{chatMessageCount > 0 ? ` (${chatMessageCount})` : ''}</Text>
                                 <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                                     <TouchableOpacity onPress={toggleChatNotify} disabled={togglingChatNotify}>
                                         <Text style={{ fontSize:20, opacity: togglingChatNotify ? 0.5 : 1 }}>{chatNotifyEnabled ? '🔔' : '🔕'}</Text>
@@ -19384,13 +19464,33 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 <View key={m.id} style={{ marginBottom:10, alignItems: mine ? 'flex-end' : 'flex-start' }}>
                                                     {!mine && <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:2 }}>{m.sender?.fullName || m.sender?.username}</Text>}
                                                     <View style={{ backgroundColor: mine ? '#16a34a30' : '#1e293b', borderRadius:10, paddingHorizontal:7, paddingVertical:4, maxWidth:'80%', borderWidth:1, borderColor: mine ? '#16a34a50' : colors.border }}>
-                                                        <Text style={{ color:'#fff', fontSize:13 }}>{m.content}</Text>
+                                                        <Text style={{ color:'#fff', fontSize:13 }}>{renderTournamentChatContent(m.content)}</Text>
                                                     </View>
                                                 </View>
                                             );
                                         })
                                     }
                                 </ScrollView>
+                            )}
+                            {mentionSuggestions.length > 0 && (
+                                <ScrollView
+                                    keyboardShouldPersistTaps="always"
+                                    keyboardDismissMode="none"
+                                    style={{ maxHeight:140, marginTop:6, backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:'#16a34a50' }}
+                                    nestedScrollEnabled>
+                                    {mentionSuggestions.map(u => (
+                                        <TouchableOpacity
+                                            key={u.id}
+                                            onPress={() => insertChatMention(u)}
+                                            style={{ paddingHorizontal:10, paddingVertical:8, borderBottomWidth:1, borderBottomColor:'#334155' }}>
+                                            <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>@{u.username}</Text>
+                                            {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize:10 }}>{u.fullName}</Text>}
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            )}
+                            {mentionQuery !== null && mentionSuggestions.length === 0 && chatMentionUsers.length > 0 && (
+                                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:6 }}>{t.chatMentionEmpty}</Text>
                             )}
                             <ScrollView
                                 keyboardShouldPersistTaps="always"
@@ -19401,7 +19501,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <TextInput
                                     ref={chatInputRef}
                                     style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:10, paddingHorizontal:9, paddingVertical:6, borderWidth:1, borderColor: colors.border, fontSize:13, maxHeight:80 }}
-                                    placeholder="Mesaj yaz..."
+                                    placeholder={t.chatMentionPh}
                                     placeholderTextColor="#475569"
                                     value={chatInput}
                                     onChangeText={setChatInput}
@@ -19595,8 +19695,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 {(isCreator || myStatus === 'ACCEPTED') && (
                                     <TouchableOpacity
                                         style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a40' }}
-                                        onPress={() => { fetchChat(); fetchChatNotifyPref(); setShowChatModal(true); }}>
-                                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Mesajlar</Text>
+                                        onPress={openChatModal}>
+                                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>
+                                            {t.tournMessagesBtn}{chatMessageCount > 0 ? ` (${chatMessageCount})` : ''}
+                                        </Text>
                                     </TouchableOpacity>
                                 )}
                                 <TouchableOpacity
@@ -19712,8 +19814,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         )}
                         <TouchableOpacity
                             style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a40' }}
-                            onPress={() => { fetchChat(); fetchChatNotifyPref(); setShowChatModal(true); }}>
-                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>💬 Mesajlar</Text>
+                            onPress={openChatModal}>
+                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>
+                                💬 {t.tournMessagesBtn}{chatMessageCount > 0 ? ` (${chatMessageCount})` : ''}
+                            </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={{ backgroundColor:'#1e40af15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#1e40af40' }}
@@ -19751,8 +19855,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             )}
                             <TouchableOpacity
                                 style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a40' }}
-                                onPress={() => { fetchChat(); fetchChatNotifyPref(); setShowChatModal(true); }}>
-                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>💬 Mesajlar</Text>
+                                onPress={openChatModal}>
+                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>
+                                    💬 {t.tournMessagesBtn}{chatMessageCount > 0 ? ` (${chatMessageCount})` : ''}
+                                </Text>
                             </TouchableOpacity>
                         </>)}
                         {myStatus === 'ACCEPTED' && myPart?.cancelRequested && (

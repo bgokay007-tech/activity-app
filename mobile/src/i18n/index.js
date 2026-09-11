@@ -1070,6 +1070,9 @@ const en = {
     credCertified: 'Certified', credLicensed: 'Licensed', credClubCoach: 'Club Coach', credClubReferee: 'Club Referee', credIndependent: 'Independent', credAmateur: 'Amateur',
     individualLesson: 'Individual Lesson', groupLesson: 'Group Lesson',
     sendBtn: 'Send',
+    tournMessagesBtn: 'Messages',
+    chatMentionPh: 'Write a message... (@ to tag)',
+    chatMentionEmpty: 'No participant found',
 
     // Profile — user modal in SubCategory
     profileModalTitle: '👤 Profile',
@@ -2791,6 +2794,9 @@ const tr = {
     credCertified: 'Sertifikalı', credLicensed: 'Lisanslı', credClubCoach: 'Kulüp Antrenörü', credClubReferee: 'Kulüp Hakemi', credIndependent: 'Bağımsız', credAmateur: 'Amatör',
     individualLesson: 'Bireysel Ders', groupLesson: 'Grup Dersi',
     sendBtn: 'Gönder',
+    tournMessagesBtn: 'Mesajlar',
+    chatMentionPh: 'Mesaj yaz... (@ ile etiketle)',
+    chatMentionEmpty: 'Katılımcı bulunamadı',
 
     // Profile — user modal in SubCategory
     profileModalTitle: '👤 Profil',
@@ -4509,6 +4515,9 @@ const ru = {
     credCertified: 'Сертифицирован', credLicensed: 'Лицензирован', credClubCoach: 'Тренер клуба', credClubReferee: 'Судья клуба', credIndependent: 'Независимый', credAmateur: 'Любитель',
     individualLesson: 'Индивидуальный урок', groupLesson: 'Групповой урок',
     sendBtn: 'Отправить',
+    tournMessagesBtn: 'Сообщения',
+    chatMentionPh: 'Написать... (@ чтобы отметить)',
+    chatMentionEmpty: 'Участник не найден',
 
     // Profile — user modal in SubCategory
     profileModalTitle: '👤 Профиль',
@@ -6226,6 +6235,9 @@ const de = {
     credCertified: 'Zertifiziert', credLicensed: 'Lizenziert', credClubCoach: 'Vereinstrainer', credClubReferee: 'Vereinsschiedsrichter', credIndependent: 'Unabhängig', credAmateur: 'Amateur',
     individualLesson: 'Einzelunterricht', groupLesson: 'Gruppenunterricht',
     sendBtn: 'Senden',
+    tournMessagesBtn: 'Nachrichten',
+    chatMentionPh: 'Nachricht... (@ zum Markieren)',
+    chatMentionEmpty: 'Kein Teilnehmer gefunden',
 
     // Profile — user modal in SubCategory
     profileModalTitle: '👤 Profil',

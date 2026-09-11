@@ -998,7 +998,7 @@ export const getTournaments = async (req, res, next) => {
             where,
             include: {
                 creator: { select: { id: true, username: true, fullName: true } },
-                _count:  { select: { participants: { where: { status: 'ACCEPTED' } } } },
+                _count:  { select: { participants: { where: { status: 'ACCEPTED' } }, messages: true } },
                 participants: { where: { userId: myId }, select: { userId: true, status: true } },
                 typeVotes: { select: { userId: true, votedType: true } },
             },
@@ -1016,7 +1016,7 @@ export const getTournamentById = async (req, res, next) => {
             where: { id },
             include: {
                 creator: { select: { id: true, username: true, fullName: true } },
-                _count:  { select: { participants: { where: { status: 'ACCEPTED' } } } },
+                _count:  { select: { participants: { where: { status: 'ACCEPTED' } }, messages: true } },
                 participants: { where: { userId: myId }, select: { userId: true, status: true } },
                 typeVotes: { select: { userId: true, votedType: true } },
             },
@@ -3435,7 +3435,24 @@ export const sendTournamentChatMessage = async (req, res, next) => {
             emitToUser(uid, 'tournament:chat_message', { tournamentId: id, message });
         }
 
-        // Katılımı onaylanmış herkese (ve oluşturana) bildirim gider. Zili kapatan sessize alınır.
+        // @username etiketleri — sessize alınmış olsa bile etiketlenene özel bildirim gider.
+        const mentionUsernames = [...new Set(
+            [...String(message.content).matchAll(/@([A-Za-z0-9._]+)/g)].map(m => m[1].toLowerCase()),
+        )];
+        let mentionedIds = new Set();
+        if (mentionUsernames.length > 0) {
+            const mentionUsers = await prisma.user.findMany({
+                where: {
+                    id: { in: [...recipientIds] },
+                    OR: mentionUsernames.map(u => ({ username: { equals: u, mode: 'insensitive' } })),
+                },
+                select: { id: true },
+            });
+            mentionedIds = new Set(mentionUsers.map(u => u.id));
+        }
+
+        // Katılımı onaylanmış herkese (ve oluşturana) bildirim gider. Zili kapatan sessize alınır;
+        // ama @etiketlenen kullanıcı her zaman bildirilir.
         if (recipientIds.size > 0) {
             let muted = new Set();
             try {
@@ -3447,11 +3464,15 @@ export const sendTournamentChatMessage = async (req, res, next) => {
             } catch { /* tercih tablosu yoksa herkese bildir */ }
             const senderName = message.sender?.fullName || message.sender?.username || '';
             for (const userId of recipientIds) {
-                if (muted.has(userId)) continue;
+                const isMentioned = mentionedIds.has(userId);
+                if (!isMentioned && muted.has(userId)) continue;
                 createNotification(
-                    userId, 'TOURNAMENT_CHAT_MESSAGE',
-                    `💬 ${tournament.name}`,
-                    `${senderName}: ${message.content}`,
+                    userId,
+                    isMentioned ? 'TOURNAMENT_CHAT_MENTION' : 'TOURNAMENT_CHAT_MESSAGE',
+                    isMentioned ? `📣 ${tournament.name}` : `💬 ${tournament.name}`,
+                    isMentioned
+                        ? `${senderName} seni etiketledi: ${message.content}`
+                        : `${senderName}: ${message.content}`,
                     { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
                 ).catch(() => {});
             }
@@ -3529,7 +3550,7 @@ export const getArchivedTournaments = async (req, res, next) => {
             include: {
                 creator:      { select: { id: true, username: true, fullName: true } },
                 participants: { where: { userId: myId }, select: { userId: true } },
-                _count:       { select: { participants: { where: { status: 'ACCEPTED' } } } },
+                _count:       { select: { participants: { where: { status: 'ACCEPTED' } }, messages: true } },
             },
             orderBy: { completedAt: 'desc' },
         });

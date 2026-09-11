@@ -67,6 +67,7 @@ const TYPE_ICON = {
     TOURNAMENT_PERMISSION_REJECTED: '❌',
     TOURNAMENT_JOIN: '🏆',
     TOURNAMENT_CHAT_MESSAGE: '💬',
+    TOURNAMENT_CHAT_MENTION: '📣',
     TOURNAMENT_JOIN_ACCEPTED: '🎉',
     TOURNAMENT_STARTED: '🚀',
     TOURNAMENT_EXTRA_ROUND: '⚖️',
@@ -418,7 +419,7 @@ export default function NotificationsScreen({ navigation }) {
             goToSub('tournaments', 'inprogress');
         } else if (type === 'TOURNAMENT_COMPLETED') {
             goToSub('archive', null, null, data.tournamentId || null);
-        } else if (type === 'TOURNAMENT_CHAT_MESSAGE') {
+        } else if (type === 'TOURNAMENT_CHAT_MESSAGE' || type === 'TOURNAMENT_CHAT_MENTION') {
             goToSub('tournaments', null, data.tournamentId || null);
         } else if (type === 'TOURNAMENT_MATCH_DEADLINE_WARNING' || type === 'TOURNAMENT_MATCH_AUTO_DRAW') {
             if (data.tournamentId) {
