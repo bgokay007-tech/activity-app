@@ -12,6 +12,7 @@ import { decrementUnread, clearUnread } from '../../store/slices/notificationSli
 import { setUser } from '../../store/slices/authSlice';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import NotificationModePickerModal from '../../components/NotificationModePickerModal';
+import { sharePost } from '../../utils/share';
 
 // "Okundu" işareti PATCH isteği, kullanıcı bildirime dokunduktan hemen sonra
 // uygulamayı kapatırsa yarıda kesilip sunucuya hiç ulaşmayabiliyordu — bu durumda
@@ -68,6 +69,9 @@ const TYPE_ICON = {
     TOURNAMENT_JOIN: '🏆',
     TOURNAMENT_CHAT_MESSAGE: '💬',
     TOURNAMENT_CHAT_MENTION: '📣',
+    POST_MENTION: '📣',
+    REEL_MENTION: '📣',
+    STORY_MENTION: '📣',
     TOURNAMENT_JOIN_ACCEPTED: '🎉',
     TOURNAMENT_STARTED: '🚀',
     TOURNAMENT_EXTRA_ROUND: '⚖️',
@@ -421,6 +425,40 @@ export default function NotificationsScreen({ navigation }) {
             goToSub('archive', null, null, data.tournamentId || null);
         } else if (type === 'TOURNAMENT_CHAT_MESSAGE' || type === 'TOURNAMENT_CHAT_MENTION') {
             goToSub('tournaments', null, data.tournamentId || null);
+        } else if (type === 'POST_MENTION' || type === 'REEL_MENTION' || type === 'STORY_MENTION') {
+            // Etiketlenen kişi Instagram gibi hem görüntüleyip hem paylaşabilsin.
+            (async () => {
+                let post = {
+                    id: data.postId,
+                    type: data.postType || (type === 'REEL_MENTION' ? 'REEL' : type === 'STORY_MENTION' ? 'STORY' : 'POST'),
+                    content: item.body,
+                    user: { username: data.authorUsername, id: data.authorId },
+                };
+                try {
+                    if (data.postId) {
+                        const { data: p } = await api.get(`/posts/${data.postId}`);
+                        post = p;
+                    }
+                } catch { /* paylaşım yine de denenebilir */ }
+                Alert.alert(
+                    t.mentionTaggedTitle || 'Etiketlendin',
+                    t.mentionTaggedBody || 'Bu paylaşımı görüntüleyebilir veya paylaşabilirsin.',
+                    [
+                        { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+                        { text: t.shareBtn || 'Paylaş', onPress: () => sharePost(post, t) },
+                        {
+                            text: t.viewBtn || 'Görüntüle',
+                            onPress: () => {
+                                if (data.authorId) {
+                                    navigation.push('UserPosts', { userId: data.authorId });
+                                } else if (data.category && data.subCategory) {
+                                    goToSub(data.postType === 'STORY' || type === 'STORY_MENTION' ? 'media' : 'posts');
+                                }
+                            },
+                        },
+                    ],
+                );
+            })();
         } else if (type === 'TOURNAMENT_MATCH_DEADLINE_WARNING' || type === 'TOURNAMENT_MATCH_AUTO_DRAW') {
             if (data.tournamentId) {
                 navigation.push('SubCategory', {

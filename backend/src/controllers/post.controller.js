@@ -13,6 +13,47 @@ const POST_INCLUDE = (userId) => ({
     _count: { select: { likes: true, comments: true } },
 });
 
+async function resolveMentionsFromContent(content, excludeUserId) {
+    const usernames = [...new Set(
+        [...String(content || '').matchAll(/@([A-Za-z0-9._]+)/g)].map(m => m[1].toLowerCase()),
+    )];
+    if (usernames.length === 0) return [];
+    const users = await prisma.user.findMany({
+        where: {
+            id: { not: excludeUserId },
+            OR: usernames.map(u => ({ username: { equals: u, mode: 'insensitive' } })),
+        },
+        select: { id: true, username: true },
+        take: 20,
+    });
+    return users.map(u => ({ userId: u.id, username: u.username }));
+}
+
+async function notifyPostMentions(post, mentions, author) {
+    if (!mentions?.length) return;
+    const kind = post.type === 'REEL' ? 'reel' : post.type === 'STORY' ? 'hikaye' : 'gönderi';
+    const notifType = post.type === 'REEL' ? 'REEL_MENTION' : post.type === 'STORY' ? 'STORY_MENTION' : 'POST_MENTION';
+    const authorName = author?.fullName || author?.username || 'Birisi';
+    const snippet = String(post.content || '').trim().slice(0, 120);
+    for (const m of mentions) {
+        if (!m.userId || m.userId === post.userId) continue;
+        createNotification(
+            m.userId,
+            notifType,
+            `📣 ${kind.charAt(0).toUpperCase() + kind.slice(1)}de etiketlendin`,
+            snippet ? `${authorName}: ${snippet}` : `${authorName} seni bir ${kind}de etiketledi`,
+            {
+                postId: post.id,
+                postType: post.type,
+                category: post.category,
+                subCategory: post.subCategory,
+                authorId: post.userId,
+                authorUsername: author?.username,
+            },
+        ).catch(() => {});
+    }
+}
+
 export const createPost = async (req, res, next) => {
     try {
         const { category, subCategory, content, imageUrl, videoUrl, type = 'POST', targets, location, musicStartTime, musicEndTime, rivalId } = req.body;
@@ -61,6 +102,8 @@ export const createPost = async (req, res, next) => {
             }
         }
 
+        const mentions = await resolveMentionsFromContent(content, req.userId);
+
         const post = await prisma.post.create({
             data: {
                 userId: req.userId,
@@ -82,6 +125,7 @@ export const createPost = async (req, res, next) => {
                 ...(type === 'STORY' && { expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) }),
                 ...(verifiedRivalId && { rivalId: verifiedRivalId }),
                 ...(mediaApprovalStatus && { mediaApprovalStatus }),
+                ...(mentions.length > 0 && { mentions }),
             },
             include: {
                 user: { select: { id: true, username: true, fullName: true, avatar: true } },
@@ -90,6 +134,8 @@ export const createPost = async (req, res, next) => {
         });
 
         res.status(201).json(post);
+
+        notifyPostMentions(post, mentions, post.user).catch(() => {});
 
         if (mediaApprovalStatus === 'PENDING') {
             notifyMediaApprovers(post).catch(() => {});
@@ -209,6 +255,24 @@ export const rejectMatchMedia = async (req, res, next) => {
             { rivalId: post.rivalId, postId: post.id, category: rival.category, subCategory: rival.subCategory }
         ).catch(() => {});
     } catch (error) { next(error); }
+};
+
+export const getPostById = async (req, res, next) => {
+    try {
+        const post = await prisma.post.findUnique({
+            where: { id: req.params.id },
+            include: POST_INCLUDE(req.userId),
+        });
+        if (!post) return res.status(404).json({ message: 'Gönderi bulunamadı.' });
+        if (post.hidden && post.userId !== req.userId) {
+            return res.status(404).json({ message: 'Gönderi bulunamadı.' });
+        }
+        res.json({
+            ...post,
+            isLiked: post.likes.length > 0,
+            likes: undefined,
+        });
+    } catch (e) { next(e); }
 };
 
 export const getPosts = async (req, res, next) => {

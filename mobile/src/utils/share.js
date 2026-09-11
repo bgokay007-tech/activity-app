@@ -66,3 +66,25 @@ export async function shareTournament(tournament, t) {
         await Share.share({ message: parts.join('\n'), url });
     } catch { /* kullanıcı paylaşımı iptal etti */ }
 }
+
+export async function sharePost(post, t) {
+    if (!post?.id) return;
+    const url = `${SHARE_HOST}/share/post/${post.id}`;
+    const author = post.user?.fullName || post.user?.username || '';
+    const kind = post.type === 'REEL'
+        ? (t?.shareReelKind || 'reel')
+        : post.type === 'STORY'
+            ? (t?.shareStoryKind || 'hikaye')
+            : (t?.sharePostKind || 'gönderi');
+    const parts = [
+        t?.sharePostIntro
+            ? t.sharePostIntro(author, kind)
+            : (author ? `${author} bir ${kind} paylaştı` : `AcTiViTy ${kind}`),
+    ];
+    const snippet = String(post.content || '').trim();
+    if (snippet) parts.push(snippet.slice(0, 160));
+    parts.push(url);
+    try {
+        await Share.share({ message: parts.join('\n'), url });
+    } catch { /* kullanıcı paylaşımı iptal etti */ }
+}

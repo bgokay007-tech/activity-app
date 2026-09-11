@@ -24,6 +24,8 @@ import VolleyballRatingModal from '../../components/VolleyballRatingModal';
 import ExtraNotifyChannelModal from '../../components/ExtraNotifyChannelModal';
 import TelegramIcon, { TELEGRAM_BLUE } from '../../components/TelegramIcon';
 import KeyboardSafeModal from '../../components/KeyboardSafeModal';
+import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
+import { sharePost } from '../../utils/share';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Sport Card Flip Modal ────────────────────────────────────────────────────
@@ -1236,6 +1238,20 @@ function isReservActive(r) {
     }
     return true;
 }
+
+// Profildeki "Benim Maçlarım" sayısı: katıldığın ve saati henüz gelmemiş maçlar.
+function matchStartDate(item) {
+    if (!item?.matchDate || !item?.matchTime) return null;
+    const [h, min] = String(item.matchTime).split(':').map(Number);
+    const d = new Date(item.matchDate);
+    if (isNaN(d) || Number.isNaN(h)) return null;
+    d.setHours(h, min || 0, 0, 0);
+    return d;
+}
+function matchHasStarted(item, now = new Date()) {
+    const d = matchStartDate(item);
+    return !!(d && now >= d);
+}
 const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const LEVEL_COLORS = { BEGINNER:'#4ade80', INTERMEDIATE:'#facc15', ADVANCED:'#fb923c', PRO:'#f87171' };
 
@@ -1525,6 +1541,7 @@ export default function ProfileScreen({ route, navigation }) {
     const [storyBranch, setStoryBranch] = useState(null);
     const [createStoryOpen, setCreateStoryOpen] = useState(false);
     const [postingStory, setPostingStory] = useState(false);
+    const [storyCaption, setStoryCaption] = useState('');
     const [avatarZoomOpen, setAvatarZoomOpen] = useState(false);
     const [viewedStoryIds, setViewedStoryIds] = useState(new Set());
     const [storyViewers, setStoryViewers] = useState([]);
@@ -1567,6 +1584,7 @@ export default function ProfileScreen({ route, navigation }) {
     const [reelMedia, setReelMedia] = useState(null);
     const [reelBranch, setReelBranch] = useState(null);
     const [postingReel, setPostingReel] = useState(false);
+    const [reelCaption, setReelCaption] = useState('');
 
     // Personal info modal
     const [profileInfoOpen, setProfileInfoOpen] = useState(false);
@@ -2273,7 +2291,7 @@ export default function ProfileScreen({ route, navigation }) {
                 type: 'STORY',
                 category: storyBranch.category,
                 subCategory: storyBranch.subCategory,
-                content: '',
+                content: storyCaption.trim(),
                 imageUrl: pickedMedia.type === 'image' ? uploadedUrl : null,
                 videoUrl: pickedMedia.type === 'video' ? uploadedUrl : null,
                 targets: [{ category: storyBranch.category, subCategory: storyBranch.subCategory }],
@@ -2281,6 +2299,7 @@ export default function ProfileScreen({ route, navigation }) {
             setCreateStoryOpen(false);
             setPickedMedia(null);
             setStoryBranch(null);
+            setStoryCaption('');
             const { data } = await api.get(`/posts/user/${userId}?type=STORY`);
             setStories(data);
         } catch (e) { console.warn(e?.message); }
@@ -2349,13 +2368,14 @@ export default function ProfileScreen({ route, navigation }) {
                 type: 'REEL',
                 category: reelBranch.category,
                 subCategory: reelBranch.subCategory,
-                content: '',
+                content: reelCaption.trim(),
                 imageUrl: reelMedia.type === 'image' ? uploadedUrl : null,
                 videoUrl: reelMedia.type === 'video' ? uploadedUrl : null,
                 targets: [{ category: reelBranch.category, subCategory: reelBranch.subCategory }],
             });
             setCreateReelOpen(false);
             setReelMedia(null);
+            setReelCaption('');
             setReelCount(c => c + 1);
         } catch { Alert.alert('Hata', 'Reel paylaşılamadı.'); }
         finally { setPostingReel(false); }
@@ -2922,11 +2942,26 @@ export default function ProfileScreen({ route, navigation }) {
                     )}
                 </View>
 
-                {/* ── Rezervasyonlarım (tüm kullanıcılar) ── */}
+                {/* ── Rezervasyonlarım + henüz başlamamış katıldığım maçlar ── */}
                 {isOwnProfile && (
-                    <TouchableOpacity style={ap.reservBtn} onPress={() => navigation.navigate('MyReservations')}>
-                        <Text style={ap.reservBtnText}>📅 Rezervasyonlarım{myReservations.filter(isReservActive).length > 0 ? ` (${myReservations.filter(isReservActive).length})` : ''}</Text>
-                    </TouchableOpacity>
+                    <View style={ap.reservRow}>
+                        <TouchableOpacity
+                            style={ap.reservBtn}
+                            onPress={() => navigation.navigate('MyReservations', { section: 'reservations' })}
+                        >
+                            <Text style={ap.reservBtnText} numberOfLines={1}>
+                                {t.resSectionReservations}{myReservations.filter(isReservActive).length > 0 ? ` (${myReservations.filter(isReservActive).length})` : ''}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={ap.matchesBtn}
+                            onPress={() => navigation.navigate('MyReservations', { section: 'matches' })}
+                        >
+                            <Text style={ap.matchesBtnText} numberOfLines={1}>
+                                {t.resSectionMyMatches}{myUpcoming.filter(m => !matchHasStarted(m)).length > 0 ? ` (${myUpcoming.filter(m => !matchHasStarted(m)).length})` : ''}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 )}
 
                 {/* ── Admin Panel Butonu (sadece admin) ── */}
@@ -3958,6 +3993,16 @@ export default function ProfileScreen({ route, navigation }) {
                             ))}
                         </ScrollView>
 
+                        <Text style={[s.fieldLabel, { marginTop: 12 }]}>Yazı / @etiket</Text>
+                        <MentionCaptionInput
+                            style={{ backgroundColor: colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: colors.border, color: '#fff', fontSize: 13, paddingHorizontal: 12, paddingVertical: 10, minHeight: 64, textAlignVertical: 'top' }}
+                            value={storyCaption}
+                            onChangeText={setStoryCaption}
+                            placeholder="Bir şeyler yaz... (@ ile etiketle)"
+                            placeholderTextColor={colors.textMuted}
+                            maxLength={500}
+                        />
+
                         <TouchableOpacity
                             style={[s.saveBtn, (!storyBranch || postingStory) && { opacity: 0.5 }, { marginTop: 16 }]}
                             onPress={handlePostStory}
@@ -4001,7 +4046,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 {!!story.content && (
                                     <View style={{ position: 'absolute', left: 20, right: 20, bottom: story.location ? (isOwnProfile ? 240 : 130) : (isOwnProfile ? 180 : 72), alignItems: 'center' }}>
                                         <View style={{ backgroundColor: '#00000065', borderRadius: 12, paddingHorizontal: 13, paddingVertical: 7 }}>
-                                            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center', lineHeight: 23 }}>{story.content}</Text>
+                                            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center', lineHeight: 23 }}>{renderMentionText(story.content)}</Text>
                                         </View>
                                     </View>
                                 )}
@@ -4591,6 +4636,16 @@ export default function ProfileScreen({ route, navigation }) {
                             ))}
                         </ScrollView>
 
+                        <Text style={[s.fieldLabel, { marginTop: 12 }]}>Yazı / @etiket</Text>
+                        <MentionCaptionInput
+                            style={{ backgroundColor: colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: colors.border, color: '#fff', fontSize: 13, paddingHorizontal: 12, paddingVertical: 10, minHeight: 64, textAlignVertical: 'top' }}
+                            value={reelCaption}
+                            onChangeText={setReelCaption}
+                            placeholder="Bir şeyler yaz... (@ ile etiketle)"
+                            placeholderTextColor={colors.textMuted}
+                            maxLength={500}
+                        />
+
                         <TouchableOpacity
                             style={[s.saveBtn, (!reelBranch || postingReel) && { opacity: 0.5 }, { marginTop: 16 }]}
                             onPress={handlePostReel}
@@ -4679,8 +4734,11 @@ export default function ProfileScreen({ route, navigation }) {
 // ─── Admin Panel Styles ───────────────────────────────────────────────────────
 
 const ap = StyleSheet.create({
-    reservBtn:   { marginHorizontal: 20, marginTop: 12, marginBottom: 4, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: '#9333ea30' },
-    reservBtnText:{ color: colors.purple, fontSize: 14, fontWeight: '800' },
+    reservRow:   { flexDirection: 'row', marginHorizontal: 20, marginTop: 12, marginBottom: 4, gap: 8 },
+    reservBtn:   { flex: 1, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1, borderColor: '#9333ea30' },
+    reservBtnText:{ color: colors.purple, fontSize: 13, fontWeight: '800', textAlign: 'center' },
+    matchesBtn:  { flex: 1, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e30' },
+    matchesBtnText:{ color: '#4ade80', fontSize: 13, fontWeight: '800', textAlign: 'center' },
     adminBtn:    { marginHorizontal: 20, marginTop: 8, marginBottom: 8, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
     adminBtnText:{ color: colors.purple, fontSize: 14, fontWeight: '800' },
     overlay:     { flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end' },

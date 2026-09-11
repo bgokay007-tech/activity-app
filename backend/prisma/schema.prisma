@@ -837,6 +837,7 @@ model Post {
   mediaApprovalStatus String?                    // null = onay gerekmez (rivalId yok ya da skor zaten onaylıydı) |
                                                   // PENDING | APPROVED | REJECTED — skor bekleyen maçta paylaşılan
                                                   // medya karşı taraf onaylayana kadar Medya sekmesinde görünmez
+  mentions     Json?                             // [{userId, username}] — caption içindeki @etiketler
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 

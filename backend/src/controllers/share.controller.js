@@ -195,3 +195,37 @@ export const getTournamentSharePage = async (req, res, next) => {
         res.send(renderSharePage({ title, description, deepLink: `activityapp://tournament/${id}`, pageUrl }));
     } catch (e) { next(e); }
 };
+
+export const getPostSharePage = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const post = await prisma.post.findUnique({
+            where: { id },
+            select: {
+                id: true, type: true, content: true, category: true, subCategory: true,
+                imageUrl: true, hidden: true,
+                user: { select: { username: true, fullName: true } },
+            },
+        });
+        const pageUrl = `${BACKEND_URL}/share/post/${id}`;
+        if (!post || post.hidden) {
+            res.set('Content-Type', 'text/html; charset=utf-8');
+            return res.status(404).send(renderSharePage({
+                title: 'İçerik bulunamadı', description: 'Bu paylaşım artık mevcut değil.',
+                pageUrl, notFound: true,
+            }));
+        }
+        const author = post.user?.fullName || post.user?.username || 'AcTiViTy';
+        const kind = post.type === 'REEL' ? 'Reel' : post.type === 'STORY' ? 'Hikaye' : 'Gönderi';
+        const title = `${author} · ${kind}`;
+        const description = (post.content || '').trim().slice(0, 180)
+            || `${author} bir ${kind.toLowerCase()} paylaştı`;
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(renderSharePage({
+            title,
+            description,
+            deepLink: `activityapp://post/${id}`,
+            pageUrl,
+        }));
+    } catch (e) { next(e); }
+};

@@ -95,6 +95,14 @@ async function ensureTables() {
     } catch (e) {
         console.error('❌ Tournament chat tables error:', e.message);
     }
+
+    // Gönderi @etiket alanı — migration production'da otomatik uygulanmadığı için burada garanti.
+    try {
+        await prisma.$executeRawUnsafe(`ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "mentions" JSONB`);
+        console.log('✅ Post.mentions column ready');
+    } catch (e) {
+        console.error('❌ Post.mentions column error:', e.message);
+    }
 }
 
 const httpServer = createServer(app);

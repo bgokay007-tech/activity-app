@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-    createPost, getPosts, getUserPosts,
+    createPost, getPosts, getPostById, getUserPosts,
     analyzeContent, suggestMusicForImage, toggleLike, addComment,
     getComments, deleteComment, toggleCommentLike, getPostLikes, editPost, toggleVisibility, deletePost,
     recordView, getStoryViews,
@@ -15,6 +15,7 @@ router.post('/',                 authenticate, createPost);
 router.post('/analyze',          authenticate, analyzeContent);
 router.post('/suggest-music',    authenticate, suggestMusicForImage);
 router.get('/user/:userId',      authenticate, getUserPosts);
+router.get('/:id',               authenticate, getPostById);
 router.post('/:id/like',         authenticate, toggleLike);
 router.post('/:id/comment',      authenticate, addComment);
 router.get('/:id/comments',      authenticate, getComments);

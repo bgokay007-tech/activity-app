@@ -8,6 +8,7 @@ const Audio = null;
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
 import colors from '../../theme/colors';
+import { renderMentionText } from '../../components/MentionCaptionInput';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -169,7 +170,7 @@ function PostCard({ post, liked, onToggleLike, isVisible, dataSaver, isMusicPlay
                 <View style={s.captionWrap}>
                     <Text style={s.captionText}>
                         <Text style={s.captionUser}>{post.user?.username}  </Text>
-                        {post.content}
+                        {renderMentionText(post.content)}
                     </Text>
                 </View>
             )}

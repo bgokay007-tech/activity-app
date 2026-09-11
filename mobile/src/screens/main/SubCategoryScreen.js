@@ -29,6 +29,7 @@ import { NEW_VISUAL } from '../../theme/visual';
 import { moderateScale } from '../../theme/scale';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
+import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
 import CityAutocomplete from '../../components/CityAutocomplete';
 import VenueNameAutocomplete from '../../components/VenueNameAutocomplete';
 import MultiCityAutocomplete from '../../components/MultiCityAutocomplete';
@@ -39,7 +40,7 @@ import VolleyballRatingModal from '../../components/VolleyballRatingModal';
 import AssessmentModal from '../../components/AssessmentModal';
 import ExtraServicesEditor from '../../components/ExtraServicesEditor';
 import TrailsTab from './TrailsTab';
-import { shareRival, shareTournament } from '../../utils/share';
+import { shareRival, shareTournament, sharePost } from '../../utils/share';
 import { computeVarDurationPrice } from '../../utils/priceProration';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import {
@@ -5351,7 +5352,7 @@ function TextPostCard({ post, cfg }) {
                     <Text style={s.cardSub}>{post.user?.username} · {timeAgo(post.createdAt)}</Text>
                 </View>
             </View>
-            <Text style={[s.cardMsg, { marginBottom: 12, lineHeight: 20 }]}>{post.content}</Text>
+            <Text style={[s.cardMsg, { marginBottom: 12, lineHeight: 20 }]}>{renderMentionText(post.content)}</Text>
             <View style={{ flexDirection: 'row', gap: 3, marginBottom: showComments ? 10 : 0 }}>
                 <TouchableOpacity onPress={toggleLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                     <Text style={{ color: liked ? '#f43f5e' : colors.textMuted, fontSize: 16 }}>♥</Text>
@@ -16740,7 +16741,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             const { data } = await api.get(`/tournaments/${item.id}/chat`);
             const list = Array.isArray(data) ? data : [];
             setChatMessages(list);
-            setChatMessageCount(list.length);
+            // Liste en fazla 200 mesaj getiriyor; sunucudaki toplam sayacı küçültme.
+            setChatMessageCount(prev => Math.max(Number(prev) || 0, list.length));
         } catch { /* silent */ }
         finally { setLoadingChat(false); }
     }, [item.id]);
@@ -24145,7 +24147,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
             const { data: newPost } = await api.post('/posts', {
                 category, subCategory: sub,
-                type: mediaShareType === 'STORY' ? 'STORY' : 'POST',
+                type: mediaShareType === 'STORY' ? 'STORY' : mediaShareType === 'REEL' ? 'REEL' : 'POST',
                 content: mediaShareCaption || '',
                 ...(isVideo ? { videoUrl: uploadData.url } : { imageUrl: uploadData.url }),
                 ...(shareMusic && {
@@ -28234,7 +28236,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 <View style={{ paddingHorizontal: 9, paddingBottom: 9 }}>
                                                                     <Text style={{ color: '#fff', fontSize: 13, lineHeight: 19 }}>
                                                                         <Text style={{ fontWeight: '800' }}>{post.user?.username} </Text>
-                                                                        {post.content}
+                                                                        {renderMentionText(post.content)}
                                                                     </Text>
                                                                 </View>
                                                             ) : <View style={{ paddingBottom: 1 }} />}
@@ -28428,13 +28430,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     </View>
                                                 );
                                             })()}
-                                            <TextInput
-                                                style={{ backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: colors.border, marginBottom: 14 }}
-                                                placeholder={mediaShareType === 'STORY' ? '✏️ Üzerine yazı ekle...' : 'Açıklama ekle (opsiyonel)...'}
+                                            <MentionCaptionInput
+                                                style={{ backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: colors.border, marginBottom: 14, minHeight: 48, textAlignVertical: 'top' }}
+                                                placeholder={mediaShareType === 'STORY' ? '✏️ Üzerine yazı ekle... (@ ile etiketle)' : 'Açıklama ekle (@ ile etiketle)...'}
                                                 placeholderTextColor={colors.textMuted}
                                                 value={mediaShareCaption}
                                                 onChangeText={setMediaShareCaption}
                                                 multiline
+                                                maxLength={1000}
                                             />
                                             {/* Müzik + Konum butonları */}
                                             <View style={{ flexDirection: 'row', gap: 3, marginBottom: 12 }}>
@@ -28795,9 +28798,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                         return (
                         <>
                             <View style={{ backgroundColor: colors.surface2, borderRadius: 12, padding: 9, marginBottom: 12, borderWidth: 1, borderColor: colors.border }}>
-                                <TextInput
+                                <MentionCaptionInput
                                     style={{ color: '#fff', fontSize: 14, minHeight: 70, textAlignVertical: 'top', lineHeight: 20 }}
-                                    placeholder={lang === 'tr' ? 'Bir şeyler yaz...' : lang === 'ru' ? 'Напишите что-нибудь...' : lang === 'de' ? 'Schreib etwas...' : 'Write something...'}
+                                    placeholder={t.chatMentionPh || (lang === 'tr' ? 'Bir şeyler yaz... (@ ile etiketle)' : 'Write something... (@ to tag)')}
                                     placeholderTextColor={colors.textMuted}
                                     value={newPostText}
                                     onChangeText={setNewPostText}

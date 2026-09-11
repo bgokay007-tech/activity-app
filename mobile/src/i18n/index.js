@@ -1073,6 +1073,13 @@ const en = {
     tournMessagesBtn: 'Messages',
     chatMentionPh: 'Write a message... (@ to tag)',
     chatMentionEmpty: 'No participant found',
+    mentionTaggedTitle: 'You were tagged',
+    mentionTaggedBody: 'You can view or share this post.',
+    viewBtn: 'View',
+    sharePostKind: 'post',
+    shareReelKind: 'reel',
+    shareStoryKind: 'story',
+    sharePostIntro: (author, kind) => (author ? `${author} shared a ${kind}` : `AcTiViTy ${kind}`),
 
     // Profile — user modal in SubCategory
     profileModalTitle: '👤 Profile',
@@ -2797,6 +2804,13 @@ const tr = {
     tournMessagesBtn: 'Mesajlar',
     chatMentionPh: 'Mesaj yaz... (@ ile etiketle)',
     chatMentionEmpty: 'Katılımcı bulunamadı',
+    mentionTaggedTitle: 'Etiketlendin',
+    mentionTaggedBody: 'Bu paylaşımı görüntüleyebilir veya paylaşabilirsin.',
+    viewBtn: 'Görüntüle',
+    sharePostKind: 'gönderi',
+    shareReelKind: 'reel',
+    shareStoryKind: 'hikaye',
+    sharePostIntro: (author, kind) => (author ? `${author} bir ${kind} paylaştı` : `AcTiViTy ${kind}`),
 
     // Profile — user modal in SubCategory
     profileModalTitle: '👤 Profil',
@@ -4518,6 +4532,13 @@ const ru = {
     tournMessagesBtn: 'Сообщения',
     chatMentionPh: 'Написать... (@ чтобы отметить)',
     chatMentionEmpty: 'Участник не найден',
+    mentionTaggedTitle: 'Вас отметили',
+    mentionTaggedBody: 'Можно открыть или поделиться этим постом.',
+    viewBtn: 'Смотреть',
+    sharePostKind: 'пост',
+    shareReelKind: 'рилс',
+    shareStoryKind: 'история',
+    sharePostIntro: (author, kind) => (author ? `${author} поделился: ${kind}` : `AcTiViTy ${kind}`),
 
     // Profile — user modal in SubCategory
     profileModalTitle: '👤 Профиль',
@@ -6238,6 +6259,13 @@ const de = {
     tournMessagesBtn: 'Nachrichten',
     chatMentionPh: 'Nachricht... (@ zum Markieren)',
     chatMentionEmpty: 'Kein Teilnehmer gefunden',
+    mentionTaggedTitle: 'Du wurdest markiert',
+    mentionTaggedBody: 'Du kannst diesen Beitrag ansehen oder teilen.',
+    viewBtn: 'Ansehen',
+    sharePostKind: 'Beitrag',
+    shareReelKind: 'Reel',
+    shareStoryKind: 'Story',
+    sharePostIntro: (author, kind) => (author ? `${author} hat ein ${kind} geteilt` : `AcTiViTy ${kind}`),
 
     // Profile — user modal in SubCategory
     profileModalTitle: '👤 Profil',

@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 const Audio = null;
 import api from '../../services/api';
 import colors from '../../theme/colors';
+import MentionCaptionInput from '../../components/MentionCaptionInput';
 
 const ASPECT_RATIOS = [
     { key: '1:1',  label: '1:1',  ratio: [1, 1],   desc: 'Kare' },
@@ -299,11 +300,11 @@ export default function CreatePostScreen({ navigation }) {
                 <View style={s.fields}>
 
                     {/* ── Caption ── */}
-                    <TextInput
+                    <MentionCaptionInput
                         style={s.captionInput}
                         value={content}
                         onChangeText={setContent}
-                        placeholder="Bir şeyler yaz..."
+                        placeholder="Bir şeyler yaz... (@ ile etiketle)"
                         placeholderTextColor={colors.textMuted}
                         multiline
                         maxLength={2200}
