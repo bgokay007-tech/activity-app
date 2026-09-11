@@ -15,6 +15,7 @@ router.post('/',                 authenticate, createPost);
 router.post('/analyze',          authenticate, analyzeContent);
 router.post('/suggest-music',    authenticate, suggestMusicForImage);
 router.get('/user/:userId',      authenticate, getUserPosts);
+router.get('/pending/:rivalId',  authenticate, getPendingMatchMedia);
 router.get('/:id',               authenticate, getPostById);
 router.post('/:id/like',         authenticate, toggleLike);
 router.post('/:id/comment',      authenticate, addComment);
@@ -27,7 +28,6 @@ router.patch('/:id/visibility',  authenticate, toggleVisibility);
 router.delete('/:id',            authenticate, deletePost);
 router.post('/:id/view',         authenticate, recordView);
 router.get('/:id/views',         authenticate, getStoryViews);
-router.get('/pending/:rivalId',    authenticate, getPendingMatchMedia);
 router.patch('/:id/approve-media', authenticate, approveMatchMedia);
 router.patch('/:id/reject-media',  authenticate, rejectMatchMedia);
 
