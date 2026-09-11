@@ -40,7 +40,7 @@ import VolleyballRatingModal from '../../components/VolleyballRatingModal';
 import AssessmentModal from '../../components/AssessmentModal';
 import ExtraServicesEditor from '../../components/ExtraServicesEditor';
 import TrailsTab from './TrailsTab';
-import { shareRival, shareTournament, sharePost } from '../../utils/share';
+import { shareRival, shareTournament } from '../../utils/share';
 import { computeVarDurationPrice } from '../../utils/priceProration';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import {
