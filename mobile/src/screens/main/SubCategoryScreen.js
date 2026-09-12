@@ -958,7 +958,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const insertCommentMention = (user) => {
         if (!user?.username) return;
         setCommentText(prev => insertMatchCommentMention(prev, user.username));
-        commentInputRef.current?.focus();
+        // Öneriye ilk dokunuşta blur yarışı olursa klavye kapansın diye hemen geri odakla.
+        requestAnimationFrame(() => commentInputRef.current?.focus());
     };
     const startReplyToComment = (c) => {
         setReplyingTo(c.id);
@@ -4112,14 +4113,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             )}
                             {commentMentionSuggestions.length > 0 && (
                                 <ScrollView
-                                    keyboardShouldPersistTaps="handled"
+                                    keyboardShouldPersistTaps="always"
                                     keyboardDismissMode="none"
                                     style={{ maxHeight: 160, marginBottom: 6, backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: cfg.color + '50' }}
                                     nestedScrollEnabled>
                                     {commentMentionSuggestions.map(u => (
                                         <TouchableOpacity
                                             key={u.id}
-                                            onPress={() => insertCommentMention(u)}
+                                            // İlk dokunuşta sadece klavye kapanmasın diye onPressIn —
+                                            // onPress, TextInput blur yarışında bazen hiç tetiklenmiyor
+                                            // (bkz. TeamSlotInviteField / turnuva sohbeti aynı desen).
+                                            onPressIn={() => insertCommentMention(u)}
                                             style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                                             <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>@{u.username}</Text>
                                             {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize: 10 }}>{u.fullName}</Text>}
@@ -9069,14 +9073,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             )}
                             {localMentionSuggestions.length > 0 && (
                                 <ScrollView
-                                    keyboardShouldPersistTaps="handled"
+                                    keyboardShouldPersistTaps="always"
                                     keyboardDismissMode="none"
                                     style={{ maxHeight: 140, marginBottom: 6, backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: cfg.color + '50' }}
                                     nestedScrollEnabled>
                                     {localMentionSuggestions.map(u => (
                                         <TouchableOpacity
                                             key={u.id}
-                                            onPress={() => insertLocalCommentMention(u)}
+                                            onPressIn={() => insertLocalCommentMention(u)}
                                             style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                                             <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>@{u.username}</Text>
                                             {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize: 10 }}>{u.fullName}</Text>}
@@ -19753,7 +19757,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     {mentionSuggestions.map(u => (
                                         <TouchableOpacity
                                             key={u.id}
-                                            onPress={() => insertChatMention(u)}
+                                            onPressIn={() => insertChatMention(u)}
                                             style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#334155' }}>
                                             <Text style={{ color: '#4ade80', fontSize: 12, fontWeight: '800' }}>@{u.username}</Text>
                                             {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize: 10 }}>{u.fullName}</Text>}
@@ -29928,14 +29932,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 )}
                                 {commentModalMentionSuggestions.length > 0 && (
                                     <ScrollView
-                                        keyboardShouldPersistTaps="handled"
+                                        keyboardShouldPersistTaps="always"
                                         keyboardDismissMode="none"
                                         style={{ maxHeight: 160, marginHorizontal: 9, marginTop: 6, backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: cfg2.color + '50' }}
                                         nestedScrollEnabled>
                                         {commentModalMentionSuggestions.map(u => (
                                             <TouchableOpacity
                                                 key={u.id}
-                                                onPress={() => insertCommentModalMention(u)}
+                                                onPressIn={() => insertCommentModalMention(u)}
                                                 style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                                                 <Text style={{ color: cfg2.color, fontSize: 12, fontWeight: '800' }}>@{u.username}</Text>
                                                 {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize: 10 }}>{u.fullName}</Text>}
