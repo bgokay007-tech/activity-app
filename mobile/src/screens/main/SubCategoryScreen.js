@@ -6519,6 +6519,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [localCommentsLoaded, setLocalCommentsLoaded] = useState(false);
     const [localCommentText, setLocalCommentText] = useState('');
     const [sendingLocalComment, setSendingLocalComment] = useState(false);
+    // Kullanıcı isteği: maç yorumunda @etiket + tek seviye yanıt (RivalDetailModal ile aynı).
+    const [localReplyingTo, setLocalReplyingTo] = useState(null);
+    const localCommentInputRef = useRef(null);
     // Kullanıcı isteği: "Yorumlar" başlığının sağına ok işareti — aşağı dönükken yorumlar
     // (yazma kutusu + liste) görünür, dokununca sola döner ve gizler. Varsayılan açık.
     const [showLocalComments, setShowLocalComments] = useState(true);
@@ -7443,12 +7446,48 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         if (!localCommentText.trim()) return;
         setSendingLocalComment(true);
         try {
-            const res = await api.post(`/rivals/${match.id}/comments`, { content: localCommentText.trim() });
-            setLocalComments(prev => [...prev, res.data]);
+            const res = await api.post(`/rivals/${match.id}/comments`, {
+                content: localCommentText.trim(),
+                parentId: localReplyingTo || undefined,
+            });
+            setLocalComments(prev => prev.some(c => c.id === res.data.id) ? prev : [...prev, res.data]);
             setLocalCommentText('');
+            setLocalReplyingTo(null);
             onRefresh?.();
         } catch(e) { Alert.alert('', e?.response?.data?.message || 'Yorum gönderilemedi'); }
         finally { setSendingLocalComment(false); }
+    };
+
+    const localCommentMentionUsers = useMemo(
+        () => buildMatchCommentMentionUsers({
+            myId,
+            sender: match?.sender,
+            participants: match?.participants,
+            senderTeam: match?.senderTeam,
+            comments: localComments,
+        }),
+        [myId, match?.sender, match?.participants, match?.senderTeam, localComments],
+    );
+    const { query: localMentionQuery, suggestions: localMentionSuggestions } = useMemo(
+        () => getMatchCommentMentionSuggestions(localCommentText, localCommentMentionUsers),
+        [localCommentText, localCommentMentionUsers],
+    );
+    const insertLocalCommentMention = (user) => {
+        if (!user?.username) return;
+        setLocalCommentText(prev => insertMatchCommentMention(prev, user.username));
+        localCommentInputRef.current?.focus();
+    };
+    const startLocalReply = (c) => {
+        setLocalReplyingTo(c.id);
+        const un = c?.user?.username;
+        if (un) {
+            setLocalCommentText(prev => {
+                const t0 = String(prev || '');
+                if (t0.includes(`@${un}`)) return t0;
+                return t0.trim() ? `${t0.replace(/\s+$/, '')} @${un} ` : `@${un} `;
+            });
+        }
+        setTimeout(() => localCommentInputRef.current?.focus(), 50);
     };
 
     // Kullanıcı isteği: kart arkası — katılan herkes (allPlayers zaten kurucu+takım
@@ -9017,24 +9056,58 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         yazacağımda klavye formu kapatıyor"). Sadece aşağıdaki liste ok işaretiyle
                         gizlenir/gösterilir. */}
                     {match.refereeUser?.id !== myId && (
-                        <View style={{ flexDirection:'row', gap:3, marginBottom:12 }}>
-                            <TextInput
-                                style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:9,
-                                    paddingVertical:5, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
-                                placeholder="Yorum yaz..."
-                                placeholderTextColor={colors.textMuted}
-                                value={localCommentText}
-                                onChangeText={setLocalCommentText}
-                                multiline
-                            />
-                            <TouchableOpacity
-                                style={{ backgroundColor: sendingLocalComment || !localCommentText.trim() ? colors.surface2 : colors.purple,
-                                    borderRadius:10, paddingHorizontal:11, justifyContent:'center', alignItems:'center' }}
-                                onPress={sendLocalComment}
-                                disabled={sendingLocalComment || !localCommentText.trim()}>
-                                <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Gönder</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <>
+                            {localReplyingTo && (
+                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:11 }}>
+                                        Yanıtlanıyor: {localComments.find(c => c.id === localReplyingTo)?.user?.username}
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setLocalReplyingTo(null)}>
+                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>✕ Vazgeç</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                            {localMentionSuggestions.length > 0 && (
+                                <ScrollView
+                                    keyboardShouldPersistTaps="handled"
+                                    keyboardDismissMode="none"
+                                    style={{ maxHeight: 140, marginBottom: 6, backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: cfg.color + '50' }}
+                                    nestedScrollEnabled>
+                                    {localMentionSuggestions.map(u => (
+                                        <TouchableOpacity
+                                            key={u.id}
+                                            onPress={() => insertLocalCommentMention(u)}
+                                            style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                                            <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>@{u.username}</Text>
+                                            {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize: 10 }}>{u.fullName}</Text>}
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            )}
+                            {localMentionQuery !== null && localMentionSuggestions.length === 0 && localCommentMentionUsers.length > 0 && (
+                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>{t.matchCommentMentionEmpty}</Text>
+                            )}
+                            <View style={{ flexDirection:'row', gap:3, marginBottom:12 }}>
+                                <TextInput
+                                    ref={localCommentInputRef}
+                                    style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:9,
+                                        paddingVertical:5, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
+                                    placeholder={localReplyingTo ? (t.matchCommentReplyPh || 'Yanıt yaz... (@ ile etiketle)') : (t.matchCommentPlaceholder)}
+                                    placeholderTextColor={colors.textMuted}
+                                    value={localCommentText}
+                                    onChangeText={setLocalCommentText}
+                                    multiline
+                                    blurOnSubmit={false}
+                                />
+                                <TouchableOpacity
+                                    style={{ backgroundColor: sendingLocalComment || !localCommentText.trim() ? colors.surface2 : colors.purple,
+                                        borderRadius:10, paddingHorizontal:11, justifyContent:'center', alignItems:'center' }}
+                                    onPress={sendLocalComment}
+                                    disabled={sendingLocalComment || !localCommentText.trim()}>
+                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Gönder</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </>
                     )}
 
                     {/* Yorumlar listesi — kullanıcı isteği: sadece bu liste başlığın sağındaki ok
@@ -9053,19 +9126,28 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             <ActivityIndicator color={cfg.color} style={{ marginVertical:16 }} />
                         ) : localComments.length === 0 ? (
                             <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Henüz yorum yok.</Text>
-                        ) : (
-                            localComments.map(c => (
-                                <View key={c.id} style={{ backgroundColor: colors.surface2, borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                        ) : (() => {
+                            const topLevel = localComments.filter(c => !c.parentId);
+                            const repliesOf = (id) => localComments.filter(c => c.parentId === id);
+                            const renderRow = (c, isReply) => (
+                                <View key={c.id} style={{ backgroundColor: colors.surface2, borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor: colors.border, marginLeft: isReply ? 14 : 0 }}>
                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{c.user?.username || '?'}</Text>
                                         <Text style={{ color: colors.textMuted, fontSize:10 }}>
                                             {c.createdAt ? new Date(c.createdAt).toLocaleDateString(t.dateLocale, { day:'numeric', month:'short' }) : ''}
                                         </Text>
                                     </View>
-                                    <Text style={{ color: colors.textSecondary, fontSize:13 }}>{c.content}</Text>
+                                    <Text style={{ color: colors.textSecondary, fontSize:13 }}>{renderMentionContent(c.content, cfg.color)}</Text>
+                                    {!isReply && (
+                                        <TouchableOpacity onPress={() => startLocalReply(c)} style={{ marginTop:6, alignSelf:'flex-start' }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.matchCommentReplyBtn || 'Yanıtla'}</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    {repliesOf(c.id).map(r => renderRow(r, true))}
                                 </View>
-                            ))
-                        )
+                            );
+                            return topLevel.map(c => renderRow(c, false));
+                        })()
                     )}
 
                     {/* Kullanıcı isteği: Yorumlar'ın altında, skora bağlı olmadan (maç zaten
@@ -23136,6 +23218,38 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Kullanıcı isteği: maç/ilan yorumlarına da medya yorumlarındaki gibi tek seviye
     // yanıtlama (parentId) ve beğeni eklendi — aynı algoritma.
     const [commentReplyingTo, setCommentReplyingTo] = useState(null);
+    const commentModalInputRef = useRef(null);
+    const commentModalMentionUsers = useMemo(
+        () => buildMatchCommentMentionUsers({
+            myId,
+            sender: commentMatch?.sender,
+            participants: commentMatch?.participants,
+            senderTeam: commentMatch?.senderTeam,
+            comments,
+        }),
+        [myId, commentMatch?.sender, commentMatch?.participants, commentMatch?.senderTeam, comments],
+    );
+    const { query: commentModalMentionQuery, suggestions: commentModalMentionSuggestions } = useMemo(
+        () => getMatchCommentMentionSuggestions(commentText, commentModalMentionUsers),
+        [commentText, commentModalMentionUsers],
+    );
+    const insertCommentModalMention = (user) => {
+        if (!user?.username) return;
+        setCommentText(prev => insertMatchCommentMention(prev, user.username));
+        commentModalInputRef.current?.focus();
+    };
+    const startCommentModalReply = (c) => {
+        setCommentReplyingTo(c.id);
+        const un = c?.user?.username;
+        if (un) {
+            setCommentText(prev => {
+                const t0 = String(prev || '');
+                if (t0.includes(`@${un}`)) return t0;
+                return t0.trim() ? `${t0.replace(/\s+$/, '')} @${un} ` : `@${un} `;
+            });
+        }
+        setTimeout(() => commentModalInputRef.current?.focus(), 50);
+    };
     const toggleMatchCommentLike = async (commentId) => {
         setComments(prev => prev.map(c => c.id === commentId ? { ...c, isLiked: !c.isLiked, likeCount: (c.likeCount || 0) + (c.isLiked ? -1 : 1) } : c));
         try {
@@ -23162,6 +23276,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const openComments = useCallback(async (match) => {
         setCommentMatch(match);
         setCommentSwapSlot(null);
+        setCommentReplyingTo(null);
+        setCommentText('');
         setComments([]);
         setLoadingComments(true);
         try {
@@ -29769,7 +29885,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <TouchableOpacity onPress={() => c.user?.id && navigation.push('Profile', { userId: c.user.id })}>
                                                         <Text style={{ color: cfg2.color, fontSize:13, fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
                                                     </TouchableOpacity>
-                                                    <Text style={{ color:'#fff', fontSize:14, lineHeight:21 }}>{c.content}</Text>
+                                                    <Text style={{ color:'#fff', fontSize:14, lineHeight:21 }}>{renderMentionContent(c.content, cfg2.color)}</Text>
                                                     <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>
                                                         {new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
                                                     </Text>
@@ -29786,8 +29902,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     {c.likeCount > 0 && <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>{c.likeCount}</Text>}
                                                 </TouchableOpacity>
                                                 {!isReply && (
-                                                    <TouchableOpacity onPress={() => setCommentReplyingTo(c.id)}>
-                                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>Yanıtla</Text>
+                                                    <TouchableOpacity onPress={() => startCommentModalReply(c)}>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.matchCommentReplyBtn || 'Yanıtla'}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
@@ -29810,16 +29926,38 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </TouchableOpacity>
                                     </View>
                                 )}
+                                {commentModalMentionSuggestions.length > 0 && (
+                                    <ScrollView
+                                        keyboardShouldPersistTaps="handled"
+                                        keyboardDismissMode="none"
+                                        style={{ maxHeight: 160, marginHorizontal: 9, marginTop: 6, backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: cfg2.color + '50' }}
+                                        nestedScrollEnabled>
+                                        {commentModalMentionSuggestions.map(u => (
+                                            <TouchableOpacity
+                                                key={u.id}
+                                                onPress={() => insertCommentModalMention(u)}
+                                                style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                                                <Text style={{ color: cfg2.color, fontSize: 12, fontWeight: '800' }}>@{u.username}</Text>
+                                                {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize: 10 }}>{u.fullName}</Text>}
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                )}
+                                {commentModalMentionQuery !== null && commentModalMentionSuggestions.length === 0 && commentModalMentionUsers.length > 0 && (
+                                    <Text style={{ color: colors.textMuted, fontSize:11, marginHorizontal:9, marginTop:6 }}>{t.matchCommentMentionEmpty}</Text>
+                                )}
                                 <View style={{ flexDirection:'row', gap:3, paddingHorizontal:9, paddingVertical:7, paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 8 : 10), borderTopWidth:1, borderTopColor: colors.border, backgroundColor: colors.bg }}>
                                     <TextInput
+                                        ref={commentModalInputRef}
                                         style={[s.fieldInput, { flex:1, height:44, marginBottom:0, fontSize:14 }]}
-                                        placeholder={commentReplyingTo ? 'Yanıt yaz...' : t.matchCommentPlaceholder}
+                                        placeholder={commentReplyingTo ? (t.matchCommentReplyPh || 'Yanıt yaz... (@ ile etiketle)') : t.matchCommentPlaceholder}
                                         placeholderTextColor={colors.textMuted}
                                         value={commentText}
                                         onChangeText={setCommentText}
                                         multiline={false}
                                         returnKeyType="send"
                                         onSubmitEditing={sendComment}
+                                        blurOnSubmit={false}
                                     />
                                     <TouchableOpacity
                                         style={[s.joinBtn, { paddingHorizontal:15, height:44, justifyContent:'center', alignSelf:'center' }, sendingComment && { opacity:0.6 }]}

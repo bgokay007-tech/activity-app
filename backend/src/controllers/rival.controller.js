@@ -4967,18 +4967,20 @@ export const addMatchComment = async (req, res, next) => {
         if (!content?.trim()) return res.status(400).json({ message: 'Content required' });
         const match = await prisma.activityRequest.findUnique({
             where: { id },
-            select: { id: true, senderId: true, participants: true, subCategory: true, category: true },
+            select: { id: true, senderId: true, participants: true, senderTeam: true, subCategory: true, category: true },
         });
         if (!match) return res.status(404).json({ message: 'Match not found' });
         // Kullanıcı isteği: medya yorumlarındaki gibi, sadece o maçın bir yorumuna yanıt
         // yazılabilsin — tek seviye (yanıtın yanıtı yok).
+        let parentAuthorId = null;
         if (parentId) {
-            const parent = await prisma.matchComment.findUnique({ where: { id: parentId }, select: { rivalId: true } });
+            const parent = await prisma.matchComment.findUnique({ where: { id: parentId }, select: { rivalId: true, userId: true } });
             if (!parent || parent.rivalId !== id) return res.status(400).json({ message: 'Geçersiz yanıt' });
+            parentAuthorId = parent.userId;
         }
         const comment = await prisma.matchComment.create({
             data: { rivalId: id, userId: req.userId, content: content.trim(), parentId: parentId || null },
-            include: { user: { select: { id: true, username: true, avatar: true } } },
+            include: { user: { select: { id: true, username: true, avatar: true, fullName: true } } },
         });
         res.status(201).json(comment);
 
@@ -4986,17 +4988,81 @@ export const addMatchComment = async (req, res, next) => {
         // 'newComment' gönderilir (bildirim değil, sadece canlı sayaç güncellemesi için).
         emitToUser(req.userId, 'newComment', { rivalId: id, comment });
 
-        // Notify owner + participants (except commenter)
         const parts = Array.isArray(match.participants) ? match.participants : [];
-        const allIds = [...new Set([match.senderId, ...parts.filter(p => p?.id).map(p => p.id)])].filter(uid => uid !== req.userId);
+        const team = Array.isArray(match.senderTeam) ? match.senderTeam : [];
+        const rosterIds = [...new Set([
+            match.senderId,
+            ...parts.filter(p => p?.id).map(p => p.id),
+            ...team.filter(p => p?.id).map(p => p.id),
+        ])].filter(Boolean);
+
+        // @etiket havuzu: kadro + bu maça daha önce yorum yazmış dışarıdakiler
+        // (kullanıcı isteği: katılanlar veya dışarıdan yorum yapanlar etiketlenebilsin).
+        const priorCommenters = await prisma.matchComment.findMany({
+            where: { rivalId: id, userId: { not: req.userId } },
+            select: { userId: true },
+            distinct: ['userId'],
+        });
+        const taggableIds = new Set([
+            ...rosterIds.filter(uid => uid !== req.userId),
+            ...priorCommenters.map(c => c.userId),
+        ]);
+
+        const mentionUsernames = [...new Set(
+            [...String(content).matchAll(/@([A-Za-z0-9._]+)/g)].map(m => m[1].toLowerCase()),
+        )];
+        let mentionedIds = new Set();
+        if (mentionUsernames.length > 0 && taggableIds.size > 0) {
+            const mentionUsers = await prisma.user.findMany({
+                where: {
+                    id: { in: [...taggableIds] },
+                    OR: mentionUsernames.map(u => ({ username: { equals: u, mode: 'insensitive' } })),
+                },
+                select: { id: true },
+            });
+            mentionedIds = new Set(mentionUsers.map(u => u.id));
+        }
+
         const commenterUsername = comment.user?.username || 'Biri';
-        for (const uid of allIds) {
+        const snippet = content.trim().slice(0, 80);
+        const notifData = { rivalId: id, category: match.category, subCategory: match.subCategory };
+        const notified = new Set([req.userId]);
+
+        // @etiketlenenlere özel bildirim — kadroda olmasa bile (dışarıdan yorum yazmış biri).
+        for (const uid of mentionedIds) {
+            if (notified.has(uid)) continue;
+            notified.add(uid);
+            emitToUser(uid, 'newComment', { rivalId: id, comment });
+            createNotification(
+                uid, 'MATCH_COMMENT_MENTION',
+                '📣 Yorumda etiketlendin',
+                `@${commenterUsername}: ${snippet}`,
+                notifData,
+            ).catch(() => {});
+        }
+
+        // Yanıtlandıysa üst yorumun yazarına bildir (kendisi değilse / zaten etiketlenmediyse).
+        if (parentAuthorId && !notified.has(parentAuthorId)) {
+            notified.add(parentAuthorId);
+            emitToUser(parentAuthorId, 'newComment', { rivalId: id, comment });
+            createNotification(
+                parentAuthorId, 'MATCH_COMMENT_REPLY',
+                '💬 Yoruma yanıt',
+                `@${commenterUsername}: ${snippet}`,
+                notifData,
+            ).catch(() => {});
+        }
+
+        // Kadroya genel "yeni yorum" — etiketlenmiş / yanıtlanan kişiye ikinci bildirim gitmesin.
+        for (const uid of rosterIds) {
+            if (notified.has(uid)) continue;
+            notified.add(uid);
             emitToUser(uid, 'newComment', { rivalId: id, comment });
             createNotification(
                 uid, 'MATCH_COMMENT',
                 '💬 Yeni Yorum',
-                `@${commenterUsername}: ${content.trim().slice(0, 60)}`,
-                { rivalId: id, category: match.category, subCategory: match.subCategory }
+                `@${commenterUsername}: ${snippet}`,
+                notifData,
             ).catch(() => {});
         }
     } catch (error) { next(error); }

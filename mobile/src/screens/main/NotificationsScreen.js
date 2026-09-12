@@ -69,6 +69,9 @@ const TYPE_ICON = {
     TOURNAMENT_JOIN: '🏆',
     TOURNAMENT_CHAT_MESSAGE: '💬',
     TOURNAMENT_CHAT_MENTION: '📣',
+    MATCH_COMMENT: '💬',
+    MATCH_COMMENT_MENTION: '📣',
+    MATCH_COMMENT_REPLY: '💬',
     POST_MENTION: '📣',
     REEL_MENTION: '📣',
     STORY_MENTION: '📣',
@@ -411,7 +414,7 @@ export default function NotificationsScreen({ navigation }) {
             goToSub('rivals');
         } else if (type === 'POSITION_SUGGESTED' || type === 'POSITION_SUGGESTION_APPROVED' || type === 'POSITION_SUGGESTION_REJECTED') {
             goToSub('rivals');
-        } else if (type === 'MATCH_COMMENT') {
+        } else if (type === 'MATCH_COMMENT' || type === 'MATCH_COMMENT_MENTION' || type === 'MATCH_COMMENT_REPLY') {
             goToSub('rivals');
         } else if (type === 'TOURNAMENT_PERMISSION_REQUEST') {
             navigation.push('Profile', { openTournamentPermissions: true });
