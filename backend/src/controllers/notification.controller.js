@@ -62,11 +62,14 @@ export const markAllRead = async (req, res, next) => {
 
 export const markOneRead = async (req, res, next) => {
     try {
+        // İstemci { read: false } gönderirse tek bildirimi tekrar okunmadı yapabilir —
+        // "hepsini okundu" zorlamadan, diğerlerini unutmamak için seçici kullanım.
+        const read = req.body?.read === false ? false : true;
         await prisma.notification.updateMany({
             where: { id: req.params.id, userId: req.userId },
-            data: { read: true },
+            data: { read },
         });
-        res.json({ message: 'Marked as read' });
+        res.json({ message: read ? 'Marked as read' : 'Marked as unread', read });
     } catch (error) { next(error); }
 };
 

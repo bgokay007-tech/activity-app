@@ -8,7 +8,7 @@ import api from '../../services/api';
 import { onSocket, getSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
-import { decrementUnread, clearUnread } from '../../store/slices/notificationSlice';
+import { decrementUnread, clearUnread, incrementUnread } from '../../store/slices/notificationSlice';
 import { setUser } from '../../store/slices/authSlice';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import NotificationModePickerModal from '../../components/NotificationModePickerModal';
@@ -104,7 +104,7 @@ const TYPE_ICON = {
 const SCORE_HINT_TYPE = 'SCORE_ENTRY_REQUIRED';
 const ROW_HEIGHT_EST = 88;
 
-function NotificationRow({ item, blinking, onPress, lang }) {
+function NotificationRow({ item, blinking, onPress, onToggleRead, lang, t }) {
     const blinkOpacity = useRef(new Animated.Value(1)).current;
     useEffect(() => {
         if (!blinking) { blinkOpacity.setValue(1); return; }
@@ -119,26 +119,40 @@ function NotificationRow({ item, blinking, onPress, lang }) {
     const icon = TYPE_ICON[item.type] || TYPE_ICON.default;
     const subLabel = getSubCategoryLabel(item.data?.subCategory, lang);
     return (
-        <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-            <Animated.View style={[styles.item, !item.read && styles.itemUnread, blinking && styles.itemScoreHint, { opacity: blinkOpacity }]}>
-                <View style={styles.iconBox}>
-                    <Text style={styles.icon}>{icon}</Text>
-                </View>
-                <View style={styles.itemContent}>
-                    <Text style={styles.itemTitle}>{item.title}</Text>
-                    <Text style={styles.itemBody} numberOfLines={2}>{item.body}</Text>
-                    <Text style={styles.itemTime}>
-                        {new Date(item.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                </View>
+        <View style={[styles.item, !item.read && styles.itemUnread, blinking && styles.itemScoreHint]}>
+            <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={styles.itemMain}>
+                <Animated.View style={[styles.itemMainInner, { opacity: blinkOpacity }]}>
+                    <View style={styles.iconBox}>
+                        <Text style={styles.icon}>{icon}</Text>
+                    </View>
+                    <View style={styles.itemContent}>
+                        <Text style={styles.itemTitle}>{item.title}</Text>
+                        <Text style={styles.itemBody} numberOfLines={2}>{item.body}</Text>
+                        <Text style={styles.itemTime}>
+                            {new Date(item.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                    </View>
+                </Animated.View>
+            </TouchableOpacity>
+            <View style={styles.rightCol}>
                 {!item.read && <View style={styles.dot} />}
                 {!!subLabel && (
                     <View style={styles.subBadge}>
                         <Text style={styles.subBadgeText} numberOfLines={1}>{subLabel}</Text>
                     </View>
                 )}
-            </Animated.View>
-        </TouchableOpacity>
+                {/* Bildirime özel okundu/okunmadı — tıklanınca sadece BU satır değişir, diğerleri durur. */}
+                <TouchableOpacity
+                    onPress={() => onToggleRead?.(item)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={[styles.readToggle, item.read ? styles.readToggleOn : styles.readToggleOff]}
+                >
+                    <Text style={[styles.readToggleText, item.read ? styles.readToggleTextOn : styles.readToggleTextOff]} numberOfLines={1}>
+                        {item.read ? (t.notifReadBtn || 'Okundu') : (t.notifUnreadBtn || 'Okunmadı')}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+        </View>
     );
 }
 
@@ -233,7 +247,7 @@ export default function NotificationsScreen({ navigation }) {
         if (pending.length === 0) return;
         const stillPending = [];
         for (const id of pending) {
-            try { await api.patch(`/notifications/${id}/read`); }
+            try { await api.patch(`/notifications/${id}/read`, { read: true }); }
             catch { stillPending.push(id); }
         }
         await savePendingReads(stillPending);
@@ -276,24 +290,36 @@ export default function NotificationsScreen({ navigation }) {
 
     const markRead = async (id) => {
         const wasUnread = notifications.find(n => n.id === id)?.read === false;
-        // Önce yerel state'i güncelle — kullanıcı bildirime dokunduktan hemen sonra
-        // uygulamayı arka plana atıp kapatırsa PATCH isteği yarıda kesilebiliyordu,
-        // sunucu hiç haberdar olmuyordu ve bildirim bir sonraki açılışta yine
-        // okunmamış görünüyordu. İstek başarısız olsa bile en az bu oturumda doğru görünür.
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
         if (wasUnread) dispatch(decrementUnread());
-        // "Okundu" niyeti önce kalıcı kuyruğa yazılır — istek şimdi başarısız olsa
-        // (ya da uygulama bu sırada tamamen kapansa) bile bir sonraki load() çağrısı
-        // (ekran açılışı/odağı) bunu otomatik tekrar deneyip tamamlayacak.
         const pending = await loadPendingReads();
         if (!pending.includes(id)) await savePendingReads([...pending, id]);
         try {
-            await api.patch(`/notifications/${id}/read`);
+            await api.patch(`/notifications/${id}/read`, { read: true });
             const after = await loadPendingReads();
             await savePendingReads(after.filter(pid => pid !== id));
         } catch (e) {
             console.warn(e?.message);
         }
+    };
+
+    const markUnread = async (id) => {
+        const wasRead = notifications.find(n => n.id === id)?.read !== false;
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: false } : n));
+        if (wasRead) dispatch(incrementUnread());
+        // Okunmadıya çevirince kuyruktaki "okundu" niyetini de iptal et
+        const pending = await loadPendingReads();
+        await savePendingReads(pending.filter(pid => pid !== id));
+        try {
+            await api.patch(`/notifications/${id}/read`, { read: false });
+        } catch (e) {
+            console.warn(e?.message);
+        }
+    };
+
+    const toggleRead = (item) => {
+        if (item.read) markUnread(item.id);
+        else markRead(item.id);
     };
 
     const markAllRead = async () => {
@@ -305,7 +331,8 @@ export default function NotificationsScreen({ navigation }) {
     };
 
     const handlePress = async (item) => {
-        markRead(item.id);
+        // Bildirimi açmak otomatik okundu yapmaz — kullanıcı diğerlerini unutmamak için
+        // satırdaki Okundu/Okunmadı ile sadece istediğini işaretler.
         const data = item.data || {};
         const type = item.type;
         const goToSub = (tab = 'rivals', tournSubTab = null, openChatTournamentId = null, archiveTournamentId = null) => {
@@ -553,7 +580,9 @@ export default function NotificationsScreen({ navigation }) {
             item={item}
             blinking={hasPendingScore && item.type === SCORE_HINT_TYPE}
             onPress={() => handlePress(item)}
+            onToggleRead={toggleRead}
             lang={lang}
+            t={t}
         />
     );
 
@@ -624,9 +653,18 @@ const styles = StyleSheet.create({
     muteBtnText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
     markAllBtn: { backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 8, height: 24, minWidth: 66, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
     markAllText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
-    item: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 17, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border + '40', gap: 3, position: 'relative' },
-    subBadge: { position: 'absolute', top: 8, right: 12, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: colors.border, maxWidth: 90 },
+    item: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 17, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border + '40', gap: 8, position: 'relative' },
+    itemMain: { flex: 1 },
+    itemMainInner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+    rightCol: { alignItems: 'flex-end', justifyContent: 'flex-start', gap: 6, minWidth: 72, maxWidth: 96, paddingTop: 2 },
+    subBadge: { backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: colors.border, maxWidth: 96 },
     subBadgeText: { color: colors.textMuted, fontSize: 9, fontWeight: '700' },
+    readToggle: { borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, maxWidth: 96 },
+    readToggleOn: { backgroundColor: colors.surface2, borderColor: colors.border },
+    readToggleOff: { backgroundColor: colors.purple + '22', borderColor: colors.purple },
+    readToggleText: { fontSize: 9, fontWeight: '800' },
+    readToggleTextOn: { color: colors.textMuted },
+    readToggleTextOff: { color: colors.purple },
     itemUnread: { backgroundColor: colors.purple + '10' },
     itemScoreHint: { backgroundColor: colors.purple + '22', borderLeftWidth: 3, borderLeftColor: colors.purple },
     scoreHintWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 8 },
@@ -646,7 +684,7 @@ const styles = StyleSheet.create({
     itemTitle: { color: '#fff', fontWeight: '700', fontSize: 13, marginBottom: 3 },
     itemBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 17, marginBottom: 4 },
     itemTime: { color: colors.textMuted, fontSize: 10 },
-    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.purple, marginTop: 6 },
+    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.purple, marginTop: 2, marginBottom: 2 },
     empty: { alignItems: 'center', paddingTop: 77 },
     emptyEmoji: { fontSize: 52, marginBottom: 12 },
     emptyText: { color: colors.textMuted, fontSize: 15, fontWeight: '600' },
