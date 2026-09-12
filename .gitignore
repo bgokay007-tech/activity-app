@@ -4,5 +4,8 @@
 uploads/
 dist/
 .expo/
-.claude/
+# Claude yerel ayar; skill'ler repoda (Claude+Cursor ortak hafiza)
+.claude/*
+!.claude/skills/
+!.claude/skills/**
 wear-tools/
