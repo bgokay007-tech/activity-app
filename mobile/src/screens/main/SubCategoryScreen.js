@@ -939,6 +939,39 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // Kullanıcı isteği: maç/ilan yorumlarına da medya yorumlarındaki gibi tek seviye
     // yanıtlama (parentId) ve beğeni eklendi — aynı algoritma.
     const [replyingTo, setReplyingTo] = useState(null);
+    const commentInputRef = useRef(null);
+    // Kullanıcı isteği: maç yorumunda @ ile kadro + dışarıdan yorum yazmış kişiler etiketlensin.
+    const commentMentionUsers = useMemo(
+        () => buildMatchCommentMentionUsers({
+            myId,
+            sender: item?.sender,
+            participants: item?.participants,
+            senderTeam: item?.senderTeam,
+            comments,
+        }),
+        [myId, item?.sender, item?.participants, item?.senderTeam, comments],
+    );
+    const { query: commentMentionQuery, suggestions: commentMentionSuggestions } = useMemo(
+        () => getMatchCommentMentionSuggestions(commentText, commentMentionUsers),
+        [commentText, commentMentionUsers],
+    );
+    const insertCommentMention = (user) => {
+        if (!user?.username) return;
+        setCommentText(prev => insertMatchCommentMention(prev, user.username));
+        commentInputRef.current?.focus();
+    };
+    const startReplyToComment = (c) => {
+        setReplyingTo(c.id);
+        const un = c?.user?.username;
+        if (un) {
+            setCommentText(prev => {
+                const t0 = String(prev || '');
+                if (t0.includes(`@${un}`)) return t0;
+                return t0.trim() ? `${t0.replace(/\s+$/, '')} @${un} ` : `@${un} `;
+            });
+        }
+        setTimeout(() => commentInputRef.current?.focus(), 50);
+    };
     const toggleCommentLike = async (commentId) => {
         setComments(prev => prev.map(c => c.id === commentId ? { ...c, isLiked: !c.isLiked, likeCount: (c.likeCount || 0) + (c.isLiked ? -1 : 1) } : c));
         try {
@@ -4077,16 +4110,38 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </TouchableOpacity>
                                 </View>
                             )}
+                            {commentMentionSuggestions.length > 0 && (
+                                <ScrollView
+                                    keyboardShouldPersistTaps="handled"
+                                    keyboardDismissMode="none"
+                                    style={{ maxHeight: 160, marginBottom: 6, backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: cfg.color + '50' }}
+                                    nestedScrollEnabled>
+                                    {commentMentionSuggestions.map(u => (
+                                        <TouchableOpacity
+                                            key={u.id}
+                                            onPress={() => insertCommentMention(u)}
+                                            style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                                            <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>@{u.username}</Text>
+                                            {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize: 10 }}>{u.fullName}</Text>}
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            )}
+                            {commentMentionQuery !== null && commentMentionSuggestions.length === 0 && commentMentionUsers.length > 0 && (
+                                <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>{t.matchCommentMentionEmpty}</Text>
+                            )}
                             <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
                                 <TextInput
+                                    ref={commentInputRef}
                                     style={[s.fieldInput, { flex:1, height:moderateScale(44), marginBottom:0, fontSize:moderateScale(14) }]}
-                                    placeholder={replyingTo ? 'Yanıt yaz...' : t.matchCommentPlaceholder}
+                                    placeholder={replyingTo ? (t.matchCommentReplyPh || 'Yanıt yaz... (@ ile etiketle)') : (t.matchCommentPlaceholder)}
                                     placeholderTextColor={colors.textMuted}
                                     value={commentText}
                                     onChangeText={setCommentText}
                                     multiline={false}
                                     returnKeyType="send"
                                     onSubmitEditing={sendComment}
+                                    blurOnSubmit={false}
                                 />
                                 <TouchableOpacity
                                     style={[s.joinBtn, { paddingHorizontal:15, height:moderateScale(44), justifyContent:'center', alignSelf:'center', borderRadius: moderateScale(10) }, sendingComment && { opacity:0.6 }]}
@@ -4127,7 +4182,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <TouchableOpacity onPress={() => c.user?.id && navigation.push('Profile', { userId: c.user.id })}>
                                                 <Text style={{ color: cfg.color, fontSize:moderateScale(13), fontWeight:'700', marginBottom:3 }}>{c.user?.username}</Text>
                                             </TouchableOpacity>
-                                            <Text style={{ color:'#fff', fontSize:moderateScale(14), lineHeight:moderateScale(21) }}>{c.content}</Text>
+                                            <Text style={{ color:'#fff', fontSize:moderateScale(14), lineHeight:moderateScale(21) }}>{renderMentionContent(c.content, cfg.color)}</Text>
                                             <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), marginTop:4 }}>
                                                 {new Date(c.createdAt).toLocaleString(t.dateLocale, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
                                             </Text>
@@ -4144,8 +4199,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             {c.likeCount > 0 && <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }}>{c.likeCount}</Text>}
                                         </TouchableOpacity>
                                         {!isReply && (
-                                            <TouchableOpacity onPress={() => setReplyingTo(c.id)}>
-                                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }}>Yanıtla</Text>
+                                            <TouchableOpacity onPress={() => startReplyToComment(c)}>
+                                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }}>{t.matchCommentReplyBtn || 'Yanıtla'}</Text>
                                             </TouchableOpacity>
                                         )}
                                     </View>
@@ -16511,10 +16566,17 @@ const TOURN_TYPE_LABELS = (t) => ({
 });
 const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' };
 const getSurface = (t, id) => t['surface' + (id?.toUpperCase())] || id || '';
+const hasTournSpecificCourt = (item) => {
+    const loc = String(item?.location || '').trim();
+    if (!loc) return false;
+    // Eski kayıtlarda ortak karar metni location'a yazılmış olabiliyor
+    if (/ortaklaşa|oyuncular|players decide|gemeinsam|соглас/i.test(loc)) return false;
+    return true;
+};
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
 
-// Turnuva sohbetinde @username parçalarını yeşil vurgula.
-function renderTournamentChatContent(content, mentionColor = '#4ade80') {
+// Turnuva sohbeti / maç yorumunda @username parçalarını vurgula.
+function renderMentionContent(content, mentionColor = '#4ade80') {
     const text = String(content || '');
     const parts = text.split(/(@[A-Za-z0-9._]+)/g);
     if (parts.length === 1) return text;
@@ -16523,6 +16585,47 @@ function renderTournamentChatContent(content, mentionColor = '#4ade80') {
             ? <Text key={i} style={{ color: mentionColor, fontWeight: '800' }}>{part}</Text>
             : <Text key={i}>{part}</Text>
     ));
+}
+// Maç yorumu @etiket adayları: kadro + bu maça yorum yazmış dışarıdakiler.
+function buildMatchCommentMentionUsers({ myId, sender, participants, senderTeam, comments }) {
+    const map = new Map();
+    const add = (u) => {
+        if (!u?.id || u.id === myId || !u.username) return;
+        map.set(u.id, { id: u.id, username: u.username, fullName: u.fullName });
+    };
+    add(sender);
+    (Array.isArray(participants) ? participants : []).forEach(add);
+    (Array.isArray(senderTeam) ? senderTeam : []).forEach(add);
+    (Array.isArray(comments) ? comments : []).forEach(c => add(c?.user));
+    return [...map.values()].sort((a, b) =>
+        String(a.username || '').localeCompare(String(b.username || ''), 'tr', { sensitivity: 'base' }),
+    );
+}
+function getMatchCommentMentionSuggestions(text, users) {
+    const m = String(text || '').match(/@([A-Za-z0-9._]*)$/);
+    if (!m) return { query: null, suggestions: [] };
+    const q = (m[1] || '').toLowerCase();
+    const suggestions = (users || [])
+        .filter(u => {
+            if (!q) return true;
+            const un = String(u.username || '').toLowerCase();
+            const fn = String(u.fullName || '').toLowerCase();
+            return un.startsWith(q) || un.includes(q) || fn.includes(q);
+        })
+        .slice()
+        .sort((a, b) => {
+            const ua = String(a.username || '').toLowerCase();
+            const ub = String(b.username || '').toLowerCase();
+            const sa = ua.startsWith(q) ? 0 : 1;
+            const sb = ub.startsWith(q) ? 0 : 1;
+            if (sa !== sb) return sa - sb;
+            return ua.localeCompare(ub, 'tr', { sensitivity: 'base' });
+        });
+    return { query: q, suggestions };
+}
+function insertMatchCommentMention(text, username) {
+    if (!username) return text;
+    return String(text || '').replace(/@([A-Za-z0-9._]*)$/, `@${username} `);
 }
 
 function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, openChatTournamentId, onChatOpened, openMatchId, openMatchTournamentId, onMatchOpened, onUserPress }) {
@@ -16641,6 +16744,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         : participants.length > 0
             ? participants.length
             : item._count?.participants || 0;
+    const pendingRequestCount = requests.filter(r => r.status === 'PENDING').length;
+    const requestsBtnLabel = pendingRequestCount > 0
+        ? `Başvurular (${pendingRequestCount} bekleyen)`
+        : requests.length > 0
+            ? `Başvurular (${requests.length})`
+            : 'Başvurular';
 
     // Demo auto-join
     const [demoRunning, setDemoRunning] = useState(false);
@@ -17746,9 +17855,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </Text>
                     </View>
                 ) : null}
-                {item.surface ? (
+                {item.surface && item.surface !== 'PLAYERS_DECIDE' ? (
                     <View style={{ backgroundColor:'#0ea5e915', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#0ea5e940' }}>
                         <Text style={{ color:'#7dd3fc', fontSize:10, fontWeight:'700' }}>{getSurface(t, item.surface)}</Text>
+                    </View>
+                ) : null}
+                {!hasTournSpecificCourt(item) ? (
+                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
+                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }} numberOfLines={2}>
+                            {item.subCategory === 'airsoft'
+                                ? (t.tournCourtPlayersArrange || 'Takımlar ortaklaşa mekan seçecek')
+                                : (t.tournCourtPlayersArrange || t.tournCourtPlayersDecide)}
+                        </Text>
                     </View>
                 ) : null}
                 {item.matchesBeforePlayoff ? (
@@ -17872,13 +17990,6 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 item.prize3 ? `🥉 ${item.prize3}` : null,
                                 item.surpriseGifts ? `🎁 ${item.surpriseGifts}` : null,
                             ].filter(Boolean).join(' · ')}
-                        </Text>
-                    </View>
-                ) : null}
-                {!item.location ? (
-                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
-                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }} numberOfLines={1}>
-                            {item.subCategory === 'airsoft' ? 'Takımlar ortaklaşa mekan seçecek' : t.tournCourtPlayersDecide}
                         </Text>
                     </View>
                 ) : null}
@@ -19543,7 +19654,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 <View key={m.id} style={{ marginBottom:10, alignItems: mine ? 'flex-end' : 'flex-start' }}>
                                                     {!mine && <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:2 }}>{m.sender?.fullName || m.sender?.username}</Text>}
                                                     <View style={{ backgroundColor: mine ? '#16a34a30' : '#1e293b', borderRadius:10, paddingHorizontal:7, paddingVertical:4, maxWidth:'80%', borderWidth:1, borderColor: mine ? '#16a34a50' : colors.border }}>
-                                                        <Text style={{ color:'#fff', fontSize:13 }}>{renderTournamentChatContent(m.content)}</Text>
+                                                        <Text style={{ color:'#fff', fontSize:13 }}>{renderMentionContent(m.content)}</Text>
                                                     </View>
                                                 </View>
                                             );
@@ -19682,9 +19793,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </Text>
                                     </View>
                                 ) : null}
-                                {item.surface ? (
+                                {item.surface && item.surface !== 'PLAYERS_DECIDE' ? (
                                     <View style={{ backgroundColor:'#0ea5e915', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#0ea5e940' }}>
                                         <Text style={{ color:'#7dd3fc', fontSize:10, fontWeight:'700' }}>{getSurface(t, item.surface)}</Text>
+                                    </View>
+                                ) : null}
+                                {!hasTournSpecificCourt(item) ? (
+                                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }} numberOfLines={2}>
+                                            {item.subCategory === 'airsoft'
+                                                ? (t.tournCourtPlayersArrange || 'Takımlar ortaklaşa mekan seçecek')
+                                                : (t.tournCourtPlayersArrange || t.tournCourtPlayersDecide)}
+                                        </Text>
                                     </View>
                                 ) : null}
                                 {item.matchesBeforePlayoff ? (
@@ -19784,7 +19904,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     style={{ backgroundColor:'#1e40af15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#1e40af40' }}
                                     onPress={() => { isCreator || item.type === '2' || item.type === '4' ? fetchRequests() : fetchParticipants(); setShowListModal(true); }}>
                                     <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>
-                                        {isCreator ? `Başvurular${requests.length > 0 ? ` (${requests.length})` : ''}` : `Katılımcılar${participantCount > 0 ? ` (${participantCount})` : ''}`}
+                                        {isCreator ? requestsBtnLabel : `Katılımcılar${participantCount > 0 ? ` (${participantCount})` : ''}`}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -19902,7 +20022,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             style={{ backgroundColor:'#1e40af15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#1e40af40' }}
                             onPress={() => { fetchRequests(); setShowListModal(true); }}>
                             <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>
-                                📋 Başvurular{requests.length > 0 ? ` (${requests.length})` : ''}
+                                📋 {requestsBtnLabel}
                             </Text>
                         </TouchableOpacity>
                     </>)}
@@ -20357,9 +20477,11 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 dayTrip: f.dayTrip,
                 minPlayers: f.minPlayers ? parseInt(f.minPlayers) : undefined,
                 maxPlayers: f.maxPlayers ? parseInt(f.maxPlayers) : undefined,
-                location: courtName || undefined,
-                surface: f.surface || undefined,
-                isIndoor: f.courtDecidedByPlayers ? undefined : f.isIndoor,
+                location: courtName || null,
+                surface: f.courtDecidedByPlayers
+                    ? (f.surface || null)
+                    : (f.surface || null),
+                isIndoor: f.courtDecidedByPlayers ? false : f.isIndoor,
                 isPaid: f.isPaid,
                 feeType: f.feeType,
                 ...(f.isPaid && {
@@ -20511,19 +20633,95 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <View style={[s.chipRow, { marginBottom:8 }]}>
                                 <TouchableOpacity
                                     style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                    onPress={() => set('courtDecidedByPlayers', false)}>
+                                    onPress={() => setF(p => ({ ...p, courtDecidedByPlayers: false }))}>
                                     <Text style={[s.chipText, !f.courtDecidedByPlayers && { color: cfg.color, fontWeight:'800' }]}>
                                         {isAirsoft ? (lang==='tr' ? '🏟️ Belirli Mekan' : lang === 'ru' ? '🏟️ Конкретное место' : lang === 'de' ? '🏟️ Bestimmter Ort' : '🏟️ Specific Venue') : t.tournCourtSpecific}
                                     </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                    onPress={() => { set('courtDecidedByPlayers', true); if (f.paymentMethod === 'CASH') set('paymentMethod', ''); }}>
+                                    onPress={() => setF(p => ({
+                                        ...p,
+                                        courtDecidedByPlayers: true,
+                                        selectedCourt: null,
+                                        courtSearchText: '',
+                                        courtResults: [],
+                                        showManualCourt: false,
+                                        manualCourtName: '',
+                                        manualCourtCity: '',
+                                        surface: '',
+                                        ...(p.paymentMethod === 'CASH' ? { paymentMethod: '' } : {}),
+                                    }))}>
                                     <Text style={[s.chipText, f.courtDecidedByPlayers && { color: cfg.color, fontWeight:'800' }]}>
-                                        {isAirsoft ? (lang==='tr' ? '🤝 Takımlar karşılıklı ortaklaşa mekan seçecek' : lang === 'ru' ? '🤝 Команды совместно согласуют место' : lang === 'de' ? '🤝 Teams einigen sich gemeinsam auf einen Ort' : '🤝 Teams will jointly agree on a venue') : t.tournCourtPlayersDecide}
+                                        {isAirsoft
+                                            ? (lang==='tr' ? '🤝 Takımlar ortaklaşa mekan seçecek' : lang === 'ru' ? '🤝 Команды совместно согласуют место' : lang === 'de' ? '🤝 Teams einigen sich gemeinsam' : '🤝 Teams agree jointly')
+                                            : (t.tournCourtNoSpecific || 'Belirli kort yok')}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
+                            {f.courtDecidedByPlayers && !isAirsoft && sub === 'tennis' && (
+                                <>
+                                    <Text style={s.fieldLabelRed}>{t.tournSurfaceLabel || t.surfaceLabel}</Text>
+                                    <View style={[s.chipRow, { marginBottom:8 }]}>
+                                        <TouchableOpacity
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.surface === 'HARD' && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('surface', f.surface === 'HARD' ? '' : 'HARD')}>
+                                            <Text style={[s.chipText, f.surface === 'HARD' && { color: cfg.color, fontWeight:'800' }]}>🔵 {t.tournSurfaceHard || t.surfaceHARD}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.surface === 'CLAY' && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('surface', f.surface === 'CLAY' ? '' : 'CLAY')}>
+                                            <Text style={[s.chipText, f.surface === 'CLAY' && { color: cfg.color, fontWeight:'800' }]}>🟤 {t.tournSurfaceClay || t.surfaceCLAY}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.surface && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('surface', '')}>
+                                            <Text style={[s.chipText, !f.surface && { color: cfg.color, fontWeight:'800' }]}>🤝 {t.tournSurfacePlayersDecide}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:8, borderWidth:1, borderColor:'#334155' }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', lineHeight:16 }}>
+                                            {t.tournCourtPlayersArrange || t.tournCourtPlayersDecide}
+                                        </Text>
+                                    </View>
+                                </>
+                            )}
+                            {f.courtDecidedByPlayers && !isAirsoft && (sub === 'padel' || sub === 'badminton' || sub === 'table_tennis') && (
+                                <>
+                                    <Text style={s.fieldLabelRed}>{t.tournSurfaceLabel || t.surfaceLabel}</Text>
+                                    <View style={[s.chipRow, { marginBottom:8 }]}>
+                                        <TouchableOpacity
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.surface === 'ARTIFICIAL' && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('surface', f.surface === 'ARTIFICIAL' ? '' : 'ARTIFICIAL')}>
+                                            <Text style={[s.chipText, f.surface === 'ARTIFICIAL' && { color: cfg.color, fontWeight:'800' }]}>🟩 {t.surfaceARTIFICIAL}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.surface && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                            onPress={() => set('surface', '')}>
+                                            <Text style={[s.chipText, !f.surface && { color: cfg.color, fontWeight:'800' }]}>🤝 {t.tournSurfacePlayersDecide}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:8, borderWidth:1, borderColor:'#334155' }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', lineHeight:16 }}>
+                                            {t.tournCourtPlayersArrange || t.tournCourtPlayersDecide}
+                                        </Text>
+                                    </View>
+                                </>
+                            )}
+                            {f.courtDecidedByPlayers && !isAirsoft && !['tennis', 'padel', 'badminton', 'table_tennis'].includes(sub) && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:8, borderWidth:1, borderColor:'#334155' }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', lineHeight:16 }}>
+                                        {t.tournCourtPlayersArrange || t.tournCourtPlayersDecide}
+                                    </Text>
+                                </View>
+                            )}
+                            {f.courtDecidedByPlayers && isAirsoft && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:8, borderWidth:1, borderColor:'#334155' }}>
+                                    <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', lineHeight:16 }}>
+                                        {lang==='tr' ? 'Takımlar ortaklaşa mekan seçecek' : (t.tournCourtPlayersArrange || t.tournCourtPlayersDecide)}
+                                    </Text>
+                                </View>
+                            )}
                             {!f.courtDecidedByPlayers && (
                                 <>
                                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
@@ -20570,7 +20768,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                             </TouchableOpacity>
                                         </View>
                                     )}
-                                    {/* Surface (tennis / padel) */}
+                                    {/* Surface (tennis / padel) — belirli kort seçildiğinde tüm zeminler */}
                                     {(sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis') && (
                                         <>
                                             <Text style={s.fieldLabelRed}>{t.tournSurfaceLabel}</Text>
