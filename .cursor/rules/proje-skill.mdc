@@ -1,0 +1,13 @@
+---
+description: Her işte activity-app skill'ini oku; kullanıcı komut verirse rule/skill kazı.
+alwaysApply: true
+---
+
+# Proje skill + hafıza
+
+1. Bu depoda işe başlamadan `.claude/skills/activity-app/SKILL.md` oku (Cursor: `.cursor/skills/activity-app` pointer).
+2. Kullanıcı “kazı”, “skill yap”, “kural ekle” veya tekrarlanacak komut listesi verirse:
+   - kısa/emir → `.cursor/rules/<ad>.mdc`
+   - uzun rehber → `.claude/skills/...` + `.cursor/skills/...`
+   - `CLAUDE.md` / `AGENTS.md` kısa özeti güncelle
+3. Sadece sohbette bırakma; dosyaya yaz, commit + push.
