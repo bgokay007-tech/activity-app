@@ -34,8 +34,8 @@ kalırsan bunlara uy:
 - Listeyi saran `ScrollView`/`FlatList`'te **`keyboardShouldPersistTaps="always"`** şart;
   `"handled"` yetmeyebilir — yoksa klavye açıkken öneriye ilk dokunuş sadece klavyeyi
   kapatır, seçim yapılmaz. Kullanıcı: ilk tıklamada seçilsin, klavye kapanmasın.
-- Öneri kutusu **input’un üstüne** açılsın (`bottom: '100%'`), alta değil — klavye ile
-  çakışmasın. Detay: `ekran-guvenli-alan.md` + skill `klavye-form`.
+- Öneri yönü: **üst alan → aşağı** (`top: '100%'`), **alt / klavye yanı → yukarı**
+  (`bottom: '100%'`). Detay: `ekran-guvenli-alan.md` + skill `klavye-form`.
 - Seçimde `Keyboard.dismiss()` çağırma (yazmaya devam / ardışık seçim).
 
 ## İl / ilçe

@@ -12,8 +12,11 @@ Kullanıcı kazıdı (özet, birebir niyet):
 
 1. Forma yazmak için tıklanınca **aşağıdan açılan klavye formu kapatmasın**.
 2. Yazarken **form görünür kalsın** — ne yazıldığını formda görebilsin.
-3. Öneri/autocomplete varsa liste **yukarı** açılsın (klavye ile çakışıp kapanmasın / örtülmesin).
-4. Öneriye dokununca **klavye kapanmasın**; **ilk tıklamada** öneri seçilsin.
+3. Öneri yönü:
+   - **Üst alanlar** → liste **aşağı** açılsın.
+   - **Alt alanlar / klavyeye yakın** → liste **yukarı** açılsın (klavye örtmesin).
+4. Öneriye dokununca **klavye kapanmasın**; **ilk tıklamada** öneri seçilsin
+   (yön ne olursa olsun aynı).
 
 Detaylı kalıp + güvenli alan:  
 [ekran-guvenli-alan.md](../activity-app/references/ekran-guvenli-alan.md)  
@@ -33,11 +36,21 @@ Otomatik tamamlama bileşenleri:
 
 ## Öneri listesi (autocomplete / @mention / şehir / kişi)
 
-1. Liste varsayılan: **input’un üstüne** (`position:'absolute'`, `bottom: '100%'` veya eşdeğeri). Klavye altta; alta açılan dropdown klavyenin arkasında kalır / ilk dokunuş boşa gider.
-2. Parent’ta `zIndex` / `elevation` yeterli olsun; altındaki kardeş satırlar öneriyi yutmasın (TeamSlotInviteField yorumları).
-3. Öneri `ScrollView`/`FlatList`: **`keyboardShouldPersistTaps="always"`** — ilk dokunuş seçer, klavyeyi indirmez.
-4. Seçim sonrası odak politikası: başka alana geçilmiyorsa `blurOnSubmit={false}`; seçince klavyeyi bilinçli kapatma (`Keyboard.dismiss`) **yapma** (kullanıcı istemedi).
+1. **Yön (akıllı):**
+   - Formun / ekranın **üst** yarısındaki alan: `top: '100%'` (aşağı).
+   - **Alt** yarı veya klavye açıkken alt input: `bottom: '100%'` (yukarı).
+   - Ölçüm yoksa güvenli varsayılan: klavye görünürken yukarı, değilse aşağı.
+2. Parent’ta `zIndex` / `elevation` yeterli olsun; altındaki kardeş satırlar öneriyi yutmasın.
+3. Öneri `ScrollView`/`FlatList`: **`keyboardShouldPersistTaps="always"`** — ilk dokunuş seçer, klavyeyi indirmez (aşağı/yukarı fark etmez).
+4. Seçimde `Keyboard.dismiss()` **yapma**. `blurOnSubmit={false}` uygunsa kullan.
 5. İl/ilçe/kişi alanlarında mevcut bileşenleri kullan — düz `TextInput` + uydurma dropdown yok.
+
+```js
+// Üst alan — aşağı
+{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 2, zIndex: 200, elevation: 10 }
+// Alt / klavye yanı — yukarı
+{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 2, zIndex: 200, elevation: 10 }
+```
 
 ## Form görünür kalsın
 
@@ -49,6 +62,7 @@ Otomatik tamamlama bileşenleri:
 - [ ] `behavior="height"` yok
 - [ ] Modal ise `adjustNothing` + padding KAV
 - [ ] Kayan kapsayıcıda `keyboardShouldPersistTaps`
-- [ ] Öneri varsa yukarı açılıyor + listede `"always"`
+- [ ] Üst alanda öneri aşağı, alt/klavye yanında yukarı
+- [ ] Öneri listesinde `"always"`; seçimde `Keyboard.dismiss` yok
+- [ ] İlk dokunuşta seçiliyor, klavye inmiyor
 - [ ] Alt input klavye açıkken görünüyor
-- [ ] Öneriye tek dokunuşla seçiliyor, klavye inmiyor
