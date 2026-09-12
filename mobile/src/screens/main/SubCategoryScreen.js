@@ -19083,9 +19083,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             const mainListCount = item.maxPlayers || acceptedEntries.length;
 
                             if (item.status === 'IN_PROGRESS') {
-                                // Show AS LİSTE / YEDEK LİSTE sections
+                                // AS/Yedek kabul edilenler + hâlâ bekleyen başvurular (kabul edilmeyenler kaybolmasın)
                                 const mainList = acceptedEntries.slice(0, mainListCount);
                                 const waitList = acceptedEntries.slice(mainListCount);
+                                const pendingList = requests.filter(r => r.status === 'PENDING');
+                                const rejectedList = requests.filter(r => r.status === 'REJECTED');
                                 return (
                                     <View>
                                         <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginBottom:8, borderWidth:1, borderColor:'#16a34a40' }}>
@@ -19113,6 +19115,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         </TouchableOpacity>
                                                     </View>
                                                 )}
+                                                {!r.cancelRequested && (
+                                                    <TouchableOpacity onPress={() => r.manualName ? removeManualParticipant(r.id) : removeParticipant(r.userId)} style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor:'#dc262640' }}>
+                                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
+                                                    </TouchableOpacity>
+                                                )}
                                             </View>
                                         ))}
                                         {waitList.length > 0 && <>
@@ -19139,6 +19146,58 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             </TouchableOpacity>
                                                         </View>
                                                     )}
+                                                    {!r.cancelRequested && (
+                                                        <TouchableOpacity onPress={() => r.manualName ? removeManualParticipant(r.id) : removeParticipant(r.userId)} style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor:'#dc262640' }}>
+                                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
+                                            ))}
+                                        </>}
+                                        {pendingList.length > 0 && <>
+                                            <View style={{ backgroundColor:'#a855f720', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginTop:14, marginBottom:8, borderWidth:1, borderColor:'#a855f740' }}>
+                                                <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800' }}>📩 İstekte Kalanlar ({pendingList.length})</Text>
+                                            </View>
+                                            {pendingList.map((r, i) => (
+                                                <View key={r.userId || r.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < pendingList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i+1}.</Text>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.manualName || r.user?.fullName || r.user?.username}</Text>
+                                                        {r.manualName
+                                                            ? <Text style={{ color:'#3b82f6', fontSize:10, fontWeight:'700' }}>✏️ Manuel</Text>
+                                                            : <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
+                                                        }
+                                                    </View>
+                                                    <View style={{ alignItems:'flex-end', gap:3 }}>
+                                                        <View style={{ backgroundColor:'#a855f720', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}>
+                                                            <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>⏳ Bekliyor</Text>
+                                                        </View>
+                                                        <View style={{ flexDirection:'row', gap:3 }}>
+                                                            <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Kabul</Text>
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity onPress={() => { setRejectReason(''); setRejectTarget({ userId: r.userId, name: r.user?.fullName || r.user?.username }); }} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
+                                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    </View>
+                                                </View>
+                                            ))}
+                                        </>}
+                                        {rejectedList.length > 0 && <>
+                                            <View style={{ backgroundColor:'#dc262620', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginTop:14, marginBottom:8, borderWidth:1, borderColor:'#dc262640' }}>
+                                                <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800' }}>❌ Reddedilenler ({rejectedList.length})</Text>
+                                            </View>
+                                            {rejectedList.map((r, i) => (
+                                                <View key={r.userId || r.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < rejectedList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', opacity: 0.75 }}>
+                                                    <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i+1}.</Text>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.manualName || r.user?.fullName || r.user?.username}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}</Text>
+                                                    </View>
+                                                    <View style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}>
+                                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>❌ Red</Text>
+                                                    </View>
                                                 </View>
                                             ))}
                                         </>}
