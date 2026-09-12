@@ -16764,7 +16764,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 if (!u?.id || u.id === myId || !u.username) continue;
                 map.set(u.id, { id: u.id, username: u.username, fullName: u.fullName });
             }
-            setChatMentionUsers([...map.values()]);
+            setChatMentionUsers([...map.values()].sort((a, b) =>
+                String(a.username || '').localeCompare(String(b.username || ''), 'tr', { sensitivity: 'base' }),
+            ));
         } catch { /* silent */ }
     }, [item.id, item.creator, myId]);
 
@@ -16797,11 +16799,27 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
     const mentionQueryMatch = chatInput.match(/@([A-Za-z0-9._]*)$/);
     const mentionQuery = mentionQueryMatch ? mentionQueryMatch[1].toLowerCase() : null;
+    // Sadece @ → herkes (kaydırarak); harf yazıldıkça daralır; alfabetik sırada.
     const mentionSuggestions = mentionQuery === null
         ? []
         : chatMentionUsers
-            .filter(u => !mentionQuery || String(u.username || '').toLowerCase().includes(mentionQuery) || String(u.fullName || '').toLowerCase().includes(mentionQuery))
-            .slice(0, 8);
+            .filter(u => {
+                if (!mentionQuery) return true;
+                const un = String(u.username || '').toLowerCase();
+                const fn = String(u.fullName || '').toLowerCase();
+                return un.startsWith(mentionQuery) || un.includes(mentionQuery) || fn.includes(mentionQuery);
+            })
+            .slice()
+            .sort((a, b) => {
+                const qa = mentionQuery || '';
+                const ua = String(a.username || '').toLowerCase();
+                const ub = String(b.username || '').toLowerCase();
+                // Yazılan önekle başlayanlar önce, sonra alfabetik
+                const sa = ua.startsWith(qa) ? 0 : 1;
+                const sb = ub.startsWith(qa) ? 0 : 1;
+                if (sa !== sb) return sa - sb;
+                return ua.localeCompare(ub, 'tr', { sensitivity: 'base' });
+            });
 
     const insertChatMention = (user) => {
         const username = user?.username;
@@ -19478,15 +19496,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <ScrollView
                                     keyboardShouldPersistTaps="always"
                                     keyboardDismissMode="none"
-                                    style={{ maxHeight:140, marginTop:6, backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:'#16a34a50' }}
+                                    style={{ maxHeight: 220, marginTop: 6, backgroundColor: '#1e293b', borderRadius: 10, borderWidth: 1, borderColor: '#16a34a50' }}
                                     nestedScrollEnabled>
                                     {mentionSuggestions.map(u => (
                                         <TouchableOpacity
                                             key={u.id}
                                             onPress={() => insertChatMention(u)}
-                                            style={{ paddingHorizontal:10, paddingVertical:8, borderBottomWidth:1, borderBottomColor:'#334155' }}>
-                                            <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>@{u.username}</Text>
-                                            {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize:10 }}>{u.fullName}</Text>}
+                                            style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#334155' }}>
+                                            <Text style={{ color: '#4ade80', fontSize: 12, fontWeight: '800' }}>@{u.username}</Text>
+                                            {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize: 10 }}>{u.fullName}</Text>}
                                         </TouchableOpacity>
                                     ))}
                                 </ScrollView>
