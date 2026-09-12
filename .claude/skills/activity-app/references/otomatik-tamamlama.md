@@ -31,8 +31,12 @@ kalırsan bunlara uy:
 
 - Sonuç listesi **kısa** tutulur (6–20 satır); backend zaten `take` ile sınırlıyor.
 - Arama **büyük/küçük harf duyarsız** (`mode: 'insensitive'`) — backend hallediyor.
-- Listeyi saran `ScrollView`/`FlatList`'te **`keyboardShouldPersistTaps="handled"`** şart;
-  yoksa klavye açıkken öneriye ilk dokunuş sadece klavyeyi kapatır, seçim yapılmaz.
+- Listeyi saran `ScrollView`/`FlatList`'te **`keyboardShouldPersistTaps="always"`** şart;
+  `"handled"` yetmeyebilir — yoksa klavye açıkken öneriye ilk dokunuş sadece klavyeyi
+  kapatır, seçim yapılmaz. Kullanıcı: ilk tıklamada seçilsin, klavye kapanmasın.
+- Öneri kutusu **input’un üstüne** açılsın (`bottom: '100%'`), alta değil — klavye ile
+  çakışmasın. Detay: `ekran-guvenli-alan.md` + skill `klavye-form`.
+- Seçimde `Keyboard.dismiss()` çağırma (yazmaya devam / ardışık seçim).
 
 ## İl / ilçe
 

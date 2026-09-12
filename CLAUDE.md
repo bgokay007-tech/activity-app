@@ -11,7 +11,7 @@ Bu depoda çalışırken **önce** proje skill'ini oku ve uygula:
 - İş bitince sormadan: ilgili dosyaları commit + `git push -u origin HEAD` (`main`). Force-push yok.
 - `mobile/` UI değiştiyse ayrıca EAS Update (`development` + `preview`), `EAS_SKIP_AUTO_FINGERPRINT=1`.
 - Metro (CI yok): `cd mobile && npx expo start --dev-client --tunnel --port 8081`.
-- Form/klavye: `.cursor/rules/klavye-form.mdc` + skill `references/ekran-guvenli-alan.md`.
+- Form/klavye/öneri: `.claude/skills/klavye-form/SKILL.md` + `.cursor/rules/klavye-form.mdc`.
 
 Detaylı always-on kurallar: `.cursor/rules/*.mdc` (Cursor ile aynı kaynak).
 

@@ -77,7 +77,8 @@ Detaylı kalıplar:
 - Backend (controller/route/bildirim/socket/job/migration) → `references/backend.md`
 - Mobil (ekran/stil/i18n/navigasyon/state) → `references/mobile.md`
 - **Alt gezinme çubuğu çakışması ve klavyenin formu kapatması** → `references/ekran-guvenli-alan.md`
-  (ekranın altına bir şey sabitliyorsan veya ekranda `TextInput` varsa bu dosyayı oku)
+  + skill `.claude/skills/klavye-form/SKILL.md`
+  (ekranın altına bir şey sabitliyorsan veya ekranda `TextInput` / öneri listesi varsa bunları oku)
 - **İl/ilçe veya kişi adı alanı** → `references/otomatik-tamamlama.md`. Bu alanlar asla düz
   `TextInput` olmaz; yazdıkça daralan öneri listesi zorunlu. Nereye koyarsan koy geçerli.
 - Yeni spor veya aktivite dalı açma (en sık tekrarlanan iş) → `references/yeni-dal.md`

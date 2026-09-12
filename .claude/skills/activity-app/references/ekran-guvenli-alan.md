@@ -107,12 +107,39 @@ Burada `behavior="padding"` her iki platformda da; `android_keyboardInputMode="a
 Android'in modal'ı ayrıca kaydırmasını kapatır. Çalışan referans: `SubCategoryScreen.js`
 içindeki `CreateRivalModal` ve `CreateTournamentModal`.
 
-### `keyboardShouldPersistTaps="handled"` — her kaydırılan kapsayıcıda
+### Öneri / autocomplete listesi — yukarı + ilk dokunuş
+
+Kullanıcı kazıdı: öneriler **input’un üstüne** açılsın (klavye altta; alta açılan liste
+klavyenin arkasında kalır veya ilk dokunuş sadece klavyeyi kapatır). Öneriye basınca
+**klavye kapanmasın**, seçim **ilk tıklamada** olsun.
+
+```js
+// Öneri kutusu — input'un ÜSTÜNE
+dropdown: {
+    position: 'absolute',
+    bottom: '100%',   // top: '100%' YASAK (klavye ile çakışır)
+    left: 0, right: 0,
+    marginBottom: 2,
+    zIndex: 200,
+    elevation: 10,
+}
+// Öneri listesini saran ScrollView / FlatList
+keyboardShouldPersistTaps="always"
+```
+
+Parent satırda da `zIndex` yükselt; alttaki kardeş alanlar dokunmayı çalmasın.
+Seçimde `Keyboard.dismiss()` çağırma (kullanıcı klavyenin açık kalmasını istiyor).
+
+Ayrı skill özeti: `.claude/skills/klavye-form/SKILL.md`.
+
+### `keyboardShouldPersistTaps` — her kaydırılan kapsayıcıda
+
+- Form gövdesi: `"handled"` (yeterli çoğu yerde).
+- **Öneri / arama sonuç listesi: `"always"`** — ilk dokunuş seçer, klavyeyi indirmez.
 
 Bunu koymazsan klavye açıkken kullanıcının ilk dokunuşu sadece klavyeyi kapatır, butona
-basmış olmaz. Kullanıcı "buton çalışmıyor" diye rapor eder. Proje genelinde `ScrollView` ve
-`FlatList`'lerde standart. Arama/otomatik tamamlama listelerinde `"always"` da kullanılıyor
-(`TimePickerModal`).
+basmış olmaz. Kullanıcı "buton çalışmıyor" / "öneriye iki kez tıklıyorum" diye rapor eder.
+Arama/otomatik tamamlama listelerinde `"always"` standart (`TimePickerModal`, slot davet).
 
 ### Kullanıcı yazdığını göremiyorsa
 
@@ -140,7 +167,8 @@ Alt kısma bir şey ekledin veya forma dokundun mu? Şunları geç:
 - [ ] Kayan içeriğin `paddingBottom`'ı son satırın sekme çubuğunun altında kalmasını önlüyor mu?
 - [ ] `behavior="height"` kullanmadın, değil mi?
 - [ ] Modal ise `android_keyboardInputMode="adjustNothing"` var mı?
-- [ ] Her `ScrollView`/`FlatList`'te `keyboardShouldPersistTaps` var mı?
+- [ ] Her `ScrollView`/`FlatList`'te `keyboardShouldPersistTaps` var mı? (öneri listesi `"always"`)
 - [ ] Formdaki en alttaki alan klavye açıkken görünüyor mu?
+- [ ] Öneri varsa input üstüne açılıyor mu; ilk dokunuş seçiyor mu?
 - [ ] Eklediğin tüm metinler `t.anahtar` üzerinden mi geliyor ve anahtar hem `en` hem `tr`
       nesnesine eklendi mi?

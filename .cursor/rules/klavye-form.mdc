@@ -1,15 +1,16 @@
 ---
-description: Klavye formu kapatmasın. TextInput veya modal form varsa bu kuralı uygula — kullanıcı defalarca istedi.
+description: Klavye formu kapatmasın; öneriler yukarı; ilk dokunuşta seçilsin. TextInput/modal/autocomplete varsa uygula.
 alwaysApply: true
 ---
 
-# Klavye formu kapatmasın
+# Klavye formu kapatmasın (KAZINDI)
 
-Kullanıcı bunu defalarca kazıdı. Yeni veya dokunulan her formda:
+Kullanıcı: forma yazınca klavye **formu kapatmasın**; yazarken form görünsün; öneri varsa **yukarı** açılsın; öneriye basınca klavye kapanmasın, **ilk tıklamada** seçilsin.
 
-1. `references/ekran-guvenli-alan.md` kalıbını uygula. Uydurma.
-2. Modal form: `android_keyboardInputMode="adjustNothing"` + `KeyboardAvoidingView behavior="padding"` (her iki platform). `behavior="height"` YASAK.
-3. Tam ekran form: iOS `padding`, Android `undefined` (app.json pan modu).
-4. Her `ScrollView` / `FlatList`: `keyboardShouldPersistTaps="handled"`.
-5. Alt input’lar için `paddingBottom` veya odaklanınca kaydır. Sabit alt buton + klavye kombinasyonu yok — butonu ScrollView içine al.
-6. Hazır sarmalayıcı: `mobile/src/components/KeyboardSafeModal.js`.
+1. Skill oku: `.claude/skills/klavye-form/SKILL.md` (+ `ekran-guvenli-alan.md`, `otomatik-tamamlama.md`). Uydurma.
+2. Modal: `android_keyboardInputMode="adjustNothing"` + `KeyboardAvoidingView behavior="padding"` (her iki platform). `behavior="height"` YASAK.
+3. Tam ekran: iOS `padding`, Android `undefined` (app.json pan).
+4. Form ScrollView/FlatList: `keyboardShouldPersistTaps="handled"`. **Öneri listesi: `"always"`**.
+5. Öneri dropdown: input’un **üstüne** aç (klavye altında kalmasın). `zIndex`/`elevation` yeterli.
+6. Alt input: `paddingBottom` veya odaklanınca kaydır. Sabit alt buton + klavye yok — buton ScrollView içinde.
+7. Hazır sarmalayıcı: `mobile/src/components/KeyboardSafeModal.js`.
