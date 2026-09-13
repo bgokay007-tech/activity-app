@@ -35,7 +35,7 @@ gelen veriyi görür.
 `mobile/src/screens/main/CategoryScreen.js` → `SUB_MAP` içindeki ilgili kategori dizisine:
 
 ```js
-{ id: 'ice_skating', label: 'Ice Skating', labelTR: 'Buz Pateni', emoji: '⛸️' },
+{ id: 'ice_skating', label: 'Ice Skating', labelTR: 'Buz Pateni', labelRU: 'Катание на коньках', labelDE: 'Eislaufen', emoji: '⛸️' },
 ```
 
 Özel bir görseli varsa `image: require('../../../assets/xxx.png')` de eklenebilir (padel
@@ -55,12 +55,13 @@ Dal standart ilan/rakip-bul akışına değil kendi özel ekranına gidecekse (`
 `mobile/src/utils/subCategoryLabels.js` → `LABELS`:
 
 ```js
-ice_skating: { en: 'Ice Skating', tr: 'Buz Pateni' },
+ice_skating: { en: 'Ice Skating', tr: 'Buz Pateni', ru: 'Катание на коньках', de: 'Eislaufen' },
 ```
 
 Bu bildirim metinlerinde ve rezervasyon kartlarındaki dal rozetinde kullanılır. Atlanırsa
 kullanıcı arayüzde ham `ice_skating` görür — geçmişte birden çok kez yaşanmış
-("dal ekranina girince baslik hep Ingilizce gosteriyordu").
+("dal ekranina girince baslik hep Ingilizce gosteriyordu"). Dört dil zorunlu
+(`i18n-dort-dil` skill).
 
 ### 5. Web (isteniyorsa)
 
