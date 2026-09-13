@@ -1,0 +1,14 @@
+---
+description: Her kullanıcı metni en+tr+ru+de. Eksik dil yasak — ekleme/düzeltmede dördü birden.
+alwaysApply: true
+---
+
+# Dört dil eksiksiz (KAZINDI)
+
+Uygulamaya ne eklenirse / ne değişirse kullanıcıya görünen metin **İngilizce, Türkçe, Rusça, Almanca** (`en`, `tr`, `ru`, `de`) — **dördü de** zorunlu.
+
+1. Skill: `.claude/skills/i18n-dort-dil/SKILL.md`
+2. Mobil: `mobile/src/i18n/index.js` → `en` + `tr` + `ru` + `de` aynı anahtar
+3. Web: `frontend/src/locales/{en,tr,ru,de}.json`
+4. Dal adı: `subCategoryLabels.js` `{en,tr,ru,de}` + `SUB_MAP` `label`/`labelTR`/`labelRU`/`labelDE`
+5. Bir dili düzeltince diğer üçünü de güncelle. Eksik dil = iş bitmemiş.

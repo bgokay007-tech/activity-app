@@ -140,5 +140,5 @@ Yeni bir il/ilçe veya kişi alanı eklediysen:
 - [ ] İlçe için "＋ olarak ekle" akışı ve `POST /cities` (PENDING) bağlandı.
 - [ ] Kişi alanında kayıtlı olmayan biri gerekiyorsa `manualName` kalıbı kullanıldı; gerçek
       kullanıcı ile misafir arayüzde ayırt edilebiliyor.
-- [ ] Placeholder ve buton metinleri `t.anahtar` üzerinden, anahtar hem `en` hem `tr`'de.
+- [ ] Placeholder ve buton metinleri `t.anahtar` üzerinden, anahtar **en + tr + ru + de**.
 - [ ] Aynı form web'de de varsa orası da güncellendi.

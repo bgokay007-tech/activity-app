@@ -173,5 +173,5 @@ Alt kısma bir şey ekledin veya forma dokundun mu? Şunları geç:
 - [ ] Her `ScrollView`/`FlatList`'te `keyboardShouldPersistTaps` var mı? (öneri listesi `"always"`)
 - [ ] Formdaki en alttaki alan klavye açıkken görünüyor mu?
 - [ ] Öneri yönü doğru mu (üst→aşağı, alt/klavye→yukarı); ilk dokunuş seçiyor mu?
-- [ ] Eklediğin tüm metinler `t.anahtar` üzerinden mi geliyor ve anahtar hem `en` hem `tr`
-      nesnesine eklendi mi?
+- [ ] Eklediğin tüm metinler `t.anahtar` üzerinden mi geliyor ve anahtar **en + tr + ru + de**
+      nesnelerine eklendi mi?

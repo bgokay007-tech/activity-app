@@ -67,7 +67,7 @@ sessizce yarım kalır — özellikle i18n ve mobil tarafı.
 5. **app.js** — yeni bir kaynak dosyası açtıysan `backend/src/app.js`'e import + `app.use('/api/...')` ekle.
 6. **Mobil çağrı** — `mobile/src/services/api.js` üzerinden (`api.get/post/patch/delete`).
 7. **Mobil ekran** — `mobile/src/screens/...`, gerekiyorsa `mobile/src/navigation/index.js`'e kayıt.
-8. **i18n** — `mobile/src/i18n/index.js` içindeki **hem `en` hem `tr`** nesnesine anahtar ekle.
+8. **i18n** — `mobile/src/i18n/index.js` içinde **`en` + `tr` + `ru` + `de`** (dört dil). Skill: `.claude/skills/i18n-dort-dil/SKILL.md`.
 9. **Web karşılığı** (isteniyorsa) — `frontend/src/pages/...` + `frontend/src/locales/{en,tr}.json`.
 
 Bildirim, socket olayı veya cron job da gerekiyorsa `references/backend.md`'ye bak.
@@ -115,29 +115,29 @@ const isPast = item.date < today || (item.date === today && ...);
 Böyle bir neden yoksa yorum yazma. Kendini tekrar eden `// kullanıcıyı getir` tarzı yorumlar
 istenmez.
 
-**Kullanıcıya görünen metin — iki dil, istisnasız**
+**Kullanıcıya görünen metin — dört dil, istisnasız (KAZINDI)**
 
-Uygulama Türkçe ve İngilizce çalışıyor ve dil, kullanıcı tarafından anlık değiştirilebiliyor.
-Bu yüzden **eklediğin veya değiştirdiğin her kullanıcı metni iki dilde de var olmalı.** Tek
-dile ekleme yapmak diğer dilde ham anahtar adının ekranda görünmesi demek — bu depoda
-defalarca yaşanmış bir hata ("dal ekranina girince baslik hep Ingilizce gosteriyordu",
-"aktivite ekleme listesindeki dal isimleri Türkçe'de de İngilizce görünüyordu").
+Uygulama **İngilizce, Türkçe, Rusça, Almanca** (`en`, `tr`, `ru`, `de`) çalışıyor; dil
+anlık değişebilir. **Eklediğin veya değiştirdiğin her kullanıcı metni dört dilde de
+olmalı.** Eksik dil = ham anahtar veya yanlış dil ekranda — defalarca yaşandı.
+
+Detay skill: `.claude/skills/i18n-dort-dil/SKILL.md`
 
 Pratikte:
 
-- Mobil: `mobile/src/i18n/index.js` içindeki **`en` ve `tr` nesnelerinin ikisine birden**
+- Mobil: `mobile/src/i18n/index.js` içindeki **`en`, `tr`, `ru`, `de` nesnelerinin dördüne**
   anahtarı ekle, sonra `const t = useT()` ile `t.anahtar` kullan.
-- Web: `frontend/src/locales/en.json` **ve** `tr.json`.
-- Dal/kategori adları: i18n'e değil `subCategoryLabels.js` → `{ en: ..., tr: ... }` ve
-  `CategoryScreen.js`'teki `SUB_MAP` → `label` + `labelTR` çiftine.
-- Mevcut bir metni değiştiriyorsan diğer dildeki karşılığını da güncelle; sadece Türkçesini
-  düzeltip İngilizcesini eski haliyle bırakma.
+- Web: `frontend/src/locales/en.json`, `tr.json`, `ru.json`, **`de.json`**.
+- Dal/kategori adları: `subCategoryLabels.js` → `{ en, tr, ru, de }` ve
+  `CategoryScreen.js` `SUB_MAP` → `label` + `labelTR` + `labelRU` + `labelDE`.
+- Mevcut bir metni değiştiriyorsan **diğer üç dildeki** karşılığını da güncelle; sadece
+  Türkçesini düzeltip kalanı eski bırakma.
 
 Mevcut kodda sabit Türkçe string'ler var (`Alert.alert('Hata', 'Talep gönderilemedi')`) —
 bunlar borç, kopyalanacak örnek değil. Yeni kodda i18n anahtarı kullan.
 
-İşin sonunda "eklediğim her metin hem `en` hem `tr`'de var mı?" diye tek tek geç. Bu kontrolü
-atlama.
+İşin sonunda "eklediğim her metin **en + tr + ru + de**'de var mı?" diye tek tek geç.
+Bu kontrolü atlama. Eksik dil varsa iş bitmiş sayılmaz.
 
 Backend hata mesajları ise sabit Türkçe: `res.status(400).json({ message: 'Fiyat zorunludur' })`.
 Bu bilinçli, aynen devam et.
@@ -189,7 +189,7 @@ izlemez. `npx expo start --dev-client --tunnel --port 8081` (CI yok) açık olma
 
 Otomatik test yok, bu yüzden bu liste tek güvenlik ağı:
 
-- [ ] **Her yeni/değişen metin hem `en` hem `tr`'de var mı?** En sık atlanan adım.
+- [ ] **Her yeni/değişen metin en + tr + ru + de'de var mı?** En sık atlanan adım.
 - [ ] Formda il/ilçe veya kişi adı alanı var mı? Varsa otomatik tamamlamalı mı
       (`references/otomatik-tamamlama.md`)?
 - [ ] Değişiklik mobil tarafında tamamlandı mı; web karşılığı gerekiyor muydu?
