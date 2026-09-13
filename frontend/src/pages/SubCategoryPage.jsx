@@ -7504,6 +7504,7 @@ function SubCategoryPage() {
                         );
                         const subTabs = isCoachExpanded
                             ? [
+                                { key: 'clubs',    label: t('coaches.sub_clubs'),    count: 0 },
                                 { key: 'listings', label: t('coaches.sub_listings'), count: individualCoaches.length },
                                 { key: 'courses',  label: t('coaches.sub_courses'),  count: groupCourses.length },
                                 { key: 'referees', label: t('coaches.sub_referees'), count: refereeListings.length + refereeMatches.length },
@@ -7515,6 +7516,7 @@ function SubCategoryPage() {
                             ];
                         const shownCoaches = coachSubTab === 'cvs' ? coachesWithCv
                             : coachSubTab === 'courses' ? groupCourses
+                            : coachSubTab === 'clubs' ? []
                             : (isCoachExpanded && coachSubTab === 'listings') ? individualCoaches
                             : coachListings;
 
@@ -7526,7 +7528,7 @@ function SubCategoryPage() {
                                         <CityAlertBtn tab={coachSubTab === 'referees' ? 'referees' : 'coaches'}
                                             desc={coachSubTab === 'referees' ? 'Şehrinde yeni hakem ilanı açılınca bildirim al' : 'Şehrinde yeni antrenör ilanı açılınca bildirim al'} />
                                     </div>
-                                    {coachSubTab === 'referees' ? (
+                                    {coachSubTab === 'clubs' || coachSubTab === 'cvs' ? null : coachSubTab === 'referees' ? (
                                         <button onClick={() => setShowCreateReferee(v => !v)}
                                             className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm hover:opacity-90 transition`}>
                                             {showCreateReferee ? `✕ ${t('coaches.cancel')}` : `+ ${t('referees.post_listing')}`}
@@ -7549,7 +7551,7 @@ function SubCategoryPage() {
                                     ))}
                                 </div>
 
-                                {coachForm && coachSubTab !== 'referees' && (
+                                {coachForm && coachSubTab !== 'referees' && coachSubTab !== 'clubs' && coachSubTab !== 'cvs' && (
                                     <CoachForm
                                         onClose={() => setCoachForm(false)}
                                         onCreated={(listing) => setCoachListings(prev => [listing, ...prev])}
@@ -7564,7 +7566,12 @@ function SubCategoryPage() {
                                     />
                                 )}
 
-                                {coachSubTab === 'referees' ? (
+                                {coachSubTab === 'clubs' ? (
+                                    <div className="text-center py-12 bg-gray-900 rounded-2xl border border-gray-800">
+                                        <p className="text-4xl mb-3">🏟️</p>
+                                        <p className="text-gray-400 text-sm">{t('coaches.no_clubs_yet')}</p>
+                                    </div>
+                                ) : coachSubTab === 'referees' ? (
                                     <div className="space-y-5">
                                         <div>
                                             <p className="text-white text-sm font-bold mb-2">{t('referees.listings_title')}</p>
@@ -7809,7 +7816,7 @@ function SubCategoryPage() {
                                     <div className="text-center py-12 bg-gray-900 rounded-2xl border border-gray-800">
                                         <p className="text-4xl mb-3">🎓</p>
                                         <p className="text-gray-400 text-sm">{coachSubTab === 'cvs' ? t('coaches.no_cv_yet') : t('coaches.no_coaches')}</p>
-                                        {coachSubTab !== 'cvs' && (
+                                        {coachSubTab !== 'cvs' && coachSubTab !== 'clubs' && (
                                             <button onClick={() => setCoachForm(true)} className="mt-3 text-purple-400 hover:text-purple-300 text-sm transition">
                                                 {t('coaches.be_first')}
                                             </button>

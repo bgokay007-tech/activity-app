@@ -7479,7 +7479,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const insertLocalCommentMention = (user) => {
         if (!user?.username) return;
         setLocalCommentText(prev => insertMatchCommentMention(prev, user.username));
-        localCommentInputRef.current?.focus();
+        requestAnimationFrame(() => localCommentInputRef.current?.focus());
     };
     const startLocalReply = (c) => {
         setLocalReplyingTo(c.id);
@@ -17020,7 +17020,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         const username = user?.username;
         if (!username) return;
         setChatInput(prev => prev.replace(/@([A-Za-z0-9._]*)$/, `@${username} `));
-        chatInputRef.current?.focus();
+        requestAnimationFrame(() => chatInputRef.current?.focus());
     };
 
     const [chatNotifyEnabled, setChatNotifyEnabled] = useState(true);
@@ -22934,7 +22934,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Coaches data
     const [coachListings, setCoachListings] = useState([]);
     const [loadingCoaches, setLoadingCoaches] = useState(false);
-    const [coachSubTab, setCoachSubTab] = useState(initialCoachSubTab || 'listings'); // 'listings' | 'courses' | 'referees' | 'cvs'
+    const [coachSubTab, setCoachSubTab] = useState(initialCoachSubTab || 'listings'); // 'clubs' | 'listings' | 'courses' | 'referees' | 'cvs'
     // Kullanıcı isteği: CVler sekmesinin kendi içinde 3 alt-sekmesi olsun —
     // Antrenörler / Hakemler / CV Yükle (CV Yükle burada iki seçenekli: antrenör CV'si mi
     // hakem CV'si mi). "İlan Oluştur" akışlarından CV yükleme tamamen kaldırıldı.
@@ -23240,7 +23240,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const insertCommentModalMention = (user) => {
         if (!user?.username) return;
         setCommentText(prev => insertMatchCommentMention(prev, user.username));
-        commentModalInputRef.current?.focus();
+        requestAnimationFrame(() => commentModalInputRef.current?.focus());
     };
     const startCommentModalReply = (c) => {
         setCommentReplyingTo(c.id);
@@ -26671,6 +26671,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                         const nonProfileOnlyCoaches = filteredCoaches.filter(c => !c.profileOnly);
                         const subTabs = isCoachExpanded
                             ? [
+                                // Kullanıcı isteği: Destek alt-sekme sırası
+                                // Kulüpler → Antrenörler → Kurslar → Hakemler → CV'ler.
+                                { key:'clubs',    label: t.clubsSubTab,    count: 0 },
                                 { key:'listings', label: t.coachesSubTab,  count: individualCoaches.length },
                                 { key:'courses',  label: t.coursesSubTab,  count: groupCourses.length },
                                 {
@@ -26690,18 +26693,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                               ];
                         const shown = coachSubTab === 'cvs' ? coachesWithCv
                             : coachSubTab === 'courses' ? groupCourses
+                            : coachSubTab === 'clubs' ? []
                             : (isCoachExpanded && coachSubTab === 'listings') ? individualCoaches
                             : nonProfileOnlyCoaches;
                         return (
                         <>
-                            {/* Kullanıcı isteği: Antrenörler/Kurslar/Hakemler/CVler alt-sekmeleri
+                            {/* Kullanıcı isteği: Kulüpler/Antrenörler/Kurslar/Hakemler/CVler alt-sekmeleri
                                 "İlan Oluştur/CV Yükle" butonlarının ÜSTÜNDE — önce hangi sekmede
                                 olduğun belli olsun, sonra o sekmeye özel eylemler gelsin. */}
                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
                                 {subTabs.map(st => (
                                     <TouchableOpacity key={st.key} onPress={() => setCoachSubTab(st.key)}
-                                        style={{ flex: isCoachExpanded ? undefined : 1, minWidth: isCoachExpanded ? '23%' : undefined, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: coachSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachSubTab===st.key ? cfg.color : colors.border }}>
-                                        <Text style={{ color: coachSubTab===st.key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }}>
+                                        style={{ flex: isCoachExpanded ? undefined : 1, minWidth: isCoachExpanded ? '18%' : undefined, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: coachSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachSubTab===st.key ? cfg.color : colors.border }}>
+                                        <Text style={{ color: coachSubTab===st.key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                                             {st.label}{st.count > 0 ? `  ${st.count}` : ''}
                                         </Text>
                                     </TouchableOpacity>
@@ -26711,7 +26715,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* Kullanıcı isteği: "CV Yükle" artık burada değil — sadece CVler sekmesinin
                                 kendi "CV Yükle" alt-sekmesinde yaşıyor. Burada sadece ilan/maç oluşturma
                                 kalıyor, ilan oluştururken mevcut CV zaten otomatik entegre oluyor. */}
-                            {coachSubTab === 'cvs' ? null : coachSubTab === 'referees' ? (
+                            {coachSubTab === 'cvs' || coachSubTab === 'clubs' ? null : coachSubTab === 'referees' ? (
                                 <CityAlertRow tab="referees">
                                     <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
@@ -26738,7 +26742,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                             )}
 
                             <CompactFilter showDateChips={false} />
-                            {coachSubTab === 'referees' ? (
+                            {coachSubTab === 'clubs' ? (
+                                <EmptyState emoji="🏟️" text={t.emptyClubs} />
+                            ) : coachSubTab === 'referees' ? (
                                 <>
                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8 }}>{t.refereeListingsTitle}</Text>
                                     {(() => {

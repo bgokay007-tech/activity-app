@@ -148,10 +148,12 @@ const en = {
     emptyTickets: 'No tickets found for these filters.',
     ticketBuyBtn: '🎟️ Buy Ticket',
 
-    // Coaches sub-tabs (tennis/padel/volleyball: Coaches | Courses | Referees | CVs)
+    // Coaches sub-tabs (tennis/padel/volleyball: Clubs | Coaches | Courses | Referees | CVs)
+    clubsSubTab: 'Clubs',
     coachesSubTab: 'Coaches',
     coursesSubTab: 'Courses',
     refereesSubTab: 'Referees',
+    emptyClubs: 'No clubs yet',
     createRefereeListingBtn: '+ Post Referee Listing',
     createRefereeMatchBtn: '🟨 Referee for a Match',
     emptyReferees: 'No referee listings yet',
@@ -1887,10 +1889,12 @@ const tr = {
     emptyTickets: 'Bu filtrelere uyan bilet bulunamadı.',
     ticketBuyBtn: '🎟️ Bilet Al',
 
-    // Antrenörler alt-sekmeleri (tenis/padel/voleybol: Antrenörler | Kurslar | Hakemler | CV'ler)
+    // Antrenörler alt-sekmeleri (tenis/padel/voleybol: Kulüpler | Antrenörler | Kurslar | Hakemler | CV'ler)
+    clubsSubTab: 'Kulüpler',
     coachesSubTab: 'Antrenörler',
     coursesSubTab: 'Kurslar',
     refereesSubTab: 'Hakemler',
+    emptyClubs: 'Henüz kulüp yok',
     createRefereeListingBtn: '+ Hakem İlanı Ver',
     createRefereeMatchBtn: '🟨 Maç İçin Hakem',
     emptyReferees: 'Henüz hakem ilanı yok',
@@ -3624,9 +3628,11 @@ const ru = {
     ticketBuyBtn: '🎟️ Купить билет',
 
     // Coaches sub-tabs
+    clubsSubTab: 'Клубы',
     coachesSubTab: 'Тренеры',
     coursesSubTab: 'Курсы',
     refereesSubTab: 'Судьи',
+    emptyClubs: 'Пока нет клубов',
     createRefereeListingBtn: '+ Разместить объявление судьи',
     createRefereeMatchBtn: '🟨 Судить матч',
     emptyReferees: 'Пока нет объявлений судей',
@@ -5359,9 +5365,11 @@ const de = {
     ticketBuyBtn: '🎟️ Ticket kaufen',
 
     // Coaches sub-tabs
+    clubsSubTab: 'Vereine',
     coachesSubTab: 'Trainer',
     coursesSubTab: 'Kurse',
     refereesSubTab: 'Schiedsrichter',
+    emptyClubs: 'Noch keine Vereine',
     createRefereeListingBtn: '+ Schiedsrichter-Anzeige erstellen',
     createRefereeMatchBtn: '🟨 Match schiedsrichtern',
     emptyReferees: 'Noch keine Schiedsrichter-Anzeigen',
