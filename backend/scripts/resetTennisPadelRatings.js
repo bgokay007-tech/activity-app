@@ -58,7 +58,7 @@ async function main() {
         await prisma.userInterest.update({
             where: { id: i.id },
             data: {
-                skillRating: 0, level: 'BEGINNER', selfAssessmentRating: null,
+                skillRating: 0, level: 'BEGINNER',
                 singlesRating: null, doublesRating: null,
                 singlesSeedRating: null, doublesSeedRating: null,
                 singlesRatingOffset: 0, doublesRatingOffset: 0,

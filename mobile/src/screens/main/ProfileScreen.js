@@ -423,7 +423,6 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     const [showAchievements, setShowAchievements] = useState(false);
     const [showGoals, setShowGoals] = useState(false);
     const [showVolleyballRating, setShowVolleyballRating] = useState(false);
-    const [showPadelRating, setShowPadelRating] = useState(false);
     // Kullanıcı isteği: "Yönet" penceresindeki tekli/çiftli değerlendirme seçimi (bkz.
     // ManageActivitiesModal openAssessPicker) burada da, kartın kendisinde senkronize
     // şekilde bulunsun — henüz hiç değerlendirme yapılmamış (ilk 3 maç oynanmamış) bir
@@ -438,7 +437,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
             setAnketScores({ stres: 0, fairplay: 0, beden: 0 });
             setCanRate(false); setAnketAverages(null); setSurveyLoaded(false);
             setShowAchievements(false); setShowGoals(false); setShowVolleyballRating(false);
-            setShowPadelRating(false); setAssessGate(null);
+            setAssessGate(null);
         }
     }, [visible]);
 
@@ -450,6 +449,15 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
         const canRedoSingles = ((item.singlesMatchCount ?? ((item.wins || 0) + (item.losses || 0))) < 3) || !item.assessmentCompleted;
         const canDoDoubles = !item.doublesAssessmentCompleted || (item.doublesMatchCount || 0) < 3;
         if (!canRedoSingles && !canDoDoubles) return;
+        // Padelde tekli disiplin gizli — bkz. ManageActivitiesModal openAssessPicker.
+        const singlesVisible = item.subCategory !== 'padel'
+            || item.assessmentCompleted
+            || (item.singlesMatchCount || 0) > 0;
+        if (!singlesVisible) {
+            if (!canDoDoubles) { Alert.alert(t.assessPickerTitle, t.tooManyMatchesMsg); return; }
+            setAssessGate({ ratingType: 'doubles' });
+            return;
+        }
         Alert.alert(t.assessPickerTitle, t.assessPickerMessage, [
             { text: t.singlesAssessOption, onPress: () => {
                 if (!canRedoSingles) { Alert.alert(t.assessPickerTitle, t.tooManyMatchesMsg); return; }
@@ -695,13 +703,6 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 </TouchableOpacity>
                             )}
 
-                            {/* ── Padel Değerlendirmesi ── */}
-                            {item.subCategory === 'padel' && (
-                                <TouchableOpacity style={fc.actionBtn} onPress={() => setShowPadelRating(true)}>
-                                    <Text style={[fc.actionTxt, { color: '#06b6d4', textAlign: 'center' }]}>{t.padelRatingBtn}</Text>
-                                </TouchableOpacity>
-                            )}
-
                         </ScrollView>
                         <BottomBtns />
 
@@ -825,12 +826,6 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 visible={showVolleyballRating}
                 subjectId={profileUserId}
                 onClose={() => setShowVolleyballRating(false)}
-            />
-            <VolleyballRatingModal
-                visible={showPadelRating}
-                subjectId={profileUserId}
-                subCategory="padel"
-                onClose={() => setShowPadelRating(false)}
             />
             {/* Kartın kendisinden tekli/çiftli değerlendirme — bkz. openAssessPicker yorumu.
                 mandatory değil (dal zaten eklenmiş), vazgeçince aktivite silinmez. */}

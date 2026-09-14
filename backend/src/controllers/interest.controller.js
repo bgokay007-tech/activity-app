@@ -2,7 +2,6 @@ import prisma from '../config/prisma.js';
 import { getQuestions, calculateLevel } from '../config/assessments.js';
 import { getRelation, canAccess } from '../utils/privacy.js';
 import { QUESTION_FIELDS, applyBlendedVolleyballRating } from '../utils/volleyballRating.js';
-import { applyBlendedPadelRating } from '../utils/padelRating.js';
 import { UTR_SUBCATEGORIES, getDisplayRating, isDoublesFormat, withDisplayRatings } from '../utils/utrRating.js';
 
 // Kategorilerin alt dalları
@@ -339,45 +338,30 @@ export const saveAssessment = async (req, res, next) => {
             return res.json({ interest: updated, level: updated.level, skillRating: updated.skillRating, totalPoints: updated.totalPoints });
         }
 
-        // Padel ÇİFTLER anketi: tekli ile AYNI soru seti (Vuruş Teknikleri/Taktik/Deneyim —
-        // format-bağımsız genel beceri traitleri) ama AYRICA doldurulur, ham sonuç
-        // doublesSelfAssessmentRating'e yazılır. Kullanıcı isteği: padel %99 çiftler oynanan bir
-        // spor olduğu için tekli anketi ÖNCE tamamlanmış olması ŞART DEĞİL (tenis'teki "önce
-        // tekli" kuralı burada yok) — çiftler bağımsız, varsayılan/birincil anket olabilir.
+        // Padel ÇİFTLER anketi (padelin VARSAYILAN/birincil disiplini — %99 çiftler oynanıyor):
+        // tekli ile AYNI soru seti (Vuruş Teknikleri/Taktik/Deneyim — format-bağımsız genel
+        // beceri traitleri) ama AYRICA doldurulur. Tekli anketi ÖNCE tamamlanmış olması ŞART
+        // DEĞİL (tenis'teki "önce tekli" kuralı padelde yok).
+        // Anket sonucu doğrudan doublesSeedRating'e yazılır — tenis çiftlerdeki ile birebir aynı
+        // saf ELO yolu. Eskiden araya antrenör %10 / takım arkadaşı %5 harmanı giriyordu
+        // (applyBlendedPadelRating); kullanıcı isteğiyle o sistem tamamen kaldırıldı.
         if (interest.subCategory === 'padel' && ratingType === 'doubles') {
             const questions = getQuestions('padel');
             const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
             const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);
-            const { skillRating: selfSkillRating } = calculateLevel(totalScore, maxScore);
+            const { skillRating: doublesSkill } = calculateLevel(totalScore, maxScore);
 
-            await prisma.userInterest.update({
+            const updated = await prisma.userInterest.update({
                 where: { id },
-                data: { doublesSelfAssessmentRating: selfSkillRating, doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() },
+                // skillRating (aynalanmış alan) burada da güncellenir — aksi halde çiftler anketini
+                // yeni tamamlayan biri ilk gerçek maçına kadar mobildeki kozmetik gösterim
+                // noktalarında 0.00 görünürdü.
+                data: { doublesSeedRating: doublesSkill, skillRating: doublesSkill, doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() },
             });
-
-            const updated = await applyBlendedPadelRating(req.userId, 'doubles');
             return res.json({ interest: withDisplayRatings(updated), totalScore, maxScore, skillRating: getDisplayRating(updated, 'padel', true) });
         }
-
-        // Padel TEKLİ (varsayılan): kendi anketi (Vuruş Teknikleri/Taktik/Deneyim) mevcut soru
-        // setiyle aynı şekilde puanlanır, ham sonuç selfAssessmentRating'e ayrıca yazılır —
-        // derece puanı bundan sonra coach %10/takım arkadaşı %5 ile harmanlanarak
-        // (applyBlendedPadelRating) hesaplanır. Hiç coach/teammate değerlendirmesi yoksa kendi
-        // puanı %100 aynen kullanılır.
-        if (interest.subCategory === 'padel') {
-            const questions = getQuestions('padel');
-            const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
-            const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);
-            const { skillRating: selfSkillRating } = calculateLevel(totalScore, maxScore);
-
-            await prisma.userInterest.update({
-                where: { id },
-                data: { selfAssessmentRating: selfSkillRating, assessmentCompleted: true, matchesSinceAssessment: 0, assessmentCompletedAt: new Date() },
-            });
-
-            const updated = await applyBlendedPadelRating(req.userId, 'singles');
-            return res.json({ interest: withDisplayRatings(updated), level: updated.level, skillRating: getDisplayRating(updated, 'padel', false), totalPoints: updated.totalPoints });
-        }
+        // Padel TEKLİ için ayrı bir dal YOK — aşağıdaki genel UTR dalına düşüyor, yani tenis
+        // teklisiyle birebir aynı: anket sonucu doğrudan singlesSeedRating'e yazılır.
 
         // Tenis ÇİFTLER anketi: tekli anketten TAMAMEN AYRI bir soru seti (bkz. assessments.js
         // QUESTIONS.tennis_doubles) — sadece doublesSeedRating/doublesAssessmentCompleted'i
@@ -465,14 +449,12 @@ export const resetAssessment = async (req, res, next) => {
                 assessmentCompleted: false, assessmentCompletedAt: null,
                 singlesRating: null, singlesSeedRating: null, singlesMatchCount: 0, singlesLastMatchAt: null,
                 skillRating: 0, level: 'BEGINNER',
-                ...(interest.subCategory === 'padel' && { selfAssessmentRating: null }),
             });
         }
         if (resetDoubles) {
             Object.assign(data, {
                 doublesAssessmentCompleted: false, doublesAssessmentCompletedAt: null,
                 doublesRating: null, doublesSeedRating: null, doublesMatchCount: 0, doublesLastMatchAt: null,
-                ...(interest.subCategory === 'padel' && { doublesSelfAssessmentRating: null }),
             });
         }
 

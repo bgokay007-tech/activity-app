@@ -8,10 +8,11 @@ import api from '../services/api';
 import colors from '../theme/colors';
 import useT from '../hooks/useT';
 
-// Voleybol + padel oyuncu değerlendirme formu aynı bileşeni paylaşır — sadece soru seti,
-// kategori ağırlıkları ve endpoint farklı (bkz. CONFIG). Kendi/antrenör/takım arkadaşı
-// oranları ve derece puanına yazılma mantığı backend'de (bkz. utils/volleyballRating.js,
-// utils/padelRating.js) sport'a göre ayrı tutuluyor, burası sadece o config'i tüketiyor.
+// Voleybol oyuncu değerlendirme formu (kendi/onaylı antrenör/takım arkadaşı). Soru seti,
+// kategori ağırlıkları ve endpoint CONFIG'ten geliyor; oranlar ve derece puanına yazılma
+// mantığı backend'de (bkz. utils/volleyballRating.js).
+// Padel de bir zamanlar bu bileşeni paylaşıyordu; padel artık tenisle aynı saf ELO yolunu
+// kullanıyor (antrenör/takım arkadaşı harmanı kullanıcı isteğiyle tamamen kaldırıldı).
 const CONFIG = {
     volleyball: {
         endpoint: 'volleyball-rating',
@@ -56,50 +57,6 @@ const CONFIG = {
             gameVision:        { title: 'volleyballQGameVision',        desc: 'volleyballQGameVisionDesc' },
             teamCommunication: { title: 'volleyballQTeamCommunication', desc: 'volleyballQTeamCommunicationDesc' },
             decisionMaking:    { title: 'volleyballQDecisionMaking',    desc: 'volleyballQDecisionMakingDesc' },
-        },
-    },
-    padel: {
-        endpoint: 'padel-rating',
-        titleKey: 'padelRatingTitle',
-        overallLabelKey: 'padelRatingOverallLabel',
-        selfLabelKey: 'padelRatingSelfLabel',
-        coachLabelKey: 'padelRatingCoachLabel',
-        teammateLabelKey: 'padelRatingTeammateLabel',
-        noDataLabelKey: 'padelRatingNoDataLabel',
-        notEligibleKey: 'padelRatingNotEligible',
-        selfHintKey: 'padelRatingSelfHint',
-        submitBtnKey: 'padelRatingSubmitBtn',
-        submittedMsgKey: 'padelRatingSubmittedMsg',
-        submitFailedKey: 'padelRatingSubmitFailed',
-        commentsTitleKey: 'padelRatingCommentsTitle',
-        roleCoachKey: 'padelRatingRoleCoach',
-        roleTeammateKey: 'padelRatingRoleTeammate',
-        section4TitleKey: 'padelRatingSection4Title',
-        section4HintKey: 'padelRatingSection4Hint',
-        strongestQKey: 'padelRatingStrongestQ',
-        weakestQKey: 'padelRatingWeakestQ',
-        generalNoteQKey: 'padelRatingGeneralNoteQ',
-        questionFields: [
-            'forehandDrive', 'backhandDrive', 'volley', 'smash',
-            'agility', 'endurance', 'reflexes',
-            'courtPositioning', 'shotSelection', 'teamCommunication',
-        ],
-        categories: [
-            { key: 'technical', labelKey: 'padelCatTechnical', fields: ['forehandDrive', 'backhandDrive', 'volley', 'smash'] },
-            { key: 'physical',  labelKey: 'padelCatPhysical',  fields: ['agility', 'endurance', 'reflexes'] },
-            { key: 'tactical',  labelKey: 'padelCatTactical',  fields: ['courtPositioning', 'shotSelection', 'teamCommunication'] },
-        ],
-        questionMeta: {
-            forehandDrive:     { title: 'padelQForehandDrive',     desc: 'padelQForehandDriveDesc' },
-            backhandDrive:     { title: 'padelQBackhandDrive',     desc: 'padelQBackhandDriveDesc' },
-            volley:            { title: 'padelQVolley',            desc: 'padelQVolleyDesc' },
-            smash:             { title: 'padelQSmash',             desc: 'padelQSmashDesc' },
-            agility:           { title: 'padelQAgility',           desc: 'padelQAgilityDesc' },
-            endurance:         { title: 'padelQEndurance',         desc: 'padelQEnduranceDesc' },
-            reflexes:          { title: 'padelQReflexes',          desc: 'padelQReflexesDesc' },
-            courtPositioning:  { title: 'padelQCourtPositioning',  desc: 'padelQCourtPositioningDesc' },
-            shotSelection:     { title: 'padelQShotSelection',     desc: 'padelQShotSelectionDesc' },
-            teamCommunication: { title: 'padelQTeamCommunication', desc: 'padelQTeamCommunicationDesc' },
         },
     },
 };
