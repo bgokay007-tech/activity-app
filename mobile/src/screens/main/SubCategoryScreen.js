@@ -5159,20 +5159,41 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 </View>
             </TouchableOpacity>
 
-            {/* Aksiyon alanı — kullanıcı isteği: kompakt kartta Düzenle/İptal Et/İstek At
-                (Katıl) artık YOK — kullanıcı önce detaya girip kadroyu vs. inceleyip ona göre
-                istek atsın. Kart zaten tıklanınca detayı açıyor, tüm bu aksiyonlar orada var. */}
+            {/* Aksiyon: Mesaj at | Maça katılma isteği gönder (yan yana).
+                Slot/pozisyon gereken ilanlarda detay veya mevcut picker açılır; düz katılımda doğrudan istek. */}
             <View>
                 {NEW_VISUAL && !isOwner && item.senderId && item.senderId !== myId && !mySentReq && !myInvite && !isFull ? (
-                    <TouchableOpacity
-                        style={{ backgroundColor: colors.purple, borderRadius: twoCol ? 10 : 14, paddingVertical: twoCol ? 6 : 11, alignItems: 'center', marginTop: twoCol ? 1 : 8 }}
-                        onPress={() => navigation.navigate('MessagesTab', {
-                            screen: 'Chat',
-                            params: { other: { id: item.senderId, username: item.sender?.username, fullName: item.sender?.fullName }, conversation: { id: null, _userId: item.senderId } },
-                        })}
-                    >
-                        <Text style={{ color: colors.ctaText, fontSize: 14, fontWeight: '700' }}>{t.messageCtaShort}</Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: twoCol ? 4 : 8, marginTop: twoCol ? 1 : 8 }}>
+                        <TouchableOpacity
+                            style={{ flex: 1, backgroundColor: colors.purple, borderRadius: twoCol ? 10 : 14, paddingVertical: twoCol ? 6 : 11, alignItems: 'center', paddingHorizontal: 4 }}
+                            onPress={() => navigation.navigate('MessagesTab', {
+                                screen: 'Chat',
+                                params: { other: { id: item.senderId, username: item.sender?.username, fullName: item.sender?.fullName }, conversation: { id: null, _userId: item.senderId } },
+                            })}
+                        >
+                            <Text style={{ color: colors.ctaText, fontSize: twoCol ? 11 : 14, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.messageCtaShort}</Text>
+                        </TouchableOpacity>
+                        {!isLinkedMatchPlayer && (
+                            <TouchableOpacity
+                                style={{ flex: 1, backgroundColor: cfg.color, borderRadius: twoCol ? 10 : 14, paddingVertical: twoCol ? 6 : 11, alignItems: 'center', paddingHorizontal: 4 }}
+                                onPress={() => {
+                                    if (Array.isArray(item.positions) && item.positions.includes('REFEREE')) {
+                                        setDetailVisible(true);
+                                        return;
+                                    }
+                                    if (isTeamWantedAd) { setShowTeamJoinModal(true); return; }
+                                    if (isVolleyballTeamMatch) { setSelectedPositions([]); setShowPositionPicker(true); return; }
+                                    if (item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT') {
+                                        setDetailVisible(true);
+                                        return;
+                                    }
+                                    handleJoinPress();
+                                }}
+                            >
+                                <Text style={{ color: '#fff', fontSize: twoCol ? 11 : 14, fontWeight: '700' }} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.65} textAlign="center">{t.joinRequestCtaShort}</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 ) : null}
                 {isOwner ? null : isLinkedMatchPlayer ? (
                     <Text style={{ color: colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }} numberOfLines={2}>Bu maça oyuncu olarak katıldığınız için hakemlik başvurusu yapamazsınız.</Text>
