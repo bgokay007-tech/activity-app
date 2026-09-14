@@ -26,12 +26,10 @@ import bcrypt from 'bcryptjs';
 import prisma from '../src/config/prisma.js';
 import { invokeControllerAs } from '../src/utils/internalInvoke.js';
 import { enterTournamentMatchScore } from '../src/controllers/tournament.controller.js';
-import { predictSingleMatch, range, r4, writeCsv } from './lib/utrSimModel.js';
+import { predictSingleMatch, range, r4, writeCsv, pickSub } from './lib/utrSimModel.js';
 import { acquireSimLock } from './lib/simLock.js';
 
 const CATEGORY = 'SPORTS';
-const SUB = 'tennis';
-const OUT_DIR = path.join(import.meta.dirname, 'out');
 const PREFIX = 'sim_tr_'; // 'demo_' DEĞİL — demo öneki turnuvada da skoru otomatik onaylatıyor
 const MODEL_TOLERANCE = 0.005;
 
@@ -39,6 +37,8 @@ const arg = (name, def) => {
     const hit = process.argv.find(a => a.startsWith(`--${name}=`));
     return hit ? hit.split('=')[1] : def;
 };
+const SUB = pickSub(arg('sub', 'tennis'));
+const OUT_DIR = path.join(import.meta.dirname, 'out', SUB); // tenis ve padel sonuçları ayrı klasörde
 const STEP = parseFloat(arg('step', '0.5'));
 const ONLY = arg('only', null);
 
@@ -389,7 +389,7 @@ async function main() {
     guardLocalDb();
     await acquireSimLock(prisma);
     const t0 = Date.now();
-    console.log('=== Tenis Turnuva Puanlama Simülasyonu — Seviye C ===\n');
+    console.log(`=== ${SUB} Turnuva Puanlama Simülasyonu — Seviye C ===\n`);
     await cleanup();
     quiet();
     const want = (k) => !ONLY || ONLY === k;

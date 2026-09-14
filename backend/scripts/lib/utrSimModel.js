@@ -9,7 +9,7 @@
 // her maç için otomatik karşılaştırılıp raporlanır (sapma > 0.005 ise FAIL).
 import {
     computeMatchPerformance, computeGapWeight, computeReliabilityWeight,
-    computeDecayWeight, computeMatchWeight, clampPerformanceByOutcome,
+    computeDecayWeight, computeMatchWeight, clampPerformanceByOutcome, UTR_SUBCATEGORIES,
 } from '../../src/utils/utrRating.js';
 
 // utrRating.js içinde modül-içi (export edilmemiş) sabitlerin aynısı.
@@ -27,6 +27,18 @@ export const range = (from, to, step) => {
     for (let v = from; v <= to + 1e-9; v += step) out.push(parseFloat(v.toFixed(2)));
     return out;
 };
+
+// --sub=padel gibi bir seçeneği doğrular. Tenis ve padel AYNI puanlama motorunu kullanıyor
+// (utrRating.js UTR_SUBCATEGORIES) — skor şekli de aynı, yani her simülasyon ikisinde de
+// olduğu gibi çalışır. UTR dışı bir dal verilirse (badminton/voleybol) script anlamsız
+// sonuç üretmek yerine durur: o dallar eski skillRating yolundan geçiyor.
+export function pickSub(value) {
+    if (!UTR_SUBCATEGORIES.includes(value)) {
+        console.error(`DURDURULDU: '${value}' UTR dalı değil. Seçenekler: ${UTR_SUBCATEGORIES.join(', ')}`);
+        process.exit(1);
+    }
+    return value;
+}
 
 // Gerçek girdiyle aynı şekil ({sets:[{sender,opponent}]}) — oyun oranı ve set sayısından
 // gelen format ağırlığı gerçek maçla birebir aynı hesaplanır.

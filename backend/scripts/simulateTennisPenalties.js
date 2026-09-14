@@ -34,12 +34,12 @@ import {
     createRivalRequest, sendJoinRequest, respondToJoin, enterScore, confirmScore,
 } from '../src/controllers/rival.controller.js';
 import { getDisplayRating, PENALTY_OFFSET_FLOOR } from '../src/utils/utrRating.js';
-import { r4, writeCsv } from './lib/utrSimModel.js';
+import { r4, writeCsv, pickSub } from './lib/utrSimModel.js';
 import { acquireSimLock } from './lib/simLock.js';
 
 const CATEGORY = 'SPORTS';
-const SUB = 'tennis';
-const OUT_DIR = path.join(import.meta.dirname, 'out');
+const SUB = pickSub((process.argv.find(a => a.startsWith('--sub=')) || '--sub=tennis').split('=')[1]);
+const OUT_DIR = path.join(import.meta.dirname, 'out', SUB); // tenis ve padel sonuçları ayrı klasörde
 const PREFIX = 'sim_pen_';
 const NO_SHOW_PENALTY = 0.40; // noshow.controller.js DEFAULT_NO_SHOW_PENALTY
 
@@ -413,7 +413,7 @@ async function main() {
     guardLocalDb();
     await acquireSimLock(prisma);
     const t0 = Date.now();
-    console.log('=== Tenis Ceza Akışları Simülasyonu — Seviye D ===\n');
+    console.log(`=== ${SUB} Ceza Akışları Simülasyonu — Seviye D ===\n`);
     await cleanup();
     const admin = await makePlayer('admin', { seed: 3.0, isAdmin: true });
     quiet();

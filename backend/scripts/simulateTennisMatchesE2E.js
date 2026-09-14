@@ -34,7 +34,7 @@ import { invokeControllerAs } from '../src/utils/internalInvoke.js';
 import {
     createRivalRequest, sendJoinRequest, respondToJoin, enterScore, confirmScore,
 } from '../src/controllers/rival.controller.js';
-import { predictSingleMatch } from './lib/utrSimModel.js';
+import { predictSingleMatch, pickSub } from './lib/utrSimModel.js';
 import { acquireSimLock } from './lib/simLock.js';
 
 // Seviye A modeli ile gerçek motor arasındaki kabul edilebilir sapma. Aynı formülün aynı
@@ -42,14 +42,14 @@ import { acquireSimLock } from './lib/simLock.js';
 const MODEL_TOLERANCE = 0.005;
 
 const CATEGORY = 'SPORTS';
-const SUB = 'tennis';
-const OUT_DIR = path.join(import.meta.dirname, 'out');
 const PREFIX = 'sim_t_'; // 'demo_' DEĞİL — demo öneki skoru otomatik onaylatıyor (bkz. tryDemoAutoConfirmScore)
 
 const arg = (name, def) => {
     const hit = process.argv.find(a => a.startsWith(`--${name}=`));
     return hit ? hit.split('=')[1] : def;
 };
+const SUB = pickSub(arg('sub', 'tennis'));
+const OUT_DIR = path.join(import.meta.dirname, 'out', SUB); // tenis ve padel sonuçları ayrı klasörde
 const E2E_STEP = parseFloat(arg('e2e-step', '0.5'));
 // Çiftlerde 4 oyuncu var — değer sayısının 4. kuvveti kadar maç oynanır, bu yüzden
 // adım tekliden büyük tutulur (1.0 → 6 değer → 1.296 kadro kombinasyonu).
@@ -500,7 +500,7 @@ async function main() {
     guardLocalDb();
     await acquireSimLock(prisma);
     const t0 = Date.now();
-    console.log('=== Tenis ELO Simülasyonu — Seviye B (uçtan uca, gerçek controller\'lar) ===\n');
+    console.log(`=== ${SUB} ELO Simülasyonu — Seviye B (uçtan uca, gerçek controller'lar) ===\n`);
 
     await cleanup(); // önceki koşudan kalıntı varsa temizle
     quiet();
