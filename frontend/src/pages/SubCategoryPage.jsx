@@ -3453,6 +3453,10 @@ function SubCategoryPage() {
     const [acceptDateModal, setAcceptDateModal] = useState({ visible: false, offerId: null, date: '' });
     const [counterInput, setCounterInput] = useState({ visible: false, offerId: null, price: '' });
     const [showCreateReferee, setShowCreateReferee] = useState(false);
+    const [clubListings, setClubListings] = useState([]);
+    const [loadingClubs, setLoadingClubs] = useState(false);
+    const [clubsLoaded, setClubsLoaded] = useState(false);
+    const [showCreateClub, setShowCreateClub] = useState(false);
     const [refApplyForm, setRefApplyForm] = useState({ postId: null, price: '', message: '' });
     const [submittingRefApply, setSubmittingRefApply] = useState(false);
     const [refCounterInput, setRefCounterInput] = useState({ requestId: null, price: '', message: '' });
@@ -3703,6 +3707,22 @@ function SubCategoryPage() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab, coachSubTab, refereesLoaded, sub]);
+
+    const loadClubListings = async () => {
+        setLoadingClubs(true);
+        try {
+            const { data } = await api.get('/clubs', { params: { category: categoryUpper, subCategory: sub } });
+            setClubListings(data || []);
+        } catch { setClubListings([]); }
+        finally { setLoadingClubs(false); setClubsLoaded(true); }
+    };
+
+    useEffect(() => {
+        if (COACH_EXPANDED_SPORTS.has(sub) && activeTab === 'coaches' && coachSubTab === 'clubs' && !clubsLoaded) {
+            loadClubListings();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, coachSubTab, clubsLoaded, sub]);
 
     const reloadPlayerWanted = async () => {
         try {
@@ -7495,6 +7515,113 @@ function SubCategoryPage() {
                             );
                         }
 
+                        function ClubForm({ onClose, onCreated }) {
+                            const [f, setF] = useState({
+                                name: '', description: '', location: '', city: '',
+                                contactPhone: '', website: '', membershipFee: '',
+                            });
+                            const [cityQuery, setCityQuery] = useState('');
+                            const [citySuggestions, setCitySuggestions] = useState([]);
+                            const [cities, setCities] = useState([]);
+                            const [submitting, setSubmitting] = useState(false);
+                            const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+
+                            // Mobil MultiCityAutocomplete ile aynı: şehir DB'den öneri, serbest metin yok.
+                            useEffect(() => {
+                                if (cityQuery.trim().length < 2) { setCitySuggestions([]); return; }
+                                const timer = setTimeout(async () => {
+                                    try {
+                                        const { data } = await api.get('/cities', { params: { q: cityQuery.trim() } });
+                                        const labels = (data || []).map(c => c.district ? `${c.district}, ${c.province}` : c.province).filter(Boolean);
+                                        setCitySuggestions([...new Set(labels)].filter(p => !cities.includes(p)));
+                                    } catch { setCitySuggestions([]); }
+                                }, 300);
+                                return () => clearTimeout(timer);
+                            }, [cityQuery, cities]);
+
+                            const submit = async () => {
+                                if (!f.name.trim()) return alert(t('coaches.club_name_required'));
+                                if (cities.length === 0) return alert(t('coaches.club_cities_required'));
+                                setSubmitting(true);
+                                try {
+                                    const { data } = await api.post('/clubs', {
+                                        category: categoryUpper,
+                                        subCategory: sub,
+                                        name: f.name.trim(),
+                                        description: f.description.trim() || undefined,
+                                        location: f.location.trim() || undefined,
+                                        cities,
+                                        contactPhone: f.contactPhone.trim() || undefined,
+                                        website: f.website.trim() || undefined,
+                                        membershipFee: f.membershipFee ? Number(f.membershipFee) : undefined,
+                                    });
+                                    onCreated(data);
+                                    onClose();
+                                } catch (err) {
+                                    alert(err?.response?.data?.message || t('common.error'));
+                                } finally { setSubmitting(false); }
+                            };
+
+                            return (
+                                <div className="bg-gray-900 border border-gray-700 rounded-2xl p-5 space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-white font-bold">🏟️ {t('coaches.post_club')}</p>
+                                        <button onClick={onClose} className="text-gray-500 hover:text-white text-lg">✕</button>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-400 text-xs font-bold mb-1">{t('coaches.club_name')} *</p>
+                                        <input value={f.name} onChange={e => set('name', e.target.value)}
+                                            placeholder={t('coaches.club_name')}
+                                            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-400 text-xs font-bold mb-1">{t('coaches.club_cities')} *</p>
+                                        <div className="flex flex-wrap gap-1.5 mb-2">
+                                            {cities.map(c => (
+                                                <button key={c} type="button" onClick={() => setCities(prev => prev.filter(x => x !== c))}
+                                                    className="px-2 py-1 rounded-lg bg-purple-600/30 text-purple-200 text-xs font-bold">
+                                                    {c} ✕
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <input value={cityQuery} onChange={e => setCityQuery(e.target.value)}
+                                            placeholder={t('coaches.club_cities_ph')}
+                                            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                        {citySuggestions.length > 0 && (
+                                            <div className="mt-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+                                                {citySuggestions.map(p => (
+                                                    <button key={p} type="button"
+                                                        onClick={() => { setCities(prev => [...prev, p]); setCityQuery(''); setCitySuggestions([]); }}
+                                                        className="w-full text-left px-3 py-2 text-sm text-white hover:bg-gray-700">
+                                                        {p}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <input value={f.location} onChange={e => set('location', e.target.value)}
+                                        placeholder={t('coaches.club_location_ph')}
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                    <input value={f.contactPhone} onChange={e => set('contactPhone', e.target.value)}
+                                        placeholder={t('coaches.club_phone_ph')}
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                    <input value={f.website} onChange={e => set('website', e.target.value)}
+                                        placeholder={t('coaches.club_website_ph')}
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                    <input type="number" min="0" value={f.membershipFee} onChange={e => set('membershipFee', e.target.value)}
+                                        placeholder={t('coaches.club_fee_ph')}
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                    <textarea value={f.description} onChange={e => set('description', e.target.value)}
+                                        rows={3} placeholder={t('coaches.club_desc_ph')}
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500 resize-none" />
+                                    <button onClick={submit} disabled={submitting}
+                                        className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-3 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50`}>
+                                        {submitting ? '...' : `🏟️ ${t('coaches.post_club')}`}
+                                    </button>
+                                </div>
+                            );
+                        }
+
                         const isCoachExpanded = COACH_EXPANDED_SPORTS.has(sub);
                         const individualCoaches = coachListings.filter(c => c.individual);
                         const groupCourses = coachListings.filter(c => c.group);
@@ -7504,7 +7631,7 @@ function SubCategoryPage() {
                         );
                         const subTabs = isCoachExpanded
                             ? [
-                                { key: 'clubs',    label: t('coaches.sub_clubs'),    count: 0 },
+                                { key: 'clubs',    label: t('coaches.sub_clubs'),    count: clubListings.length },
                                 { key: 'listings', label: t('coaches.sub_listings'), count: individualCoaches.length },
                                 { key: 'courses',  label: t('coaches.sub_courses'),  count: groupCourses.length },
                                 { key: 'referees', label: t('coaches.sub_referees'), count: refereeListings.length + refereeMatches.length },
@@ -7525,10 +7652,19 @@ function SubCategoryPage() {
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <h3 className="text-white font-bold">🎓 {isCoachExpanded ? t('coaches.support_title') : t('coaches.title')}</h3>
-                                        <CityAlertBtn tab={coachSubTab === 'referees' ? 'referees' : 'coaches'}
-                                            desc={coachSubTab === 'referees' ? 'Şehrinde yeni hakem ilanı açılınca bildirim al' : 'Şehrinde yeni antrenör ilanı açılınca bildirim al'} />
+                                        <CityAlertBtn tab={coachSubTab === 'referees' ? 'referees' : coachSubTab === 'clubs' ? 'clubs' : 'coaches'}
+                                            desc={coachSubTab === 'referees'
+                                                ? 'Şehrinde yeni hakem ilanı açılınca bildirim al'
+                                                : coachSubTab === 'clubs'
+                                                    ? 'Şehrinde yeni kulüp ilanı açılınca bildirim al'
+                                                    : 'Şehrinde yeni antrenör ilanı açılınca bildirim al'} />
                                     </div>
-                                    {coachSubTab === 'clubs' || coachSubTab === 'cvs' ? null : coachSubTab === 'referees' ? (
+                                    {coachSubTab === 'cvs' ? null : coachSubTab === 'clubs' ? (
+                                        <button onClick={() => setShowCreateClub(v => !v)}
+                                            className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm hover:opacity-90 transition`}>
+                                            {showCreateClub ? `✕ ${t('coaches.cancel')}` : `+ ${t('coaches.post_club')}`}
+                                        </button>
+                                    ) : coachSubTab === 'referees' ? (
                                         <button onClick={() => setShowCreateReferee(v => !v)}
                                             className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm hover:opacity-90 transition`}>
                                             {showCreateReferee ? `✕ ${t('coaches.cancel')}` : `+ ${t('referees.post_listing')}`}
@@ -7566,10 +7702,59 @@ function SubCategoryPage() {
                                     />
                                 )}
 
+                                {showCreateClub && coachSubTab === 'clubs' && (
+                                    <ClubForm
+                                        onClose={() => setShowCreateClub(false)}
+                                        onCreated={(listing) => setClubListings(prev => [listing, ...prev])}
+                                    />
+                                )}
+
                                 {coachSubTab === 'clubs' ? (
-                                    <div className="text-center py-12 bg-gray-900 rounded-2xl border border-gray-800">
-                                        <p className="text-4xl mb-3">🏟️</p>
-                                        <p className="text-gray-400 text-sm">{t('coaches.no_clubs_yet')}</p>
+                                    <div className="space-y-3">
+                                        {loadingClubs ? (
+                                            <p className="text-gray-500 text-sm text-center py-6">{t('common.loading')}</p>
+                                        ) : clubListings.length === 0 ? (
+                                            <div className="text-center py-12 bg-gray-900 rounded-2xl border border-gray-800">
+                                                <p className="text-4xl mb-3">🏟️</p>
+                                                <p className="text-gray-400 text-sm">{t('coaches.no_clubs_yet')}</p>
+                                            </div>
+                                        ) : clubListings.map(cl => (
+                                            <div key={cl.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-2">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-white font-bold">🏟️ {cl.name}</p>
+                                                        <p className="text-gray-400 text-xs mt-0.5">
+                                                            📍 {Array.isArray(cl.cities) && cl.cities.length ? cl.cities.join(', ') : (cl.city || '')}
+                                                            {cl.location ? ` / ${cl.location}` : ''}
+                                                        </p>
+                                                    </div>
+                                                    <button onClick={() => navigate(`/profile/${cl.userId}`)} className="text-sm font-bold text-cyan-400 hover:underline">
+                                                        {cl.user?.username}
+                                                    </button>
+                                                </div>
+                                                {cl.membershipFee > 0 && (
+                                                    <p className="text-sm font-bold text-emerald-400">{cl.membershipFee}₺ / {t('coaches.club_fee_month')}</p>
+                                                )}
+                                                {cl.contactPhone && <p className="text-gray-400 text-xs">📞 {cl.contactPhone}</p>}
+                                                {cl.website && (
+                                                    <a href={cl.website.startsWith('http') ? cl.website : `https://${cl.website}`} target="_blank" rel="noreferrer"
+                                                        className="text-cyan-400 text-xs font-bold hover:underline block truncate">🌐 {cl.website}</a>
+                                                )}
+                                                {cl.description && <p className="text-gray-300 text-sm">{cl.description}</p>}
+                                                {cl.userId === myId && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!window.confirm(t('coaches.club_remove_confirm'))) return;
+                                                            await api.delete(`/clubs/${cl.id}`).catch(console.error);
+                                                            setClubListings(prev => prev.filter(x => x.id !== cl.id));
+                                                        }}
+                                                        className="text-xs font-bold text-red-400 hover:text-red-300"
+                                                    >
+                                                        {t('coaches.remove')}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
                                 ) : coachSubTab === 'referees' ? (
                                     <div className="space-y-5">

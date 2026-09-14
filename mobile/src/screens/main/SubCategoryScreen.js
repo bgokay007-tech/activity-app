@@ -33,6 +33,7 @@ import MentionCaptionInput, { renderMentionText } from '../../components/Mention
 import CityAutocomplete from '../../components/CityAutocomplete';
 import VenueNameAutocomplete from '../../components/VenueNameAutocomplete';
 import MultiCityAutocomplete from '../../components/MultiCityAutocomplete';
+import KeyboardSafeModal from '../../components/KeyboardSafeModal';
 import CalendarPickerModal from '../../components/CalendarPickerModal';
 import DateRangePickerModal from '../../components/DateRangePickerModal';
 import TimePickerModal from '../../components/TimePickerModal';
@@ -23155,6 +23156,16 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [refereeMatches, setRefereeMatches] = useState([]);
     const [showCreateRefereeMatch, setShowCreateRefereeMatch] = useState(false);
 
+    // Destek > Kulüpler — antrenör/hakem kadar karmaşık değil; isim + şehir zorunlu.
+    const [clubListings, setClubListings] = useState([]);
+    const [loadingClubs, setLoadingClubs] = useState(false);
+    const [showCreateClub, setShowCreateClub] = useState(false);
+    const [submittingClub, setSubmittingClub] = useState(false);
+    const [clubForm, setClubForm] = useState({
+        name: '', description: '', location: '', cities: [],
+        contactPhone: '', website: '', membershipFee: '',
+    });
+
     const [showCreateRival, setShowCreateRival] = useState(false);
     const [rivalPrefill, setRivalPrefill] = useState(null);
     const [upcomingExpanded, setUpcomingExpanded] = useState(true);
@@ -23744,6 +23755,70 @@ export default function SubCategoryScreen({ route, navigation }) {
                     try {
                         await api.delete(`/coaches/${id}`);
                         setCoachListings(prev => prev.filter(c => c.id !== id));
+                    } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
+                }
+            },
+        ]);
+    };
+
+    const loadClubs = useCallback(async () => {
+        setLoadingClubs(true);
+        try {
+            const { data } = await api.get(`/clubs?category=${category}&subCategory=${sub}`);
+            setClubListings(Array.isArray(data) ? data : []);
+        } catch { /* silent */ }
+        finally { setLoadingClubs(false); }
+    }, [category, sub]);
+
+    useEffect(() => {
+        const task = InteractionManager.runAfterInteractions(() => { loadClubs(); });
+        return () => task.cancel();
+    }, [loadClubs]);
+
+    const resetClubForm = () => {
+        setClubForm({
+            name: '', description: '', location: '', cities: [],
+            contactPhone: '', website: '', membershipFee: '',
+        });
+    };
+
+    const openCreateClubModal = () => {
+        resetClubForm();
+        setShowCreateClub(true);
+    };
+
+    const submitClub = async () => {
+        if (!clubForm.name.trim()) return Alert.alert('', t.clubNameRequired || 'Kulüp adı zorunlu');
+        if (clubForm.cities.length === 0) return Alert.alert('', t.clubCitiesRequired || 'En az bir şehir seçmelisiniz');
+        setSubmittingClub(true);
+        try {
+            const { data } = await api.post('/clubs', {
+                category,
+                subCategory: sub,
+                name: clubForm.name.trim(),
+                description: clubForm.description.trim() || undefined,
+                location: clubForm.location.trim() || undefined,
+                cities: clubForm.cities,
+                contactPhone: clubForm.contactPhone.trim() || undefined,
+                website: clubForm.website.trim() || undefined,
+                membershipFee: clubForm.membershipFee ? parseInt(clubForm.membershipFee, 10) : undefined,
+            });
+            setClubListings(prev => [data, ...prev]);
+            setShowCreateClub(false);
+            resetClubForm();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setSubmittingClub(false); }
+    };
+
+    const deleteClubListing = (id) => {
+        Alert.alert(t.clubRemoveTitle || 'Kulübü Kaldır', t.clubRemoveConfirm || 'Bu kulüp ilanını kaldırmak istediğinize emin misiniz?', [
+            { text: t.cancel || 'Vazgeç', style: 'cancel' },
+            {
+                text: t.remove || 'Kaldır', style: 'destructive', onPress: async () => {
+                    try {
+                        await api.delete(`/clubs/${id}`);
+                        setClubListings(prev => prev.filter(c => c.id !== id));
                     } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
                 }
             },
@@ -25168,6 +25243,14 @@ export default function SubCategoryScreen({ route, navigation }) {
             || (Array.isArray(c.cities) && c.cities.some(city => (city || '').toLowerCase().includes(q)));
     });
 
+    const filteredClubs = clubListings.filter(c => {
+        if (!filterCity) return true;
+        const q = filterCity.trim().toLowerCase();
+        return (c.city || '').toLowerCase().includes(q) || (c.location || '').toLowerCase().includes(q)
+            || (c.name || '').toLowerCase().includes(q)
+            || (Array.isArray(c.cities) && c.cities.some(city => (city || '').toLowerCase().includes(q)));
+    });
+
     // Compact filter bar rendered in each tab (single row)
     // Ortak bildirim butonu — kısa bas profil ilini toggle, uzun bas picker açar
     const cityAlertDesc = {
@@ -25213,6 +25296,13 @@ export default function SubCategoryScreen({ route, navigation }) {
             : lang === 'de'
             ? `Du erhältst Benachrichtigungen über neue ${sub}-Schiedsrichter-Anzeigen in deinen ausgewählten Städten.`
             : `You'll get notified about new ${sub} referee listings in your selected cities.`,
+        clubs:       lang === 'tr'
+            ? `Seçtiğin illerde yeni ${sub} kulüp ilanlarının bildirimini alırsın.`
+            : lang === 'ru'
+            ? `Ты будешь получать уведомления о новых клубных объявлениях по ${sub} в выбранных городах.`
+            : lang === 'de'
+            ? `Du erhältst Benachrichtigungen über neue ${sub}-Vereinsanzeigen in deinen ausgewählten Städten.`
+            : `You'll get notified about new ${sub} club listings in your selected cities.`,
     };
 
     const CityAlertBtn = ({ tab, style }) => {
@@ -26673,7 +26763,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             ? [
                                 // Kullanıcı isteği: Destek alt-sekme sırası
                                 // Kulüpler → Antrenörler → Kurslar → Hakemler → CV'ler.
-                                { key:'clubs',    label: t.clubsSubTab,    count: 0 },
+                                { key:'clubs',    label: t.clubsSubTab,    count: filteredClubs.length },
                                 { key:'listings', label: t.coachesSubTab,  count: individualCoaches.length },
                                 { key:'courses',  label: t.coursesSubTab,  count: groupCourses.length },
                                 {
@@ -26693,7 +26783,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                               ];
                         const shown = coachSubTab === 'cvs' ? coachesWithCv
                             : coachSubTab === 'courses' ? groupCourses
-                            : coachSubTab === 'clubs' ? []
+                            : coachSubTab === 'clubs' ? filteredClubs
                             : (isCoachExpanded && coachSubTab === 'listings') ? individualCoaches
                             : nonProfileOnlyCoaches;
                         return (
@@ -26715,7 +26805,15 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {/* Kullanıcı isteği: "CV Yükle" artık burada değil — sadece CVler sekmesinin
                                 kendi "CV Yükle" alt-sekmesinde yaşıyor. Burada sadece ilan/maç oluşturma
                                 kalıyor, ilan oluştururken mevcut CV zaten otomatik entegre oluyor. */}
-                            {coachSubTab === 'cvs' || coachSubTab === 'clubs' ? null : coachSubTab === 'referees' ? (
+                            {coachSubTab === 'cvs' ? null : coachSubTab === 'clubs' ? (
+                                <CityAlertRow tab="clubs">
+                                    <TouchableOpacity
+                                        style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
+                                        onPress={openCreateClubModal}>
+                                        <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.createClubBtn}</Text>
+                                    </TouchableOpacity>
+                                </CityAlertRow>
+                            ) : coachSubTab === 'referees' ? (
                                 <CityAlertRow tab="referees">
                                     <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
@@ -26743,7 +26841,55 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                             <CompactFilter showDateChips={false} />
                             {coachSubTab === 'clubs' ? (
-                                <EmptyState emoji="🏟️" text={t.emptyClubs} />
+                                loadingClubs
+                                    ? <ActivityIndicator color={cfg.color} style={{ marginTop:20 }} />
+                                    : filteredClubs.length === 0
+                                        ? <EmptyState emoji="🏟️" text={clubListings.length > 0 ? t.noFilterMatch : t.emptyClubs} />
+                                        : filteredClubs.map(cl => (
+                                            <View key={cl.id} style={{ backgroundColor:colors.surface2, borderRadius:12, padding:9, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
+                                                    <Text style={{ fontSize:22 }}>🏟️</Text>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{cl.name}</Text>
+                                                        {(cl.city || (Array.isArray(cl.cities) && cl.cities.length > 0)) && (
+                                                            <Text style={{ color:colors.textMuted, fontSize:11 }}>
+                                                                📍 {Array.isArray(cl.cities) && cl.cities.length > 0 ? cl.cities.join(', ') : cl.city}
+                                                                {cl.location ? ` / ${cl.location}` : ''}
+                                                            </Text>
+                                                        )}
+                                                    </View>
+                                                    <TouchableOpacity onPress={() => setProfileUserId(cl.userId)}>
+                                                        <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{cl.user?.username}</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                                {cl.membershipFee != null && cl.membershipFee > 0 && (
+                                                    <Text style={{ color:cfg.color, fontSize:12, fontWeight:'700', marginBottom:2 }}>{cl.membershipFee}₺ / {t.clubFeeMonth || 'ay'}</Text>
+                                                )}
+                                                {cl.contactPhone ? <Text style={{ color:colors.textMuted, fontSize:11 }}>📞 {cl.contactPhone}</Text> : null}
+                                                {cl.website ? (
+                                                    <TouchableOpacity onPress={() => Linking.openURL(cl.website.startsWith('http') ? cl.website : `https://${cl.website}`)}>
+                                                        <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }} numberOfLines={1}>🌐 {cl.website}</Text>
+                                                    </TouchableOpacity>
+                                                ) : null}
+                                                {cl.description ? <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={3}>{cl.description}</Text> : null}
+                                                <View style={{ flexDirection:'row', gap:3, marginTop:8 }}>
+                                                    {cl.userId !== myId && (
+                                                        <TouchableOpacity
+                                                            onPress={() => reportListing('clubs', cl.id)}
+                                                            style={{ paddingHorizontal:9, paddingVertical:5, borderRadius:8, backgroundColor:'#ef444420', borderWidth:1, borderColor:'#ef444450' }}>
+                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.report || 'Bildir'}</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                    {cl.userId === myId && (
+                                                        <TouchableOpacity
+                                                            onPress={() => deleteClubListing(cl.id)}
+                                                            style={{ paddingHorizontal:9, paddingVertical:5, borderRadius:8, backgroundColor:'#ef444420', borderWidth:1, borderColor:'#ef444450' }}>
+                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.remove || 'Kaldır'}</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
+                                            </View>
+                                        ))
                             ) : coachSubTab === 'referees' ? (
                                 <>
                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8 }}>{t.refereeListingsTitle}</Text>
@@ -27231,6 +27377,78 @@ export default function SubCategoryScreen({ route, navigation }) {
                             </View>
                         </View>
                     </Modal>
+
+                    {/* ── Kulüp İlanı Oluştur ── */}
+                    <KeyboardSafeModal visible={showCreateClub} onClose={() => { setShowCreateClub(false); resetClubForm(); }}>
+                        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ maxHeight: '80%' }}>
+                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>{t.createClubTitle}</Text>
+                            <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.clubNameLabel} *</Text>
+                            <TextInput
+                                placeholder={t.clubNamePh}
+                                placeholderTextColor={colors.textMuted}
+                                value={clubForm.name}
+                                onChangeText={v => setClubForm(f => ({ ...f, name: v }))}
+                                style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
+                            />
+                            <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.clubCitiesLabel} *</Text>
+                            <MultiCityAutocomplete
+                                values={clubForm.cities}
+                                onChange={v => setClubForm(f => ({ ...f, cities: v }))}
+                                placeholder={t.clubCitiesPh}
+                                style={{ marginBottom: 8 }}
+                            />
+                            <TextInput
+                                placeholder={t.clubLocationPh}
+                                placeholderTextColor={colors.textMuted}
+                                value={clubForm.location}
+                                onChangeText={v => setClubForm(f => ({ ...f, location: v }))}
+                                style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
+                            />
+                            <TextInput
+                                placeholder={t.clubPhonePh}
+                                placeholderTextColor={colors.textMuted}
+                                value={clubForm.contactPhone}
+                                onChangeText={v => setClubForm(f => ({ ...f, contactPhone: v }))}
+                                keyboardType="phone-pad"
+                                style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
+                            />
+                            <TextInput
+                                placeholder={t.clubWebsitePh}
+                                placeholderTextColor={colors.textMuted}
+                                value={clubForm.website}
+                                onChangeText={v => setClubForm(f => ({ ...f, website: v }))}
+                                autoCapitalize="none"
+                                style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
+                            />
+                            <TextInput
+                                placeholder={t.clubFeePh}
+                                placeholderTextColor={colors.textMuted}
+                                value={clubForm.membershipFee}
+                                onChangeText={v => setClubForm(f => ({ ...f, membershipFee: v.replace(/[^0-9]/, '') }))}
+                                keyboardType="numeric"
+                                style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
+                            />
+                            <TextInput
+                                placeholder={t.clubDescPh}
+                                placeholderTextColor={colors.textMuted}
+                                value={clubForm.description}
+                                onChangeText={v => setClubForm(f => ({ ...f, description: v }))}
+                                multiline
+                                numberOfLines={3}
+                                style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }}
+                            />
+                            <View style={{ flexDirection:'row', gap:3 }}>
+                                <TouchableOpacity onPress={() => { setShowCreateClub(false); resetClubForm(); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                    <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.cancelBtn || 'İptal'}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={submitClub} disabled={submittingClub} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
+                                    <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
+                                        {submittingClub ? '...' : t.publishClubBtn}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </ScrollView>
+                    </KeyboardSafeModal>
 
                     {/* ── CV Yükle (antrenörlük / hakemlik ayrımıyla) ── */}
                     <Modal visible={showCvUploadModal} animationType="fade" transparent onRequestClose={() => setShowCvUploadModal(false)}>

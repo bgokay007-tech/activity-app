@@ -132,6 +132,7 @@ model User {
   equipmentListings   EquipmentListing[]
   equipmentPurchases  EquipmentListing[] @relation("EquipmentSoldTo")
   equipmentOffers     EquipmentOffer[]
+  clubListings        ClubListing[]
   listingReports      ListingReport[]
   userAchievements    UserAchievement[]
   matchComments    MatchComment[]
@@ -711,6 +712,32 @@ model RefereeReview {
   @@unique([rivalId, reviewerId])
 }
 
+// Destek > Kulüpler — kullanıcı bir spor dalında kulüp ilanı açar (isim + şehir zorunlu).
+// Antrenör/hakem kadar karmaşık değil; CV/onay yok. cities CoachListing ile aynı desen.
+model ClubListing {
+  id              String   @id @default(uuid())
+  userId          String
+  category        String
+  subCategory     String
+
+  name            String
+  description     String?
+  location        String?  // tesis/adres — opsiyonel
+  city            String?  // geriye dönük tekil alan; yeni kayıtlarda cities[0]
+  cities          Json?    // string[] — en az bir şehir zorunlu
+  contactPhone    String?
+  website         String?
+  membershipFee   Int?     // aylık üyelik ücreti (₺), opsiyonel
+  photoUrl        String?
+
+  status          String   @default("ACTIVE")  // ACTIVE | FLAGGED | REMOVED
+  reportCount     Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model EquipmentListing {
   id          String   @id @default(uuid())
   userId      String
@@ -782,7 +809,7 @@ model UserAchievement {
 model ListingReport {
   id          String   @id @default(uuid())
   reporterId  String
-  listingType String   // EQUIPMENT | COACH
+  listingType String   // EQUIPMENT | COACH | REFEREE | CLUB
   listingId   String
   reason      String
   createdAt   DateTime @default(now())

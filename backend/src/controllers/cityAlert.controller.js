@@ -1,7 +1,7 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 
-const VALID_TABS = ['rivals', 'tournaments', 'coaches', 'equipment', 'referees', 'player_wanted'];
+const VALID_TABS = ['rivals', 'tournaments', 'coaches', 'equipment', 'referees', 'player_wanted', 'clubs'];
 
 export const getMyAlert = async (req, res, next) => {
     try {
