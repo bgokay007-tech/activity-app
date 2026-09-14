@@ -27,6 +27,7 @@ import prisma from '../src/config/prisma.js';
 import { invokeControllerAs } from '../src/utils/internalInvoke.js';
 import { enterTournamentMatchScore } from '../src/controllers/tournament.controller.js';
 import { predictSingleMatch, range, r4, writeCsv } from './lib/utrSimModel.js';
+import { acquireSimLock } from './lib/simLock.js';
 
 const CATEGORY = 'SPORTS';
 const SUB = 'tennis';
@@ -157,6 +158,9 @@ async function resetPlayer(player, seed) {
 // asıl kalıntıyı bu sayaçlarda arıyor.
 async function readState(userId, isDoubles) {
     const i = await prisma.userInterest.findFirst({ where: { userId, category: CATEGORY, subCategory: SUB } });
+    // Satır yoksa bu neredeyse her zaman araya giren ikinci bir simülasyon koşusudur
+    // (bkz. lib/simLock.js) — sessizce çökmek yerine sebebi söyle.
+    if (!i) throw new Error(`Oyuncunun ${SUB} UserInterest satırı kayboldu (userId=${userId}). Araya başka bir simülasyon koşusu girmiş olabilir.`);
     return {
         rating: isDoubles ? i.doublesRating : i.singlesRating,
         wins: i.wins, losses: i.losses,
@@ -383,6 +387,7 @@ async function cleanup() {
 
 async function main() {
     guardLocalDb();
+    await acquireSimLock(prisma);
     const t0 = Date.now();
     console.log('=== Tenis Turnuva Puanlama Simülasyonu — Seviye C ===\n');
     await cleanup();

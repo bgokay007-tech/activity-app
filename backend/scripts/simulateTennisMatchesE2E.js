@@ -35,6 +35,7 @@ import {
     createRivalRequest, sendJoinRequest, respondToJoin, enterScore, confirmScore,
 } from '../src/controllers/rival.controller.js';
 import { predictSingleMatch } from './lib/utrSimModel.js';
+import { acquireSimLock } from './lib/simLock.js';
 
 // Seviye A modeli ile gerçek motor arasındaki kabul edilebilir sapma. Aynı formülün aynı
 // girdilerle çalışması beklendiği için eşik dar tutuldu — aşılırsa model bozulmuş demektir.
@@ -497,6 +498,7 @@ function writeCsv(name, rows) {
 
 async function main() {
     guardLocalDb();
+    await acquireSimLock(prisma);
     const t0 = Date.now();
     console.log('=== Tenis ELO Simülasyonu — Seviye B (uçtan uca, gerçek controller\'lar) ===\n');
 

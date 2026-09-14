@@ -35,6 +35,7 @@ import {
 } from '../src/controllers/rival.controller.js';
 import { getDisplayRating, PENALTY_OFFSET_FLOOR } from '../src/utils/utrRating.js';
 import { r4, writeCsv } from './lib/utrSimModel.js';
+import { acquireSimLock } from './lib/simLock.js';
 
 const CATEGORY = 'SPORTS';
 const SUB = 'tennis';
@@ -410,6 +411,7 @@ async function cleanup() {
 
 async function main() {
     guardLocalDb();
+    await acquireSimLock(prisma);
     const t0 = Date.now();
     console.log('=== Tenis Ceza Akışları Simülasyonu — Seviye D ===\n');
     await cleanup();
