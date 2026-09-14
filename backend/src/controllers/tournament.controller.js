@@ -4,7 +4,7 @@ import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags, MIN_MATCHES_FOR_TOURNAMENT } from '../utils/tennisElo.js';
-import { UTR_SUBCATEGORIES, applyUtrRatingForTournamentMatch, revertUtrMatchRecords, getDisplayRating, isDoublesFormat } from '../utils/utrRating.js';
+import { UTR_SUBCATEGORIES, applyUtrRatingForTournamentMatch, revertUtrMatchRecords, getDisplayRating, isDoublesFormat, buildPenaltyUpdate } from '../utils/utrRating.js';
 import { computeTournamentPlacement } from './achievement.controller.js';
 import { sanitizeExtraServices } from '../utils/extraServices.js';
 import { ACTIVE_ENGINE_TYPES, resolveFormatOnCreate, isTeamEngineType } from '../utils/tournamentFormats.js';
@@ -1479,7 +1479,9 @@ export const cancelJoin = async (req, res, next) => {
                     fullName: true, username: true, lateCancelCount: true,
                     interests: {
                         where: { category: tournament.category, subCategory: tournament.subCategory },
-                        select: { id: true, skillRating: true },
+                        // Offset alanları da gerekli — tenis/padel cezası skillRating'e değil
+                        // ilgili disiplinin offset'ine yazılır (bkz. buildPenaltyUpdate).
+                        select: { id: true, skillRating: true, singlesRatingOffset: true, doublesRatingOffset: true },
                     },
                 },
             });
@@ -1488,9 +1490,14 @@ export const cancelJoin = async (req, res, next) => {
             if (newCount >= 4) {
                 const interest = updatedUser.interests[0];
                 if (interest) {
+                    // Rival tarafındaki geç iptal/no-show cezalarıyla AYNI yol: doğrudan
+                    // skillRating düşürmek tenis/padel'de hiçbir işe yaramıyordu — o dallarda
+                    // görünen puan singlesRating/doublesRating + offset üzerinden okunuyor
+                    // (getDisplayRating), skillRating ise sadece bir ayna ve bir sonraki maçın
+                    // recompute'u onu zaten eziyor. Yani ceza sessizce kayboluyordu.
                     await prisma.userInterest.update({
                         where: { id: interest.id },
-                        data: { skillRating: { decrement: 0.5 } },
+                        data: buildPenaltyUpdate(interest, tournament.subCategory, isDoublesFormat({ tournamentType: tournament.type }), 0.5),
                     });
                 }
                 await prisma.user.update({
