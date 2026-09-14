@@ -9,3 +9,5 @@ dist/
 !.claude/skills/
 !.claude/skills/**
 wear-tools/
+# Simulasyon ciktilari (CSV/log) — script'lerden yeniden uretilir, repoda tutulmaz
+backend/scripts/out/
