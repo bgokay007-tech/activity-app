@@ -147,6 +147,8 @@ model User {
   surveyReceived   SportSurvey[] @relation("SurveySubject")
   volleyballRatingsGiven    VolleyballRating[] @relation("VolleyballRatingRater")
   volleyballRatingsReceived VolleyballRating[] @relation("VolleyballRatingSubject")
+  racquetFeedbacksGiven     RacquetFeedback[]  @relation("RacquetFeedbackRater")
+  racquetFeedbacksReceived  RacquetFeedback[]  @relation("RacquetFeedbackSubject")
   matchSpectations     MatchSpectator[]
   profileChangeRequests ProfileChangeRequest[]
   supportMessages       SupportMessage[]
@@ -292,6 +294,38 @@ model VolleyballRating {
 
   @@unique([subjectId, raterId])
   @@index([subjectId])
+}
+
+// Tenis/padel akran-antrenör geri bildirimi — ELO'ya (singlesRating/doublesRating/skillRating/
+// seed) HİÇ dokunmaz. Sadece yorum ve beceri notu olarak saklanır; maç eşleştirme / sıralama
+// okumaz. Rol: COACH (aktif onaylı antrenör ilanı) | TEAMMATE (aynı taraf) | OPPONENT (karşı taraf).
+model RacquetFeedback {
+  id                String   @id @default(uuid())
+  subjectId         String
+  raterId           String
+  subCategory       String   // tennis | padel
+  raterRole         String   // COACH | TEAMMATE | OPPONENT — sunucu belirler
+  forehandDrive     Int
+  backhandDrive     Int
+  volley            Int
+  smash             Int
+  agility           Int
+  endurance         Int
+  reflexes          Int
+  courtPositioning  Int
+  shotSelection     Int
+  teamCommunication Int
+  strongestPoint         String?
+  weakestPoint           String?
+  generalPerformanceNote Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  subject User @relation("RacquetFeedbackSubject", fields: [subjectId], references: [id], onDelete: Cascade)
+  rater   User @relation("RacquetFeedbackRater",   fields: [raterId],   references: [id], onDelete: Cascade)
+
+  @@unique([subjectId, raterId, subCategory])
+  @@index([subjectId, subCategory])
 }
 
 model TournamentPermissionRequest {

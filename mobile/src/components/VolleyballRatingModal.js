@@ -8,14 +8,64 @@ import api from '../services/api';
 import colors from '../theme/colors';
 import useT from '../hooks/useT';
 
-// Voleybol oyuncu değerlendirme formu (kendi/onaylı antrenör/takım arkadaşı). Soru seti,
-// kategori ağırlıkları ve endpoint CONFIG'ten geliyor; oranlar ve derece puanına yazılma
-// mantığı backend'de (bkz. utils/volleyballRating.js).
-// Padel de bir zamanlar bu bileşeni paylaşıyordu; padel artık tenisle aynı saf ELO yolunu
-// kullanıyor (antrenör/takım arkadaşı harmanı kullanıcı isteğiyle tamamen kaldırıldı).
+// Voleybol: kendi/antrenör/takım arkadaşı (derece ile harmanlanabilir — backend).
+// Tenis/padel: aynı form bileşeni, ama /racquet-feedback üzerinden — ELO'ya YAZILMAZ,
+// sadece geri bildirim (antrenör / maç arkadaşı / rakip).
+const RACQUET_QUESTIONS = {
+    questionFields: [
+        'forehandDrive', 'backhandDrive', 'volley', 'smash',
+        'agility', 'endurance', 'reflexes',
+        'courtPositioning', 'shotSelection', 'teamCommunication',
+    ],
+    categories: [
+        { key: 'technical', labelKey: 'racquetCatTechnical', fields: ['forehandDrive', 'backhandDrive', 'volley', 'smash'] },
+        { key: 'physical',  labelKey: 'racquetCatPhysical',  fields: ['agility', 'endurance', 'reflexes'] },
+        { key: 'tactical',  labelKey: 'racquetCatTactical',  fields: ['courtPositioning', 'shotSelection', 'teamCommunication'] },
+    ],
+    questionMeta: {
+        forehandDrive:     { title: 'racquetQForehandDrive',     desc: 'racquetQForehandDriveDesc' },
+        backhandDrive:     { title: 'racquetQBackhandDrive',     desc: 'racquetQBackhandDriveDesc' },
+        volley:            { title: 'racquetQVolley',            desc: 'racquetQVolleyDesc' },
+        smash:             { title: 'racquetQSmash',             desc: 'racquetQSmashDesc' },
+        agility:           { title: 'racquetQAgility',           desc: 'racquetQAgilityDesc' },
+        endurance:         { title: 'racquetQEndurance',         desc: 'racquetQEnduranceDesc' },
+        reflexes:          { title: 'racquetQReflexes',          desc: 'racquetQReflexesDesc' },
+        courtPositioning:  { title: 'racquetQCourtPositioning',  desc: 'racquetQCourtPositioningDesc' },
+        shotSelection:     { title: 'racquetQShotSelection',     desc: 'racquetQShotSelectionDesc' },
+        teamCommunication: { title: 'racquetQTeamCommunication', desc: 'racquetQTeamCommunicationDesc' },
+    },
+};
+
+const racquetCfg = (titleKey) => ({
+    endpoint: null, // path: racquet-feedback/:subCategory/:subjectId
+    pathKind: 'racquet',
+    titleKey,
+    overallLabelKey: 'racquetFeedbackOverallLabel',
+    selfLabelKey: 'racquetFeedbackEloNote',
+    coachLabelKey: 'racquetFeedbackCoachLabel',
+    teammateLabelKey: 'racquetFeedbackPeerLabel',
+    noDataLabelKey: 'racquetFeedbackNoDataLabel',
+    notEligibleKey: 'racquetFeedbackNotEligible',
+    selfHintKey: 'racquetFeedbackSelfHint',
+    submitBtnKey: 'racquetFeedbackSubmitBtn',
+    submittedMsgKey: 'racquetFeedbackSubmittedMsg',
+    submitFailedKey: 'racquetFeedbackSubmitFailed',
+    commentsTitleKey: 'racquetFeedbackCommentsTitle',
+    roleCoachKey: 'racquetFeedbackRoleCoach',
+    roleTeammateKey: 'racquetFeedbackRoleTeammate',
+    roleOpponentKey: 'racquetFeedbackRoleOpponent',
+    section4TitleKey: 'racquetFeedbackSection4Title',
+    section4HintKey: 'racquetFeedbackSection4Hint',
+    strongestQKey: 'racquetFeedbackStrongestQ',
+    weakestQKey: 'racquetFeedbackWeakestQ',
+    generalNoteQKey: 'racquetFeedbackGeneralNoteQ',
+    ...RACQUET_QUESTIONS,
+});
+
 const CONFIG = {
     volleyball: {
         endpoint: 'volleyball-rating',
+        pathKind: 'volleyball',
         titleKey: 'volleyballRatingTitle',
         overallLabelKey: 'volleyballRatingOverallLabel',
         selfLabelKey: 'volleyballRatingSelfLabel',
@@ -59,6 +109,8 @@ const CONFIG = {
             decisionMaking:    { title: 'volleyballQDecisionMaking',    desc: 'volleyballQDecisionMakingDesc' },
         },
     },
+    tennis: racquetCfg('racquetFeedbackTitleTennis'),
+    padel: racquetCfg('racquetFeedbackTitlePadel'),
 };
 
 function ScoreRow({ max, value, onChange }) {
@@ -81,6 +133,9 @@ export default function VolleyballRatingModal({ visible, subjectId, subCategory 
     const insets = useSafeAreaInsets();
     const cfg = CONFIG[subCategory] || CONFIG.volleyball;
     const QUESTION_FIELDS = cfg.questionFields;
+    const apiPath = cfg.pathKind === 'racquet'
+        ? `/racquet-feedback/${subCategory}/${subjectId}`
+        : `/${cfg.endpoint}/${subjectId}`;
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -90,6 +145,12 @@ export default function VolleyballRatingModal({ visible, subjectId, subCategory 
     const [weakestPoint, setWeakestPoint] = useState('');
     const [generalNote, setGeneralNote] = useState(0);
 
+    const roleLabel = (role) => {
+        if (role === 'COACH') return t[cfg.roleCoachKey];
+        if (role === 'OPPONENT' && cfg.roleOpponentKey) return t[cfg.roleOpponentKey];
+        return t[cfg.roleTeammateKey];
+    };
+
     useEffect(() => {
         if (!visible || !subjectId) {
             setData(null); setAnswers({}); setStrongestPoint(''); setWeakestPoint('');
@@ -97,7 +158,7 @@ export default function VolleyballRatingModal({ visible, subjectId, subCategory 
             return;
         }
         setLoading(true);
-        api.get(`/${cfg.endpoint}/${subjectId}`)
+        api.get(apiPath)
             .then(({ data }) => {
                 setData(data);
                 if (data.myRating) {
@@ -116,14 +177,14 @@ export default function VolleyballRatingModal({ visible, subjectId, subCategory 
     const setAnswer = (field, val) => { setSaved(false); setAnswers(prev => ({ ...prev, [field]: val })); };
 
     const allAnswered = QUESTION_FIELDS.every(f => answers[f] >= 1);
-    const needsSection4 = data?.myRole === 'COACH' || data?.myRole === 'TEAMMATE';
+    const needsSection4 = data?.myRole === 'COACH' || data?.myRole === 'TEAMMATE' || data?.myRole === 'OPPONENT';
     const canSubmit = allAnswered && (!needsSection4 || generalNote >= 1);
 
     const submit = async () => {
         if (!canSubmit || saving) return;
         setSaving(true);
         try {
-            const { data: agg } = await api.post(`/${cfg.endpoint}/${subjectId}`, {
+            const { data: agg } = await api.post(apiPath, {
                 ...answers,
                 ...(needsSection4 ? { strongestPoint, weakestPoint, generalPerformanceNote: generalNote } : {}),
             });
@@ -156,17 +217,21 @@ export default function VolleyballRatingModal({ visible, subjectId, subCategory 
                             {!loading && data && (
                                 <>
                                     <View style={s.summaryBox}>
-                                        <Text style={s.overallScore}>{data.overallScore.toFixed(2)}</Text>
+                                        <Text style={s.overallScore}>{data.overallScore != null ? Number(data.overallScore).toFixed(2) : '—'}</Text>
                                         <Text style={s.overallLabel}>{t[cfg.overallLabelKey]}</Text>
-                                        <View style={s.summaryRow}>
+                                        {cfg.pathKind === 'racquet' ? (
+                                            <Text style={[s.summaryItem, { marginTop: 6 }]}>{t[cfg.selfLabelKey]}</Text>
+                                        ) : (
                                             <Text style={s.summaryItem}>
                                                 {t[cfg.selfLabelKey]}: {data.selfScore != null ? data.selfScore.toFixed(2) : t[cfg.noDataLabelKey]}
                                             </Text>
+                                        )}
+                                        <View style={s.summaryRow}>
                                             <Text style={s.summaryItem}>
-                                                {t[cfg.coachLabelKey](data.coachCount)}: {data.coachScore != null ? data.coachScore.toFixed(2) : t[cfg.noDataLabelKey]}
+                                                {t[cfg.coachLabelKey](data.coachCount || 0)}: {data.coachScore != null ? Number(data.coachScore).toFixed(2) : t[cfg.noDataLabelKey]}
                                             </Text>
                                             <Text style={s.summaryItem}>
-                                                {t[cfg.teammateLabelKey](data.teammateCount)}: {data.teammateScore != null ? data.teammateScore.toFixed(2) : t[cfg.noDataLabelKey]}
+                                                {t[cfg.teammateLabelKey](data.teammateCount || data.peerCount || 0)}: {(data.teammateScore ?? data.peerScore) != null ? Number(data.teammateScore ?? data.peerScore).toFixed(2) : t[cfg.noDataLabelKey]}
                                             </Text>
                                         </View>
                                     </View>
@@ -177,7 +242,7 @@ export default function VolleyballRatingModal({ visible, subjectId, subCategory 
                                             {data.comments.map((c, i) => (
                                                 <View key={i} style={s.commentCard}>
                                                     <Text style={s.commentName}>
-                                                        {c.rater?.fullName || c.rater?.username || '?'} · {c.role === 'COACH' ? t[cfg.roleCoachKey] : t[cfg.roleTeammateKey]}
+                                                        {c.rater?.fullName || c.rater?.username || '?'} · {roleLabel(c.role)}
                                                         {' · '}{c.overall}/5
                                                         {c.generalPerformanceNote != null ? ` · ${c.generalPerformanceNote}/10` : ''}
                                                     </Text>

@@ -423,6 +423,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     const [showAchievements, setShowAchievements] = useState(false);
     const [showGoals, setShowGoals] = useState(false);
     const [showVolleyballRating, setShowVolleyballRating] = useState(false);
+    const [showRacquetFeedback, setShowRacquetFeedback] = useState(false); // tennis | padel geri bildirimi (ELO'ya yazılmaz)
     // Kullanıcı isteği: "Yönet" penceresindeki tekli/çiftli değerlendirme seçimi (bkz.
     // ManageActivitiesModal openAssessPicker) burada da, kartın kendisinde senkronize
     // şekilde bulunsun — henüz hiç değerlendirme yapılmamış (ilk 3 maç oynanmamış) bir
@@ -436,7 +437,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
             setShowEloModal(false); setShowAnketModal(false);
             setAnketScores({ stres: 0, fairplay: 0, beden: 0 });
             setCanRate(false); setAnketAverages(null); setSurveyLoaded(false);
-            setShowAchievements(false); setShowGoals(false); setShowVolleyballRating(false);
+            setShowAchievements(false); setShowGoals(false); setShowVolleyballRating(false); setShowRacquetFeedback(false);
             setAssessGate(null);
         }
     }, [visible]);
@@ -705,6 +706,15 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 </TouchableOpacity>
                             )}
 
+                            {/* Tenis/padel: antrenör + maç arkadaşı geri bildirimi — ELO'ya yazılmaz */}
+                            {(item.subCategory === 'tennis' || item.subCategory === 'padel') && (
+                                <TouchableOpacity style={fc.actionBtn} onPress={() => setShowRacquetFeedback(true)}>
+                                    <Text style={[fc.actionTxt, { color: item.subCategory === 'padel' ? '#06b6d4' : '#22c55e', textAlign: 'center' }]}>
+                                        {item.subCategory === 'padel' ? t.racquetFeedbackBtnPadel : t.racquetFeedbackBtnTennis}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+
                         </ScrollView>
                         <BottomBtns />
 
@@ -828,6 +838,12 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 visible={showVolleyballRating}
                 subjectId={profileUserId}
                 onClose={() => setShowVolleyballRating(false)}
+            />
+            <VolleyballRatingModal
+                visible={showRacquetFeedback}
+                subjectId={profileUserId}
+                subCategory={item.subCategory}
+                onClose={() => setShowRacquetFeedback(false)}
             />
             {/* Kartın kendisinden tekli/çiftli değerlendirme — bkz. openAssessPicker yorumu.
                 mandatory değil (dal zaten eklenmiş), vazgeçince aktivite silinmez. */}
