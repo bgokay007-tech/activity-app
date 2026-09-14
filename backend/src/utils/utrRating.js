@@ -65,13 +65,20 @@ export function withDisplayRatings(interest) {
 // bunu sessizce silerdi. Bunun yerine ilgili disipline (tekli/çiftler) özel offset alanı
 // azaltılır; getDisplayRating() bunu okuma anında rating'in üzerine ekler. Diğer dallarda
 // (badminton/masa tenisi/voleybol/vb.) eski davranış aynen korunur — doğrudan skillRating düşer.
+//
+// Offset'in tabanı var: ceza en fazla -1.00'e kadar birikir. Tabansızken 10 no-show -4.00 yapıyor
+// ve oyuncu görünen puanda kalıcı olarak 0'a yapışıyordu — ham puanı 4.16'ya çıksa bile görünen
+// puanı 0.16'da kalıyor, yani hiçbir ilana başvuramıyordu. Ceza can yakmalı ama oyuncu oynayarak
+// geri çıkabilmeli. Ceza zamanla erimiyor; taban tek fren.
+export const PENALTY_OFFSET_FLOOR = -1.0;
+
 export function buildPenaltyUpdate(interest, subCategory, isDoubles, amount) {
     if (!UTR_SUBCATEGORIES.includes(subCategory)) {
         return { skillRating: Math.max(0, parseFloat((interest.skillRating - amount).toFixed(2))) };
     }
     const offsetField = isDoubles ? 'doublesRatingOffset' : 'singlesRatingOffset';
     const currentOffset = interest[offsetField] ?? 0;
-    return { [offsetField]: parseFloat((currentOffset - amount).toFixed(2)) };
+    return { [offsetField]: parseFloat(Math.max(PENALTY_OFFSET_FLOOR, currentOffset - amount).toFixed(2)) };
 }
 
 // score: {sets:[{sender,opponent}], winner:'sender'|'opponent'}. side: 'sender'|'opponent' —

@@ -15,11 +15,10 @@
 //        puanı kullanıyor (cezalıya karşı kazanmak haksız yere az puan getirmesin diye).
 //   D4 — Ceza eşleşme uygunluğunu etkiliyor mu? İlan derece kısıtı getDisplayRating'e baktığı
 //        için cezalı oyuncu alt sınırın altına düşüp başvuramaz hale gelmeli.
-//   D5 — Ceza birikimi ve geri kazanım: üst üste ceza alan oyuncunun görünen puanı 0'a
-//        yapışıyor mu, sonra maç kazanarak geri çıkabiliyor mu?
-//   D6 — Turnuva geç iptal cezası: bu yol buildPenaltyUpdate KULLANMIYOR, doğrudan
-//        skillRating'i düşürüyor. Tenis/padel'de skillRating okunmadığı için cezanın
-//        görünen puana etkisi var mı?
+//   D5 — Ceza birikimi ve geri kazanım: offset tabanı (-1.00) tutuyor mu, üst üste ceza alan
+//        oyuncu sonradan maç kazanarak dipten çıkabiliyor mu?
+//   D6 — Turnuva geç iptal cezası da buildPenaltyUpdate'ten geçiyor mu (eskiden doğrudan
+//        skillRating'i düşürüyordu ve tenis/padel'de görünen puana hiç etki etmiyordu).
 //
 // GÜVENLİK: sadece localhost veritabanında çalışır.
 //
@@ -34,7 +33,7 @@ import { cancelJoin } from '../src/controllers/tournament.controller.js';
 import {
     createRivalRequest, sendJoinRequest, respondToJoin, enterScore, confirmScore,
 } from '../src/controllers/rival.controller.js';
-import { getDisplayRating } from '../src/utils/utrRating.js';
+import { getDisplayRating, PENALTY_OFFSET_FLOOR } from '../src/utils/utrRating.js';
 import { r4, writeCsv } from './lib/utrSimModel.js';
 
 const CATEGORY = 'SPORTS';
@@ -314,29 +313,36 @@ async function runD5(admin) {
     const player = await makePlayer('d5_oyuncu', { seed: 3.0 });
     const reporter = await makePlayer('d5_bildiren', { seed: 3.0 });
 
-    // Üst üste 10 ceza → toplam -4.00 offset. Görünen puan 0'a yapışır.
+    // Üst üste 10 ceza. Taban olmasa offset -4.00'e inip oyuncuyu görünen puanda kalıcı
+    // olarak 0'a çivilerdi; PENALTY_OFFSET_FLOOR bunu -1.00'de durdurmalı.
     for (let n = 1; n <= 10; n++) {
         await applyNoShowPenalty(admin.id, reporter.id, player.id, 'SINGLE');
         const s = await snapshot(player.id, false);
         if ([1, 5, 8, 10].includes(n)) {
-            rows.push({ asama: `D5 ${n}. ceza`, offset: s.offset, gorunen: s.gorunen, ham: s.ham ?? s.seed, not: '' });
+            rows.push({
+                asama: `D5 ${n}. ceza`, offset: s.offset, gorunen: s.gorunen, ham: s.ham ?? s.seed, not: '',
+                sonuc: s.offset >= PENALTY_OFFSET_FLOOR - 1e-9 ? 'PASS' : 'FAIL',
+            });
         }
     }
     const dip = await snapshot(player.id, false);
 
-    // Şimdi gerçek maçlar kazanarak geri çıkmaya çalış — offset hiç azalmadığı için
-    // ham puanın offset'i aşması gerekir. Ham puan en fazla 5 olabildiği ve offset -4.00
-    // olduğu için görünen puan tavanı 1.00 civarına sıkışır.
+    // Şimdi gerçek maçlar kazanarak geri çıkmaya çalış. Ceza erimiyor, ama taban -1.00 olduğu
+    // için ham puandaki her artış görünen puana birebir yansımalı — oyuncu oynayarak kurtulabilmeli.
     const opp = await makePlayer('d5_rakip', { seed: 5.0 });
+    let son = dip;
     for (let m = 1; m <= 6; m++) {
         const played = await playRealMatch(player, opp, 'sender');
-        if (played.error) { rows.push({ asama: `D5 geri kazanim mac ${m}`, offset: '', gorunen: '', ham: '', not: played.error }); break; }
-        const s = await snapshot(player.id, false);
-        rows.push({
-            asama: `D5 geri kazanim mac ${m}`, offset: s.offset, gorunen: s.gorunen, ham: r4(s.ham ?? s.seed),
-            not: m === 6 ? `dipten toplam artis: ${r4(s.gorunen - dip.gorunen)}` : '',
-        });
+        if (played.error) { rows.push({ asama: `D5 geri kazanim mac ${m}`, offset: '', gorunen: '', ham: '', not: played.error, sonuc: 'FAIL' }); break; }
+        son = await snapshot(player.id, false);
+        rows.push({ asama: `D5 geri kazanim mac ${m}`, offset: son.offset, gorunen: son.gorunen, ham: r4(son.ham ?? son.seed), not: '' });
     }
+    // Asıl kontrol: 6 galibiyet sonrası oyuncu dipten anlamlı şekilde çıkmış olmalı.
+    rows.push({
+        asama: 'D5 geri kazanim sonucu', offset: son.offset, gorunen: son.gorunen, ham: r4(son.ham ?? son.seed),
+        not: `dipten toplam artis: ${r4(son.gorunen - dip.gorunen)}`,
+        sonuc: son.gorunen - dip.gorunen > 0.5 ? 'PASS' : 'FAIL',
+    });
     return rows;
 }
 
@@ -437,7 +443,7 @@ async function main() {
     console.log('\n--- D4: ceza eşleşme uygunluğunu etkiliyor mu ---');
     console.table(d4);
 
-    console.log('\n--- D5: ceza birikimi ve geri kazanım ---');
+    console.log(`\n--- D5: ceza birikimi (taban ${PENALTY_OFFSET_FLOOR}) ve geri kazanım ---`);
     console.table(d5);
 
     console.log('\n--- D6: turnuva geç iptal cezası ---');
