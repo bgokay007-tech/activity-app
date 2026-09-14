@@ -155,6 +155,19 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
         const canRedoSingles = ((existing.singlesMatchCount ?? ((existing.wins || 0) + (existing.losses || 0))) < 3) || !existing.assessmentCompleted;
         const canDoDoubles = !existing.doublesAssessmentCompleted || (existing.doublesMatchCount || 0) < 3;
         if (!canRedoSingles && !canDoDoubles) return;
+        // Padelde tekli disiplin varsayılan olarak GİZLİ (kullanıcı isteği: padel %99 çiftler
+        // oynanıyor). Tekli seçeneği ancak kullanıcı anketi kendi doldurduysa ya da bir tekli
+        // maça girdiyse (singlesMatchCount) görünür; o zamana kadar seçim sorulmadan doğrudan
+        // çiftler anketi açılır. Tekli maça katılma yolu ilanı oluştururken/katılırken zaten
+        // anketi tetikliyor (bkz. SubCategoryScreen tekli anket kapısı).
+        const singlesVisible = subId !== 'padel'
+            || existing.assessmentCompleted
+            || (existing.singlesMatchCount || 0) > 0;
+        if (!singlesVisible) {
+            if (!canDoDoubles) { Alert.alert(t.assessPickerTitle, t.tooManyMatchesMsg); return; }
+            setAssessTarget({ interestId: existing.id, subCategory: subId, ratingType: 'doubles' });
+            return;
+        }
         Alert.alert(t.assessPickerTitle, t.assessPickerMessage, [
             { text: t.singlesAssessOption, onPress: () => {
                 if (!canRedoSingles) { Alert.alert(t.assessPickerTitle, t.tooManyMatchesMsg); return; }
@@ -291,10 +304,13 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                                 {existing?.hidden ? (
                                                     <Text style={[s.subRating, { color: colors.textMuted }]}>{t.hiddenLabel || 'Gizli'}</Text>
                                                 ) : existing && SINGLES_DOUBLES_SUBS.has(sub.id) ? (
-                                                    // Tekli/Çiftler AYRI puanlanıyor (bkz. backend utrRating.js) — ikisi de
-                                                    // ayrı ayrı gösterilir, henüz tamamlanmamış olan "—" ile işaretlenir.
+                                                    // Tekli/Çiftler AYRI puanlanıyor (bkz. backend utrRating.js).
+                                                    // Padelde tekli hiç açılmadıysa (anket yok + tekli maç yok) tekli
+                                                    // satırı bile gösterilmez — varsayılan sadece çiftler.
                                                     <Text style={[s.subRating, { color: activeColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                        {t.singlesEloLabel}: {existing.singlesDisplayRating != null ? Number(existing.singlesDisplayRating).toFixed(2) : '—'} ★  ·  {t.doublesEloLabel}: {existing.doublesDisplayRating != null ? Number(existing.doublesDisplayRating).toFixed(2) : '—'} ★
+                                                        {(sub.id !== 'padel' || existing.assessmentCompleted || (existing.singlesMatchCount || 0) > 0)
+                                                            ? `${t.singlesEloLabel}: ${existing.singlesDisplayRating != null ? Number(existing.singlesDisplayRating).toFixed(2) : '—'} ★  ·  `
+                                                            : ''}{t.doublesEloLabel}: {existing.doublesDisplayRating != null ? Number(existing.doublesDisplayRating).toFixed(2) : '—'} ★
                                                     </Text>
                                                 ) : existing?.assessmentCompleted && (
                                                     <Text style={[s.subRating, { color: activeColor }]}>

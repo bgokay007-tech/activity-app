@@ -1,7 +1,7 @@
 // TEK SEFERLİK, GERİ ALINAMAZ migrasyon — tenis/padel UTR-esinli puanlama sistemine geçişte
 // "sıfırdan başla" kararının uygulanması (bkz. plan §7). Kullanıcı açıkça onayladı:
 //   1) UserInterest (tennis/padel): rating/istatistikler GERÇEKTEN sıfırlanır — eski
-//      skillRating/selfAssessmentRating seed olarak TAŞINMAZ (ilk sürüm yanlışlıkla taşıyordu,
+//      skillRating seed olarak TAŞINMAZ (ilk sürüm yanlışlıkla taşıyordu,
 //      bu da "sıfırlama" sonrası derecenin hiç değişmemiş gibi görünmesine sebep oldu — kullanıcı
 //      raporu üzerine düzeltildi). assessmentCompleted false'a çekilir — herkes anketi (tenis
 //      için mevcut soru seti, padel için kendi soru seti) BAŞTAN doldurmak zorunda kalır.

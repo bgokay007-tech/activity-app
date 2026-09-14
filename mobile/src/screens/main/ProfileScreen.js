@@ -542,7 +542,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 {/* Kullanıcı isteği: onaylı antrenör/hakem rozeti olanlar, ELO puanının hemen
                                     altında (aynı kutu içinde) "Antrenör"/"Hakem" etiketiyle görünsün — bkz.
                                     backend interest.controller.js attachCoachRefereeBadges. */}
-                                {(item.assessmentCompleted || item.isCoach || item.isReferee || (isOwnProfile && ['tennis','padel'].includes(item.subCategory))) && (
+                                {(item.assessmentCompleted || item.doublesAssessmentCompleted || item.isCoach || item.isReferee || (isOwnProfile && ['tennis','padel'].includes(item.subCategory))) && (
                                     <View style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 1, paddingHorizontal: 4, borderWidth: 1, borderColor: '#facc1540' }}>
                                         {/* Tenis/padel: tekli/çiftler puanı AYRI gösterilir (bkz. backend
                                             utrRating.js) — ikisi de dokununca aynı ELO geçmişi grafiğini açar.
@@ -550,10 +550,12 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                             gösterilsin, altında "Değerlendir" butonu olsun (bkz. openAssessPicker). */}
                                         {['tennis','padel'].includes(item.subCategory) ? (
                                             <>
-                                                <TouchableOpacity onPress={() => item.assessmentCompleted && setShowEloModal(true)} disabled={!item.assessmentCompleted} style={{ alignItems: 'center' }}>
-                                                    <Text style={{ color: '#facc15', fontSize: 10, fontWeight: '900' }} numberOfLines={1}>
-                                                        {lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'Одиночный' : lang === 'de' ? 'Einzel' : 'Singles'} {item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'}
-                                                    </Text>
+                                                <TouchableOpacity onPress={() => (item.assessmentCompleted || item.doublesAssessmentCompleted) && setShowEloModal(true)} disabled={!(item.assessmentCompleted || item.doublesAssessmentCompleted)} style={{ alignItems: 'center' }}>
+                                                    {(item.subCategory !== 'padel' || item.assessmentCompleted || (item.singlesMatchCount || 0) > 0) && (
+                                                        <Text style={{ color: '#facc15', fontSize: 10, fontWeight: '900' }} numberOfLines={1}>
+                                                            {lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'Одиночный' : lang === 'de' ? 'Einzel' : 'Singles'} {item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'}
+                                                        </Text>
+                                                    )}
                                                     <Text style={{ color: '#facc15', fontSize: 10, fontWeight: '900' }} numberOfLines={1}>
                                                         {lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'Пары' : lang === 'de' ? 'Doppel' : 'Doubles'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
                                                     </Text>
@@ -714,7 +716,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                         <View>
                                             {['tennis','padel'].includes(item.subCategory) ? (
                                                 <Text style={{ color: '#facc15', fontSize: 14, fontWeight: '900' }} numberOfLines={1}>
-                                                    ELO ★ {lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'О' : lang === 'de' ? 'E' : 'S'} {item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'} · {lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'П' : lang === 'de' ? 'D' : 'D'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
+                                                    ELO ★{(item.subCategory !== 'padel' || item.assessmentCompleted || (item.singlesMatchCount || 0) > 0) ? ` ${lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'О' : lang === 'de' ? 'E' : 'S'} ${item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'} ·` : ''} {lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'П' : lang === 'de' ? 'D' : 'D'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
                                                 </Text>
                                             ) : (
                                                 <Text style={{ color: '#facc15', fontSize: 16, fontWeight: '900' }}>ELO ★ {Number(item.skillRating || 0).toFixed(2)}</Text>
@@ -2882,9 +2884,11 @@ export default function ProfileScreen({ route, navigation }) {
                                                 iki kısa satır olarak gösterilir, diğer dallarda tek birleşik puan. */}
                                             {['tennis','padel'].includes(i.subCategory) ? (
                                                 <View style={{ alignItems: 'center' }}>
-                                                    <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '900' }} numberOfLines={1}>
-                                                        {lang === 'tr' ? 'T' : lang === 'ru' ? 'О' : lang === 'de' ? 'E' : 'S'}: {i.singlesDisplayRating != null ? Number(i.singlesDisplayRating).toFixed(2) : '—'}★
-                                                    </Text>
+                                                    {(i.subCategory !== 'padel' || i.assessmentCompleted || (i.singlesMatchCount || 0) > 0) && (
+                                                        <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '900' }} numberOfLines={1}>
+                                                            {lang === 'tr' ? 'T' : lang === 'ru' ? 'О' : lang === 'de' ? 'E' : 'S'}: {i.singlesDisplayRating != null ? Number(i.singlesDisplayRating).toFixed(2) : '—'}★
+                                                        </Text>
+                                                    )}
                                                     <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '900' }} numberOfLines={1}>
                                                         {lang === 'tr' ? 'Ç' : lang === 'ru' ? 'П' : lang === 'de' ? 'D' : 'D'}: {i.doublesDisplayRating != null ? Number(i.doublesDisplayRating).toFixed(2) : '—'}★
                                                     </Text>
