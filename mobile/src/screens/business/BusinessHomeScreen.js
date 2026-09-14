@@ -5058,6 +5058,7 @@ export default function BusinessHomeScreen({ navigation, route }) {
 
     const [sub,            setSub]            = useState(null);
     const [pendingRequest, setPendingRequest] = useState(null);
+    const [complimentaryMode, setComplimentaryMode] = useState(false);
     const [venues,         setVenues]         = useState([]);
     const [iban,           setIban]           = useState(user?.businessIban || null);
     const [ibanHolder,     setIbanHolder]     = useState(user?.businessIbanHolder || null);
@@ -5073,12 +5074,15 @@ export default function BusinessHomeScreen({ navigation, route }) {
     const PKG_LIMITS = { RAHATLATICI: { venues: 1, courts: 3 }, PRO: { venues: 2, courts: 8 }, PREMIUM: { venues: 3, courts: 15 } };
     const PKG_NAMES  = { RAHATLATICI: 'Rahatlatıcı', PRO: 'Pro', PREMIUM: 'Premium' };
     const PKG_NEXT   = { RAHATLATICI: 'Pro', PRO: 'Premium' };
+    // Ücretsiz dönemde (abonelik UI gizli) tesis ekleme Premium tavanıyla serbest.
+    const canManageVenues = complimentaryMode || (sub && ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType));
     const handleAddVenue = () => {
-        const lim = sub ? PKG_LIMITS[sub.packageType] : null;
+        const effectivePkg = sub?.packageType || (complimentaryMode ? 'PREMIUM' : null);
+        const lim = effectivePkg ? PKG_LIMITS[effectivePkg] : null;
         if (!lim) { setVenueModal(true); return; }
         if (venues.length >= lim.venues) {
-            const name = PKG_NAMES[sub.packageType] || sub.packageType;
-            const next = PKG_NEXT[sub.packageType];
+            const name = PKG_NAMES[effectivePkg] || effectivePkg;
+            const next = complimentaryMode ? null : PKG_NEXT[effectivePkg];
             const upgradeMsg = next ? `\n\nDaha fazla tesis eklemek için ${next} pakete geçin.` : '';
             Alert.alert(
                 `${name} Paket Limiti`,
@@ -5089,8 +5093,8 @@ export default function BusinessHomeScreen({ navigation, route }) {
         // Kort limiti uyarısı (bilgi amaçlı, mevcut kort sayısını hesapla)
         const totalCourts = venues.reduce((s, v) => s + (v.courts?.length || 0), 0);
         if (totalCourts >= lim.courts) {
-            const name = PKG_NAMES[sub.packageType] || sub.packageType;
-            const next = PKG_NEXT[sub.packageType];
+            const name = PKG_NAMES[effectivePkg] || effectivePkg;
+            const next = complimentaryMode ? null : PKG_NEXT[effectivePkg];
             const upgradeMsg = next ? `\n\nDaha fazla kort için ${next} pakete geçin.` : '';
             Alert.alert(
                 `${name} Paket Limiti`,
@@ -5109,6 +5113,7 @@ export default function BusinessHomeScreen({ navigation, route }) {
             ]);
             setSub(subRes.data.subscription);
             setPendingRequest(subRes.data.pendingRequest);
+            setComplimentaryMode(!!subRes.data.complimentaryMode);
             setVenues(venueRes.data);
         } catch (e) {
             console.error('Fetch hatası', e?.message);
@@ -5240,10 +5245,12 @@ export default function BusinessHomeScreen({ navigation, route }) {
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
                 <Text style={s.headerBadge}>🏢 İŞLETME HESABI</Text>
                 <View style={s.headerRow}>
-                    <TouchableOpacity style={s.subBtn} onPress={() => setSubModal(true)} activeOpacity={0.8}>
-                        <Text style={s.subBtnText}>📋 Abonelikler</Text>
-                        {sub && <View style={s.activeDot} />}
-                    </TouchableOpacity>
+                    {!complimentaryMode && (
+                        <TouchableOpacity style={s.subBtn} onPress={() => setSubModal(true)} activeOpacity={0.8}>
+                            <Text style={s.subBtnText}>📋 Abonelikler</Text>
+                            {sub && <View style={s.activeDot} />}
+                        </TouchableOpacity>
+                    )}
                     <View style={s.rightBtns}>
                         <TouchableOpacity style={s.iconBtn} onPress={() => { setUnreadNotifs(0); navigation.navigate('App', { screen: 'NotificationsTab' }); }} activeOpacity={0.7}>
                             <Text style={{ fontSize: 16 }}>🔔</Text>
@@ -5275,16 +5282,20 @@ export default function BusinessHomeScreen({ navigation, route }) {
                 <View style={s.loadingWrap}><ActivityIndicator size="large" color={BIZ_COLOR} /></View>
             ) : (
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
-                    {/* Abonelik durum özeti */}
+                    {/* Abonelik durum özeti — ücretli dönem kapalıyken satın alma göstermiyoruz */}
                     <View style={s.statusBox}>
                         <Text style={s.statusText}>
-                            {sub
-                                ? `✅ ${PACKAGES.find(p => p.key === sub.packageType)?.name || sub.packageType} aktif.`
-                                : pendingRequest
-                                    ? '⏳ Abonelik onayı bekleniyor.'
-                                    : '⚠️ Aktif abonelik yok — tesis eklemek için abonelik gereklidir.'}
+                            {complimentaryMode
+                                ? (sub
+                                    ? '✅ Tesisiniz onaylandı — Premium özellikler açık.'
+                                    : 'ℹ️ Tesis ekleyin; admin onayından sonra Premium özellikler otomatik açılır.')
+                                : sub
+                                    ? `✅ ${PACKAGES.find(p => p.key === sub.packageType)?.name || sub.packageType} aktif.`
+                                    : pendingRequest
+                                        ? '⏳ Abonelik onayı bekleniyor.'
+                                        : '⚠️ Aktif abonelik yok — tesis eklemek için abonelik gereklidir.'}
                         </Text>
-                        {!sub && !pendingRequest && (
+                        {!complimentaryMode && !sub && !pendingRequest && (
                             <TouchableOpacity onPress={() => setSubModal(true)} style={s.statusBtn}>
                                 <Text style={s.statusBtnText}>Paketi Satın Al</Text>
                             </TouchableOpacity>
@@ -5294,7 +5305,7 @@ export default function BusinessHomeScreen({ navigation, route }) {
                     {/* Tesisler */}
                     <View style={s.sectionHeader}>
                         <Text style={s.sectionTitle}>🏟️ Tesislerim</Text>
-                        {sub && ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType) ? (
+                        {canManageVenues ? (
                             <TouchableOpacity style={s.addVenueBtn} onPress={handleAddVenue} activeOpacity={0.8}>
                                 <Text style={s.addVenueBtnText}>+ Tesis Ekle</Text>
                             </TouchableOpacity>
@@ -5308,11 +5319,12 @@ export default function BusinessHomeScreen({ navigation, route }) {
                     {venues.length === 0 ? (
                         <View style={s.emptyBox}>
                             <Text style={s.emptyIcon}>🏟️</Text>
-                            <Text style={s.emptyText}>{sub ? (
-                                    ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType)
-                                        ? 'Henüz tesis eklenmedi.' : 'Tesis eklemek için Rahatlatıcı veya üstü paket gereklidir.')
-                                    : 'Tesis eklemek için önce abonelik alın.'}</Text>
-                            {sub && ['RAHATLATICI','PRO','PREMIUM'].includes(sub.packageType) ? (
+                            <Text style={s.emptyText}>{canManageVenues
+                                ? 'Henüz tesis eklenmedi.'
+                                : (sub
+                                    ? 'Tesis eklemek için Rahatlatıcı veya üstü paket gereklidir.'
+                                    : 'Tesis eklemek için önce abonelik alın.')}</Text>
+                            {canManageVenues ? (
                                 <TouchableOpacity style={s.addVenueBtnLg} onPress={handleAddVenue} activeOpacity={0.8}>
                                     <Text style={s.addVenueBtnText}>+ Tesis / Kort Ekle</Text>
                                 </TouchableOpacity>
@@ -5354,6 +5366,7 @@ export default function BusinessHomeScreen({ navigation, route }) {
                 </ScrollView>
             )}
 
+            {!complimentaryMode && (
             <SubscriptionModal
                 visible={subModal}
                 onClose={() => setSubModal(false)}
@@ -5367,6 +5380,7 @@ export default function BusinessHomeScreen({ navigation, route }) {
                 onUploadReceipt={handleUploadReceipt}
                 username={user?.username}
             />
+            )}
 
             <VenueAddModal
                 visible={venueModal}

@@ -5,12 +5,14 @@ import api from '../services/api';
 import Navbar from '../components/Navbar';
 import { useTranslation } from 'react-i18next';
 
-const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'biz-venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'subscriptions', 'venue-reviews', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval'];
+const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'biz-venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'venue-reviews', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval'];
 // Kullanıcı isteği: sol panel ŞAHIS (bireysel kullanıcı/maç moderasyonu) ve KURUMSAL
 // (tesis/işletme onayları) olarak iki katlanır gruba ayrıldı.
+// Abonelik satışları şimdilik gizli (BUSINESS_SUBS_COMPLIMENTARY) — 'subscriptions' sekmesi
+// listeden çıkarıldı; ücretli dönem açılınca geri eklenir.
 const SIDEBAR_GROUPS = [
     { key: 'individual', tabs: ['dashboard', 'users', 'disputes', 'posts', 'noshow', 'tournament-perms', 'flagged-listings', 'profile-changes', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval'] },
-    { key: 'corporate', tabs: ['courts', 'venues', 'biz-venues', 'cities', 'subscriptions', 'venue-reviews'] },
+    { key: 'corporate', tabs: ['courts', 'venues', 'biz-venues', 'cities', 'venue-reviews'] },
 ];
 // Kullanıcı isteği: admin panelinin TAMAMI (sekme etiketleri dahil) TR/EN dil
 // değişimine uysun — önceden bu etiketler sabit (çoğu Türkçe/İngilizce karışık)

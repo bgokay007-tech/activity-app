@@ -410,6 +410,7 @@ function BusinessHomePage() {
 
     const [sub, setSub] = useState(null);
     const [pendingRequest, setPendingRequest] = useState(null);
+    const [complimentaryMode, setComplimentaryMode] = useState(false);
     const [venues, setVenues] = useState([]);
     const [loading, setLoading] = useState(true);
     const [subModalOpen, setSubModalOpen] = useState(false);
@@ -424,6 +425,7 @@ function BusinessHomePage() {
             .then(([subRes, venueRes]) => {
                 setSub(subRes.data.subscription);
                 setPendingRequest(subRes.data.pendingRequest);
+                setComplimentaryMode(!!subRes.data.complimentaryMode);
                 setVenues(venueRes.data);
             }).catch(() => {}).finally(() => setLoading(false));
     }, []);
@@ -480,9 +482,11 @@ function BusinessHomePage() {
                 <div className="flex items-center justify-between mb-4">
                     <h1 className="text-2xl font-black text-amber-400">🏢 İşletme Hesabı</h1>
                     <div className="flex items-center gap-2">
-                        <button onClick={() => setSubModalOpen(true)} className="text-xs font-bold border border-amber-500/40 bg-amber-500/10 text-amber-400 rounded-full px-3 py-1.5">
-                            📋 Abonelikler
-                        </button>
+                        {!complimentaryMode && (
+                            <button onClick={() => setSubModalOpen(true)} className="text-xs font-bold border border-amber-500/40 bg-amber-500/10 text-amber-400 rounded-full px-3 py-1.5">
+                                📋 Abonelikler
+                            </button>
+                        )}
                         <button onClick={() => dispatch(logout())} className="text-xs font-bold border border-gray-700 text-gray-400 rounded-full px-3 py-1.5">
                             Çıkış
                         </button>
@@ -495,11 +499,15 @@ function BusinessHomePage() {
                     <>
                         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4 flex items-center justify-between">
                             <p className="text-sm text-gray-300">
-                                {sub ? `✅ ${PACKAGES.find(p => p.key === sub.packageType)?.name || sub.packageType} aktif.`
+                                {complimentaryMode
+                                    ? (sub
+                                        ? '✅ Tesisiniz onaylandı — Premium özellikler açık.'
+                                        : 'ℹ️ Tesis ekleyin; admin onayından sonra Premium özellikler otomatik açılır.')
+                                    : sub ? `✅ ${PACKAGES.find(p => p.key === sub.packageType)?.name || sub.packageType} aktif.`
                                     : pendingRequest ? '⏳ Abonelik onayı bekleniyor.'
                                     : '⚠️ Aktif abonelik yok — tesis eklemek için abonelik gereklidir.'}
                             </p>
-                            {!sub && !pendingRequest && (
+                            {!complimentaryMode && !sub && !pendingRequest && (
                                 <button onClick={() => setSubModalOpen(true)} className="bg-amber-500 text-black text-xs font-bold px-3 py-1.5 rounded-lg flex-shrink-0">
                                     Paketi Satın Al
                                 </button>
@@ -508,7 +516,7 @@ function BusinessHomePage() {
 
                         <div className="flex items-center justify-between mb-3">
                             <p className="text-white font-bold">🏟️ Tesislerim</p>
-                            {sub && (
+                            {(sub || complimentaryMode) && (
                                 <button onClick={() => setVenueModalOpen(true)} className="bg-amber-500 text-black text-xs font-bold px-3 py-1.5 rounded-lg">
                                     + Tesis Ekle
                                 </button>
@@ -518,7 +526,7 @@ function BusinessHomePage() {
                         {venues.length === 0 ? (
                             <div className="text-center py-12 bg-gray-900 border border-gray-800 rounded-2xl">
                                 <p className="text-4xl mb-2">🏟️</p>
-                                <p className="text-gray-400 text-sm">{sub ? 'Henüz tesis eklenmedi.' : 'Tesis eklemek için önce abonelik alın.'}</p>
+                                <p className="text-gray-400 text-sm">{(sub || complimentaryMode) ? 'Henüz tesis eklenmedi.' : 'Tesis eklemek için önce abonelik alın.'}</p>
                             </div>
                         ) : (
                             venues.map(v => (
@@ -529,12 +537,14 @@ function BusinessHomePage() {
                 )}
             </div>
 
+            {!complimentaryMode && (
             <SubscriptionModal
                 open={subModalOpen} onClose={() => setSubModalOpen(false)}
                 sub={sub} pendingRequest={pendingRequest}
                 onPurchase={handlePurchase} onUploadReceipt={handleUploadReceipt} onCancel={handleCancelSub}
                 submitting={submitting} uploading={uploading} cancelling={cancelling}
             />
+            )}
             <VenueAddModal open={venueModalOpen} onClose={() => setVenueModalOpen(false)} onCreated={fetchAll} />
         </div>
     );

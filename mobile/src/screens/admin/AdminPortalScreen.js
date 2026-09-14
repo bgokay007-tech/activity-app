@@ -25,7 +25,8 @@ const TABS = [
     { key: 'teamNameApproval', label: '🏆 Takım Adı Onayı' },
     { key: 'flagged',          label: '🚩 İlanlar' },
     { key: 'profilechanges',   label: '🪪 Profil' },
-    { key: 'subscriptions',    label: '💳 Abonelik' },
+    // Kullanıcı isteği: abonelik satışları şimdilik gizli — ücretli dönem açılınca geri ekle.
+    // { key: 'subscriptions',    label: '💳 Abonelik' },
     { key: 'venuereviews',     label: '⭐ Tesis Yorumu' },
     { key: 'support',          label: '💬 Destek' },
 ];

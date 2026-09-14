@@ -9,10 +9,59 @@ const PACKAGES = {
     PREMIUM:     { price: 2499, label: 'Premium Paket',      durationDays: 30 },
 };
 
+// Kullanıcı isteği: portföy/kullanıcı tabanı büyüyene kadar işletme abonelikleri GİZLİ —
+// ücretli UI kapalı; tesis admin onaylanınca otomatik Premium yazılır. Ücretli dönem
+// açılınca bu bayrağı false yapıp mobil/web Abonelik UI'sini geri açmak yeterli.
+export const BUSINESS_SUBS_COMPLIMENTARY = true;
+export const COMPLIMENTARY_PREMIUM_DAYS = 3650; // ~10 yıl
+
+// İşletme hesabına Premium abonelik yazar (zaten Premium+aktif ise dokunmaz).
+// Tesis admin onayında ve onaylı tesis sahiplerinin /me çağrısında kullanılır.
+export async function grantComplimentaryPremium(userId) {
+    if (!BUSINESS_SUBS_COMPLIMENTARY || !userId) return null;
+
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { isBusiness: true },
+    });
+    if (!user?.isBusiness) return null;
+
+    const now = new Date();
+    const existing = await prisma.businessSubscription.findFirst({
+        where: { userId, status: 'ACTIVE', endDate: { gt: now } },
+        orderBy: { endDate: 'desc' },
+    });
+    if (existing?.packageType === 'PREMIUM') return existing;
+
+    const endDate = new Date(now.getTime() + COMPLIMENTARY_PREMIUM_DAYS * 24 * 60 * 60 * 1000);
+    await prisma.businessSubscription.updateMany({
+        where: { userId, status: 'ACTIVE' },
+        data: { status: 'CANCELLED' },
+    });
+    return prisma.businessSubscription.create({
+        data: {
+            userId,
+            packageType: 'PREMIUM',
+            status: 'ACTIVE',
+            startDate: now,
+            endDate,
+        },
+    });
+}
+
 // Mevcut abonelik + bekleyen talep durumu
 export const getMySubscription = async (req, res, next) => {
     try {
         const now = new Date();
+        // Ücretsiz dönemde: onaylı tesisi olan işletmeye Premium'u geriye dönük yaz
+        // (eski hesaplar / onay anında kaçmış grant'lar için).
+        if (BUSINESS_SUBS_COMPLIMENTARY) {
+            const approvedCount = await prisma.businessVenue.count({
+                where: { userId: req.userId, status: 'APPROVED' },
+            });
+            if (approvedCount > 0) await grantComplimentaryPremium(req.userId);
+        }
+
         const [sub, request] = await Promise.all([
             prisma.businessSubscription.findFirst({
                 where: { userId: req.userId, status: 'ACTIVE', endDate: { gt: now } },
@@ -23,7 +72,12 @@ export const getMySubscription = async (req, res, next) => {
                 orderBy: { createdAt: 'desc' },
             }),
         ]);
-        res.json({ subscription: sub || null, pendingRequest: request || null, packages: PACKAGES });
+        res.json({
+            subscription: sub || null,
+            pendingRequest: BUSINESS_SUBS_COMPLIMENTARY ? null : (request || null),
+            packages: PACKAGES,
+            complimentaryMode: BUSINESS_SUBS_COMPLIMENTARY,
+        });
     } catch (error) {
         next(error);
     }
@@ -32,6 +86,14 @@ export const getMySubscription = async (req, res, next) => {
 // Abonelik talebi gönder (dekont isteğe bağlı, sonradan eklenebilir)
 export const submitSubscriptionRequest = async (req, res, next) => {
     try {
+        // Kullanıcı isteği: ücretli abonelikler şimdilik kapalı — UI gizlense bile API'den
+        // talep açılamasın; premium tesis onayından otomatik geliyor.
+        if (BUSINESS_SUBS_COMPLIMENTARY) {
+            return res.status(403).json({
+                message: 'Abonelik satışları geçici olarak kapalı. Tesisiniz onaylanınca Premium özellikler açılır.',
+            });
+        }
+
         const { packageType = 'STARTER', receiptUrl } = req.body;
 
         const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { isBusiness: true, username: true } });

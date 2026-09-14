@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { Prisma } from '@prisma/client';
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
+import { BUSINESS_SUBS_COMPLIMENTARY, grantComplimentaryPremium } from './subscription.controller.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 export const toMins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
@@ -499,11 +500,18 @@ export const createVenue = async (req, res, next) => {
         const { name, branch, city, district, address, phone, openTime, closeTime, openDays, slotType, pricePerSlot, courts } = req.body;
 
         const now = new Date();
-        const sub = await prisma.businessSubscription.findFirst({
+        let sub = await prisma.businessSubscription.findFirst({
             where: { userId: req.userId, status: 'ACTIVE', endDate: { gt: now } },
         });
         console.log('[createVenue] userId:', req.userId, 'sub:', sub?.packageType ?? 'YOK', 'branch:', branch);
-        if (!sub) return res.status(403).json({ message: 'Tesis eklemek için aktif abonelik gerekli' });
+        // Kullanıcı isteği: ücretli abonelikler gizliyken tesis başvurusu abonelik şartına
+        // takılmasın — admin onayında Premium yazılır (bkz. approveVenue + grantComplimentaryPremium).
+        // Limit olarak Premium tavanı uygulanır (spam tesis engeli).
+        if (!sub && BUSINESS_SUBS_COMPLIMENTARY) {
+            sub = { packageType: 'PREMIUM' };
+        } else if (!sub) {
+            return res.status(403).json({ message: 'Tesis eklemek için aktif abonelik gerekli' });
+        }
         if (!VENUE_ALLOWED_PACKAGES.includes(sub.packageType))
             return res.status(403).json({ message: 'Tesis eklemek için en az Rahatlatıcı paket gereklidir' });
 
@@ -2256,8 +2264,15 @@ export const approveVenue = async (req, res, next) => {
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
         if (!venue) return res.status(404).json({ message: 'Bulunamadı' });
         await prisma.businessVenue.update({ where: { id }, data: { status: 'APPROVED' } });
+
+        // Kullanıcı isteği: abonelik satışları kapalıyken tesis onaylanınca işletme
+        // otomatik Premium sayılır — ücretli dönem açılınca BUSINESS_SUBS_COMPLIMENTARY=false.
+        const complimentarySub = await grantComplimentaryPremium(venue.userId).catch(() => null);
+
         await createNotification(venue.userId, 'VENUE_APPROVED', '✅ Tesis Onaylandı',
-            `"${venue.name}" tesisi onaylandı. Kullanıcılar artık rezervasyon yapabilir.`,
+            complimentarySub
+                ? `"${venue.name}" tesisi onaylandı. Premium özellikler açıldı; kullanıcılar rezervasyon yapabilir.`
+                : `"${venue.name}" tesisi onaylandı. Kullanıcılar artık rezervasyon yapabilir.`,
             { venueId: id }
         );
         emitToUser(venue.userId, 'notification', {});
