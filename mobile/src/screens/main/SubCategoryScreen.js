@@ -29562,7 +29562,15 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {loadingTickets ? (
                                 <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
                             ) : sportsTickets.length === 0 ? (
-                                ticketsLoaded && <EmptyState emoji="🎟️" text={t.emptyTickets || (lang === 'tr' ? 'Bu filtrelere uyan bilet bulunamadı.' : lang === 'ru' ? 'Билеты по этим фильтрам не найдены.' : lang === 'de' ? 'Keine Tickets für diese Filter gefunden.' : 'No tickets found for these filters.')} />
+                                /* Hiç filtre yokken de boş dönüyorsa sorun filtreler değil — o dalda
+                                   satışta bilet yok demektir (ör. padel: Ticketmaster ve SeatGeek'te
+                                   envanter sıfır). "Filtrelere uyan bilet yok" demek kullanıcıyı
+                                   boşuna filtre denemeye itiyordu. */
+                                ticketsLoaded && (
+                                    (!ticketCity.trim() && !ticketDateFrom && !ticketDateTo)
+                                        ? <EmptyState emoji="🎟️" text={t.emptyTicketsNoSource} />
+                                        : <EmptyState emoji="🎟️" text={t.emptyTickets} />
+                                )
                             ) : (
                                 sportsTickets.map(ev => (
                                     <View key={ev.id} style={{ flexDirection: 'row', backgroundColor: colors.surface2, borderRadius: 12, marginBottom: 10, padding: 9, borderWidth: 1, borderColor: colors.border }}>

@@ -147,6 +147,7 @@ const en = {
     ticketsTab: 'Buy Ticket',
     venuesTab: 'Venues',
     emptyTickets: 'No tickets found for these filters.',
+    emptyTicketsNoSource: 'No tickets are currently on sale for this sport. Our ticket providers have no events listed for it.',
     ticketBuyBtn: '🎟️ Buy Ticket',
 
     // Coaches sub-tabs (tennis/padel/volleyball: Clubs | Coaches | Courses | Referees | CVs)
@@ -1906,6 +1907,7 @@ const tr = {
     ticketsTab: 'Bilet Al',
     venuesTab: 'Tesisler',
     emptyTickets: 'Bu filtrelere uyan bilet bulunamadı.',
+    emptyTicketsNoSource: 'Bu dal için şu anda satışta bilet yok. Bilet sağlayıcılarımızda bu dala ait etkinlik bulunmuyor.',
     ticketBuyBtn: '🎟️ Bilet Al',
 
     // Antrenörler alt-sekmeleri (tenis/padel/voleybol: Kulüpler | Antrenörler | Kurslar | Hakemler | CV'ler)
@@ -3662,6 +3664,7 @@ const ru = {
     ticketsTab: 'Купить билет',
     venuesTab: 'Площадки',
     emptyTickets: 'По этим фильтрам билеты не найдены.',
+    emptyTicketsNoSource: 'Сейчас по этому виду спорта билеты не продаются. У наших поставщиков нет для него событий.',
     ticketBuyBtn: '🎟️ Купить билет',
 
     // Coaches sub-tabs
@@ -5417,6 +5420,7 @@ const de = {
     ticketsTab: 'Ticket kaufen',
     venuesTab: 'Anlagen',
     emptyTickets: 'Keine Tickets für diese Filter gefunden.',
+    emptyTicketsNoSource: 'Für diese Sportart sind derzeit keine Tickets im Verkauf. Unsere Ticketanbieter führen dazu keine Veranstaltungen.',
     ticketBuyBtn: '🎟️ Ticket kaufen',
 
     // Coaches sub-tabs
