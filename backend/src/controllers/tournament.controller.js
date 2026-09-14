@@ -4,7 +4,7 @@ import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags, MIN_MATCHES_FOR_TOURNAMENT } from '../utils/tennisElo.js';
-import { UTR_SUBCATEGORIES, applyUtrRatingForTournamentMatch, getDisplayRating, isDoublesFormat } from '../utils/utrRating.js';
+import { UTR_SUBCATEGORIES, applyUtrRatingForTournamentMatch, revertUtrMatchRecords, getDisplayRating, isDoublesFormat } from '../utils/utrRating.js';
 import { computeTournamentPlacement } from './achievement.controller.js';
 import { sanitizeExtraServices } from '../utils/extraServices.js';
 import { ACTIVE_ENGINE_TYPES, resolveFormatOnCreate, isTeamEngineType } from '../utils/tournamentFormats.js';
@@ -2784,25 +2784,16 @@ export const enterTournamentMatchScore = async (req, res, next) => {
 
         if (UTR_SUBCATEGORIES.includes(tournament.subCategory)) {
             // Tenis/padel: UTR-esinli ayrı tekli/çiftler sistemi (bkz. utrRating.js). Skor
-            // DÜZELTİLİYORSA (match zaten COMPLETED), eski katkıyı ters-delta ile geri almak
-            // yerine bu maça ait RatingMatchRecord'lar silinir — recompute geçmişten taze
-            // hesaplandığı için silinince önceki katkı otomatik geri alınmış olur. Ama wins/
-            // losses/matchCount SAYAÇLARI recompute'un parçası değil (RatingMatchRecord'tan
-            // türetilmiyor) — bu yüzden eski kayıtlardan hangi tarafın kazandığını okuyup bu
-            // sayaçları elle geri almak gerekiyor, aksi halde düzeltmede ikinci kez sayılırlardı.
+            // DÜZELTİLİYORSA (match zaten COMPLETED), bu maçın önceki katkısı
+            // revertUtrMatchRecords ile TAMAMEN geri alınır: kayıtlar silinir, puan kalan
+            // geçmişten yeniden hesaplanır, wins/losses/matchCount sayaçları düşürülür.
+            // Puanın da geri alınması şart — yoksa düzeltme ilk skorla kirlenmiş puandan
+            // hesaplıyor (bkz. o fonksiyonun yorumundaki simülasyon bulgusu).
             if (match.status === 'COMPLETED') {
-                const prevRecords = await prisma.ratingMatchRecord.findMany({ where: { sourceType: 'TOURNAMENT', sourceId: match.id } });
-                for (const r of prevRecords) {
-                    const field = r.matchType === 'DOUBLE' ? 'doublesMatchCount' : 'singlesMatchCount';
-                    await prisma.userInterest.updateMany({
-                        where: { userId: r.userId, category: tournament.category, subCategory: tournament.subCategory },
-                        data: {
-                            ...(r.didWin ? { wins: { decrement: 1 } } : { losses: { decrement: 1 } }),
-                            [field]: { decrement: 1 },
-                        },
-                    });
-                }
-                await prisma.ratingMatchRecord.deleteMany({ where: { sourceType: 'TOURNAMENT', sourceId: match.id } });
+                await revertUtrMatchRecords({
+                    category: tournament.category, subCategory: tournament.subCategory,
+                    sourceType: 'TOURNAMENT', sourceId: match.id,
+                });
             }
             if (p1Members.length > 0 && p2Members.length > 0) {
                 const winnerMembers = winner === 'p1' ? p1Members : p2Members;

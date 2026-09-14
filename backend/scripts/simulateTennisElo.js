@@ -195,6 +195,13 @@ function findNegatives(rows) {
     return rows.filter(r => r.kazanan_sonra < 0 || r.kaybeden_sonra < 0);
 }
 
+// clampPerformanceByOutcome'ın yan etkisi: favori beklendiği gibi kazandığında maç "bilgi
+// taşımadığı" için puan HİÇ oynamıyor. Matematiksel olarak doğru (galibiyet puanı düşürmesin
+// kuralının doğal sonucu) ama üründe "kazandım, puanım hiç artmadı" beklentisi yaratır.
+function findNoMovement(rows) {
+    return rows.filter(r => r.elo_atlandi === 'HAYIR' && r.kazanan_degisim === 0 && r.kaybeden_degisim === 0);
+}
+
 function main() {
     const t0 = Date.now();
     console.log('=== Tenis/Padel ELO Simülasyonu — Seviye A (saf puanlama) ===');
@@ -242,6 +249,24 @@ function main() {
 
     console.log(`\n--- BULGU 3: kalibrasyon koruması aktifken ELO'ya hiç sayılmayan maç: ${skippedByGrace.length.toLocaleString('tr-TR')} / ${singlesGrace.length.toLocaleString('tr-TR')} ---`);
     console.log('   (anketini yeni doldurmuş oyuncu, kendinden ≥1.0 yüksek rakibi yenince maç geçersiz + ankete geri yönlendirme)');
+
+    const noMove = findNoMovement(singles);
+    console.log(`\n--- BULGU 4: iki tarafın da puanı HİÇ değişmeyen maç: ${noMove.length.toLocaleString('tr-TR')} / ${singles.length.toLocaleString('tr-TR')} ---`);
+    console.log('   (favori beklendiği gibi kazandı — galibiyet puan düşürmesin kuralının doğal sonucu)');
+    // Bu ızgara TÜM puan çiftlerini eşit ağırlıkla tarıyor; gerçek eşleşmede ilan derece
+    // kısıtları yüzünden taraflar birbirine yakın olur. Karar için anlamlı olan oran, dar
+    // puan farkı dilimlerindeki sıfır-hareket oranı.
+    console.log('\n   Puan farkına göre sıfır-hareket oranı (gerçek eşleşme dar farklarda olur):');
+    console.table([0.25, 0.5, 1.0, 2.0, 5.01].map(gap => {
+        const inGap = singles.filter(r => r.elo_atlandi === 'HAYIR' && r.puan_farki <= gap);
+        const zero = inGap.filter(r => r.kazanan_degisim === 0 && r.kaybeden_degisim === 0);
+        return {
+            puan_farki: `≤ ${gap}`,
+            mac: inGap.length,
+            hic_degismeyen: zero.length,
+            oran: `${(100 * zero.length / inGap.length).toFixed(1)}%`,
+        };
+    }));
 
     console.log('\n--- Birikimli örnek: seed 0.5 oyuncu, 2.5 oyuncuyu sürekli 6-0 6-1 yenerse ---');
     const sample = series.filter(r => r.kazanan_seed === 0.5 && r.kaybeden_seed === 2.5 && r.skor === SCORES[0].label);

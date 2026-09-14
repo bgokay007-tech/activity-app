@@ -105,9 +105,17 @@ export function computeGapWeight(ratingDiff) {
 
 // opponentMatchCount/opponentLastMatchAt: rakibin BU MAÇ ANINDAKİ (maçtan önceki) durumu —
 // maç anında donar, rakip sonradan daha aktif/pasif olsa bile bu maçın ağırlığı değişmez.
+//
+// opponentLastMatchAt null = rakip HİÇ maç oynamamış (anketini yeni doldurmuş). Bu durum
+// önceden "bayat" sayılıp recencyFactor tabana (0.25) çekiliyordu; matchCountFactor da zaten
+// tabanda (0.25) olduğu için ağırlık 0.0625'e düşüyor, yeni oyuncuların maçları puanlarını
+// neredeyse hiç oynatmıyordu (simülasyon: 0.0 oyuncusu 5.0'ı 6-0 6-1 yenince kazancı +0.115).
+// "Hiç oynamamış" ile "oynayıp bırakmış" aynı şey değil — bayatlık cezası sadece ikincisine
+// uygulanır, hiç maçı olmayan rakip için recency tam sayılır (güvenilirliği zaten
+// matchCountFactor tabanı sınırlıyor).
 export function computeReliabilityWeight(opponentMatchCount, opponentLastMatchAt, atDate) {
     const matchCountFactor = clamp((opponentMatchCount ?? 0) / RELIABILITY_FULL_MATCHES, RELIABILITY_FLOOR, 1.0);
-    let recencyFactor = RELIABILITY_FLOOR;
+    let recencyFactor = 1.0;
     if (opponentLastMatchAt) {
         const monthsSince = (atDate.getTime() - new Date(opponentLastMatchAt).getTime()) / (1000 * 60 * 60 * 24 * 30);
         recencyFactor = clamp(1 - monthsSince / 12, 0.3, 1.0);
@@ -131,6 +139,26 @@ export function computeMatchPerformance(opponentRating, performanceScore) {
     const p = clamp(performanceScore, 0.02, 0.98);
     const impliedDiff = D * Math.log10(p / (1 - p));
     return opponentRating + impliedDiff;
+}
+
+// Bir maçın "ima ettiği puan"ını sonucun YÖNÜNE göre sınırlar.
+//
+// Ham matchPerformanceRating sadece rakibin puanına ve oyun oranına bakar; kimin kazandığını
+// hiç bilmez. Bu yüzden çok güçlü bir oyuncu çok zayıf birini ezerek yendiğinde bile "bu sonuç
+// ancak ~0.67 seviyesini ima eder" diyerek oyuncunun puanını DÜŞÜRÜYORDU (simülasyon: tekli
+// maçların %41'i, çiftlerin %62'si; ör. 5.0 oyuncusu 0.0'ı 6-0 6-1 yenince -0.072). Aynı
+// simetriyle, çok güçlü birine kaybeden zayıf oyuncunun puanı ARTIYORDU.
+//
+// Kural: bir GALİBİYET hiçbir zaman "eskisinden kötüyüm" kanıtı olamaz (taban = maç anındaki
+// puan), bir YENİLGİ de "eskisinden iyiyim" kanıtı olamaz (tavan = maç anındaki puan).
+// Bilgi taşımayan sonuçlar puanı sabit bırakır, ters yöne çekmez.
+//
+// ratingBefore null/undefined ise (eski kayıtlar) sınır uygulanmaz — geriye dönük uyumluluk.
+export function clampPerformanceByOutcome(matchPerformanceRating, didWin, ratingBefore) {
+    if (ratingBefore == null) return matchPerformanceRating;
+    return didWin
+        ? Math.max(matchPerformanceRating, ratingBefore)
+        : Math.min(matchPerformanceRating, ratingBefore);
 }
 
 function clamp(v, min, max) {
@@ -158,14 +186,21 @@ export async function recomputeRatingFromHistory(userId, subCategory, matchType,
             reliabilityWeight: r.opponentReliabilitySnapshot,
             decayWeight,
         });
-        const matchPerformanceRating = computeMatchPerformance(r.opponentRatingSnapshot, r.performanceScore);
+        const matchPerformanceRating = clampPerformanceByOutcome(
+            computeMatchPerformance(r.opponentRatingSnapshot, r.performanceScore),
+            r.didWin, r.ratingBefore,
+        );
         weightedSum += weight * matchPerformanceRating;
         weightTotal += weight;
     }
 
     const seed = seedRating ?? 0;
     const seedWeight = Math.max(SEED_WEIGHT_FLOOR, 1 - records.length / SEED_CONVERGE_MATCHES);
-    return parseFloat(((seedWeight * seed + weightedSum) / (seedWeight + weightTotal)).toFixed(4));
+    const raw = (seedWeight * seed + weightedSum) / (seedWeight + weightTotal);
+    // Puan 0-5 skalasının DIŞINA taşmasın. Önceden sadece okuma anında (getDisplayRating)
+    // Math.max(0,…) uygulanıyordu; veritabanında eksi değer kalıyor ve sonraki hesaplar
+    // (gapWeight, ratingBefore sınırı) o eksi değerden başlıyordu.
+    return parseFloat(clamp(raw, 0, 5).toFixed(4));
 }
 
 // Tenis/padel için reassessment-grace: eski matchesSinceAssessment SAYACI yerine
@@ -379,12 +414,49 @@ export async function applyUtrRatingForMatch(request, winnerUserId) {
     return changes.map(c => ({ userId: c.userId, change: c.change, before: c.before, after: c.after }));
 }
 
+// Bir maçın puan etkisini TAMAMEN geri alır — skor düzeltilirken (turnuva) yeniden
+// hesaplamadan ÖNCE çağrılmalı.
+//
+// Sadece RatingMatchRecord'ları silmek YETMİYOR: singlesRating/doublesRating alanı maçtan
+// sonraki değerde kalıyor, dolayısıyla düzeltme bu KİRLENMİŞ puandan başlıyor ve sonuç
+// "baştan doğru skor girilmiş olsaydı" durumundan farklı çıkıyor (simülasyon C2: 108
+// senaryonun 61'i; aynı skoru ikinci kez girmek bile puanı oynatıyordu). Bu yüzden kayıtlar
+// silindikten sonra puan KALAN geçmişten yeniden hesaplanır, maç sayacı/son maç tarihi de
+// gerçek kalan kayıtlara göre düzeltilir.
+export async function revertUtrMatchRecords({ category, subCategory, sourceType, sourceId }) {
+    const records = await prisma.ratingMatchRecord.findMany({ where: { sourceType, sourceId } });
+    if (records.length === 0) return;
+    await prisma.ratingMatchRecord.deleteMany({ where: { sourceType, sourceId } });
+
+    for (const r of records) {
+        const isDoubles = r.matchType === 'DOUBLE';
+        const interest = await prisma.userInterest.findFirst({
+            where: { userId: r.userId, category, subCategory },
+        });
+        if (!interest) continue;
+        const seedField = isDoubles ? 'doublesSeedRating' : 'singlesSeedRating';
+        const restored = await recomputeRatingFromHistory(r.userId, subCategory, r.matchType, interest[seedField]);
+        // Kalan kayıtların en yenisi = gerçek "son maç" tarihi; hiç kalmadıysa null.
+        const remaining = await prisma.ratingMatchRecord.findMany({
+            where: { userId: r.userId, subCategory, matchType: r.matchType },
+            orderBy: { matchDate: 'desc' },
+            select: { matchDate: true },
+        });
+        await prisma.userInterest.update({
+            where: { id: interest.id },
+            data: {
+                [isDoubles ? 'doublesRating' : 'singlesRating']: remaining.length > 0 ? restored : null,
+                [isDoubles ? 'doublesMatchCount' : 'singlesMatchCount']: Math.max(0, (isDoubles ? interest.doublesMatchCount : interest.singlesMatchCount) - 1),
+                [isDoubles ? 'doublesLastMatchAt' : 'singlesLastMatchAt']: remaining[0]?.matchDate ?? null,
+                ...(r.didWin ? { wins: Math.max(0, interest.wins - 1) } : { losses: Math.max(0, interest.losses - 1) }),
+            },
+        });
+    }
+}
+
 // tournament.controller.js'in maç-tamamlama akışından çağrılır. Turnuva maçları DÜZELTİLEBİLİR
 // (skor daha önce girilip artık yeniden giriliyor olabilir) — bu yüzden çağıran taraf, bu
-// fonksiyonu çağırmadan ÖNCE bu maça ait eski RatingMatchRecord'ları silmelidir (bkz.
-// tournament.controller.js'teki deleteMany çağrısı) — recompute geçmişten TAZE hesaplandığı
-// için eski kayıt silinince o maçın önceki katkısı otomatik "geri alınmış" olur, ayrı bir
-// ters-delta hesaplamaya gerek kalmaz.
+// fonksiyonu çağırmadan ÖNCE bu maça ait eski katkıyı revertUtrMatchRecords ile geri almalıdır.
 export async function applyUtrRatingForTournamentMatch({ category, subCategory, tournamentType, matchId, winnerMembers, loserMembers, sets, winnerSide }) {
     const matchType = isDoublesFormat({ tournamentType }) ? 'DOUBLE' : 'SINGLE';
     const winnerPerf = computeGamesRatioFromSets(sets, winnerSide);

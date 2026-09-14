@@ -9,7 +9,7 @@
 // her maç için otomatik karşılaştırılıp raporlanır (sapma > 0.005 ise FAIL).
 import {
     computeMatchPerformance, computeGapWeight, computeReliabilityWeight,
-    computeDecayWeight, computeMatchWeight,
+    computeDecayWeight, computeMatchWeight, clampPerformanceByOutcome,
 } from '../../src/utils/utrRating.js';
 
 // utrRating.js içinde modül-içi (export edilmemiş) sabitlerin aynısı.
@@ -62,12 +62,16 @@ export function recompute(records, seedRating, now = new Date()) {
             reliabilityWeight: rec.opponentReliabilitySnapshot,
             decayWeight,
         });
-        weightedSum += weight * computeMatchPerformance(rec.opponentRatingSnapshot, rec.performanceScore);
+        weightedSum += weight * clampPerformanceByOutcome(
+            computeMatchPerformance(rec.opponentRatingSnapshot, rec.performanceScore),
+            rec.didWin, rec.ratingBefore,
+        );
         weightTotal += weight;
     }
     const seed = seedRating ?? 0;
     const seedWeight = Math.max(SEED_WEIGHT_FLOOR, 1 - used.length / SEED_CONVERGE_MATCHES);
-    return r4((seedWeight * seed + weightedSum) / (seedWeight + weightTotal));
+    const raw = (seedWeight * seed + weightedSum) / (seedWeight + weightTotal);
+    return r4(Math.min(5, Math.max(0, raw)));
 }
 
 // Gerçek UserInterest alanlarının simülasyon karşılığı. graceMatches: anketten sonra
@@ -105,7 +109,7 @@ export function playMatch(winners, losers, score, { now = new Date() } = {}) {
     const step = (p, didWin, perf, oppRating, oppRel) => {
         const before = p.rating;
         p.records.push({
-            matchDate: now, formatWeight, ratingBefore: before,
+            matchDate: now, formatWeight, ratingBefore: before, didWin,
             opponentRatingSnapshot: oppRating, opponentReliabilitySnapshot: oppRel,
             performanceScore: perf,
         });
@@ -120,11 +124,18 @@ export function playMatch(winners, losers, score, { now = new Date() } = {}) {
     return { skipped: false, changes };
 }
 
-// Tek maçlık kısayol: sıfır geçmişli iki taraf, tek maç, sonuç puanları. B2'nin gerçek
-// motordan okuduğu değerlerle karşılaştırmak için kullanılır.
-export function predictSingleMatch(winnerSeeds, loserSeeds, score, { graceMatches = GRACE_MATCHES } = {}) {
-    const winners = winnerSeeds.map(s => mkPlayer(s, { graceMatches }));
-    const losers = loserSeeds.map(s => mkPlayer(s, { graceMatches }));
+// Tek maçlık kısayol: sıfır geçmişli iki taraf, tek maç, sonuç puanları. Gerçek motordan
+// okunan değerlerle karşılaştırmak için kullanılır (B2, C1).
+//
+// matchCount/lastMatchAt gerçek oyuncunun maç ANINDAKİ durumundan verilmeli — bunlar
+// computeReliabilityWeight üzerinden ağırlığı belirliyor, varsayılana bırakılırsa model
+// gerçek motordan sapar.
+export function predictSingleMatch(winnerSeeds, loserSeeds, score, {
+    graceMatches = GRACE_MATCHES, matchCount = 0, lastMatchAt = null,
+} = {}) {
+    const opts = { graceMatches, matchCount, lastMatchAt };
+    const winners = winnerSeeds.map(s => mkPlayer(s, opts));
+    const losers = loserSeeds.map(s => mkPlayer(s, opts));
     const res = playMatch(winners, losers, score);
     return {
         skipped: res.skipped,
