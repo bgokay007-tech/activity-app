@@ -81,7 +81,7 @@ eklerken oraya da bir satır gerekir.
 Bittiğinde şunları kontrol et:
 
 - Dal, kategori ekranında **kilitsiz** görünüyor mu (`ENABLED_SUBS`).
-- Türkçe ve İngilizce'de doğru isimle görünüyor mu (`SUB_MAP` + `LABELS`).
+- **en + tr + ru + de** doğru isimle görünüyor mu (`SUB_MAP` + `LABELS`)?
 - İlgi alanı seçme ekranında listeleniyor mu (backend `SUBCATEGORIES`).
 - Dala girince beklenen ekran mı açılıyor (`SPECIAL_SCREENS` gerekiyor muydu).
 

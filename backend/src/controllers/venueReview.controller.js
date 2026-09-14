@@ -1,22 +1,17 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
+import { isProVenueOwner } from './venue.controller.js';
 
 const reviewInclude = {
     user: { select: { id: true, username: true, fullName: true, avatar: true } },
     court: { select: { id: true, name: true } },
 };
 
-const PRO_PACKAGES = ['PRO', 'PREMIUM'];
-
-// Tesis sahibi Pro/Premium abonelikte mi? Öyleyse yorumlar yayınlanmadan önce admin onayı gerekir.
-async function isProVenue(venue) {
-    const now = new Date();
-    const sub = await prisma.businessSubscription.findFirst({
-        where: { userId: venue.userId, status: 'ACTIVE', endDate: { gt: now } },
-    });
-    return !!sub && PRO_PACKAGES.includes(sub.packageType);
-}
+// Tesis sahibi Pro/Premium sayılıyor mu? Öyleyse yorumlar yayınlanmadan önce admin onayı gerekir.
+// Ücretsiz dönemde onaylı tesisi olan işletme de Pro sayılır — tek kaynak isProVenueOwner
+// (abonelik satırı yazılmamış hesaplarda Tesis Ara'daki "rezervasyon yok" hatasıyla aynı sebep).
+const isProVenue = (venue) => isProVenueOwner(venue.userId);
 
 async function notifyAdminsPendingReview(venue, review, targetLabel) {
     const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });

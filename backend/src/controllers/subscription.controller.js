@@ -24,7 +24,14 @@ export async function grantComplimentaryPremium(userId) {
         where: { id: userId },
         select: { isBusiness: true },
     });
-    if (!user?.isBusiness) return null;
+    // Kullanıcı raporu: işletme panelinde Premium görünen tesis, diğer kullanıcılarda
+    // "Uygulama içi rezervasyon yok" kalıyordu. Sebep: isBusiness işaretli olmayan hesaplarda
+    // grant hiç yazılmıyordu (tesis eklemek isBusiness şartına bağlı değil) — panel ise
+    // complimentaryMode yüzünden yine Premium gösteriyordu. Onaylı tesis sahibi de işletmedir.
+    if (!user?.isBusiness) {
+        const approved = await prisma.businessVenue.count({ where: { userId, status: 'APPROVED' } });
+        if (approved === 0) return null;
+    }
 
     const now = new Date();
     const existing = await prisma.businessSubscription.findFirst({

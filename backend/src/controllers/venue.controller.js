@@ -814,12 +814,9 @@ export const getVenueSlots = async (req, res, next) => {
         }
         // isProVenue: mobil taraf saat seçince Pro/Premium değiştirme/iptal politikası
         // uyarısını göstersin diye (bkz. CourtSlotsScreen VenuePolicyWarningModal).
-        const proSub = await prisma.businessSubscription.findFirst({
-            where: { userId: venue.userId, status: 'ACTIVE', endDate: { gt: new Date() } },
-        });
         res.json(fixMidnightLabels({
             ...resultWithPrice, acceptedPayments: accepted, maintenanceReason, myLoyaltyFreeMinutes,
-            isProVenue: !!proSub && PRO_PACKAGES.includes(proSub.packageType),
+            isProVenue: await isProVenueOwner(venue.userId),
             cancelHoursBefore: venue.cancelHoursBefore,
             rescheduleHoursBefore: venue.rescheduleHoursBefore,
         }));
@@ -1014,10 +1011,8 @@ export const makeReservation = async (req, res, next) => {
         // Kullanıcı isteği: arama artık Pro+ olmayan tesisleri de listeliyor (bilgi amaçlı,
         // "kayıtlı olduğunu bilsin" diye) — ama uygulama içinden rezervasyon SADECE Pro+
         // paketli tesislerde yapılabilir, diğerleri telefonla aranarak manuel rezerve edilir.
-        const proSub = await prisma.businessSubscription.findFirst({
-            where: { userId: venue.userId, status: 'ACTIVE', endDate: { gt: new Date() }, packageType: { in: PRO_PACKAGES } },
-        });
-        if (!proSub) return res.status(403).json({ message: 'Bu tesis uygulama içinden rezervasyon almıyor. Varsa telefon numarasından işletmeyi arayarak rezervasyon yapabilirsiniz.' });
+        if (!await isProVenueOwner(venue.userId))
+            return res.status(403).json({ message: 'Bu tesis uygulama içinden rezervasyon almıyor. Varsa telefon numarasından işletmeyi arayarak rezervasyon yapabilirsiniz.' });
 
         const isBlocked = await prisma.venueBlock.findUnique({
             where: { venueId_userId: { venueId: id, userId: req.userId } },
@@ -1939,16 +1934,6 @@ export const searchVenues = async (req, res, next) => {
         // tesisler listelenir. Pro olmayanlarda uygulama içinden rezervasyon yapılamaz (bkz.
         // makeReservation), mobil taraf bunun yerine varsa telefonla arama seçeneği gösterir.
         // isProVenue burada sadece hesaplanıp sonuçlara eklenir, WHERE filtresi olarak KULLANILMAZ.
-        let proUserIdSet = new Set();
-        if (!ratingMode) {
-            const now = new Date();
-            const proSubs = await prisma.businessSubscription.findMany({
-                where: { status: 'ACTIVE', endDate: { gt: now }, packageType: { in: ['PRO', 'PREMIUM'] } },
-                select: { userId: true },
-            });
-            proUserIdSet = new Set(proSubs.map(s => s.userId));
-        }
-
         const where = {
             ...(ratingMode ? {} : { status: 'APPROVED' }),
             // ratingMode'da branch filtresi yok (tenis/tenis/tennis eşleşmesi sorunu)
@@ -1976,6 +1961,10 @@ export const searchVenues = async (req, res, next) => {
                 take,
             }),
         ]);
+
+        // Pro/Premium sayılan sahipler — where zaten status:'APPROVED' filtrelediği için
+        // ücretsiz dönem varsayımı (onaylı tesis = Premium) yalnızca onaylı tesislere uygulanır.
+        const proUserIdSet = ratingMode ? new Set() : await getProVenueOwnerIds(venues.map(v => v.userId));
 
         const venueIds = venues.map(v => v.id);
         const ratings = venueIds.length ? await prisma.venueReview.groupBy({
@@ -2090,13 +2079,6 @@ export const searchVenueAvailability = async (req, res, next) => {
             }
         }
 
-        const now = new Date();
-        const proSubs = await prisma.businessSubscription.findMany({
-            where: { status: 'ACTIVE', endDate: { gt: now }, packageType: { in: PRO_PACKAGES } },
-            select: { userId: true },
-        });
-        const proUserIdSet = new Set(proSubs.map(s => s.userId));
-
         const where = {
             status: 'APPROVED',
             ...(branch ? { branch: { contains: branch, mode: 'insensitive' } } : {}),
@@ -2116,6 +2098,8 @@ export const searchVenueAvailability = async (req, res, next) => {
             orderBy: { name: 'asc' },
             take: 60, // performans için makul bir üst sınır
         });
+
+        const proUserIdSet = await getProVenueOwnerIds(venues.map(v => v.userId));
 
         const VALID_SLOT_TYPES = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION'];
         const results = [];
@@ -2401,15 +2385,49 @@ export const getBlockedUsers = async (req, res, next) => {
 
 export const PRO_PACKAGES = ['PRO', 'PREMIUM'];
 
+// Kullanıcı raporu: işletme kendi panelinde Premium görünürken diğer kullanıcılar tesisi
+// Tesis Ara'da "Uygulama içi rezervasyon yok" olarak görüyordu. Sebep: ücretsiz dönemde
+// (BUSINESS_SUBS_COMPLIMENTARY) işletme paneli abonelik satırı olmasa bile Premium gösteriyor,
+// ama Pro kontrolleri yalnızca businessSubscription satırına bakıyordu — grant approveVenue'den
+// önce onaylanmış ya da onay anında isBusiness işaretli olmayan hesaplarda o satır hiç yazılmamış
+// oluyor. Ücretsiz dönemde onaylı tesisi olan işletme Premium sayılır; aktif bir abonelik satırı
+// varsa (ücretli döneme geçildiğinde) her zaman o satır belirleyicidir.
+export async function isProVenueOwner(userId) {
+    if (!userId) return false;
+    const sub = await prisma.businessSubscription.findFirst({
+        where: { userId, status: 'ACTIVE', endDate: { gt: new Date() } },
+        orderBy: { endDate: 'desc' },
+    });
+    if (sub) return PRO_PACKAGES.includes(sub.packageType);
+    if (!BUSINESS_SUBS_COMPLIMENTARY) return false;
+    const approved = await prisma.businessVenue.count({ where: { userId, status: 'APPROVED' } });
+    return approved > 0;
+}
+
+// Arama uçlarının çoklu sürümü — verilen (onaylı tesis) sahiplerinden Pro/Premium sayılanlar.
+export async function getProVenueOwnerIds(userIds) {
+    const ids = [...new Set((userIds || []).filter(Boolean))];
+    if (ids.length === 0) return new Set();
+    const subs = await prisma.businessSubscription.findMany({
+        where: { userId: { in: ids }, status: 'ACTIVE', endDate: { gt: new Date() } },
+        select: { userId: true, packageType: true },
+    });
+    const pkgByUser = new Map(subs.map(s => [s.userId, s.packageType]));
+    const pro = new Set();
+    for (const id of ids) {
+        const pkg = pkgByUser.get(id);
+        if (pkg) { if (PRO_PACKAGES.includes(pkg)) pro.add(id); continue; }
+        if (BUSINESS_SUBS_COMPLIMENTARY) pro.add(id);
+    }
+    return pro;
+}
+
 // Pro/Premium bir tesiste, kullanıcının kalıcı venuePolicyRejectionCount'u 5'i geçtiyse yeni
 // rezervasyon/ilan oluşturmasını engeller — bkz. rejectCancelRequest (sayaç burada artar).
 // Pro altı tesislerde bu kısıtlama hiç uygulanmaz (kullanıcı isteği: sadece Pro ve üstü).
 export async function assertNotVenuePolicyBlocked(venue, userId) {
     if (!userId) return null;
-    const sub = await prisma.businessSubscription.findFirst({
-        where: { userId: venue.userId, status: 'ACTIVE', endDate: { gt: new Date() } },
-    });
-    if (!sub || !PRO_PACKAGES.includes(sub.packageType)) return null;
+    if (!await isProVenueOwner(venue.userId)) return null;
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { venuePolicyRejectionCount: true } });
     if ((user?.venuePolicyRejectionCount || 0) > 5) {
         return { status: 403, message: 'Pro/Premium işletmelerde değiştirme/iptal politikasına uymayan taleplerinizin işletmeler tarafından reddedilme sayısı 5\'i geçtiği için Pro/Premium tesislerde yeni rezervasyon/ilan oluşturamazsınız.' };
@@ -2420,13 +2438,9 @@ export async function assertNotVenuePolicyBlocked(venue, userId) {
 const assertProVenueOwner = async (venueId, userId, featureLabel = 'Menü özelliği') => {
     const venue = await prisma.businessVenue.findUnique({ where: { id: venueId } });
     if (!venue || venue.userId !== userId) return { error: 'Yetkisiz', status: 403 };
-    const now = new Date();
-    const sub = await prisma.businessSubscription.findFirst({
-        where: { userId, status: 'ACTIVE', endDate: { gt: now } },
-    });
-    if (!sub || !PRO_PACKAGES.includes(sub.packageType))
+    if (!await isProVenueOwner(userId))
         return { error: `${featureLabel} için Pro veya Premium paket gereklidir`, status: 403 };
-    return { venue, sub };
+    return { venue };
 };
 
 export const addMenuItem = async (req, res, next) => {
