@@ -358,9 +358,10 @@ model UserInterest {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  // UTR-esinli tenis/padel puanlama (bkz. backend/src/utils/utrRating.js) — SADECE tennis/padel
-  // subCategory'lerinde kullanılır, diğer dallarda hep null/0 kalır. skillRating bu iki dal için
-  // artık otoriter değil (getDisplayRating() üzerinden okunur), geriye dönük uyumluluk için duruyor.
+  // UTR-esinli puanlama (bkz. backend/src/utils/utrRating.js) — tennis/padel/badminton/
+  // table_tennis subCategory'lerinde kullanılır, diğer dallarda hep null/0 kalır. skillRating
+  // bu dallar için artık otoriter değil (getDisplayRating() üzerinden okunur), geriye dönük
+  // uyumluluk için duruyor.
   singlesRating          Float?     // tekli — son ≤30 maçlık kayan pencerenin ağırlıklı ortalaması
   doublesRating          Float?     // çiftler — ayrı kayan pencere
   singlesSeedRating      Float?     // ankettten gelen başlangıç puanı — recompute'ta her zaman referans (bkz. §3 seedWeight)

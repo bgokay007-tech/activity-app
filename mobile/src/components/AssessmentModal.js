@@ -18,9 +18,9 @@ const LEVEL_COLORS = {
 };
 
 export default function AssessmentModal({ visible, interestId, subCategory, lang: langProp, onClose, onComplete, mandatory = false, ratingType = null }) {
-    // ratingType='doubles': tenis'e özgü, tekli anketten TAMAMEN AYRI bir soru seti (bkz.
-    // backend assessments.js QUESTIONS.tennis_doubles) — sonuç ekranında level/percent yok,
-    // sadece çiftler puanı gösterilir (backend bu dalda level döndürmüyor).
+    // ratingType='doubles': UTR dallarında (tenis/badminton/masa tenisi) tekli anketten
+    // TAMAMEN AYRI soru seti (assessments.js QUESTIONS.<dal>_doubles) — sonuç ekranında
+    // level/percent yok, sadece çiftler puanı gösterilir.
     const isDoubles = ratingType === 'doubles';
     // ── All hooks first — no early returns before this block ──
     const langRedux = useSelector(s => s.lang?.lang || 'en');

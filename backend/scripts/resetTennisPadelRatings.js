@@ -16,7 +16,7 @@
 //   railway run node scripts/resetTennisPadelRatings.js --confirm  (gerçek migrasyon)
 import prisma from '../src/config/prisma.js';
 
-const UTR_SUBCATEGORIES = ['tennis', 'padel'];
+const UTR_SUBCATEGORIES = ['tennis', 'padel', 'badminton', 'table_tennis'];
 const CONFIRM = process.argv.includes('--confirm');
 
 async function main() {

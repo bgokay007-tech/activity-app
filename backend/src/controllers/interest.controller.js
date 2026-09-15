@@ -2,7 +2,7 @@ import prisma from '../config/prisma.js';
 import { getQuestions, calculateLevel } from '../config/assessments.js';
 import { getRelation, canAccess } from '../utils/privacy.js';
 import { QUESTION_FIELDS, applyBlendedVolleyballRating } from '../utils/volleyballRating.js';
-import { UTR_SUBCATEGORIES, getDisplayRating, isDoublesFormat, withDisplayRatings } from '../utils/utrRating.js';
+import { UTR_SUBCATEGORIES, UTR_SINGLES_FIRST_SUBCATEGORIES, getDisplayRating, isDoublesFormat, withDisplayRatings } from '../utils/utrRating.js';
 
 // Kategorilerin alt dalları
 export const SUBCATEGORIES = {
@@ -296,10 +296,10 @@ export const getAssessmentQuestions = async (req, res) => {
 
     const key = subCategory === 'football' && position
         ? `football_${position}`
-        // Tenis çiftler: tekli anketten tamamen ayrı bir soru seti (bkz. assessments.js
-        // QUESTIONS.tennis_doubles) — sadece ?ratingType=doubles ile istenir.
-        : subCategory === 'tennis' && ratingType === 'doubles'
-            ? 'tennis_doubles'
+        // Tenis/badminton/masa tenisi çiftler: tekli anketten tamamen ayrı soru seti
+        // (assessments.js QUESTIONS.<dal>_doubles) — sadece ?ratingType=doubles ile istenir.
+        : UTR_SINGLES_FIRST_SUBCATEGORIES.includes(subCategory) && ratingType === 'doubles'
+            ? `${subCategory}_doubles`
             : subCategory;
 
     const questions = getQuestions(key, lang || 'en');
@@ -363,15 +363,15 @@ export const saveAssessment = async (req, res, next) => {
         // Padel TEKLİ için ayrı bir dal YOK — aşağıdaki genel UTR dalına düşüyor, yani tenis
         // teklisiyle birebir aynı: anket sonucu doğrudan singlesSeedRating'e yazılır.
 
-        // Tenis ÇİFTLER anketi: tekli anketten TAMAMEN AYRI bir soru seti (bkz. assessments.js
-        // QUESTIONS.tennis_doubles) — sadece doublesSeedRating/doublesAssessmentCompleted'i
-        // besler, tekli tarafına (assessmentCompleted/singlesSeedRating) dokunmaz. Tekli anketi
-        // önce tamamlanmış olmalı (assessmentCompleted) — aksi halde bu dala hiç eklenemez zaten.
-        if (interest.subCategory === 'tennis' && ratingType === 'doubles') {
+        // Tenis/badminton/masa tenisi ÇİFTLER anketi: tekli anketten TAMAMEN AYRI soru seti
+        // (assessments.js QUESTIONS.<dal>_doubles) — sadece doublesSeedRating/
+        // doublesAssessmentCompleted'i besler, tekli tarafına dokunmaz. Tekli anketi önce
+        // tamamlanmış olmalı.
+        if (UTR_SINGLES_FIRST_SUBCATEGORIES.includes(interest.subCategory) && ratingType === 'doubles') {
             if (!interest.assessmentCompleted) {
                 return res.status(400).json({ message: 'Önce tekli derecelendirme anketini tamamlamalısın.' });
             }
-            const questions = getQuestions('tennis_doubles');
+            const questions = getQuestions(`${interest.subCategory}_doubles`);
             const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
             const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);
             const { skillRating: doublesSkill } = calculateLevel(totalScore, maxScore);
@@ -383,7 +383,7 @@ export const saveAssessment = async (req, res, next) => {
                 // kozmetik gösterim noktasında (rozet, ilan kartı vb.) hâlâ 0/bayat görünürdü.
                 data: { doublesSeedRating: doublesSkill, skillRating: doublesSkill, doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() },
             });
-            return res.json({ interest: withDisplayRatings(updated), totalScore, maxScore, skillRating: getDisplayRating(updated, 'tennis', true) });
+            return res.json({ interest: withDisplayRatings(updated), totalScore, maxScore, skillRating: getDisplayRating(updated, interest.subCategory, true) });
         }
 
         const questions = getQuestions(interest.subCategory);
@@ -391,25 +391,23 @@ export const saveAssessment = async (req, res, next) => {
         const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);
         const { level, skillRating, totalPoints } = calculateLevel(totalScore, maxScore);
 
-        // Tenis (tekli/genel anket): UTR-esinli sisteme geçti (bkz. utrRating.js) — anket sonucu
-        // artık skillRating'e DEĞİL, singlesSeedRating'e yazılır. Çiftler için AYRI bir anket var
-        // (yukarıdaki ratingType==='doubles' dalı) — bu yüzden burada doublesSeedRating'e ARTIK
-        // MİRROR YAZILMIYOR; kullanıcı çiftler anketini tamamlayana kadar doublesAssessmentCompleted
-        // false kalır ve çiftler maçlarına katılamaz (bkz. rival.controller.js requireActiveInterest).
-        // Zaten var olan gerçek maç geçmişi varsa singlesRating/doublesRating'e DOKUNULMAZ.
-        const isUtrTennis = UTR_SUBCATEGORIES.includes(interest.subCategory);
+        // UTR dalları (tekli/genel anket): anket sonucu skillRating'e DEĞİL, singlesSeedRating'e
+        // yazılır. Çiftler için AYRI anket var — burada doublesSeedRating'e ARTIK MİRROR
+        // YAZILMIYOR. Zaten var olan gerçek maç geçmişi varsa singlesRating/doublesRating'e
+        // DOKUNULMAZ.
+        const isUtrSport = UTR_SUBCATEGORIES.includes(interest.subCategory);
         const updated = await prisma.userInterest.update({
             where: { id },
             // skillRating (aynalanmış alan) tekli ankette de güncellenir — aksi halde kullanıcı
             // anketi tamamlayıp gerçek bir puan alsa da ilk maçını oynayana kadar mobildeki
             // onlarca kozmetik gösterim noktasında (ilan kartı/detayı, roster rozeti vb.) hâlâ
             // 0.00 görünüyordu (kullanıcı raporu: "anketi doldurdum 2.75 aldım ama her yerde 0").
-            data: isUtrTennis
+            data: isUtrSport
                 ? { level, singlesSeedRating: skillRating, skillRating, assessmentCompletedAt: new Date(), assessmentCompleted: true, matchesSinceAssessment: 0 }
                 : { level, skillRating, totalPoints, assessmentCompleted: true, matchesSinceAssessment: 0 },
         });
 
-        const responseRating = isUtrTennis ? getDisplayRating(updated, interest.subCategory, false) : skillRating;
+        const responseRating = isUtrSport ? getDisplayRating(updated, interest.subCategory, false) : skillRating;
         res.json({ interest: withDisplayRatings(updated), totalScore, maxScore, level, skillRating: responseRating, totalPoints });
     } catch (error) { next(error); }
 };
@@ -598,10 +596,9 @@ export const getUsersByCategory = async (req, res, next) => {
 };
 
 // Kullanıcı isteği: tenis/padel/badminton/masa tenisi/voleybol dallarında ELO (derece) puan
-// sıralaması — yerel (şehir)/ulusal (ülke)/uluslararası (herkes) 3 kapsam. Tenis/padel UTR-esinli
-// sisteme geçti (bkz. utrRating.js) — bu ikisinde `ratingType` (singles/doubles) query parametresi
-// ile hangi disiplin sıralanacağı seçilir (default singles). Badminton/masa tenisi/voleybol hâlâ
-// tek bir skillRating alanını sıralıyor, ratingType parametresi onlarda yok sayılır.
+// sıralaması — yerel (şehir)/ulusal (ülke)/uluslararası (herkes) 3 kapsam. UTR dallarında
+// (tenis/padel/badminton/masa tenisi) `ratingType` (singles/doubles) query parametresi ile
+// hangi disiplin sıralanacağı seçilir (default singles). Voleybol hâlâ tek skillRating.
 const LEADERBOARD_SPORTS = ['tennis', 'padel', 'badminton', 'table_tennis', 'volleyball'];
 
 export const getLeaderboard = async (req, res, next) => {

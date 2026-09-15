@@ -1,6 +1,7 @@
-// UTR (Universal Tennis Rating) ESİNLİ puanlama — SADECE tennis/padel için. Gerçek UTR'nin
-// katsayıları kamuya açık değil, bu yüzden burada dokümante edilen formül UTR'nin kamuya açık
-// mekaniğinin (support.universaltennis.com) ŞEFFAF bir yaklaşıklamasıdır, birebir klon değildir.
+// UTR (Universal Tennis Rating) ESİNLİ puanlama — tennis/padel/badminton/table_tennis.
+// Gerçek UTR'nin katsayıları kamuya açık değil, bu yüzden burada dokümante edilen formül
+// UTR'nin kamuya açık mekaniğinin (support.universaltennis.com) ŞEFFAF bir yaklaşıklamasıdır,
+// birebir klon değildir.
 //
 // Mantık: her maç sonucu, "bu sonucu üretmek için rakibe karşı ne kadar puanlı olmam gerekirdi"
 // (matchPerformanceRating) sorusuna dönüştürülür. Nihai rating, son 12 ay içindeki en fazla 30
@@ -14,7 +15,14 @@ import prisma from '../config/prisma.js';
 import { createNotification } from '../controllers/notification.controller.js';
 import { subCategoryTR } from './subCategoryLabels.js';
 
-export const UTR_SUBCATEGORIES = ['tennis', 'padel'];
+// Kullanıcı isteği: badminton + masa tenisi tenis ile aynı UTR algoritması / turnuva çeşitleri /
+// puan kazanım-kayıp mantığını kullanır. Tekli/çiftler AYRI (tenis gibi; padel çiftler-öncelikli
+// istisnası bu iki dala uygulanmaz).
+export const UTR_SUBCATEGORIES = ['tennis', 'padel', 'badminton', 'table_tennis'];
+
+// Tenis modeli: önce tekli anket, sonra ayrı çiftler anketi. Padel hariç — orada çiftler
+// varsayılan/birincil ve tekliden bağımsız.
+export const UTR_SINGLES_FIRST_SUBCATEGORIES = ['tennis', 'badminton', 'table_tennis'];
 
 const D = 0.6;                 // lojistik beklenen-sonuç eğrisinin dikliği (0-5 skala) — tunable
 const WINDOW_DAYS = 365;       // 12 aylık kayan pencere
@@ -34,21 +42,23 @@ export function isDoublesFormat({ matchType, tournamentType }) {
     return matchType === 'DOUBLE';
 }
 
-// subCategory badminton/table_tennis/volleyball ise (ya da interest yoksa) eski skillRating'e
-// düşer — bu iki dal UTR sistemine hiç girmiyor, davranışları değişmiyor.
+// UTR dışı dallarda (voleybol vb.) eski skillRating'e düşer.
 export function getDisplayRating(interest, subCategory, isDoubles) {
     if (!interest) return 0;
     if (!UTR_SUBCATEGORIES.includes(subCategory)) return interest.skillRating ?? 0;
     const raw = isDoubles ? interest.doublesRating : interest.singlesRating;
     const seed = isDoubles ? interest.doublesSeedRating : interest.singlesSeedRating;
     const offset = (isDoubles ? interest.doublesRatingOffset : interest.singlesRatingOffset) ?? 0;
-    return Math.max(0, (raw ?? seed ?? 0) + offset);
+    // Badminton/masa tenisi UTR'ye geçmeden önce sadece skillRating taşıyordu — seed henüz
+    // yazılmamış eski kayıtlarda tekli tarafta skillRating'e düş (çiftlerde 0: ayrı anket şart).
+    const legacyFallback = (!isDoubles && raw == null && seed == null) ? (interest.skillRating ?? 0) : 0;
+    return Math.max(0, (raw ?? seed ?? legacyFallback) + offset);
 }
 
 // Mobil "Aktivitelerim" kartı/detayı ve profil ekranı için — tekli/çiftler puanını AYRI AYRI
 // (birleşik skillRating değil) döner, mobilin kendi getDisplayRating mantığını tekrarlamasına
 // gerek kalmasın diye. Henüz o disiplinin anketi tamamlanmadıysa null döner ("—" gösterilsin,
-// yanıltıcı "0.00★" değil). UTR dışı dallarda (badminton/masa tenisi/voleybol vb.) ikisi de null.
+// yanıltıcı "0.00★" değil). UTR dışı dallarda ikisi de null.
 export function withDisplayRatings(interest) {
     if (!interest || !UTR_SUBCATEGORIES.includes(interest.subCategory)) {
         return { ...interest, singlesDisplayRating: null, doublesDisplayRating: null };
@@ -60,11 +70,11 @@ export function withDisplayRatings(interest) {
     };
 }
 
-// No-show/geç iptal gibi cezalar için Prisma update verisi üretir. UTR dallarında (tenis/padel)
+// No-show/geç iptal gibi cezalar için Prisma update verisi üretir. UTR dallarında
 // doğrudan singlesRating/doublesRating'e DOKUNULMAZ — bir sonraki gerçek maçın recompute'u
 // bunu sessizce silerdi. Bunun yerine ilgili disipline (tekli/çiftler) özel offset alanı
 // azaltılır; getDisplayRating() bunu okuma anında rating'in üzerine ekler. Diğer dallarda
-// (badminton/masa tenisi/voleybol/vb.) eski davranış aynen korunur — doğrudan skillRating düşer.
+// eski davranış aynen korunur — doğrudan skillRating düşer.
 //
 // Offset'in tabanı var: ceza en fazla -1.00'e kadar birikir. Tabansızken 10 no-show -4.00 yapıyor
 // ve oyuncu görünen puanda kalıcı olarak 0'a yapışıyordu — ham puanı 4.16'ya çıksa bile görünen
@@ -295,7 +305,11 @@ async function runUtrMatch({ category, subCategory, matchType, sourceType, sourc
     // hesaplarken rakibin cezası hiçe sayılır, aksi halde cezalı bir rakibe karşı kazanmak
     // haksız yere az puan kazandırırdı. Bu yüzden burada getDisplayRating DEĞİL, ham
     // rating/seed kullanılıyor.
-    const ratingOf = (i) => (matchType === 'DOUBLE' ? (i.doublesRating ?? i.doublesSeedRating) : (i.singlesRating ?? i.singlesSeedRating)) ?? 0;
+    // Tekli: eski badminton/masa tenisi kayıtları seed yazmadan skillRating taşır — UTR'ye
+    // geçişte puan sıfırlanmasın diye skillRating son düşüş.
+    const ratingOf = (i) => (matchType === 'DOUBLE'
+        ? (i.doublesRating ?? i.doublesSeedRating)
+        : (i.singlesRating ?? i.singlesSeedRating ?? i.skillRating)) ?? 0;
     const matchCountOf = (i) => (matchType === 'DOUBLE' ? i.doublesMatchCount : i.singlesMatchCount) ?? 0;
     const lastMatchAtOf = (i) => matchType === 'DOUBLE' ? i.doublesLastMatchAt : i.singlesLastMatchAt;
 
@@ -341,14 +355,22 @@ async function runUtrMatch({ category, subCategory, matchType, sourceType, sourc
                 ratingBefore: before, ratingAfter: before,
             },
         });
-        const newRating = await recomputeRatingFromHistory(interest.userId, subCategory, matchType, interest[seedField]);
+        // Eski badminton/masa tenisi: singlesSeedRating yazılmamış olabilir — skillRating'i seed say.
+        const seedForRecompute = interest[seedField]
+            ?? (matchType !== 'DOUBLE' ? interest.skillRating : null)
+            ?? 0;
+        const newRating = await recomputeRatingFromHistory(interest.userId, subCategory, matchType, seedForRecompute);
         await Promise.all([
             prisma.ratingMatchRecord.update({ where: { id: record.id }, data: { ratingAfter: newRating } }),
             prisma.userInterest.update({
                 where: { id: interest.id },
                 data: {
                     [ratingField]: newRating,
-                    // skillRating artık bu iki dal için OTORİTER değil (bkz. getDisplayRating),
+                    // Eksik seed'i ilk gerçek maçta doldur — sonraki recompute'lar 0 seed'e düşmesin.
+                    ...(interest[seedField] == null && matchType !== 'DOUBLE' && interest.skillRating != null
+                        ? { [seedField]: interest.skillRating }
+                        : {}),
+                    // skillRating artık bu dallar için OTORİTER değil (bkz. getDisplayRating),
                     // ama en son oynanan formatın puanına "ayna" tutuluyor — mobil/backend'deki
                     // henüz singlesRating/doublesRating'e taşınmamış onlarca eski gösterim
                     // noktasının (roster rozetleri vb.) sıfır/bayat göstermemesi için geçici bir
@@ -442,7 +464,10 @@ export async function revertUtrMatchRecords({ category, subCategory, sourceType,
         });
         if (!interest) continue;
         const seedField = isDoubles ? 'doublesSeedRating' : 'singlesSeedRating';
-        const restored = await recomputeRatingFromHistory(r.userId, subCategory, r.matchType, interest[seedField]);
+        const seedForRecompute = interest[seedField]
+            ?? (!isDoubles ? interest.skillRating : null)
+            ?? 0;
+        const restored = await recomputeRatingFromHistory(r.userId, subCategory, r.matchType, seedForRecompute);
         // Kalan kayıtların en yenisi = gerçek "son maç" tarihi; hiç kalmadıysa null.
         const remaining = await prisma.ratingMatchRecord.findMany({
             where: { userId: r.userId, subCategory, matchType: r.matchType },

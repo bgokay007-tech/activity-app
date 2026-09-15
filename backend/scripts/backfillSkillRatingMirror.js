@@ -18,7 +18,7 @@
 import prisma from '../src/config/prisma.js';
 import { getDisplayRating } from '../src/utils/utrRating.js';
 
-const UTR_SUBCATEGORIES = ['tennis', 'padel'];
+const UTR_SUBCATEGORIES = ['tennis', 'padel', 'badminton', 'table_tennis'];
 const CONFIRM = process.argv.includes('--confirm');
 
 function mostRecentDisplayRating(interest) {

@@ -32,7 +32,8 @@ const RATING_REQUIRED_SUBS = new Set([
 
 // UTR-esinli sisteme geçen dallar (bkz. backend utrRating.js) — tekli/çiftler puanı AYRI,
 // değerlendirme de iki seçenekli (Tekli/Çiftler) açılıyor. Diğer dallarda tek "Değerlendir".
-const SINGLES_DOUBLES_SUBS = new Set(['tennis', 'padel']);
+const SINGLES_DOUBLES_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis']);
+const UTR_SINGLES_FIRST_SUBS = new Set(['tennis', 'badminton', 'table_tennis']);
 
 export default function ManageActivitiesModal({ visible, interests, onClose, onInterestsChange, privacyEmojiIcon, onPrivacyPress }) {
     const t = useT();
@@ -176,7 +177,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
             { text: t.doublesAssessOption, onPress: () => {
                 // Padel'de çiftler tekliden BAĞIMSIZ (kullanıcı isteği: %99 çiftler oynanıyor) —
                 // sadece tenis'te çiftlerden önce tekli anketi tamamlanmış olmalı.
-                if (subId === 'tennis' && !existing.assessmentCompleted) { Alert.alert(t.assessPickerTitle, t.doSinglesFirstMsg); return; }
+                if (UTR_SINGLES_FIRST_SUBS.has(subId) && !existing.assessmentCompleted) { Alert.alert(t.assessPickerTitle, t.doSinglesFirstMsg); return; }
                 if (!canDoDoubles) { Alert.alert(t.assessPickerTitle, t.tooManyMatchesMsg); return; }
                 setAssessTarget({ interestId: existing.id, subCategory: subId, ratingType: 'doubles' });
             }},

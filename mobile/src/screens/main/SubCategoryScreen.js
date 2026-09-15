@@ -85,13 +85,17 @@ const TEAM_SPORTS = new Set(['football', 'volleyball']);
 // gelen istekler/gönderilen davetler ve digimon kartlarda kullanıcı adının yanında maçın
 // FORMATINA (tekli/çiftli) göre doğru puan, "T ELO"/"Ç ELO" (İngilizce "S ELO"/"D ELO") gibi
 // açıkça etiketlenmiş şekilde görünsün — hangi puanın gösterildiği belirsiz kalmasın diye.
-const UTR_MOBILE_SUBS = new Set(['tennis', 'padel']);
+const UTR_MOBILE_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis']);
 function utrDisplayRating(interest, sub, isDoubles) {
     if (!interest || !UTR_MOBILE_SUBS.has(sub)) return null;
     const raw = isDoubles ? interest.doublesRating : interest.singlesRating;
     const seed = isDoubles ? interest.doublesSeedRating : interest.singlesSeedRating;
     const offset = (isDoubles ? interest.doublesRatingOffset : interest.singlesRatingOffset) ?? 0;
-    if (raw == null && seed == null) return null;
+    if (raw == null && seed == null) {
+        // Eski badminton/masa tenisi: UTR seed yokken skillRating'e düş (backend ile aynı).
+        if (!isDoubles && interest.skillRating != null) return Math.max(0, interest.skillRating + offset);
+        return null;
+    }
     return Math.max(0, (raw ?? seed ?? 0) + offset);
 }
 // Kullanıcı adının yanına eklenecek hazır metni üretir — tenis/padel'de "  T ELO 2.75" gibi
@@ -13528,12 +13532,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // singlesRating/doublesRating (yoksa seed'i), üzerine varsa ceza offset'i eklenir.
     const myOwnRating = (() => {
         if (!myInterestForSub) return null;
-        if (sub !== 'tennis' && sub !== 'padel') return myInterestForSub.skillRating ?? null;
+        if (!UTR_MOBILE_SUBS.has(sub)) return myInterestForSub.skillRating ?? null;
         const isDoublesFmt = f.matchType === 'DOUBLE';
         const raw = isDoublesFmt ? myInterestForSub.doublesRating : myInterestForSub.singlesRating;
         const seed = isDoublesFmt ? myInterestForSub.doublesSeedRating : myInterestForSub.singlesSeedRating;
         const offset = (isDoublesFmt ? myInterestForSub.doublesRatingOffset : myInterestForSub.singlesRatingOffset) ?? 0;
-        if (raw == null && seed == null) return null;
+        // Eski badminton/masa tenisi: seed yoksa skillRating'e düş (backend getDisplayRating ile aynı).
+        if (raw == null && seed == null) {
+            if (!isDoublesFmt && myInterestForSub.skillRating != null) return Math.max(0, myInterestForSub.skillRating + offset);
+            return null;
+        }
         return Math.max(0, (raw ?? seed ?? 0) + offset);
     })();
     // Kullanıcı isteği: önce digimon karttan partner/rakip seçilip SONRA derece kısıtlaması
@@ -13542,7 +13550,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // kısıtlamasını koyamazsınız" tarzı, ratingFitsSlot'un (seçim anındaki kontrol) tam tersi
     // yönde tamamlayıcısı.
     const rosterRatingChecks = () => {
-        if (sub !== 'tennis' && sub !== 'padel') return [];
+        if (!UTR_MOBILE_SUBS.has(sub)) return [];
         const isDoublesFmt = f.matchType === 'DOUBLE';
         const slots = f.matchType === 'DOUBLE'
             ? [
@@ -14710,7 +14718,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 Alert.alert('Format Değiştirilemez', 'Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemez — önce katılımcıları çıkarabilirsin.');
                                                                 return;
                                                             }
-                                                            if (fmt.id === 'DOUBLE' && (sub === 'tennis' || sub === 'padel') && !myInterestForSub?.doublesAssessmentCompleted) {
+                                                            if (fmt.id === 'DOUBLE' && UTR_MOBILE_SUBS.has(sub) && !myInterestForSub?.doublesAssessmentCompleted) {
                                                                 setActivePopup(null);
                                                                 setDoublesGateOpen(true);
                                                                 return;
@@ -21678,9 +21686,9 @@ const RATING_REC = [
 function RatingInfoModal({ visible, onClose, cfg, sub }) {
     const isVolleyball = sub === 'volleyball';
     // Tenis/Padel artık sabit tablolu eski Elo sistemini değil, UTR benzeri (son 30 maçın
-    // ağırlıklı ortalaması) sistemi kullanıyor — bkz. backend/src/utils/utrRating.js. Badminton/
-    // masa tenisi/voleybol hâlâ eski sabit tabloyu kullandığı için onların sekmeleri değişmedi.
-    const isUtrSport = sub === 'tennis' || sub === 'padel';
+    // ağırlıklı ortalaması) sistemi kullanıyor — bkz. backend/src/utils/utrRating.js.
+    // Badminton/masa tenisi de aynı UTR listesine alındı (kullanıcı isteği).
+    const isUtrSport = UTR_MOBILE_SUBS.has(sub);
     const [section, setSection] = useState(isVolleyball ? 'kurallar' : isUtrSport ? 'sistem' : 'dominant');
     const rows = section === 'dominant' ? RATING_DOM : RATING_REC;
     // Tenis skoru (6-0 vb.) voleybolde anlamsız — voleybolde dominantlık SET FARKINA göre
@@ -22068,10 +22076,9 @@ function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
 // vurgulanır. Header'daki ℹ️ ile 🃏 (varsa) arasına konan yeni bir butonla açılır.
 function LeaderboardModal({ visible, onClose, cfg, sub, onUserPress }) {
     const [scope, setScope] = useState('international'); // local | national | international
-    // Tenis/padel UTR-esinli sisteme geçti — tekli/çiftler AYRI puanlanıyor, bu yüzden
-    // sıralama da hangi disiplin gösterileceğini seçen bir toggle'a ihtiyaç duyuyor.
-    // Diğer dallarda (badminton/masa tenisi/voleybol) tek bir puan var, toggle gösterilmez.
-    const isUtrSport = sub === 'tennis' || sub === 'padel';
+    // UTR dalları — tekli/çiftler AYRI puanlanıyor, sıralamada disiplin toggle'ı gösterilir.
+    // Voleybol hâlâ tek puan; toggle yok.
+    const isUtrSport = UTR_MOBILE_SUBS.has(sub);
     const [ratingType, setRatingType] = useState('singles'); // singles | doubles
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState(null);

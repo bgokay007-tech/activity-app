@@ -30,6 +30,10 @@ import StoryMessageBar from '../../components/StoryMessageBar';
 import { sharePost } from '../../utils/share';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+// UTR dalları — tekli/çiftler ayrı puan + anket (bkz. backend utrRating.js).
+const UTR_PROFILE_SUBS = ['tennis', 'padel', 'badminton', 'table_tennis'];
+const UTR_SINGLES_FIRST_SUBS = new Set(['tennis', 'badminton', 'table_tennis']);
+
 // ─── Sport Card Flip Modal ────────────────────────────────────────────────────
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -467,7 +471,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 setAssessGate({ ratingType: null });
             }},
             { text: t.doublesAssessOption, onPress: () => {
-                if (item.subCategory === 'tennis' && !item.assessmentCompleted) { Alert.alert(t.assessPickerTitle, t.doSinglesFirstMsg); return; }
+                if (UTR_SINGLES_FIRST_SUBS.has(item.subCategory) && !item.assessmentCompleted) { Alert.alert(t.assessPickerTitle, t.doSinglesFirstMsg); return; }
                 if (!canDoDoubles) { Alert.alert(t.assessPickerTitle, t.tooManyMatchesMsg); return; }
                 setAssessGate({ ratingType: 'doubles' });
             }},
@@ -545,13 +549,13 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 {/* Kullanıcı isteği: onaylı antrenör/hakem rozeti olanlar, ELO puanının hemen
                                     altında (aynı kutu içinde) "Antrenör"/"Hakem" etiketiyle görünsün — bkz.
                                     backend interest.controller.js attachCoachRefereeBadges. */}
-                                {(item.assessmentCompleted || item.doublesAssessmentCompleted || item.isCoach || item.isReferee || (isOwnProfile && ['tennis','padel'].includes(item.subCategory))) && (
+                                {(item.assessmentCompleted || item.doublesAssessmentCompleted || item.isCoach || item.isReferee || (isOwnProfile && UTR_PROFILE_SUBS.includes(item.subCategory))) && (
                                     <View style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 1, paddingHorizontal: 4, borderWidth: 1, borderColor: '#facc1540' }}>
                                         {/* Tenis/padel: tekli/çiftler puanı AYRI gösterilir (bkz. backend
                                             utrRating.js) — ikisi de dokununca aynı ELO geçmişi grafiğini açar.
                                             Kullanıcı isteği: henüz hiç değerlendirme yapılmamışsa bile "—" ile
                                             gösterilsin, altında "Değerlendir" butonu olsun (bkz. openAssessPicker). */}
-                                        {['tennis','padel'].includes(item.subCategory) ? (
+                                        {UTR_PROFILE_SUBS.includes(item.subCategory) ? (
                                             <>
                                                 <TouchableOpacity onPress={() => (item.assessmentCompleted || item.doublesAssessmentCompleted) && setShowEloModal(true)} disabled={!(item.assessmentCompleted || item.doublesAssessmentCompleted)} style={{ alignItems: 'center' }}>
                                                     {(item.subCategory !== 'padel' || item.assessmentCompleted || (item.singlesMatchCount || 0) > 0) && (
@@ -726,7 +730,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, paddingBottom: 33, borderWidth: 1, borderColor: '#a855f730' }}>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                         <View>
-                                            {['tennis','padel'].includes(item.subCategory) ? (
+                                            {UTR_PROFILE_SUBS.includes(item.subCategory) ? (
                                                 <Text style={{ color: '#facc15', fontSize: 14, fontWeight: '900' }} numberOfLines={1}>
                                                     ELO ★{(item.subCategory !== 'padel' || item.assessmentCompleted || (item.singlesMatchCount || 0) > 0) ? ` ${lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'О' : lang === 'de' ? 'E' : 'S'} ${item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'} ·` : ''} {lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'П' : lang === 'de' ? 'D' : 'D'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
                                                 </Text>
@@ -2896,7 +2900,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                 historyMatches: myHistory.filter(m => m.subCategory === i.subCategory).slice(-14),
                                                 reservationCount,
                                             })}
-                                            style={{ backgroundColor: colors.surface2, borderRadius: 16, paddingTop: 3, paddingBottom: 11, paddingHorizontal: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, height: (i.isCoach || i.isReferee) ? 138 : (['tennis','padel'].includes(i.subCategory) ? 138 : 128), gap: 3, opacity: i.hidden ? 0.4 : 1 }}
+                                            style={{ backgroundColor: colors.surface2, borderRadius: 16, paddingTop: 3, paddingBottom: 11, paddingHorizontal: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border, width: 90, height: (i.isCoach || i.isReferee) ? 138 : (UTR_PROFILE_SUBS.includes(i.subCategory) ? 138 : 128), gap: 3, opacity: i.hidden ? 0.4 : 1 }}
                                         >
                                             {i.subCategory === 'padel'
                                                 ? <Image source={require('../../../assets/padel.png')} style={{ width: 34, height: 34 }} resizeMode="contain" />
@@ -2907,7 +2911,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             {i.alias ? <Text style={{ color: '#a855f7', fontSize: 9, fontWeight: '700' }} numberOfLines={1}>{i.alias}</Text> : null}
                                             {/* Tenis/padel: tekli/çiftler puanı AYRI (bkz. backend utrRating.js) —
                                                 iki kısa satır olarak gösterilir, diğer dallarda tek birleşik puan. */}
-                                            {['tennis','padel'].includes(i.subCategory) ? (
+                                            {UTR_PROFILE_SUBS.includes(i.subCategory) ? (
                                                 <View style={{ alignItems: 'center' }}>
                                                     {(i.subCategory !== 'padel' || i.assessmentCompleted || (i.singlesMatchCount || 0) > 0) && (
                                                         <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '900' }} numberOfLines={1}>
