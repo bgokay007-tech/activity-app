@@ -16700,14 +16700,12 @@ const hasTournSpecificCourt = (item) => {
     if (/ortaklaşa|oyuncular|players decide|gemeinsam|соглас/i.test(loc)) return false;
     return true;
 };
-// Zemin yalnızca oluşturan özellikle seçtiyse gösterilir.
-// Belirli kort yokken eski/otomatik CLAY (kort seçilip vazgeçilince kalan)
-// yanlış yönlendirme yapmasın diye o durumda gizlenir — bilinçli seçim
-// için oluşturma formunda "isteğe bağlı zemin" chip'i surface yazar ve
-// belirli kort olmasa da below'da surface doluysa gösterilir... hayır:
-// ortak kort + bilinçli zemin de olsun diye surface doluysa her zaman göster.
+// Kort oyunculara bırakıldıysa zemin kartta çıkmasın — eski/otomatik CLAY
+// (kort seçilip sonra vazgeçilince kalan) yanlış yönlendirir. Zemin yalnızca
+// belirli kort seçilip özellikle belirtilmişse gösterilir.
 const hasTournExplicitSurface = (item) => {
     if (!item?.surface || item.surface === 'PLAYERS_DECIDE') return false;
+    if (!hasTournSpecificCourt(item)) return false;
     return true;
 };
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
