@@ -16700,6 +16700,16 @@ const hasTournSpecificCourt = (item) => {
     if (/ortaklaşa|oyuncular|players decide|gemeinsam|соглас/i.test(loc)) return false;
     return true;
 };
+// Zemin yalnızca oluşturan özellikle seçtiyse gösterilir.
+// Belirli kort yokken eski/otomatik CLAY (kort seçilip vazgeçilince kalan)
+// yanlış yönlendirme yapmasın diye o durumda gizlenir — bilinçli seçim
+// için oluşturma formunda "isteğe bağlı zemin" chip'i surface yazar ve
+// belirli kort olmasa da below'da surface doluysa gösterilir... hayır:
+// ortak kort + bilinçli zemin de olsun diye surface doluysa her zaman göster.
+const hasTournExplicitSurface = (item) => {
+    if (!item?.surface || item.surface === 'PLAYERS_DECIDE') return false;
+    return true;
+};
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
 
 // Turnuva sohbeti / maç yorumunda @username parçalarını vurgula.
@@ -17982,7 +17992,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </Text>
                     </View>
                 ) : null}
-                {item.surface && item.surface !== 'PLAYERS_DECIDE' ? (
+                {hasTournExplicitSurface(item) ? (
                     <View style={{ backgroundColor:'#0ea5e915', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#0ea5e940' }}>
                         <Text style={{ color:'#7dd3fc', fontSize:10, fontWeight:'700' }}>{getSurface(t, item.surface)}</Text>
                     </View>
@@ -19920,7 +19930,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </Text>
                                     </View>
                                 ) : null}
-                                {item.surface && item.surface !== 'PLAYERS_DECIDE' ? (
+                                {hasTournExplicitSurface(item) ? (
                                     <View style={{ backgroundColor:'#0ea5e915', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#0ea5e940' }}>
                                         <Text style={{ color:'#7dd3fc', fontSize:10, fontWeight:'700' }}>{getSurface(t, item.surface)}</Text>
                                     </View>
@@ -20605,9 +20615,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 minPlayers: f.minPlayers ? parseInt(f.minPlayers) : undefined,
                 maxPlayers: f.maxPlayers ? parseInt(f.maxPlayers) : undefined,
                 location: courtName || null,
-                surface: f.courtDecidedByPlayers
-                    ? (f.surface || null)
-                    : (f.surface || null),
+                // Belirli kort yoksa zemin kaydetme — oyuncular kortla birlikte kararlaştırır
+                surface: f.courtDecidedByPlayers ? null : (f.surface || null),
                 isIndoor: f.courtDecidedByPlayers ? false : f.isIndoor,
                 isPaid: f.isPaid,
                 feeType: f.feeType,
@@ -20786,66 +20795,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </Text>
                                 </TouchableOpacity>
                             </View>
-                            {f.courtDecidedByPlayers && !isAirsoft && sub === 'tennis' && (
-                                <>
-                                    <Text style={s.fieldLabelRed}>{t.tournSurfaceLabel || t.surfaceLabel}</Text>
-                                    <View style={[s.chipRow, { marginBottom:8 }]}>
-                                        <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.surface === 'HARD' && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                            onPress={() => set('surface', f.surface === 'HARD' ? '' : 'HARD')}>
-                                            <Text style={[s.chipText, f.surface === 'HARD' && { color: cfg.color, fontWeight:'800' }]}>🔵 {t.tournSurfaceHard || t.surfaceHARD}</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.surface === 'CLAY' && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                            onPress={() => set('surface', f.surface === 'CLAY' ? '' : 'CLAY')}>
-                                            <Text style={[s.chipText, f.surface === 'CLAY' && { color: cfg.color, fontWeight:'800' }]}>🟤 {t.tournSurfaceClay || t.surfaceCLAY}</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.surface && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                            onPress={() => set('surface', '')}>
-                                            <Text style={[s.chipText, !f.surface && { color: cfg.color, fontWeight:'800' }]}>🤝 {t.tournSurfacePlayersDecide}</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:8, borderWidth:1, borderColor:'#334155' }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', lineHeight:16 }}>
-                                            {t.tournCourtPlayersArrange || t.tournCourtPlayersDecide}
-                                        </Text>
-                                    </View>
-                                </>
-                            )}
-                            {f.courtDecidedByPlayers && !isAirsoft && (sub === 'padel' || sub === 'badminton' || sub === 'table_tennis') && (
-                                <>
-                                    <Text style={s.fieldLabelRed}>{t.tournSurfaceLabel || t.surfaceLabel}</Text>
-                                    <View style={[s.chipRow, { marginBottom:8 }]}>
-                                        <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.surface === 'ARTIFICIAL' && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                            onPress={() => set('surface', f.surface === 'ARTIFICIAL' ? '' : 'ARTIFICIAL')}>
-                                            <Text style={[s.chipText, f.surface === 'ARTIFICIAL' && { color: cfg.color, fontWeight:'800' }]}>🟩 {t.surfaceARTIFICIAL}</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.surface && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                            onPress={() => set('surface', '')}>
-                                            <Text style={[s.chipText, !f.surface && { color: cfg.color, fontWeight:'800' }]}>🤝 {t.tournSurfacePlayersDecide}</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:8, borderWidth:1, borderColor:'#334155' }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', lineHeight:16 }}>
-                                            {t.tournCourtPlayersArrange || t.tournCourtPlayersDecide}
-                                        </Text>
-                                    </View>
-                                </>
-                            )}
-                            {f.courtDecidedByPlayers && !isAirsoft && !['tennis', 'padel', 'badminton', 'table_tennis'].includes(sub) && (
+                            {f.courtDecidedByPlayers && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:8, borderWidth:1, borderColor:'#334155' }}>
                                     <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', lineHeight:16 }}>
-                                        {t.tournCourtPlayersArrange || t.tournCourtPlayersDecide}
-                                    </Text>
-                                </View>
-                            )}
-                            {f.courtDecidedByPlayers && isAirsoft && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:8, borderWidth:1, borderColor:'#334155' }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', lineHeight:16 }}>
-                                        {lang==='tr' ? 'Takımlar ortaklaşa mekan seçecek' : (t.tournCourtPlayersArrange || t.tournCourtPlayersDecide)}
+                                        {isAirsoft
+                                            ? (lang==='tr' ? 'Takımlar ortaklaşa mekan seçecek' : lang === 'ru' ? 'Команды совместно согласуют место' : lang === 'de' ? 'Teams einigen sich gemeinsam' : 'Teams agree jointly')
+                                            : (t.tournCourtPlayersArrange || t.tournCourtPlayersDecide)}
                                     </Text>
                                 </View>
                             )}
@@ -23209,6 +23164,49 @@ export default function SubCategoryScreen({ route, navigation }) {
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         }
+    };
+
+    const openChatWithClub = async (listing) => {
+        const otherId = listing.userId;
+        try {
+            const { data: conv } = await api.get(`/messages/conversation/${otherId}`);
+            const enriched = { ...conv, other: conv.user1Id === myId ? conv.user2 : conv.user1 };
+            try {
+                const { data: history } = await api.get(`/messages/conversation/${conv.id}/messages`);
+                const alreadyReferenced = (history?.messages || []).some(m => m.clubListingId === listing.id || m.clubListing?.id === listing.id);
+                if (!alreadyReferenced) {
+                    await api.post(`/messages/send/${otherId}`, {
+                        content: t.clubContactMsg || '🏟️ Kulübünüz hakkında yazıyorum.',
+                        clubListingId: listing.id,
+                    });
+                }
+            } catch { /* sohbeti yine de aç */ }
+            navigation.navigate('MessagesTab', { screen: 'Chat', params: { conversation: enriched, other: enriched.other, club: listing } });
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        }
+    };
+
+    const [showClubApply, setShowClubApply] = useState(null); // club listing
+    const [clubApplyMsg, setClubApplyMsg] = useState('');
+    const [submittingClubApply, setSubmittingClubApply] = useState(false);
+
+    const submitClubMembership = async () => {
+        if (!showClubApply) return;
+        setSubmittingClubApply(true);
+        try {
+            await api.post(`/clubs/${showClubApply.id}/membership-apply`, {
+                message: clubApplyMsg.trim() || undefined,
+            });
+            setClubListings(prev => prev.map(c =>
+                c.id === showClubApply.id ? { ...c, myMembershipStatus: 'PENDING' } : c
+            ));
+            setShowClubApply(null);
+            setClubApplyMsg('');
+            Alert.alert('', t.clubApplySent || 'Üyelik başvurunuz gönderildi');
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setSubmittingClubApply(false); }
     };
 
     // Referees data — sadece tennis/padel/volleyball'da Antrenörler sekmesinin
@@ -26260,19 +26258,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         );
                         return (
                             <>
-                                <CityAlertRow tab="tournaments" dateFilter>
-                                    <TouchableOpacity
-                                        style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
-                                        onPress={() => {
-                                            if (myIsAdmin || tournamentPermStatus === 'APPROVED') setShowCreateTournament(true);
-                                            else setShowTournamentPermission(true);
-                                        }}
-                                    >
-                                        <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createTournamentBtn}</Text>
-                                    </TouchableOpacity>
-                                </CityAlertRow>
-
-                                {/* Sub-tab: Açık İlanlar / Devam Eden */}
+                                {/* Sub-tab üstte: Açık İlanlar / Devam Eden */}
                                 <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                     {[
                                         { key:'open',       label: t.tournOpenTab,       count: open.length },
@@ -26286,6 +26272,21 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </TouchableOpacity>
                                     ))}
                                 </View>
+
+                                {/* Turnuva oluştur + zil + filtre — yalnızca Açık İlanlar'da oluştur butonu */}
+                                <CityAlertRow tab="tournaments" dateFilter>
+                                    {tournSubTab === 'open' ? (
+                                        <TouchableOpacity
+                                            style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
+                                            onPress={() => {
+                                                if (myIsAdmin || tournamentPermStatus === 'APPROVED') setShowCreateTournament(true);
+                                                else setShowTournamentPermission(true);
+                                            }}
+                                        >
+                                            <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createTournamentBtn}</Text>
+                                        </TouchableOpacity>
+                                    ) : null}
+                                </CityAlertRow>
 
                                 {(loadingTournaments && tournaments.length === 0)
                                     ? <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
@@ -26930,6 +26931,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <Text style={{ fontSize:22 }}>🏟️</Text>
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{cl.name}</Text>
+                                                        {cl.venueId ? (
+                                                            <Text style={{ color:cfg.color, fontSize:10, fontWeight:'700', marginTop:1 }}>
+                                                                {t.clubBusinessBadge || 'İşletme kulübü'}
+                                                                {cl.venue?.name ? ` · ${cl.venue.name}` : ''}
+                                                            </Text>
+                                                        ) : null}
                                                         {(cl.city || (Array.isArray(cl.cities) && cl.cities.length > 0)) && (
                                                             <Text style={{ color:colors.textMuted, fontSize:11 }}>
                                                                 📍 {Array.isArray(cl.cities) && cl.cities.length > 0 ? cl.cities.join(', ') : cl.city}
@@ -26951,7 +26958,30 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     </TouchableOpacity>
                                                 ) : null}
                                                 {cl.description ? <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={3}>{cl.description}</Text> : null}
-                                                <View style={{ flexDirection:'row', gap:3, marginTop:8 }}>
+                                                {cl.myMembershipStatus ? (
+                                                    <Text style={{ color: cl.myMembershipStatus === 'ACCEPTED' ? '#4ade80' : cl.myMembershipStatus === 'REJECTED' ? '#f87171' : '#fbbf24', fontSize:11, fontWeight:'700', marginTop:6 }}>
+                                                        {cl.myMembershipStatus === 'ACCEPTED'
+                                                            ? (t.clubApplyAccepted || '✅ Üyelik kabul edildi')
+                                                            : cl.myMembershipStatus === 'REJECTED'
+                                                                ? (t.clubApplyRejected || '❌ Başvuru reddedildi')
+                                                                : (t.clubApplyPending || '⏳ Başvurunuz bekleniyor')}
+                                                    </Text>
+                                                ) : null}
+                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:8 }}>
+                                                    {cl.userId !== myId && (
+                                                        <TouchableOpacity
+                                                            onPress={() => openChatWithClub(cl)}
+                                                            style={{ paddingHorizontal:9, paddingVertical:5, borderRadius:8, backgroundColor:cfg.color + '25', borderWidth:1, borderColor:cfg.color + '60' }}>
+                                                            <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{t.clubContactBtn || 'İletişime Geç'}</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                    {cl.userId !== myId && (!cl.myMembershipStatus || cl.myMembershipStatus === 'REJECTED') && (
+                                                        <TouchableOpacity
+                                                            onPress={() => { setShowClubApply(cl); setClubApplyMsg(''); }}
+                                                            style={{ paddingHorizontal:9, paddingVertical:5, borderRadius:8, backgroundColor:'#16a34a25', borderWidth:1, borderColor:'#16a34a60' }}>
+                                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>{t.clubApplyBtn || 'Üye Başvurusu'}</Text>
+                                                        </TouchableOpacity>
+                                                    )}
                                                     {cl.userId !== myId && (
                                                         <TouchableOpacity
                                                             onPress={() => reportListing('clubs', cl.id)}
@@ -27527,6 +27557,32 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
+                    </KeyboardSafeModal>
+
+                    {/* ── Kulüp Üyelik Başvurusu ── */}
+                    <KeyboardSafeModal visible={!!showClubApply} onClose={() => { setShowClubApply(null); setClubApplyMsg(''); }}>
+                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:8 }}>{t.clubApplyTitle || 'Üye Başvurusu'}</Text>
+                        {showClubApply ? (
+                            <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:12 }}>{showClubApply.name}</Text>
+                        ) : null}
+                        <TextInput
+                            placeholder={t.clubApplyMsgPh || 'Kısaca kendinizi tanıtın (opsiyonel)'}
+                            placeholderTextColor={colors.textMuted}
+                            value={clubApplyMsg}
+                            onChangeText={setClubApplyMsg}
+                            multiline
+                            style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:8, color:'#fff', marginBottom:12, borderWidth:1, borderColor:colors.border, minHeight:80, textAlignVertical:'top' }}
+                        />
+                        <View style={{ flexDirection:'row', gap:3 }}>
+                            <TouchableOpacity onPress={() => { setShowClubApply(null); setClubApplyMsg(''); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.cancelBtn || 'İptal'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={submitClubMembership} disabled={submittingClubApply} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
+                                <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
+                                    {submittingClubApply ? '...' : (t.clubApplySendBtn || 'Başvuruyu Gönder')}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
                     </KeyboardSafeModal>
 
                     {/* ── CV Yükle (antrenörlük / hakemlik ayrımıyla) ── */}
@@ -30419,8 +30475,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 {row('👤 Organizatör', tourn.creator?.fullName || tourn.creator?.username)}
                                                 {tourn.city ? row('📍 Şehir', tourn.city) : null}
                                                 {tourn.location ? row('🏟️ Mekan', tourn.location) : null}
-                                                {tourn.surface ? row('🎾 Zemin', tourn.surface) : null}
-                                                {typeof tourn.isIndoor === 'boolean' ? row('🏠 Alan', tourn.isIndoor ? 'Kapalı' : 'Açık') : null}
+                                                {hasTournExplicitSurface(tourn) ? row('🎾 Zemin', getSurface(t, tourn.surface)) : null}
+                                                {typeof tourn.isIndoor === 'boolean' && hasTournSpecificCourt(tourn) ? row('🏠 Alan', tourn.isIndoor ? 'Kapalı' : 'Açık') : null}
                                                 {tourn.eventDate ? row('📅 Başlangıç', new Date(tourn.eventDate).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })) : null}
                                                 {tourn.eventEndDate ? row('📅 Bitiş', new Date(tourn.eventEndDate).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })) : null}
                                                 {row('👥 Katılımcı', `${tourn._count?.participants || 0} kişi`)}

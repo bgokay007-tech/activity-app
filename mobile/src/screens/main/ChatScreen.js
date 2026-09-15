@@ -32,7 +32,7 @@ function timeAgo(date) {
 }
 
 export default function ChatScreen({ route, navigation }) {
-    const { conversation: convParam, other: otherProp, rival, equipment, coach } = route.params;
+    const { conversation: convParam, other: otherProp, rival, equipment, coach, club } = route.params;
     const myId = useSelector(s => s.auth.user?.id);
     const t = useT();
     const [messages, setMessages] = useState([]);
@@ -66,6 +66,7 @@ export default function ChatScreen({ route, navigation }) {
     // bu parametreyi almaz. Banner'ı, hangi taraf açarsa açsın görünsün diye
     // mesaj geçmişindeki ilan referansından da (varsa) türetiyoruz.
     const coachListingCtx = coach || [...messages].reverse().find(m => m.coachListing)?.coachListing || null;
+    const clubListingCtx = club || [...messages].reverse().find(m => m.clubListing)?.clubListing || null;
 
     const openEquipmentListing = (listing) => {
         if (!listing?.category || !listing?.subCategory) return;
@@ -75,6 +76,11 @@ export default function ChatScreen({ route, navigation }) {
     const openCoachListing = (listing) => {
         if (!listing?.category || !listing?.subCategory) return;
         navigation.push('SubCategory', { category: listing.category, sub: listing.subCategory, initialTab: 'coaches', openCoachId: listing.id });
+    };
+
+    const openClubListing = (listing) => {
+        if (!listing?.category || !listing?.subCategory) return;
+        navigation.push('SubCategory', { category: listing.category, sub: listing.subCategory, initialTab: 'coaches', initialCoachSubTab: 'clubs' });
     };
 
     const [sharedPreview, setSharedPreview] = useState(null);
@@ -533,6 +539,15 @@ export default function ChatScreen({ route, navigation }) {
                             </View>
                         </TouchableOpacity>
                     )}
+                    {item.clubListing && (
+                        <TouchableOpacity style={styles.msgEquipCard} onPress={() => openClubListing(item.clubListing)} activeOpacity={0.8}>
+                            <View style={[styles.msgEquipImg, styles.equipBannerImgPh]}><Text style={{ fontSize: 16 }}>🏟️</Text></View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.msgEquipTitle} numberOfLines={1}>{item.clubListing.name}</Text>
+                                <Text style={styles.msgEquipPrice}>{item.clubListing.membershipFee > 0 ? `${item.clubListing.membershipFee} ₺/ay` : (t.clubChatCard || 'Kulüp')}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    )}
                     {item.sharedPost && (
                         <TouchableOpacity style={styles.msgEquipCard} onPress={() => openSharedCard(item.sharedPost)} activeOpacity={0.8}>
                             {item.sharedPost.locked ? (
@@ -641,6 +656,17 @@ export default function ChatScreen({ route, navigation }) {
                     <View style={{ flex: 1 }}>
                         <Text style={styles.equipBannerTitle} numberOfLines={1}>{coachListingCtx.credentialLevel}{coachListingCtx.certName ? ` · ${coachListingCtx.certName}` : ''}</Text>
                         <Text style={styles.equipBannerPrice}>{coachListingCtx.priceIndividual > 0 ? `${coachListingCtx.priceIndividual} ₺/saat` : 'Antrenörlük ilanı hakkında'}</Text>
+                    </View>
+                    <Text style={styles.equipBannerArrow}>›</Text>
+                </TouchableOpacity>
+            )}
+
+            {clubListingCtx && (
+                <TouchableOpacity style={styles.equipBanner} onPress={() => openClubListing(clubListingCtx)} activeOpacity={0.8}>
+                    <View style={[styles.equipBannerImg, styles.equipBannerImgPh]}><Text style={{ fontSize: 20 }}>🏟️</Text></View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.equipBannerTitle} numberOfLines={1}>{clubListingCtx.name}</Text>
+                        <Text style={styles.equipBannerPrice}>{clubListingCtx.membershipFee > 0 ? `${clubListingCtx.membershipFee} ₺/ay` : (t.clubChatAbout || 'Kulüp hakkında')}</Text>
                     </View>
                     <Text style={styles.equipBannerArrow}>›</Text>
                 </TouchableOpacity>

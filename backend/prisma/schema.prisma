@@ -133,6 +133,7 @@ model User {
   equipmentPurchases  EquipmentListing[] @relation("EquipmentSoldTo")
   equipmentOffers     EquipmentOffer[]
   clubListings        ClubListing[]
+  clubMembershipApplications ClubMembershipApplication[] @relation("ClubMembershipApplicant")
   listingReports      ListingReport[]
   userAchievements    UserAchievement[]
   matchComments    MatchComment[]
@@ -706,9 +707,12 @@ model RefereeReview {
 
 // Destek > Kulüpler — kullanıcı bir spor dalında kulüp ilanı açar (isim + şehir zorunlu).
 // Antrenör/hakem kadar karmaşık değil; CV/onay yok. cities CoachListing ile aynı desen.
+// İşletme tesisinden açılırsa venueId dolu; o zaman subCategory = tesis.branch ve spor
+// dalının Kulüpler sekmesinde otomatik görünür (bkz. BusinessHomeScreen Kulüp sekmesi).
 model ClubListing {
   id              String   @id @default(uuid())
   userId          String
+  venueId         String?
   category        String
   subCategory     String
 
@@ -728,6 +732,26 @@ model ClubListing {
   updatedAt       DateTime @updatedAt
 
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  venue           BusinessVenue? @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  membershipApplications ClubMembershipApplication[]
+  messages        Message[]
+}
+
+// Kullanıcının bir kulübe üyelik başvurusu — kulüp sahibi (işletme veya bireysel)
+// kabul/red eder (CoachLessonRequest ile aynı desen).
+model ClubMembershipApplication {
+  id            String   @id @default(uuid())
+  clubListingId String
+  applicantId   String
+  status        String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
+  message       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  clubListing   ClubListing @relation(fields: [clubListingId], references: [id], onDelete: Cascade)
+  applicant     User        @relation("ClubMembershipApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+
+  @@unique([clubListingId, applicantId])
 }
 
 model EquipmentListing {
@@ -1686,6 +1710,10 @@ model Message {
   coachListingId String?
   coachListing   CoachListing? @relation(fields: [coachListingId], references: [id], onDelete: SetNull)
 
+  // Kulüp kartındaki "İletişime Geç" — sohbet ekranında kulüp kartı gösterilir.
+  clubListingId String?
+  clubListing   ClubListing? @relation(fields: [clubListingId], references: [id], onDelete: SetNull)
+
   // Hikaye yanıtı / post-reels-hikaye iletme — sohbette önizleme kartı; alıcı açınca
   // sahibinin postsPrivacy/reelsPrivacy kuralları uygulanır (bkz. checkPostMediaAccess).
   sharedPostId String?
@@ -1869,6 +1897,7 @@ model BusinessVenue {
   reviews      VenueReview[]
   reviewAppeals ReviewAppeal[]
   loyaltyCredits VenueLoyaltyCredit[]
+  clubListings ClubListing[]
 }
 
 // Sadakat kampanyası kredisi — bir kullanıcının bir tesiste biriktirdiği/kazandığı bedava

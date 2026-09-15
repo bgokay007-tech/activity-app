@@ -508,6 +508,17 @@ export default function NotificationsScreen({ navigation }) {
             } else {
                 navigation.navigate('HomeTab', { screen: 'MyReservations' });
             }
+        } else if (type === 'CLUB_MEMBERSHIP') {
+            if (isBusiness && data.venueId) {
+                navigation.navigate('BusinessApp', { openClubs: true, venueId: data.venueId });
+            } else if (data.category && data.subCategory) {
+                navigation.push('SubCategory', {
+                    category: String(data.category).toUpperCase(),
+                    sub: data.subCategory,
+                    initialTab: 'coaches',
+                    initialCoachSubTab: 'clubs',
+                });
+            }
         } else if (type === 'ORDER_STATUS') {
             // Kullanıcı isteği: "Sipariş Güncellendi/Onaylandı/Hazır" bildirimine dokununca
             // doğrudan o maçın detayına, kadro kartında kendi "Adisyonu Var" ikonu otomatik

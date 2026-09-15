@@ -55,6 +55,9 @@ function navigateFromNotif(data, isBusiness) {
         // Kullanıcı raporu: sipariş bildirimine dokununca rezervasyon takvimi açılıyordu —
         // yanlış, doğrudan o maçın Siparişler sekmesine (rivalId ile filtrelenmiş) gitmeli.
         navigationRef.navigate('BusinessApp', { openOrders: true, venueId: data.venueId || null, highlightActivityId: data.rivalId || null });
+    } else if (type === 'CLUB_MEMBERSHIP' && data.venueId) {
+        // İşletme kulübüne üyelik başvurusu — tesisin Kulüp sekmesine git.
+        navigationRef.navigate('BusinessApp', { openClubs: true, venueId: data.venueId });
     } else if (type === 'RESERVATION' || type === 'RESERVATION_UPDATE' || type === 'PAYMENT_ALERT') {
         // venueId varsa sadece o tesisin takvimi açılır — yoksa (ör. bazı RESERVATION
         // bildirimleri) eski davranış korunur, tüm tesis kartları açılmayı dener.
@@ -83,6 +86,7 @@ function navigateFromNotif(data, isBusiness) {
         // tepsisinden tıklanınca yanlışlıkla Açık İlanlar açılıyordu — NotificationsScreen'deki
         // uygulama-içi listede bu case zaten vardı, burada hiç eklenmemiş olduğu ortaya çıktı).
         else if (type === 'PEER_REVIEW_PROMPT') initialTab = 'archive';
+        else if (type === 'CLUB_MEMBERSHIP') initialTab = 'coaches';
         goToAppScreen(isBusiness, 'HomeTab', {
             screen: 'SubCategory',
             params: {
@@ -102,6 +106,7 @@ function navigateFromNotif(data, isBusiness) {
                 // doğrudan o maçın detayı, kadro kartında kendi "Adisyonu Var" ikonu otomatik
                 // açılmış halde gösterilsin (bkz. RivalCard/UpcomingCard'daki autoOpenOrder).
                 ...(type === 'ORDER_STATUS' && { autoOpenOrder: true }),
+                ...(type === 'CLUB_MEMBERSHIP' && { initialCoachSubTab: 'clubs' }),
             },
         });
     }

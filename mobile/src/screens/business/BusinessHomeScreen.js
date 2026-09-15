@@ -1850,7 +1850,7 @@ const groupBillItems = (items) => {
     });
 };
 
-function VenueCard({ venue, sub, onDelete, navigation, openReservations = false, highlightReservationId = null, highlightDate = null, openOrders = false, highlightActivityId = null }) {
+function VenueCard({ venue, sub, onDelete, navigation, openReservations = false, highlightReservationId = null, highlightDate = null, openOrders = false, highlightActivityId = null, openClubs = false }) {
     const insets = useSafeAreaInsets();
     const isApproved = venue.status === 'APPROVED';
     const isPro     = sub && ['PRO', 'PREMIUM'].includes(sub.packageType);
@@ -2048,6 +2048,122 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
             .then(r => { setVenueReviews(r.data); setReviewsLoaded(true); })
             .catch(() => { setVenueReviews({ reviews: [], venueRating: null, venueReviewCount: 0, courtRatings: [] }); setReviewsLoaded(true); });
     }, [venue.id]);
+
+    const loadVenueReviews = useCallback(() => {
+        api.get(`/venues/${venue.id}/reviews`)
+            .then(r => { setVenueReviews(r.data); setReviewsLoaded(true); })
+            .catch(() => { setVenueReviews({ reviews: [], venueRating: null, venueReviewCount: 0, courtRatings: [] }); setReviewsLoaded(true); });
+    }, [venue.id]);
+
+    // ── Kulüp sekmesi — tesisin spor dalında (venue.branch) kulüp açar; spor
+    // dalının Destek > Kulüpler sekmesinde otomatik listelenir.
+    const [venueClubs, setVenueClubs]         = useState([]);
+    const [clubsLoaded, setClubsLoaded]       = useState(false);
+    const [loadingClubs, setLoadingClubs]     = useState(false);
+    const [showCreateClub, setShowCreateClub] = useState(false);
+    const [savingClub, setSavingClub]         = useState(false);
+    const [clubForm, setClubForm]             = useState({
+        name: '', description: '', contactPhone: '', website: '', membershipFee: '',
+    });
+    const [clubAppsById, setClubAppsById]     = useState({}); // clubId -> applications[]
+    const [loadingClubApps, setLoadingClubApps] = useState(null); // clubId
+    const [respondingAppId, setRespondingAppId] = useState(null);
+
+    const loadVenueClubs = useCallback(async () => {
+        setLoadingClubs(true);
+        try {
+            const { data } = await api.get(`/clubs?venueId=${venue.id}`);
+            setVenueClubs(Array.isArray(data) ? data : []);
+            setClubsLoaded(true);
+        } catch {
+            setVenueClubs([]);
+            setClubsLoaded(true);
+        } finally { setLoadingClubs(false); }
+    }, [venue.id]);
+
+    const resetBizClubForm = () => {
+        setClubForm({
+            name: venue.name || '',
+            description: '',
+            contactPhone: venue.phone || '',
+            website: venue.website || '',
+            membershipFee: '',
+        });
+    };
+
+    const submitBizClub = async () => {
+        if (!clubForm.name.trim()) return Alert.alert('', 'Kulüp adı zorunlu');
+        setSavingClub(true);
+        try {
+            const { data } = await api.post('/clubs', {
+                venueId: venue.id,
+                name: clubForm.name.trim(),
+                description: clubForm.description.trim() || undefined,
+                contactPhone: clubForm.contactPhone.trim() || undefined,
+                website: clubForm.website.trim() || undefined,
+                membershipFee: clubForm.membershipFee ? parseInt(clubForm.membershipFee, 10) : undefined,
+            });
+            setVenueClubs(prev => [data, ...prev]);
+            setShowCreateClub(false);
+            resetBizClubForm();
+            Alert.alert('✅', `${data.name} oluşturuldu — ${venue.branch} Kulüpler sekmesinde görünür.`);
+        } catch (e) {
+            Alert.alert('Hata', e?.response?.data?.message || 'Kulüp oluşturulamadı');
+        } finally { setSavingClub(false); }
+    };
+
+    const deleteBizClub = (club) => {
+        Alert.alert('Kulübü Kaldır', `"${club.name}" kaldırılacak. Emin misiniz?`, [
+            { text: 'Vazgeç', style: 'cancel' },
+            { text: 'Kaldır', style: 'destructive', onPress: async () => {
+                try {
+                    await api.delete(`/clubs/${club.id}`);
+                    setVenueClubs(prev => prev.filter(c => c.id !== club.id));
+                    setClubAppsById(prev => {
+                        const next = { ...prev };
+                        delete next[club.id];
+                        return next;
+                    });
+                } catch (e) {
+                    Alert.alert('Hata', e?.response?.data?.message || 'Silinemedi');
+                }
+            }},
+        ]);
+    };
+
+    const loadClubApps = async (clubId) => {
+        if (clubAppsById[clubId]) {
+            // tekrar tıklanınca kapat
+            setClubAppsById(prev => {
+                const next = { ...prev };
+                delete next[clubId];
+                return next;
+            });
+            return;
+        }
+        setLoadingClubApps(clubId);
+        try {
+            const { data } = await api.get(`/clubs/${clubId}/membership-applications`);
+            setClubAppsById(prev => ({ ...prev, [clubId]: Array.isArray(data) ? data : [] }));
+        } catch (e) {
+            Alert.alert('Hata', e?.response?.data?.message || 'Başvurular yüklenemedi');
+        } finally { setLoadingClubApps(null); }
+    };
+
+    const respondClubApp = async (clubId, reqId, action) => {
+        setRespondingAppId(reqId);
+        try {
+            await api.patch(`/clubs/membership-applications/${reqId}`, { action });
+            setClubAppsById(prev => ({
+                ...prev,
+                [clubId]: (prev[clubId] || []).map(a =>
+                    a.id === reqId ? { ...a, status: action === 'accept' ? 'ACCEPTED' : 'REJECTED' } : a
+                ),
+            }));
+        } catch (e) {
+            Alert.alert('Hata', e?.response?.data?.message || 'İşlem başarısız');
+        } finally { setRespondingAppId(null); }
+    };
 
     const submitAppeal = async () => {
         if (!appealReason.trim()) return Alert.alert('', 'İtiraz nedeninizi yazın');
@@ -2272,6 +2388,14 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         }
     }, [openOrders]);
 
+    // Üyelik başvurusu bildiriminden gelince Kulüp sekmesini aç.
+    useEffect(() => {
+        if (openClubs && isApproved) {
+            setActiveTab('clubs');
+            if (!clubsLoaded) loadVenueClubs();
+        }
+    }, [openClubs]);
+
     // Kullanıcı isteği: "sipariş verilince işletme sahibi sayfayı yenilemeden görsün" —
     // yeni sipariş geldiğinde bildirim rozetinden AYRI, doğrudan Siparişler listesine
     // canlı eklensin (bkz. placeOrder'daki emitToUser(..., 'venueOrderCreated', ...)).
@@ -2290,6 +2414,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         if (tab === 'orders'       && !ordersLoaded)  loadOrders();
         if (tab === 'bills'        && !billsLoaded)   loadBills();
         if (tab === 'reviews'      && !reviewsLoaded) loadVenueReviews();
+        if (tab === 'clubs'        && !clubsLoaded)   loadVenueClubs();
         if (tab === 'reservations') { setScheduleOpen(true); if (!resLoaded) loadReservations(); loadCancelRequests(); }
         if (tab === 'analytics')    setAnalyticsOpen(true);
     };
@@ -2796,6 +2921,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         isApproved && isPro ? { key: 'bills',    label: 'Adisyonlar' } : null,
         isApproved ? { key: 'analytics',    label: '📊 Rapor' }          : null,
         isApproved ? { key: 'reviews',      label: '⭐ Yorumlar' }       : null,
+        isApproved ? { key: 'clubs',        label: '🏟️ Kulüp' }         : null,
         isApproved ? { key: 'blocks',       label: '🚫 Engel' } : null,
         isApproved && isPro ? { key: 'menu',   label: '📋 Menü' }   : null,
         isApproved && isPro ? { key: 'orders',   label: '🛒 Sipariş' } : null,
@@ -3267,6 +3393,171 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                             )}
                         </>
                     )}
+                </View>
+            )}
+
+            {activeTab === 'clubs' && (
+                <View style={vc.panel}>
+                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5 }}>
+                        🏟️ KULÜP
+                    </Text>
+                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 12, lineHeight: 15 }}>
+                        Bu tesis için kulüp oluşturun. Kulüp, {venue.branch} spor dalının Kulüpler sekmesinde görünür; kullanıcılar iletişime geçip üyelik başvurusu gönderebilir.
+                    </Text>
+                    <TouchableOpacity
+                        onPress={() => { resetBizClubForm(); setShowCreateClub(true); }}
+                        style={{ backgroundColor: BIZ_COLOR + '28', borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: BIZ_COLOR + '44', marginBottom: 14 }}>
+                        <Text style={{ color: BIZ_LIGHT, fontWeight: '700', fontSize: 13 }}>🏟️ Kulüp Oluştur</Text>
+                    </TouchableOpacity>
+
+                    {loadingClubs && !clubsLoaded ? (
+                        <ActivityIndicator color={BIZ_COLOR} style={{ marginVertical: 16 }} />
+                    ) : venueClubs.length === 0 ? (
+                        <Text style={vc.emptyTxt}>Henüz kulüp yok</Text>
+                    ) : (
+                        venueClubs.map(cl => {
+                            const apps = clubAppsById[cl.id];
+                            const pendingCount = (apps || []).filter(a => a.status === 'PENDING').length;
+                            return (
+                                <View key={cl.id} style={{ backgroundColor: '#ffffff06', borderRadius: 10, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#ffffff12' }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                                        <Text style={{ fontSize: 22 }}>🏟️</Text>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>{cl.name}</Text>
+                                            <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 2 }}>
+                                                {Array.isArray(cl.cities) && cl.cities.length ? cl.cities.join(', ') : (cl.city || venue.city)}
+                                                {cl.location ? ` · ${cl.location}` : ''}
+                                            </Text>
+                                            {cl.membershipFee != null && cl.membershipFee > 0 && (
+                                                <Text style={{ color: BIZ_LIGHT, fontSize: 12, fontWeight: '700', marginTop: 2 }}>{cl.membershipFee}₺ / ay</Text>
+                                            )}
+                                            {cl.description ? (
+                                                <Text style={{ color: '#d1d5db', fontSize: 12, marginTop: 4 }} numberOfLines={3}>{cl.description}</Text>
+                                            ) : null}
+                                        </View>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                                        <TouchableOpacity
+                                            onPress={() => loadClubApps(cl.id)}
+                                            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#7c3aed20', borderWidth: 1, borderColor: '#7c3aed50' }}>
+                                            <Text style={{ color: '#a78bfa', fontSize: 11, fontWeight: '700' }}>
+                                                {loadingClubApps === cl.id ? '...' : apps ? (pendingCount ? `Başvurular (${pendingCount})` : 'Başvurular') : 'Üye Başvuruları'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => deleteBizClub(cl)}
+                                            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#ef444420', borderWidth: 1, borderColor: '#ef444450' }}>
+                                            <Text style={{ color: '#f87171', fontSize: 11, fontWeight: '700' }}>Kaldır</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    {apps && (
+                                        <View style={{ marginTop: 10, gap: 6 }}>
+                                            {apps.length === 0 ? (
+                                                <Text style={{ color: '#6b7280', fontSize: 11 }}>Henüz başvuru yok</Text>
+                                            ) : apps.map(app => (
+                                                <View key={app.id} style={{ backgroundColor: '#0a0a14', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#ffffff10' }}>
+                                                    <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '700' }}>
+                                                        @{app.applicant?.username || '?'}
+                                                        {app.applicant?.fullName ? ` · ${app.applicant.fullName}` : ''}
+                                                    </Text>
+                                                    {app.message ? <Text style={{ color: '#d1d5db', fontSize: 12, marginTop: 4 }}>{app.message}</Text> : null}
+                                                    <Text style={{ color: '#6b7280', fontSize: 10, marginTop: 4 }}>
+                                                        {app.status === 'PENDING' ? '⏳ Bekliyor' : app.status === 'ACCEPTED' ? '✅ Kabul' : '❌ Red'}
+                                                        {' · '}{new Date(app.createdAt).toLocaleDateString('tr-TR')}
+                                                    </Text>
+                                                    {app.status === 'PENDING' && (
+                                                        <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                                                            <TouchableOpacity
+                                                                disabled={respondingAppId === app.id}
+                                                                onPress={() => respondClubApp(cl.id, app.id, 'accept')}
+                                                                style={{ flex: 1, backgroundColor: '#16a34a30', borderRadius: 7, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#16a34a50' }}>
+                                                                <Text style={{ color: '#4ade80', fontSize: 11, fontWeight: '800' }}>
+                                                                    {respondingAppId === app.id ? '...' : 'Kabul'}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity
+                                                                disabled={respondingAppId === app.id}
+                                                                onPress={() => respondClubApp(cl.id, app.id, 'reject')}
+                                                                style={{ flex: 1, backgroundColor: '#ef444420', borderRadius: 7, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#ef444450' }}>
+                                                                <Text style={{ color: '#f87171', fontSize: 11, fontWeight: '800' }}>Red</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
+                                </View>
+                            );
+                        })
+                    )}
+
+                    <Modal visible={showCreateClub} animationType="slide" transparent onRequestClose={() => setShowCreateClub(false)}>
+                        <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
+                            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}>
+                                <View style={{ backgroundColor: '#1e1e2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36, maxHeight: '85%' }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                                        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900' }}>🏟️ Kulüp Oluştur</Text>
+                                        <TouchableOpacity onPress={() => setShowCreateClub(false)}>
+                                            <Text style={{ color: '#6b7280', fontSize: 18 }}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                                        <Text style={{ color: '#9ca3af', fontSize: 11, marginBottom: 10 }}>
+                                            Spor dalı: {VENUE_BRANCHES.find(b => b.key === venue.branch)?.label || venue.branch} · Şehir: {venue.city}
+                                        </Text>
+                                        <TextInput
+                                            style={{ backgroundColor: '#2d2d3f', borderRadius: 10, padding: 12, color: '#fff', fontSize: 13, marginBottom: 8, borderWidth: 1, borderColor: '#3d3d5c' }}
+                                            placeholder="Kulüp adı *"
+                                            placeholderTextColor="#6b7280"
+                                            value={clubForm.name}
+                                            onChangeText={v => setClubForm(f => ({ ...f, name: v }))}
+                                        />
+                                        <TextInput
+                                            style={{ backgroundColor: '#2d2d3f', borderRadius: 10, padding: 12, color: '#fff', fontSize: 13, marginBottom: 8, borderWidth: 1, borderColor: '#3d3d5c' }}
+                                            placeholder="İletişim telefonu"
+                                            placeholderTextColor="#6b7280"
+                                            keyboardType="phone-pad"
+                                            value={clubForm.contactPhone}
+                                            onChangeText={v => setClubForm(f => ({ ...f, contactPhone: v }))}
+                                        />
+                                        <TextInput
+                                            style={{ backgroundColor: '#2d2d3f', borderRadius: 10, padding: 12, color: '#fff', fontSize: 13, marginBottom: 8, borderWidth: 1, borderColor: '#3d3d5c' }}
+                                            placeholder="Web sitesi"
+                                            placeholderTextColor="#6b7280"
+                                            autoCapitalize="none"
+                                            value={clubForm.website}
+                                            onChangeText={v => setClubForm(f => ({ ...f, website: v }))}
+                                        />
+                                        <TextInput
+                                            style={{ backgroundColor: '#2d2d3f', borderRadius: 10, padding: 12, color: '#fff', fontSize: 13, marginBottom: 8, borderWidth: 1, borderColor: '#3d3d5c' }}
+                                            placeholder="Aylık üyelik ücreti ₺ (opsiyonel)"
+                                            placeholderTextColor="#6b7280"
+                                            keyboardType="number-pad"
+                                            value={clubForm.membershipFee}
+                                            onChangeText={v => setClubForm(f => ({ ...f, membershipFee: v.replace(/[^0-9]/g, '') }))}
+                                        />
+                                        <TextInput
+                                            style={{ backgroundColor: '#2d2d3f', borderRadius: 10, padding: 12, color: '#fff', fontSize: 13, minHeight: 80, textAlignVertical: 'top', marginBottom: 12, borderWidth: 1, borderColor: '#3d3d5c' }}
+                                            placeholder="Açıklama (opsiyonel)"
+                                            placeholderTextColor="#6b7280"
+                                            multiline
+                                            value={clubForm.description}
+                                            onChangeText={v => setClubForm(f => ({ ...f, description: v }))}
+                                        />
+                                        <TouchableOpacity
+                                            onPress={submitBizClub}
+                                            disabled={savingClub}
+                                            style={{ backgroundColor: BIZ_COLOR, borderRadius: 10, paddingVertical: 12, alignItems: 'center', opacity: savingClub ? 0.6 : 1 }}>
+                                            {savingClub
+                                                ? <ActivityIndicator color="#fff" />
+                                                : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Yayınla</Text>}
+                                        </TouchableOpacity>
+                                    </ScrollView>
+                                </View>
+                            </KeyboardAvoidingView>
+                        </View>
+                    </Modal>
                 </View>
             )}
 
@@ -5356,8 +5647,10 @@ export default function BusinessHomeScreen({ navigation, route }) {
                             const shouldOpenOrders = route?.params?.openOrders === true
                                 && (!route?.params?.venueId || route.params.venueId === v.id);
                             const highlightActivityId = shouldOpenOrders ? (route?.params?.highlightActivityId || null) : null;
+                            const shouldOpenClubs = route?.params?.openClubs === true
+                                && (!route?.params?.venueId || route.params.venueId === v.id);
                             return (
-                                <VenueCard key={v.id} venue={v} sub={sub} navigation={navigation} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} openReservations={shouldOpen} highlightReservationId={highlightReservationId} highlightDate={highlightDate} openOrders={shouldOpenOrders} highlightActivityId={highlightActivityId} />
+                                <VenueCard key={v.id} venue={v} sub={sub} navigation={navigation} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} openReservations={shouldOpen} highlightReservationId={highlightReservationId} highlightDate={highlightDate} openOrders={shouldOpenOrders} highlightActivityId={highlightActivityId} openClubs={shouldOpenClubs} />
                             );
                         })
                     )}

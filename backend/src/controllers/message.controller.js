@@ -236,6 +236,7 @@ export const getMessages = async (req, res, next) => {
                 sender: { select: USER_SELECT },
                 equipmentListing: { select: { id: true, title: true, price: true, images: true, category: true, subCategory: true, status: true } },
                 coachListing: { select: { id: true, credentialLevel: true, certName: true, priceIndividual: true, priceGroup: true, category: true, subCategory: true, status: true } },
+                clubListing: { select: { id: true, name: true, membershipFee: true, category: true, subCategory: true, status: true, city: true } },
                 sharedPost: { select: SHARED_POST_SELECT },
             },
             orderBy: { createdAt: 'desc' },
@@ -270,9 +271,9 @@ export const getMessages = async (req, res, next) => {
 export const sendMessage = async (req, res, next) => {
     try {
         const { userId: receiverId } = req.params;
-        const { content, equipmentListingId, coachListingId, imageUrl, audioUrl, audioDuration, sharedPostId } = req.body;
+        const { content, equipmentListingId, coachListingId, clubListingId, imageUrl, audioUrl, audioDuration, sharedPostId } = req.body;
 
-        if (!content?.trim() && !imageUrl && !audioUrl && !sharedPostId && !equipmentListingId && !coachListingId) {
+        if (!content?.trim() && !imageUrl && !audioUrl && !sharedPostId && !equipmentListingId && !coachListingId && !clubListingId) {
             return res.status(400).json({ message: 'Message cannot be empty' });
         }
 
@@ -307,6 +308,7 @@ export const sendMessage = async (req, res, next) => {
                 conversationId: conv.id, senderId: req.userId, content: content?.trim() || '',
                 ...(equipmentListingId && { equipmentListingId }),
                 ...(coachListingId && { coachListingId }),
+                ...(clubListingId && { clubListingId }),
                 ...(sharedPostId && { sharedPostId }),
                 ...(imageUrl && { imageUrl }),
                 ...(audioUrl && { audioUrl, audioDuration: Number(audioDuration) || null }),
@@ -315,6 +317,7 @@ export const sendMessage = async (req, res, next) => {
                 sender: { select: USER_SELECT },
                 equipmentListing: { select: { id: true, title: true, price: true, images: true, category: true, subCategory: true, status: true } },
                 coachListing: { select: { id: true, credentialLevel: true, certName: true, priceIndividual: true, priceGroup: true, category: true, subCategory: true, status: true } },
+                clubListing: { select: { id: true, name: true, membershipFee: true, category: true, subCategory: true, status: true, city: true } },
                 sharedPost: { select: SHARED_POST_SELECT },
             },
         });
@@ -360,6 +363,11 @@ export const sendMessage = async (req, res, next) => {
                 coachListingId: created.coachListing.id,
                 category: created.coachListing.category,
                 subCategory: created.coachListing.subCategory,
+            }),
+            ...(created.clubListing && {
+                clubListingId: created.clubListing.id,
+                category: created.clubListing.category,
+                subCategory: created.clubListing.subCategory,
             }),
             ...(created.sharedPost && { sharedPostId: created.sharedPost.id, contentKind: created.sharedPost.type }),
         };
