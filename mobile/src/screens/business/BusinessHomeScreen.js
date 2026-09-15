@@ -2049,12 +2049,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
             .catch(() => { setVenueReviews({ reviews: [], venueRating: null, venueReviewCount: 0, courtRatings: [] }); setReviewsLoaded(true); });
     }, [venue.id]);
 
-    const loadVenueReviews = useCallback(() => {
-        api.get(`/venues/${venue.id}/reviews`)
-            .then(r => { setVenueReviews(r.data); setReviewsLoaded(true); })
-            .catch(() => { setVenueReviews({ reviews: [], venueRating: null, venueReviewCount: 0, courtRatings: [] }); setReviewsLoaded(true); });
-    }, [venue.id]);
-
     // ── Kulüp sekmesi — tesisin spor dalında (venue.branch) kulüp açar; spor
     // dalının Destek > Kulüpler sekmesinde otomatik listelenir.
     const [venueClubs, setVenueClubs]         = useState([]);
