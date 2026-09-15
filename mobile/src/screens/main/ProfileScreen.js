@@ -2957,26 +2957,16 @@ export default function ProfileScreen({ route, navigation }) {
                     )}
                 </View>
 
-                {/* ── Rezervasyonlarım + henüz başlamamış katıldığım maçlar ── */}
+                {/* Rezervasyonlarım — maçlar aynı ekranın içinde sekme olarak var, ayrı buton yok */}
                 {isOwnProfile && (
-                    <View style={ap.reservRow}>
-                        <TouchableOpacity
-                            style={ap.reservBtn}
-                            onPress={() => navigation.navigate('MyReservations', { section: 'reservations' })}
-                        >
-                            <Text style={ap.reservBtnText} numberOfLines={1}>
-                                {t.resSectionReservations}{myReservations.filter(isReservActive).length > 0 ? ` (${myReservations.filter(isReservActive).length})` : ''}
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={ap.matchesBtn}
-                            onPress={() => navigation.navigate('MyReservations', { section: 'matches' })}
-                        >
-                            <Text style={ap.matchesBtnText} numberOfLines={1}>
-                                {t.resSectionMyMatches}{myUpcoming.filter(m => !matchHasStarted(m)).length > 0 ? ` (${myUpcoming.filter(m => !matchHasStarted(m)).length})` : ''}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity
+                        style={ap.reservBtn}
+                        onPress={() => navigation.navigate('MyReservations')}
+                    >
+                        <Text style={ap.reservBtnText}>
+                            {t.resSectionReservations}{myReservations.filter(isReservActive).length > 0 ? ` (${myReservations.filter(isReservActive).length})` : ''}
+                        </Text>
+                    </TouchableOpacity>
                 )}
 
                 {/* ── Admin Panel Butonu (sadece admin) ── */}
@@ -4749,11 +4739,8 @@ export default function ProfileScreen({ route, navigation }) {
 // ─── Admin Panel Styles ───────────────────────────────────────────────────────
 
 const ap = StyleSheet.create({
-    reservRow:   { flexDirection: 'row', marginHorizontal: 20, marginTop: 12, marginBottom: 4, gap: 8 },
-    reservBtn:   { flex: 1, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1, borderColor: '#9333ea30' },
+    reservBtn:   { marginHorizontal: 20, marginTop: 12, marginBottom: 4, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, paddingHorizontal: 12, alignItems: 'center', borderWidth: 1, borderColor: '#9333ea30' },
     reservBtnText:{ color: colors.purple, fontSize: 13, fontWeight: '800', textAlign: 'center' },
-    matchesBtn:  { flex: 1, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e30' },
-    matchesBtnText:{ color: '#4ade80', fontSize: 13, fontWeight: '800', textAlign: 'center' },
     adminBtn:    { marginHorizontal: 20, marginTop: 8, marginBottom: 8, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
     adminBtnText:{ color: colors.purple, fontSize: 14, fontWeight: '800' },
     overlay:     { flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end' },
