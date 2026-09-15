@@ -1,7 +1,7 @@
 import prisma from '../config/prisma.js';
 import { Prisma } from '@prisma/client';
 import Anthropic from '@anthropic-ai/sdk';
-import { getRelation, canAccess } from '../utils/privacy.js';
+import { getRelation, canAccess, checkPostMediaAccess } from '../utils/privacy.js';
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 
@@ -264,8 +264,16 @@ export const getPostById = async (req, res, next) => {
             include: POST_INCLUDE(req.userId),
         });
         if (!post) return res.status(404).json({ message: 'Gönderi bulunamadı.' });
-        if (post.hidden && post.userId !== req.userId) {
-            return res.status(404).json({ message: 'Gönderi bulunamadı.' });
+        // DM ile iletilen / dışarıdan açılan içerik — sahibin posts/reels gizlilik
+        // ayarına göre; yoksa "sadece arkadaşlara açık" tarzı neden döner.
+        const access = await checkPostMediaAccess(post, req.userId);
+        if (!access.allowed) {
+            return res.status(403).json({
+                message: access.message,
+                code: access.code,
+                privacyMode: access.privacyMode,
+                contentKind: post.type,
+            });
         }
         res.json({
             ...post,

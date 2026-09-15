@@ -25,6 +25,8 @@ import ExtraNotifyChannelModal from '../../components/ExtraNotifyChannelModal';
 import TelegramIcon, { TELEGRAM_BLUE } from '../../components/TelegramIcon';
 import KeyboardSafeModal from '../../components/KeyboardSafeModal';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
+import SharePostToFriendModal from '../../components/SharePostToFriendModal';
+import StoryMessageBar from '../../components/StoryMessageBar';
 import { sharePost } from '../../utils/share';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -1547,6 +1549,9 @@ export default function ProfileScreen({ route, navigation }) {
     const [archivedStories, setArchivedStories] = useState([]);
     const [storyViewIdx, setStoryViewIdx] = useState(null);
     const [storyProgress, setStoryProgress] = useState(0);
+    const [storyReplyPaused, setStoryReplyPaused] = useState(false);
+    const storyReplyPausedRef = useRef(false);
+    const [sharePostTarget, setSharePostTarget] = useState(null);
     const storyMusicRef = useRef(null);
     const goStoryNextRef = useRef(null);
     const [archiveOpen, setArchiveOpen] = useState(false);
@@ -2131,8 +2136,10 @@ export default function ProfileScreen({ route, navigation }) {
 
     useEffect(() => { goStoryNextRef.current = goStoryNext; }, [goStoryNext]);
 
+    useEffect(() => { storyReplyPausedRef.current = !!(storyReplyPaused || sharePostTarget); }, [storyReplyPaused, sharePostTarget]);
+
     useEffect(() => {
-        if (storyViewIdx === null) return;
+        if (storyViewIdx === null) { setStoryReplyPaused(false); return; }
         setStoryProgress(0);
         const story = stories[storyViewIdx];
         const duration = story?.musicName
@@ -2140,6 +2147,8 @@ export default function ProfileScreen({ route, navigation }) {
             : 15000;
         const TICK = 100;
         const interval = setInterval(() => {
+            // Mesaj yazarken/iletim modalı açıkken ilerleme dursun — Instagram tarzı.
+            if (storyReplyPausedRef.current) return;
             setStoryProgress(p => {
                 const next = p + TICK / duration;
                 if (next >= 1) { clearInterval(interval); goStoryNextRef.current?.(); return 1; }
@@ -3606,7 +3615,7 @@ export default function ProfileScreen({ route, navigation }) {
                             {mediaViewerPost.content ? (
                                 <Text style={{ color:'#fff', fontSize:13, paddingHorizontal:3, paddingTop:3 }}>{mediaViewerPost.content}</Text>
                             ) : null}
-                            <View style={{ flexDirection:'row', gap:20, paddingHorizontal:17, paddingTop:14 }}>
+                            <View style={{ flexDirection:'row', gap:20, paddingHorizontal:17, paddingTop:14, alignItems:'center' }}>
                                 <View style={{ flexDirection:'row', alignItems:'center', gap:5 }}>
                                     <TouchableOpacity onPress={() => toggleMediaViewerLike()} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
                                         <Text style={{ fontSize:18 }}>{mediaViewerPost.isLiked ? '❤️' : '🤍'}</Text>
@@ -3619,6 +3628,12 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={{ fontSize:16 }}>💬</Text>
                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{mediaViewerPost._count?.comments || 0}</Text>
                                 </View>
+                                <TouchableOpacity
+                                    onPress={() => setSharePostTarget(mediaViewerPost)}
+                                    style={{ marginLeft: 'auto', backgroundColor: colors.purple + '33', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 }}
+                                >
+                                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>{t.shareToFriendBtn || '↗ Gönder'}</Text>
+                                </TouchableOpacity>
                             </View>
 
                             <View style={{ paddingHorizontal:17, paddingTop:16, paddingBottom:30 }}>
@@ -4084,8 +4099,8 @@ export default function ProfileScreen({ route, navigation }) {
                                     </View>
                                 )}
                                 {/* Dokunma bölgeleri */}
-                                <TouchableOpacity style={{ position: 'absolute', left: 0, top: 60, bottom: isOwnProfile ? 140 : 0, width: '35%' }} onPress={goStoryPrev} activeOpacity={1} />
-                                <TouchableOpacity style={{ position: 'absolute', right: 0, top: 60, bottom: isOwnProfile ? 140 : 0, width: '65%' }} onPress={goStoryNext} activeOpacity={1} />
+                                <TouchableOpacity style={{ position: 'absolute', left: 0, top: 60, bottom: isOwnProfile ? 140 : 72, width: '35%' }} onPress={goStoryPrev} activeOpacity={1} />
+                                <TouchableOpacity style={{ position: 'absolute', right: 0, top: 60, bottom: isOwnProfile ? 140 : 72, width: '65%' }} onPress={goStoryNext} activeOpacity={1} />
                             </View>
                             {/* İlerleme çubukları — en üstte */}
                             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', gap: 3, paddingHorizontal: 9, paddingTop: 49, paddingBottom: 5 }}>
@@ -4100,10 +4115,36 @@ export default function ProfileScreen({ route, navigation }) {
                                     </View>
                                 ))}
                             </View>
+                            {!isOwnProfile && (
+                                <StoryMessageBar
+                                    story={story}
+                                    ownerId={profile?.id || userId}
+                                    myId={myUser?.id}
+                                    paused={storyReplyPaused}
+                                    onPauseChange={setStoryReplyPaused}
+                                    onOpenShare={(p) => setSharePostTarget(p)}
+                                />
+                            )}
+                            {isOwnProfile && (
+                                <View style={{ position: 'absolute', top: 54, right: 14 }}>
+                                    <TouchableOpacity
+                                        onPress={() => setSharePostTarget(story)}
+                                        style={{ backgroundColor: '#00000075', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 }}
+                                    >
+                                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>{t.shareToFriendBtn || '↗ Gönder'}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
                         </View>
                     );
                 })()}
             </Modal>
+
+            <SharePostToFriendModal
+                visible={!!sharePostTarget}
+                post={sharePostTarget}
+                onClose={() => { setSharePostTarget(null); setStoryReplyPaused(false); }}
+            />
 
             {/* ── Profile Info Modal ── */}
             <KeyboardSafeModal visible={profileInfoOpen} onClose={() => setProfileInfoOpen(false)}>

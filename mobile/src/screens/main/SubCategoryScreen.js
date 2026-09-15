@@ -30,6 +30,8 @@ import { moderateScale } from '../../theme/scale';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
+import SharePostToFriendModal from '../../components/SharePostToFriendModal';
+import StoryMessageBar from '../../components/StoryMessageBar';
 import CityAutocomplete from '../../components/CityAutocomplete';
 import VenueNameAutocomplete from '../../components/VenueNameAutocomplete';
 import MultiCityAutocomplete from '../../components/MultiCityAutocomplete';
@@ -22169,14 +22171,21 @@ const spot = StyleSheet.create({
 // ─── Story Viewer ──────────────────────────────────────────────────────────────
 
 function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, cfg }) {
+    const t = useT();
+    const myId = useSelector(s => s.auth.user?.id);
     const story = group?.stories[storyViewer.storyIdx];
     const storyDuration = story?.musicName
         ? Math.max(1000, ((story.musicEndTime || 15) - (story.musicStartTime || 0)) * 1000)
         : 15000;
 
     const [progress, setProgress] = useState(0);
+    const [replyPaused, setReplyPaused] = useState(false);
+    const [shareTarget, setShareTarget] = useState(null);
+    const replyPausedRef = useRef(false);
     const soundRef = useRef(null);
     const goNextRef = useRef(null);
+
+    useEffect(() => { replyPausedRef.current = !!(replyPaused || shareTarget); }, [replyPaused, shareTarget]);
 
     const goNext = useCallback(() => {
         if (storyViewer.storyIdx < group.stories.length - 1) {
@@ -22201,8 +22210,10 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 
     useEffect(() => {
         setProgress(0);
+        setReplyPaused(false);
         const TICK = 100;
         const interval = setInterval(() => {
+            if (replyPausedRef.current) return;
             setProgress(p => {
                 const next = p + TICK / storyDuration;
                 if (next >= 1) { clearInterval(interval); goNextRef.current?.(); return 1; }
@@ -22233,6 +22244,8 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
     }, [storyViewer.userIdx, storyViewer.storyIdx]);
 
     if (!story) return null;
+
+    const isOwn = group?.user?.id === myId || story.userId === myId || story.user?.id === myId;
 
     return (
         <View style={{ flex: 1, backgroundColor: '#000' }}>
@@ -22271,8 +22284,8 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
                 )}
 
                 {/* Dokunma bölgeleri */}
-                <TouchableOpacity style={{ position: 'absolute', left: 0, top: 60, bottom: 0, width: '35%' }} onPress={goPrev} activeOpacity={1} />
-                <TouchableOpacity style={{ position: 'absolute', right: 0, top: 60, bottom: 0, width: '65%' }} onPress={goNext} activeOpacity={1} />
+                <TouchableOpacity style={{ position: 'absolute', left: 0, top: 60, bottom: isOwn ? 0 : 72, width: '35%' }} onPress={goPrev} activeOpacity={1} />
+                <TouchableOpacity style={{ position: 'absolute', right: 0, top: 60, bottom: isOwn ? 0 : 72, width: '65%' }} onPress={goNext} activeOpacity={1} />
             </View>
 
             {/* İlerleme çubukları — en üstte absolute */}
@@ -22288,6 +22301,32 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
                     </View>
                 ))}
             </View>
+
+            {isOwn ? (
+                <View style={{ position: 'absolute', top: 54, right: 14 }}>
+                    <TouchableOpacity
+                        onPress={() => setShareTarget(story)}
+                        style={{ backgroundColor: '#00000075', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 }}
+                    >
+                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>{t.shareToFriendBtn || '↗ Gönder'}</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : (
+                <StoryMessageBar
+                    story={story}
+                    ownerId={group?.user?.id || story.userId || story.user?.id}
+                    myId={myId}
+                    paused={replyPaused}
+                    onPauseChange={setReplyPaused}
+                    onOpenShare={(p) => setShareTarget(p)}
+                />
+            )}
+
+            <SharePostToFriendModal
+                visible={!!shareTarget}
+                post={shareTarget}
+                onClose={() => { setShareTarget(null); setReplyPaused(false); }}
+            />
         </View>
     );
 }

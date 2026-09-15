@@ -8,6 +8,7 @@ import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import { onSocket, getSocket, onSocketReconnect } from '../../services/socket';
+import { openSharedPost, privacyDeniedMessage } from '../../utils/sharedPost';
 
 function Avatar({ user, size = 36 }) {
     return (
@@ -75,6 +76,36 @@ export default function ChatScreen({ route, navigation }) {
         if (!listing?.category || !listing?.subCategory) return;
         navigation.push('SubCategory', { category: listing.category, sub: listing.subCategory, initialTab: 'coaches', openCoachId: listing.id });
     };
+
+    const [sharedPreview, setSharedPreview] = useState(null);
+
+    const openSharedCard = async (shared) => {
+        if (!shared?.id) return;
+        if (shared.locked) {
+            Alert.alert(
+                t.sharedPostLockedTitle || 'Görüntülenemiyor',
+                privacyDeniedMessage({
+                    privacyMode: shared.privacyMode,
+                    contentKind: shared.type,
+                    code: shared.code,
+                    fallback: shared.lockMessage,
+                    t,
+                }),
+            );
+            return;
+        }
+        const full = await openSharedPost(shared.id, {
+            t,
+            onOpen: (post) => setSharedPreview(post),
+        });
+        if (full) setSharedPreview(full);
+    };
+
+    const sharedKindLabel = (type) => (
+        type === 'REEL' ? (t.sharedPostCardReel || 'Reels')
+            : type === 'STORY' ? (t.sharedPostCardStory || 'Hikaye')
+                : (t.sharedPostCardPost || 'Gönderi')
+    );
 
     const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
     const openOptionsMenu = () => {
@@ -502,6 +533,32 @@ export default function ChatScreen({ route, navigation }) {
                             </View>
                         </TouchableOpacity>
                     )}
+                    {item.sharedPost && (
+                        <TouchableOpacity style={styles.msgEquipCard} onPress={() => openSharedCard(item.sharedPost)} activeOpacity={0.8}>
+                            {item.sharedPost.locked ? (
+                                <View style={[styles.msgEquipImg, styles.equipBannerImgPh]}><Text style={{ fontSize: 16 }}>🔒</Text></View>
+                            ) : item.sharedPost.imageUrl || item.sharedPost.videoUrl ? (
+                                <Image source={{ uri: item.sharedPost.imageUrl || item.sharedPost.videoUrl }} style={styles.msgEquipImg} resizeMode="cover" />
+                            ) : (
+                                <View style={[styles.msgEquipImg, styles.equipBannerImgPh]}>
+                                    <Text style={{ fontSize: 16 }}>{item.sharedPost.type === 'REEL' ? '🎬' : item.sharedPost.type === 'STORY' ? '⭕' : '🖼️'}</Text>
+                                </View>
+                            )}
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.msgEquipTitle} numberOfLines={1}>
+                                    {item.sharedPost.locked
+                                        ? (t.sharedPostCardLocked || 'Kilitli')
+                                        : sharedKindLabel(item.sharedPost.type)}
+                                    {item.sharedPost.user?.username ? ` · @${item.sharedPost.user.username}` : ''}
+                                </Text>
+                                <Text style={styles.msgEquipPrice} numberOfLines={2}>
+                                    {item.sharedPost.locked
+                                        ? (item.sharedPost.lockMessage || t.sharedPostLockedTitle || 'Görüntülenemiyor')
+                                        : (item.sharedPost.content || sharedKindLabel(item.sharedPost.type))}
+                                </Text>
+                            </View>
+                        </TouchableOpacity>
+                    )}
                     {item.imageUrl && (
                         <Image source={{ uri: item.imageUrl }} style={styles.msgImage} resizeMode="cover" />
                     )}
@@ -696,6 +753,32 @@ export default function ChatScreen({ route, navigation }) {
                             <Text style={{ color: colors.textMuted }}>Vazgeç</Text>
                         </TouchableOpacity>
                     </View>
+                </View>
+            </Modal>
+
+            <Modal visible={!!sharedPreview} animationType="fade" transparent onRequestClose={() => setSharedPreview(null)}>
+                <View style={{ flex: 1, backgroundColor: '#000000ee', justifyContent: 'center' }}>
+                    <TouchableOpacity onPress={() => setSharedPreview(null)} style={{ position: 'absolute', top: 48, right: 18, zIndex: 2 }}>
+                        <Text style={{ color: '#fff', fontSize: 22 }}>✕</Text>
+                    </TouchableOpacity>
+                    {sharedPreview && (
+                        <View style={{ paddingHorizontal: 16 }}>
+                            <Text style={{ color: colors.purple, fontWeight: '800', marginBottom: 10 }}>
+                                {sharedKindLabel(sharedPreview.type)}
+                                {sharedPreview.user?.username ? ` · @${sharedPreview.user.username}` : ''}
+                            </Text>
+                            {(sharedPreview.imageUrl || sharedPreview.videoUrl) ? (
+                                <Image
+                                    source={{ uri: sharedPreview.imageUrl || sharedPreview.videoUrl }}
+                                    style={{ width: '100%', aspectRatio: sharedPreview.type === 'REEL' ? 9 / 16 : 1, borderRadius: 12, backgroundColor: colors.surface2 }}
+                                    resizeMode="contain"
+                                />
+                            ) : null}
+                            {!!sharedPreview.content && (
+                                <Text style={{ color: '#fff', marginTop: 12, fontSize: 14 }}>{sharedPreview.content}</Text>
+                            )}
+                        </View>
+                    )}
                 </View>
             </Modal>
 

@@ -1,8 +1,52 @@
 import prisma from '../config/prisma.js';
 import axios from 'axios';
 import { emitToUser, isViewingConversation } from '../config/socket.js';
+import { checkPostMediaAccess } from '../utils/privacy.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
+
+const SHARED_POST_SELECT = {
+    id: true, type: true, content: true, imageUrl: true, videoUrl: true,
+    category: true, subCategory: true, expiresAt: true, hidden: true, userId: true,
+    user: { select: { id: true, username: true, fullName: true, avatar: true } },
+};
+
+// Alıcıya medya URL'leri sızmasın — yetkisi yoksa sadece kilitli özet döner.
+async function shapeSharedPostForViewer(post, viewerId) {
+    if (!post) return null;
+    const access = await checkPostMediaAccess(post, viewerId);
+    if (!access.allowed) {
+        return {
+            id: post.id,
+            type: post.type,
+            user: post.user,
+            locked: true,
+            privacyMode: access.privacyMode,
+            code: access.code,
+            lockMessage: access.message,
+        };
+    }
+    return {
+        id: post.id,
+        type: post.type,
+        content: post.content,
+        imageUrl: post.imageUrl,
+        videoUrl: post.videoUrl,
+        category: post.category,
+        subCategory: post.subCategory,
+        expiresAt: post.expiresAt,
+        user: post.user,
+        locked: false,
+    };
+}
+
+async function attachSharedPosts(messages, viewerId) {
+    const need = messages.filter(m => m.sharedPost);
+    if (need.length === 0) return messages;
+    const shaped = await Promise.all(need.map(m => shapeSharedPostForViewer(m.sharedPost, viewerId)));
+    const byId = Object.fromEntries(need.map((m, i) => [m.id, shaped[i]]));
+    return messages.map(m => (m.sharedPost ? { ...m, sharedPost: byId[m.id] } : m));
+}
 
 async function getOrCreateConversation(user1Id, user2Id) {
     const [a, b] = [user1Id, user2Id].sort();
@@ -192,11 +236,12 @@ export const getMessages = async (req, res, next) => {
                 sender: { select: USER_SELECT },
                 equipmentListing: { select: { id: true, title: true, price: true, images: true, category: true, subCategory: true, status: true } },
                 coachListing: { select: { id: true, credentialLevel: true, certName: true, priceIndividual: true, priceGroup: true, category: true, subCategory: true, status: true } },
+                sharedPost: { select: SHARED_POST_SELECT },
             },
             orderBy: { createdAt: 'desc' },
             take,
         });
-        const messages = page.reverse(); // ekranda eskiden yeniye göstermek için
+        const messages = await attachSharedPosts(page.reverse(), req.userId);
         const hasMore = page.length === take;
 
         // Sadece ilk sayfada (before yokken, yani sohbet yeni açıldığında): karşı
@@ -225,9 +270,25 @@ export const getMessages = async (req, res, next) => {
 export const sendMessage = async (req, res, next) => {
     try {
         const { userId: receiverId } = req.params;
-        const { content, equipmentListingId, coachListingId, imageUrl, audioUrl, audioDuration } = req.body;
+        const { content, equipmentListingId, coachListingId, imageUrl, audioUrl, audioDuration, sharedPostId } = req.body;
 
-        if (!content?.trim() && !imageUrl && !audioUrl) return res.status(400).json({ message: 'Message cannot be empty' });
+        if (!content?.trim() && !imageUrl && !audioUrl && !sharedPostId && !equipmentListingId && !coachListingId) {
+            return res.status(400).json({ message: 'Message cannot be empty' });
+        }
+
+        let sharedPostRaw = null;
+        if (sharedPostId) {
+            sharedPostRaw = await prisma.post.findUnique({
+                where: { id: sharedPostId },
+                select: SHARED_POST_SELECT,
+            });
+            if (!sharedPostRaw) return res.status(404).json({ message: 'Paylaşılan içerik bulunamadı' });
+            // Gönderen kendisi göremediği bir şeyi iletemesin (gizlilik deliği olmasın).
+            const senderAccess = await checkPostMediaAccess(sharedPostRaw, req.userId);
+            if (!senderAccess.allowed) {
+                return res.status(403).json({ message: senderAccess.message, code: senderAccess.code });
+            }
+        }
 
         const blocked = await prisma.block.findFirst({
             where: { OR: [{ blockerId: req.userId, blockedId: receiverId }, { blockerId: receiverId, blockedId: req.userId }] },
@@ -241,57 +302,66 @@ export const sendMessage = async (req, res, next) => {
 
         const conv = await getOrCreateConversation(req.userId, receiverId);
 
-        const [message, sender, receiver, muted] = await Promise.all([
-            prisma.message.create({
-                data: {
-                    conversationId: conv.id, senderId: req.userId, content: content?.trim() || '',
-                    ...(equipmentListingId && { equipmentListingId }),
-                    ...(coachListingId && { coachListingId }),
-                    ...(imageUrl && { imageUrl }),
-                    ...(audioUrl && { audioUrl, audioDuration: Number(audioDuration) || null }),
-                },
-                include: {
-                    sender: { select: USER_SELECT },
-                    equipmentListing: { select: { id: true, title: true, price: true, images: true, category: true, subCategory: true, status: true } },
-                    coachListing: { select: { id: true, credentialLevel: true, certName: true, priceIndividual: true, priceGroup: true, category: true, subCategory: true, status: true } },
-                },
-            }),
+        const created = await prisma.message.create({
+            data: {
+                conversationId: conv.id, senderId: req.userId, content: content?.trim() || '',
+                ...(equipmentListingId && { equipmentListingId }),
+                ...(coachListingId && { coachListingId }),
+                ...(sharedPostId && { sharedPostId }),
+                ...(imageUrl && { imageUrl }),
+                ...(audioUrl && { audioUrl, audioDuration: Number(audioDuration) || null }),
+            },
+            include: {
+                sender: { select: USER_SELECT },
+                equipmentListing: { select: { id: true, title: true, price: true, images: true, category: true, subCategory: true, status: true } },
+                coachListing: { select: { id: true, credentialLevel: true, certName: true, priceIndividual: true, priceGroup: true, category: true, subCategory: true, status: true } },
+                sharedPost: { select: SHARED_POST_SELECT },
+            },
+        });
+
+        // Socket'e her alıcı kendi yetkisine göre şekillenmiş kart görsün — medya URL
+        // sızıntısı olmasın diye gönderene ve alıcıya ayrı payload.
+        const [messageForSender, messageForReceiver] = await Promise.all([
+            shapeSharedPostForViewer(created.sharedPost, req.userId).then(sp => ({ ...created, sharedPost: sp })),
+            shapeSharedPostForViewer(created.sharedPost, receiverId).then(sp => ({ ...created, sharedPost: sp })),
+        ]);
+
+        const [sender, receiver, muted] = await Promise.all([
             prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } }),
             prisma.user.findUnique({ where: { id: receiverId }, select: { pushToken: true, notificationMode: true } }),
             isConversationMuted(receiverId, conv.id),
         ]);
 
-        res.status(201).json({ message, conversationId: conv.id });
+        res.status(201).json({ message: messageForSender, conversationId: conv.id });
 
-        // Yanıttan hemen sonra — DB yazımlarını beklemeden — socket + push gönder,
-        // bildirim gecikmesinin en büyük kaynağı bunların yanıttan önce await edilmesiydi.
-        const socketPayload = { message, conversationId: conv.id };
-        emitToUser(receiverId, 'newMessage', socketPayload);
-        emitToUser(req.userId, 'newMessage', socketPayload);
+        emitToUser(receiverId, 'newMessage', { message: messageForReceiver, conversationId: conv.id });
+        emitToUser(req.userId, 'newMessage', { message: messageForSender, conversationId: conv.id });
 
         prisma.conversation.update({ where: { id: conv.id }, data: { updatedAt: new Date() } }).catch(() => {});
 
-        // Karşı taraf bu sohbeti sessize almışsa (bkz. muteConversation) ne push ne de
-        // zil bildirimi gönderilir — Mesajlar sekmesindeki okunmamış rozeti yeterlidir.
         if (muted) return;
-        // Karşı taraf zaten bu sohbeti ekranda açık tutuyorsa push atılmaz -- mesaj yukarıda
-        // socket ile zaten anlık düştü, üstten de bildirim gelmesi gereksiz bilgi kirliliği olurdu.
         if (isViewingConversation(receiverId, conv.id)) return;
 
-        const notifBody = content?.trim() ? content.trim().slice(0, 100) : (message.imageUrl ? '📷 Fotoğraf' : message.audioUrl ? '🎤 Sesli mesaj' : '');
+        const kindPush = created.sharedPost?.type === 'REEL' ? '🎬 Reels'
+            : created.sharedPost?.type === 'STORY' ? '📖 Hikaye'
+            : created.sharedPost ? '📷 Gönderi' : null;
+        const notifBody = content?.trim()
+            ? content.trim().slice(0, 100)
+            : (created.imageUrl ? '📷 Fotoğraf' : created.audioUrl ? '🎤 Sesli mesaj' : kindPush || '');
         const senderUsername = sender?.username;
         const notifData = {
             senderId: req.userId, senderUsername, conversationId: conv.id,
-            ...(message.equipmentListing && {
-                listingId: message.equipmentListing.id,
-                category: message.equipmentListing.category,
-                subCategory: message.equipmentListing.subCategory,
+            ...(created.equipmentListing && {
+                listingId: created.equipmentListing.id,
+                category: created.equipmentListing.category,
+                subCategory: created.equipmentListing.subCategory,
             }),
-            ...(message.coachListing && {
-                coachListingId: message.coachListing.id,
-                category: message.coachListing.category,
-                subCategory: message.coachListing.subCategory,
+            ...(created.coachListing && {
+                coachListingId: created.coachListing.id,
+                category: created.coachListing.category,
+                subCategory: created.coachListing.subCategory,
             }),
+            ...(created.sharedPost && { sharedPostId: created.sharedPost.id, contentKind: created.sharedPost.type }),
         };
 
         // Kullanıcı isteği: mesajlar için Bildirimler ekranına AYRICA bir satır düşmesin —

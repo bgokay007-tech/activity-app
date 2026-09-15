@@ -863,6 +863,8 @@ model Post {
   comments     Comment[]
   likes        Like[]
   storyViews   StoryView[]
+  // DM'de "gönderiyi/hikayeyi/reels'i arkadaşa ilet" ile eklenen mesajlar (bkz. Message.sharedPostId)
+  sharedInMessages Message[]
 }
 
 // HİKAYE GÖRÜNTÜLEMESİ
@@ -1682,6 +1684,11 @@ model Message {
   // hakkında olduğunu taşır — sohbet ekranında ilan kartı gösterilir.
   coachListingId String?
   coachListing   CoachListing? @relation(fields: [coachListingId], references: [id], onDelete: SetNull)
+
+  // Hikaye yanıtı / post-reels-hikaye iletme — sohbette önizleme kartı; alıcı açınca
+  // sahibinin postsPrivacy/reelsPrivacy kuralları uygulanır (bkz. checkPostMediaAccess).
+  sharedPostId String?
+  sharedPost   Post? @relation(fields: [sharedPostId], references: [id], onDelete: SetNull)
 
   // Gönderen "Herkesten Sil" derse true olur — içerik/medya temizlenir, her iki
   // tarafta da "Bu mesaj silindi" yer tutucusu gösterilir. "Benden Sil" ise bunu
