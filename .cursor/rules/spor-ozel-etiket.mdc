@@ -1,0 +1,19 @@
+---
+description: Spor kopyalarken etiketleri o spora uyarla (KAZINDI)
+alwaysApply: true
+---
+
+# Spor-özel etiket (KAZINDI)
+
+Kullanıcı “aynısını X’e uygula” (tenis→masa tenisi/badminton vb.) dediğinde
+**algoritmayı kopyala, metinleri körü körüne kopyalama.**
+
+## Uyarlanması gerekenler
+
+1. **Rezervasyon butonu** — `Kort Rez.` değil; `Masa Tenisi Rezervasyonu` / `Badminton Rezervasyonu`
+2. **Ekipman sekmesi** — `Tenis Ekipmanları` değil; `{Dal} Ekipmanları`
+3. **Tesis adı** — masa tenisinde **masa**, badmintonda **badminton kortu**, voleybolda **salon**
+4. **Haberler** — o sporun RSS/Google News sorgusu (tenis feed’ine düşmesin); TR=yerel, EN=global
+
+Yardımcı: `mobile/src/utils/sportFacilityLabels.js`  
+Haber: `backend/src/controllers/news.controller.js` `RSS_FEEDS_TR` / `RSS_FEEDS_EN`

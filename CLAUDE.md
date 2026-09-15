@@ -13,6 +13,7 @@ Bu depoda çalışırken **önce** proje skill'ini oku ve uygula:
 - Metro (CI yok): `cd mobile && npx expo start --dev-client --tunnel --port 8081`.
 - Form/klavye/öneri: `.claude/skills/klavye-form/SKILL.md` + `.cursor/rules/klavye-form.mdc`.
 - i18n dört dil (`en`/`tr`/`ru`/`de`): `.claude/skills/i18n-dort-dil/SKILL.md` + `.cursor/rules/i18n-dort-dil.mdc`.
+- Spor kopyalarken etiket uyarla (kort→masa, tenis ekipmanı→dal adı, haber RSS): `.cursor/rules/spor-ozel-etiket.mdc`.
 
 Detaylı always-on kurallar: `.cursor/rules/*.mdc` (Cursor ile aynı kaynak).
 

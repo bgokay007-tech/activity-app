@@ -46,6 +46,7 @@ import TrailsTab from './TrailsTab';
 import { shareRival, shareTournament } from '../../utils/share';
 import { computeVarDurationPrice } from '../../utils/priceProration';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
+import { sportFacilityLabels, sportEquipmentTabLabel } from '../../utils/sportFacilityLabels';
 import {
     sportProfile, createRacketMatch, racketRecordPoint, racketPointLabel,
     racketUndoPointForSide, racketUndoGameForSide, racketUndoSetForSide,
@@ -2269,10 +2270,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     gösterilsin — RivalCard'daki (liste kartı) aynı desen. */}
                                 <Text style={{ fontSize:moderateScale(10), fontWeight:'700', marginTop:3, color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1}>
                                     {item.isCourtReserved
-                                        ? `${sub === 'volleyball' ? '' : '✅ '}${sub === 'volleyball' ? t.volleyballHallReservedLabel : t.courtReservedLabel}`
+                                        ? `${sub === 'volleyball' ? '' : '✅ '}${sportFacilityLabels(sub, t).reserved}`
                                         : item.location === 'Ortaklaşa Kararlaştırılır'
                                             ? `${sub === 'volleyball' ? '' : '🤝 '}${t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır'}`
-                                            : `${sub === 'volleyball' ? '' : '❌ '}${t.courtNotReserved}`}
+                                            : `${sub === 'volleyball' ? '' : '❌ '}${sportFacilityLabels(sub, t).notReserved}`}
                                 </Text>
                             </View>
                         </View>
@@ -5102,10 +5103,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     (kort taraflar arasında ortaklaşa kararlaştırılacak) nötr renkte gösterilir. */}
                 <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {item.isCourtReserved
-                        ? `${isVolleyball ? '' : '✅ '}${isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}`
+                        ? `${isVolleyball ? '' : '✅ '}${sportFacilityLabels(item.subCategory || sub, t).reserved}`
                         : item.location === 'Ortaklaşa Kararlaştırılır'
                             ? `${isVolleyball ? '' : '🤝 '}${t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır'}`
-                            : `${isVolleyball ? '' : '❌ '}${t.courtNotReserved}`}
+                            : `${isVolleyball ? '' : '❌ '}${sportFacilityLabels(item.subCategory || sub, t).notReserved}`}
                 </Text>
                 {item.courtFeePerPerson > 0 && (() => {
                     // Kullanıcı isteği: kart üzerinde tüm ödeme yöntemlerinin ayrı bir satırda
@@ -9463,13 +9464,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     </TouchableOpacity>
                                     <TimePickerModal visible={showAbanTimePicker} title={t.selectTime} value={abanTime} onSelect={setAbanTime} onClose={() => setShowAbanTimePicker(false)} />
 
-                                    <Text style={s.fieldLabel}>{isVolleyball ? t.volleyballHallLabel : t.courtLabel}</Text>
+                                    <Text style={s.fieldLabel}>{sportFacilityLabels(match.subCategory, t).noun}</Text>
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                         <TextInput
                                             style={[s.fieldInput, { flex:1, marginBottom:0 }]}
                                             value={abanCourtText}
                                             onChangeText={searchAbanCourts}
-                                            placeholder={t.courtSearchPlaceholder}
+                                            placeholder={sportFacilityLabels(match.subCategory, t).searchPh || t.courtSearchPlaceholder}
                                             placeholderTextColor={colors.textMuted}
                                         />
                                         {abanSearching && <ActivityIndicator color={cfg.color} style={{ alignSelf:'center' }} />}
@@ -9513,7 +9514,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     {!abanSelectedCourt && abanShowManual && (
                                         <View style={s.manualCourtBox}>
                                             <Text style={s.manualCourtNote}>{t.courtSubmitNote}</Text>
-                                            <TextInput style={s.fieldInput} value={abanManualName} onChangeText={setAbanManualName} placeholder={t.manualCourtLabel} placeholderTextColor={colors.textMuted} />
+                                            <TextInput style={s.fieldInput} value={abanManualName} onChangeText={setAbanManualName} placeholder={sportFacilityLabels(match.subCategory, t).manualLabel || t.manualCourtLabel} placeholderTextColor={colors.textMuted} />
                                             <TextInput style={s.fieldInput} value={abanManualCity} onChangeText={setAbanManualCity} placeholder={t.manualCityLabel} placeholderTextColor={colors.textMuted} />
                                             <TextInput style={s.fieldInput} value={abanManualAddress} onChangeText={setAbanManualAddress} placeholder={t.manualAddressLabel} placeholderTextColor={colors.textMuted} />
                                         </View>
@@ -13346,6 +13347,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const isMatchedEdit = !!editItem && editItem.status === 'MATCHED';
 
     const isTennis = sub === 'tennis';
+    const fac = sportFacilityLabels(sub, t);
     // Format (1v1/2v2) seçilince Kişi Başı Ücret alanında (klavye açılmadan) yanıp sönen bir
     // imleç beliriyordu — kullanıcı raporu: bu alan altta yatan gerçek bir davranışla değil,
     // Format açılır listesinin (position:absolute) tam bu alanın üzerine binip kapanırken aynı
@@ -13998,7 +14000,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         // işaretlemeyi unutabiliyor, "Evet" derse otomatik işaretlensin.
         Alert.alert(
             '',
-            isVolleyball ? t.volleyballReservedPromptQ : t.courtReservedPromptQ,
+            isVolleyball ? t.volleyballReservedPromptQ : sportFacilityLabels(sub, t).promptQ,
             [
                 { text: t.courtReservedPromptNo, style: 'cancel' },
                 { text: t.courtReservedPromptYes, onPress: () => setF(p => ({ ...p, courtReserved: true })) },
@@ -15340,7 +15342,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 belirli bir saat dilimi rezerve edilmez. */}
                             {f.flexibleSchedule && (
                                 <View style={{ marginBottom:10 }}>
-                                    <Text style={[s.fieldLabel, { marginBottom:4 }]}>{isVolleyball ? t.volleyballHallLabel : t.courtLabel}</Text>
+                                    <Text style={[s.fieldLabel, { marginBottom:4 }]}>{fac.noun}</Text>
                                     {f.selectedCourt ? (
                                         <TouchableOpacity
                                             style={[s.fieldInput, { marginBottom:6, paddingVertical:5, justifyContent:'center' }]}
@@ -15354,7 +15356,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             style={[s.fieldInput, { marginBottom:6 }]}
                                             value={f.courtSearchText}
                                             onChangeText={searchCourts}
-                                            placeholder={t.courtSearchPlaceholder}
+                                            placeholder={fac.searchPh || t.courtSearchPlaceholder}
                                             placeholderTextColor={colors.textMuted}
                                         />
                                     )}
@@ -15465,7 +15467,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:6, marginBottom:4 }}>
                                         {(!isVolleyball && !isTennis && !isPadel && !f.courtMutual) ? (
                                             <Text style={[s.fieldLabel, { marginBottom:0 }]}>
-                                                {t.courtLabel}
+                                                {fac.noun}
                                                 {!f.flexibleSchedule ? ' *' : ''}
                                             </Text>
                                         ) : <View />}
@@ -15490,7 +15492,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     <View style={{ width:13, height:13, borderRadius:7, borderWidth:2, borderColor: f.courtReserved ? cfg.color : '#6b7280', alignItems:'center', justifyContent:'center' }}>
                                                         {f.courtReserved && <View style={{ width:5, height:5, borderRadius:3, backgroundColor: cfg.color }} />}
                                                     </View>
-                                                    <Text style={{ color: f.courtReserved ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>{isVolleyball ? t.volleyballHallReservedLabel : t.courtReservedLabel}</Text>
+                                                    <Text style={{ color: f.courtReserved ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }}>{fac.reserved}</Text>
                                                 </TouchableOpacity>
                                             )}
                                         </View>
@@ -15533,7 +15535,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 onChangeText={searchCourts}
                                                 placeholder={isVolleyball
                                                     ? t.volleyballCourtSearchPlaceholder(f.surface ? VOLLEYBALL_VENUE_NOUN[f.surface][lang] : t.volleyballHallLabel)
-                                                    : t.courtSearchPlaceholder}
+                                                    : (fac.searchPh || t.courtSearchPlaceholder)}
                                                 placeholderTextColor={colors.textMuted}
                                                 textAlignVertical="center"
                                             />
@@ -15655,7 +15657,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <Text style={s.manualCourtNote}>{t.courtSubmitNote}</Text>
                                             <TextInput style={s.fieldInput} value={f.manualCourtName}
                                                 onChangeText={v => set('manualCourtName', v)}
-                                                placeholder={isVolleyball ? t.manualVenueNameLabel(f.surface ? VOLLEYBALL_VENUE_NOUN[f.surface][lang] : t.volleyballHallLabel) : t.manualCourtLabel}
+                                                placeholder={isVolleyball ? t.manualVenueNameLabel(f.surface ? VOLLEYBALL_VENUE_NOUN[f.surface][lang] : t.volleyballHallLabel) : (fac.manualLabel || t.manualCourtLabel)}
                                                 placeholderTextColor={colors.textMuted} />
                                             <View style={{ flexDirection:'row', gap:4 }}>
                                                 <View style={{ flex:1 }}>
@@ -22414,7 +22416,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
         if (SIMPLE_TAB_SUBS.has(sub) || sub === 'hiking') {
             if (tab === 'rivals') return t.eventsTab || 'Etkinlikler';
-            if (tab === 'equipment') return lang === 'tr' ? `${sportDisplayName} Ekipmanları` : lang === 'ru' ? `${sportDisplayName} инвентарь` : lang === 'de' ? `${sportDisplayName} Ausrüstung` : `${sportDisplayName} Equipment`;
+            if (tab === 'equipment') return sportEquipmentTabLabel(sub, sportDisplayName, lang, t);
         }
         if (tab === 'routes') return t.routesTab || (lang === 'tr' ? 'Rotalar' : lang === 'ru' ? 'Маршруты' : lang === 'de' ? 'Routen' : 'Trails');
         // Voleybolde kullanıcı isteğiyle bu iki sekmenin etiketi diğer dallara göre TERS —
@@ -22423,10 +22425,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (sub === 'volleyball') {
             if (tab === 'rivals') return t.player_wantedTab;
             if (tab === 'player_wanted') return t.rivalsTab;
-            // Diğer sporlarda (ör. tenis) equipmentTab sabit "Tennis Equipment" metni —
-            // voleybolde kullanıcı isteğiyle sporun adıyla "Voleybol Ekipmanları" gösteriliyor.
-            if (tab === 'equipment') return lang === 'tr' ? `${sportDisplayName} Ekipmanları` : lang === 'ru' ? `${sportDisplayName} инвентарь` : lang === 'de' ? `${sportDisplayName} Ausrüstung` : `${sportDisplayName} Equipment`;
         }
+        // Tenis sabit "Tennis Equipment" tutar; padel/badminton/masa tenisi/voleybol spor adıyla.
+        if (tab === 'equipment') return sportEquipmentTabLabel(sub, sportDisplayName, lang, t);
         return t[tab + 'Tab'];
     };
 
@@ -26040,8 +26041,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <CityAlertRow tab="rivals" dateFilter>
                                 {!SIMPLE_TAB_SUBS.has(sub) && (
                                     <TouchableOpacity style={s.courtResBtn} onPress={requireActivityThenVenueSearch} activeOpacity={0.8}>
-                                        <Text style={s.courtResBtnText}>
-                                            {sub === 'volleyball' ? (lang === 'tr' ? 'Salon Ara' : lang === 'ru' ? 'Поиск зала' : lang === 'de' ? 'Halle suchen' : 'Search Hall') : (lang === 'tr' ? 'Kort Rez.' : lang === 'ru' ? 'Бронь корта' : lang === 'de' ? 'Platzbuchung' : 'Court Res.')}
+                                        <Text style={s.courtResBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                            {sub === 'volleyball'
+                                                ? (lang === 'tr' ? 'Salon Ara' : lang === 'ru' ? 'Поиск зала' : lang === 'de' ? 'Halle suchen' : 'Search Hall')
+                                                : (sportFacilityLabels(sub, t).resBtn || t.venueResBtnCourt)}
                                         </Text>
                                     </TouchableOpacity>
                                 )}
