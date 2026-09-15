@@ -4774,7 +4774,14 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         { text: 'Anketi Doldur', onPress: async () => {
                             try {
                                 const { data } = await api.get('/interests/my');
-                                const interest = Array.isArray(data) ? data.find(i => i.subCategory === sub) : null;
+                                let interest = Array.isArray(data) ? data.find(i => i.subCategory === sub && !i.hidden) : null;
+                                // Dal hiç ekli değilse profil'e gönderme — ekle + default ankete aç
+                                // (padel→çiftler, tenis/masa tenisi/badminton→tekli).
+                                if (!interest) {
+                                    const cat = item.category || 'SPORTS';
+                                    const { data: added } = await api.post('/interests/add', { category: cat, subCategory: sub });
+                                    interest = added;
+                                }
                                 if (!interest) return;
                                 const ratingType = code === 'DOUBLES_ASSESSMENT_REQUIRED' ? 'doubles'
                                     : code === 'SINGLES_ASSESSMENT_REQUIRED' ? undefined
@@ -22373,27 +22380,29 @@ export default function SubCategoryScreen({ route, navigation }) {
     // açılıyordu, halbuki backend zaten requireActiveInterest ile reddediyor ama kullanıcı
     // formu doldurup gönderene kadar bunu öğrenmiyordu. Şimdi anket eksikse form hiç açılmıyor,
     // direkt anket (AssessmentModal) açılıyor; tamamlanınca orijinal eylem otomatik devam eder.
-    const [gateAssessTarget, setGateAssessTarget] = useState(null); // { interestId, pendingAction }
+    const [gateAssessTarget, setGateAssessTarget] = useState(null); // { interestId, pendingAction, ratingType }
+    // Padel: varsayılan/birincil anket ÇİFTLER. Tenis/masa tenisi/badminton: TEKLİ Elo için tekli anket.
+    const defaultAssessRatingType = sub === 'padel' ? 'doubles' : undefined;
     const requireActivity = async (onOk, actionLabel = 'bu özelliği kullanabilmen') => {
         try {
             const { data } = await api.get('/interests/my');
-            const interest = Array.isArray(data) ? data.find(i => i.category === category && i.subCategory === sub && !i.hidden) : null;
+            let interest = Array.isArray(data) ? data.find(i => i.category === category && i.subCategory === sub && !i.hidden) : null;
+            // Kullanıcı isteği: "Profilime Git" yok — dal ekli değilse sessizce ekle, anket
+            // zorunluysa default ankete (padel→çiftler, tenis/masa tenisi/badminton→tekli) yönlendir.
             if (!interest) {
-                Alert.alert(
-                    'Aktivite Gerekli',
-                    `${sportDisplayName} için ${actionLabel} için önce bu dalı profilinden "Aktivitelerim"e eklemen gerekiyor.`,
-                    [
-                        { text: 'Vazgeç', style: 'cancel' },
-                        { text: 'Profilime Git', onPress: () => navigation.navigate('ProfileTab') },
-                    ]
-                );
-                return;
+                try {
+                    const { data: added } = await api.post('/interests/add', { category, subCategory: sub });
+                    interest = added;
+                } catch (e) {
+                    Alert.alert(t.error || 'Hata', e?.response?.data?.message || t.somethingWrong || 'İşlem başarısız');
+                    return;
+                }
             }
-            // Padel: %99 çiftler oynanan bir spor olduğu için (kullanıcı isteği) çiftler anketi
-            // tekliyi de karşılar (varsayılan/birincil) — tenis'te hâlâ sadece tekli yeterli.
-            const generalAssessmentDone = sub === 'padel' ? (interest.assessmentCompleted || interest.doublesAssessmentCompleted) : interest.assessmentCompleted;
+            const generalAssessmentDone = sub === 'padel'
+                ? (interest.assessmentCompleted || interest.doublesAssessmentCompleted)
+                : interest.assessmentCompleted;
             if (RATING_REQUIRED_SUBS.has(sub) && !generalAssessmentDone) {
-                setGateAssessTarget({ interestId: interest.id, pendingAction: onOk, ratingType: sub === 'padel' ? 'doubles' : undefined });
+                setGateAssessTarget({ interestId: interest.id, pendingAction: onOk, ratingType: defaultAssessRatingType });
                 return;
             }
         } catch {
