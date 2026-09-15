@@ -365,12 +365,10 @@ export const saveAssessment = async (req, res, next) => {
 
         // Tenis/badminton/masa tenisi ÇİFTLER anketi: tekli anketten TAMAMEN AYRI soru seti
         // (assessments.js QUESTIONS.<dal>_doubles) — sadece doublesSeedRating/
-        // doublesAssessmentCompleted'i besler, tekli tarafına dokunmaz. Tekli anketi önce
-        // tamamlanmış olmalı.
+        // doublesAssessmentCompleted'i besler, tekli tarafına dokunmaz. Tekli anketi ÖNCE
+        // tamamlanmış olması şart değil (kullanıcı isteği: çiftler ilanına katılırken /
+        // çiftler değerlendirmesinde doğrudan çiftler Elo).
         if (UTR_SINGLES_FIRST_SUBCATEGORIES.includes(interest.subCategory) && ratingType === 'doubles') {
-            if (!interest.assessmentCompleted) {
-                return res.status(400).json({ message: 'Önce tekli derecelendirme anketini tamamlamalısın.' });
-            }
             const questions = getQuestions(`${interest.subCategory}_doubles`);
             const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
             const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);

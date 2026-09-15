@@ -53,10 +53,10 @@ async function requireActiveInterest(userId, category, subCategory, matchType = 
         }
         return interest;
     }
-    // matchType bilinmiyorsa (ör. genel "bu dalı hiç kullanabilir miyim" kontrolü) — padel'de
-    // İKİSİNDEN BİRİ (tekli VEYA çiftler) yeterli (çiftler varsayılan); diğer UTR dallarında
-    // (tenis/badminton/masa tenisi) ve geri kalanlarda tekli (assessmentCompleted) şart.
-    const generalAssessmentDone = subCategory === 'padel'
+    // matchType bilinmiyorsa (ör. genel "bu dalı hiç kullanabilir miyim" kontrolü) — UTR
+    // dallarında İKİSİNDEN BİRİ (tekli VEYA çiftler) yeterli; diğer dallarda tekli şart.
+    // Format-özel kontrol yukarıda matchType ile yapılıyor.
+    const generalAssessmentDone = isUtrSport
         ? (interest.assessmentCompleted || interest.doublesAssessmentCompleted)
         : interest.assessmentCompleted;
     if (RATING_REQUIRED_SUBCATEGORIES.has(subCategory) && !generalAssessmentDone) {

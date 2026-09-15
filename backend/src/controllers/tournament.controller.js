@@ -22,13 +22,14 @@ import {
     applyByeToStandings,
 } from '../utils/tournamentEngines.js';
 
-// Padel: %99 çiftler oynanan bir spor olduğu için (kullanıcı isteği) çiftler anketi tekliden
-// BAĞIMSIZ ve varsayılan/birincil olabilir — genel "bu dalı hiç kullanabilir miyim" kapısı
-// padel'de İKİSİNDEN BİRİ (tekli VEYA çiftler) tamamlanmışsa açılır (bkz. rival.controller.js
-// requireActiveInterest'teki aynı mantık). Tenis'te hâlâ sadece tekli genel kapıyı açar.
+// UTR dalları (tenis/padel/badminton/masa tenisi): tekli ve çiftler anketleri BAĞIMSIZ.
+// Genel "bu dalı hiç kullanabilir miyim" kapısı İKİSİNDEN BİRİ tamamlanmışsa açılır;
+// format-özel kapı (ilan aç/katıl) matchType'a göre ayrı kontrol edilir.
 function hasGeneralAssessment(interest, subCategory) {
     if (!interest) return false;
-    if (subCategory === 'padel') return interest.assessmentCompleted || interest.doublesAssessmentCompleted;
+    if (UTR_SUBCATEGORIES.includes(subCategory)) {
+        return interest.assessmentCompleted || interest.doublesAssessmentCompleted;
+    }
     return interest.assessmentCompleted;
 }
 
@@ -1137,9 +1138,8 @@ export const joinTournament = async (req, res, next) => {
         if (UTR_SUBCATEGORIES.includes(tournament.subCategory) && isDoublesFormat({ tournamentType: tournament.type }) && !myInterest.doublesAssessmentCompleted) {
             return res.status(403).json({ message: 'Bu turnuvaya katılabilmek için önce çiftler derecelendirme anketini tamamlamanız gerekiyor.' });
         }
-        // Padel tekli: çiftler anketi tekliyi otomatik karşılamaz (bkz. rival.controller.js
-        // requireActiveInterest'teki aynı kural).
-        if (tournament.subCategory === 'padel' && !isDoublesFormat({ tournamentType: tournament.type }) && !myInterest.assessmentCompleted) {
+        // UTR tekli turnuva: çiftler anketi tekliyi karşılamaz (bağımsız Elo).
+        if (UTR_SUBCATEGORIES.includes(tournament.subCategory) && !isDoublesFormat({ tournamentType: tournament.type }) && !myInterest.assessmentCompleted) {
             return res.status(403).json({ message: 'Bu turnuvaya katılabilmek için önce tekli derecelendirme anketini tamamlamanız gerekiyor.' });
         }
         if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) &&

@@ -14732,7 +14732,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 setDoublesGateOpen(true);
                                                                 return;
                                                             }
-                                                            if (fmt.id === 'SINGLE' && sub === 'padel' && !myInterestForSub?.assessmentCompleted) {
+                                                            if (fmt.id === 'SINGLE' && UTR_MOBILE_SUBS.has(sub) && !myInterestForSub?.assessmentCompleted) {
                                                                 setActivePopup(null);
                                                                 setSinglesGateOpen(true);
                                                                 return;
@@ -16317,8 +16317,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     }}
                 />
 
-                {/* Padel: Tekli formatı seçilirken tekli anketi tamamlanmamışsa burada açılır —
-                    sadece padel'de olur (tenis'te tekli zaten en baştan şart). */}
+                {/* Tekli formatı seçilirken tekli anketi tamamlanmamışsa burada açılır —
+                    UTR dallarında tekli/çiftler bağımsız (çiftler Elo yetmez, tekli ayrı). */}
                 <AssessmentModal
                     visible={singlesGateOpen}
                     interestId={myInterestForSub?.id}
@@ -22398,7 +22398,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     return;
                 }
             }
-            const generalAssessmentDone = sub === 'padel'
+            const generalAssessmentDone = UTR_MOBILE_SUBS.has(sub)
                 ? (interest.assessmentCompleted || interest.doublesAssessmentCompleted)
                 : interest.assessmentCompleted;
             if (RATING_REQUIRED_SUBS.has(sub) && !generalAssessmentDone) {

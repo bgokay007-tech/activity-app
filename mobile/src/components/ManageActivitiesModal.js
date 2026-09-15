@@ -32,8 +32,8 @@ const RATING_REQUIRED_SUBS = new Set([
 
 // UTR-esinli sisteme geçen dallar (bkz. backend utrRating.js) — tekli/çiftler puanı AYRI,
 // değerlendirme de iki seçenekli (Tekli/Çiftler) açılıyor. Diğer dallarda tek "Değerlendir".
+// Çiftler anketi tekliden bağımsız (çiftler katılımı / çiftler değerlendirmesi için).
 const SINGLES_DOUBLES_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis']);
-const UTR_SINGLES_FIRST_SUBS = new Set(['tennis', 'badminton', 'table_tennis']);
 
 export default function ManageActivitiesModal({ visible, interests, onClose, onInterestsChange, privacyEmojiIcon, onPrivacyPress }) {
     const t = useT();
@@ -147,11 +147,9 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
         doRemove(interest.id, category, subCategory);
     };
 
-    // Tenis/padel: tıklayınca HER ZAMAN Tekli/Çiftler seçimi sorulur (kullanıcı isteği: "iki
-    // seçenek çıksın... ona göre ankete yönlendirmeliydi") — tekli anketi henüz tamamlanmamışsa
-    // Çiftler seçilince önce tekli anketini tamamlaması gerektiği söylenir (çiftler anketi
-    // tekliden önce hiç yapılamaz), Tekli seçilirse direkt açılır. 3+ maç oynanmış bir disiplin
-    // artık yeniden değerlendirilemez (aynı kural silme için de geçerli, bkz. openResetPicker).
+    // Tenis/padel/badminton/masa tenisi: tıklayınca HER ZAMAN Tekli/Çiftler seçimi sorulur.
+    // Çiftler tekliden BAĞIMSIZ — çiftler ilanına katılırken veya Çiftler seçilince doğrudan
+    // çiftler anketi + çiftler Elo. 3+ maç oynanmış disiplin yeniden değerlendirilemez.
     const openAssessPicker = (existing, subId) => {
         const canRedoSingles = ((existing.singlesMatchCount ?? ((existing.wins || 0) + (existing.losses || 0))) < 3) || !existing.assessmentCompleted;
         const canDoDoubles = !existing.doublesAssessmentCompleted || (existing.doublesMatchCount || 0) < 3;
@@ -175,9 +173,6 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                 setAssessTarget({ interestId: existing.id, subCategory: subId });
             }},
             { text: t.doublesAssessOption, onPress: () => {
-                // Padel'de çiftler tekliden BAĞIMSIZ (kullanıcı isteği: %99 çiftler oynanıyor) —
-                // sadece tenis'te çiftlerden önce tekli anketi tamamlanmış olmalı.
-                if (UTR_SINGLES_FIRST_SUBS.has(subId) && !existing.assessmentCompleted) { Alert.alert(t.assessPickerTitle, t.doSinglesFirstMsg); return; }
                 if (!canDoDoubles) { Alert.alert(t.assessPickerTitle, t.tooManyMatchesMsg); return; }
                 setAssessTarget({ interestId: existing.id, subCategory: subId, ratingType: 'doubles' });
             }},

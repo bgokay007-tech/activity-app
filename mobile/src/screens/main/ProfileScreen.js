@@ -32,7 +32,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // UTR dalları — tekli/çiftler ayrı puan + anket (bkz. backend utrRating.js).
 const UTR_PROFILE_SUBS = ['tennis', 'padel', 'badminton', 'table_tennis'];
-const UTR_SINGLES_FIRST_SUBS = new Set(['tennis', 'badminton', 'table_tennis']);
 
 // ─── Sport Card Flip Modal ────────────────────────────────────────────────────
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -448,9 +447,8 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
         }
     }, [visible]);
 
-    // ManageActivitiesModal'daki openAssessPicker ile birebir aynı kural: tekli/çiftler
-    // AYRI, 3+ maç oynanmış bir disiplin yeniden değerlendirilemez, tenis'te çiftlerden
-    // önce tekli tamamlanmış olmalı (padel'de bu şart yok, çiftler varsayılan/birincil).
+    // ManageActivitiesModal'daki openAssessPicker ile birebir aynı: tekli/çiftler AYRI,
+    // birbirinden bağımsız; 3+ maç oynanmış disiplin yeniden değerlendirilemez.
     const openAssessPicker = () => {
         if (!item) return;
         const canRedoSingles = ((item.singlesMatchCount ?? ((item.wins || 0) + (item.losses || 0))) < 3) || !item.assessmentCompleted;
@@ -471,7 +469,6 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 setAssessGate({ ratingType: null });
             }},
             { text: t.doublesAssessOption, onPress: () => {
-                if (UTR_SINGLES_FIRST_SUBS.has(item.subCategory) && !item.assessmentCompleted) { Alert.alert(t.assessPickerTitle, t.doSinglesFirstMsg); return; }
                 if (!canDoDoubles) { Alert.alert(t.assessPickerTitle, t.tooManyMatchesMsg); return; }
                 setAssessGate({ ratingType: 'doubles' });
             }},
