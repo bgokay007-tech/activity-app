@@ -10429,8 +10429,21 @@ const TENNIS_SURFACES = [
     { id: 'GRASS',  emoji: '🟩' },
     { id: 'CARPET', emoji: '🟥' },
 ];
+// Belirli kort yokken turnuva oluşturan zemin detayı verebilsin (sert/toprak/çim/diğer
+// veya oyuncular karar verir). CARPET yerine OTHER = "diğer zemin".
+const TOURN_NO_COURT_TENNIS_SURFACES = [
+    { id: 'PLAYERS_DECIDE', emoji: '🤝' },
+    { id: 'HARD',           emoji: '🔵' },
+    { id: 'CLAY',           emoji: '🟤' },
+    { id: 'GRASS',          emoji: '🟩' },
+    { id: 'OTHER',          emoji: '⬜' },
+];
 const PADEL_SURFACES = [
     { id: 'ARTIFICIAL', emoji: '🟩', label: 'Suni Çim' },
+];
+const TOURN_NO_COURT_PADEL_SURFACES = [
+    { id: 'PLAYERS_DECIDE', emoji: '🤝' },
+    { id: 'ARTIFICIAL',     emoji: '🟩' },
 ];
 
 // ─── Venue Menu Order Modal ───────────────────────────────────────────────────
@@ -16700,12 +16713,10 @@ const hasTournSpecificCourt = (item) => {
     if (/ortaklaşa|oyuncular|players decide|gemeinsam|соглас/i.test(loc)) return false;
     return true;
 };
-// Kort oyunculara bırakıldıysa zemin kartta çıkmasın — eski/otomatik CLAY
-// (kort seçilip sonra vazgeçilince kalan) yanlış yönlendirir. Zemin yalnızca
-// belirli kort seçilip özellikle belirtilmişse gösterilir.
+// Zemin yalnızca oluşturan özellikle seçtiyse gösterilir (PLAYERS_DECIDE hariç).
+// Belirli kort olmasa da bilinçli zemin seçimi (sert/toprak/çim/diğer) kartta görünsün.
 const hasTournExplicitSurface = (item) => {
     if (!item?.surface || item.surface === 'PLAYERS_DECIDE') return false;
-    if (!hasTournSpecificCourt(item)) return false;
     return true;
 };
 const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
@@ -20426,7 +20437,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         showManualCourt: false, manualCourtName: '', manualCourtCity: '',
         isIndoor: false,
         genderType: '',
-        surface: '', isPaid: false,
+        // Belirli kort yok varsayılanı — zemin de varsayılan olarak oyunculara bırakılır;
+        // oluşturan isterse sert/toprak/çim/diğer seçebilir.
+        surface: 'PLAYERS_DECIDE', isPaid: false,
         feeType: 'SHARED', playerFee: '', paymentMethod: '', ibanNumber: '', ibanHolder: '',
         prize1: '', prize2: '', prize3: '', surpriseGifts: '', contactPhone: '', description: '',
         setsPerMatch: '', advantageScoring: undefined,
@@ -20613,8 +20626,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 minPlayers: f.minPlayers ? parseInt(f.minPlayers) : undefined,
                 maxPlayers: f.maxPlayers ? parseInt(f.maxPlayers) : undefined,
                 location: courtName || null,
-                // Belirli kort yoksa zemin kaydetme — oyuncular kortla birlikte kararlaştırır
-                surface: f.courtDecidedByPlayers ? null : (f.surface || null),
+                // Belirli kort yokken de oluşturan zemin detayı verebilir (sert/toprak/çim/diğer
+                // veya PLAYERS_DECIDE). Eski davranış surface'i tamamen silıyordu.
+                surface: f.surface || null,
                 isIndoor: f.courtDecidedByPlayers ? false : f.isIndoor,
                 isPaid: f.isPaid,
                 feeType: f.feeType,
@@ -20783,7 +20797,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         showManualCourt: false,
                                         manualCourtName: '',
                                         manualCourtCity: '',
-                                        surface: '',
+                                        // Korttan kalan otomatik CLAY taşınmasın; zemin seçimi
+                                        // ayrı chip'lerle yeniden yapılsın (varsayılan: oyuncular).
+                                        surface: 'PLAYERS_DECIDE',
                                         ...(p.paymentMethod === 'CASH' ? { paymentMethod: '' } : {}),
                                     }))}>
                                     <Text style={[s.chipText, f.courtDecidedByPlayers && { color: cfg.color, fontWeight:'800' }]}>
@@ -20801,6 +20817,32 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                             : (t.tournCourtPlayersArrange || t.tournCourtPlayersDecide)}
                                     </Text>
                                 </View>
+                            )}
+                            {/* Belirli kort yokken tenis (ve benzeri) için zemin detayı — sert/toprak/çim/diğer veya oyuncular karar verir */}
+                            {f.courtDecidedByPlayers && (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis') && (
+                                <>
+                                    <Text style={s.fieldLabelRed}>{t.tournSurfaceLabel}</Text>
+                                    <View style={[s.chipRow, { marginBottom:8 }]}>
+                                        {((sub === 'padel' || sub === 'badminton' || sub === 'table_tennis')
+                                            ? TOURN_NO_COURT_PADEL_SURFACES
+                                            : TOURN_NO_COURT_TENNIS_SURFACES
+                                        ).map(sf => {
+                                            const label = sf.id === 'PLAYERS_DECIDE' ? (t.tournSurfacePlayersDecide || t.surfacePLAYERS_DECIDE)
+                                                : sf.id === 'HARD' ? (t.tournSurfaceHard || t.surfaceHARD)
+                                                : sf.id === 'CLAY' ? (t.tournSurfaceClay || t.surfaceCLAY)
+                                                : sf.id === 'GRASS' ? (t.tournSurfaceGrass || t.surfaceGRASS)
+                                                : sf.id === 'OTHER' ? (t.tournSurfaceOther || t.surfaceOTHER)
+                                                : (t['surface' + sf.id] || sf.label || sf.id);
+                                            return (
+                                                <TouchableOpacity key={sf.id}
+                                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:5 }, f.surface === sf.id && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                                    onPress={() => set('surface', sf.id)}>
+                                                    <Text style={[s.chipText, f.surface === sf.id && { color: cfg.color, fontWeight:'800' }]}>{sf.emoji} {label}</Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                </>
                             )}
                             {!f.courtDecidedByPlayers && (
                                 <>
