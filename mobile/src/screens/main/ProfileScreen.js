@@ -429,6 +429,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     const [showGoals, setShowGoals] = useState(false);
     const [showVolleyballRating, setShowVolleyballRating] = useState(false);
     const [showRacquetFeedback, setShowRacquetFeedback] = useState(false); // tennis | padel geri bildirimi (ELO'ya yazılmaz)
+    const [showCancelReschedModal, setShowCancelReschedModal] = useState(false);
     // Kullanıcı isteği: "Yönet" penceresindeki tekli/çiftli değerlendirme seçimi (bkz.
     // ManageActivitiesModal openAssessPicker) burada da, kartın kendisinde senkronize
     // şekilde bulunsun — henüz hiç değerlendirme yapılmamış (ilk 3 maç oynanmamış) bir
@@ -443,6 +444,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
             setAnketScores({ stres: 0, fairplay: 0, beden: 0 });
             setCanRate(false); setAnketAverages(null); setSurveyLoaded(false);
             setShowAchievements(false); setShowGoals(false); setShowVolleyballRating(false); setShowRacquetFeedback(false);
+            setShowCancelReschedModal(false);
             setAssessGate(null);
         }
     }, [visible]);
@@ -566,8 +568,18 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                                     <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
                                                 </TouchableOpacity>
                                                 {isOwnProfile && (
-                                                    <TouchableOpacity onPress={openAssessPicker} style={{ marginTop: 2, backgroundColor: '#facc1530', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
-                                                        <Text style={{ color: '#facc15', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>📋 {lang === 'tr' ? 'Değerlendir' : lang === 'ru' ? 'Оценить' : lang === 'de' ? 'Bewerten' : 'Assess'}</Text>
+                                                    <View style={{ flexDirection: 'row', gap: 3, marginTop: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+                                                        <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={{ backgroundColor: '#f8717130', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
+                                                            <Text style={{ color: '#f87171', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity onPress={openAssessPicker} style={{ backgroundColor: '#facc1530', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
+                                                            <Text style={{ color: '#facc15', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>📋 {lang === 'tr' ? 'Değerlendir' : lang === 'ru' ? 'Оценить' : lang === 'de' ? 'Bewerten' : 'Assess'}</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                )}
+                                                {!isOwnProfile && (
+                                                    <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={{ marginTop: 2, backgroundColor: '#f8717130', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
+                                                        <Text style={{ color: '#f87171', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </>
@@ -577,9 +589,20 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                                 <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
                                             </TouchableOpacity>
                                         )}
+                                        {!UTR_PROFILE_SUBS.includes(item.subCategory) && (
+                                            <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={{ marginTop: 2, backgroundColor: '#f8717130', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
+                                                <Text style={{ color: '#f87171', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
+                                            </TouchableOpacity>
+                                        )}
                                         {item.isCoach && <Text style={{ color: '#4ade80', fontSize: 8, fontWeight: '800' }}>🎓 {lang==='tr' ? 'Antrenör' : lang==='ru' ? 'Тренер' : lang==='de' ? 'Trainer' : 'Coach'}</Text>}
                                         {item.isReferee && <Text style={{ color: '#fbbf24', fontSize: 8, fontWeight: '800' }}>🟨 {lang==='tr' ? 'Hakem' : lang==='ru' ? 'Судья' : lang==='de' ? 'Schiedsrichter' : 'Referee'}</Text>}
                                     </View>
+                                )}
+                                {/* UTR dışı / henüz ELO kutusu yoksa da oran butonu görünsün */}
+                                {!(item.assessmentCompleted || item.doublesAssessmentCompleted || item.isCoach || item.isReferee || (isOwnProfile && UTR_PROFILE_SUBS.includes(item.subCategory))) && (
+                                    <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={{ backgroundColor: '#f8717120', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 5, borderWidth: 1, borderColor: '#f8717140' }}>
+                                        <Text style={{ color: '#f87171', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
+                                    </TouchableOpacity>
                                 )}
                                 {[
                                     { type: 'win',  count: winsCount,   label: lang==='tr' ? 'Galibiyet' : lang==='ru' ? 'Победа' : lang==='de' ? 'Sieg' : 'Wins',   color: '#4ade80' },
@@ -720,6 +743,63 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
 
                         </ScrollView>
                         <BottomBtns />
+
+                        {/* İptal / Değiştirme oranları — spor dalı tesis rezervasyonları */}
+                        <Modal visible={showCancelReschedModal} transparent animationType="slide" onRequestClose={() => setShowCancelReschedModal(false)}>
+                            <View style={{ flex: 1, backgroundColor: '#000000cc', justifyContent: 'flex-end' }}>
+                                <View style={{ backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, paddingBottom: Math.max(33, insets.bottom + 16), borderWidth: 1, borderColor: '#f8717130' }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                                        <View style={{ flex: 1, paddingRight: 8 }}>
+                                            <Text style={{ color: '#f87171', fontSize: 16, fontWeight: '900' }}>{t.venueCancelReschedTitle || 'İptal / Değiştirme'}</Text>
+                                            <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
+                                                {getSubCategoryLabel(item.subCategory, lang)} · {t.venueCancelReschedHint || 'Tesis rezervasyonları'}
+                                            </Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => setShowCancelReschedModal(false)}>
+                                            <Text style={{ color: '#6b7280', fontSize: 22 }}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    {(() => {
+                                        const total = item.venueBookingTotal || 0;
+                                        const cancelled = item.venueCancelCount || 0;
+                                        const reschedules = item.venueRescheduleTotal || 0;
+                                        const cancelRate = item.venueCancelRate;
+                                        const reschedRate = item.venueRescheduleRate;
+                                        const rateColor = (r) => r == null ? '#6b7280' : r <= 15 ? '#4ade80' : r <= 35 ? '#facc15' : '#f87171';
+                                        if (total === 0) {
+                                            return (
+                                                <Text style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', paddingVertical: 18 }}>
+                                                    {t.venueCancelReschedEmpty || 'Bu sporda henüz tesis rezervasyonu yok.'}
+                                                </Text>
+                                            );
+                                        }
+                                        return (
+                                            <View style={{ gap: 14 }}>
+                                                <View style={{ backgroundColor: '#ffffff08', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#ffffff12' }}>
+                                                    <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>{t.venueCancelReschedTotal || 'Toplam rezervasyon'}</Text>
+                                                    <Text style={{ color: '#fff', fontSize: 22, fontWeight: '900' }}>{total}</Text>
+                                                </View>
+                                                <View style={{ flexDirection: 'row', gap: 10 }}>
+                                                    <View style={{ flex: 1, backgroundColor: '#f8717112', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#f8717140' }}>
+                                                        <Text style={{ color: '#f87171', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>{t.venueCancelRateLabel || 'İptal oranı'}</Text>
+                                                        <Text style={{ color: rateColor(cancelRate), fontSize: 22, fontWeight: '900' }}>{cancelRate ?? 0}%</Text>
+                                                        <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 4 }}>{cancelled} / {total}</Text>
+                                                    </View>
+                                                    <View style={{ flex: 1, backgroundColor: '#fb923c12', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#fb923c40' }}>
+                                                        <Text style={{ color: '#fb923c', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>{t.venueRescheduleRateLabel || 'Değiştirme oranı'}</Text>
+                                                        <Text style={{ color: rateColor(reschedRate), fontSize: 22, fontWeight: '900' }}>{reschedRate ?? 0}%</Text>
+                                                        <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 4 }}>{reschedules} {t.venueRescheduleTimes || 'kez'}</Text>
+                                                    </View>
+                                                </View>
+                                                <Text style={{ color: '#6b7280', fontSize: 11, lineHeight: 16 }}>
+                                                    {t.venueCancelReschedFoot || 'İptal oranı = iptal edilen / toplam. Değiştirme oranı = tarih-saat değişiklik sayısı / toplam rezervasyon.'}
+                                                </Text>
+                                            </View>
+                                        );
+                                    })()}
+                                </View>
+                            </View>
+                        </Modal>
 
                         {/* ELO Grafik Modali */}
                         <Modal visible={showEloModal} transparent animationType="slide" onRequestClose={() => setShowEloModal(false)}>

@@ -1721,7 +1721,13 @@ export const rescheduleReservation = async (req, res, next) => {
 
         const updated = await prisma.courtReservation.update({
             where: { id: resId },
-            data: { date: newDate, startTime: newStartTime, endTime: newEndTime, status: newStatus },
+            data: {
+                date: newDate,
+                startTime: newStartTime,
+                endTime: newEndTime,
+                status: newStatus,
+                rescheduleCount: { increment: 1 },
+            },
         });
 
         await createNotification(res_.venue.userId, 'RESERVATION',

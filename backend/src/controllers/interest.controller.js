@@ -135,6 +135,70 @@ async function attachCoachRefereeBadges(interests, userId) {
     return interests.map(i => ({ ...withDisplayRatings(i), isCoach: coachSubs.has(i.subCategory), isReferee: refSubs.has(i.subCategory) }));
 }
 
+// Spor dalı bazında tesis rezervasyonu iptal / değiştirme oranları (profil kartı).
+// total = o dalda kullanıcının yaptığı rezervasyon sayısı; cancelRate = iptal edilenlerin %'si;
+// rescheduleRate = ortalama değişiklik sayısı / rezervasyon (yüzde olarak, örn. her rezervasyonda
+// 0.5 değişiklik → %50). Manuel (işletmeci) rezervasyonlar userId null olduğu için sayılmaz.
+async function attachVenueReservationRates(interests, userId) {
+    const sportSubs = [...new Set(interests.filter(i => i.category === 'SPORTS').map(i => i.subCategory))];
+    if (!sportSubs.length) {
+        return interests.map(i => ({
+            ...i,
+            venueBookingTotal: 0,
+            venueCancelCount: 0,
+            venueRescheduleTotal: 0,
+            venueCancelRate: null,
+            venueRescheduleRate: null,
+        }));
+    }
+    const rows = await prisma.courtReservation.findMany({
+        where: {
+            userId,
+            venue: { branch: { in: sportSubs } },
+        },
+        select: {
+            status: true,
+            rescheduleCount: true,
+            venue: { select: { branch: true } },
+        },
+    });
+    const byBranch = {};
+    for (const r of rows) {
+        const b = r.venue?.branch;
+        if (!b) continue;
+        if (!byBranch[b]) byBranch[b] = { total: 0, cancelled: 0, reschedules: 0 };
+        byBranch[b].total += 1;
+        if (r.status === 'CANCELLED') byBranch[b].cancelled += 1;
+        byBranch[b].reschedules += r.rescheduleCount || 0;
+    }
+    return interests.map(i => {
+        const s = byBranch[i.subCategory];
+        if (!s || s.total === 0) {
+            return {
+                ...i,
+                venueBookingTotal: 0,
+                venueCancelCount: 0,
+                venueRescheduleTotal: 0,
+                venueCancelRate: null,
+                venueRescheduleRate: null,
+            };
+        }
+        return {
+            ...i,
+            venueBookingTotal: s.total,
+            venueCancelCount: s.cancelled,
+            venueRescheduleTotal: s.reschedules,
+            venueCancelRate: Math.round((s.cancelled / s.total) * 100),
+            venueRescheduleRate: Math.round((s.reschedules / s.total) * 100),
+        };
+    });
+}
+
+async function enrichInterests(interests, userId) {
+    const withBadges = await attachCoachRefereeBadges(interests, userId);
+    return attachVenueReservationRates(withBadges, userId);
+}
+
 export const getUserInterests = async (req, res, next) => {
     try {
         const includeHidden = req.query.includeHidden === 'true';
@@ -142,7 +206,7 @@ export const getUserInterests = async (req, res, next) => {
             where: { userId: req.userId, ...(includeHidden ? {} : { hidden: false }) },
             include: { skills: true },
         });
-        res.json(await attachCoachRefereeBadges(interests, req.userId));
+        res.json(await enrichInterests(interests, req.userId));
     } catch (error) {
         next(error);
     }
@@ -167,7 +231,7 @@ export const getInterestsOf = async (req, res, next) => {
             where: { userId, hidden: false },
             include: { skills: true },
         });
-        res.json(await attachCoachRefereeBadges(interests, userId));
+        res.json(await enrichInterests(interests, userId));
     } catch (error) {
         next(error);
     }

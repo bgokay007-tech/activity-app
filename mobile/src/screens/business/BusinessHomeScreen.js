@@ -1858,10 +1858,16 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     const isPremium = sub && sub.packageType === 'PREMIUM';
     const [activeTab, setActiveTab] = useState('settings');
     const [manageOpen, setManageOpen] = useState(!!openClubs);
-    const [quickOpen, setQuickOpen] = useState(
-        openReservations ? 'reservations' : openOrders ? 'orders' : null
-    );
+    const [quickOpen, setQuickOpen] = useState(openOrders ? 'orders' : null);
     const [deleting, setDeleting]   = useState(false);
+    // Rezervasyon takviminde bir iptal talebi onaylanınca/reddedilince takvim anında
+    // güncellensin diye (kullanıcı isteği) — VenueScheduleModal'ın kendi refreshTick'i
+    // sadece kendi içindeki aksiyonlarla artıyordu, buradan (üst bileşenden) tetiklenen
+    // onay/red bunu hiç bilmiyordu. Ardışık saatlerde aynı rezervasyona ait iki hücre
+    // varsa, ilkini onaylayınca takvim yenilenmeden ikinci hücreye dokununca "zaten iptal
+    // edilmiş" hatası alınıyordu (kullanıcı raporu).
+    const [scheduleRefreshTick, setScheduleRefreshTick] = useState(0);
+    const [scheduleOpen, setScheduleOpen]     = useState(!!openReservations);
     // Rezervasyon takviminde bir iptal talebi onaylanınca/reddedilince takvim anında
     // güncellensin diye (kullanıcı isteği) — VenueScheduleModal'ın kendi refreshTick'i
     // sadece kendi içindeki aksiyonlarla artıyordu, buradan (üst bileşenden) tetiklenen
@@ -1913,7 +1919,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     const [approvingCancel, setApprovingCancel] = useState(null);
     const [rejectingCancel, setRejectingCancel] = useState(null);
     const [resFilter, setResFilter]         = useState('today'); // today | week | all
-    const [scheduleOpen, setScheduleOpen]     = useState(false);
     const [analyticsOpen, setAnalyticsOpen]   = useState(false);
     const [courtSlotTypes, setCourtSlotTypes] = useState(() => {
         const VALID = ['FULL_HOUR', 'HALF_HOUR', 'NINETY_MIN', 'VAR_DURATION'];
@@ -2392,7 +2397,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
 
     useEffect(() => {
         if (openReservations) {
-            setQuickOpen('reservations');
             setScheduleOpen(true);
             if (!resLoaded) loadReservations();
             loadCancelRequests();
@@ -2439,14 +2443,16 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     };
 
     const openQuickPanel = (key) => {
-        setQuickOpen(key);
-        if (key === 'orders' && !ordersLoaded) loadOrders();
-        if (key === 'bills' && !billsLoaded) loadBills();
         if (key === 'reservations') {
+            // Önceki davranış: doğrudan kort takvimi (yeşil boş / dolu + kullanıcı)
             setScheduleOpen(true);
             if (!resLoaded) loadReservations();
             loadCancelRequests();
+            return;
         }
+        setQuickOpen(key);
+        if (key === 'orders' && !ordersLoaded) loadOrders();
+        if (key === 'bills' && !billsLoaded) loadBills();
     };
 
     const handleBlock = async () => {
@@ -5124,6 +5130,10 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 </View>
             )}
 
+                    </ScrollView>
+                </View>
+            </Modal>
+
             <VenueScheduleModal
                 visible={scheduleOpen}
                 venue={venue}
@@ -5221,10 +5231,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                             </View>
                         );
                     })()}
-                </View>
-            </Modal>
-
-                    </ScrollView>
                 </View>
             </Modal>
 
