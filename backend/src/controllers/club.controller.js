@@ -16,7 +16,6 @@ export const getListings = async (req, res, next) => {
         const { category, subCategory, city, venueId } = req.query;
         const listings = await prisma.clubListing.findMany({
             where: {
-                status: 'ACTIVE',
                 ...(category && { category }),
                 ...(subCategory && { subCategory }),
                 ...(venueId && { venueId }),
@@ -26,6 +25,11 @@ export const getListings = async (req, res, next) => {
                         { location: { contains: city, mode: 'insensitive' } },
                     ],
                 } : {}),
+                // Herkese açık: ACTIVE. Sahibi kendi PENDING/REJECTED kayıtlarını da görür.
+                OR: [
+                    { status: 'ACTIVE' },
+                    ...(req.userId ? [{ userId: req.userId, status: { in: ['PENDING', 'REJECTED'] } }] : []),
+                ],
             },
             include: clubInclude,
             orderBy: { createdAt: 'desc' },
@@ -84,6 +88,7 @@ export const createListing = async (req, res, next) => {
         const {
             category, subCategory, name, description, location,
             cities, contactPhone, website, membershipFee, photoUrl, venueId,
+            courtId, facilityName, facilityCity, facilityDistrict, facilityAddress,
         } = req.body;
 
         let resolvedCategory = category;
@@ -96,9 +101,9 @@ export const createListing = async (req, res, next) => {
         let resolvedPhone = contactPhone?.trim() || null;
         let resolvedWebsite = website?.trim() || null;
         let linkedVenueId = null;
+        let linkedCourtId = null;
 
-        // İşletme tesisinden kulüp — spor dalı tesis.branch'ten gelir, spor sekmesinde
-        // otomatik listelenir; sahte branch yazılamasın diye body'deki subCategory yok sayılır.
+        // İşletme tesisinden kulüp — spor dalı tesis.branch'ten gelir
         if (venueId) {
             const venue = await prisma.businessVenue.findUnique({ where: { id: venueId } });
             if (!venue) return res.status(404).json({ message: 'Tesis bulunamadı' });
@@ -114,6 +119,45 @@ export const createListing = async (req, res, next) => {
             }
             if (!resolvedPhone && venue.phone) resolvedPhone = venue.phone;
             if (!resolvedWebsite && venue.website) resolvedWebsite = venue.website;
+        }
+
+        // Kayıtlı community Court seçildiyse konum/şehir ondan dolar
+        if (!linkedVenueId && courtId) {
+            const court = await prisma.court.findUnique({ where: { id: courtId } });
+            if (!court || !court.verified) return res.status(400).json({ message: 'Seçilen tesis bulunamadı veya onaylı değil' });
+            linkedCourtId = court.id;
+            if (!resolvedLocation) {
+                resolvedLocation = [court.name, court.district, court.address].filter(Boolean).join(' · ') || court.name;
+            }
+            if (resolvedCities.length === 0 && court.city) resolvedCities = [court.city];
+        }
+
+        // Kayıtlı değilse yeni tesis önerisi → Court pending + admin onayı
+        if (!linkedVenueId && !linkedCourtId && facilityName?.trim()) {
+            const fCity = (facilityCity || resolvedCities[0] || '').trim();
+            if (!fCity) return res.status(400).json({ message: 'Tesis için il seçmelisiniz' });
+            const newCourt = await prisma.court.create({
+                data: {
+                    name: facilityName.trim(),
+                    city: fCity,
+                    district: facilityDistrict?.trim() || null,
+                    address: facilityAddress?.trim() || null,
+                    sport: resolvedSub || subCategory || 'tennis',
+                    addedBy: req.userId,
+                    pending: true,
+                    verified: false,
+                },
+            });
+            linkedCourtId = newCourt.id;
+            if (!resolvedLocation) {
+                resolvedLocation = [newCourt.name, newCourt.district, newCourt.address].filter(Boolean).join(' · ');
+            }
+            if (resolvedCities.length === 0) resolvedCities = [fCity];
+        }
+
+        // Bireysel kulüpte tesis zorunlu (işletme venueId ile gelir)
+        if (!linkedVenueId && !linkedCourtId) {
+            return res.status(400).json({ message: 'Tesis seçmeli veya yeni tesis bilgisi girmelisiniz' });
         }
 
         if (!resolvedCategory || !resolvedSub || !resolvedName)
@@ -132,6 +176,7 @@ export const createListing = async (req, res, next) => {
             data: {
                 userId: req.userId,
                 venueId: linkedVenueId,
+                courtId: linkedCourtId,
                 category: resolvedCategory,
                 subCategory: resolvedSub,
                 name: resolvedName,
@@ -143,33 +188,12 @@ export const createListing = async (req, res, next) => {
                 website: resolvedWebsite,
                 membershipFee: fee,
                 photoUrl: photoUrl?.trim() || null,
+                status: 'PENDING',
             },
             include: clubInclude,
         });
+        // Admin onayı bekler — şehir abonelerine henüz bildirim yok
         res.status(201).json(listing);
-
-        const creatorInfo = await prisma.user.findUnique({
-            where: { id: req.userId },
-            select: { username: true },
-        }).catch(() => null);
-        notifyCitySubscribers({
-            subCategory: listing.subCategory,
-            category: listing.category,
-            senderCity: listing.city || null,
-            senderUsername: creatorInfo?.username || '',
-            senderId: req.userId,
-            itemId: listing.id,
-            tab: 'clubs',
-        });
-        notifyActivityAlertSubscribers({
-            subCategory: listing.subCategory,
-            category: listing.category,
-            senderCity: listing.city || null,
-            senderUsername: creatorInfo?.username || '',
-            senderId: req.userId,
-            itemId: listing.id,
-            tab: 'clubs',
-        });
     } catch (err) { next(err); }
 };
 
@@ -341,5 +365,98 @@ export const respondMembershipApplication = async (req, res, next) => {
                 status,
             },
         ).catch(() => {});
+    } catch (err) { next(err); }
+};
+
+// ── Admin: kulüp onay kuyruğu ─────────────────────────────────────────────────
+export const getClubApprovals = async (req, res, next) => {
+    try {
+        const { status } = req.query; // PENDING | ACTIVE | REJECTED
+        const where = status === 'ACTIVE'
+            ? { status: 'ACTIVE' }
+            : status === 'REJECTED'
+                ? { status: 'REJECTED' }
+                : { status: 'PENDING' };
+        const items = await prisma.clubListing.findMany({
+            where,
+            include: clubInclude,
+            orderBy: { createdAt: 'desc' },
+        });
+        const courtIds = [...new Set(items.map(i => i.courtId).filter(Boolean))];
+        let courtById = {};
+        if (courtIds.length) {
+            const courts = await prisma.court.findMany({
+                where: { id: { in: courtIds } },
+                select: { id: true, name: true, city: true, district: true, address: true, pending: true, verified: true },
+            });
+            courtById = Object.fromEntries(courts.map(c => [c.id, c]));
+        }
+        res.json(items.map(i => ({ ...i, court: i.courtId ? (courtById[i.courtId] || null) : null })));
+    } catch (err) { next(err); }
+};
+
+export const setClubApproval = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { action, adminNote } = req.body; // APPROVE | REJECT | REVOKE
+        const listing = await prisma.clubListing.findUnique({ where: { id } });
+        if (!listing) return res.status(404).json({ message: 'Kulüp bulunamadı' });
+
+        let status = listing.status;
+        if (action === 'APPROVE') status = 'ACTIVE';
+        else if (action === 'REJECT') status = 'REJECTED';
+        else if (action === 'REVOKE') status = 'PENDING';
+        else return res.status(400).json({ message: 'Geçersiz işlem' });
+
+        const updated = await prisma.clubListing.update({
+            where: { id },
+            data: {
+                status,
+                adminNote: adminNote?.trim() || null,
+            },
+            include: clubInclude,
+        });
+
+        if (action === 'APPROVE' && listing.courtId) {
+            await prisma.court.updateMany({
+                where: { id: listing.courtId, pending: true },
+                data: { pending: false, verified: true },
+            }).catch(() => {});
+        }
+
+        createNotification(
+            listing.userId,
+            'CLUB_APPROVAL',
+            action === 'APPROVE' ? 'Kulübünüz onaylandı' : action === 'REJECT' ? 'Kulüp talebiniz reddedildi' : 'Kulüp onayı geri alındı',
+            listing.name,
+            { clubListingId: listing.id, category: listing.category, subCategory: listing.subCategory, status },
+        ).catch(() => {});
+
+        if (action === 'APPROVE') {
+            const creatorInfo = await prisma.user.findUnique({
+                where: { id: listing.userId },
+                select: { username: true },
+            }).catch(() => null);
+            notifyCitySubscribers({
+                subCategory: listing.subCategory,
+                category: listing.category,
+                senderCity: listing.city || null,
+                senderUsername: creatorInfo?.username || '',
+                senderId: listing.userId,
+                itemId: listing.id,
+                tab: 'clubs',
+            });
+            notifyActivityAlertSubscribers({
+                subCategory: listing.subCategory,
+                category: listing.category,
+                senderCity: listing.city || null,
+                senderUsername: creatorInfo?.username || '',
+                senderId: listing.userId,
+                itemId: listing.id,
+                tab: 'clubs',
+            });
+        }
+
+        res.json(updated);
     } catch (err) { next(err); }
 };

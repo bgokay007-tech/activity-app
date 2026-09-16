@@ -16,6 +16,7 @@ import {
     getSupportMessages, replySupportMessage,
     getSupportTickets, getSupportTicketMessagesAdmin, replySupportTicket, closeSupportTicket,
 } from '../controllers/admin.controller.js';
+import { getClubApprovals, setClubApproval } from '../controllers/club.controller.js';
 import { getNoShowReports, approveNoShow, rejectNoShow } from '../controllers/noshow.controller.js';
 import { adminGetCities, adminUpdateCity } from '../controllers/city.controller.js';
 import { getReviewAppeals, resolveReviewAppeal, getPendingVenueReviews, resolveVenueReview } from '../controllers/venueReview.controller.js';
@@ -51,6 +52,8 @@ router.get('/referee-approvals',             getRefereeApprovals);
 router.patch('/referee-approvals/:id',       setRefereeApproval);
 router.get('/team-name-approvals',           getTeamNameApprovals);
 router.patch('/team-name-approvals/:id',     setTeamNameApproval);
+router.get('/club-approvals',                getClubApprovals);
+router.patch('/club-approvals/:id',          setClubApproval);
 router.get('/tournament-permissions',                   getTournamentPermissionRequests);
 router.patch('/tournament-permissions/:userId/approve', approveTournamentPermission);
 router.patch('/tournament-permissions/:userId/reject',  rejectTournamentPermission);

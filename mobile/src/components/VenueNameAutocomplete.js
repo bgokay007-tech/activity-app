@@ -1,12 +1,16 @@
 import { useState, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet, ScrollView } from 'react-native';
 import api from '../services/api';
 import colors from '../theme/colors';
 
 // `CityAutocomplete`'in mekan-adı sürümü: yazarken sadece ADMİN ONAYLI mekanlar
 // öneri olarak çıkar (`verifiedOnly=true`); seçilince il/ilçe/açık adres/konum
 // bilgisi otomatik dolsun diye tüm mekan nesnesi `onSelect`'e geri döner.
-export default function VenueNameAutocomplete({ value, onChangeText, onSelect, sport, placeholder, style, inputStyle }) {
+// Eşleşme yoksa `allowAddNew` ile "olarak ekle" satırı çıkar (admin onayına gider).
+export default function VenueNameAutocomplete({
+    value, onChangeText, onSelect, onAddNew, allowAddNew = false,
+    sport, placeholder, style, inputStyle,
+}) {
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
     const timer = useRef(null);
@@ -32,6 +36,16 @@ export default function VenueNameAutocomplete({ value, onChangeText, onSelect, s
         setResults([]);
     };
 
+    const addNew = () => {
+        const name = value.trim();
+        if (!name) return;
+        onAddNew?.(name);
+        setResults([]);
+    };
+
+    const showAdd = allowAddNew && value.trim().length >= 2
+        && !results.some(c => (c.name || '').toLowerCase() === value.trim().toLowerCase());
+
     return (
         <View style={[s.wrapper, style]}>
             <View style={s.inputRow}>
@@ -41,17 +55,26 @@ export default function VenueNameAutocomplete({ value, onChangeText, onSelect, s
                     onChangeText={search}
                     placeholder={placeholder || 'Mekan adı yaz...'}
                     placeholderTextColor={colors.textMuted}
+                    blurOnSubmit={false}
                 />
                 {loading && <ActivityIndicator size="small" color={colors.purple} style={{ position: 'absolute', right: 10 }} />}
             </View>
-            {results.length > 0 && (
+            {(results.length > 0 || showAdd) && (
                 <View style={s.dropdown}>
-                    {results.map((c, i) => (
-                        <TouchableOpacity key={c.id || i} onPress={() => select(c)} style={[s.row, i === results.length - 1 && { borderBottomWidth: 0 }]}>
-                            <Text style={s.rowName}>{c.name}</Text>
-                            <Text style={s.rowMeta}>{[c.district, c.city].filter(Boolean).join(', ')}</Text>
-                        </TouchableOpacity>
-                    ))}
+                    <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled style={{ maxHeight: 180 }}>
+                        {showAdd && (
+                            <TouchableOpacity onPress={addNew} style={[s.row, results.length === 0 && { borderBottomWidth: 0 }]}>
+                                <Text style={[s.rowName, { color: colors.purple }]}>＋ "{value.trim()}" olarak ekle</Text>
+                                <Text style={s.rowMeta}>Kayıtlı değil — admin onayına gider</Text>
+                            </TouchableOpacity>
+                        )}
+                        {results.map((c, i) => (
+                            <TouchableOpacity key={c.id || i} onPress={() => select(c)} style={[s.row, i === results.length - 1 && { borderBottomWidth: 0 }]}>
+                                <Text style={s.rowName}>{c.name}</Text>
+                                <Text style={s.rowMeta}>{[c.district, c.city].filter(Boolean).join(', ')}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
                 </View>
             )}
         </View>

@@ -20781,7 +20781,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <View style={[s.chipRow, { marginBottom:8 }]}>
                                 <TouchableOpacity
                                     style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                    onPress={() => setF(p => ({ ...p, courtDecidedByPlayers: false }))}>
+                                    onPress={() => setF(p => ({
+                                        ...p,
+                                        courtDecidedByPlayers: false,
+                                        // Belirli kort seçilince "oyuncular karar verir" zemini anlamsız —
+                                        // kortun kendi zemini veya aşağıdaki chip'ler kullanılır.
+                                        surface: p.surface === 'PLAYERS_DECIDE' ? '' : p.surface,
+                                    }))}>
                                     <Text style={[s.chipText, !f.courtDecidedByPlayers && { color: cfg.color, fontWeight:'800' }]}>
                                         {isAirsoft ? (lang==='tr' ? '🏟️ Belirli Mekan' : lang === 'ru' ? '🏟️ Конкретное место' : lang === 'de' ? '🏟️ Bestimmter Ort' : '🏟️ Specific Venue') : t.tournCourtSpecific}
                                     </Text>
@@ -23279,7 +23285,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [clubForm, setClubForm] = useState({
         name: '', description: '', location: '', cities: [],
         contactPhone: '', website: '', membershipFee: '',
+        photoUrl: '', courtId: null, facilityName: '', facilityCity: '',
+        facilityDistrict: '', facilityAddress: '', facilityManual: false,
     });
+    const [uploadingClubPhoto, setUploadingClubPhoto] = useState(false);
 
     const [showCreateRival, setShowCreateRival] = useState(false);
     const [rivalPrefill, setRivalPrefill] = useState(null);
@@ -23894,6 +23903,8 @@ export default function SubCategoryScreen({ route, navigation }) {
         setClubForm({
             name: '', description: '', location: '', cities: [],
             contactPhone: '', website: '', membershipFee: '',
+            photoUrl: '', courtId: null, facilityName: '', facilityCity: '',
+            facilityDistrict: '', facilityAddress: '', facilityManual: false,
         });
     };
 
@@ -23902,25 +23913,67 @@ export default function SubCategoryScreen({ route, navigation }) {
         setShowCreateClub(true);
     };
 
+    const pickClubPhoto = async () => {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) return Alert.alert('', t.permissionDenied || 'Galeri izni gerekli');
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
+        if (result.canceled || !result.assets?.[0]?.uri) return;
+        setUploadingClubPhoto(true);
+        try {
+            const uri = result.assets[0].uri;
+            const form = new FormData();
+            form.append('file', { uri, name: 'club-emblem.jpg', type: 'image/jpeg' });
+            const { data } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+            const url = data?.url || data?.secure_url;
+            if (!url) throw new Error('upload failed');
+            setClubForm(f => ({ ...f, photoUrl: url }));
+        } catch {
+            Alert.alert('', t.actionFailed || 'Yükleme başarısız');
+        } finally { setUploadingClubPhoto(false); }
+    };
+
     const submitClub = async () => {
         if (!clubForm.name.trim()) return Alert.alert('', t.clubNameRequired || 'Kulüp adı zorunlu');
-        if (clubForm.cities.length === 0) return Alert.alert('', t.clubCitiesRequired || 'En az bir şehir seçmelisiniz');
+        if (clubForm.cities.length === 0 && !clubForm.facilityCity.trim()) {
+            return Alert.alert('', t.clubCitiesRequired || 'En az bir şehir seçmelisiniz');
+        }
+        if (!clubForm.courtId && !clubForm.facilityManual) {
+            return Alert.alert('', t.clubFacilityRequired || 'Tesis adı gerekli');
+        }
+        if (clubForm.facilityManual && !clubForm.facilityName.trim()) {
+            return Alert.alert('', t.clubFacilityRequired || 'Tesis adı gerekli');
+        }
+        if (clubForm.facilityManual && !clubForm.facilityCity.trim()) {
+            return Alert.alert('', t.clubFacilityCityRequired || 'Tesis için il seçmelisiniz');
+        }
         setSubmittingClub(true);
         try {
+            const cities = clubForm.cities.length > 0
+                ? clubForm.cities
+                : (clubForm.facilityCity.trim() ? [clubForm.facilityCity.trim()] : []);
             const { data } = await api.post('/clubs', {
                 category,
                 subCategory: sub,
                 name: clubForm.name.trim(),
                 description: clubForm.description.trim() || undefined,
                 location: clubForm.location.trim() || undefined,
-                cities: clubForm.cities,
+                cities,
                 contactPhone: clubForm.contactPhone.trim() || undefined,
                 website: clubForm.website.trim() || undefined,
                 membershipFee: clubForm.membershipFee ? parseInt(clubForm.membershipFee, 10) : undefined,
+                photoUrl: clubForm.photoUrl || undefined,
+                courtId: clubForm.courtId || undefined,
+                ...(clubForm.facilityManual ? {
+                    facilityName: clubForm.facilityName.trim(),
+                    facilityCity: clubForm.facilityCity.trim(),
+                    facilityDistrict: clubForm.facilityDistrict.trim() || undefined,
+                    facilityAddress: clubForm.facilityAddress.trim() || undefined,
+                } : {}),
             });
             setClubListings(prev => [data, ...prev]);
             setShowCreateClub(false);
             resetClubForm();
+            Alert.alert('', t.clubPendingMsg || 'Kulüp talebiniz admin onayına gönderildi.');
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setSubmittingClub(false); }
@@ -26967,10 +27020,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         ? <EmptyState emoji="🏟️" text={clubListings.length > 0 ? t.noFilterMatch : t.emptyClubs} />
                                         : filteredClubs.map(cl => (
                                             <View key={cl.id} style={{ backgroundColor:colors.surface2, borderRadius:12, padding:9, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
-                                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
-                                                    <Text style={{ fontSize:22 }}>🏟️</Text>
+                                                <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:6 }}>
+                                                    {cl.photoUrl && cl.status === 'ACTIVE' ? (
+                                                        <Image source={{ uri: cl.photoUrl }} style={{ width:40, height:40, borderRadius:8, backgroundColor:colors.bg }} />
+                                                    ) : (
+                                                        <Text style={{ fontSize:22 }}>🏟️</Text>
+                                                    )}
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{cl.name}</Text>
+                                                        {cl.status === 'PENDING' ? (
+                                                            <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800', marginTop:1 }}>{t.clubStatusPending || '⏳ Admin onayı bekleniyor'}</Text>
+                                                        ) : cl.status === 'REJECTED' ? (
+                                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'800', marginTop:1 }}>{t.clubStatusRejected || '❌ Reddedildi'}</Text>
+                                                        ) : null}
                                                         {cl.venueId ? (
                                                             <Text style={{ color:cfg.color, fontSize:10, fontWeight:'700', marginTop:1 }}>
                                                                 {t.clubBusinessBadge || 'İşletme kulübü'}
@@ -27539,19 +27601,103 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 onChangeText={v => setClubForm(f => ({ ...f, name: v }))}
                                 style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
                             />
+
+                            <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.clubEmblemLabel || 'Bayrak / Amblem'}</Text>
+                            <TouchableOpacity
+                                onPress={pickClubPhoto}
+                                disabled={uploadingClubPhoto}
+                                style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor:colors.surface2, borderRadius:8, padding:8, marginBottom:8, borderWidth:1, borderColor:colors.border }}
+                            >
+                                {clubForm.photoUrl ? (
+                                    <Image source={{ uri: clubForm.photoUrl }} style={{ width:44, height:44, borderRadius:8 }} />
+                                ) : (
+                                    <View style={{ width:44, height:44, borderRadius:8, backgroundColor:colors.bg, alignItems:'center', justifyContent:'center' }}>
+                                        <Text style={{ fontSize:18 }}>🏳️</Text>
+                                    </View>
+                                )}
+                                <Text style={{ color: cfg.color, fontSize:12, fontWeight:'800', flex:1 }}>
+                                    {uploadingClubPhoto ? '...' : (clubForm.photoUrl ? (t.clubEmblemChange || 'Amblemi değiştir') : (t.clubEmblemAdd || 'Amblem / bayrak ekle'))}
+                                </Text>
+                                {clubForm.photoUrl ? (
+                                    <TouchableOpacity onPress={() => setClubForm(f => ({ ...f, photoUrl: '' }))} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
+                                        <Text style={{ color:colors.textMuted }}>✕</Text>
+                                    </TouchableOpacity>
+                                ) : null}
+                            </TouchableOpacity>
+
+                            <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.clubFacilityLabel || 'Tesis'} *</Text>
+                            <View style={{ marginBottom: clubForm.facilityManual ? 4 : 8, zIndex: 50 }}>
+                                <VenueNameAutocomplete
+                                    value={clubForm.facilityName}
+                                    onChangeText={v => setClubForm(f => ({
+                                        ...f,
+                                        facilityName: v,
+                                        courtId: null,
+                                        // Kayıtlı seçimden sonra yazı değişirse sıfırla; "yeni tesis" modunda kal
+                                        facilityManual: f.courtId ? false : f.facilityManual,
+                                    }))}
+                                    allowAddNew
+                                    onAddNew={(name) => setClubForm(f => ({
+                                        ...f, facilityName: name, courtId: null, facilityManual: true,
+                                        location: name,
+                                    }))}
+                                    onSelect={(court) => {
+                                        const city = court.city || '';
+                                        setClubForm(f => ({
+                                            ...f,
+                                            facilityName: court.name,
+                                            courtId: court.id,
+                                            facilityManual: false,
+                                            location: [court.name, court.district, court.address].filter(Boolean).join(' · '),
+                                            cities: city && !f.cities.includes(city) ? [...f.cities, city] : (f.cities.length ? f.cities : (city ? [city] : [])),
+                                            facilityCity: city,
+                                            facilityDistrict: court.district || '',
+                                            facilityAddress: court.address || '',
+                                        }));
+                                    }}
+                                    sport={sub}
+                                    placeholder={t.clubFacilityPh || 'Tesis adı yazın...'}
+                                    inputStyle={{ backgroundColor:colors.surface2, borderColor:colors.border, color:'#fff', paddingVertical:5 }}
+                                />
+                            </View>
+                            {clubForm.facilityManual && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:8, marginBottom:8, borderWidth:1, borderColor:'#334155', gap:6 }}>
+                                    <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>{t.clubFacilityNewHint || 'Kayıtlı değil — il / ilçe / açık adres admin onayına gider'}</Text>
+                                    <CityAutocomplete
+                                        value={clubForm.facilityCity}
+                                        onChangeText={v => setClubForm(f => ({ ...f, facilityCity: v }))}
+                                        onSelect={(c) => setClubForm(f => ({
+                                            ...f,
+                                            facilityCity: c.province || c.city || f.facilityCity,
+                                            facilityDistrict: c.district || f.facilityDistrict,
+                                            cities: (c.province && !f.cities.includes(c.province)) ? [...f.cities, c.province] : f.cities,
+                                        }))}
+                                        placeholder={t.clubFacilityCityPh || 'İl ara...'}
+                                        inputStyle={{ backgroundColor:colors.surface2, borderColor:colors.border, color:'#fff', paddingVertical:5 }}
+                                    />
+                                    <TextInput
+                                        placeholder={t.clubFacilityDistrictPh || 'İlçe'}
+                                        placeholderTextColor={colors.textMuted}
+                                        value={clubForm.facilityDistrict}
+                                        onChangeText={v => setClubForm(f => ({ ...f, facilityDistrict: v }))}
+                                        style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }}
+                                    />
+                                    <TextInput
+                                        placeholder={t.clubFacilityAddressPh || 'Açık adres'}
+                                        placeholderTextColor={colors.textMuted}
+                                        value={clubForm.facilityAddress}
+                                        onChangeText={v => setClubForm(f => ({ ...f, facilityAddress: v }))}
+                                        style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }}
+                                    />
+                                </View>
+                            )}
+
                             <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.clubCitiesLabel} *</Text>
                             <MultiCityAutocomplete
                                 values={clubForm.cities}
                                 onChange={v => setClubForm(f => ({ ...f, cities: v }))}
                                 placeholder={t.clubCitiesPh}
                                 style={{ marginBottom: 8 }}
-                            />
-                            <TextInput
-                                placeholder={t.clubLocationPh}
-                                placeholderTextColor={colors.textMuted}
-                                value={clubForm.location}
-                                onChangeText={v => setClubForm(f => ({ ...f, location: v }))}
-                                style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
                             />
                             <TextInput
                                 placeholder={t.clubPhonePh}
@@ -27586,6 +27732,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 numberOfLines={3}
                                 style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }}
                             />
+                            <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:10, lineHeight:16 }}>
+                                {t.clubAdminApprovalHint || 'Kulüp talebi admin onayına gider. Onaylandıktan sonra listede görünür.'}
+                            </Text>
                             <View style={{ flexDirection:'row', gap:3 }}>
                                 <TouchableOpacity onPress={() => { setShowCreateClub(false); resetClubForm(); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
                                     <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.cancelBtn || 'İptal'}</Text>

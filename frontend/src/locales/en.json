@@ -715,7 +715,8 @@
       "venue-reviews": "⭐ Venue Reviews",
       "coach-listing-approval": "🎓 Coaching Listing Approval",
       "referee-approval": "🟨 Referee Approval",
-      "coach-rating-approval": "🏐 Coach Rating Approval"
+      "coach-rating-approval": "🏐 Coach Rating Approval",
+      "club-approval": "🏟️ Club Approval"
     },
     "sidebar_title": "👑 Admin Panel",
     "sidebar_group_individual": "INDIVIDUAL",
@@ -944,7 +945,8 @@
       "conditional_days_label": "days",
       "conditional_active_label": "⚠️ Conditional approval:",
       "conditional_deadline_label": "Deadline:",
-      "approved_expiry_label": "Approval expires:"
+      "approved_expiry_label": "Approval expires:",
+      "club_empty": "No club requests found."
     }
   },
   "batak": {

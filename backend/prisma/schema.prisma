@@ -724,9 +724,11 @@ model ClubListing {
   contactPhone    String?
   website         String?
   membershipFee   Int?     // aylık üyelik ücreti (₺), opsiyonel
-  photoUrl        String?
+  photoUrl        String?  // bayrak / amblem
+  courtId         String?  // seçilen kayıtlı community Court (opsiyonel)
 
-  status          String   @default("ACTIVE")  // ACTIVE | FLAGGED | REMOVED
+  status          String   @default("PENDING")  // PENDING | ACTIVE | REJECTED | FLAGGED | REMOVED
+  adminNote       String?
   reportCount     Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

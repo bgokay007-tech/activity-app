@@ -373,38 +373,39 @@ function SubscriptionModal({ visible, onClose, sub, pendingRequest, onPurchase, 
 }
 
 const VENUE_BRANCHES = [
-    { key: 'football',    label: '⚽ Futbol / Halı Saha', subCategory: 'football' },
-    { key: 'tennis',      label: '🎾 Tenis',              subCategory: 'tennis' },
-    { key: 'padel',       label: '🏓 Padel',              subCategory: 'padel' },
-    { key: 'basketball',  label: '🏀 Basketbol',          subCategory: 'basketball' },
-    { key: 'volleyball',  label: '🏐 Voleybol',           subCategory: 'volleyball' },
-    { key: 'badminton',   label: '🏸 Badminton',          subCategory: 'badminton' },
-    { key: 'swimming',    label: '🏊 Yüzme',              subCategory: 'swimming' },
-    { key: 'boxing',      label: '🥊 Boks',               subCategory: 'boxing' },
-    { key: 'martial_arts',label: '🥋 Dövüş Sanatları',   subCategory: 'martial_arts' },
-    { key: 'wellness',    label: '🧘 Yoga / Pilates',     subCategory: 'wellness' },
-    { key: 'cycling',     label: '🚴 Bisiklet',           subCategory: 'cycling' },
-    { key: 'running',     label: '🏃 Koşu',               subCategory: 'running' },
-    { key: 'table_tennis',      label: '🏓 Masa Tenisi',              subCategory: 'table_tennis' },
-    { key: 'climbing',          label: '🧗 Tırmanış',                 subCategory: 'climbing' },
-    { key: 'archery',           label: '🏹 Okçuluk',                  subCategory: 'archery' },
-    { key: 'walking',           label: '🚶 Yürüyüş',                  subCategory: 'walking' },
-    { key: 'foot_tennis',       label: '🦶 Ayak Tenisi',              subCategory: 'foot_tennis' },
-    { key: 'sup_kano',          label: '🛶 Supboard ve Kano',         subCategory: 'sup_kano' },
-    { key: 'handball',          label: '🤾 Hentbol',                  subCategory: 'handball' },
-    { key: 'shooting_hunting',  label: '🔫 Atıcılık ve Avcılık',      subCategory: 'shooting_hunting' },
-    { key: 'equestrian',        label: '🐎 Binicilik',                subCategory: 'equestrian' },
-    { key: 'golf',              label: '⛳ Golf',                     subCategory: 'golf' },
-    { key: 'fitness_gym',       label: '🏋️ Fitness ve Gym',          subCategory: 'fitness_gym' },
-    { key: 'skiing_snowboard',  label: '⛷️ Kayak ve Snowboard',       subCategory: 'skiing_snowboard' },
-    { key: 'ice_skating',       label: '⛸️ Buz Pateni',               subCategory: 'ice_skating' },
-    { key: 'hiking',            label: '🥾 Dağ Bayır Doğa Yürüyüşleri', subCategory: 'hiking' },
-    { key: 'camping',           label: '🏕️ Kamp',                    subCategory: 'camping' },
-    { key: 'motorcycle',        label: '🏍️ Sürüş (Motosiklet)',      subCategory: 'motorcycle' },
-    { key: 'extreme_sports',    label: '🪂 Ekstrem Sporları',         subCategory: 'extreme_sports' },
-    { key: 'paintball',         label: '🎯 Paintball',                subCategory: 'paintball' },
-    { key: 'airsoft',           label: '🪖 Airsoft',                  subCategory: 'airsoft' },
+    { key: 'football',    label: '⚽ Futbol / Halı Saha', subCategory: 'football', color: '#16a34a' },
+    { key: 'tennis',      label: '🎾 Tenis',              subCategory: 'tennis', color: '#eab308' },
+    { key: 'padel',       label: '🏓 Padel',              subCategory: 'padel', color: '#06b6d4' },
+    { key: 'basketball',  label: '🏀 Basketbol',          subCategory: 'basketball', color: '#f97316' },
+    { key: 'volleyball',  label: '🏐 Voleybol',           subCategory: 'volleyball', color: '#a855f7' },
+    { key: 'badminton',   label: '🏸 Badminton',          subCategory: 'badminton', color: '#14b8a6' },
+    { key: 'swimming',    label: '🏊 Yüzme',              subCategory: 'swimming', color: '#0ea5e9' },
+    { key: 'boxing',      label: '🥊 Boks',               subCategory: 'boxing', color: '#ef4444' },
+    { key: 'martial_arts',label: '🥋 Dövüş Sanatları',   subCategory: 'martial_arts', color: '#dc2626' },
+    { key: 'wellness',    label: '🧘 Yoga / Pilates',     subCategory: 'wellness', color: '#8b5cf6' },
+    { key: 'cycling',     label: '🚴 Bisiklet',           subCategory: 'cycling', color: '#22c55e' },
+    { key: 'running',     label: '🏃 Koşu',               subCategory: 'running', color: '#f59e0b' },
+    { key: 'table_tennis',      label: '🏓 Masa Tenisi',              subCategory: 'table_tennis', color: '#1d4ed8' },
+    { key: 'climbing',          label: '🧗 Tırmanış',                 subCategory: 'climbing', color: '#78716c' },
+    { key: 'archery',           label: '🏹 Okçuluk',                  subCategory: 'archery', color: '#b45309' },
+    { key: 'walking',           label: '🚶 Yürüyüş',                  subCategory: 'walking', color: '#65a30d' },
+    { key: 'foot_tennis',       label: '🦶 Ayak Tenisi',              subCategory: 'foot_tennis', color: '#0891b2' },
+    { key: 'sup_kano',          label: '🛶 Supboard ve Kano',         subCategory: 'sup_kano', color: '#0284c7' },
+    { key: 'handball',          label: '🤾 Hentbol',                  subCategory: 'handball', color: '#ea580c' },
+    { key: 'shooting_hunting',  label: '🔫 Atıcılık ve Avcılık',      subCategory: 'shooting_hunting', color: '#57534e' },
+    { key: 'equestrian',        label: '🐎 Binicilik',                subCategory: 'equestrian', color: '#92400e' },
+    { key: 'golf',              label: '⛳ Golf',                     subCategory: 'golf', color: '#15803d' },
+    { key: 'fitness_gym',       label: '🏋️ Fitness ve Gym',          subCategory: 'fitness_gym', color: '#334155' },
+    { key: 'skiing_snowboard',  label: '⛷️ Kayak ve Snowboard',       subCategory: 'skiing_snowboard', color: '#38bdf8' },
+    { key: 'ice_skating',       label: '⛸️ Buz Pateni',               subCategory: 'ice_skating', color: '#7dd3fc' },
+    { key: 'hiking',            label: '🥾 Dağ Bayır Doğa Yürüyüşleri', subCategory: 'hiking', color: '#4d7c0f' },
+    { key: 'camping',           label: '🏕️ Kamp',                    subCategory: 'camping', color: '#a16207' },
+    { key: 'motorcycle',        label: '🏍️ Sürüş (Motosiklet)',      subCategory: 'motorcycle', color: '#991b1b' },
+    { key: 'extreme_sports',    label: '🪂 Ekstrem Sporları',         subCategory: 'extreme_sports', color: '#7c3aed' },
+    { key: 'paintball',         label: '🎯 Paintball',                subCategory: 'paintball', color: '#166534' },
+    { key: 'airsoft',           label: '🪖 Airsoft',                  subCategory: 'airsoft', color: '#3f6212' },
 ];
+const branchMeta = (key) => VENUE_BRANCHES.find(b => b.key === key) || { label: key, color: BIZ_COLOR };
 
 // ── Tesis Ekleme Modalı (3 adım) ─────────────────────────────────────────────
 function VenueAddModal({ visible, onClose, onSuccess }) {
@@ -1856,6 +1857,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     const isPro     = sub && ['PRO', 'PREMIUM'].includes(sub.packageType);
     const isPremium = sub && sub.packageType === 'PREMIUM';
     const [activeTab, setActiveTab] = useState('info');
+    const [manageOpen, setManageOpen] = useState(!!(openReservations || openOrders || openClubs));
     const [deleting, setDeleting]   = useState(false);
     // Rezervasyon takviminde bir iptal talebi onaylanınca/reddedilince takvim anında
     // güncellensin diye (kullanıcı isteği) — VenueScheduleModal'ın kendi refreshTick'i
@@ -2056,8 +2058,9 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     const [loadingClubs, setLoadingClubs]     = useState(false);
     const [showCreateClub, setShowCreateClub] = useState(false);
     const [savingClub, setSavingClub]         = useState(false);
+    const [uploadingClubPhoto, setUploadingClubPhoto] = useState(false);
     const [clubForm, setClubForm]             = useState({
-        name: '', description: '', contactPhone: '', website: '', membershipFee: '',
+        name: '', description: '', contactPhone: '', website: '', membershipFee: '', photoUrl: '',
     });
     const [clubAppsById, setClubAppsById]     = useState({}); // clubId -> applications[]
     const [loadingClubApps, setLoadingClubApps] = useState(null); // clubId
@@ -2082,7 +2085,27 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
             contactPhone: venue.phone || '',
             website: venue.website || '',
             membershipFee: '',
+            photoUrl: '',
         });
+    };
+
+    const pickBizClubPhoto = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') { Alert.alert('İzin Gerekli', 'Galeriye erişim izni vermeniz gerekiyor.'); return; }
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
+        if (result.canceled || !result.assets?.[0]?.uri) return;
+        setUploadingClubPhoto(true);
+        try {
+            const uri = result.assets[0].uri;
+            const form = new FormData();
+            form.append('file', { uri, name: 'club-emblem.jpg', type: 'image/jpeg' });
+            const { data } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+            const url = data?.url || data?.secure_url;
+            if (!url) throw new Error('upload failed');
+            setClubForm(f => ({ ...f, photoUrl: url }));
+        } catch {
+            Alert.alert('Hata', 'Amblem yüklenemedi');
+        } finally { setUploadingClubPhoto(false); }
     };
 
     const submitBizClub = async () => {
@@ -2096,11 +2119,12 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 contactPhone: clubForm.contactPhone.trim() || undefined,
                 website: clubForm.website.trim() || undefined,
                 membershipFee: clubForm.membershipFee ? parseInt(clubForm.membershipFee, 10) : undefined,
+                photoUrl: clubForm.photoUrl || undefined,
             });
             setVenueClubs(prev => [data, ...prev]);
             setShowCreateClub(false);
             resetBizClubForm();
-            Alert.alert('✅', `${data.name} oluşturuldu — ${venue.branch} Kulüpler sekmesinde görünür.`);
+            Alert.alert('', 'Kulüp talebiniz admin onayına gönderildi. Onaylandıktan sonra listede görünür.');
         } catch (e) {
             Alert.alert('Hata', e?.response?.data?.message || 'Kulüp oluşturulamadı');
         } finally { setSavingClub(false); }
@@ -2905,9 +2929,18 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         ]);
     };
 
+    useEffect(() => {
+        if (openReservations || openOrders || openClubs) setManageOpen(true);
+    }, [openReservations, openOrders, openClubs]);
+
     const statusColor = STATUS_COLOR[venue.status] || '#9ca3af';
     const statusLabel = STATUS_LABEL[venue.status] || venue.status;
     const slotLabel   = SLOT_TYPES.find(s => s.key === venue.slotType)?.label || venue.slotType;
+    const bMeta = branchMeta(venue.branch);
+    const branchTitle = String(bMeta.label || venue.branch || '')
+        .replace(/^[^\p{L}\p{N}]+/u, '')
+        .trim()
+        .toLocaleUpperCase('tr-TR');
 
     const TABS = [
         { key: 'info',         label: 'ℹ️ Bilgi' },
@@ -2923,32 +2956,97 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         isApproved          ? { key: 'settings', label: '⚙️ Ayarlar' } : null,
     ].filter(Boolean);
 
+    const summaryChips = (() => {
+        if (!isApproved) return [];
+        const APPROVAL_SHORT = {
+            'FULL_AUTO': '🤖 Tam Otomatik', 'EFT_TIMED': '⏱️ EFT 1sa Bekle',
+            'PAYMENT_AUTO': '💳 Ödeme=Otomatik', 'MANUAL': '✋ Manuel Onay',
+        };
+        const PAY_ICONS = { CASH: '💵', EFT: '🏦', ONLINE: '🌐', CREDIT_CARD: '💳' };
+        const PAY_NAMES = { CASH: 'Nakit', EFT: 'EFT', ONLINE: 'Online', CREDIT_CARD: 'Kortta Kredi Kartı' };
+        const policyLabel = (v) => v === null || v === undefined ? 'Her zaman' : v === -1 ? 'Asla' : `${v} saat öncesi`;
+        const approvalMode = venue.approvalMode || 'FULL_AUTO';
+        const payments = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
+        const hasPricingWins = Array.isArray(venue.pricingWindows) && venue.pricingWindows.length > 0;
+        const lightsFrom = (venue.courts || []).find(c => c.lightsFrom)?.lightsFrom;
+        return [
+            { label: APPROVAL_SHORT[approvalMode] || approvalMode, color: '#a78bfa' },
+            { label: payments.map(p => (PAY_ICONS[p] || '') + ' ' + (PAY_NAMES[p] || p)).join('  '), color: '#34d399' },
+            { label: `🚫 İptal: ${policyLabel(venue.cancelHoursBefore)}`, color: '#f87171' },
+            { label: `🔄 Değişiklik: ${policyLabel(venue.rescheduleHoursBefore)}`, color: '#fb923c' },
+            ...(venue.pricePerSlot > 0 ? [{ label: `💰 ${venue.pricePerSlot}₺/saat`, color: '#fbbf24' }] : []),
+            ...(hasPricingWins ? [{ label: `📊 ${venue.pricingWindows.length} fiyat dilimi`, color: '#fbbf24' }] : []),
+            ...(lightsFrom ? [{ label: `💡 Işık: ${lightsFrom}`, color: '#fbbf24' }] : []),
+            { label: `${venue.courts?.length || 0} kort · ${slotLabel}`, color: '#94a3b8' },
+        ];
+    })();
+
     return (
         <View style={vc.card}>
-            <View style={vc.header}>
-                <View style={{ flex: 1 }}>
-                    <Text style={vc.name}>{venue.name}</Text>
-                    <Text style={vc.meta}>{venue.branch} · {venue.city}{venue.district ? ` / ${venue.district}` : ''}</Text>
-                </View>
-                <View style={[vc.badge, { backgroundColor: statusColor + '20', borderColor: statusColor + '60' }]}>
-                    <Text style={[vc.badgeText, { color: statusColor }]}>{statusLabel}</Text>
-                </View>
+            <Text style={{ color: bMeta.color, fontSize: 12, fontWeight: '900', letterSpacing: 0.8, marginBottom: 4 }}>
+                {branchTitle}
+            </Text>
+            <Text style={vc.name}>{venue.name}</Text>
+            <Text style={vc.meta}>
+                {venue.city}{venue.district ? ` / ${venue.district}` : ''}
+            </Text>
+            <View style={[vc.badge, { backgroundColor: statusColor + '20', borderColor: statusColor + '60', alignSelf: 'flex-start', marginTop: 8 }]}>
+                <Text style={[vc.badgeText, { color: statusColor }]}>{statusLabel}</Text>
             </View>
 
-            {venue.adminNote ? <View style={vc.noteBox}><Text style={vc.noteText}>📝 {venue.adminNote}</Text></View> : null}
+            {venue.adminNote ? <View style={[vc.noteBox, { marginTop: 8 }]}><Text style={vc.noteText}>📝 {venue.adminNote}</Text></View> : null}
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
-                <View style={{ flexDirection: 'row', gap: 6, paddingBottom: 4 }}>
-                    {TABS.map(tab => (
-                        <TouchableOpacity key={tab.key}
-                            style={[vc.tab, activeTab === tab.key && vc.tabActive]}
-                            onPress={() => handleTab(tab.key)}>
-                            <Text style={[vc.tabTxt, activeTab === tab.key && vc.tabTxtActive]}>{tab.label}</Text>
-                        </TouchableOpacity>
-                    ))}
+            {summaryChips.length > 0 && (
+                <View style={{ marginTop: 10 }}>
+                    <Text style={{ color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 6 }}>AYAR ÖZETİ</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
+                        {summaryChips.map((chip, i) => (
+                            <View key={i} style={{ backgroundColor: chip.color + '15', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: chip.color + '40' }}>
+                                <Text style={{ color: chip.color, fontSize: 10, fontWeight: '700' }}>{chip.label}</Text>
+                            </View>
+                        ))}
+                    </View>
                 </View>
-            </ScrollView>
+            )}
 
+            {isApproved ? (
+                <TouchableOpacity
+                    onPress={() => setManageOpen(true)}
+                    style={{ marginTop: 12, backgroundColor: BIZ_COLOR + '18', borderRadius: 10, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: BIZ_COLOR + '50' }}
+                >
+                    <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 13 }}>⚙️ Ayarları değiştir</Text>
+                </TouchableOpacity>
+            ) : null}
+
+            <TouchableOpacity style={vc.deleteBtn} onPress={handleDelete} disabled={deleting}>
+                <Text style={vc.deleteBtnText}>{deleting ? '...' : '🗑 Tesisi Sil'}</Text>
+            </TouchableOpacity>
+
+            <Modal visible={manageOpen} animationType="slide" onRequestClose={() => setManageOpen(false)}>
+                <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 10, gap: 10 }}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ color: bMeta.color, fontSize: 11, fontWeight: '900' }}>{branchTitle}</Text>
+                            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900' }} numberOfLines={1}>{venue.name}</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => setManageOpen(false)} style={{ padding: 8 }}>
+                            <Text style={{ color: colors.textMuted, fontSize: 18, fontWeight: '900' }}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 10, maxHeight: 44 }}>
+                        <View style={{ flexDirection: 'row', gap: 6, paddingBottom: 4 }}>
+                            {TABS.map(tab => (
+                                <TouchableOpacity key={tab.key}
+                                    style={[vc.tab, activeTab === tab.key && vc.tabActive]}
+                                    onPress={() => handleTab(tab.key)}>
+                                    <Text style={[vc.tabTxt, activeTab === tab.key && vc.tabTxtActive]}>{tab.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </ScrollView>
+
+                    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
             {activeTab === 'info' && (() => {
                 const getDayW = (d) => {
                     if (!(venue.openDays || [1,2,3,4,5,6,7]).includes(d)) return null;
@@ -3412,12 +3510,26 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                         venueClubs.map(cl => {
                             const apps = clubAppsById[cl.id];
                             const pendingCount = (apps || []).filter(a => a.status === 'PENDING').length;
+                            const clubStatusLabel = cl.status === 'PENDING'
+                                ? '⏳ Admin onayı bekleniyor'
+                                : cl.status === 'REJECTED'
+                                    ? '❌ Reddedildi'
+                                    : null;
                             return (
                                 <View key={cl.id} style={{ backgroundColor: '#ffffff06', borderRadius: 10, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#ffffff12' }}>
                                     <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-                                        <Text style={{ fontSize: 22 }}>🏟️</Text>
+                                        {cl.photoUrl && cl.status === 'ACTIVE' ? (
+                                            <Image source={{ uri: cl.photoUrl }} style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: '#0a0a14' }} />
+                                        ) : (
+                                            <Text style={{ fontSize: 22 }}>🏟️</Text>
+                                        )}
                                         <View style={{ flex: 1 }}>
                                             <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>{cl.name}</Text>
+                                            {clubStatusLabel ? (
+                                                <Text style={{ color: cl.status === 'REJECTED' ? '#f87171' : '#fbbf24', fontSize: 11, fontWeight: '800', marginTop: 2 }}>
+                                                    {clubStatusLabel}
+                                                </Text>
+                                            ) : null}
                                             <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 2 }}>
                                                 {Array.isArray(cl.cities) && cl.cities.length ? cl.cities.join(', ') : (cl.city || venue.city)}
                                                 {cl.location ? ` · ${cl.location}` : ''}
@@ -3507,6 +3619,27 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                             value={clubForm.name}
                                             onChangeText={v => setClubForm(f => ({ ...f, name: v }))}
                                         />
+                                        <TouchableOpacity
+                                            onPress={pickBizClubPhoto}
+                                            disabled={uploadingClubPhoto}
+                                            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#2d2d3f', borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: '#3d3d5c' }}
+                                        >
+                                            {clubForm.photoUrl ? (
+                                                <Image source={{ uri: clubForm.photoUrl }} style={{ width: 44, height: 44, borderRadius: 8 }} />
+                                            ) : (
+                                                <View style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: '#0a0a14', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <Text style={{ fontSize: 18 }}>🏳️</Text>
+                                                </View>
+                                            )}
+                                            <Text style={{ color: BIZ_LIGHT, fontSize: 12, fontWeight: '800', flex: 1 }}>
+                                                {uploadingClubPhoto ? '...' : (clubForm.photoUrl ? 'Amblemi değiştir' : 'Amblem / bayrak ekle')}
+                                            </Text>
+                                            {clubForm.photoUrl ? (
+                                                <TouchableOpacity onPress={() => setClubForm(f => ({ ...f, photoUrl: '' }))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                                    <Text style={{ color: '#6b7280' }}>✕</Text>
+                                                </TouchableOpacity>
+                                            ) : null}
+                                        </TouchableOpacity>
                                         <TextInput
                                             style={{ backgroundColor: '#2d2d3f', borderRadius: 10, padding: 12, color: '#fff', fontSize: 13, marginBottom: 8, borderWidth: 1, borderColor: '#3d3d5c' }}
                                             placeholder="İletişim telefonu"
@@ -5274,6 +5407,10 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                             </View>
                         );
                     })()}
+                </View>
+            </Modal>
+
+                    </ScrollView>
                 </View>
             </Modal>
 

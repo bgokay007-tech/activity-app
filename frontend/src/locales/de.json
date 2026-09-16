@@ -715,7 +715,8 @@
       "venue-reviews": "⭐ Location-Bewertungen",
       "coach-listing-approval": "🎓 Genehmigung von Trainerangeboten",
       "referee-approval": "🟨 Schiedsrichter-Genehmigung",
-      "coach-rating-approval": "🏐 Genehmigung von Trainerbewertungen"
+      "coach-rating-approval": "🏐 Genehmigung von Trainerbewertungen",
+      "club-approval": "🏟️ Vereinsfreigabe"
     },
     "sidebar_title": "👑 Admin-Panel",
     "sidebar_group_individual": "PRIVATPERSONEN",
@@ -944,7 +945,8 @@
       "conditional_days_label": "Tage",
       "conditional_active_label": "⚠️ Bedingte Genehmigung:",
       "conditional_deadline_label": "Frist:",
-      "approved_expiry_label": "Genehmigung läuft ab:"
+      "approved_expiry_label": "Genehmigung läuft ab:",
+      "club_empty": "Keine Vereinsanträge gefunden."
     }
   },
   "batak": {

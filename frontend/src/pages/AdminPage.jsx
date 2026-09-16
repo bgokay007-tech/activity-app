@@ -5,13 +5,13 @@ import api from '../services/api';
 import Navbar from '../components/Navbar';
 import { useTranslation } from 'react-i18next';
 
-const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'biz-venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'venue-reviews', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval'];
+const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'biz-venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'venue-reviews', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval', 'club-approval'];
 // Kullanıcı isteği: sol panel ŞAHIS (bireysel kullanıcı/maç moderasyonu) ve KURUMSAL
 // (tesis/işletme onayları) olarak iki katlanır gruba ayrıldı.
 // Abonelik satışları şimdilik gizli (BUSINESS_SUBS_COMPLIMENTARY) — 'subscriptions' sekmesi
 // listeden çıkarıldı; ücretli dönem açılınca geri eklenir.
 const SIDEBAR_GROUPS = [
-    { key: 'individual', tabs: ['dashboard', 'users', 'disputes', 'posts', 'noshow', 'tournament-perms', 'flagged-listings', 'profile-changes', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval'] },
+    { key: 'individual', tabs: ['dashboard', 'users', 'disputes', 'posts', 'noshow', 'tournament-perms', 'flagged-listings', 'profile-changes', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval', 'club-approval'] },
     { key: 'corporate', tabs: ['courts', 'venues', 'biz-venues', 'cities', 'venue-reviews'] },
 ];
 // Kullanıcı isteği: admin panelinin TAMAMI (sekme etiketleri dahil) TR/EN dil
@@ -1688,6 +1688,113 @@ function CoachRatingApprovalPanel() {
         emptyPendingText={t('admin.approvalQueue.coachRating_empty_pending')} emptyOtherText={t('admin.approvalQueue.coachRating_empty_other')} />;
 }
 
+function ClubApprovalPanel() {
+    const { t } = useTranslation();
+    const [filter, setFilter] = useState('PENDING');
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [notes, setNotes] = useState({});
+
+    const load = useCallback(() => {
+        setLoading(true);
+        const status = filter === 'APPROVED' ? 'ACTIVE' : filter;
+        api.get('/admin/club-approvals', { params: { status } })
+            .then(r => setItems(Array.isArray(r.data) ? r.data : []))
+            .catch(() => setItems([]))
+            .finally(() => setLoading(false));
+    }, [filter]);
+    useEffect(() => { load(); }, [load]);
+
+    const setApproval = async (id, action) => {
+        try {
+            await api.patch(`/admin/club-approvals/${id}`, { action, adminNote: notes[id] || '' });
+            load();
+        } catch (e) {
+            alert(e?.response?.data?.message || t('admin.common.error'));
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="flex gap-2 mb-4">
+                {['PENDING', 'APPROVED', 'REJECTED'].map(s => (
+                    <button key={s} onClick={() => setFilter(s)}
+                        className={`px-4 py-1.5 rounded-xl text-sm font-bold transition border ${filter === s ? 'bg-purple-600 border-purple-500 text-white' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}>
+                        {s === 'PENDING' ? t('admin.approvalQueue.pending_tab') : s === 'APPROVED' ? t('admin.approvalQueue.approved_tab') : t('admin.approvalQueue.rejected_tab')}
+                    </button>
+                ))}
+            </div>
+            {loading && <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>}
+            {!loading && items.length === 0 && (
+                <p className="text-gray-500 text-center py-16">{t('admin.approvalQueue.club_empty', { defaultValue: 'Kayıt yok' })}</p>
+            )}
+            {items.map(c => (
+                <div key={c.id} className="bg-gray-900 border border-purple-700/30 rounded-2xl p-5">
+                    <div className="flex items-start gap-4">
+                        {c.photoUrl ? (
+                            <img src={c.photoUrl} alt="" className="w-14 h-14 rounded-xl object-cover border border-gray-700" />
+                        ) : (
+                            <div className="w-14 h-14 rounded-xl bg-gray-800 flex items-center justify-center text-2xl">🏟️</div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                            <p className="text-white font-bold text-sm">{c.name}</p>
+                            <p className="text-gray-500 text-xs">@{c.user?.username || '?'} · {c.subCategory}</p>
+                            <p className="text-gray-400 text-xs mt-1">
+                                {Array.isArray(c.cities) && c.cities.length ? c.cities.join(', ') : (c.city || '—')}
+                                {c.location ? ` · ${c.location}` : ''}
+                            </p>
+                            {c.court ? (
+                                <p className="text-amber-300/90 text-xs mt-1">
+                                    📍 {c.court.name}
+                                    {[c.court.district, c.court.city].filter(Boolean).length
+                                        ? ` · ${[c.court.district, c.court.city].filter(Boolean).join(', ')}`
+                                        : ''}
+                                    {c.court.address ? ` · ${c.court.address}` : ''}
+                                    {c.court.pending ? ' · (tesis onayı bekliyor)' : ''}
+                                </p>
+                            ) : null}
+                            {c.venue ? (
+                                <p className="text-purple-300/80 text-xs mt-1">🏢 İşletme: {c.venue.name}</p>
+                            ) : null}
+                            {c.description ? <p className="text-gray-500 text-xs mt-1 line-clamp-2">{c.description}</p> : null}
+                            {filter === 'PENDING' && (
+                                <textarea
+                                    className="mt-2 w-full bg-gray-950 border border-gray-700 rounded-xl text-xs text-gray-300 p-2"
+                                    rows={2}
+                                    placeholder={t('admin.common.note_prefix')}
+                                    value={notes[c.id] || ''}
+                                    onChange={e => setNotes(prev => ({ ...prev, [c.id]: e.target.value }))}
+                                />
+                            )}
+                            {c.adminNote && filter !== 'PENDING' && (
+                                <p className="text-amber-400 text-xs mt-1">{t('admin.common.note_prefix')} {c.adminNote}</p>
+                            )}
+                        </div>
+                        {filter === 'PENDING' && (
+                            <div className="flex flex-col gap-2 shrink-0">
+                                <button onClick={() => setApproval(c.id, 'APPROVE')}
+                                    className="px-3 py-1.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-xs">
+                                    {t('admin.approvalQueue.approve')}
+                                </button>
+                                <button onClick={() => setApproval(c.id, 'REJECT')}
+                                    className="px-3 py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-xs">
+                                    {t('admin.approvalQueue.reject', { defaultValue: 'Reddet' })}
+                                </button>
+                            </div>
+                        )}
+                        {filter === 'APPROVED' && (
+                            <button onClick={() => setApproval(c.id, 'REVOKE')}
+                                className="shrink-0 px-3 py-1.5 rounded-xl bg-red-900/40 border border-red-700/50 text-red-400 font-black text-xs">
+                                {t('admin.approvalQueue.revoke')}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 // ── MAIN ───────────────────────────────────────────────────────────────────
 export default function AdminPage() {
     const { t } = useTranslation();
@@ -1769,6 +1876,7 @@ export default function AdminPage() {
                     {activeTab === 'coach-listing-approval' && <CoachListingApprovalPanel />}
                     {activeTab === 'referee-approval'       && <RefereeApprovalPanel />}
                     {activeTab === 'coach-rating-approval'  && <CoachRatingApprovalPanel />}
+                    {activeTab === 'club-approval' && <ClubApprovalPanel />}
                 </div>
             </div>
         </div>

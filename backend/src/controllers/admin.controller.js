@@ -36,6 +36,7 @@ export const getPendingCounts = async (req, res, next) => {
             tournamentPerms, flaggedEquipment, flaggedCoaches,
             profileChanges, subscriptions, venueReviews,
             coachListingApproval, refereeApproval, coachRatingApproval,
+            clubApproval,
         ] = await Promise.all([
             prisma.court.count({ where: { pending: true } }),
             prisma.court.count({ where: { pending: true, verified: false } }),
@@ -52,6 +53,7 @@ export const getPendingCounts = async (req, res, next) => {
             prisma.coachListing.count({ where: { subCategory: { in: COACH_APPROVAL_SPORTS }, status: 'ACTIVE', approved: false } }),
             prisma.refereeListing.count({ where: { subCategory: { in: REFEREE_APPROVAL_SPORTS }, status: 'ACTIVE', approved: false } }),
             prisma.coachListing.count({ where: { subCategory: 'volleyball', status: 'ACTIVE', approvedForRating: false } }),
+            prisma.clubListing.count({ where: { status: 'PENDING' } }),
         ]);
         res.json({
             courts,
@@ -68,6 +70,7 @@ export const getPendingCounts = async (req, res, next) => {
             'coach-listing-approval': coachListingApproval,
             'referee-approval': refereeApproval,
             'coach-rating-approval': coachRatingApproval,
+            'club-approval': clubApproval,
         });
     } catch (e) { next(e); }
 };

@@ -715,7 +715,8 @@
       "venue-reviews": "⭐ Tesis Yorumu",
       "coach-listing-approval": "🎓 Antrenörlük İlanı Onayı",
       "referee-approval": "🟨 Hakem Onayı",
-      "coach-rating-approval": "🏐 Antrenör Değerlendirme Onayı"
+      "coach-rating-approval": "🏐 Antrenör Değerlendirme Onayı",
+      "club-approval": "🏟️ Kulüp Onayı"
     },
     "sidebar_title": "👑 Admin Panel",
     "sidebar_group_individual": "ŞAHIS",
@@ -944,7 +945,8 @@
       "conditional_days_label": "gün içinde",
       "conditional_active_label": "⚠️ Koşullu onay:",
       "conditional_deadline_label": "Son tarih:",
-      "approved_expiry_label": "Onay süresi doluyor:"
+      "approved_expiry_label": "Onay süresi doluyor:",
+      "club_empty": "Kulüp talebi bulunamadı."
     }
   },
   "batak": {

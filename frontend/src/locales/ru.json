@@ -715,7 +715,8 @@
       "venue-reviews": "⭐ Отзывы о площадках",
       "coach-listing-approval": "🎓 Одобрение объявлений тренеров",
       "referee-approval": "🟨 Одобрение судей",
-      "coach-rating-approval": "🏐 Одобрение рейтинга тренеров"
+      "coach-rating-approval": "🏐 Одобрение рейтинга тренеров",
+      "club-approval": "🏟️ Одобрение клубов"
     },
     "sidebar_title": "👑 Панель администратора",
     "sidebar_group_individual": "ЧАСТНЫЕ ЛИЦА",
@@ -944,7 +945,8 @@
       "conditional_days_label": "дней",
       "conditional_active_label": "⚠️ Условное одобрение:",
       "conditional_deadline_label": "Срок:",
-      "approved_expiry_label": "Одобрение истекает:"
+      "approved_expiry_label": "Одобрение истекает:",
+      "club_empty": "Заявки на клубы не найдены."
     }
   },
   "batak": {
