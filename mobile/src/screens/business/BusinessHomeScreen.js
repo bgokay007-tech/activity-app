@@ -2918,15 +2918,19 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     };
 
     const handleDelete = () => {
-        Alert.alert('Tesisi Sil', `"${venue.name}" silinecek. Emin misiniz?`, [
-            { text: 'Vazgeç', style: 'cancel' },
-            { text: 'Sil', style: 'destructive', onPress: async () => {
-                setDeleting(true);
-                try { await api.delete(`/venues/${venue.id}`); onDelete?.(venue.id); }
-                catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Silinemedi'); }
-                finally { setDeleting(false); }
-            }},
-        ]);
+        Alert.alert(
+            'Tesis silmek üzeresiniz',
+            `"${venue.name}" tesisini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`,
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                { text: 'Evet, sil', style: 'destructive', onPress: async () => {
+                    setDeleting(true);
+                    try { await api.delete(`/venues/${venue.id}`); onDelete?.(venue.id); }
+                    catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Silinemedi'); }
+                    finally { setDeleting(false); }
+                }},
+            ],
+        );
     };
 
     useEffect(() => {
@@ -2956,6 +2960,39 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         isApproved          ? { key: 'settings', label: '⚙️ Ayarlar' } : null,
     ].filter(Boolean);
 
+    const openHourGroups = (() => {
+        const getDayW = (d) => {
+            if (!(venue.openDays || [1, 2, 3, 4, 5, 6, 7]).includes(d)) return null;
+            const os = venue.openSlots;
+            if (os && !Array.isArray(os) && typeof os === 'object') {
+                const entry = os[String(d)] !== undefined ? os[String(d)] : os['0'];
+                if (entry !== undefined) {
+                    if (Array.isArray(entry) && entry.length === 0) return null;
+                    if (Array.isArray(entry) && entry.length > 0) return entry;
+                }
+            }
+            return [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }];
+        };
+        const dayNames = ['', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+        const groups = [];
+        for (let d = 1; d <= 7; d++) {
+            const w = getDayW(d);
+            const key = w === null ? 'CLOSED' : w.map(x => `${x.from}-${x.to}`).join(',');
+            const last = groups[groups.length - 1];
+            if (last && last.key === key) last.days.push(d);
+            else groups.push({ key, days: [d], windows: w });
+        }
+        return groups.map(g => {
+            const label = g.days.length === 1
+                ? dayNames[g.days[0]]
+                : `${dayNames[g.days[0]]}–${dayNames[g.days[g.days.length - 1]]}`;
+            const hours = g.windows === null
+                ? 'Kapalı'
+                : g.windows.map(x => `${x.from}–${x.to}`).join('  ');
+            return { label, hours, closed: g.windows === null };
+        });
+    })();
+
     const summaryChips = (() => {
         if (!isApproved) return [];
         const APPROVAL_SHORT = {
@@ -2969,32 +3006,60 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         const payments = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
         const hasPricingWins = Array.isArray(venue.pricingWindows) && venue.pricingWindows.length > 0;
         const lightsFrom = (venue.courts || []).find(c => c.lightsFrom)?.lightsFrom;
+        const cl = venue.contactLinks || {};
+        const contactCount = ['whatsapp', 'telegram', 'instagram', 'email', 'phone'].filter(k => cl[k]).length;
         return [
+            { label: `${venue.courts?.length || 0} kort · ${slotLabel}`, color: '#94a3b8' },
             { label: APPROVAL_SHORT[approvalMode] || approvalMode, color: '#a78bfa' },
             { label: payments.map(p => (PAY_ICONS[p] || '') + ' ' + (PAY_NAMES[p] || p)).join('  '), color: '#34d399' },
             { label: `🚫 İptal: ${policyLabel(venue.cancelHoursBefore)}`, color: '#f87171' },
             { label: `🔄 Değişiklik: ${policyLabel(venue.rescheduleHoursBefore)}`, color: '#fb923c' },
             ...(venue.pricePerSlot > 0 ? [{ label: `💰 ${venue.pricePerSlot}₺/saat`, color: '#fbbf24' }] : []),
             ...(hasPricingWins ? [{ label: `📊 ${venue.pricingWindows.length} fiyat dilimi`, color: '#fbbf24' }] : []),
+            ...(contactCount > 0 ? [{ label: `📞 ${contactCount} iletişim`, color: '#60a5fa' }] : []),
             ...(lightsFrom ? [{ label: `💡 Işık: ${lightsFrom}`, color: '#fbbf24' }] : []),
-            { label: `${venue.courts?.length || 0} kort · ${slotLabel}`, color: '#94a3b8' },
+            { label: globalIndoor ? '🏠 Kapalı Alan' : '🌤️ Açık Alan', color: globalIndoor ? '#818cf8' : '#22d3ee' },
         ];
     })();
 
+    const placeLine = [venue.city, venue.district].filter(Boolean).join(' / ');
+
     return (
         <View style={vc.card}>
-            <Text style={{ color: bMeta.color, fontSize: 12, fontWeight: '900', letterSpacing: 0.8, marginBottom: 4 }}>
-                {branchTitle}
-            </Text>
-            <Text style={vc.name}>{venue.name}</Text>
-            <Text style={vc.meta}>
-                {venue.city}{venue.district ? ` / ${venue.district}` : ''}
-            </Text>
-            <View style={[vc.badge, { backgroundColor: statusColor + '20', borderColor: statusColor + '60', alignSelf: 'flex-start', marginTop: 8 }]}>
-                <Text style={[vc.badgeText, { color: statusColor }]}>{statusLabel}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <Text style={{ color: bMeta.color, fontSize: 12, fontWeight: '900', letterSpacing: 0.6 }}>
+                    {branchTitle}
+                </Text>
+                <Text style={{ color: '#4b5563', fontSize: 12 }}>·</Text>
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '900', flexShrink: 1 }} numberOfLines={1}>
+                    {venue.name}
+                </Text>
+                {placeLine ? (
+                    <>
+                        <Text style={{ color: '#4b5563', fontSize: 12 }}>·</Text>
+                        <Text style={{ color: colors.textMuted, fontSize: 12, flexShrink: 1 }} numberOfLines={1}>
+                            {placeLine}
+                        </Text>
+                    </>
+                ) : null}
+                <View style={[vc.badge, { backgroundColor: statusColor + '20', borderColor: statusColor + '60' }]}>
+                    <Text style={[vc.badgeText, { color: statusColor }]}>{statusLabel}</Text>
+                </View>
             </View>
 
             {venue.adminNote ? <View style={[vc.noteBox, { marginTop: 8 }]}><Text style={vc.noteText}>📝 {venue.adminNote}</Text></View> : null}
+
+            {openHourGroups.length > 0 && (
+                <View style={{ marginTop: 10 }}>
+                    <Text style={{ color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 4 }}>ÇALIŞMA SAATLERİ</Text>
+                    {openHourGroups.map((g, i) => (
+                        <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
+                            <Text style={{ color: '#aaa', fontSize: 11, fontWeight: '700', minWidth: 56 }}>{g.label}</Text>
+                            <Text style={{ color: g.closed ? '#ef4444' : '#d1d5db', fontSize: 11, fontWeight: g.closed ? '700' : '400' }}>{g.hours}</Text>
+                        </View>
+                    ))}
+                </View>
+            )}
 
             {summaryChips.length > 0 && (
                 <View style={{ marginTop: 10 }}>
@@ -3009,18 +3074,60 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 </View>
             )}
 
-            {isApproved ? (
-                <TouchableOpacity
-                    onPress={() => setManageOpen(true)}
-                    style={{ marginTop: 12, backgroundColor: BIZ_COLOR + '18', borderRadius: 10, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: BIZ_COLOR + '50' }}
-                >
-                    <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 13 }}>⚙️ Ayarları değiştir</Text>
-                </TouchableOpacity>
+            {(venue.courts || []).length > 0 && (() => {
+                const SLOT_SHORT = { FULL_HOUR: 'Tam Saat', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90 dk', VAR_DURATION: 'Esnek', FLEXIBLE: 'Esnek' };
+                const SURF_ICON = { CLAY: '🟤', HARD: '⬜', CARPET: '🟥', GRASS: '🌿', PARQUET: '🟫', SYNTHETIC: '🟩' };
+                const SURF_LABEL = { CLAY: 'Toprak', HARD: 'Sert Zemin', CARPET: 'Halı Saha', GRASS: 'Çim', PARQUET: 'Parke', SYNTHETIC: 'Sentetik' };
+                return (
+                    <View style={{ marginTop: 10 }}>
+                        <Text style={{ color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 6 }}>KORTLAR</Text>
+                        {(venue.courts || []).map(c => {
+                            const slotT = c.slotType || venue.slotType || 'FULL_HOUR';
+                            const surface = courtSurfaces[c.id] !== undefined ? courtSurfaces[c.id] : c.surface;
+                            const courtIndoor = courtIndoors[c.id] !== undefined ? courtIndoors[c.id] : c.indoor;
+                            const effIndoor = courtIndoor ?? globalIndoor ?? venue.courtIndoorDefault ?? false;
+                            const price = c.pricePerSlot != null ? c.pricePerSlot : venue.pricePerSlot;
+                            return (
+                                <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: '#ffffff08', gap: 6 }}>
+                                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', flex: 1 }} numberOfLines={1}>{c.name}</Text>
+                                    {surface ? <Text style={{ color: '#ddd', fontSize: 10 }}>{SURF_ICON[surface] || ''} {SURF_LABEL[surface] || surface}</Text> : null}
+                                    <Text style={{ color: '#a78bfa', fontSize: 10 }}>{SLOT_SHORT[slotT] || slotT}</Text>
+                                    <Text style={{ color: effIndoor ? '#818cf8' : '#22d3ee', fontSize: 10 }}>{effIndoor ? '🏠' : '🌤️'}</Text>
+                                    {price > 0 ? <Text style={{ color: '#fbbf24', fontSize: 10 }}>{price}₺</Text> : null}
+                                </View>
+                            );
+                        })}
+                    </View>
+                );
+            })()}
+
+            {savedIban ? (
+                <View style={{ marginTop: 10 }}>
+                    <Text style={{ color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 4 }}>EFT / IBAN</Text>
+                    <Text style={{ color: '#86efac', fontSize: 11 }}>🏦 {savedIbanHolder}</Text>
+                    <Text style={{ color: '#aaa', fontSize: 11, marginTop: 2 }} selectable>{savedIban}</Text>
+                </View>
             ) : null}
 
-            <TouchableOpacity style={vc.deleteBtn} onPress={handleDelete} disabled={deleting}>
-                <Text style={vc.deleteBtnText}>{deleting ? '...' : '🗑 Tesisi Sil'}</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, alignItems: 'stretch' }}>
+                {isApproved ? (
+                    <TouchableOpacity
+                        onPress={() => setManageOpen(true)}
+                        style={{ flex: 7, backgroundColor: BIZ_COLOR + '18', borderRadius: 10, paddingVertical: 11, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BIZ_COLOR + '50' }}
+                    >
+                        <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 13 }} numberOfLines={1}>⚙️ Ayarları değiştir</Text>
+                    </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity
+                    onPress={handleDelete}
+                    disabled={deleting}
+                    style={{ flex: isApproved ? 3 : undefined, width: isApproved ? undefined : '30%', alignSelf: isApproved ? undefined : 'flex-end', borderRadius: 10, paddingVertical: 11, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#ef444450', backgroundColor: '#ef444418' }}
+                >
+                    {deleting
+                        ? <ActivityIndicator size="small" color="#f87171" />
+                        : <Text style={{ color: '#f87171', fontWeight: '800', fontSize: 11, textAlign: 'center' }} numberOfLines={2}>🗑 Tesisi Sil</Text>}
+                </TouchableOpacity>
+            </View>
 
             <Modal visible={manageOpen} animationType="slide" onRequestClose={() => setManageOpen(false)}>
                 <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + 8 }}>
@@ -3172,10 +3279,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                 <Text style={{ color: '#aaa', fontSize: 11, marginTop: 2 }} selectable>{savedIban}</Text>
                             </View>
                         ) : null}
-
-                        <TouchableOpacity style={vc.deleteBtn} onPress={handleDelete} disabled={deleting} activeOpacity={0.8}>
-                            {deleting ? <ActivityIndicator size="small" color="#f87171" /> : <Text style={vc.deleteBtnText}>Tesisi Sil</Text>}
-                        </TouchableOpacity>
                     </>
                 );
             })()}
