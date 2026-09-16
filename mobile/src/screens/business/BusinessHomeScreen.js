@@ -1360,7 +1360,7 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                                             <View key={court.courtId} style={{ width: SCHED_COURT_W }}>
                                                 {/* Court header */}
                                                 <View style={{ backgroundColor: BIZ_COLOR + '22', borderRadius: 8,
-                                                    paddingVertical: 5, paddingHorizontal: 4, marginBottom: 1, alignItems: 'center',
+                                                    paddingVertical: 5, paddingHorizontal: 1, marginBottom: 1, alignItems: 'center',
                                                     borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
                                                     <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 11, textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                         {court.courtName}
@@ -1417,7 +1417,7 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                                                             activeOpacity={isTappable ? 0.7 : 1}
                                                             style={{
                                                                 backgroundColor: cellBg,
-                                                                borderRadius: 6, paddingVertical: 5, paddingHorizontal: 4, marginBottom: 1,
+                                                                borderRadius: 6, paddingVertical: 5, paddingHorizontal: 1, marginBottom: 1,
                                                                 borderWidth: isCancelRequested ? 2 : (isTappable ? 1.5 : 1),
                                                                 borderColor: isTappable ? cellColor : cellColor + '55',
                                                                 minHeight: 44,
