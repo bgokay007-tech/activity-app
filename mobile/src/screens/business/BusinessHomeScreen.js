@@ -1028,7 +1028,7 @@ const getSurfaceOptions = (branch) => branch === 'padel'
     ? SURFACE_OPTIONS_FULL.filter(s => s.key === 'SYNTHETIC')
     : SURFACE_OPTIONS_FULL;
 
-const SCHED_COURT_W = 98;
+const SCHED_COURT_W = 82;
 
 function normalizeTime(raw) {
     const t = raw.trim().replace(',', '.');
@@ -1417,63 +1417,63 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                                                             activeOpacity={isTappable ? 0.7 : 1}
                                                             style={{
                                                                 backgroundColor: cellBg,
-                                                                borderRadius: 6, paddingVertical: 5, paddingHorizontal: 1, marginBottom: 1,
+                                                                borderRadius: 6, paddingVertical: 5, paddingLeft: 1, paddingRight: 1, marginBottom: 1,
                                                                 borderWidth: isCancelRequested ? 2 : (isTappable ? 1.5 : 1),
                                                                 borderColor: isTappable ? cellColor : cellColor + '55',
                                                                 minHeight: 44,
                                                                 overflow: 'hidden',
                                                             }}>
-                                                            <Text style={{ color: color, fontSize: 10, fontWeight: '800' }} numberOfLines={1}>
+                                                            <Text style={{ color: color, fontSize: 10, fontWeight: '800', width: '100%' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                                                                 {slot.start} – {slot.end}
                                                             </Text>
                                                             {slot.user ? (
                                                                 <TouchableOpacity onPress={() => onUserPress?.(slot.user)}>
                                                                     <Text style={{ color: '#60a5fa', fontSize: 10, marginTop: 2,
-                                                                        fontWeight: '700', textDecorationLine: 'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                                        fontWeight: '700', textDecorationLine: 'underline', width: '100%' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                         @{slot.user.username}
                                                                     </Text>
                                                                 </TouchableOpacity>
                                                             ) : slot.manualName ? (
-                                                                <Text style={{ color: color + 'cc', fontSize: 10, marginTop: 2, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                                <Text style={{ color: color + 'cc', fontSize: 10, marginTop: 2, fontWeight: '700', width: '100%' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                     📞 {slot.manualName}
                                                                 </Text>
                                                             ) : !isFree ? (
-                                                                <Text style={{ color: color + '99', fontSize: 10, marginTop: 2 }} numberOfLines={1}>
+                                                                <Text style={{ color: color + '99', fontSize: 10, marginTop: 2, width: '100%' }} numberOfLines={1}>
                                                                     {isPaid ? PAID_LABEL : SLOT_STATUS_LABEL[st]}
                                                                 </Text>
                                                             ) : null}
                                                             {(slot.user || slot.manualName) && isPaid && (
-                                                                <Text style={{ color: PAID_COLOR, fontSize: 9, marginTop: 1, fontWeight: '800' }} numberOfLines={1}>
+                                                                <Text style={{ color: PAID_COLOR, fontSize: 9, marginTop: 1, fontWeight: '800', width: '100%' }} numberOfLines={1}>
                                                                     💰 Ödeme Alındı
                                                                 </Text>
                                                             )}
                                                             {slot.price != null && (
-                                                                <Text style={{ color: color + 'cc', fontSize: 9, marginTop: 2, fontWeight: '800' }} numberOfLines={1}>
+                                                                <Text style={{ color: color + 'cc', fontSize: 9, marginTop: 2, fontWeight: '800', width: '100%' }} numberOfLines={1}>
                                                                     {slot.price > 0 ? `${slot.price}₺` : 'Ücretsiz'}
                                                                 </Text>
                                                             )}
                                                             {isPending && (
-                                                                <Text style={{ color: color, fontSize: 9, marginTop: 1, fontWeight: '700' }} numberOfLines={1}>
+                                                                <Text style={{ color: color, fontSize: 9, marginTop: 1, fontWeight: '700', width: '100%' }} numberOfLines={1}>
                                                                     Onayla / Reddet →
                                                                 </Text>
                                                             )}
                                                             {isConfirmedUnpaid && (
-                                                                <Text style={{ color: color, fontSize: 9, marginTop: 1, fontWeight: '700' }} numberOfLines={1}>
+                                                                <Text style={{ color: color, fontSize: 9, marginTop: 1, fontWeight: '700', width: '100%' }} numberOfLines={1}>
                                                                     {isPro ? 'Adisyon →' : 'Ödeme Al →'}
                                                                 </Text>
                                                             )}
                                                             {isPro && isConfirmedPaid && (
-                                                                <Text style={{ color: color, fontSize: 9, marginTop: 1, fontWeight: '700' }} numberOfLines={1}>
+                                                                <Text style={{ color: color, fontSize: 9, marginTop: 1, fontWeight: '700', width: '100%' }} numberOfLines={1}>
                                                                     Adisyon →
                                                                 </Text>
                                                             )}
                                                             {isFree && (
-                                                                <Text style={{ color: color, fontSize: 9, marginTop: 1, fontWeight: '700' }} numberOfLines={1}>
+                                                                <Text style={{ color: color, fontSize: 9, marginTop: 1, fontWeight: '700', width: '100%' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                     {isPastFree ? 'Geçmiş saat' : '+ Manuel Ekle'}
                                                                 </Text>
                                                             )}
                                                             {isCancelRequested && (
-                                                                <Text style={{ color: '#f59e0b', fontSize: 9, marginTop: 1, fontWeight: '800' }} numberOfLines={1}>
+                                                                <Text style={{ color: '#f59e0b', fontSize: 9, marginTop: 1, fontWeight: '800', width: '100%' }} numberOfLines={1}>
                                                                     📋 İptal Talebi →
                                                                 </Text>
                                                             )}
