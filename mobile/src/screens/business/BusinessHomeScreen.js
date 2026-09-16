@@ -1028,7 +1028,7 @@ const getSurfaceOptions = (branch) => branch === 'padel'
     ? SURFACE_OPTIONS_FULL.filter(s => s.key === 'SYNTHETIC')
     : SURFACE_OPTIONS_FULL;
 
-const SCHED_COURT_W = 72;
+const SCHED_COURT_W = 98;
 
 function normalizeTime(raw) {
     const t = raw.trim().replace(',', '.');
@@ -1308,7 +1308,7 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
 
                 {/* Header */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
-                    paddingTop: Platform.OS === 'ios' ? 54 : 28, paddingBottom: 14,
+                    paddingTop: Platform.OS === 'ios' ? 54 : 28, paddingBottom: 6,
                     borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}>
                     <TouchableOpacity onPress={onClose} style={{ marginRight: 14, padding: 4 }}>
                         <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
@@ -1320,28 +1320,28 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
 
                 {/* Date nav */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-                    paddingVertical: 8, gap: 16, borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
-                    <TouchableOpacity onPress={() => shiftDate(-1)} style={{ padding: 10 }}>
+                    paddingVertical: 1, gap: 1, borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
+                    <TouchableOpacity onPress={() => shiftDate(-1)} style={{ padding: 4 }}>
                         <Text style={{ color: '#fff', fontSize: 26, fontWeight: '700' }}>‹</Text>
                     </TouchableOpacity>
                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600', minWidth: 190, textAlign: 'center' }}>
                         {fmtDate(selDate)}
                     </Text>
-                    <TouchableOpacity onPress={() => shiftDate(1)} style={{ padding: 10 }}>
+                    <TouchableOpacity onPress={() => shiftDate(1)} style={{ padding: 4 }}>
                         <Text style={{ color: '#fff', fontSize: 26, fontWeight: '700' }}>›</Text>
                     </TouchableOpacity>
                 </View>
 
                 {/* Legend */}
-                <View style={{ flexDirection: 'row', gap: 16, paddingHorizontal: 16, paddingVertical: 8,
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 12, paddingVertical: 1,
                     borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
                     {[['FREE','Müsait'],['PENDING','Bekliyor'],['CONFIRMED','Rezerveli']].map(([s, lbl]) => (
-                        <View key={s} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View key={s} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                             <View style={{ width: 11, height: 11, borderRadius: 3, backgroundColor: SLOT_STATUS_COLOR[s] }} />
                             <Text style={{ color: '#aaa', fontSize: 11 }}>{lbl}</Text>
                         </View>
                     ))}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <View style={{ width: 11, height: 11, borderRadius: 3, backgroundColor: PAID_COLOR }} />
                         <Text style={{ color: '#aaa', fontSize: 11 }}>Rezerveli + Ödeme Alındı</Text>
                     </View>
@@ -1354,19 +1354,19 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                         : (
                             <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={true}
-                                    contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 48 }}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                                    contentContainerStyle={{ paddingHorizontal: 4, paddingTop: 1, paddingBottom: 48 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 1 }}>
                                         {courts.map(court => (
                                             <View key={court.courtId} style={{ width: SCHED_COURT_W }}>
                                                 {/* Court header */}
                                                 <View style={{ backgroundColor: BIZ_COLOR + '22', borderRadius: 8,
-                                                    paddingVertical: 7, paddingHorizontal: 6, marginBottom: 6, alignItems: 'center',
+                                                    paddingVertical: 5, paddingHorizontal: 4, marginBottom: 1, alignItems: 'center',
                                                     borderWidth: 1, borderColor: BIZ_COLOR + '44' }}>
                                                     <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 11, textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                         {court.courtName}
                                                     </Text>
                                                     {court.surface ? (
-                                                        <Text style={{ color: '#aaa', fontSize: 9, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                        <Text style={{ color: '#aaa', fontSize: 9, marginTop: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                             {SURFACE_ICON[court.surface]} {SURFACE_LABEL[court.surface]}
                                                         </Text>
                                                     ) : null}
@@ -1375,7 +1375,7 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                                                         const info = ST[court.slotType];
                                                         if (!info) return null;
                                                         return (
-                                                            <View style={{ backgroundColor: info[2], borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginTop: 3, borderWidth: 1, borderColor: info[1] + '60' }}>
+                                                            <View style={{ backgroundColor: info[2], borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginTop: 2, borderWidth: 1, borderColor: info[1] + '60' }}>
                                                                 <Text style={{ color: info[1], fontSize: 8, fontWeight: '800', letterSpacing: 0.3 }}>{info[0]}</Text>
                                                             </View>
                                                         );
@@ -1417,66 +1417,63 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                                                             activeOpacity={isTappable ? 0.7 : 1}
                                                             style={{
                                                                 backgroundColor: cellBg,
-                                                                borderRadius: 8, padding: 7, marginBottom: 5,
+                                                                borderRadius: 6, paddingVertical: 5, paddingHorizontal: 4, marginBottom: 1,
                                                                 borderWidth: isCancelRequested ? 2 : (isTappable ? 1.5 : 1),
                                                                 borderColor: isTappable ? cellColor : cellColor + '55',
-                                                                minHeight: 48,
+                                                                minHeight: 44,
                                                                 overflow: 'hidden',
                                                             }}>
-                                                            <Text style={{ color: color, fontSize: 11, fontWeight: '800' }}>
-                                                                {slot.start}
-                                                            </Text>
-                                                            <Text style={{ color: color + 'aa', fontSize: 10, marginTop: 1 }}>
-                                                                – {slot.end}
+                                                            <Text style={{ color: color, fontSize: 10, fontWeight: '800' }} numberOfLines={1}>
+                                                                {slot.start} – {slot.end}
                                                             </Text>
                                                             {slot.user ? (
                                                                 <TouchableOpacity onPress={() => onUserPress?.(slot.user)}>
-                                                                    <Text style={{ color: '#60a5fa', fontSize: 10, marginTop: 4,
+                                                                    <Text style={{ color: '#60a5fa', fontSize: 10, marginTop: 2,
                                                                         fontWeight: '700', textDecorationLine: 'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                         @{slot.user.username}
                                                                     </Text>
                                                                 </TouchableOpacity>
                                                             ) : slot.manualName ? (
-                                                                <Text style={{ color: color + 'cc', fontSize: 10, marginTop: 4, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                                <Text style={{ color: color + 'cc', fontSize: 10, marginTop: 2, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                     📞 {slot.manualName}
                                                                 </Text>
-                                                            ) : (
-                                                                <Text style={{ color: color + '99', fontSize: 10, marginTop: 4 }}>
+                                                            ) : !isFree ? (
+                                                                <Text style={{ color: color + '99', fontSize: 10, marginTop: 2 }} numberOfLines={1}>
                                                                     {isPaid ? PAID_LABEL : SLOT_STATUS_LABEL[st]}
                                                                 </Text>
-                                                            )}
+                                                            ) : null}
                                                             {(slot.user || slot.manualName) && isPaid && (
-                                                                <Text style={{ color: PAID_COLOR, fontSize: 9, marginTop: 2, fontWeight: '800' }}>
+                                                                <Text style={{ color: PAID_COLOR, fontSize: 9, marginTop: 1, fontWeight: '800' }} numberOfLines={1}>
                                                                     💰 Ödeme Alındı
                                                                 </Text>
                                                             )}
                                                             {slot.price != null && (
-                                                                <Text style={{ color: color + 'cc', fontSize: 9, marginTop: 3, fontWeight: '800' }}>
+                                                                <Text style={{ color: color + 'cc', fontSize: 9, marginTop: 2, fontWeight: '800' }} numberOfLines={1}>
                                                                     {slot.price > 0 ? `${slot.price}₺` : 'Ücretsiz'}
                                                                 </Text>
                                                             )}
                                                             {isPending && (
-                                                                <Text style={{ color: color, fontSize: 9, marginTop: 2, fontWeight: '700' }}>
+                                                                <Text style={{ color: color, fontSize: 9, marginTop: 1, fontWeight: '700' }} numberOfLines={1}>
                                                                     Onayla / Reddet →
                                                                 </Text>
                                                             )}
                                                             {isConfirmedUnpaid && (
-                                                                <Text style={{ color: color, fontSize: 9, marginTop: 2, fontWeight: '700' }}>
+                                                                <Text style={{ color: color, fontSize: 9, marginTop: 1, fontWeight: '700' }} numberOfLines={1}>
                                                                     {isPro ? 'Adisyon →' : 'Ödeme Al →'}
                                                                 </Text>
                                                             )}
                                                             {isPro && isConfirmedPaid && (
-                                                                <Text style={{ color: color, fontSize: 9, marginTop: 2, fontWeight: '700' }}>
+                                                                <Text style={{ color: color, fontSize: 9, marginTop: 1, fontWeight: '700' }} numberOfLines={1}>
                                                                     Adisyon →
                                                                 </Text>
                                                             )}
                                                             {isFree && (
-                                                                <Text style={{ color: color, fontSize: 9, marginTop: 2, fontWeight: '700' }}>
+                                                                <Text style={{ color: color, fontSize: 9, marginTop: 1, fontWeight: '700' }} numberOfLines={1}>
                                                                     {isPastFree ? 'Geçmiş saat' : '+ Manuel Ekle'}
                                                                 </Text>
                                                             )}
                                                             {isCancelRequested && (
-                                                                <Text style={{ color: '#f59e0b', fontSize: 9, marginTop: 2, fontWeight: '800' }}>
+                                                                <Text style={{ color: '#f59e0b', fontSize: 9, marginTop: 1, fontWeight: '800' }} numberOfLines={1}>
                                                                     📋 İptal Talebi →
                                                                 </Text>
                                                             )}
@@ -1868,13 +1865,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     // edilmiş" hatası alınıyordu (kullanıcı raporu).
     const [scheduleRefreshTick, setScheduleRefreshTick] = useState(0);
     const [scheduleOpen, setScheduleOpen]     = useState(!!openReservations);
-    // Rezervasyon takviminde bir iptal talebi onaylanınca/reddedilince takvim anında
-    // güncellensin diye (kullanıcı isteği) — VenueScheduleModal'ın kendi refreshTick'i
-    // sadece kendi içindeki aksiyonlarla artıyordu, buradan (üst bileşenden) tetiklenen
-    // onay/red bunu hiç bilmiyordu. Ardışık saatlerde aynı rezervasyona ait iki hücre
-    // varsa, ilkini onaylayınca takvim yenilenmeden ikinci hücreye dokununca "zaten iptal
-    // edilmiş" hatası alınıyordu (kullanıcı raporu).
-    const [scheduleRefreshTick, setScheduleRefreshTick] = useState(0);
 
     const [blocks, setBlocks]             = useState([]);
     const [blockQ, setBlockQ]             = useState('');
