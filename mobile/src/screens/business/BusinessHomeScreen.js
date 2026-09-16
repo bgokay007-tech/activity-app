@@ -2443,6 +2443,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         if (key === 'orders' && !ordersLoaded) loadOrders();
         if (key === 'bills' && !billsLoaded) loadBills();
         if (key === 'reservations') {
+            setScheduleOpen(true);
             if (!resLoaded) loadReservations();
             loadCancelRequests();
         }
@@ -3127,7 +3128,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                         onPress={() => openQuickPanel('reservations')}
                         style={{ flex: 1, backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff18' }}
                     >
-                        <Text style={{ color: '#e5e7eb', fontWeight: '800', fontSize: 10 }} numberOfLines={1}>📅 Rezervasyon</Text>
+                        <Text style={{ color: '#e5e7eb', fontWeight: '800', fontSize: 10 }} numberOfLines={1}>Rezervasyonlar</Text>
                     </TouchableOpacity>
                     {isPro ? (
                         <TouchableOpacity
@@ -3142,7 +3143,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                             onPress={() => openQuickPanel('orders')}
                             style={{ flex: 1, backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff18' }}
                         >
-                            <Text style={{ color: '#e5e7eb', fontWeight: '800', fontSize: 10 }} numberOfLines={1}>🛒 Sipariş</Text>
+                            <Text style={{ color: '#e5e7eb', fontWeight: '800', fontSize: 10 }} numberOfLines={1}>Sipariş</Text>
                         </TouchableOpacity>
                     ) : null}
                 </View>
@@ -3173,7 +3174,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + 8 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 10, gap: 10 }}>
                         <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900', flex: 1 }} numberOfLines={1}>
-                            {quickOpen === 'reservations' ? '📅 Rezervasyonlar' : quickOpen === 'bills' ? 'Adisyonlar' : quickOpen === 'orders' ? '🛒 Sipariş' : ''}
+                            {quickOpen === 'reservations' ? 'Rezervasyonlar' : quickOpen === 'bills' ? 'Adisyonlar' : quickOpen === 'orders' ? 'Sipariş' : ''}
                             {' · '}{venue.name}
                         </Text>
                         <TouchableOpacity onPress={() => setQuickOpen(null)} style={{ padding: 8 }}>
