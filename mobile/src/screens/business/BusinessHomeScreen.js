@@ -1856,8 +1856,11 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     const isApproved = venue.status === 'APPROVED';
     const isPro     = sub && ['PRO', 'PREMIUM'].includes(sub.packageType);
     const isPremium = sub && sub.packageType === 'PREMIUM';
-    const [activeTab, setActiveTab] = useState('info');
-    const [manageOpen, setManageOpen] = useState(!!(openReservations || openOrders || openClubs));
+    const [activeTab, setActiveTab] = useState('settings');
+    const [manageOpen, setManageOpen] = useState(!!openClubs);
+    const [quickOpen, setQuickOpen] = useState(
+        openReservations ? 'reservations' : openOrders ? 'orders' : null
+    );
     const [deleting, setDeleting]   = useState(false);
     // Rezervasyon takviminde bir iptal talebi onaylanınca/reddedilince takvim anında
     // güncellensin diye (kullanıcı isteği) — VenueScheduleModal'ın kendi refreshTick'i
@@ -2389,7 +2392,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
 
     useEffect(() => {
         if (openReservations) {
-            setActiveTab('reservations');
+            setQuickOpen('reservations');
             setScheduleOpen(true);
             if (!resLoaded) loadReservations();
             loadCancelRequests();
@@ -2401,7 +2404,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     // orders.map'teki highlightActivityId filtrelemesi.
     useEffect(() => {
         if (openOrders) {
-            setActiveTab('orders');
+            setQuickOpen('orders');
             if (!ordersLoaded) loadOrders();
         }
     }, [openOrders]);
@@ -2409,6 +2412,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     // Üyelik başvurusu bildiriminden gelince Kulüp sekmesini aç.
     useEffect(() => {
         if (openClubs && isApproved) {
+            setManageOpen(true);
             setActiveTab('clubs');
             if (!clubsLoaded) loadVenueClubs();
         }
@@ -2429,12 +2433,19 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         setActiveTab(tab);
         if (tab === 'blocks'       && !blocksLoaded)  loadBlocks();
         if (tab === 'menu'         && !menuLoaded)    loadMenu();
-        if (tab === 'orders'       && !ordersLoaded)  loadOrders();
-        if (tab === 'bills'        && !billsLoaded)   loadBills();
         if (tab === 'reviews'      && !reviewsLoaded) loadVenueReviews();
         if (tab === 'clubs'        && !clubsLoaded)   loadVenueClubs();
-        if (tab === 'reservations') { setScheduleOpen(true); if (!resLoaded) loadReservations(); loadCancelRequests(); }
         if (tab === 'analytics')    setAnalyticsOpen(true);
+    };
+
+    const openQuickPanel = (key) => {
+        setQuickOpen(key);
+        if (key === 'orders' && !ordersLoaded) loadOrders();
+        if (key === 'bills' && !billsLoaded) loadBills();
+        if (key === 'reservations') {
+            if (!resLoaded) loadReservations();
+            loadCancelRequests();
+        }
     };
 
     const handleBlock = async () => {
@@ -2934,8 +2945,8 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     };
 
     useEffect(() => {
-        if (openReservations || openOrders || openClubs) setManageOpen(true);
-    }, [openReservations, openOrders, openClubs]);
+        if (openClubs) setManageOpen(true);
+    }, [openClubs]);
 
     const statusColor = STATUS_COLOR[venue.status] || '#9ca3af';
     const statusLabel = STATUS_LABEL[venue.status] || venue.status;
@@ -2947,15 +2958,11 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
         .toLocaleUpperCase('tr-TR');
 
     const TABS = [
-        { key: 'info',         label: 'ℹ️ Bilgi' },
-        isApproved ? { key: 'reservations', label: '📅 Rezervasyonlar' } : null,
-        isApproved && isPro ? { key: 'bills',    label: 'Adisyonlar' } : null,
         isApproved ? { key: 'analytics',    label: '📊 Rapor' }          : null,
         isApproved ? { key: 'reviews',      label: '⭐ Yorumlar' }       : null,
         isApproved ? { key: 'clubs',        label: '🏟️ Kulüp' }         : null,
         isApproved ? { key: 'blocks',       label: '🚫 Engel' } : null,
         isApproved && isPro ? { key: 'menu',   label: '📋 Menü' }   : null,
-        isApproved && isPro ? { key: 'orders',   label: '🛒 Sipariş' } : null,
         isApproved && isPro ? { key: 'campaigns', label: '🎁 Kampanyalar' } : null,
         isApproved          ? { key: 'settings', label: '⚙️ Ayarlar' } : null,
     ].filter(Boolean);
@@ -3023,28 +3030,33 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
     })();
 
     const placeLine = [venue.city, venue.district].filter(Boolean).join(' / ');
+    const statusCompact = venue.status === 'APPROVED';
 
     return (
         <View style={vc.card}>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <Text style={{ color: bMeta.color, fontSize: 12, fontWeight: '900', letterSpacing: 0.6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                <Text style={{ color: bMeta.color, fontSize: 11, fontWeight: '900', letterSpacing: 0.5 }} numberOfLines={1}>
                     {branchTitle}
                 </Text>
-                <Text style={{ color: '#4b5563', fontSize: 12 }}>·</Text>
-                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '900', flexShrink: 1 }} numberOfLines={1}>
+                <Text style={{ color: '#4b5563', fontSize: 11 }}>·</Text>
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900', flexShrink: 1 }} numberOfLines={1}>
                     {venue.name}
                 </Text>
                 {placeLine ? (
                     <>
-                        <Text style={{ color: '#4b5563', fontSize: 12 }}>·</Text>
-                        <Text style={{ color: colors.textMuted, fontSize: 12, flexShrink: 1 }} numberOfLines={1}>
+                        <Text style={{ color: '#4b5563', fontSize: 11 }}>·</Text>
+                        <Text style={{ color: colors.textMuted, fontSize: 11, flexShrink: 1 }} numberOfLines={1}>
                             {placeLine}
                         </Text>
                     </>
                 ) : null}
-                <View style={[vc.badge, { backgroundColor: statusColor + '20', borderColor: statusColor + '60' }]}>
-                    <Text style={[vc.badgeText, { color: statusColor }]}>{statusLabel}</Text>
-                </View>
+                {statusCompact ? (
+                    <Text style={{ color: '#22c55e', fontSize: 14, fontWeight: '900', marginLeft: 2 }}>✓</Text>
+                ) : (
+                    <View style={[vc.badge, { backgroundColor: statusColor + '20', borderColor: statusColor + '60', marginLeft: 2 }]}>
+                        <Text style={[vc.badgeText, { color: statusColor, fontSize: 9 }]} numberOfLines={1}>{statusLabel}</Text>
+                    </View>
+                )}
             </View>
 
             {venue.adminNote ? <View style={[vc.noteBox, { marginTop: 8 }]}><Text style={vc.noteText}>📝 {venue.adminNote}</Text></View> : null}
@@ -3109,10 +3121,37 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 </View>
             ) : null}
 
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, alignItems: 'stretch' }}>
+            {isApproved ? (
+                <View style={{ flexDirection: 'row', gap: 6, marginTop: 12 }}>
+                    <TouchableOpacity
+                        onPress={() => openQuickPanel('reservations')}
+                        style={{ flex: 1, backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff18' }}
+                    >
+                        <Text style={{ color: '#e5e7eb', fontWeight: '800', fontSize: 10 }} numberOfLines={1}>📅 Rezervasyon</Text>
+                    </TouchableOpacity>
+                    {isPro ? (
+                        <TouchableOpacity
+                            onPress={() => openQuickPanel('bills')}
+                            style={{ flex: 1, backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff18' }}
+                        >
+                            <Text style={{ color: '#e5e7eb', fontWeight: '800', fontSize: 10 }} numberOfLines={1}>Adisyon</Text>
+                        </TouchableOpacity>
+                    ) : null}
+                    {isPro ? (
+                        <TouchableOpacity
+                            onPress={() => openQuickPanel('orders')}
+                            style={{ flex: 1, backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff18' }}
+                        >
+                            <Text style={{ color: '#e5e7eb', fontWeight: '800', fontSize: 10 }} numberOfLines={1}>🛒 Sipariş</Text>
+                        </TouchableOpacity>
+                    ) : null}
+                </View>
+            ) : null}
+
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: isApproved ? 8 : 12, alignItems: 'stretch' }}>
                 {isApproved ? (
                     <TouchableOpacity
-                        onPress={() => setManageOpen(true)}
+                        onPress={() => { setActiveTab('settings'); setManageOpen(true); }}
                         style={{ flex: 7, backgroundColor: BIZ_COLOR + '18', borderRadius: 10, paddingVertical: 11, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BIZ_COLOR + '50' }}
                     >
                         <Text style={{ color: BIZ_LIGHT, fontWeight: '800', fontSize: 13 }} numberOfLines={1}>⚙️ Ayarları değiştir</Text>
@@ -3129,6 +3168,347 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 </TouchableOpacity>
             </View>
 
+
+            <Modal visible={!!quickOpen} animationType="slide" onRequestClose={() => setQuickOpen(null)}>
+                <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 10, gap: 10 }}>
+                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900', flex: 1 }} numberOfLines={1}>
+                            {quickOpen === 'reservations' ? '📅 Rezervasyonlar' : quickOpen === 'bills' ? 'Adisyonlar' : quickOpen === 'orders' ? '🛒 Sipariş' : ''}
+                            {' · '}{venue.name}
+                        </Text>
+                        <TouchableOpacity onPress={() => setQuickOpen(null)} style={{ padding: 8 }}>
+                            <Text style={{ color: colors.textMuted, fontSize: 18, fontWeight: '900' }}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+            {quickOpen === 'orders' && (() => {
+                // Kullanıcı isteği: Aktif sekmesi artık sadece onay bekleyen (PENDING) siparişleri
+                // gösterir — onaylanan sipariş anında adisyona (VenueBill) eklenip buradan düşer
+                // (bkz. backend updateOrderStatus'taki CONFIRMED tetiklemesi), ödeme/adisyon takibi
+                // de Adisyon sekmesine taşındı (bkz. aşağıdaki "bills" sekmesi, billsSubTab).
+                const visibleOrders = highlightActivityId
+                    ? orders.filter(o => o.activityId === highlightActivityId)
+                    : orders.filter(o => o.status === 'PENDING').slice(0, 30);
+                return (
+                <View style={vc.panel}>
+                    {visibleOrders.length === 0
+                        ? <Text style={vc.emptyTxt}>{highlightActivityId ? 'Bu maça ait sipariş yok' : 'Onay bekleyen sipariş yok'}</Text>
+                        : visibleOrders.map(order => (
+                            <View key={order.id} style={[vc.orderCard, order.activityId === highlightActivityId && { borderColor: BIZ_COLOR, borderWidth: 2 }]}>
+                                <View style={{ flexDirection: 'row' }}>
+                                    {/* Sol: kim sipariş verdi, hangi maç/kort/saat, siparişler
+                                        (kullanıcı isteği: bu sıralamada, solda). */}
+                                    <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
+                                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
+                                            {order.user?.fullName || order.user?.username}
+                                        </Text>
+                                        <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 3 }} numberOfLines={1}>@{order.user?.username}</Text>
+                                        {/* Hangi maç/kort/saat için sipariş verildiği — kullanıcı isteği:
+                                            "hangi maç için hangi oyuncu verdiğini göremiyor". */}
+                                        {order.activity && (
+                                            <Text style={{ color: '#60a5fa', fontSize: 11, marginBottom: 3 }}>
+                                                🎾 {order.activity.courtName || 'Kort'}
+                                                {order.activity.matchDate ? ` · ${new Date(order.activity.matchDate).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}` : ''}
+                                                {order.activity.matchTime ? ` ${order.activity.matchTime}` : ''}
+                                            </Text>
+                                        )}
+                                        {order.notes && (
+                                            <Text style={{ color: '#fbbf24', fontSize: 12, marginBottom: 4, fontStyle: 'italic' }}>
+                                                📝 {order.notes}
+                                            </Text>
+                                        )}
+                                        {order.items?.map((it, i) => (
+                                            <Text key={i} style={{ color: '#aaa', fontSize: 12 }}>
+                                                {it.quantity}× {it.menuItem?.name} — {it.unitPrice * it.quantity}₺
+                                            </Text>
+                                        ))}
+                                        <Text style={{ color: BIZ_COLOR, fontWeight: '700', marginTop: 4, fontSize: 13 }}>Toplam: {order.totalPrice}₺</Text>
+                                    </View>
+                                    {/* Sağ: durum + onayla/iptal (kullanıcı isteği: sağ tarafta, durumun altında).
+                                        Onaylanınca sipariş adisyona geçip bu listeden düşüyor, bu yüzden burada
+                                        sadece PENDING'e özgü aksiyonlar var — teslim/ödeme takibi Adisyon'da. */}
+                                    <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                                        <Text style={{ color: ORDER_COLORS[order.status], fontSize: 12, fontWeight: '600' }}>{ORDER_LABELS[order.status]}</Text>
+                                        {order.status === 'PENDING' && (
+                                            <>
+                                                <TouchableOpacity style={vc.orderBtn} onPress={() => handleOrderStatus(order.id, 'CONFIRMED')}>
+                                                    <Text style={vc.orderBtnTxt}>✅ Onayla</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => handleOrderStatus(order.id, 'CANCELLED')}>
+                                                    <Text style={{ color: '#f87171', fontSize: 11, fontWeight: '700' }}>❌ İptal</Text>
+                                                </TouchableOpacity>
+                                            </>
+                                        )}
+                                    </View>
+                                </View>
+                            </View>
+                        ))
+                    }
+                </View>
+                );
+            })()}
+
+            {quickOpen === 'bills' && (() => {
+                // Kullanıcı isteği: siparişlerdeki (Aktif) "Ödenmemiş Adisyonlar"/"Arşiv" ayrımı
+                // buraya taşındı — artık adisyonun kendi ödeme durumuna (VenueBill.status) göre.
+                const openBills = bills.filter(b => b.status !== 'PAID');
+                const paidBills = bills.filter(b => b.status === 'PAID');
+                const visibleBills = billsSubTab === 'archive' ? paidBills : openBills;
+                return (
+                <View style={vc.panel}>
+                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                        {[
+                            { key: 'open',    label: `Ödenmemiş Adisyonlar (${openBills.length})` },
+                            { key: 'archive', label: `Arşiv (${paidBills.length})` },
+                        ].map(t => (
+                            <TouchableOpacity key={t.key}
+                                onPress={() => setBillsSubTab(t.key)}
+                                style={{ flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center',
+                                    backgroundColor: billsSubTab === t.key ? BIZ_COLOR + '28' : '#ffffff08',
+                                    borderWidth: 1, borderColor: billsSubTab === t.key ? BIZ_COLOR + '60' : '#ffffff12' }}>
+                                <Text style={{ color: billsSubTab === t.key ? BIZ_LIGHT : '#94a3b8', fontSize: 11, fontWeight: '700', textAlign: 'center' }}>{t.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                    {visibleBills.length === 0
+                        ? <Text style={vc.emptyTxt}>{billsSubTab === 'archive' ? 'Arşivde adisyon yok' : 'Ödenmemiş adisyon yok'}</Text>
+                        : visibleBills.map(b => (
+                            <TouchableOpacity key={b.id} style={vc.orderCard} onPress={() => openBillModal(b.reservation)}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
+                                        @{b.reservation?.user?.username || '—'} · {b.reservation?.court?.name}
+                                    </Text>
+                                    <Text style={{ color: b.status === 'PAID' ? '#22c55e' : '#eab308', fontSize: 12, fontWeight: '600' }}>
+                                        {b.status === 'PAID' ? 'Ödendi' : 'Açık'}
+                                    </Text>
+                                </View>
+                                <Text style={{ color: '#6b7280', fontSize: 11, marginBottom: 4 }}>
+                                    {b.reservation?.date} {b.reservation?.startTime}
+                                </Text>
+                                {groupBillItems(b.items).map((g, gi) => (
+                                    <View key={gi} style={{ marginTop: gi > 0 ? 4 : 0 }}>
+                                        {g.label && <Text style={{ color: '#93c5fd', fontSize: 11, fontWeight: '700' }}>{g.label}</Text>}
+                                        {g.items.map(it => (
+                                            <Text key={it.id} style={{ color: '#aaa', fontSize: 12 }}>
+                                                {it.quantity}× {it.name} — {it.unitPrice * it.quantity}₺
+                                            </Text>
+                                        ))}
+                                    </View>
+                                ))}
+                                <Text style={{ color: BIZ_COLOR, fontWeight: '700', marginTop: 4, fontSize: 13 }}>Toplam: {b.totalPrice}₺</Text>
+                            </TouchableOpacity>
+                        ))
+                    }
+                </View>
+                );
+            })()}
+
+            {quickOpen === 'reservations' && (() => {
+                const nowRes = new Date();
+                const todayResStr = nowRes.toISOString().slice(0, 10);
+                const pendingApproval = reservations.filter(r => r.status === 'PENDING');
+                const paymentConfirmDue = reservations.filter(r =>
+                    r.status === 'CONFIRMED' && ['CASH', 'EFT'].includes(r.paymentMethod) &&
+                    (r.paymentConfirmStatus || 'PENDING') === 'PENDING' &&
+                    new Date(`${r.date}T${r.startTime}:00`).getTime() + 30 * 60 * 1000 <= nowRes.getTime()
+                );
+                const todayList = reservations.filter(r => r.date === todayResStr && r.status !== 'CANCELLED');
+                return (
+                <View style={vc.panel}>
+                    <TouchableOpacity style={vc.scheduleBtn} onPress={() => setScheduleOpen(true)}>
+                        <Text style={vc.scheduleBtnTxt}>📅 Takvimi Görüntüle</Text>
+                    </TouchableOpacity>
+
+                    {/* İptal talepleri */}
+                    {cancelRequests.length > 0 && (
+                        <View style={{ marginBottom: 16 }}>
+                            <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
+                                📋 KULLANICI TALEPLERİ ({cancelRequests.length})
+                            </Text>
+                            {cancelRequests.map(r => {
+                                const isReschedule = r.cancelRequestNote?.startsWith('RESCHEDULE');
+                                const noteText = isReschedule
+                                    ? (r.cancelRequestNote.includes(':') ? r.cancelRequestNote.split(':').slice(1).join(':') : null)
+                                    : r.cancelRequestNote;
+                                return (
+                                <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: isReschedule ? '#3b82f640' : '#f59e0b40', borderWidth: 1 }]}>
+                                    <View style={{ flex: 1, marginBottom: 8 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                            <Text style={{ fontSize: 10, fontWeight: '800', paddingHorizontal: 3, paddingVertical: 3, borderRadius: 5,
+                                                backgroundColor: isReschedule ? '#3b82f620' : '#ef444420',
+                                                color: isReschedule ? '#60a5fa' : '#f87171' }}>
+                                                {isReschedule ? '🔄 SAAT DEĞİŞİKLİĞİ' : '📋 İPTAL'}
+                                            </Text>
+                                        </View>
+                                        <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
+                                        <Text style={vc.resUser}>@{r.user?.username || '—'} · {r.date}</Text>
+                                        {noteText ? (
+                                            <Text style={[vc.resMeta, { color: '#f59e0b', marginTop: 3 }]}>Not: {noteText}</Text>
+                                        ) : null}
+                                    </View>
+                                    {isReschedule && (
+                                        <Text style={{ color: '#60a5fa', fontSize: 11, textAlign: 'center', paddingVertical: 3, marginBottom: 6 }}>
+                                            Kullanıcıyla iletişime geçerek yeni saat belirleyin
+                                        </Text>
+                                    )}
+                                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                                        {!isReschedule && (
+                                            <TouchableOpacity
+                                                style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
+                                                disabled={approvingCancel === r.id || rejectingCancel === r.id}
+                                                onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.username} kişisinin iptal talebi onaylansın mı? Rezervasyon iptal edilecek.`, [
+                                                    { text: 'Vazgeç', style: 'cancel' },
+                                                    { text: 'Onayla', onPress: () => handleApproveCancelRequest(r.id) },
+                                                ])}>
+                                                {approvingCancel === r.id
+                                                    ? <ActivityIndicator size="small" color="#22c55e" />
+                                                    : <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ İptali Onayla</Text>}
+                                            </TouchableOpacity>
+                                        )}
+                                        <TouchableOpacity
+                                            style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
+                                            disabled={approvingCancel === r.id || rejectingCancel === r.id}
+                                            onPress={() => Alert.alert('Talebi Reddet', `${r.user?.username} kişisinin talebi reddedilsin mi? Rezervasyon aynen devam eder.`, [
+                                                { text: 'Vazgeç', style: 'cancel' },
+                                                { text: 'Reddet', style: 'destructive', onPress: () => handleRejectCancelRequest(r.id) },
+                                            ])}>
+                                            {rejectingCancel === r.id
+                                                ? <ActivityIndicator size="small" color="#f87171" />
+                                                : <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '700' }}>❌ Reddet</Text>}
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                                );
+                            })}
+                        </View>
+                    )}
+
+                    {/* Onay bekleyen geçmiş nakit rezervasyonlar */}
+                    {pendingApproval.length > 0 && (
+                        <View style={{ marginBottom: 16 }}>
+                            <Text style={{ color: '#eab308', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
+                                ⏳ ONAY BEKLİYOR ({pendingApproval.length})
+                            </Text>
+                            {pendingApproval.map(r => {
+                                const isPast = new Date(`${r.date}T${r.startTime}:00`) <= nowRes;
+                                const payLabel = r.paymentMethod === 'EFT' ? '🏦 EFT' : r.paymentMethod === 'ONLINE' ? '💳 Online' : '💵 Nakit';
+                                return (
+                                <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: '#eab30840', borderWidth: 1 }]}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
+                                        <Text style={vc.resUser}>@{r.user?.username || '—'} · {r.date}</Text>
+                                        <Text style={vc.resMeta}>{payLabel} · ⏳ Onay Bekliyor</Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                                        <TouchableOpacity
+                                            style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
+                                            onPress={() => handleUpdateResStatus(r.id, 'confirm')}>
+                                            <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ Onayla</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
+                                            onPress={() => Alert.alert(isPast ? 'Gelmedi / İptal' : 'Reddet', isPast ? 'Müşteri gelmedi olarak işaretlensin mi?' : 'Rezervasyon reddedilsin mi?', [
+                                                { text: 'Vazgeç', style: 'cancel' },
+                                                { text: isPast ? 'Gelmedi' : 'Reddet', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, isPast ? 'noshow' : 'reject') },
+                                            ])}>
+                                            <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '700' }}>{isPast ? '❌ Gelmedi' : '❌ Reddet'}</Text>
+                                        </TouchableOpacity>
+                                        {isPast && r.paymentMethod === 'CASH' && (
+                                        <TouchableOpacity
+                                            style={{ backgroundColor: '#7c3aed18', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1, borderColor: '#7c3aed40' }}
+                                            onPress={() => Alert.alert('Admine Bildir', 'Ödeme alınmadı olarak admine yüksek öncelikli bildirim gönderilsin mi?', [
+                                                { text: 'Vazgeç', style: 'cancel' },
+                                                { text: 'Bildir', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, 'no_payment') },
+                                            ])}>
+                                            <Text style={{ color: '#a78bfa', fontSize: 11, fontWeight: '700' }}>🚨</Text>
+                                        </TouchableOpacity>
+                                        )}
+                                    </View>
+                                </View>
+                                );
+                            })}
+                        </View>
+                    )}
+
+                    {/* Ödeme onayı bekleyen (saati geçmiş, nakit/EFT) rezervasyonlar */}
+                    {paymentConfirmDue.length > 0 && (
+                        <View style={{ marginBottom: 16 }}>
+                            <Text style={{ color: '#a78bfa', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
+                                🕐 ÖDEME ONAYI BEKLİYOR ({paymentConfirmDue.length})
+                            </Text>
+                            {paymentConfirmDue.map(r => {
+                                const payLabel = r.paymentMethod === 'EFT' ? '🏦 EFT' : '💵 Nakit';
+                                return (
+                                <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: '#7c3aed40', borderWidth: 1 }]}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
+                                        <Text style={vc.resUser}>@{r.user?.username || '—'} · {r.date}</Text>
+                                        <Text style={vc.resMeta}>{payLabel} · Müşteri geldi mi, ödeme alındı mı?</Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                                        <TouchableOpacity
+                                            style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
+                                            onPress={() => handleUpdateResStatus(r.id, 'payment_confirm')}>
+                                            <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ Onaylandı</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
+                                            onPress={() => Alert.alert('Gelmedi / Ödeme Alınamadı', 'Müşteri gelmedi veya ödeme tahsil edilemedi olarak işaretlensin mi? Admine bildirim gidecek.', [
+                                                { text: 'Vazgeç', style: 'cancel' },
+                                                { text: 'Onayla', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, 'payment_not_collected') },
+                                            ])}>
+                                            <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '700' }}>❌ Gelmedi</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                                );
+                            })}
+                        </View>
+                    )}
+
+                    {/* Bugünün rezervasyonları */}
+                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
+                        BUGÜN
+                    </Text>
+                    {todayList.map(r => (
+                        <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch' }]}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
+                                    <Text style={vc.resUser}>@{r.user?.username || '—'}</Text>
+                                    <Text style={vc.resMeta}>
+                                        {r.paymentMethod === 'EFT' ? '🏦 EFT' : r.paymentMethod === 'ONLINE' ? '💳 Online' : '💵 Kortta Öde'}
+                                        {r.status === 'PENDING' ? '  · ⏳ Bekleniyor' : r.status === 'CONFIRMED' ? '  · ✅ Onaylandı' : ''}
+                                        {r.noShow ? '  · ❌ Gelmedi' : ''}
+                                    </Text>
+                                </View>
+                                {isPro && r.status !== 'CANCELLED' && (
+                                    <TouchableOpacity style={[vc.resCancelBtn, { backgroundColor: '#7c3aed15', borderColor: '#7c3aed40', marginRight: 8 }]}
+                                        onPress={() => openBillModal(r)}>
+                                        <Text style={[vc.resCancelTxt, { color: '#a78bfa' }]}>Adisyon</Text>
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity style={vc.resCancelBtn}
+                                    onPress={() => Alert.alert('İptal Et', `${r.user?.username} kişisinin rezervasyonu iptal edilsin mi?`, [
+                                        { text: 'Vazgeç', style: 'cancel' },
+                                        { text: 'İptal Et', style: 'destructive', onPress: () => handleCancelReservation(r.id) },
+                                    ])}>
+                                    <Text style={vc.resCancelTxt}>İptal</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    ))}
+                    {resLoaded && todayList.length === 0 && pendingApproval.length === 0 && paymentConfirmDue.length === 0 && (
+                        <Text style={vc.emptyTxt}>Bugün rezervasyon yok</Text>
+                    )}
+                </View>
+                );
+            })()}
+
+
+                    </ScrollView>
+                </View>
+            </Modal>
             <Modal visible={manageOpen} animationType="slide" onRequestClose={() => setManageOpen(false)}>
                 <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + 8 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 10, gap: 10 }}>
@@ -3154,135 +3534,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                     </ScrollView>
 
                     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-            {activeTab === 'info' && (() => {
-                const getDayW = (d) => {
-                    if (!(venue.openDays || [1,2,3,4,5,6,7]).includes(d)) return null;
-                    const os = venue.openSlots;
-                    if (os && !Array.isArray(os) && typeof os === 'object') {
-                        const entry = os[String(d)] !== undefined ? os[String(d)] : os['0'];
-                        if (entry !== undefined) {
-                            if (Array.isArray(entry) && entry.length === 0) return null;
-                            if (Array.isArray(entry) && entry.length > 0) return entry;
-                        }
-                    }
-                    return [{ from: venue.openTime || '08:00', to: venue.closeTime || '22:00' }];
-                };
-                const dayNames = ['', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-                const groups = [];
-                for (let d = 1; d <= 7; d++) {
-                    const w = getDayW(d);
-                    const key = w === null ? 'CLOSED' : w.map(x => `${x.from}-${x.to}`).join(',');
-                    const last = groups[groups.length - 1];
-                    if (last && last.key === key) last.days.push(d);
-                    else groups.push({ key, days: [d], windows: w });
-                }
-                return (
-                    <>
-                        <View style={vc.infoRow}>
-                            <Text style={vc.infoItem}>🏟️ {venue.courts?.length || 0} kort</Text>
-                            <Text style={vc.infoItem}>📅 {slotLabel}</Text>
-                        </View>
-                        <View style={{ paddingHorizontal: 14, paddingBottom: 10 }}>
-                            {groups.map((g, i) => {
-                                const label = g.days.length === 1
-                                    ? dayNames[g.days[0]]
-                                    : `${dayNames[g.days[0]]}–${dayNames[g.days[g.days.length - 1]]}`;
-                                const hours = g.windows === null
-                                    ? 'Kapalı'
-                                    : g.windows.map(x => `${x.from}–${x.to}`).join('  ');
-                                return (
-                                    <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
-                                        <Text style={{ color: '#aaa', fontSize: 12, fontWeight: '700', minWidth: 60 }}>{label}</Text>
-                                        <Text style={{ color: g.windows === null ? '#ef4444' : '#fff', fontSize: 12, fontWeight: g.windows === null ? '700' : '400' }}>{hours}</Text>
-                                    </View>
-                                );
-                            })}
-                        </View>
-                        {/* Ayarlar Özeti */}
-                        {(() => {
-                            const APPROVAL_SHORT = {
-                                'FULL_AUTO':    '🤖 Tam Otomatik',
-                                'EFT_TIMED':    '⏱️ EFT 1sa Bekle',
-                                'PAYMENT_AUTO': '💳 Ödeme=Otomatik',
-                                'MANUAL':       '✋ Manuel Onay',
-                            };
-                            const PAY_ICONS = { CASH: '💵', EFT: '🏦', ONLINE: '🌐', CREDIT_CARD: '💳' };
-                            const PAY_NAMES = { CASH: 'Nakit', EFT: 'EFT', ONLINE: 'Online', CREDIT_CARD: 'Kortta Kredi Kartı' };
-                            const policyLabel = (v) => v === null || v === undefined ? 'Her zaman' : v === -1 ? 'Asla' : `${v} saat öncesi`;
-
-                            const approvalMode   = venue.approvalMode || 'FULL_AUTO';
-                            const payments       = Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'];
-                            const hasPricingWins = Array.isArray(venue.pricingWindows) && venue.pricingWindows.length > 0;
-                            const cl             = venue.contactLinks || {};
-                            const contactCount   = ['whatsapp','telegram','instagram','email','phone'].filter(k => cl[k]).length;
-                            const lightsFrom     = (venue.courts || []).find(c => c.lightsFrom)?.lightsFrom;
-
-                            const chips = [
-                                { label: APPROVAL_SHORT[approvalMode] || approvalMode, color: '#a78bfa' },
-                                { label: payments.map(p => (PAY_ICONS[p] || '') + ' ' + (PAY_NAMES[p] || p)).join('  '), color: '#34d399' },
-                                { label: `🚫 İptal: ${policyLabel(venue.cancelHoursBefore)}`, color: '#f87171' },
-                                { label: `🔄 Değişiklik: ${policyLabel(venue.rescheduleHoursBefore)}`, color: '#fb923c' },
-                                ...(venue.pricePerSlot > 0 ? [{ label: `💰 ${venue.pricePerSlot}₺/saat`, color: '#fbbf24' }] : []),
-                                ...(hasPricingWins ? [{ label: `📊 ${venue.pricingWindows.length} fiyat dilimi`, color: '#fbbf24' }] : []),
-                                ...(contactCount > 0 ? [{ label: `📞 ${contactCount} iletişim`, color: '#60a5fa' }] : []),
-                                ...(lightsFrom ? [{ label: `💡 Işık: ${lightsFrom}`, color: '#fbbf24' }] : []),
-                                { label: globalIndoor ? '🏠 Kapalı Alan' : '🌤️ Açık Alan', color: globalIndoor ? '#818cf8' : '#22d3ee' },
-                            ];
-
-                            return (
-                                <View style={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 4 }}>
-                                    <Text style={{ color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 8 }}>AYAR ÖZETİ</Text>
-                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
-                                        {chips.map((chip, i) => (
-                                            <View key={i} style={{ backgroundColor: chip.color + '15', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: chip.color + '40' }}>
-                                                <Text style={{ color: chip.color, fontSize: 10, fontWeight: '700' }}>{chip.label}</Text>
-                                            </View>
-                                        ))}
-                                    </View>
-                                </View>
-                            );
-                        })()}
-
-                        {/* Kort Listesi */}
-                        {(venue.courts || []).length > 0 && (() => {
-                            const SLOT_SHORT = { FULL_HOUR: 'Tam Saat', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90 dk', VAR_DURATION: 'Esnek', FLEXIBLE: 'Esnek' };
-                            const SURF_ICON  = { CLAY: '🟤', HARD: '⬜', CARPET: '🟥', GRASS: '🌿', PARQUET: '🟫', SYNTHETIC: '🟩' };
-                            const SURF_LABEL = { CLAY: 'Toprak', HARD: 'Sert Zemin', CARPET: 'Halı Saha', GRASS: 'Çim', PARQUET: 'Parke', SYNTHETIC: 'Sentetik' };
-                            return (
-                                <View style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4 }}>
-                                    <Text style={{ color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 8 }}>KORTLAR</Text>
-                                    {(venue.courts || []).map(c => {
-                                        const slotT  = c.slotType || venue.slotType || 'FULL_HOUR';
-                                        const surface = courtSurfaces[c.id] !== undefined ? courtSurfaces[c.id] : c.surface;
-                                        const courtIndoor = courtIndoors[c.id] !== undefined ? courtIndoors[c.id] : c.indoor;
-                                        const effIndoor = courtIndoor ?? globalIndoor ?? venue.courtIndoorDefault ?? false;
-                                        const price  = c.pricePerSlot != null ? c.pricePerSlot : venue.pricePerSlot;
-                                        return (
-                                            <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#ffffff08', gap: 6 }}>
-                                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700', flex: 1 }}>{c.name}</Text>
-                                                {surface ? <Text style={{ color: '#ddd', fontSize: 10 }}>{SURF_ICON[surface] || ''} {SURF_LABEL[surface] || surface}</Text> : null}
-                                                <Text style={{ color: '#a78bfa', fontSize: 10, backgroundColor: '#a78bfa15', borderRadius: 4, paddingHorizontal: 3, paddingVertical: 3 }}>{SLOT_SHORT[slotT] || slotT}</Text>
-                                                <Text style={{ color: effIndoor ? '#818cf8' : '#22d3ee', fontSize: 10 }}>{effIndoor ? '🏠 Kapalı' : '🌤️ Açık'}</Text>
-                                                {price > 0 ? <Text style={{ color: '#fbbf24', fontSize: 10 }}>💰{price}₺</Text> : null}
-                                            </View>
-                                        );
-                                    })}
-                                </View>
-                            );
-                        })()}
-
-                        {/* IBAN Özeti */}
-                        {savedIban ? (
-                            <View style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4 }}>
-                                <Text style={{ color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 6 }}>EFT / IBAN</Text>
-                                <Text style={{ color: '#86efac', fontSize: 11 }}>🏦 {savedIbanHolder}</Text>
-                                <Text style={{ color: '#aaa', fontSize: 11, marginTop: 2 }} selectable>{savedIban}</Text>
-                            </View>
-                        ) : null}
-                    </>
-                );
-            })()}
-
             {activeTab === 'blocks' && (
                 <View style={vc.panel}>
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
@@ -3383,128 +3634,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                     }
                 </View>
             )}
-
-            {activeTab === 'orders' && (() => {
-                // Kullanıcı isteği: Aktif sekmesi artık sadece onay bekleyen (PENDING) siparişleri
-                // gösterir — onaylanan sipariş anında adisyona (VenueBill) eklenip buradan düşer
-                // (bkz. backend updateOrderStatus'taki CONFIRMED tetiklemesi), ödeme/adisyon takibi
-                // de Adisyon sekmesine taşındı (bkz. aşağıdaki "bills" sekmesi, billsSubTab).
-                const visibleOrders = highlightActivityId
-                    ? orders.filter(o => o.activityId === highlightActivityId)
-                    : orders.filter(o => o.status === 'PENDING').slice(0, 30);
-                return (
-                <View style={vc.panel}>
-                    {visibleOrders.length === 0
-                        ? <Text style={vc.emptyTxt}>{highlightActivityId ? 'Bu maça ait sipariş yok' : 'Onay bekleyen sipariş yok'}</Text>
-                        : visibleOrders.map(order => (
-                            <View key={order.id} style={[vc.orderCard, order.activityId === highlightActivityId && { borderColor: BIZ_COLOR, borderWidth: 2 }]}>
-                                <View style={{ flexDirection: 'row' }}>
-                                    {/* Sol: kim sipariş verdi, hangi maç/kort/saat, siparişler
-                                        (kullanıcı isteği: bu sıralamada, solda). */}
-                                    <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
-                                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
-                                            {order.user?.fullName || order.user?.username}
-                                        </Text>
-                                        <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 3 }} numberOfLines={1}>@{order.user?.username}</Text>
-                                        {/* Hangi maç/kort/saat için sipariş verildiği — kullanıcı isteği:
-                                            "hangi maç için hangi oyuncu verdiğini göremiyor". */}
-                                        {order.activity && (
-                                            <Text style={{ color: '#60a5fa', fontSize: 11, marginBottom: 3 }}>
-                                                🎾 {order.activity.courtName || 'Kort'}
-                                                {order.activity.matchDate ? ` · ${new Date(order.activity.matchDate).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}` : ''}
-                                                {order.activity.matchTime ? ` ${order.activity.matchTime}` : ''}
-                                            </Text>
-                                        )}
-                                        {order.notes && (
-                                            <Text style={{ color: '#fbbf24', fontSize: 12, marginBottom: 4, fontStyle: 'italic' }}>
-                                                📝 {order.notes}
-                                            </Text>
-                                        )}
-                                        {order.items?.map((it, i) => (
-                                            <Text key={i} style={{ color: '#aaa', fontSize: 12 }}>
-                                                {it.quantity}× {it.menuItem?.name} — {it.unitPrice * it.quantity}₺
-                                            </Text>
-                                        ))}
-                                        <Text style={{ color: BIZ_COLOR, fontWeight: '700', marginTop: 4, fontSize: 13 }}>Toplam: {order.totalPrice}₺</Text>
-                                    </View>
-                                    {/* Sağ: durum + onayla/iptal (kullanıcı isteği: sağ tarafta, durumun altında).
-                                        Onaylanınca sipariş adisyona geçip bu listeden düşüyor, bu yüzden burada
-                                        sadece PENDING'e özgü aksiyonlar var — teslim/ödeme takibi Adisyon'da. */}
-                                    <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                                        <Text style={{ color: ORDER_COLORS[order.status], fontSize: 12, fontWeight: '600' }}>{ORDER_LABELS[order.status]}</Text>
-                                        {order.status === 'PENDING' && (
-                                            <>
-                                                <TouchableOpacity style={vc.orderBtn} onPress={() => handleOrderStatus(order.id, 'CONFIRMED')}>
-                                                    <Text style={vc.orderBtnTxt}>✅ Onayla</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity onPress={() => handleOrderStatus(order.id, 'CANCELLED')}>
-                                                    <Text style={{ color: '#f87171', fontSize: 11, fontWeight: '700' }}>❌ İptal</Text>
-                                                </TouchableOpacity>
-                                            </>
-                                        )}
-                                    </View>
-                                </View>
-                            </View>
-                        ))
-                    }
-                </View>
-                );
-            })()}
-
-            {activeTab === 'bills' && (() => {
-                // Kullanıcı isteği: siparişlerdeki (Aktif) "Ödenmemiş Adisyonlar"/"Arşiv" ayrımı
-                // buraya taşındı — artık adisyonun kendi ödeme durumuna (VenueBill.status) göre.
-                const openBills = bills.filter(b => b.status !== 'PAID');
-                const paidBills = bills.filter(b => b.status === 'PAID');
-                const visibleBills = billsSubTab === 'archive' ? paidBills : openBills;
-                return (
-                <View style={vc.panel}>
-                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
-                        {[
-                            { key: 'open',    label: `Ödenmemiş Adisyonlar (${openBills.length})` },
-                            { key: 'archive', label: `Arşiv (${paidBills.length})` },
-                        ].map(t => (
-                            <TouchableOpacity key={t.key}
-                                onPress={() => setBillsSubTab(t.key)}
-                                style={{ flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center',
-                                    backgroundColor: billsSubTab === t.key ? BIZ_COLOR + '28' : '#ffffff08',
-                                    borderWidth: 1, borderColor: billsSubTab === t.key ? BIZ_COLOR + '60' : '#ffffff12' }}>
-                                <Text style={{ color: billsSubTab === t.key ? BIZ_LIGHT : '#94a3b8', fontSize: 11, fontWeight: '700', textAlign: 'center' }}>{t.label}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                    {visibleBills.length === 0
-                        ? <Text style={vc.emptyTxt}>{billsSubTab === 'archive' ? 'Arşivde adisyon yok' : 'Ödenmemiş adisyon yok'}</Text>
-                        : visibleBills.map(b => (
-                            <TouchableOpacity key={b.id} style={vc.orderCard} onPress={() => openBillModal(b.reservation)}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
-                                        @{b.reservation?.user?.username || '—'} · {b.reservation?.court?.name}
-                                    </Text>
-                                    <Text style={{ color: b.status === 'PAID' ? '#22c55e' : '#eab308', fontSize: 12, fontWeight: '600' }}>
-                                        {b.status === 'PAID' ? 'Ödendi' : 'Açık'}
-                                    </Text>
-                                </View>
-                                <Text style={{ color: '#6b7280', fontSize: 11, marginBottom: 4 }}>
-                                    {b.reservation?.date} {b.reservation?.startTime}
-                                </Text>
-                                {groupBillItems(b.items).map((g, gi) => (
-                                    <View key={gi} style={{ marginTop: gi > 0 ? 4 : 0 }}>
-                                        {g.label && <Text style={{ color: '#93c5fd', fontSize: 11, fontWeight: '700' }}>{g.label}</Text>}
-                                        {g.items.map(it => (
-                                            <Text key={it.id} style={{ color: '#aaa', fontSize: 12 }}>
-                                                {it.quantity}× {it.name} — {it.unitPrice * it.quantity}₺
-                                            </Text>
-                                        ))}
-                                    </View>
-                                ))}
-                                <Text style={{ color: BIZ_COLOR, fontWeight: '700', marginTop: 4, fontSize: 13 }}>Toplam: {b.totalPrice}₺</Text>
-                            </TouchableOpacity>
-                        ))
-                    }
-                </View>
-                );
-            })()}
 
             {activeTab === 'reviews' && (
                 <View style={vc.panel}>
@@ -3827,425 +3956,6 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
             )}
 
             {/* ── Adisyon Modalı (PRO+) ── */}
-            {!!billModalRes && (
-                <Modal visible animationType="slide" onRequestClose={closeBillModal}>
-                    <View style={{ flex:1, backgroundColor:'#0a0a14' }}>
-                        {/* Header */}
-                        <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16,
-                            paddingTop: Platform.OS === 'ios' ? 54 : 28, paddingBottom:14,
-                            borderBottomWidth:1, borderBottomColor:'#ffffff12' }}>
-                            <TouchableOpacity onPress={closeBillModal} style={{ marginRight:14, padding:4 }}>
-                                <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
-                            </TouchableOpacity>
-                            <View style={{ flex:1 }}>
-                                <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                    @{billModalRes.user?.username || billModalRes.manualName || '—'}
-                                </Text>
-                                <Text style={{ color:'#9ca3af', fontSize:12, marginTop:1 }} numberOfLines={1}>
-                                    {billModalRes.court?.name} · {billModalRes.startTime}
-                                </Text>
-                            </View>
-                        </View>
-
-                        {/* Sekme çubuğu */}
-                        <View style={{ flexDirection:'row', paddingHorizontal:16, paddingTop:10, paddingBottom:10, borderBottomWidth:1, borderBottomColor:'#ffffff08' }}>
-                            <View style={{ paddingHorizontal:14, paddingVertical:8, borderRadius:10, backgroundColor: BIZ_COLOR+'22', borderWidth:1, borderColor: BIZ_COLOR+'50' }}>
-                                <Text style={{ color: BIZ_LIGHT, fontWeight:'800', fontSize:13 }}>Adisyon</Text>
-                            </View>
-                        </View>
-
-                        {billModalLoading ? (
-                            <ActivityIndicator color={BIZ_COLOR} style={{ marginTop: 40 }} />
-                        ) : (
-                            <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:24 }}>
-                                    <Text style={{ color:'#9ca3af', fontSize:11, fontWeight:'700', marginBottom:6 }}>ADİSYONDAKİ ÜRÜNLER</Text>
-                                    {(activeBill?.items || []).length === 0 ? (
-                                        <Text style={{ color:'#6b7280', fontSize:12, marginBottom:12 }}>Henüz ürün eklenmedi</Text>
-                                    ) : groupBillItems(activeBill.items).map((g, gi) => (
-                                        <View key={gi} style={{ marginBottom: 4 }}>
-                                            {/* Kullanıcı isteği: aynı maça art arda gelen siparişler aynı
-                                                adisyona ekleniyor — burada "1. Sipariş"/"2. Sipariş" diye
-                                                gruplanıp kendi ara toplamıyla gösterilir. */}
-                                            {g.label && (
-                                                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginTop: gi > 0 ? 6 : 0, marginBottom:4 }}>
-                                                    <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'800' }}>{g.label}</Text>
-                                                    <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'700' }}>{g.subtotal}₺</Text>
-                                                </View>
-                                            )}
-                                            {g.items.map(it => (
-                                                <View key={it.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#ffffff06', borderRadius:8, padding:10, marginBottom:6 }}>
-                                                    <View style={{ flex:1 }}>
-                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'600' }}>{it.name}</Text>
-                                                        {it.user ? <Text style={{ color:'#93c5fd', fontSize:11, marginTop:1 }}>👤 {it.user.fullName || it.user.username}</Text> : null}
-                                                        {it.note ? <Text style={{ color:'#9ca3af', fontSize:11, marginTop:1 }}>{it.note}</Text> : null}
-                                                        <Text style={{ color:'#6b7280', fontSize:11 }}>{it.unitPrice}₺ / adet</Text>
-                                                    </View>
-                                                    {activeBill.status !== 'PAID' && (
-                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:10, width:88, justifyContent:'center' }}>
-                                                            <TouchableOpacity disabled={billItemBusy} onPress={() => changeBillItemQty(it, -1)}>
-                                                                <Text style={{ color:'#f87171', fontSize:18, fontWeight:'800' }}>−</Text>
-                                                            </TouchableOpacity>
-                                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{it.quantity}</Text>
-                                                            <TouchableOpacity disabled={billItemBusy} onPress={() => changeBillItemQty(it, 1)}>
-                                                                <Text style={{ color:'#22c55e', fontSize:18, fontWeight:'800' }}>+</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    )}
-                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', minWidth:60, textAlign:'right' }}>
-                                                        {it.unitPrice * it.quantity}₺
-                                                    </Text>
-                                                </View>
-                                            ))}
-                                        </View>
-                                    ))}
-
-                                    <View style={{ height:1, backgroundColor:'#ffffff10', marginVertical:12 }} />
-
-                                    <View style={{ flexDirection:'row', justifyContent:'space-between', marginBottom:14 }}>
-                                        <Text style={{ color:'#fff', fontWeight:'900', fontSize:16 }}>Toplam</Text>
-                                        <Text style={{ color:'#fff', fontWeight:'900', fontSize:16 }}>{activeBill?.totalPrice || 0}₺</Text>
-                                    </View>
-
-                                    {activeBill?.status !== 'PAID' && (() => {
-                                        const available = menuItems.filter(m => m.available);
-                                        const useTabs = available.length > 10;
-                                        const catsPresent = MENU_CATS.filter(c => available.some(m => m.category === c.key));
-                                        const activeCat = catsPresent.some(c => c.key === billPickerCat) ? billPickerCat : catsPresent[0]?.key;
-                                        const shown = useTabs ? available.filter(m => m.category === activeCat) : available;
-                                        return (
-                                        <>
-                                            {billRoster.length > 0 && (
-                                                <View style={{ marginBottom:10 }}>
-                                                    <Text style={{ color:'#9ca3af', fontSize:11, fontWeight:'700', marginBottom:6 }}>
-                                                        KİMİN İÇİN? (isteğe bağlı)
-                                                    </Text>
-                                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                                        <View style={{ flexDirection:'row', gap:6 }}>
-                                                            <TouchableOpacity onPress={() => setBillForUserId(null)}
-                                                                style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8,
-                                                                    backgroundColor: !billForUserId ? BIZ_COLOR+'25' : '#ffffff08',
-                                                                    borderWidth:1, borderColor: !billForUserId ? BIZ_COLOR+'60' : '#ffffff10' }}>
-                                                                <Text style={{ color: !billForUserId ? BIZ_LIGHT : '#9ca3af', fontSize:12, fontWeight:'700' }}>Belirtilmemiş</Text>
-                                                            </TouchableOpacity>
-                                                            {billRoster.map(p => (
-                                                                <TouchableOpacity key={p.id} onPress={() => setBillForUserId(p.id)}
-                                                                    style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8,
-                                                                        backgroundColor: billForUserId === p.id ? BIZ_COLOR+'25' : '#ffffff08',
-                                                                        borderWidth:1, borderColor: billForUserId === p.id ? BIZ_COLOR+'60' : '#ffffff10' }}>
-                                                                    <Text style={{ color: billForUserId === p.id ? BIZ_LIGHT : '#9ca3af', fontSize:12, fontWeight:'700' }}>{p.fullName || p.username}</Text>
-                                                                </TouchableOpacity>
-                                                            ))}
-                                                        </View>
-                                                    </ScrollView>
-                                                </View>
-                                            )}
-                                            <Text style={{ color:'#9ca3af', fontSize:11, fontWeight:'700', marginBottom:6 }}>ÜRÜN EKLE</Text>
-                                            {useTabs && (
-                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
-                                                    <View style={{ flexDirection:'row', gap:6 }}>
-                                                        {catsPresent.map(c => (
-                                                            <TouchableOpacity key={c.key}
-                                                                onPress={() => setBillPickerCat(c.key)}
-                                                                style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8,
-                                                                    backgroundColor: activeCat === c.key ? BIZ_COLOR+'25' : '#ffffff08',
-                                                                    borderWidth:1, borderColor: activeCat === c.key ? BIZ_COLOR+'60' : '#ffffff10' }}>
-                                                                <Text style={{ color: activeCat === c.key ? BIZ_LIGHT : '#9ca3af', fontSize:12, fontWeight:'700' }}>{c.label}</Text>
-                                                            </TouchableOpacity>
-                                                        ))}
-                                                    </View>
-                                                </ScrollView>
-                                            )}
-                                            {available.length === 0 ? (
-                                                <Text style={{ color:'#6b7280', fontSize:12, marginBottom:12 }}>Menüde ürün yok. Önce Menü sekmesinden ürün ekleyin.</Text>
-                                            ) : shown.map(m => (
-                                                <TouchableOpacity key={m.id} disabled={billItemBusy}
-                                                    style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor:'#ffffff08', borderRadius:8, padding:10, marginBottom:6 }}
-                                                    onPress={() => addBillItem(m.id)}>
-                                                    <Text style={{ color:'#e5e7eb', fontSize:13 }}>{m.name}{m.unit ? ` (${m.unit})` : ''}</Text>
-                                                    <Text style={{ color: BIZ_COLOR, fontWeight:'700', fontSize:13 }}>+ {m.price}₺</Text>
-                                                </TouchableOpacity>
-                                            ))}
-
-                                            {!showManualBillItem ? (
-                                                <TouchableOpacity onPress={() => setShowManualBillItem(true)} style={{ marginTop:6, marginBottom:4 }}>
-                                                    <Text style={{ color:'#a78bfa', fontSize:12, fontWeight:'700' }}>+ Menüde Olmayan Ürün Ekle</Text>
-                                                </TouchableOpacity>
-                                            ) : (
-                                                <View style={{ backgroundColor:'#ffffff06', borderRadius:8, padding:10, marginTop:6 }}>
-                                                    <TextInput
-                                                        style={{ backgroundColor:'#2d2d3f', borderRadius:8, padding:9, color:'#fff', fontSize:13, marginBottom:6, borderWidth:1, borderColor:'#3d3d5c' }}
-                                                        placeholder="Ürün adı" placeholderTextColor="#6b7280"
-                                                        value={manualBillName} onChangeText={setManualBillName}
-                                                    />
-                                                    <TextInput
-                                                        style={{ backgroundColor:'#2d2d3f', borderRadius:8, padding:9, color:'#fff', fontSize:13, marginBottom:6, borderWidth:1, borderColor:'#3d3d5c' }}
-                                                        placeholder="Fiyat (₺)" placeholderTextColor="#6b7280" keyboardType="numeric"
-                                                        value={manualBillPrice} onChangeText={setManualBillPrice}
-                                                    />
-                                                    <TextInput
-                                                        style={{ backgroundColor:'#2d2d3f', borderRadius:8, padding:9, color:'#fff', fontSize:13, marginBottom:8, borderWidth:1, borderColor:'#3d3d5c' }}
-                                                        placeholder="Detay (isteğe bağlı)" placeholderTextColor="#6b7280"
-                                                        value={manualBillNote} onChangeText={setManualBillNote}
-                                                    />
-                                                    <View style={{ flexDirection:'row', gap:8 }}>
-                                                        <TouchableOpacity disabled={billItemBusy} onPress={addManualBillItem}
-                                                            style={{ flex:1, backgroundColor: BIZ_COLOR, borderRadius:8, paddingVertical:9, alignItems:'center' }}>
-                                                            <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>Ekle</Text>
-                                                        </TouchableOpacity>
-                                                        <TouchableOpacity onPress={() => { setShowManualBillItem(false); setManualBillName(''); setManualBillPrice(''); setManualBillNote(''); }}
-                                                            style={{ flex:1, backgroundColor:'#ffffff10', borderRadius:8, paddingVertical:9, alignItems:'center' }}>
-                                                            <Text style={{ color:'#9ca3af', fontWeight:'700', fontSize:13 }}>Vazgeç</Text>
-                                                        </TouchableOpacity>
-                                                    </View>
-                                                </View>
-                                            )}
-                                        </>
-                                        );
-                                    })()}
-                            </ScrollView>
-                        )}
-
-                        {/* Alt bilgi/aksiyon çubuğu — Android'de ekran içi gezinme çubuğu (dokunmatik
-                            tuşlar) varsa sabit 16'lık padding yetmeyip butonlar onun altında/üstünde
-                            kalıp dokunulamaz hale geliyordu, bu yüzden insets.bottom da hesaba katılır. */}
-                        {!billModalLoading && activeBill && (
-                            <View style={{ padding:16, paddingBottom: Math.max(16, insets.bottom + 12), borderTopWidth:1, borderTopColor:'#ffffff10', gap:8 }}>
-                                <View style={{ flexDirection:'row', gap:8 }}>
-                                    <TouchableOpacity onPress={() => setBillPaidStatus(true)}
-                                        style={{ flex:1, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1,
-                                            backgroundColor: activeBill.status === 'PAID' ? '#22c55e25' : '#ffffff08',
-                                            borderColor: activeBill.status === 'PAID' ? '#22c55e60' : '#ffffff15' }}>
-                                        <Text style={{ color: activeBill.status === 'PAID' ? '#22c55e' : '#9ca3af', fontWeight:'800', fontSize:13 }}>✅ Ödeme Alındı</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => setBillPaidStatus(false)}
-                                        style={{ flex:1, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1,
-                                            backgroundColor: activeBill.status !== 'PAID' ? '#ef444425' : '#ffffff08',
-                                            borderColor: activeBill.status !== 'PAID' ? '#ef444460' : '#ffffff15' }}>
-                                        <Text style={{ color: activeBill.status !== 'PAID' ? '#f87171' : '#9ca3af', fontWeight:'800', fontSize:13 }}>❌ Ödeme Alınmadı</Text>
-                                    </TouchableOpacity>
-                                </View>
-                                {billModalRes.paymentConfirmStatus === 'NOT_COLLECTED' ? (
-                                    <View style={{ borderRadius:10, paddingVertical:9, alignItems:'center', backgroundColor:'#ef444415', borderWidth:1, borderColor:'#ef444440' }}>
-                                        <Text style={{ color:'#f87171', fontWeight:'700', fontSize:12 }}>⚠️ Kort ücreti alınmadı olarak işaretlendi</Text>
-                                    </View>
-                                ) : billModalRes.paymentConfirmStatus === 'CONFIRMED' ? (
-                                    <View style={{ borderRadius:10, paddingVertical:9, alignItems:'center', backgroundColor:'#22c55e15', borderWidth:1, borderColor:'#22c55e40' }}>
-                                        <Text style={{ color:'#22c55e', fontWeight:'700', fontSize:12 }}>✅ Kort ücreti alındı</Text>
-                                    </View>
-                                ) : (
-                                    <TouchableOpacity onPress={markCourtFeeNotCollected}
-                                        style={{ borderRadius:10, paddingVertical:10, alignItems:'center', backgroundColor:'#f59e0b15', borderWidth:1, borderColor:'#f59e0b40' }}>
-                                        <Text style={{ color:'#f59e0b', fontWeight:'700', fontSize:12 }}>⚠️ Kort Ücreti Alınmadı</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        )}
-                    </View>
-                </Modal>
-            )}
-
-            {activeTab === 'reservations' && (() => {
-                const nowRes = new Date();
-                const todayResStr = nowRes.toISOString().slice(0, 10);
-                const pendingApproval = reservations.filter(r => r.status === 'PENDING');
-                const paymentConfirmDue = reservations.filter(r =>
-                    r.status === 'CONFIRMED' && ['CASH', 'EFT'].includes(r.paymentMethod) &&
-                    (r.paymentConfirmStatus || 'PENDING') === 'PENDING' &&
-                    new Date(`${r.date}T${r.startTime}:00`).getTime() + 30 * 60 * 1000 <= nowRes.getTime()
-                );
-                const todayList = reservations.filter(r => r.date === todayResStr && r.status !== 'CANCELLED');
-                return (
-                <View style={vc.panel}>
-                    <TouchableOpacity style={vc.scheduleBtn} onPress={() => setScheduleOpen(true)}>
-                        <Text style={vc.scheduleBtnTxt}>📅 Takvimi Görüntüle</Text>
-                    </TouchableOpacity>
-
-                    {/* İptal talepleri */}
-                    {cancelRequests.length > 0 && (
-                        <View style={{ marginBottom: 16 }}>
-                            <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
-                                📋 KULLANICI TALEPLERİ ({cancelRequests.length})
-                            </Text>
-                            {cancelRequests.map(r => {
-                                const isReschedule = r.cancelRequestNote?.startsWith('RESCHEDULE');
-                                const noteText = isReschedule
-                                    ? (r.cancelRequestNote.includes(':') ? r.cancelRequestNote.split(':').slice(1).join(':') : null)
-                                    : r.cancelRequestNote;
-                                return (
-                                <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: isReschedule ? '#3b82f640' : '#f59e0b40', borderWidth: 1 }]}>
-                                    <View style={{ flex: 1, marginBottom: 8 }}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                                            <Text style={{ fontSize: 10, fontWeight: '800', paddingHorizontal: 3, paddingVertical: 3, borderRadius: 5,
-                                                backgroundColor: isReschedule ? '#3b82f620' : '#ef444420',
-                                                color: isReschedule ? '#60a5fa' : '#f87171' }}>
-                                                {isReschedule ? '🔄 SAAT DEĞİŞİKLİĞİ' : '📋 İPTAL'}
-                                            </Text>
-                                        </View>
-                                        <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
-                                        <Text style={vc.resUser}>@{r.user?.username || '—'} · {r.date}</Text>
-                                        {noteText ? (
-                                            <Text style={[vc.resMeta, { color: '#f59e0b', marginTop: 3 }]}>Not: {noteText}</Text>
-                                        ) : null}
-                                    </View>
-                                    {isReschedule && (
-                                        <Text style={{ color: '#60a5fa', fontSize: 11, textAlign: 'center', paddingVertical: 3, marginBottom: 6 }}>
-                                            Kullanıcıyla iletişime geçerek yeni saat belirleyin
-                                        </Text>
-                                    )}
-                                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                                        {!isReschedule && (
-                                            <TouchableOpacity
-                                                style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
-                                                disabled={approvingCancel === r.id || rejectingCancel === r.id}
-                                                onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.username} kişisinin iptal talebi onaylansın mı? Rezervasyon iptal edilecek.`, [
-                                                    { text: 'Vazgeç', style: 'cancel' },
-                                                    { text: 'Onayla', onPress: () => handleApproveCancelRequest(r.id) },
-                                                ])}>
-                                                {approvingCancel === r.id
-                                                    ? <ActivityIndicator size="small" color="#22c55e" />
-                                                    : <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ İptali Onayla</Text>}
-                                            </TouchableOpacity>
-                                        )}
-                                        <TouchableOpacity
-                                            style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
-                                            disabled={approvingCancel === r.id || rejectingCancel === r.id}
-                                            onPress={() => Alert.alert('Talebi Reddet', `${r.user?.username} kişisinin talebi reddedilsin mi? Rezervasyon aynen devam eder.`, [
-                                                { text: 'Vazgeç', style: 'cancel' },
-                                                { text: 'Reddet', style: 'destructive', onPress: () => handleRejectCancelRequest(r.id) },
-                                            ])}>
-                                            {rejectingCancel === r.id
-                                                ? <ActivityIndicator size="small" color="#f87171" />
-                                                : <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '700' }}>❌ Reddet</Text>}
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                                );
-                            })}
-                        </View>
-                    )}
-
-                    {/* Onay bekleyen geçmiş nakit rezervasyonlar */}
-                    {pendingApproval.length > 0 && (
-                        <View style={{ marginBottom: 16 }}>
-                            <Text style={{ color: '#eab308', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
-                                ⏳ ONAY BEKLİYOR ({pendingApproval.length})
-                            </Text>
-                            {pendingApproval.map(r => {
-                                const isPast = new Date(`${r.date}T${r.startTime}:00`) <= nowRes;
-                                const payLabel = r.paymentMethod === 'EFT' ? '🏦 EFT' : r.paymentMethod === 'ONLINE' ? '💳 Online' : '💵 Nakit';
-                                return (
-                                <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: '#eab30840', borderWidth: 1 }]}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
-                                        <Text style={vc.resUser}>@{r.user?.username || '—'} · {r.date}</Text>
-                                        <Text style={vc.resMeta}>{payLabel} · ⏳ Onay Bekliyor</Text>
-                                    </View>
-                                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
-                                        <TouchableOpacity
-                                            style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
-                                            onPress={() => handleUpdateResStatus(r.id, 'confirm')}>
-                                            <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ Onayla</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
-                                            onPress={() => Alert.alert(isPast ? 'Gelmedi / İptal' : 'Reddet', isPast ? 'Müşteri gelmedi olarak işaretlensin mi?' : 'Rezervasyon reddedilsin mi?', [
-                                                { text: 'Vazgeç', style: 'cancel' },
-                                                { text: isPast ? 'Gelmedi' : 'Reddet', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, isPast ? 'noshow' : 'reject') },
-                                            ])}>
-                                            <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '700' }}>{isPast ? '❌ Gelmedi' : '❌ Reddet'}</Text>
-                                        </TouchableOpacity>
-                                        {isPast && r.paymentMethod === 'CASH' && (
-                                        <TouchableOpacity
-                                            style={{ backgroundColor: '#7c3aed18', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1, borderColor: '#7c3aed40' }}
-                                            onPress={() => Alert.alert('Admine Bildir', 'Ödeme alınmadı olarak admine yüksek öncelikli bildirim gönderilsin mi?', [
-                                                { text: 'Vazgeç', style: 'cancel' },
-                                                { text: 'Bildir', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, 'no_payment') },
-                                            ])}>
-                                            <Text style={{ color: '#a78bfa', fontSize: 11, fontWeight: '700' }}>🚨</Text>
-                                        </TouchableOpacity>
-                                        )}
-                                    </View>
-                                </View>
-                                );
-                            })}
-                        </View>
-                    )}
-
-                    {/* Ödeme onayı bekleyen (saati geçmiş, nakit/EFT) rezervasyonlar */}
-                    {paymentConfirmDue.length > 0 && (
-                        <View style={{ marginBottom: 16 }}>
-                            <Text style={{ color: '#a78bfa', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
-                                🕐 ÖDEME ONAYI BEKLİYOR ({paymentConfirmDue.length})
-                            </Text>
-                            {paymentConfirmDue.map(r => {
-                                const payLabel = r.paymentMethod === 'EFT' ? '🏦 EFT' : '💵 Nakit';
-                                return (
-                                <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: '#7c3aed40', borderWidth: 1 }]}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
-                                        <Text style={vc.resUser}>@{r.user?.username || '—'} · {r.date}</Text>
-                                        <Text style={vc.resMeta}>{payLabel} · Müşteri geldi mi, ödeme alındı mı?</Text>
-                                    </View>
-                                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
-                                        <TouchableOpacity
-                                            style={{ flex: 1, backgroundColor: '#22c55e18', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#22c55e40' }}
-                                            onPress={() => handleUpdateResStatus(r.id, 'payment_confirm')}>
-                                            <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '700' }}>✅ Onaylandı</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={{ flex: 1, backgroundColor: '#ef444418', borderRadius: 8, paddingVertical: 7, alignItems: 'center', borderWidth: 1, borderColor: '#ef444440' }}
-                                            onPress={() => Alert.alert('Gelmedi / Ödeme Alınamadı', 'Müşteri gelmedi veya ödeme tahsil edilemedi olarak işaretlensin mi? Admine bildirim gidecek.', [
-                                                { text: 'Vazgeç', style: 'cancel' },
-                                                { text: 'Onayla', style: 'destructive', onPress: () => handleUpdateResStatus(r.id, 'payment_not_collected') },
-                                            ])}>
-                                            <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '700' }}>❌ Gelmedi</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                                );
-                            })}
-                        </View>
-                    )}
-
-                    {/* Bugünün rezervasyonları */}
-                    <Text style={{ color: '#666', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 }}>
-                        BUGÜN
-                    </Text>
-                    {todayList.map(r => (
-                        <View key={r.id} style={[vc.resCard, { flexDirection: 'column', alignItems: 'stretch' }]}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={vc.resTime}>{r.court?.name}  {r.startTime}–{r.endTime}</Text>
-                                    <Text style={vc.resUser}>@{r.user?.username || '—'}</Text>
-                                    <Text style={vc.resMeta}>
-                                        {r.paymentMethod === 'EFT' ? '🏦 EFT' : r.paymentMethod === 'ONLINE' ? '💳 Online' : '💵 Kortta Öde'}
-                                        {r.status === 'PENDING' ? '  · ⏳ Bekleniyor' : r.status === 'CONFIRMED' ? '  · ✅ Onaylandı' : ''}
-                                        {r.noShow ? '  · ❌ Gelmedi' : ''}
-                                    </Text>
-                                </View>
-                                {isPro && r.status !== 'CANCELLED' && (
-                                    <TouchableOpacity style={[vc.resCancelBtn, { backgroundColor: '#7c3aed15', borderColor: '#7c3aed40', marginRight: 8 }]}
-                                        onPress={() => openBillModal(r)}>
-                                        <Text style={[vc.resCancelTxt, { color: '#a78bfa' }]}>Adisyon</Text>
-                                    </TouchableOpacity>
-                                )}
-                                <TouchableOpacity style={vc.resCancelBtn}
-                                    onPress={() => Alert.alert('İptal Et', `${r.user?.username} kişisinin rezervasyonu iptal edilsin mi?`, [
-                                        { text: 'Vazgeç', style: 'cancel' },
-                                        { text: 'İptal Et', style: 'destructive', onPress: () => handleCancelReservation(r.id) },
-                                    ])}>
-                                    <Text style={vc.resCancelTxt}>İptal</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    ))}
-                    {resLoaded && todayList.length === 0 && pendingApproval.length === 0 && paymentConfirmDue.length === 0 && (
-                        <Text style={vc.emptyTxt}>Bugün rezervasyon yok</Text>
-                    )}
-                </View>
-                );
-            })()}
-
             {activeTab === 'campaigns' && (
                 <View style={vc.panel}>
                     {/* Sadakat Kampanyası */}
@@ -5516,6 +5226,224 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                     </ScrollView>
                 </View>
             </Modal>
+
+            {!!billModalRes && (
+                <Modal visible animationType="slide" onRequestClose={closeBillModal}>
+                    <View style={{ flex:1, backgroundColor:'#0a0a14' }}>
+                        {/* Header */}
+                        <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16,
+                            paddingTop: Platform.OS === 'ios' ? 54 : 28, paddingBottom:14,
+                            borderBottomWidth:1, borderBottomColor:'#ffffff12' }}>
+                            <TouchableOpacity onPress={closeBillModal} style={{ marginRight:14, padding:4 }}>
+                                <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
+                            </TouchableOpacity>
+                            <View style={{ flex:1 }}>
+                                <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    @{billModalRes.user?.username || billModalRes.manualName || '—'}
+                                </Text>
+                                <Text style={{ color:'#9ca3af', fontSize:12, marginTop:1 }} numberOfLines={1}>
+                                    {billModalRes.court?.name} · {billModalRes.startTime}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Sekme çubuğu */}
+                        <View style={{ flexDirection:'row', paddingHorizontal:16, paddingTop:10, paddingBottom:10, borderBottomWidth:1, borderBottomColor:'#ffffff08' }}>
+                            <View style={{ paddingHorizontal:14, paddingVertical:8, borderRadius:10, backgroundColor: BIZ_COLOR+'22', borderWidth:1, borderColor: BIZ_COLOR+'50' }}>
+                                <Text style={{ color: BIZ_LIGHT, fontWeight:'800', fontSize:13 }}>Adisyon</Text>
+                            </View>
+                        </View>
+
+                        {billModalLoading ? (
+                            <ActivityIndicator color={BIZ_COLOR} style={{ marginTop: 40 }} />
+                        ) : (
+                            <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:24 }}>
+                                    <Text style={{ color:'#9ca3af', fontSize:11, fontWeight:'700', marginBottom:6 }}>ADİSYONDAKİ ÜRÜNLER</Text>
+                                    {(activeBill?.items || []).length === 0 ? (
+                                        <Text style={{ color:'#6b7280', fontSize:12, marginBottom:12 }}>Henüz ürün eklenmedi</Text>
+                                    ) : groupBillItems(activeBill.items).map((g, gi) => (
+                                        <View key={gi} style={{ marginBottom: 4 }}>
+                                            {/* Kullanıcı isteği: aynı maça art arda gelen siparişler aynı
+                                                adisyona ekleniyor — burada "1. Sipariş"/"2. Sipariş" diye
+                                                gruplanıp kendi ara toplamıyla gösterilir. */}
+                                            {g.label && (
+                                                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginTop: gi > 0 ? 6 : 0, marginBottom:4 }}>
+                                                    <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'800' }}>{g.label}</Text>
+                                                    <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'700' }}>{g.subtotal}₺</Text>
+                                                </View>
+                                            )}
+                                            {g.items.map(it => (
+                                                <View key={it.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#ffffff06', borderRadius:8, padding:10, marginBottom:6 }}>
+                                                    <View style={{ flex:1 }}>
+                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'600' }}>{it.name}</Text>
+                                                        {it.user ? <Text style={{ color:'#93c5fd', fontSize:11, marginTop:1 }}>👤 {it.user.fullName || it.user.username}</Text> : null}
+                                                        {it.note ? <Text style={{ color:'#9ca3af', fontSize:11, marginTop:1 }}>{it.note}</Text> : null}
+                                                        <Text style={{ color:'#6b7280', fontSize:11 }}>{it.unitPrice}₺ / adet</Text>
+                                                    </View>
+                                                    {activeBill.status !== 'PAID' && (
+                                                        <View style={{ flexDirection:'row', alignItems:'center', gap:10, width:88, justifyContent:'center' }}>
+                                                            <TouchableOpacity disabled={billItemBusy} onPress={() => changeBillItemQty(it, -1)}>
+                                                                <Text style={{ color:'#f87171', fontSize:18, fontWeight:'800' }}>−</Text>
+                                                            </TouchableOpacity>
+                                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{it.quantity}</Text>
+                                                            <TouchableOpacity disabled={billItemBusy} onPress={() => changeBillItemQty(it, 1)}>
+                                                                <Text style={{ color:'#22c55e', fontSize:18, fontWeight:'800' }}>+</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    )}
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', minWidth:60, textAlign:'right' }}>
+                                                        {it.unitPrice * it.quantity}₺
+                                                    </Text>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    ))}
+
+                                    <View style={{ height:1, backgroundColor:'#ffffff10', marginVertical:12 }} />
+
+                                    <View style={{ flexDirection:'row', justifyContent:'space-between', marginBottom:14 }}>
+                                        <Text style={{ color:'#fff', fontWeight:'900', fontSize:16 }}>Toplam</Text>
+                                        <Text style={{ color:'#fff', fontWeight:'900', fontSize:16 }}>{activeBill?.totalPrice || 0}₺</Text>
+                                    </View>
+
+                                    {activeBill?.status !== 'PAID' && (() => {
+                                        const available = menuItems.filter(m => m.available);
+                                        const useTabs = available.length > 10;
+                                        const catsPresent = MENU_CATS.filter(c => available.some(m => m.category === c.key));
+                                        const activeCat = catsPresent.some(c => c.key === billPickerCat) ? billPickerCat : catsPresent[0]?.key;
+                                        const shown = useTabs ? available.filter(m => m.category === activeCat) : available;
+                                        return (
+                                        <>
+                                            {billRoster.length > 0 && (
+                                                <View style={{ marginBottom:10 }}>
+                                                    <Text style={{ color:'#9ca3af', fontSize:11, fontWeight:'700', marginBottom:6 }}>
+                                                        KİMİN İÇİN? (isteğe bağlı)
+                                                    </Text>
+                                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                                        <View style={{ flexDirection:'row', gap:6 }}>
+                                                            <TouchableOpacity onPress={() => setBillForUserId(null)}
+                                                                style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8,
+                                                                    backgroundColor: !billForUserId ? BIZ_COLOR+'25' : '#ffffff08',
+                                                                    borderWidth:1, borderColor: !billForUserId ? BIZ_COLOR+'60' : '#ffffff10' }}>
+                                                                <Text style={{ color: !billForUserId ? BIZ_LIGHT : '#9ca3af', fontSize:12, fontWeight:'700' }}>Belirtilmemiş</Text>
+                                                            </TouchableOpacity>
+                                                            {billRoster.map(p => (
+                                                                <TouchableOpacity key={p.id} onPress={() => setBillForUserId(p.id)}
+                                                                    style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8,
+                                                                        backgroundColor: billForUserId === p.id ? BIZ_COLOR+'25' : '#ffffff08',
+                                                                        borderWidth:1, borderColor: billForUserId === p.id ? BIZ_COLOR+'60' : '#ffffff10' }}>
+                                                                    <Text style={{ color: billForUserId === p.id ? BIZ_LIGHT : '#9ca3af', fontSize:12, fontWeight:'700' }}>{p.fullName || p.username}</Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </View>
+                                                    </ScrollView>
+                                                </View>
+                                            )}
+                                            <Text style={{ color:'#9ca3af', fontSize:11, fontWeight:'700', marginBottom:6 }}>ÜRÜN EKLE</Text>
+                                            {useTabs && (
+                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
+                                                    <View style={{ flexDirection:'row', gap:6 }}>
+                                                        {catsPresent.map(c => (
+                                                            <TouchableOpacity key={c.key}
+                                                                onPress={() => setBillPickerCat(c.key)}
+                                                                style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8,
+                                                                    backgroundColor: activeCat === c.key ? BIZ_COLOR+'25' : '#ffffff08',
+                                                                    borderWidth:1, borderColor: activeCat === c.key ? BIZ_COLOR+'60' : '#ffffff10' }}>
+                                                                <Text style={{ color: activeCat === c.key ? BIZ_LIGHT : '#9ca3af', fontSize:12, fontWeight:'700' }}>{c.label}</Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </View>
+                                                </ScrollView>
+                                            )}
+                                            {available.length === 0 ? (
+                                                <Text style={{ color:'#6b7280', fontSize:12, marginBottom:12 }}>Menüde ürün yok. Önce Menü sekmesinden ürün ekleyin.</Text>
+                                            ) : shown.map(m => (
+                                                <TouchableOpacity key={m.id} disabled={billItemBusy}
+                                                    style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor:'#ffffff08', borderRadius:8, padding:10, marginBottom:6 }}
+                                                    onPress={() => addBillItem(m.id)}>
+                                                    <Text style={{ color:'#e5e7eb', fontSize:13 }}>{m.name}{m.unit ? ` (${m.unit})` : ''}</Text>
+                                                    <Text style={{ color: BIZ_COLOR, fontWeight:'700', fontSize:13 }}>+ {m.price}₺</Text>
+                                                </TouchableOpacity>
+                                            ))}
+
+                                            {!showManualBillItem ? (
+                                                <TouchableOpacity onPress={() => setShowManualBillItem(true)} style={{ marginTop:6, marginBottom:4 }}>
+                                                    <Text style={{ color:'#a78bfa', fontSize:12, fontWeight:'700' }}>+ Menüde Olmayan Ürün Ekle</Text>
+                                                </TouchableOpacity>
+                                            ) : (
+                                                <View style={{ backgroundColor:'#ffffff06', borderRadius:8, padding:10, marginTop:6 }}>
+                                                    <TextInput
+                                                        style={{ backgroundColor:'#2d2d3f', borderRadius:8, padding:9, color:'#fff', fontSize:13, marginBottom:6, borderWidth:1, borderColor:'#3d3d5c' }}
+                                                        placeholder="Ürün adı" placeholderTextColor="#6b7280"
+                                                        value={manualBillName} onChangeText={setManualBillName}
+                                                    />
+                                                    <TextInput
+                                                        style={{ backgroundColor:'#2d2d3f', borderRadius:8, padding:9, color:'#fff', fontSize:13, marginBottom:6, borderWidth:1, borderColor:'#3d3d5c' }}
+                                                        placeholder="Fiyat (₺)" placeholderTextColor="#6b7280" keyboardType="numeric"
+                                                        value={manualBillPrice} onChangeText={setManualBillPrice}
+                                                    />
+                                                    <TextInput
+                                                        style={{ backgroundColor:'#2d2d3f', borderRadius:8, padding:9, color:'#fff', fontSize:13, marginBottom:8, borderWidth:1, borderColor:'#3d3d5c' }}
+                                                        placeholder="Detay (isteğe bağlı)" placeholderTextColor="#6b7280"
+                                                        value={manualBillNote} onChangeText={setManualBillNote}
+                                                    />
+                                                    <View style={{ flexDirection:'row', gap:8 }}>
+                                                        <TouchableOpacity disabled={billItemBusy} onPress={addManualBillItem}
+                                                            style={{ flex:1, backgroundColor: BIZ_COLOR, borderRadius:8, paddingVertical:9, alignItems:'center' }}>
+                                                            <Text style={{ color:'#fff', fontWeight:'700', fontSize:13 }}>Ekle</Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity onPress={() => { setShowManualBillItem(false); setManualBillName(''); setManualBillPrice(''); setManualBillNote(''); }}
+                                                            style={{ flex:1, backgroundColor:'#ffffff10', borderRadius:8, paddingVertical:9, alignItems:'center' }}>
+                                                            <Text style={{ color:'#9ca3af', fontWeight:'700', fontSize:13 }}>Vazgeç</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                </View>
+                                            )}
+                                        </>
+                                        );
+                                    })()}
+                            </ScrollView>
+                        )}
+
+                        {/* Alt bilgi/aksiyon çubuğu — Android'de ekran içi gezinme çubuğu (dokunmatik
+                            tuşlar) varsa sabit 16'lık padding yetmeyip butonlar onun altında/üstünde
+                            kalıp dokunulamaz hale geliyordu, bu yüzden insets.bottom da hesaba katılır. */}
+                        {!billModalLoading && activeBill && (
+                            <View style={{ padding:16, paddingBottom: Math.max(16, insets.bottom + 12), borderTopWidth:1, borderTopColor:'#ffffff10', gap:8 }}>
+                                <View style={{ flexDirection:'row', gap:8 }}>
+                                    <TouchableOpacity onPress={() => setBillPaidStatus(true)}
+                                        style={{ flex:1, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1,
+                                            backgroundColor: activeBill.status === 'PAID' ? '#22c55e25' : '#ffffff08',
+                                            borderColor: activeBill.status === 'PAID' ? '#22c55e60' : '#ffffff15' }}>
+                                        <Text style={{ color: activeBill.status === 'PAID' ? '#22c55e' : '#9ca3af', fontWeight:'800', fontSize:13 }}>✅ Ödeme Alındı</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setBillPaidStatus(false)}
+                                        style={{ flex:1, borderRadius:10, paddingVertical:11, alignItems:'center', borderWidth:1,
+                                            backgroundColor: activeBill.status !== 'PAID' ? '#ef444425' : '#ffffff08',
+                                            borderColor: activeBill.status !== 'PAID' ? '#ef444460' : '#ffffff15' }}>
+                                        <Text style={{ color: activeBill.status !== 'PAID' ? '#f87171' : '#9ca3af', fontWeight:'800', fontSize:13 }}>❌ Ödeme Alınmadı</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                {billModalRes.paymentConfirmStatus === 'NOT_COLLECTED' ? (
+                                    <View style={{ borderRadius:10, paddingVertical:9, alignItems:'center', backgroundColor:'#ef444415', borderWidth:1, borderColor:'#ef444440' }}>
+                                        <Text style={{ color:'#f87171', fontWeight:'700', fontSize:12 }}>⚠️ Kort ücreti alınmadı olarak işaretlendi</Text>
+                                    </View>
+                                ) : billModalRes.paymentConfirmStatus === 'CONFIRMED' ? (
+                                    <View style={{ borderRadius:10, paddingVertical:9, alignItems:'center', backgroundColor:'#22c55e15', borderWidth:1, borderColor:'#22c55e40' }}>
+                                        <Text style={{ color:'#22c55e', fontWeight:'700', fontSize:12 }}>✅ Kort ücreti alındı</Text>
+                                    </View>
+                                ) : (
+                                    <TouchableOpacity onPress={markCourtFeeNotCollected}
+                                        style={{ borderRadius:10, paddingVertical:10, alignItems:'center', backgroundColor:'#f59e0b15', borderWidth:1, borderColor:'#f59e0b40' }}>
+                                        <Text style={{ color:'#f59e0b', fontWeight:'700', fontSize:12 }}>⚠️ Kort Ücreti Alınmadı</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
+                    </View>
+                </Modal>
+            )}
+
 
             <MaintenancePickerModal
                 visible={maintPickerOpen}
