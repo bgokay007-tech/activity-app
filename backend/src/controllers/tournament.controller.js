@@ -3741,6 +3741,121 @@ export const assignPlayoffRoundDeadline = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+/** Turnuva sahibi / admin: bir turun (ve aynı fazdaki sonraki turların) deadline'ını
+ *  N gün uzatır — hava koşulları vb. için. Sonraki turlar da aynı miktarda kayar. */
+export const extendRoundDeadline = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const phase = String(req.body.phase || 'GROUP');
+        const round = parseInt(req.body.round, 10);
+        const days = parseInt(req.body.days, 10);
+        if (!Number.isFinite(round) || round < 1) return res.status(400).json({ message: 'Geçerli tur gerekli' });
+        if (!Number.isFinite(days) || days < 1 || days > 60) return res.status(400).json({ message: '1–60 arası gün sayısı gerekli' });
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        if (tournament.dayTrip) return res.status(400).json({ message: 'Günübirlik turnuvalarda süre uzatma yok' });
+
+        const isCreator = tournament.creatorId === req.userId;
+        if (!isCreator) {
+            const u = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
+            if (!u?.isAdmin) return res.status(403).json({ message: 'Yalnızca turnuva sahibi veya admin süre uzatabilir' });
+        }
+
+        const toShift = await prisma.tournamentMatch.findMany({
+            where: {
+                tournamentId: id,
+                phase,
+                round: { gte: round },
+                deadline: { not: null },
+            },
+            select: { id: true, deadline: true, round: true },
+        });
+        if (toShift.length === 0) return res.status(400).json({ message: 'Bu tur için uzatılacak deadline bulunamadı' });
+
+        const ms = days * 86400000;
+        await Promise.all(toShift.map(m => prisma.tournamentMatch.update({
+            where: { id: m.id },
+            data: { deadline: new Date(new Date(m.deadline).getTime() + ms) },
+        })));
+
+        const allMatches = await prisma.tournamentMatch.findMany({
+            where: { tournamentId: id },
+            orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+        });
+
+        // Katılımcılara kısa bildirim — maç listesi socket ile tazelensin
+        const parts = await prisma.tournamentParticipant.findMany({
+            where: { tournamentId: id, status: 'ACCEPTED', userId: { not: null } },
+            select: { userId: true },
+        });
+        const notifyIds = new Set([tournament.creatorId, ...parts.map(p => p.userId)].filter(Boolean));
+        for (const uid of notifyIds) {
+            emitToUser(uid, 'tournament:match_scored', { tournamentId: id, matches: allMatches });
+        }
+        if (tournament.creatorId && tournament.creatorId !== req.userId) {
+            createNotification(
+                tournament.creatorId,
+                'TOURNAMENT_ROUND_EXTENDED',
+                '📅 Tur süresi uzatıldı',
+                `${tournament.name}: ${phase} Tur ${round} ve sonrası +${days} gün uzatıldı.`,
+                { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
+        }
+
+        res.json(allMatches);
+    } catch (e) { next(e); }
+};
+
+/** Turnuva sahibi / admin: tek bir maçın deadline'ını N gün uzatır (diğer maçlara dokunmaz). */
+export const extendMatchDeadline = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const days = parseInt(req.body.days, 10);
+        if (!Number.isFinite(days) || days < 1 || days > 60) return res.status(400).json({ message: '1–60 arası gün sayısı gerekli' });
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        if (tournament.dayTrip) return res.status(400).json({ message: 'Günübirlik turnuvalarda süre uzatma yok' });
+
+        const isCreator = tournament.creatorId === req.userId;
+        if (!isCreator) {
+            const u = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
+            if (!u?.isAdmin) return res.status(403).json({ message: 'Yalnızca turnuva sahibi veya admin süre uzatabilir' });
+        }
+
+        const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+        if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadı' });
+        if (match.status !== 'PENDING') return res.status(400).json({ message: 'Sadece bekleyen maçlar uzatılabilir' });
+        if (!match.deadline) return res.status(400).json({ message: 'Bu maçta henüz bitiş tarihi yok' });
+
+        const newDeadline = new Date(new Date(match.deadline).getTime() + days * 86400000);
+        await prisma.tournamentMatch.update({ where: { id: matchId }, data: { deadline: newDeadline } });
+
+        const allMatches = await prisma.tournamentMatch.findMany({
+            where: { tournamentId: id },
+            orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+        });
+
+        const sideIds = [match.p1Id, match.p2Id].filter(Boolean);
+        const notifyIds = new Set([tournament.creatorId, ...sideIds]);
+        // Takım turnuvalarında p1Id/p2Id team id olabilir — üyeleri de bilgilendir
+        if (sideIds.length) {
+            const teams = await prisma.tournamentTeam.findMany({ where: { id: { in: sideIds } } }).catch(() => []);
+            for (const t of teams) {
+                if (t.player1Id) notifyIds.add(t.player1Id);
+                if (t.player2Id) notifyIds.add(t.player2Id);
+            }
+        }
+        for (const uid of notifyIds) {
+            if (!uid) continue;
+            emitToUser(uid, 'tournament:match_scored', { tournamentId: id, matches: allMatches });
+        }
+
+        res.json(allMatches);
+    } catch (e) { next(e); }
+};
+
 function buildDateTime(date, time) {
     if (!date) return null;
     const d = new Date(date).toISOString().split('T')[0];

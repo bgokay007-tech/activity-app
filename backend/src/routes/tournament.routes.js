@@ -41,6 +41,8 @@ import {
     removeTournamentCourt,
     assignCourtToMatch,
     assignPlayoffRoundDeadline,
+    extendRoundDeadline,
+    extendMatchDeadline,
 } from '../controllers/tournament.controller.js';
 
 const router = Router();
@@ -84,6 +86,8 @@ router.post('/:id/courts',                   addTournamentCourt);
 router.delete('/:id/courts/:courtId',        removeTournamentCourt);
 router.patch('/:id/matches/:matchId/court',  assignCourtToMatch);
 router.patch('/:id/playoff-round-deadline',  assignPlayoffRoundDeadline);
+router.post('/:id/extend-round',             extendRoundDeadline);
+router.post('/:id/matches/:matchId/extend',  extendMatchDeadline);
 router.patch('/:id',                         updateTournament);
 router.delete('/:id',                        deleteTournament);
 

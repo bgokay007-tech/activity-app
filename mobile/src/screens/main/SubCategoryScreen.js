@@ -18868,6 +18868,21 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>Skor Gir</Text>
                                                                 </TouchableOpacity>
                                                             )}
+                                                            {(isCreator || myIsAdmin) && !item.dayTrip && isReady && match.deadline && !isEntering && (
+                                                                <TouchableOpacity
+                                                                    onPress={() => {
+                                                                        setExtendDaysInput('7');
+                                                                        setExtendTarget({
+                                                                            kind: 'match',
+                                                                            match,
+                                                                            label: `${match.p1Name || '?'} vs ${match.p2Name || '?'}`,
+                                                                        });
+                                                                    }}
+                                                                    style={{ backgroundColor:'#0ea5e920', borderRadius:6, paddingHorizontal:4, paddingVertical:2, borderWidth:1, borderColor:'#0ea5e950' }}
+                                                                >
+                                                                    <Text style={{ color:'#38bdf8', fontSize:9, fontWeight:'700' }}>{t.tournExtendMatchBtn || 'Gün uzat'}</Text>
+                                                                </TouchableOpacity>
+                                                            )}
                                                             {/* Joker butonu — Bireysel Rekabetçi (oyuncu), Çiftler Rekabetçi (takım) ve Bireysel Antrenman (oyuncu) */}
                                                             {(item.type === '1' || item.type === '2' || item.type === '3' || item.type === '4' || item.type === '5' || item.type === '6' || item.type === '7') && !item.dayTrip && isReady && matchSideMine(match) && !isEntering && (() => {
                                                                 const myJokerRequested = match.p1Id === mySideId ? match.p1JokerRequested : match.p2JokerRequested;
@@ -19043,6 +19058,54 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     onSelect={(v) => { setPlayoffDeadlineTime(v); setShowPlayoffTimePicker(false); }}
                     onClose={() => setShowPlayoffTimePicker(false)}
                 />
+            </Modal>
+
+            {/* Tur / maç süre uzatma (sahip + admin) */}
+            <Modal visible={extendTarget != null} animationType="slide" transparent onRequestClose={() => !extendingDeadline && setExtendTarget(null)} android_keyboardInputMode="adjustNothing">
+                <View style={s.modalOverlay}>
+                    <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
+                        <View style={s.modalBox}>
+                            <View style={s.modalHeader}>
+                                <Text style={s.modalTitle}>{t.tournExtendTitle || 'Süre uzat'}</Text>
+                                <TouchableOpacity onPress={() => !extendingDeadline && setExtendTarget(null)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+                            </View>
+                            <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10, lineHeight:18 }}>
+                                {extendTarget?.kind === 'round'
+                                    ? (t.tournExtendRoundHint || '{label} ve sonraki turların bitiş tarihine gün eklenir (hava vb.).').replace('{label}', extendTarget?.label || '')
+                                    : (t.tournExtendMatchHint || 'Sadece bu maçın bitiş tarihine gün eklenir: {label}').replace('{label}', extendTarget?.label || '')}
+                            </Text>
+                            <View style={{ flexDirection:'row', gap:8, marginBottom:12 }}>
+                                {[4, 7].map(d => (
+                                    <TouchableOpacity
+                                        key={d}
+                                        disabled={extendingDeadline}
+                                        onPress={() => submitDeadlineExtend(d)}
+                                        style={{ flex:1, backgroundColor:'#0ea5e920', borderRadius:10, borderWidth:1, borderColor:'#0ea5e950', paddingVertical:12, alignItems:'center' }}
+                                    >
+                                        <Text style={{ color:'#38bdf8', fontSize:14, fontWeight:'900' }}>+{d} {t.tournExtendDaysUnit || 'gün'}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                            <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>{t.tournExtendManualLabel || 'Manuel gün'}</Text>
+                            <TextInput
+                                style={[s.fieldInput, { marginBottom:12 }]}
+                                value={extendDaysInput}
+                                onChangeText={setExtendDaysInput}
+                                keyboardType="number-pad"
+                                maxLength={2}
+                                placeholder="1–60"
+                                placeholderTextColor={colors.textMuted}
+                            />
+                            <TouchableOpacity
+                                style={[s.submitBtn, extendingDeadline && { opacity:0.6 }]}
+                                onPress={() => submitDeadlineExtend(extendDaysInput)}
+                                disabled={extendingDeadline}
+                            >
+                                <Text style={s.submitBtnText}>{extendingDeadline ? (t.submittingBtn || '…') : (t.tournExtendConfirm || 'Uzat')}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </KeyboardAvoidingView>
+                </View>
             </Modal>
 
             {/* Full Edit Modal */}
