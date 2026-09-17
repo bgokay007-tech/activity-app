@@ -16927,6 +16927,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     // turnuva sahibinin kendi tarihini atayabilmesi için — atamazsa 3 gün sonra sistem otomatik
     // 7 günlük süre veriyor (bkz. backend autoAssignPlayoffDeadlines).
     const [playoffDeadlineRound, setPlayoffDeadlineRound] = useState(null); // null | round (int)
+    // Sahip/admin: tur veya tek maç deadline uzatma (hava vb.)
+    const [extendTarget, setExtendTarget] = useState(null); // null | { kind:'round', phase, round, label } | { kind:'match', match, label }
+    const [extendDaysInput, setExtendDaysInput] = useState('7');
+    const [extendingDeadline, setExtendingDeadline] = useState(false);
     const [playoffDeadlineDate, setPlayoffDeadlineDate] = useState(null);
     const [playoffDeadlineTime, setPlayoffDeadlineTime] = useState('');
     const [showPlayoffDatePicker, setShowPlayoffDatePicker] = useState(false);
@@ -16974,6 +16978,35 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setSavingPlayoffDeadline(false); }
+    };
+
+    const submitDeadlineExtend = async (daysRaw, targetOverride = null) => {
+        const days = parseInt(daysRaw, 10);
+        if (!Number.isFinite(days) || days < 1 || days > 60) {
+            Alert.alert('', t.tournExtendDaysInvalid || '1–60 arası gün girin');
+            return;
+        }
+        const target = targetOverride || extendTarget;
+        if (!target) return;
+        setExtendingDeadline(true);
+        try {
+            let data;
+            if (target.kind === 'round') {
+                ({ data } = await api.post(`/tournaments/${item.id}/extend-round`, {
+                    phase: target.phase,
+                    round: target.round,
+                    days,
+                }));
+            } else {
+                ({ data } = await api.post(`/tournaments/${item.id}/matches/${target.match.id}/extend`, { days }));
+            }
+            if (Array.isArray(data)) setTournMatches(data);
+            else await fetchMatches();
+            setExtendTarget(null);
+            Alert.alert('✅', (t.tournExtendDone || '+{n} gün uzatıldı').replace('{n}', String(days)));
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setExtendingDeadline(false); }
     };
 
     // Turnuva grup sohbeti — sahip + AS/yedek onaylanmış katılımcılar
@@ -18647,6 +18680,34 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             })}
                                         </View>
                                     </ScrollView>
+                                    {(isCreator || myIsAdmin) && !item.dayTrip && activeKey && roundRanges[activeKey] && (
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:8 }}>
+                                            <TouchableOpacity
+                                                onPress={() => Alert.alert(
+                                                    t.tournExtendRoundTitle || 'Tur süresi uzat',
+                                                    (t.tournExtendRoundConfirm7 || '{label} ve sonraki turlar +7 gün uzatılacak. Devam?').replace('{label}', getRoundLabel(activeRound, activePhase)),
+                                                    [
+                                                        { text: t.cancel || 'Vazgeç', style: 'cancel' },
+                                                        { text: '+7', onPress: () => {
+                                                            submitDeadlineExtend(7, { kind:'round', phase: activePhase, round: activeRound, label: getRoundLabel(activeRound, activePhase) });
+                                                        }},
+                                                    ]
+                                                )}
+                                                style={{ backgroundColor:'#0ea5e920', borderRadius:8, borderWidth:1, borderColor:'#0ea5e950', paddingHorizontal:8, paddingVertical:6 }}
+                                            >
+                                                <Text style={{ color:'#38bdf8', fontSize:10, fontWeight:'800' }}>{t.tournExtendPlus7 || '+7 gün süre uzat'}</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    setExtendDaysInput('7');
+                                                    setExtendTarget({ kind:'round', phase: activePhase, round: activeRound, label: getRoundLabel(activeRound, activePhase) });
+                                                }}
+                                                style={{ backgroundColor:'#334155', borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:8, paddingVertical:6 }}
+                                            >
+                                                <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'800' }}>{t.tournExtendManualBtn || 'Gün uzat…'}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
                                     {isCreator && activePhase === 'PLAYOFF' && !roundRanges[activeKey] && rMatches.some(m => m.readyAt) && (
                                         <TouchableOpacity onPress={() => setPlayoffDeadlineRound(activeRound)}
                                             style={{ backgroundColor:'#7c3aed20', borderRadius:8, borderWidth:1, borderColor:'#7c3aed50', padding:8, marginBottom:8, flexDirection:'row', alignItems:'center', gap:6 }}>
@@ -27591,7 +27652,14 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                     {/* ── Kulüp İlanı Oluştur ── */}
                     <KeyboardSafeModal visible={showCreateClub} onClose={() => { setShowCreateClub(false); resetClubForm(); }}>
-                        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ maxHeight: '80%' }}>
+                        {/* maxHeight yüzde ScrollView'u boş şişiriyordu; sayısal üst sınır + flexGrow
+                            ile açıklama/butonlar modalın altındaki boşluğu doldurur, gereksiz kaydırma azalır. */}
+                        <ScrollView
+                            keyboardShouldPersistTaps="handled"
+                            showsVerticalScrollIndicator={false}
+                            style={{ maxHeight: Math.round(winH * 0.82) }}
+                            contentContainerStyle={{ flexGrow: 1, paddingBottom: 4 }}
+                        >
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>{t.createClubTitle}</Text>
                             <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.clubNameLabel} *</Text>
                             <TextInput
@@ -27723,23 +27791,24 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 keyboardType="numeric"
                                 style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
                             />
+                            {/* Modal altındaki boşluğu açıklama alanı doldursun — kaydırmadan görünsün */}
                             <TextInput
                                 placeholder={t.clubDescPh}
                                 placeholderTextColor={colors.textMuted}
                                 value={clubForm.description}
                                 onChangeText={v => setClubForm(f => ({ ...f, description: v }))}
                                 multiline
-                                numberOfLines={3}
-                                style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }}
+                                numberOfLines={4}
+                                style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:8, color:'#fff', marginBottom:10, borderWidth:1, borderColor:colors.border, minHeight:120, flexGrow:1, textAlignVertical:'top' }}
                             />
                             <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:10, lineHeight:16 }}>
                                 {t.clubAdminApprovalHint || 'Kulüp talebi admin onayına gider. Onaylandıktan sonra listede görünür.'}
                             </Text>
-                            <View style={{ flexDirection:'row', gap:3 }}>
-                                <TouchableOpacity onPress={() => { setShowCreateClub(false); resetClubForm(); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                            <View style={{ flexDirection:'row', gap:3, marginTop:'auto' }}>
+                                <TouchableOpacity onPress={() => { setShowCreateClub(false); resetClubForm(); }} style={{ flex:1, paddingVertical:10, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
                                     <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.cancelBtn || 'İptal'}</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={submitClub} disabled={submittingClub} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
+                                <TouchableOpacity onPress={submitClub} disabled={submittingClub} style={{ flex:2, paddingVertical:10, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
                                     <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
                                         {submittingClub ? '...' : t.publishClubBtn}
                                     </Text>

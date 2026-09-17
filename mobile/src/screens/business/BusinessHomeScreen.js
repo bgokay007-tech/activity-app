@@ -3,6 +3,7 @@ import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     StatusBar, Platform, Alert, ActivityIndicator, Modal, Image,
     TextInput, Switch, FlatList, BackHandler, KeyboardAvoidingView, Animated, Linking,
+    useWindowDimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1850,6 +1851,7 @@ const groupBillItems = (items) => {
 
 function VenueCard({ venue, sub, onDelete, navigation, openReservations = false, highlightReservationId = null, highlightDate = null, openOrders = false, highlightActivityId = null, openClubs = false }) {
     const insets = useSafeAreaInsets();
+    const { height: winH } = useWindowDimensions();
     const isApproved = venue.status === 'APPROVED';
     const isPro     = sub && ['PRO', 'PREMIUM'].includes(sub.packageType);
     const isPremium = sub && sub.packageType === 'PREMIUM';
@@ -3827,17 +3829,21 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                         })
                     )}
 
-                    <Modal visible={showCreateClub} animationType="slide" transparent onRequestClose={() => setShowCreateClub(false)}>
+                    <Modal visible={showCreateClub} animationType="slide" transparent onRequestClose={() => setShowCreateClub(false)} android_keyboardInputMode="adjustNothing">
                         <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
-                            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}>
-                                <View style={{ backgroundColor: '#1e1e2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36, maxHeight: '85%' }}>
+                            <KeyboardAvoidingView behavior="padding">
+                                <View style={{ backgroundColor: '#1e1e2e', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Math.max(20, insets.bottom + 10), maxHeight: Math.round(winH * 0.88) }}>
                                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                                         <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900' }}>🏟️ Kulüp Oluştur</Text>
                                         <TouchableOpacity onPress={() => setShowCreateClub(false)}>
                                             <Text style={{ color: '#6b7280', fontSize: 18 }}>✕</Text>
                                         </TouchableOpacity>
                                     </View>
-                                    <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                                    <ScrollView
+                                        keyboardShouldPersistTaps="handled"
+                                        showsVerticalScrollIndicator={false}
+                                        contentContainerStyle={{ flexGrow: 1, paddingBottom: 4 }}
+                                    >
                                         <Text style={{ color: '#9ca3af', fontSize: 11, marginBottom: 10 }}>
                                             Spor dalı: {VENUE_BRANCHES.find(b => b.key === venue.branch)?.label || venue.branch} · Şehir: {venue.city}
                                         </Text>
@@ -3894,7 +3900,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                             onChangeText={v => setClubForm(f => ({ ...f, membershipFee: v.replace(/[^0-9]/g, '') }))}
                                         />
                                         <TextInput
-                                            style={{ backgroundColor: '#2d2d3f', borderRadius: 10, padding: 12, color: '#fff', fontSize: 13, minHeight: 80, textAlignVertical: 'top', marginBottom: 12, borderWidth: 1, borderColor: '#3d3d5c' }}
+                                            style={{ backgroundColor: '#2d2d3f', borderRadius: 10, padding: 12, color: '#fff', fontSize: 13, minHeight: 120, flexGrow: 1, textAlignVertical: 'top', marginBottom: 12, borderWidth: 1, borderColor: '#3d3d5c' }}
                                             placeholder="Açıklama (opsiyonel)"
                                             placeholderTextColor="#6b7280"
                                             multiline
@@ -3904,7 +3910,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                         <TouchableOpacity
                                             onPress={submitBizClub}
                                             disabled={savingClub}
-                                            style={{ backgroundColor: BIZ_COLOR, borderRadius: 10, paddingVertical: 12, alignItems: 'center', opacity: savingClub ? 0.6 : 1 }}>
+                                            style={{ backgroundColor: BIZ_COLOR, borderRadius: 10, paddingVertical: 12, alignItems: 'center', opacity: savingClub ? 0.6 : 1, marginTop: 'auto' }}>
                                             {savingClub
                                                 ? <ActivityIndicator color="#fff" />
                                                 : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Yayınla</Text>}
