@@ -22539,6 +22539,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const requireActivityThenVenueSearch = () => requireActivity(() => navigation.navigate('VenueSearch', { branch: sub }), 'kort rezervasyonu yapabilmen');
     const lang = useSelector(s => s.lang?.lang || 'en');
     const insets = useSafeAreaInsets();
+    const { height: winH } = useWindowDimensions();
     const t = useT();
     const cfg = getConfig(sub);
     const sportDisplayName = getSubCategoryLabel(sub, lang) || (lang === 'tr' ? (cfg.nameTR || cfg.name) : lang === 'ru' ? (cfg.nameRu || cfg.name) : lang === 'de' ? (cfg.nameDe || cfg.name) : cfg.name);
