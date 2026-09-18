@@ -4684,6 +4684,36 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     // Sunucudan gelen veri local override'ı geçersiz kılar
     useEffect(() => { setLocalJoinStatus(null); }, [item._myJoinStatus]);
 
+    // Açık ilandan "Mesaj at" — ekipman/antrenör ile aynı: sohbette ilan özeti görünsün diye
+    // activityRequestId ile otomatik ilk mesaj + Chat'e rival parametresi.
+    const openChatWithRivalOwner = async () => {
+        const otherId = item.senderId;
+        if (!otherId || otherId === myId) return;
+        try {
+            const { data: conv } = await api.get(`/messages/conversation/${otherId}`);
+            const enriched = { ...conv, other: conv.user1Id === myId ? conv.user2 : conv.user1 };
+            try {
+                const { data: history } = await api.get(`/messages/conversation/${conv.id}/messages`);
+                const alreadyReferenced = (history?.messages || []).some(
+                    m => m.activityRequestId === item.id || m.activityRequest?.id === item.id
+                );
+                if (!alreadyReferenced) {
+                    const sportLabel = getSubCategoryLabel(item.subCategory || sub, t.lang);
+                    await api.post(`/messages/send/${otherId}`, {
+                        content: (t.rivalChatFirstMessage || '📋 "{sport}" ilanınız hakkında yazıyorum.').replace('{sport}', sportLabel),
+                        activityRequestId: item.id,
+                    });
+                }
+            } catch { /* geçmiş/otomatik mesaj başarısız olsa da sohbeti aç */ }
+            navigation.navigate('MessagesTab', {
+                screen: 'Chat',
+                params: { conversation: enriched, other: enriched.other, rival: item },
+            });
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        }
+    };
+
     useEffect(() => {
         const offRejected = onSocket('joinRejected', ({ rivalId }) => {
             if (rivalId !== item.id) return;
@@ -5180,10 +5210,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     <View style={{ flexDirection: 'row', gap: twoCol ? moderateScale(6) : 8, marginTop: twoCol ? moderateScale(8) : 8 }}>
                         <TouchableOpacity
                             style={{ flex: 1, backgroundColor: colors.purple, borderRadius: moderateScale(12), minHeight: touchSize(40), paddingVertical: moderateScale(10), alignItems: 'center', justifyContent: 'center', paddingHorizontal: moderateScale(6) }}
-                            onPress={() => navigation.navigate('MessagesTab', {
-                                screen: 'Chat',
-                                params: { other: { id: item.senderId, username: item.sender?.username, fullName: item.sender?.fullName }, conversation: { id: null, _userId: item.senderId } },
-                            })}
+                            onPress={openChatWithRivalOwner}
                         >
                             <Text style={{ color: colors.ctaText, fontSize: moderateScale(13), fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.messageCtaShort}</Text>
                         </TouchableOpacity>

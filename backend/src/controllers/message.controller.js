@@ -11,6 +11,13 @@ const SHARED_POST_SELECT = {
     user: { select: { id: true, username: true, fullName: true, avatar: true } },
 };
 
+// Açık ilan (ActivityRequest) üzerinden "Mesaj At" — sohbette özet kartı için.
+const ACTIVITY_REQUEST_SELECT = {
+    id: true, category: true, subCategory: true, matchType: true, level: true,
+    matchDate: true, matchTime: true, location: true, courtName: true,
+    flexibleSchedule: true, status: true, district: true,
+};
+
 // Alıcıya medya URL'leri sızmasın — yetkisi yoksa sadece kilitli özet döner.
 async function shapeSharedPostForViewer(post, viewerId) {
     if (!post) return null;
@@ -237,6 +244,7 @@ export const getMessages = async (req, res, next) => {
                 equipmentListing: { select: { id: true, title: true, price: true, images: true, category: true, subCategory: true, status: true } },
                 coachListing: { select: { id: true, credentialLevel: true, certName: true, priceIndividual: true, priceGroup: true, category: true, subCategory: true, status: true } },
                 clubListing: { select: { id: true, name: true, membershipFee: true, category: true, subCategory: true, status: true, city: true } },
+                activityRequest: { select: ACTIVITY_REQUEST_SELECT },
                 sharedPost: { select: SHARED_POST_SELECT },
             },
             orderBy: { createdAt: 'desc' },
@@ -271,9 +279,9 @@ export const getMessages = async (req, res, next) => {
 export const sendMessage = async (req, res, next) => {
     try {
         const { userId: receiverId } = req.params;
-        const { content, equipmentListingId, coachListingId, clubListingId, imageUrl, audioUrl, audioDuration, sharedPostId } = req.body;
+        const { content, equipmentListingId, coachListingId, clubListingId, activityRequestId, imageUrl, audioUrl, audioDuration, sharedPostId } = req.body;
 
-        if (!content?.trim() && !imageUrl && !audioUrl && !sharedPostId && !equipmentListingId && !coachListingId && !clubListingId) {
+        if (!content?.trim() && !imageUrl && !audioUrl && !sharedPostId && !equipmentListingId && !coachListingId && !clubListingId && !activityRequestId) {
             return res.status(400).json({ message: 'Message cannot be empty' });
         }
 
@@ -309,6 +317,7 @@ export const sendMessage = async (req, res, next) => {
                 ...(equipmentListingId && { equipmentListingId }),
                 ...(coachListingId && { coachListingId }),
                 ...(clubListingId && { clubListingId }),
+                ...(activityRequestId && { activityRequestId }),
                 ...(sharedPostId && { sharedPostId }),
                 ...(imageUrl && { imageUrl }),
                 ...(audioUrl && { audioUrl, audioDuration: Number(audioDuration) || null }),
@@ -318,6 +327,7 @@ export const sendMessage = async (req, res, next) => {
                 equipmentListing: { select: { id: true, title: true, price: true, images: true, category: true, subCategory: true, status: true } },
                 coachListing: { select: { id: true, credentialLevel: true, certName: true, priceIndividual: true, priceGroup: true, category: true, subCategory: true, status: true } },
                 clubListing: { select: { id: true, name: true, membershipFee: true, category: true, subCategory: true, status: true, city: true } },
+                activityRequest: { select: ACTIVITY_REQUEST_SELECT },
                 sharedPost: { select: SHARED_POST_SELECT },
             },
         });
@@ -368,6 +378,11 @@ export const sendMessage = async (req, res, next) => {
                 clubListingId: created.clubListing.id,
                 category: created.clubListing.category,
                 subCategory: created.clubListing.subCategory,
+            }),
+            ...(created.activityRequest && {
+                rivalId: created.activityRequest.id,
+                category: created.activityRequest.category,
+                subCategory: created.activityRequest.subCategory,
             }),
             ...(created.sharedPost && { sharedPostId: created.sharedPost.id, contentKind: created.sharedPost.type }),
         };

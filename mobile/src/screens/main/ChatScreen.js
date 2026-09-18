@@ -61,12 +61,13 @@ export default function ChatScreen({ route, navigation }) {
 
     const other = otherProp || convParam?.other;
 
-    // "coach" route param yalnızca "İletişime Geç" ile sohbeti başlatan tarafta
-    // olur — karşı taraf sohbeti Mesajlar listesinden veya bildirimden açtığında
-    // bu parametreyi almaz. Banner'ı, hangi taraf açarsa açsın görünsün diye
-    // mesaj geçmişindeki ilan referansından da (varsa) türetiyoruz.
+    // "coach"/"rival" route param yalnızca "Mesaj At" / "İletişime Geç" ile sohbeti
+    // başlatan tarafta olur — karşı taraf sohbeti Mesajlar listesinden açtığında
+    // bu parametreyi almaz. Banner'ı her iki tarafta da göstermek için mesaj
+    // geçmişindeki ilan referansından da (varsa) türetiyoruz.
     const coachListingCtx = coach || [...messages].reverse().find(m => m.coachListing)?.coachListing || null;
     const clubListingCtx = club || [...messages].reverse().find(m => m.clubListing)?.clubListing || null;
+    const rivalCtx = rival || [...messages].reverse().find(m => m.activityRequest)?.activityRequest || null;
 
     const openEquipmentListing = (listing) => {
         if (!listing?.category || !listing?.subCategory) return;
@@ -81,6 +82,27 @@ export default function ChatScreen({ route, navigation }) {
     const openClubListing = (listing) => {
         if (!listing?.category || !listing?.subCategory) return;
         navigation.push('SubCategory', { category: listing.category, sub: listing.subCategory, initialTab: 'coaches', initialCoachSubTab: 'clubs' });
+    };
+
+    const openRivalListing = (listing) => {
+        if (!listing?.category || !listing?.subCategory || !listing?.id) return;
+        navigation.push('SubCategory', { category: listing.category, sub: listing.subCategory, initialTab: 'rivals', highlightRivalId: listing.id });
+    };
+
+    const formatRivalMatchType = (r) => {
+        if (!r?.matchType || r.matchType === 'PLAYER_WANTED') return '';
+        return r.matchType === 'DOUBLE' ? ' · 2v2' : ' · 1v1';
+    };
+
+    const formatRivalDate = (r) => {
+        if (r?.flexibleSchedule) return t.rivalChatFlexibleDate || 'Flexible date';
+        if (!r?.matchDate) return '';
+        try {
+            const locale = t.lang === 'tr' ? 'tr-TR' : t.lang === 'de' ? 'de-DE' : t.lang === 'ru' ? 'ru-RU' : 'en-US';
+            return new Date(r.matchDate).toLocaleDateString(locale, { day: 'numeric', month: 'long' }) + (r.matchTime ? ` · ${r.matchTime}` : '');
+        } catch {
+            return r.matchTime || '';
+        }
     };
 
     const [sharedPreview, setSharedPreview] = useState(null);
@@ -548,6 +570,24 @@ export default function ChatScreen({ route, navigation }) {
                             </View>
                         </TouchableOpacity>
                     )}
+                    {item.activityRequest && (
+                        <TouchableOpacity style={styles.msgEquipCard} onPress={() => openRivalListing(item.activityRequest)} activeOpacity={0.8}>
+                            <View style={[styles.msgEquipImg, styles.equipBannerImgPh]}><Text style={{ fontSize: 16 }}>📋</Text></View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.msgEquipTitle} numberOfLines={1}>
+                                    {getSubCategoryLabel(item.activityRequest.subCategory, t.lang)}
+                                    {formatRivalMatchType(item.activityRequest)}
+                                    {item.activityRequest.level ? ` · ${item.activityRequest.level}` : ''}
+                                </Text>
+                                <Text style={styles.msgEquipPrice} numberOfLines={1}>
+                                    {formatRivalDate(item.activityRequest)
+                                        || item.activityRequest.courtName
+                                        || item.activityRequest.location
+                                        || (t.rivalChatCard || t.ilanDetail || 'Listing')}
+                                </Text>
+                            </View>
+                        </TouchableOpacity>
+                    )}
                     {item.sharedPost && (
                         <TouchableOpacity style={styles.msgEquipCard} onPress={() => openSharedCard(item.sharedPost)} activeOpacity={0.8}>
                             {item.sharedPost.locked ? (
@@ -615,22 +655,20 @@ export default function ChatScreen({ route, navigation }) {
                 </TouchableOpacity>
             </View>
 
-            {/* Activity Context Banner */}
-            {rival && (
-                <View style={styles.rivalBanner}>
-                    <Text style={styles.rivalBannerLabel}>📋 İlan Detayı</Text>
+            {/* Activity Context Banner — her iki tarafta da (route param veya mesaj geçmişi) */}
+            {rivalCtx && (
+                <TouchableOpacity style={styles.rivalBanner} onPress={() => openRivalListing(rivalCtx)} activeOpacity={0.85}>
+                    <Text style={styles.rivalBannerLabel}>📋 {t.ilanDetail || 'Listing Detail'}</Text>
                     <View style={styles.rivalBannerRow}>
-                        <Text style={styles.rivalBannerChip}>🏅 {getSubCategoryLabel(rival.subCategory, t.lang)}{rival.matchType && rival.matchType !== 'PLAYER_WANTED' ? ` · ${rival.matchType === 'DOUBLE' ? '2v2' : '1v1'}` : ''}{rival.level ? ` · ${rival.level}` : ''}</Text>
-                        {rival.flexibleSchedule ? (
-                            <Text style={styles.rivalBannerChip}>📅 Esnek tarih</Text>
-                        ) : rival.matchDate ? (
-                            <Text style={styles.rivalBannerChip}>📅 {new Date(rival.matchDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}{rival.matchTime ? ` · ${rival.matchTime}` : ''}</Text>
+                        <Text style={styles.rivalBannerChip}>🏅 {getSubCategoryLabel(rivalCtx.subCategory, t.lang)}{formatRivalMatchType(rivalCtx)}{rivalCtx.level ? ` · ${rivalCtx.level}` : ''}</Text>
+                        {formatRivalDate(rivalCtx) ? (
+                            <Text style={styles.rivalBannerChip}>📅 {formatRivalDate(rivalCtx)}</Text>
                         ) : null}
-                        {(rival.courtName || rival.location) && (
-                            <Text style={styles.rivalBannerChip}>📍 {rival.courtName || rival.location}</Text>
+                        {(rivalCtx.courtName || rivalCtx.location) && (
+                            <Text style={styles.rivalBannerChip}>📍 {rivalCtx.courtName || rivalCtx.location}</Text>
                         )}
                     </View>
-                </View>
+                </TouchableOpacity>
             )}
 
             {/* Equipment Context Banner */}
