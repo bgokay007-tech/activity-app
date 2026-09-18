@@ -9,7 +9,7 @@ import { connectSocket, getSocket, onSocket } from '../../services/socket';
 import CreateTableModal from '../../components/batak/CreateTableModal';
 import BrowseTablesModal from '../../components/batak/BrowseTablesModal';
 
-const VARIANTS = ['ihaleli', 'esli_ihaleli', 'herkes_kendine', 'gomme'];
+const VARIANTS = ['ihaleli', 'esli_ihaleli', 'koz_maca', 'gomme'];
 
 const SUIT_SYMBOL = { S: '♠', H: '♥', D: '♦', C: '♣' };
 const SUIT_COLOR = { S: '#111827', C: '#111827', H: '#dc2626', D: '#dc2626' };

@@ -1,4 +1,4 @@
-{
+﻿{
   "activity": {
     "title": "Aktivite",
     "city_ph": "Şehir",
@@ -955,7 +955,7 @@
     "variant": {
       "ihaleli": "İhaleli Batak",
       "esli_ihaleli": "Eşli İhaleli Batak",
-      "herkes_kendine": "Herkes Kendine Batak",
+      "koz_maca": "Koz Maça Batak",
       "gomme": "Gömmeli Batak"
     },
     "step": {
@@ -978,8 +978,9 @@
       "startVsBots": "Botlarla Başla"
     },
     "payout": {
-      "solo": "1. %75 alır, 2. amorti (koyduğunu geri alır), 3. ve 4. bahsini kaybeder.",
-      "team": "Kazanan takım potun tamamını alır, aralarında %50-%50 paylaşır."
+      "solo": "1. potun %75’ini, 2. %25’ini alır.",
+      "team": "Kazanan ikili potun tamamını alır, aralarında yarı yarıya paylaşır.",
+      "gomme": "1. sıradaki oyuncu potun tamamını alır."
     },
     "browse": {
       "join": "Katıl",

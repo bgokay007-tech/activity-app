@@ -16,8 +16,8 @@ import DistrictPickerModal from '../../components/DistrictPickerModal';
 import VenueNameAutocomplete from '../../components/VenueNameAutocomplete';
 import Avatar from '../../components/Avatar';
 
-const VARIANTS = ['ihaleli', 'esli_ihaleli', 'herkes_kendine', 'gomme'];
-const VARIANT_FALLBACK = { ihaleli: 'İhaleli Batak', esli_ihaleli: 'Eşli İhaleli Batak', herkes_kendine: 'Herkes Kendine Batak', gomme: 'Gömmeli Batak' };
+const VARIANTS = ['ihaleli', 'esli_ihaleli', 'koz_maca', 'gomme'];
+const VARIANT_FALLBACK = { ihaleli: 'İhaleli Batak', esli_ihaleli: 'Eşli İhaleli Batak', koz_maca: 'Koz Maça Batak', gomme: 'Gömmeli Batak' };
 const DIFFICULTIES = [['easy', 'Kolay'], ['medium', 'Orta'], ['hard', 'Zor']];
 const noEmojiStr = (str) => (str || '').replace(/^\S+\s+/, '');
 
@@ -353,7 +353,7 @@ export default function BatakHomeScreen({ navigation }) {
                                                 <View style={{ flexDirection: 'row' }}>
                                                     {item.seats.filter(x => !x.open).map(x => <Avatar key={x.seat} user={x} size={16} />)}
                                                 </View>
-                                                <Text style={s.tableCardSeats}>{filled}/4</Text>
+                                                <Text style={s.tableCardSeats}>{filled}/{item.seats?.length || (item.variant === 'gomme' ? 3 : 4)}</Text>
                                                 <TouchableOpacity style={s.tableCardJoinBtn} onPress={() => joinLobbyTable(item.tableId)} activeOpacity={0.85}>
                                                     <Text style={s.tableCardJoinBtnText}>{t.batakJoinBtn || 'Katıl'}</Text>
                                                 </TouchableOpacity>
@@ -581,16 +581,23 @@ function CreateTableModal({ visible, interest, t, onClose }) {
     }, [visible]);
 
     const isTeam = variant === 'esli_ihaleli';
+    const isGomme = variant === 'gomme';
     const parsedBet = Math.max(0, Math.floor(Number(betAmount) || 0));
     const parsedRating = wagerRating ? Math.max(0, Number(ratingAmount) || 0) : 0;
     const parsedRangeMin = ratingRangeMin.trim() === '' ? null : Number(ratingRangeMin);
     const parsedRangeMax = ratingRangeMax.trim() === '' ? null : Number(ratingRangeMax);
     const canAfford = interest && interest.walletPoints >= parsedBet && interest.skillRating >= parsedRating && parsedBet > 0;
 
+    const payoutHintText = isTeam
+        ? (t.batakPayoutTeam || 'Kazanan ikili potun tamamını alır, aralarında yarı yarıya paylaşır.')
+        : isGomme
+            ? (t.batakPayoutGomme || '1. sıradaki oyuncu potun tamamını alır.')
+            : (t.batakPayoutSolo || '1. %75, 2. %25 alır; diğerleri bahsini kaybeder.');
+
     const startVsBots = () => {
         const socket = getSocket();
         if (!socket) return Alert.alert('', t.batakNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('batak:playVsBots', { difficulty });
+        socket.emit('batak:playVsBots', { difficulty, variant });
         onClose();
     };
     const createTable = () => {
@@ -678,7 +685,7 @@ function CreateTableModal({ visible, interest, t, onClose }) {
                                     <Text style={s.checkboxLabel}>{t.batakSpectatorOpen || 'Seyirciye açık'}</Text>
                                 </TouchableOpacity>
                                 <Text style={s.spectatorHint}>{t.batakSpectatorOpenHint || 'Oyuncular dışındakiler masayı izleyebilir ama kapalı kartları asla göremez'}</Text>
-                                <Text style={s.payoutHint}>{isTeam ? (t.batakPayoutTeam || 'Kazanan takım potun tamamını alır, aralarında %50-%50 paylaşır.') : (t.batakPayoutSolo || '1. %75 alır, 2. amorti (koyduğunu geri alır), 3. ve 4. bahsini kaybeder.')}</Text>
+                                <Text style={s.payoutHint}>{payoutHintText}</Text>
                                 <TouchableOpacity style={[s.findBtn, { alignItems: 'center' }, !canAfford && { opacity: 0.4 }]} onPress={createTable} disabled={!canAfford} activeOpacity={0.85}>
                                     <Text style={s.findBtnText}>{t.batakCreateTable || 'Masayı Kur'} ({parsedBet} puan{parsedRating > 0 ? ` + ${parsedRating.toFixed(2)} derece` : ''})</Text>
                                 </TouchableOpacity>

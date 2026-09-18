@@ -38,12 +38,12 @@ function PopIn({ trigger, children }) {
     return <Animated.View style={{ transform: [{ scale }], opacity }}>{children}</Animated.View>;
 }
 
-function PlayingCard({ card, small, disabled, rejected, onPress }) {
+function PlayingCard({ card, small, disabled, rejected, selected, onPress }) {
     const suit = cardSuit(card);
     const Wrap = onPress ? TouchableOpacity : View;
     return (
         <Wrap
-            style={[s.card, small && s.cardSmall, disabled && s.cardDisabled, rejected && s.cardRejected]}
+            style={[s.card, small && s.cardSmall, disabled && s.cardDisabled, rejected && s.cardRejected, selected && s.cardSelected]}
             onPress={onPress ? () => onPress(card) : undefined}
             activeOpacity={0.7}
         >
@@ -59,13 +59,14 @@ function PlayingCard({ card, small, disabled, rejected, onPress }) {
 // tercih, sunucuya hiçbir şey gönderilmez); eşiğin altında kalan dokunuşlar
 // hâlâ tıklama gibi davranıp `onPress`'i (kartı oyna) tetikler.
 const CARD_SLOT_WIDTH = 44;
-function DraggableHandCard({ card, index, total, disabled, rejected, onPress, onReorder }) {
+function DraggableHandCard({ card, index, total, disabled, rejected, selected, onPress, onReorder }) {
     const pan = useRef(new Animated.Value(0)).current;
-    const meta = useRef({ index, total, onPress, onReorder, startIndex: index, moved: false });
+    const meta = useRef({ index, total, onPress, onReorder, card, startIndex: index, moved: false });
     meta.current.index = index;
     meta.current.total = total;
     meta.current.onPress = onPress;
     meta.current.onReorder = onReorder;
+    meta.current.card = card;
 
     const panResponder = useRef(PanResponder.create({
         onStartShouldSetPanResponder: () => true,
@@ -83,7 +84,7 @@ function DraggableHandCard({ card, index, total, disabled, rejected, onPress, on
         },
         onPanResponderRelease: () => {
             Animated.spring(pan, { toValue: 0, useNativeDriver: true, speed: 20 }).start();
-            if (!meta.current.moved) meta.current.onPress();
+            if (!meta.current.moved) meta.current.onPress(meta.current.card);
         },
         onPanResponderTerminate: () => {
             Animated.spring(pan, { toValue: 0, useNativeDriver: true, speed: 20 }).start();
@@ -92,7 +93,7 @@ function DraggableHandCard({ card, index, total, disabled, rejected, onPress, on
 
     return (
         <Animated.View {...panResponder.panHandlers} style={{ transform: [{ translateX: pan }] }}>
-            <PlayingCard card={card} disabled={disabled} rejected={rejected} />
+            <PlayingCard card={card} disabled={disabled} rejected={rejected} selected={selected} />
         </Animated.View>
     );
 }
@@ -397,6 +398,10 @@ export default function BatakTableScreen({ route, navigation }) {
         rejectedTimerRef.current = setTimeout(() => setRejectedCard(null), 500);
     }, []);
     useEffect(() => () => { if (rejectedTimerRef.current) clearTimeout(rejectedTimerRef.current); }, []);
+    const [discardPick, setDiscardPick] = useState([]);
+    useEffect(() => {
+        if (state?.phase !== 'discarding') setDiscardPick([]);
+    }, [state?.phase]);
 
     useFocusEffect(useCallback(() => {
         const socket = getSocket();
@@ -534,20 +539,38 @@ export default function BatakTableScreen({ route, navigation }) {
     const mySeatInfo = state.seats.find(seat => seat.userId === myId);
     const isSpectator = spectating || !mySeatInfo;
     const mySeat = mySeatInfo ? mySeatInfo.seat : 0;
-    const order = [mySeat, (mySeat + 1) % 4, (mySeat + 2) % 4, (mySeat + 3) % 4];
+    const seatN = state.seats.length || 4;
+    // 4 kişi: alt / sol / üst / sağ. 3 kişi (gömme): alt / sol / sağ (üst boş).
+    const order = seatN === 3
+        ? [mySeat, (mySeat + 1) % 3, null, (mySeat + 2) % 3]
+        : [mySeat, (mySeat + 1) % 4, (mySeat + 2) % 4, (mySeat + 3) % 4];
     const [bottomSeat, leftSeat, topSeat, rightSeat] = order;
-    const seatByIdx = (seat) => state.seats.find(x => x.seat === seat) || {};
+    const seatByIdx = (seat) => (seat == null ? {} : (state.seats.find(x => x.seat === seat) || {}));
     const isMyTurn = !isSpectator && state.turn === mySeat;
-    // publicState yalnızca 'bidding'/'playing' fazlarında `turn` alanını dolduruyor;
-    // 'choosingTrump' fazında sırası gelen kişi highestBidder'dır — koltuk vurgusu
-    // (Fix 4) için üç fazı da kapsayan ayrı bir "aktif koltuk" hesaplanıyor.
-    const activeSeat = state.phase === 'choosingTrump' ? state.highestBidder : state.turn;
+    const activeSeat = state.phase === 'choosingTrump' || state.phase === 'discarding'
+        ? state.highestBidder
+        : state.turn;
 
-    const trickCardFor = (seat) => (state.trick || []).find(x => x.seat === seat)?.card || null;
+    const trickCardFor = (seat) => (seat == null ? null : ((state.trick || []).find(x => x.seat === seat)?.card || null));
 
     const placeBid = (bid) => getSocket()?.emit('batak:placeBid', { tableId, bid });
     const chooseTrump = (suit) => getSocket()?.emit('batak:chooseTrump', { tableId, suit });
+    const toggleDiscard = (card) => {
+        setDiscardPick(prev => {
+            if (prev.includes(card)) return prev.filter(c => c !== card);
+            if (prev.length >= 4) return prev;
+            return [...prev, card];
+        });
+    };
+    const confirmDiscard = () => {
+        if (discardPick.length !== 4) return showHint(t.batakDiscardNeed4 || 'Tam 4 kart seçmelisin');
+        getSocket()?.emit('batak:discardGomme', { tableId, cards: discardPick });
+    };
     const playCard = (card) => {
+        if (state.phase === 'discarding' && !isSpectator && state.highestBidder === mySeat) {
+            toggleDiscard(card);
+            return;
+        }
         if (state.phase !== 'playing') { flashRejected(card); return showHint(t.batakNotPlayingPhase || 'Henüz kart oynama sırası değil'); }
         if (!isMyTurn) { flashRejected(card); return showHint(t.batakNotYourTurn || 'Sıra sende değil'); }
         if (!legalCards.includes(card)) { flashRejected(card); return showHint(t.batakMustFollowSuit || 'Renge uymak zorundasın.'); }
@@ -556,7 +579,8 @@ export default function BatakTableScreen({ route, navigation }) {
 
     const goBack = () => { leaveTable(); navigation.goBack(); };
 
-    const bidOptions = Array.from({ length: 13 - state.highestBid }, (_, i) => state.highestBid + 1 + i);
+    const maxBid = state.maxBid || 13;
+    const bidOptions = Array.from({ length: Math.max(0, maxBid - state.highestBid) }, (_, i) => state.highestBid + 1 + i);
 
     return (
         <View style={s.root}>
@@ -599,10 +623,19 @@ export default function BatakTableScreen({ route, navigation }) {
             {/* Masa */}
             <View style={s.table}>
                 <View style={s.topSeat}>
-                    <Avatar user={seatByIdx(topSeat)} size={26} ring={topSeat === activeSeat} />
-                    <Text style={[s.seatLabel, topSeat === activeSeat && s.seatLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(topSeat).username}</Text>
-                    <View style={s.oppHand}>{Array.from({ length: seatByIdx(topSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
-                    {trickCardFor(topSeat) && <PopIn key={trickCardFor(topSeat)} trigger={trickCardFor(topSeat)}><PlayingCard card={trickCardFor(topSeat)} small /></PopIn>}
+                    {topSeat != null ? (
+                        <>
+                            <Avatar user={seatByIdx(topSeat)} size={26} ring={topSeat === activeSeat} />
+                            <Text style={[s.seatLabel, topSeat === activeSeat && s.seatLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(topSeat).username}</Text>
+                            <View style={s.oppHand}>{Array.from({ length: seatByIdx(topSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
+                            {trickCardFor(topSeat) && <PopIn key={trickCardFor(topSeat)} trigger={trickCardFor(topSeat)}><PlayingCard card={trickCardFor(topSeat)} small /></PopIn>}
+                        </>
+                    ) : (
+                        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>
+                            {state.variant === 'gomme' ? (t.batakGommeLabel || 'Gömme') : ''}
+                            {state.gommeCount > 0 ? ` (${state.gommeCount})` : ''}
+                        </Text>
+                    )}
                 </View>
                 <View style={s.middleRow}>
                     <View style={s.sideSeat}>
@@ -631,6 +664,13 @@ export default function BatakTableScreen({ route, navigation }) {
                         {isMyTurn ? (t.batakYourBid || 'Sıra sende — ihale ver veya pas geç')
                             : `${seatByIdx(state.turn).username} ${t.batakBidding || 'ihale veriyor...'}`}
                         {state.highestBid > 0 ? `  ·  ${t.batakHighestBid || 'En yüksek'}: ${state.highestBid} (${seatByIdx(state.highestBidder).username})` : ''}
+                    </Text>
+                )}
+                {state.phase === 'discarding' && (
+                    <Text style={[s.statusText, !isSpectator && state.highestBidder === mySeat && s.statusTextActive]}>
+                        {(!isSpectator && state.highestBidder === mySeat)
+                            ? (t.batakDiscardHint || 'Gömmeyi aldın — atacağın 4 kartı seç')
+                            : `${seatByIdx(state.highestBidder).username} ${t.batakDiscarding || 'gömmeyi atıyor...'}`}
                     </Text>
                 )}
                 {state.phase === 'choosingTrump' && (
@@ -663,6 +703,17 @@ export default function BatakTableScreen({ route, navigation }) {
                 </View>
             )}
 
+            {/* Gömme atma */}
+            {!isSpectator && state.phase === 'discarding' && state.highestBidder === mySeat && (
+                <TouchableOpacity
+                    style={[s.passBtn, { alignSelf: 'center', marginBottom: 8, opacity: discardPick.length === 4 ? 1 : 0.45 }]}
+                    disabled={discardPick.length !== 4}
+                    onPress={confirmDiscard}
+                >
+                    <Text style={s.passBtnText}>{(t.batakDiscardConfirm || '4 kartı at ({n})').replace('{n}', String(discardPick.length))}</Text>
+                </TouchableOpacity>
+            )}
+
             {/* Koz seçimi */}
             {!isSpectator && state.phase === 'choosingTrump' && state.highestBidder === mySeat && (
                 <View style={s.trumpRow}>
@@ -682,8 +733,12 @@ export default function BatakTableScreen({ route, navigation }) {
                         card={card}
                         index={index}
                         total={handOrder.length}
-                        disabled={!(state.phase === 'playing' && isMyTurn && legalCards.includes(card))}
+                        disabled={!(
+                            (state.phase === 'playing' && isMyTurn && legalCards.includes(card))
+                            || (state.phase === 'discarding' && !isSpectator && state.highestBidder === mySeat)
+                        )}
                         rejected={rejectedCard === card}
+                        selected={discardPick.includes(card)}
                         onPress={playCard}
                         onReorder={reorderHand}
                     />
@@ -792,6 +847,7 @@ const s = StyleSheet.create({
     cardSmall: { width: 30, height: 42, marginHorizontal: 1 },
     cardDisabled: { opacity: 0.35 },
     cardRejected: { borderWidth: 2, borderColor: '#ef4444' },
+    cardSelected: { borderWidth: 2, borderColor: '#38bdf8', transform: [{ translateY: -8 }] },
     cardRank: { fontSize: 13, fontWeight: '900' },
     cardRankSmall: { fontSize: 10 },
     cardSuit: { fontSize: 15, fontWeight: '900' },

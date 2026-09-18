@@ -25,10 +25,23 @@ const codeToTableId = new Map(); // özel masa paylaşım kodu -> tableId
 const BET_AMOUNTS = [0, 50, 100, 250, 500];       // puan bahis kademeleri (0 = puan bahsi yok)
 const RATING_AMOUNTS = [0, 0.10, 0.25, 0.50];     // derece (skillRating) bahis kademeleri (0 = derece bahsi yok)
 
-// Herkese açık masa kategorileri — bu sürümde 4'ü de aynı ihale motoruyla oynanır,
-// "esli_ihaleli" dışındakilerde kural farkı yok (sadece kategori/lobi ayrımı için).
-const VARIANTS = ['ihaleli', 'esli_ihaleli', 'herkes_kendine', 'gomme'];
-function isValidVariant(v) { return VARIANTS.includes(v); }
+// Herkese açık masa kategorileri:
+// - ihaleli: klasik ihale + koz seçimi (4 kişi)
+// - esli_ihaleli: aynı oyun, ödeme takım bazlı (0+2 / 1+3)
+// - koz_maca: ihale var, koz her zaman Maça (S); koz seçim aşaması yok (4 kişi)
+// - gomme: 3 kişilik gömmeli batak (4 kart gömme, kazanan alır ve 4 atar)
+const VARIANTS = ['ihaleli', 'esli_ihaleli', 'koz_maca', 'gomme'];
+function normalizeVariant(v) {
+    if (v === 'herkes_kendine') return 'koz_maca'; // eski istemci etiketi
+    return v;
+}
+function isValidVariant(v) { return VARIANTS.includes(normalizeVariant(v)); }
+function seatCountFor(variant) { return normalizeVariant(variant) === 'gomme' ? 3 : 4; }
+function playerCount(table) { return table.seats?.length || seatCountFor(table.variant); }
+function nextSeat(table, seat) { return (seat + 1) % playerCount(table); }
+function maxBidFor(table) { return table.variant === 'gomme' ? 16 : 13; }
+function tricksPerRound(table) { return table.variant === 'gomme' ? 16 : 13; }
+function seatIndexList(table) { return Array.from({ length: playerCount(table) }, (_, i) => i); }
 
 function queueKey(betAmount, ratingAmount) { return `${betAmount}:${ratingAmount}`; }
 function getQueue(betAmount, ratingAmount) {
@@ -102,14 +115,14 @@ async function chargeStakes(table) {
 // kazanan olamazlar, hatta skorları iyi olsa bile.
 function computePayouts(table) {
     if ((!table.betAmount || table.betAmount <= 0) && (!table.ratingAmount || table.ratingAmount <= 0)) return null;
-    const pointPot = (table.betAmount || 0) * 4;
-    const ratingPot = (table.ratingAmount || 0) * 4;
-    const points = [0, 0, 0, 0];
-    const rating = [0, 0, 0, 0];
+    const n = playerCount(table);
+    const pointPot = (table.betAmount || 0) * n;
+    const ratingPot = (table.ratingAmount || 0) * n;
+    const points = Array(n).fill(0);
+    const rating = Array(n).fill(0);
 
-    // Eşli İhaleli Batak: koltuklar takım (0+2 / 1+3), kazanan takım potun
-    // tamamını alır ve aralarında yarı yarıya paylaşır.
-    if (table.isTeamGame) {
+    // Eşli İhaleli: kazanan ikili potun tamamını alır, yarı yarıya.
+    if (table.isTeamGame && n === 4) {
         const eff = seat => table.leftEarly[seat] ? -Infinity : table.scores[seat];
         const teamAScore = eff(0) + eff(2);
         const teamBScore = eff(1) + eff(3);
@@ -124,6 +137,17 @@ function computePayouts(table) {
     const ranking = table.seats
         .map(s => ({ seat: s.seat, effective: table.leftEarly[s.seat] ? -Infinity : table.scores[s.seat] }))
         .sort((a, b) => b.effective - a.effective || a.seat - b.seat);
+
+    // Gömmeli (3 kişi): 1. tüm potu alır.
+    if (table.variant === 'gomme') {
+        if (ranking[0]) {
+            points[ranking[0].seat] = pointPot;
+            rating[ranking[0].seat] = Math.round(ratingPot * 100) / 100;
+        }
+        return { points, rating };
+    }
+
+    // İhaleli + Koz Maça: 1. %75, 2. %25.
     if (ranking[0]) {
         points[ranking[0].seat] = Math.floor(pointPot * 3 / 4);
         rating[ranking[0].seat] = Math.round(ratingPot * 3 / 4 * 100) / 100;
@@ -173,6 +197,7 @@ function cardRank(card) { return parseInt(card.slice(0, -1), 10); }
 function cardSuit(card) { return card.slice(-1); }
 
 function publicState(table) {
+    const n = playerCount(table);
     return {
         tableId: table.id,
         phase: table.phase,
@@ -185,20 +210,23 @@ function publicState(table) {
         listed: !!table.listed,
         spectatorOpen: !!table.spectatorOpen,
         isTeamGame: !!table.isTeamGame,
+        seatCount: n,
+        gommeCount: Array.isArray(table.gomme) ? table.gomme.length : 0,
+        maxBid: maxBidFor(table),
         startsAt: table.startsAt || null,
         seats: table.seats.map(s => ({ userId: s.userId, username: s.username, avatar: s.avatar || null, seat: s.seat, connected: s.connected, isBot: !!s.isBot, open: !!s.open, handCount: table.hands[s.seat]?.length ?? 0 })),
         dealerIndex: table.dealerIndex,
-        turn: table.phase === 'bidding' ? table.biddingTurn : table.phase === 'playing' ? table.turn : null,
-        // 'starting' fazındaki masalarda dealRound henüz hiç çalışmamış olabilir (5sn
-        // geri sayım bitmeden ilk el dağıtılmıyor) — bu alanlar o ana kadar tanımsız,
-        // bu yüzden burada güvenli varsayılanlarla korunuyor.
-        bids: (table.passed || [false, false, false, false]).map((p, s) => (p ? 'PASS' : (s === table.highestBidder ? table.highestBid : null))),
+        turn: table.phase === 'bidding' ? table.biddingTurn
+            : table.phase === 'discarding' ? table.highestBidder
+            : table.phase === 'playing' ? table.turn
+            : null,
+        bids: (table.passed || Array(n).fill(false)).map((p, s) => (p ? 'PASS' : (s === table.highestBidder ? table.highestBid : null))),
         highestBid: table.highestBid ?? 0,
         highestBidder: table.highestBidder ?? null,
         trumpSuit: table.trumpSuit ?? null,
         trick: table.trick || [],
         leadSuit: table.leadSuit ?? null,
-        tricksWon: table.tricksWon || [0, 0, 0, 0],
+        tricksWon: table.tricksWon || Array(n).fill(0),
         scores: table.scores,
         roundNumber: table.roundNumber,
         totalRounds: TOTAL_ROUNDS,
@@ -213,25 +241,34 @@ function sendHand(io, table, seat) {
     if (s?.socketId) io.to(s.socketId).emit('batak:hand', { hand: table.hands[seat] });
 }
 function sendAllHands(io, table) {
-    for (let seat = 0; seat < 4; seat++) sendHand(io, table, seat);
+    for (let seat = 0; seat < playerCount(table); seat++) sendHand(io, table, seat);
 }
 
 function dealRound(table) {
+    const n = playerCount(table);
     const deck = buildDeck();
-    table.hands = [[], [], [], []];
-    for (let i = 0; i < 52; i++) table.hands[i % 4].push(deck[i]);
+    table.hands = Array.from({ length: n }, () => []);
+    if (table.variant === 'gomme') {
+        // 4 kart gömme + 3×16 el
+        table.gomme = deck.splice(0, 4);
+        for (let i = 0; i < 48; i++) table.hands[i % 3].push(deck[i]);
+    } else {
+        table.gomme = [];
+        for (let i = 0; i < 52; i++) table.hands[i % 4].push(deck[i]);
+    }
     for (const h of table.hands) h.sort((a, b) => cardSuit(a).localeCompare(cardSuit(b)) || cardRank(a) - cardRank(b));
     table.phase = 'bidding';
-    table.passed = [false, false, false, false];
+    table.passed = Array(n).fill(false);
     table.highestBid = 0;
     table.highestBidder = null;
-    table.biddingTurn = (table.dealerIndex + 1) % 4;
+    table.biddingTurn = nextSeat(table, table.dealerIndex);
     table.trumpSuit = null;
     table.trick = [];
     table.leadSuit = null;
-    table.tricksWon = [0, 0, 0, 0];
+    table.tricksWon = Array(n).fill(0);
     table.tricksPlayed = 0;
     table.turn = null;
+    table.discardedGomme = null;
 }
 
 function legalCards(table, seat) {
@@ -277,7 +314,7 @@ function chooseBotBid(table, seat, difficulty) {
     const strength = estimateHandStrength(hand);
     let target = Math.round(strength);
     if (difficulty === 'hard' && strength - Math.floor(strength) >= 0.4) target += 1;
-    target = Math.max(0, Math.min(13, target));
+    target = Math.max(0, Math.min(maxBidFor(table), target));
     return target > table.highestBid ? target : 'PASS';
 }
 
@@ -351,6 +388,7 @@ function scheduleBotIfNeeded(io, table) {
     clearBotTimer(table);
     if (!tables.has(table.id)) return;
     const actingSeat = table.phase === 'bidding' ? table.biddingTurn
+        : table.phase === 'discarding' ? table.highestBidder
         : table.phase === 'choosingTrump' ? table.highestBidder
         : table.phase === 'playing' ? table.turn
         : null;
@@ -369,6 +407,9 @@ function runBotAction(io, table, seat) {
     try {
         if (table.phase === 'bidding') {
             applyBid(io, table, seat, chooseBotBid(table, seat, difficulty));
+        } else if (table.phase === 'discarding') {
+            const hand = [...table.hands[seat]].sort((a, b) => cardRank(a) - cardRank(b));
+            applyDiscard(io, table, seat, hand.slice(0, 4));
         } else if (table.phase === 'choosingTrump') {
             applyTrump(io, table, seat, chooseBotTrump(table, seat, difficulty));
         } else if (table.phase === 'playing') {
@@ -384,6 +425,36 @@ function runBotAction(io, table, seat) {
     }
 }
 
+function finishBidding(io, table) {
+    const active = seatIndexList(table).filter(s => !table.passed[s]);
+    const winner = active[0] ?? table.dealerIndex;
+    if (table.highestBidder === null) { table.highestBid = 1; table.highestBidder = winner; }
+    table.biddingTurn = null;
+
+    if (table.variant === 'gomme') {
+        const g = table.gomme || [];
+        table.hands[table.highestBidder].push(...g);
+        table.gomme = [];
+        table.hands[table.highestBidder].sort((a, b) => cardSuit(a).localeCompare(cardSuit(b)) || cardRank(a) - cardRank(b));
+        table.phase = 'discarding';
+        broadcastState(io, table);
+        sendHand(io, table, table.highestBidder);
+        scheduleBotIfNeeded(io, table);
+        return;
+    }
+    if (table.variant === 'koz_maca') {
+        table.trumpSuit = 'S'; // Maça her zaman koz
+        table.phase = 'playing';
+        table.turn = nextSeat(table, table.dealerIndex);
+        broadcastState(io, table);
+        scheduleBotIfNeeded(io, table);
+        return;
+    }
+    table.phase = 'choosingTrump';
+    broadcastState(io, table);
+    scheduleBotIfNeeded(io, table);
+}
+
 function applyBid(io, table, seat, bid) {
     if (table.phase !== 'bidding') throw new Error('Sıra ihalede değil');
     if (table.biddingTurn !== seat) throw new Error('Sıra sende değil');
@@ -393,21 +464,36 @@ function applyBid(io, table, seat, bid) {
         table.passed[seat] = true;
     } else {
         const n = Number(bid);
-        if (!Number.isInteger(n) || n < 1 || n > 13 || n <= table.highestBid) throw new Error('Geçersiz ihale');
+        const maxB = maxBidFor(table);
+        if (!Number.isInteger(n) || n < 1 || n > maxB || n <= table.highestBid) throw new Error('Geçersiz ihale');
         table.highestBid = n;
         table.highestBidder = seat;
     }
 
-    const active = [0, 1, 2, 3].filter(s => !table.passed[s]);
+    const active = seatIndexList(table).filter(s => !table.passed[s]);
     if (active.length <= 1) {
-        const winner = active[0] ?? table.dealerIndex;
-        if (table.highestBidder === null) { table.highestBid = 1; table.highestBidder = winner; }
-        table.phase = 'choosingTrump';
-        table.biddingTurn = null;
+        finishBidding(io, table);
     } else {
-        do { table.biddingTurn = (table.biddingTurn + 1) % 4; } while (table.passed[table.biddingTurn]);
+        do { table.biddingTurn = nextSeat(table, table.biddingTurn); } while (table.passed[table.biddingTurn]);
+        broadcastState(io, table);
+        scheduleBotIfNeeded(io, table);
     }
+}
 
+function applyDiscard(io, table, seat, cards) {
+    if (table.phase !== 'discarding') throw new Error('Gömme atma aşamasında değil');
+    if (table.highestBidder !== seat) throw new Error('Gömme atma yetkisi sende değil');
+    if (!Array.isArray(cards) || cards.length !== 4) throw new Error('Tam 4 kart atmalısın');
+    const hand = table.hands[seat];
+    const uniq = [...new Set(cards)];
+    if (uniq.length !== 4) throw new Error('Kartlar tekrarlanamaz');
+    for (const c of uniq) {
+        if (!hand.includes(c)) throw new Error('Bu kart elinde yok');
+    }
+    for (const c of uniq) hand.splice(hand.indexOf(c), 1);
+    table.discardedGomme = uniq;
+    table.phase = 'choosingTrump';
+    sendHand(io, table, seat);
     broadcastState(io, table);
     scheduleBotIfNeeded(io, table);
 }
@@ -418,7 +504,7 @@ function applyTrump(io, table, seat, suit) {
     if (!SUITS.includes(suit)) throw new Error('Geçersiz renk');
     table.trumpSuit = suit;
     table.phase = 'playing';
-    table.turn = (table.dealerIndex + 1) % 4;
+    table.turn = nextSeat(table, table.dealerIndex);
     broadcastState(io, table);
     scheduleBotIfNeeded(io, table);
 }
@@ -434,10 +520,11 @@ function scoreRound(table) {
     const bidder = table.highestBidder;
     const bid = table.highestBid;
     const won = table.tricksWon[bidder];
-    const delta = [0, 0, 0, 0];
+    const n = playerCount(table);
+    const delta = Array(n).fill(0);
     delta[bidder] = won >= bid ? bid * 10 : -bid * 10;
-    for (let s = 0; s < 4; s++) if (s !== bidder) delta[s] = table.tricksWon[s] * 10;
-    for (let s = 0; s < 4; s++) table.scores[s] += delta[s];
+    for (let s = 0; s < n; s++) if (s !== bidder) delta[s] = table.tricksWon[s] * 10;
+    for (let s = 0; s < n; s++) table.scores[s] += delta[s];
     return delta;
 }
 
@@ -450,15 +537,13 @@ function applyCard(io, table, seat, card) {
     if (!legal.includes(card)) throw new Error('Renge uymak zorundasın');
 
     hand.splice(hand.indexOf(card), 1);
-    // Herkese açık durum (publicState) sadece handCount taşır, oynayan oyuncunun
-    // kendi istemcisindeki eli güncellemesi için asıl kart listesinin hedefe
-    // gönderilmesi gerekiyor — aksi halde oynanan kart istemcide elde kalmış gibi görünüyor.
     sendHand(io, table, seat);
     if (table.trick.length === 0) table.leadSuit = cardSuit(card);
     table.trick.push({ seat, card });
 
-    if (table.trick.length < 4) {
-        table.turn = (table.turn + 1) % 4;
+    const n = playerCount(table);
+    if (table.trick.length < n) {
+        table.turn = nextSeat(table, table.turn);
         broadcastState(io, table);
         scheduleBotIfNeeded(io, table);
         return;
@@ -474,7 +559,7 @@ function applyCard(io, table, seat, card) {
 
     io.to(`batak:${table.id}`).emit('batak:trickWon', { winner, trick: finishedTrick, tricksWon: table.tricksWon });
 
-    if (table.tricksPlayed === 13) {
+    if (table.tricksPlayed === tricksPerRound(table)) {
         const delta = scoreRound(table);
         table.phase = 'roundEnd';
         io.to(`batak:${table.id}`).emit('batak:roundEnd', {
@@ -500,7 +585,7 @@ function nextRoundOrEnd(io, table) {
         return;
     }
     table.roundNumber += 1;
-    table.dealerIndex = (table.dealerIndex + 1) % 4;
+    table.dealerIndex = nextSeat(table, table.dealerIndex);
     dealRound(table);
     broadcastState(io, table);
     sendAllHands(io, table);
@@ -545,25 +630,31 @@ function createTable(io, players, betAmount, ratingAmount) {
     return table;
 }
 
-function createBotTable(io, requester, difficulty) {
+function createBotTable(io, requester, difficulty, variant = 'ihaleli') {
     const id = `bt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const v = normalizeVariant(variant);
+    const n = seatCountFor(v);
     const botLabel = `🤖 Bot (${BOT_NAMES[difficulty]})`;
+    const seats = Array.from({ length: n }, (_, seat) => {
+        if (seat === 0) {
+            return { seat, userId: requester.userId, username: requester.username, avatar: requester.avatar || null, socketId: requester.socket.id, connected: true, isBot: false, open: false };
+        }
+        return { seat, userId: null, username: botLabel, avatar: null, socketId: null, connected: true, isBot: true, difficulty, open: false };
+    });
     const table = {
         id,
         difficulty,
+        variant: v,
+        isTeamGame: v === 'esli_ihaleli',
         betAmount: 0,
         ratingAmount: 0,
-        leftEarly: [false, false, false, false],
-        seats: [
-            { seat: 0, userId: requester.userId, username: requester.username, avatar: requester.avatar || null, socketId: requester.socket.id, connected: true, isBot: false },
-            { seat: 1, userId: null, username: botLabel, avatar: null, socketId: null, connected: true, isBot: true, difficulty },
-            { seat: 2, userId: null, username: botLabel, avatar: null, socketId: null, connected: true, isBot: true, difficulty },
-            { seat: 3, userId: null, username: botLabel, avatar: null, socketId: null, connected: true, isBot: true, difficulty },
-        ],
+        leftEarly: Array(n).fill(false),
+        seats,
         dealerIndex: 0,
-        scores: [0, 0, 0, 0],
+        scores: Array(n).fill(0),
         roundNumber: 1,
-        hands: [[], [], [], []],
+        hands: Array.from({ length: n }, () => []),
+        gomme: [],
         phase: 'dealing',
         botTimer: null,
     };
@@ -599,27 +690,35 @@ function createPrivateTable(io, requester, betAmount, ratingAmount, ratingRangeM
     const id = `bt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     let code = genCode();
     while (codeToTableId.has(code)) code = genCode();
+    const v = normalizeVariant(variant);
+    const n = seatCountFor(v);
+    const seats = Array.from({ length: n }, (_, seat) => ({
+        seat,
+        userId: seat === 0 ? requester.userId : null,
+        username: seat === 0 ? requester.username : null,
+        avatar: seat === 0 ? (requester.avatar || null) : null,
+        socketId: seat === 0 ? requester.socket.id : null,
+        connected: seat === 0,
+        isBot: false,
+        open: seat !== 0,
+    }));
     const table = {
         id, code,
         betAmount: betAmount || 0,
         ratingAmount: ratingAmount || 0,
         ratingRangeMin: ratingRangeMin ?? null,
         ratingRangeMax: ratingRangeMax ?? null,
-        variant,
+        variant: v,
         listed: !!listed,
         spectatorOpen: !!spectatorOpen,
-        isTeamGame: variant === 'esli_ihaleli',
-        leftEarly: [false, false, false, false],
-        seats: [
-            { seat: 0, userId: requester.userId, username: requester.username, avatar: requester.avatar || null, socketId: requester.socket.id, connected: true, isBot: false, open: false },
-            { seat: 1, userId: null, username: null, avatar: null, socketId: null, connected: false, isBot: false, open: true },
-            { seat: 2, userId: null, username: null, avatar: null, socketId: null, connected: false, isBot: false, open: true },
-            { seat: 3, userId: null, username: null, avatar: null, socketId: null, connected: false, isBot: false, open: true },
-        ],
+        isTeamGame: v === 'esli_ihaleli',
+        leftEarly: Array(n).fill(false),
+        seats,
         dealerIndex: 0,
-        scores: [0, 0, 0, 0],
+        scores: Array(n).fill(0),
         roundNumber: 1,
-        hands: [[], [], [], []],
+        hands: Array.from({ length: n }, () => []),
+        gomme: [],
         phase: 'waiting',
         botTimer: null,
     };
@@ -739,13 +838,15 @@ export function registerBatakHandlers(io, socket) {
         tryMatch(io);
     });
 
-    socket.on('batak:playVsBots', async ({ difficulty } = {}) => {
+    socket.on('batak:playVsBots', async ({ difficulty, variant = 'ihaleli' } = {}) => {
         if (!verifiedUserId) return socket.emit('batak:error', { message: 'Oturum doğrulanamadı' });
         if (userTableMap.has(verifiedUserId)) return socket.emit('batak:error', { message: 'Zaten bir masadasın' });
         const interest = await getGameInterest(verifiedUserId);
         if (!interest) return socket.emit('batak:error', { code: 'ACTIVITY_REQUIRED', message: 'Bu oyunu oynamak için önce profilinden aktivite olarak eklemelisin.' });
         const diff = ['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium';
-        createBotTable(io, { userId: verifiedUserId, username, avatar, socket }, diff);
+        const v = normalizeVariant(variant);
+        if (!isValidVariant(v)) return socket.emit('batak:error', { message: 'Geçersiz oyun türü' });
+        createBotTable(io, { userId: verifiedUserId, username, avatar, socket }, diff, v);
     });
 
     socket.on('batak:cancelFindMatch', () => {
@@ -760,13 +861,14 @@ export function registerBatakHandlers(io, socket) {
         if (userTableMap.has(verifiedUserId) || isUserQueued(verifiedUserId)) return socket.emit('batak:error', { message: 'Zaten bir masadasın' });
         if (!isValidPrivateStake(betAmount, ratingAmount)) return socket.emit('batak:error', { message: 'Geçersiz bahis miktarı' });
         if (!isValidRatingRange(ratingRangeMin, ratingRangeMax)) return socket.emit('batak:error', { message: 'Geçersiz derece aralığı' });
-        if (!isValidVariant(variant)) return socket.emit('batak:error', { message: 'Geçersiz oyun türü' });
+        const v = normalizeVariant(variant);
+        if (!isValidVariant(v)) return socket.emit('batak:error', { message: 'Geçersiz oyun türü' });
         const interest = await getGameInterest(verifiedUserId);
         if (!interest) return socket.emit('batak:error', { code: 'ACTIVITY_REQUIRED', message: 'Bu oyunu oynamak için önce profilinden aktivite olarak eklemelisin.' });
         if (interest.walletPoints <= 0) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Puanın bitti, bahisli masalara giremezsin.' });
         if (interest.walletPoints < betAmount) return socket.emit('batak:error', { code: 'INSUFFICIENT_POINTS', message: 'Yetersiz puan bakiyesi.' });
         if (interest.skillRating < ratingAmount) return socket.emit('batak:error', { code: 'INSUFFICIENT_RATING', message: 'Yetersiz derece.' });
-        createPrivateTable(io, { userId: verifiedUserId, username, avatar, socket }, betAmount, ratingAmount, ratingRangeMin, ratingRangeMax, variant, listed, spectatorOpen);
+        createPrivateTable(io, { userId: verifiedUserId, username, avatar, socket }, betAmount, ratingAmount, ratingRangeMin, ratingRangeMax, v, listed, spectatorOpen);
     });
 
     socket.on('batak:joinByCode', async ({ code } = {}) => {
@@ -789,13 +891,15 @@ export function registerBatakHandlers(io, socket) {
     // olunur (canlı güncellenir), ID ile katılınır, seyirciye-açık masalar
     // izlenebilir (eller asla gönderilmez, publicState zaten seyirci-güvenli).
     socket.on('batak:listTables', ({ variant } = {}) => {
-        if (!isValidVariant(variant)) return socket.emit('batak:error', { message: 'Geçersiz oyun türü' });
-        socket.join(`batak-lobby:${variant}`);
-        socket.emit('batak:tableList', { variant, tables: listOpenListedTables(variant) });
+        const v = normalizeVariant(variant);
+        if (!isValidVariant(v)) return socket.emit('batak:error', { message: 'Geçersiz oyun türü' });
+        socket.join(`batak-lobby:${v}`);
+        socket.emit('batak:tableList', { variant: v, tables: listOpenListedTables(v) });
     });
 
     socket.on('batak:unsubscribeLobby', ({ variant } = {}) => {
-        if (isValidVariant(variant)) socket.leave(`batak-lobby:${variant}`);
+        const v = normalizeVariant(variant);
+        if (isValidVariant(v)) socket.leave(`batak-lobby:${v}`);
     });
 
     socket.on('batak:joinTable', async ({ tableId } = {}) => {
@@ -881,6 +985,13 @@ export function registerBatakHandlers(io, socket) {
         const seat = table?.seats.find(s => s.userId === verifiedUserId);
         if (!table || !seat) return;
         try { applyTrump(io, table, seat.seat, suit); } catch (e) { socket.emit('batak:error', { message: e.message }); }
+    });
+
+    socket.on('batak:discardGomme', ({ tableId, cards } = {}) => {
+        const table = tables.get(tableId);
+        const seat = table?.seats.find(s => s.userId === verifiedUserId);
+        if (!table || !seat) return;
+        try { applyDiscard(io, table, seat.seat, cards); } catch (e) { socket.emit('batak:error', { message: e.message }); }
     });
 
     socket.on('batak:playCard', ({ tableId, card } = {}) => {

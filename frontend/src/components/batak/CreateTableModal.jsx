@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getSocket } from '../../services/socket';
 
-const VARIANTS = ['ihaleli', 'esli_ihaleli', 'herkes_kendine', 'gomme'];
+const VARIANTS = ['ihaleli', 'esli_ihaleli', 'koz_maca', 'gomme'];
 const DIFFICULTIES = [['easy', 'Kolay'], ['medium', 'Orta'], ['hard', 'Zor']];
 
 // Adım adım (geri dönülebilir) masa kurma sihirbazı: varyant -> online/bot ->
@@ -37,7 +37,7 @@ export default function CreateTableModal({ interest, defaultVariant, onClose }) 
     const startVsBots = () => {
         const socket = getSocket();
         if (!socket) return setError('Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('batak:playVsBots', { difficulty });
+        socket.emit('batak:playVsBots', { difficulty, variant });
     };
 
     const createTable = () => {

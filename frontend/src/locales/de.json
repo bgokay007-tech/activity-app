@@ -1,4 +1,4 @@
-{
+﻿{
   "activity": {
     "title": "Aktivität",
     "city_ph": "Stadt",
@@ -956,6 +956,7 @@
       "ihaleli": "Auktions-Batak",
       "esli_ihaleli": "Paar-Auktions-Batak",
       "herkes_kendine": "Jeder für sich",
+      "koz_maca": "Pik-Trumpf-Batak",
       "gomme": "Vergrabenes Batak"
     },
     "step": {

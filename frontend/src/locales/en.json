@@ -1,4 +1,4 @@
-{
+﻿{
   "activity": {
     "title": "Activity",
     "city_ph": "City",
@@ -955,7 +955,7 @@
     "variant": {
       "ihaleli": "Auction Batak",
       "esli_ihaleli": "Paired Auction Batak",
-      "herkes_kendine": "Everyone For Themselves",
+      "koz_maca": "Spades Trump Batak",
       "gomme": "Buried Batak"
     },
     "step": {
