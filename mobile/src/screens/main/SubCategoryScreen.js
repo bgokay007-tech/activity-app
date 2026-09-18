@@ -25618,7 +25618,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 onLongPress={() => setCityPickerTab(tab)}
                 delayLongPress={400}
                 disabled={isLoading}
-                style={[{ minHeight: touchSize(40), minWidth: touchSize(36), paddingVertical: moderateScale(4), paddingHorizontal: moderateScale(6), borderRadius: moderateScale(8), backgroundColor: active ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: active ? cfg.color+'60' : '#ffffff20', alignItems:'center', justifyContent:'center' }, style]}
+                style={[{ minHeight: touchSize(40), minWidth: touchSize(32), paddingVertical: moderateScale(4), paddingHorizontal: 1, borderRadius: moderateScale(8), backgroundColor: active ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: active ? cfg.color+'60' : '#ffffff20', alignItems:'center', justifyContent:'center' }, style]}
             >
                 {isLoading
                     ? <ActivityIndicator size="small" color={cfg.color} style={{ width:18 }} />
@@ -25636,7 +25636,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     // ediliyor) bir arada gösteriliyor — spor dallarının hepsinde (rakip bul/ilan
     // ara/turnuva sekmeleri) CityAlertRow ortak kullanıldığı için değişiklik hepsine yansıyor.
     const CityAlertRow = ({ tab, children, dateFilter = false }) => (
-        <View style={{ flexDirection:'row', alignItems:'center', gap: moderateScale(6), marginBottom: moderateScale(10), flexWrap:'wrap' }}>
+        <View style={{ flexDirection:'row', alignItems:'center', gap: 4, marginBottom: moderateScale(10), flexWrap:'nowrap' }}>
             {children}
             <CityAlertBtn tab={tab} />
             {dateFilter ? (() => {
@@ -25644,9 +25644,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                 return (
                 <TouchableOpacity
                     onPress={() => setShowFilterModal(true)}
-                    style={{ flexDirection:'row', alignItems:'center', gap: moderateScale(4), minHeight: touchSize(40), backgroundColor: hasActiveFilter ? cfg.color+'25' : colors.surface2, borderRadius: moderateScale(10), paddingHorizontal: moderateScale(10), borderWidth:1, borderColor: hasActiveFilter ? cfg.color : colors.border }}
+                    style={{ flexDirection:'row', alignItems:'center', gap: 2, flexShrink:1, minHeight: touchSize(40), backgroundColor: hasActiveFilter ? cfg.color+'25' : colors.surface2, borderRadius: moderateScale(10), paddingHorizontal: 1, borderWidth:1, borderColor: hasActiveFilter ? cfg.color : colors.border }}
                 >
-                    <Text style={{ color: hasActiveFilter ? cfg.color : colors.textMuted, fontSize: moderateScale(13), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                    <Text style={{ color: hasActiveFilter ? cfg.color : colors.textMuted, fontSize: moderateScale(13), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                         🔍 {filterSummaryLabel()}
                     </Text>
                     <Text style={{ color: colors.textMuted, fontSize: moderateScale(12) }}>▾</Text>
@@ -25655,9 +25655,9 @@ export default function SubCategoryScreen({ route, navigation }) {
             })() : (
                 <TouchableOpacity
                     onPress={() => setShowCityFilter(true)}
-                    style={{ flexDirection:'row', alignItems:'center', gap: moderateScale(4), minHeight: touchSize(40), backgroundColor:colors.surface2, borderRadius: moderateScale(10), paddingHorizontal: moderateScale(10), borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
+                    style={{ flexDirection:'row', alignItems:'center', gap: 2, flexShrink:1, minHeight: touchSize(40), backgroundColor:colors.surface2, borderRadius: moderateScale(10), paddingHorizontal: 1, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
                 >
-                    <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize: moderateScale(13), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                    <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize: moderateScale(13), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                         {filterCity ? filterCity : '📍 İl'}
                     </Text>
                     {filterCity
@@ -31199,10 +31199,10 @@ const s = StyleSheet.create({
     listGridCell:     { width:'50%', maxWidth:'50%', flexGrow:0, flexShrink:0, paddingHorizontal: moderateScale(4), paddingBottom: moderateScale(10) },
     sectionTitle:     { color: colors.textSecondary, fontSize: moderateScale(14), fontWeight:'800', marginTop: moderateScale(6), marginBottom: moderateScale(6) },
 
-    createBtn:        { flexGrow:1, flexBasis: moderateScale(140), minWidth: moderateScale(130), backgroundColor: colors.surface, borderRadius: moderateScale(12), minHeight: touchSize(44), justifyContent:'center', paddingHorizontal: moderateScale(12), alignItems:'center', borderWidth:1, borderStyle:'dashed' },
+    createBtn:        { flexShrink:1, backgroundColor: colors.surface, borderRadius: moderateScale(12), minHeight: touchSize(44), justifyContent:'center', paddingHorizontal: 1, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
     createBtnText:    { fontWeight:'700', fontSize: moderateScale(15) },
 
-    courtResBtn:      { flexGrow:1, flexBasis: moderateScale(140), minWidth: moderateScale(130), backgroundColor: '#9333ea20', borderRadius: moderateScale(12), minHeight: touchSize(44), justifyContent:'center', paddingHorizontal: moderateScale(12), alignItems:'center', borderWidth:1, borderColor: '#9333ea50' },
+    courtResBtn:      { flexShrink:1, backgroundColor: '#9333ea20', borderRadius: moderateScale(12), minHeight: touchSize(44), justifyContent:'center', paddingHorizontal: 1, alignItems:'center', borderWidth:1, borderColor: '#9333ea50' },
     courtResBtnText:  { color: '#a855f7', fontWeight:'800', fontSize: moderateScale(14) },
 
     filterBox:        { backgroundColor: colors.surface, borderRadius: moderateScale(12), padding: moderateScale(8), borderWidth:1, borderColor: colors.border, gap: moderateScale(6) },
