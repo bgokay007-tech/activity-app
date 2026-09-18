@@ -25635,7 +25635,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     // butonuna toplanıp tıklanınca açılan tek bir modalda (FilterModal, aşağıda render
     // ediliyor) bir arada gösteriliyor — spor dallarının hepsinde (rakip bul/ilan
     // ara/turnuva sekmeleri) CityAlertRow ortak kullanıldığı için değişiklik hepsine yansıyor.
-    const CityAlertRow = ({ tab, children, dateFilter = false }) => (
+    const CityAlertRow = ({ tab, children, dateFilter = false, endChildren = null }) => (
         <View style={{ flexDirection:'row', alignItems:'center', gap: 4, marginBottom: moderateScale(10), flexWrap:'nowrap' }}>
             {children}
             <CityAlertBtn tab={tab} />
@@ -25668,6 +25668,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     }
                 </TouchableOpacity>
             )}
+            {endChildren}
         </View>
     );
 
@@ -26460,10 +26461,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                     {activeTab === 'tournaments' && (() => {
                         const inProgress = filteredTournaments.filter(t => t.status === 'IN_PROGRESS');
                         // Anket aşamasındaki turnuvalar (status=POLL) ayrı bir sekmede değil,
-                        // doğrudan Açık İlanlar içinde gösterilir — kart üzerindeki oylama
+                        // doğrudan açık listede gösterilir — kart üzerindeki oylama
                         // paneli zaten status'e göre kendini gösteriyor.
                         const open = filteredTournaments.filter(t => t.status === 'OPEN' || t.status === 'POLL');
-                        const shown = tournSubTab === 'open' ? open : inProgress;
+                        const shown = tournSubTab === 'inprogress' ? inProgress : open;
                         const renderCard = (item) => (
                             <TournamentCard
                                 key={item.id}
@@ -26486,34 +26487,36 @@ export default function SubCategoryScreen({ route, navigation }) {
                         );
                         return (
                             <>
-                                {/* Sub-tab üstte: Açık İlanlar / Devam Eden */}
-                                <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
-                                    {[
-                                        { key:'open',       label: t.tournOpenTab,       count: open.length },
-                                        { key:'inprogress', label: t.tournInProgressTab, count: inProgress.length },
-                                    ].map(st => (
-                                        <TouchableOpacity key={st.key} onPress={() => setTournSubTab(st.key)}
-                                            style={{ flex:1, paddingVertical:4, borderRadius:8, alignItems:'center', backgroundColor: tournSubTab===st.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: tournSubTab===st.key ? cfg.color : colors.border }}>
-                                            <Text style={{ color: tournSubTab===st.key ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'800' }}>
-                                                {st.label}{st.count > 0 ? `  ${st.count}` : ''}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-
-                                {/* Turnuva oluştur + zil + filtre — yalnızca Açık İlanlar'da oluştur butonu */}
+                                {/* Tek satır: Turnuva oluştur + zil + filtre + Devam Eden.
+                                    Açık turnuvalar varsayılan listede; ayrı "Açık İlanlar" sekmesi yok. */}
                                 <CityAlertRow tab="tournaments" dateFilter>
-                                    {tournSubTab === 'open' ? (
-                                        <TouchableOpacity
-                                            style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
-                                            onPress={() => {
-                                                if (myIsAdmin || tournamentPermStatus === 'APPROVED') setShowCreateTournament(true);
-                                                else setShowTournamentPermission(true);
-                                            }}
-                                        >
-                                            <Text style={[s.createBtnText, { color: cfg.color }]}>{t.createTournamentBtn}</Text>
-                                        </TouchableOpacity>
-                                    ) : null}
+                                    <TouchableOpacity
+                                        style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
+                                        onPress={() => {
+                                            if (myIsAdmin || tournamentPermStatus === 'APPROVED') setShowCreateTournament(true);
+                                            else setShowTournamentPermission(true);
+                                        }}
+                                    >
+                                        <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.createTournamentBtn}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => setTournSubTab(prev => prev === 'inprogress' ? 'open' : 'inprogress')}
+                                        style={{
+                                            flexShrink: 1,
+                                            minHeight: 40,
+                                            paddingHorizontal: 3,
+                                            borderRadius: 8,
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            backgroundColor: tournSubTab === 'inprogress' ? cfg.color : colors.surface2,
+                                            borderWidth: 1,
+                                            borderColor: tournSubTab === 'inprogress' ? cfg.color : colors.border,
+                                        }}
+                                    >
+                                        <Text style={{ color: tournSubTab === 'inprogress' ? '#fff' : colors.textMuted, fontSize: moderateScale(12), fontWeight: '800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                            {t.tournInProgressTab}{inProgress.length > 0 ? ` ${inProgress.length}` : ''}
+                                        </Text>
+                                    </TouchableOpacity>
                                 </CityAlertRow>
 
                                 {(loadingTournaments && tournaments.length === 0)
@@ -26521,7 +26524,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : (<>
                                         {shown.map(renderCard)}
                                         {shown.length === 0 && (
-                                            <EmptyState emoji="🏆" text={tournSubTab === 'open' ? t.emptyTournOpen : t.emptyTournInProgress} />
+                                            <EmptyState emoji="🏆" text={tournSubTab === 'inprogress' ? t.emptyTournInProgress : t.emptyTournOpen} />
                                         )}
                                     </>)
                                 }
