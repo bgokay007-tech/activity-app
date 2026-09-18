@@ -112,9 +112,10 @@ purple #9333ea (birincil aksan) · green · yellow · red · blue
 Mevcut kodda `#fff`, `#f87171` gibi doğrudan hex'ler de var; yeni kodda paletteki karşılığı
 varsa onu kullan.
 
-`theme/scale.js` (`scale`, `verticalScale`, `moderateScale`) sadece birkaç ekranda
-(Trail ekranları, SubCategoryScreen) kullanılıyor. Yeni ekranda zorunlu değil — çevresindeki
-dosya ne yapıyorsa ona uy.
+`theme/scale.js` (`scale`, `verticalScale`, `moderateScale`, `touchSize`) — büyük telefonlarda
+yazı/butonların 375 tasarımına sıkışmaması için SubCategoryScreen StyleSheet’i bunlarla
+ölçeklenir. `moderateScale` varsayılan faktör 0.72 + geniş ekranda (~390+) hafif boost;
+dokunma hedefleri için `touchSize` (≥44). Yeni UI’da sabit 11–12px / height:30 yazma.
 
 ## API çağrıları
 

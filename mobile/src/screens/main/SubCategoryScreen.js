@@ -26,7 +26,7 @@ import api from '../../services/api';
 import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
-import { moderateScale } from '../../theme/scale';
+import { moderateScale, touchSize } from '../../theme/scale';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
@@ -4880,18 +4880,18 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         // Tek View hücre — Fragment + Modal kardeşleri flexWrap satırına karışınca
         // sonraki bölümdeki (Skor Bekleyen) kartların üstüne biniyordu.
         <View style={s.listGridCell} collapsable={false}>
-        <Animated.View style={[s.card, { width: '100%', borderRadius: twoCol ? moderateScale(14) : (NEW_VISUAL ? 24 : moderateScale(14)), paddingHorizontal: twoCol ? 1 : (NEW_VISUAL ? 12 : 0), paddingTop: twoCol ? 1 : (NEW_VISUAL ? 12 : 0), paddingBottom: twoCol ? 1 : (NEW_VISUAL ? 10 : 0), minHeight: NEW_VISUAL ? undefined : moderateScale(230), borderWidth: NEW_VISUAL ? 0 : 1 }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
+        <Animated.View style={[s.card, { width: '100%', borderRadius: twoCol ? moderateScale(14) : (NEW_VISUAL ? 24 : moderateScale(14)), paddingHorizontal: twoCol ? moderateScale(8) : (NEW_VISUAL ? 12 : 0), paddingTop: twoCol ? moderateScale(8) : (NEW_VISUAL ? 12 : 0), paddingBottom: twoCol ? moderateScale(8) : (NEW_VISUAL ? 10 : 0), minHeight: NEW_VISUAL ? undefined : moderateScale(230), borderWidth: NEW_VISUAL ? 0 : 1 }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
             {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (ilan detayını açmaz). */}
             <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                style={{ position:'absolute', top:6, right:6, zIndex:10, backgroundColor:'#00000060', borderRadius:12, width:22, height:22, alignItems:'center', justifyContent:'center' }}>
-                <Text style={{ fontSize:12 }}>🔄</Text>
+                style={{ position:'absolute', top: moderateScale(6), right: moderateScale(6), zIndex:10, backgroundColor:'#00000060', borderRadius: moderateScale(12), width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
+                <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
             </TouchableOpacity>
             {cardFlipped ? (
                 // Kullanıcı isteği: arka yüzden (oyuncu listesi) de dokununca ilan detayı açılsın —
                 // önceden sadece ön yüz açıyordu, arka yüzde dokunmanın hiçbir etkisi yoktu. İçindeki
                 // "istek"/"Sipariş Ver" gibi kendi onPress'i olan öğeler yine kendi işlevini korur.
-                <TouchableOpacity activeOpacity={0.85} style={{ padding: twoCol ? 1 : moderateScale(9), flex:1 }} onPress={() => setDetailVisible(true)}>
-                    <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'800', marginBottom:8 }}>👥 {t.rosterPoolLabel}</Text>
+                <TouchableOpacity activeOpacity={0.85} style={{ padding: twoCol ? moderateScale(4) : moderateScale(9), flex:1 }} onPress={() => setDetailVisible(true)}>
+                    <Text style={{ color:'#fff', fontSize:moderateScale(13), fontWeight:'800', marginBottom:8 }}>👥 {t.rosterPoolLabel}</Text>
                     {(cardFounderTeamAvg != null || cardOppTeamAvg != null) && (
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6, gap:6 }}>
                             {cardFounderTeamAvg != null && (
@@ -4950,13 +4950,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)} style={{ flex:1 }}>
 
                 {/* Avatar + isim/puan + mod/format */}
-                <View style={{ flexDirection:'row', alignItems:'flex-start', gap: twoCol ? 1 : (NEW_VISUAL ? 10 : 3), marginBottom: twoCol ? 1 : (NEW_VISUAL ? 8 : 3) }}>
-                    <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={twoCol ? moderateScale(34) : (NEW_VISUAL ? 52 : moderateScale(34))} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
+                <View style={{ flexDirection:'row', alignItems:'flex-start', gap: twoCol ? moderateScale(6) : (NEW_VISUAL ? 10 : 3), marginBottom: twoCol ? moderateScale(6) : (NEW_VISUAL ? 8 : 3) }}>
+                    <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={twoCol ? moderateScale(42) : (NEW_VISUAL ? 52 : moderateScale(34))} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
                     <View style={{ flex:1, minWidth:0 }}>
                         <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                            <Text style={[s.cardName, { fontSize: twoCol ? moderateScale(13) : (NEW_VISUAL ? 16 : moderateScale(13)), flexShrink:1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(item.sender)}</Text>
+                            <Text style={[s.cardName, { fontSize: twoCol ? moderateScale(14) : (NEW_VISUAL ? 16 : moderateScale(13)), flexShrink:1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(item.sender)}</Text>
                             {item.sender?.interests?.[0]?.assessmentCompleted && (
-                                <Text style={[s.ratingText, { color: cfg.color, fontSize: moderateScale(10) }]}>
+                                <Text style={[s.ratingText, { color: cfg.color, fontSize: moderateScale(12) }]}>
                                     {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
                                 </Text>
                             )}
@@ -4964,8 +4964,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         {/* Mod + 1v1/2v2 — fotoğrafın sağına, isimle aynı hizada */}
                         <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginTop:3, flexWrap:'wrap' }}>
                             <ModeBadge mode={item.matchMode} noEmoji={isVolleyball} />
-                            <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal:0, paddingVertical:0 }]}>
-                                <Text style={[s.modeBadgeText, { color: cfg.color, fontSize: moderateScale(10) }]}>
+                            <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }]}>
+                                <Text style={[s.modeBadgeText, { color: cfg.color, fontSize: moderateScale(11) }]}>
                                     {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
                                 </Text>
                             </View>
@@ -5177,19 +5177,19 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 Slot/pozisyon gereken ilanlarda detay veya mevcut picker açılır; düz katılımda doğrudan istek. */}
             <View>
                 {NEW_VISUAL && !isOwner && item.senderId && item.senderId !== myId && !mySentReq && !myInvite && !isFull ? (
-                    <View style={{ flexDirection: 'row', gap: twoCol ? 4 : 8, marginTop: twoCol ? 1 : 8 }}>
+                    <View style={{ flexDirection: 'row', gap: twoCol ? moderateScale(6) : 8, marginTop: twoCol ? moderateScale(8) : 8 }}>
                         <TouchableOpacity
-                            style={{ flex: 1, backgroundColor: colors.purple, borderRadius: twoCol ? 10 : 14, paddingVertical: twoCol ? 6 : 11, alignItems: 'center', paddingHorizontal: 4 }}
+                            style={{ flex: 1, backgroundColor: colors.purple, borderRadius: moderateScale(12), minHeight: touchSize(40), paddingVertical: moderateScale(10), alignItems: 'center', justifyContent: 'center', paddingHorizontal: moderateScale(6) }}
                             onPress={() => navigation.navigate('MessagesTab', {
                                 screen: 'Chat',
                                 params: { other: { id: item.senderId, username: item.sender?.username, fullName: item.sender?.fullName }, conversation: { id: null, _userId: item.senderId } },
                             })}
                         >
-                            <Text style={{ color: colors.ctaText, fontSize: twoCol ? 11 : 14, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.messageCtaShort}</Text>
+                            <Text style={{ color: colors.ctaText, fontSize: moderateScale(13), fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.messageCtaShort}</Text>
                         </TouchableOpacity>
                         {!isLinkedMatchPlayer && (
                             <TouchableOpacity
-                                style={{ flex: 1, backgroundColor: cfg.color, borderRadius: twoCol ? 10 : 14, paddingVertical: twoCol ? 6 : 11, alignItems: 'center', paddingHorizontal: 4 }}
+                                style={{ flex: 1, backgroundColor: cfg.color, borderRadius: moderateScale(12), minHeight: touchSize(40), paddingVertical: moderateScale(10), alignItems: 'center', justifyContent: 'center', paddingHorizontal: moderateScale(6) }}
                                 onPress={() => {
                                     if (Array.isArray(item.positions) && item.positions.includes('REFEREE')) {
                                         setDetailVisible(true);
@@ -5204,7 +5204,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                     handleJoinPress();
                                 }}
                             >
-                                <Text style={{ color: '#fff', fontSize: twoCol ? 11 : 14, fontWeight: '700' }} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.65} textAlign="center">{t.joinRequestCtaShort}</Text>
+                                <Text style={{ color: '#fff', fontSize: moderateScale(13), fontWeight: '700' }} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.65} textAlign="center">{t.joinRequestCtaShort}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -25618,13 +25618,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                 onLongPress={() => setCityPickerTab(tab)}
                 delayLongPress={400}
                 disabled={isLoading}
-                style={[{ height:30, paddingVertical:0, paddingHorizontal:2, borderRadius:6, backgroundColor: active ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: active ? cfg.color+'60' : '#ffffff20', alignItems:'center', justifyContent:'center' }, style]}
+                style={[{ minHeight: touchSize(40), minWidth: touchSize(36), paddingVertical: moderateScale(4), paddingHorizontal: moderateScale(6), borderRadius: moderateScale(8), backgroundColor: active ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: active ? cfg.color+'60' : '#ffffff20', alignItems:'center', justifyContent:'center' }, style]}
             >
                 {isLoading
                     ? <ActivityIndicator size="small" color={cfg.color} style={{ width:18 }} />
                     : <>
-                        <Text style={{ fontSize:11 }}>{active ? '🔔' : '🔕'}</Text>
-                        {active && <Text style={{ color:cfg.color, fontSize:8, fontWeight:'800' }}>{t.cityBellCount(cities.length)}</Text>}
+                        <Text style={{ fontSize: moderateScale(14) }}>{active ? '🔔' : '🔕'}</Text>
+                        {active && <Text style={{ color:cfg.color, fontSize: moderateScale(10), fontWeight:'800' }}>{t.cityBellCount(cities.length)}</Text>}
                       </>
                 }
             </TouchableOpacity>
@@ -25636,7 +25636,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     // ediliyor) bir arada gösteriliyor — spor dallarının hepsinde (rakip bul/ilan
     // ara/turnuva sekmeleri) CityAlertRow ortak kullanıldığı için değişiklik hepsine yansıyor.
     const CityAlertRow = ({ tab, children, dateFilter = false }) => (
-        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8, flexWrap:'wrap' }}>
+        <View style={{ flexDirection:'row', alignItems:'center', gap: moderateScale(6), marginBottom: moderateScale(10), flexWrap:'wrap' }}>
             {children}
             <CityAlertBtn tab={tab} />
             {dateFilter ? (() => {
@@ -25644,27 +25644,27 @@ export default function SubCategoryScreen({ route, navigation }) {
                 return (
                 <TouchableOpacity
                     onPress={() => setShowFilterModal(true)}
-                    style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, backgroundColor: hasActiveFilter ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:5, borderWidth:1, borderColor: hasActiveFilter ? cfg.color : colors.border }}
+                    style={{ flexDirection:'row', alignItems:'center', gap: moderateScale(4), minHeight: touchSize(40), backgroundColor: hasActiveFilter ? cfg.color+'25' : colors.surface2, borderRadius: moderateScale(10), paddingHorizontal: moderateScale(10), borderWidth:1, borderColor: hasActiveFilter ? cfg.color : colors.border }}
                 >
-                    <Text style={{ color: hasActiveFilter ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                    <Text style={{ color: hasActiveFilter ? cfg.color : colors.textMuted, fontSize: moderateScale(13), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         🔍 {filterSummaryLabel()}
                     </Text>
-                    <Text style={{ color: colors.textMuted, fontSize:10 }}>▾</Text>
+                    <Text style={{ color: colors.textMuted, fontSize: moderateScale(12) }}>▾</Text>
                 </TouchableOpacity>
                 );
             })() : (
                 <TouchableOpacity
                     onPress={() => setShowCityFilter(true)}
-                    style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, backgroundColor:colors.surface2, borderRadius:7, paddingHorizontal:5, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
+                    style={{ flexDirection:'row', alignItems:'center', gap: moderateScale(4), minHeight: touchSize(40), backgroundColor:colors.surface2, borderRadius: moderateScale(10), paddingHorizontal: moderateScale(10), borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
                 >
-                    <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                    <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize: moderateScale(13), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         {filterCity ? filterCity : '📍 İl'}
                     </Text>
                     {filterCity
                         ? <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); setFilterCity(''); }} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
-                            <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
+                            <Text style={{ color: colors.textMuted, fontSize: moderateScale(13) }}>✕</Text>
                           </TouchableOpacity>
-                        : <Text style={{ color:colors.textMuted, fontSize:10 }}>▾</Text>
+                        : <Text style={{ color:colors.textMuted, fontSize: moderateScale(12) }}>▾</Text>
                     }
                 </TouchableOpacity>
             )}
@@ -26210,35 +26210,35 @@ export default function SubCategoryScreen({ route, navigation }) {
 
             {/* Header */}
             <View style={s.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()}>
+                <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                     <Text style={[s.back, { color: cfg.color }]}>{t.back}</Text>
                 </TouchableOpacity>
                 {sub === 'padel' ? (
-                    <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:6 }}>
-                        <Image source={require('../../../assets/padel.png')} style={{ width:26, height:26 }} resizeMode="contain" />
+                    <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap: moderateScale(6) }}>
+                        <Image source={require('../../../assets/padel.png')} style={{ width: moderateScale(28), height: moderateScale(28) }} resizeMode="contain" />
                         <Text style={s.title}>{sportDisplayName}</Text>
                     </View>
                 ) : (
                     <Text style={s.title}>{cfg.emoji} {sportDisplayName}</Text>
                 )}
                 {(sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'volleyball') ? (
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap: moderateScale(6) }}>
                         {/* Kullanıcı isteği: sıralama şu düzende olsun — kupa (sıralama), digimon
                             kart (günün yıldızı), kortlar/salonlar, en sonda bilgilendirme (ℹ️). */}
-                        <TouchableOpacity onPress={() => setShowLeaderboard(true)}>
-                            <Text style={{ fontSize:19 }}>🏆</Text>
+                        <TouchableOpacity onPress={() => setShowLeaderboard(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Text style={{ fontSize: moderateScale(22) }}>🏆</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setShowSpotlight(true)}>
-                            <Text style={{ fontSize:21 }}>🃏</Text>
+                        <TouchableOpacity onPress={() => setShowSpotlight(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Text style={{ fontSize: moderateScale(24) }}>🃏</Text>
                         </TouchableOpacity>
                         {/* Kullanıcı isteği: voleybolde de kortlar butonu görünsün, sadece etiketi
                             "Salonlar" olsun (kort değil salon aranıyor). */}
                         <TouchableOpacity onPress={() => setShowVenuesSheet(true)}
-                            style={{ paddingHorizontal:7, paddingVertical:4, borderRadius:9, backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
-                            <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{sub === 'volleyball' ? (lang === 'tr' ? 'Salonlar' : lang === 'ru' ? 'Залы' : lang === 'de' ? 'Hallen' : 'Halls') : (lang === 'tr' ? 'Kortlar' : lang === 'ru' ? 'Корты' : lang === 'de' ? 'Plätze' : 'Courts')}</Text>
+                            style={{ paddingHorizontal: moderateScale(10), paddingVertical: moderateScale(7), minHeight: touchSize(36), justifyContent: 'center', borderRadius: moderateScale(10), backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
+                            <Text style={{ color:'#c084fc', fontSize: moderateScale(13), fontWeight:'800' }}>{sub === 'volleyball' ? (lang === 'tr' ? 'Salonlar' : lang === 'ru' ? 'Залы' : lang === 'de' ? 'Hallen' : 'Halls') : (lang === 'tr' ? 'Kortlar' : lang === 'ru' ? 'Корты' : lang === 'de' ? 'Plätze' : 'Courts')}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setShowRatingInfo(true)}>
-                            <Text style={{ fontSize:19 }}>ℹ️</Text>
+                        <TouchableOpacity onPress={() => setShowRatingInfo(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Text style={{ fontSize: moderateScale(22) }}>ℹ️</Text>
                         </TouchableOpacity>
                     </View>
                 ) : (
@@ -26246,8 +26246,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                         olmayan spor dallarında da tek başına sağ üstte görünmeye devam ediyor —
                         algoritma/veri tenisle birebir aynı (bkz. TennisSpotlightModal, backend
                         spotlight.controller.js zaten subCategory'ye göre generic çalışıyor). */
-                    <TouchableOpacity onPress={() => setShowSpotlight(true)}>
-                        <Text style={{ fontSize:21 }}>🃏</Text>
+                    <TouchableOpacity onPress={() => setShowSpotlight(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Text style={{ fontSize: moderateScale(24) }}>🃏</Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -31180,178 +31180,178 @@ export default function SubCategoryScreen({ route, navigation }) {
 
 const s = StyleSheet.create({
     container:        { flex:1, backgroundColor: colors.bg },
-    header:           { flexDirection:'row', alignItems:'center', paddingHorizontal:17, marginBottom:4, gap:3 },
-    back:             { fontSize:15, fontWeight:'700' },
-    title:            { color:'#fff', fontSize:20, fontWeight:'900', flex:1 },
+    header:           { flexDirection:'row', alignItems:'center', paddingHorizontal: moderateScale(16), marginBottom: moderateScale(6), gap: moderateScale(6) },
+    back:             { fontSize: moderateScale(16), fontWeight:'700' },
+    title:            { color:'#fff', fontSize: moderateScale(22), fontWeight:'900', flex:1 },
 
-    tabBar:           { flexGrow:0, marginBottom:3 },
-    tabBarInner:      { paddingHorizontal:13, gap:2 },
-    tabBarInnerCompact:{ paddingHorizontal:16, gap:2, paddingBottom:2 },
-    tab:              { paddingHorizontal:11, paddingTop:4, paddingBottom:8, borderRadius:20, backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
-    tabCompact:       { paddingHorizontal:9, paddingTop:3, paddingBottom:5, borderRadius:14, height:30 },
-    tabText:          { color: colors.textSecondary, fontSize:12, fontWeight:'700', lineHeight:20, includeFontPadding: false },
-    tabTextCompact:   { fontSize:11, lineHeight:16 },
+    tabBar:           { flexGrow:0, marginBottom: moderateScale(4) },
+    tabBarInner:      { paddingHorizontal: moderateScale(12), gap: moderateScale(6) },
+    tabBarInnerCompact:{ paddingHorizontal: moderateScale(14), gap: moderateScale(6), paddingBottom: moderateScale(4) },
+    tab:              { paddingHorizontal: moderateScale(14), paddingTop: moderateScale(8), paddingBottom: moderateScale(10), minHeight: touchSize(40), borderRadius: moderateScale(20), backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
+    tabCompact:       { paddingHorizontal: moderateScale(12), paddingTop: moderateScale(7), paddingBottom: moderateScale(8), borderRadius: moderateScale(16), minHeight: touchSize(38) },
+    tabText:          { color: colors.textSecondary, fontSize: moderateScale(14), fontWeight:'700', lineHeight: moderateScale(20), includeFontPadding: false },
+    tabTextCompact:   { fontSize: moderateScale(13), lineHeight: moderateScale(18) },
     tabTextActive:    { color:'#fff' },
 
-    list:             { paddingHorizontal:1, gap:3, paddingBottom:57 },
+    list:             { paddingHorizontal: moderateScale(4), gap: moderateScale(6), paddingBottom: moderateScale(64) },
     // gap + %50 hücre Android Yoga'da sığmaz, sonraki satır Skor Bekleyen'in üstüne biner.
     listGrid:         { flexDirection:'row', flexWrap:'wrap', alignItems:'flex-start', alignContent:'flex-start' },
-    listGridCell:     { width:'50%', maxWidth:'50%', flexGrow:0, flexShrink:0, paddingHorizontal:2, paddingBottom:8 },
-    sectionTitle:     { color: colors.textSecondary, fontSize:12, fontWeight:'800', marginTop:4, marginBottom:4 },
+    listGridCell:     { width:'50%', maxWidth:'50%', flexGrow:0, flexShrink:0, paddingHorizontal: moderateScale(4), paddingBottom: moderateScale(10) },
+    sectionTitle:     { color: colors.textSecondary, fontSize: moderateScale(14), fontWeight:'800', marginTop: moderateScale(6), marginBottom: moderateScale(6) },
 
-    createBtn:        { backgroundColor: colors.surface, borderRadius:10, height:30, justifyContent:'center', paddingHorizontal:7, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
-    createBtnText:    { fontWeight:'700', fontSize:14 },
+    createBtn:        { flexGrow:1, flexBasis: moderateScale(140), minWidth: moderateScale(130), backgroundColor: colors.surface, borderRadius: moderateScale(12), minHeight: touchSize(44), justifyContent:'center', paddingHorizontal: moderateScale(12), alignItems:'center', borderWidth:1, borderStyle:'dashed' },
+    createBtnText:    { fontWeight:'700', fontSize: moderateScale(15) },
 
-    courtResBtn:      { backgroundColor: '#9333ea20', borderRadius:10, height:30, justifyContent:'center', paddingHorizontal:7, alignItems:'center', borderWidth:1, borderColor: '#9333ea50' },
-    courtResBtnText:  { color: '#a855f7', fontWeight:'800', fontSize:12 },
+    courtResBtn:      { flexGrow:1, flexBasis: moderateScale(140), minWidth: moderateScale(130), backgroundColor: '#9333ea20', borderRadius: moderateScale(12), minHeight: touchSize(44), justifyContent:'center', paddingHorizontal: moderateScale(12), alignItems:'center', borderWidth:1, borderColor: '#9333ea50' },
+    courtResBtnText:  { color: '#a855f7', fontWeight:'800', fontSize: moderateScale(14) },
 
-    filterBox:        { backgroundColor: colors.surface, borderRadius:12, padding:5, borderWidth:1, borderColor: colors.border, gap:3 },
-    filterInputRow:   { flexDirection:'row', gap:3, alignItems:'center' },
-    filterInput:      { flex:1, backgroundColor: colors.surface2, color:'#fff', borderRadius:8, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor: colors.border, fontSize:12 },
-    nearBtn:          { backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:6, paddingVertical:3, borderWidth:1, borderColor: colors.border, justifyContent:'center' },
-    nearBtnText:      { fontSize:11, fontWeight:'700' },
-    dateChips:        { flexDirection:'row', gap:3, flexWrap:'wrap' },
-    dateChip:         { paddingHorizontal:6, paddingVertical:1, borderRadius:8, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
-    dateChipText:     { color: colors.textSecondary, fontSize:11, fontWeight:'700' },
-    clearChip:        { paddingHorizontal:6, paddingVertical:1, borderRadius:8, backgroundColor:'#dc262620', borderWidth:1, borderColor:'#dc262640' },
-    clearChipText:    { color:'#f87171', fontSize:11, fontWeight:'700' },
+    filterBox:        { backgroundColor: colors.surface, borderRadius: moderateScale(12), padding: moderateScale(8), borderWidth:1, borderColor: colors.border, gap: moderateScale(6) },
+    filterInputRow:   { flexDirection:'row', gap: moderateScale(6), alignItems:'center' },
+    filterInput:      { flex:1, backgroundColor: colors.surface2, color:'#fff', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(10), paddingVertical: moderateScale(8), borderWidth:1, borderColor: colors.border, fontSize: moderateScale(14) },
+    nearBtn:          { backgroundColor: colors.surface2, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(10), paddingVertical: moderateScale(8), borderWidth:1, borderColor: colors.border, justifyContent:'center', minHeight: touchSize(40) },
+    nearBtnText:      { fontSize: moderateScale(13), fontWeight:'700' },
+    dateChips:        { flexDirection:'row', gap: moderateScale(6), flexWrap:'wrap' },
+    dateChip:         { paddingHorizontal: moderateScale(10), paddingVertical: moderateScale(6), borderRadius: moderateScale(8), backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    dateChipText:     { color: colors.textSecondary, fontSize: moderateScale(13), fontWeight:'700' },
+    clearChip:        { paddingHorizontal: moderateScale(10), paddingVertical: moderateScale(6), borderRadius: moderateScale(8), backgroundColor:'#dc262620', borderWidth:1, borderColor:'#dc262640' },
+    clearChipText:    { color:'#f87171', fontSize: moderateScale(13), fontWeight:'700' },
 
-    empty:            { alignItems:'center', paddingTop:57, paddingBottom:37 },
-    emptyEmoji:       { fontSize:48, marginBottom:12 },
-    emptyText:        { color: colors.textSecondary, fontSize:15, fontWeight:'600' },
-    emptyBtn:         { marginTop:16, backgroundColor: colors.purple, borderRadius:12, paddingHorizontal:17, paddingVertical:7 },
-    emptyBtnText:     { color: colors.ctaText, fontWeight:'700' },
+    empty:            { alignItems:'center', paddingTop: moderateScale(56), paddingBottom: moderateScale(40) },
+    emptyEmoji:       { fontSize: moderateScale(48), marginBottom: moderateScale(12) },
+    emptyText:        { color: colors.textSecondary, fontSize: moderateScale(16), fontWeight:'600' },
+    emptyBtn:         { marginTop: moderateScale(16), backgroundColor: colors.purple, borderRadius: moderateScale(12), paddingHorizontal: moderateScale(18), paddingVertical: moderateScale(12), minHeight: touchSize(44), justifyContent:'center' },
+    emptyBtnText:     { color: colors.ctaText, fontWeight:'700', fontSize: moderateScale(15) },
 
-    card:             { backgroundColor: colors.surface, borderRadius:14, paddingHorizontal:7, paddingTop:5, paddingBottom:5, borderWidth:1, borderColor: colors.border, overflow:'hidden' },
-    cardHeader:       { flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:2 },
+    card:             { backgroundColor: colors.surface, borderRadius: moderateScale(14), paddingHorizontal: moderateScale(10), paddingTop: moderateScale(8), paddingBottom: moderateScale(8), borderWidth:1, borderColor: colors.border, overflow:'hidden' },
+    cardHeader:       { flexDirection:'row', alignItems:'flex-start', gap: moderateScale(6), marginBottom: moderateScale(4) },
     avatar:           { justifyContent:'center', alignItems:'center', borderWidth:1 },
     avatarText:       { fontWeight:'800' },
-    cardName:         { color:'#fff', fontWeight:'700', fontSize:14 },
-    cardSub:          { color: colors.textMuted, fontSize:11 },
-    ratingText:       { fontSize:11, fontWeight:'900' },
+    cardName:         { color:'#fff', fontWeight:'700', fontSize: moderateScale(15) },
+    cardSub:          { color: colors.textMuted, fontSize: moderateScale(12) },
+    ratingText:       { fontSize: moderateScale(12), fontWeight:'900' },
 
-    modeBadge:        { borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, alignSelf:'flex-start' },
-    modeBadgeText:    { fontSize:10, fontWeight:'700' },
-    joinedCount:      { color: colors.textMuted, fontSize:10, marginTop:2 },
+    modeBadge:        { borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(2), borderWidth:1, alignSelf:'flex-start' },
+    modeBadgeText:    { fontSize: moderateScale(11), fontWeight:'700' },
+    joinedCount:      { color: colors.textMuted, fontSize: moderateScale(11), marginTop:2 },
 
-    flexBanner:       { backgroundColor:'#eab30815', borderRadius:10, padding:5, marginBottom:4, borderWidth:1, borderColor:'#eab30840' },
-    flexTitle:        { color:'#fbbf24', fontSize:11, fontWeight:'700', marginBottom:2 },
-    flexDesc:         { color:'#fcd34d99', fontSize:10 },
+    flexBanner:       { backgroundColor:'#eab30815', borderRadius: moderateScale(10), padding: moderateScale(8), marginBottom: moderateScale(6), borderWidth:1, borderColor:'#eab30840' },
+    flexTitle:        { color:'#fbbf24', fontSize: moderateScale(12), fontWeight:'700', marginBottom:2 },
+    flexDesc:         { color:'#fcd34d99', fontSize: moderateScale(11) },
 
-    levelRow:         { flexDirection:'row', gap:3, marginBottom:4, flexWrap:'wrap' },
-    levelBadge:       { backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:3, paddingVertical:3, color:'#d1d5db', fontSize:11, fontWeight:'700', borderWidth:1, borderColor: colors.border },
-    levelDetail:      { backgroundColor:'#a855f720', borderRadius:8, paddingHorizontal:3, paddingVertical:3, color:'#c084fc', fontSize:11, fontWeight:'700', borderWidth:1, borderColor:'#a855f740' },
+    levelRow:         { flexDirection:'row', gap: moderateScale(6), marginBottom: moderateScale(6), flexWrap:'wrap' },
+    levelBadge:       { backgroundColor: colors.surface2, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(4), color:'#d1d5db', fontSize: moderateScale(12), fontWeight:'700', borderWidth:1, borderColor: colors.border },
+    levelDetail:      { backgroundColor:'#a855f720', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(4), color:'#c084fc', fontSize: moderateScale(12), fontWeight:'700', borderWidth:1, borderColor:'#a855f740' },
 
-    cardMsg:          { color: colors.textSecondary, fontSize:13, marginBottom:4 },
-    cardMeta:         { flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 },
-    metaItem:         { backgroundColor: colors.surface2, paddingHorizontal:5, paddingVertical:0, borderRadius:8, borderWidth:1, borderColor: colors.border },
-    metaItemText:     { color: colors.text, fontSize:11, fontWeight:'600' },
+    cardMsg:          { color: colors.textSecondary, fontSize: moderateScale(14), marginBottom: moderateScale(6) },
+    cardMeta:         { flexDirection:'row', flexWrap:'wrap', gap: moderateScale(6), marginBottom: moderateScale(10) },
+    metaItem:         { backgroundColor: colors.surface2, paddingHorizontal: moderateScale(8), paddingVertical: moderateScale(4), borderRadius: moderateScale(8), borderWidth:1, borderColor: colors.border },
+    metaItemText:     { color: colors.text, fontSize: moderateScale(12), fontWeight:'600' },
 
-    joinBtn:          { borderRadius:10, paddingVertical:6, alignItems:'center', backgroundColor: colors.purple },
-    joinBtnText:      { color:'#fff', fontWeight:'800', fontSize:13 },
-    msgBtn:           { backgroundColor:'#2563eb20', borderRadius:10, paddingVertical:5, alignItems:'center', borderWidth:1, borderColor:'#2563eb40', flex:1 },
-    msgBtnText:       { color:'#60a5fa', fontWeight:'700', fontSize:12 },
-    cancelBtn:        { backgroundColor:'#dc262620', borderRadius:10, paddingVertical:5, alignItems:'center', borderWidth:1, borderColor:'#dc262640', flex:1 },
-    cancelBtnText:    { color:'#f87171', fontWeight:'700', fontSize:12 },
-    waitingBox:       { backgroundColor: colors.surface2, borderRadius:10, paddingVertical:5, alignItems:'center', borderWidth:1, borderColor: colors.border },
-    waitingText:      { color: colors.textMuted, fontSize:13, fontWeight:'600' },
+    joinBtn:          { borderRadius: moderateScale(12), paddingVertical: moderateScale(12), minHeight: touchSize(44), justifyContent:'center', alignItems:'center', backgroundColor: colors.purple },
+    joinBtnText:      { color:'#fff', fontWeight:'800', fontSize: moderateScale(15) },
+    msgBtn:           { backgroundColor:'#2563eb20', borderRadius: moderateScale(12), paddingVertical: moderateScale(10), minHeight: touchSize(40), justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#2563eb40', flex:1 },
+    msgBtnText:       { color:'#60a5fa', fontWeight:'700', fontSize: moderateScale(14) },
+    cancelBtn:        { backgroundColor:'#dc262620', borderRadius: moderateScale(12), paddingVertical: moderateScale(10), minHeight: touchSize(40), justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262640', flex:1 },
+    cancelBtnText:    { color:'#f87171', fontWeight:'700', fontSize: moderateScale(14) },
+    waitingBox:       { backgroundColor: colors.surface2, borderRadius: moderateScale(12), paddingVertical: moderateScale(10), alignItems:'center', borderWidth:1, borderColor: colors.border },
+    waitingText:      { color: colors.textMuted, fontSize: moderateScale(14), fontWeight:'600' },
 
-    ownerActions:     { gap:3 },
-    ownerBtnRow:      { flexDirection:'row', gap:3 },
-    joinRequestsBox:  { backgroundColor: colors.surface2, borderRadius:12, padding:9, borderWidth:1, borderColor: colors.border },
-    joinRequestsTitle:{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8 },
-    joinRequestRow:   { flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 },
-    joinRequestName:  { flex:1, color: colors.textSecondary, fontSize:12 },
-    acceptBtn:        { backgroundColor:'#16a34a', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center' },
-    declineBtn:       { backgroundColor:'#dc2626', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center' },
+    ownerActions:     { gap: moderateScale(6) },
+    ownerBtnRow:      { flexDirection:'row', gap: moderateScale(6) },
+    joinRequestsBox:  { backgroundColor: colors.surface2, borderRadius: moderateScale(12), padding: moderateScale(12), borderWidth:1, borderColor: colors.border },
+    joinRequestsTitle:{ color:'#fff', fontSize: moderateScale(14), fontWeight:'700', marginBottom: moderateScale(8) },
+    joinRequestRow:   { flexDirection:'row', alignItems:'center', gap: moderateScale(6), marginBottom: moderateScale(6) },
+    joinRequestName:  { flex:1, color: colors.textSecondary, fontSize: moderateScale(13) },
+    acceptBtn:        { backgroundColor:'#16a34a', borderRadius: moderateScale(8), width: touchSize(36), height: touchSize(36), justifyContent:'center', alignItems:'center' },
+    declineBtn:       { backgroundColor:'#dc2626', borderRadius: moderateScale(8), width: touchSize(36), height: touchSize(36), justifyContent:'center', alignItems:'center' },
 
-    participantsRow:      { flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:6 },
-    participantChip:      { backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a40' },
-    participantChipText:  { color:'#4ade80', fontSize:11, fontWeight:'700' },
-    pendingBadge:         { backgroundColor:'#a855f715', borderRadius:8, paddingHorizontal:7, paddingVertical:2, borderWidth:1, borderColor:'#a855f740', marginBottom:4 },
-    pendingBadgeText:     { color:'#c084fc', fontSize:12, fontWeight:'700' },
+    participantsRow:      { flexDirection:'row', flexWrap:'wrap', gap: moderateScale(6), marginBottom: moderateScale(6) },
+    participantChip:      { backgroundColor:'#16a34a15', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(8), paddingVertical: moderateScale(4), borderWidth:1, borderColor:'#16a34a40' },
+    participantChipText:  { color:'#4ade80', fontSize: moderateScale(12), fontWeight:'700' },
+    pendingBadge:         { backgroundColor:'#a855f715', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(8), paddingVertical: moderateScale(4), borderWidth:1, borderColor:'#a855f740', marginBottom: moderateScale(4) },
+    pendingBadgeText:     { color:'#c084fc', fontSize: moderateScale(13), fontWeight:'700' },
 
-    scoreText:        { color:'#fff', fontSize:16, fontWeight:'900' },
-    scoreBtn:         { backgroundColor:'#a855f720', borderRadius:10, paddingHorizontal:9, paddingVertical:3, borderWidth:1, borderColor:'#a855f750' },
-    scoreBtnText:     { color:'#c084fc', fontSize:12, fontWeight:'700' },
-    commentBtn:       { backgroundColor:'#0ea5e920', borderRadius:10, paddingHorizontal:9, paddingVertical:3, borderWidth:1, borderColor:'#0ea5e950' },
-    commentBtnText:   { color:'#38bdf8', fontSize:12, fontWeight:'700' },
-    confirmBtn:       { backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:7, paddingVertical:1, marginTop:4, borderWidth:1, borderColor:'#16a34a60' },
-    confirmBtnText:   { color:'#4ade80', fontSize:11, fontWeight:'700' },
-    scoreForm:        { marginTop:10 },
-    scoreInputRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3 },
-    scoreInput:       { backgroundColor: colors.surface2, color:'#fff', borderRadius:10, paddingHorizontal:9, paddingVertical:7, borderWidth:1, borderColor: colors.border, fontSize:18, fontWeight:'800', width:60, textAlign:'center' },
+    scoreText:        { color:'#fff', fontSize: moderateScale(18), fontWeight:'900' },
+    scoreBtn:         { backgroundColor:'#a855f720', borderRadius: moderateScale(10), paddingHorizontal: moderateScale(12), paddingVertical: moderateScale(8), minHeight: touchSize(36), justifyContent:'center', borderWidth:1, borderColor:'#a855f750' },
+    scoreBtnText:     { color:'#c084fc', fontSize: moderateScale(13), fontWeight:'700' },
+    commentBtn:       { backgroundColor:'#0ea5e920', borderRadius: moderateScale(10), paddingHorizontal: moderateScale(12), paddingVertical: moderateScale(8), minHeight: touchSize(36), justifyContent:'center', borderWidth:1, borderColor:'#0ea5e950' },
+    commentBtnText:   { color:'#38bdf8', fontSize: moderateScale(13), fontWeight:'700' },
+    confirmBtn:       { backgroundColor:'#16a34a30', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(10), paddingVertical: moderateScale(6), marginTop: moderateScale(4), borderWidth:1, borderColor:'#16a34a60' },
+    confirmBtnText:   { color:'#4ade80', fontSize: moderateScale(12), fontWeight:'700' },
+    scoreForm:        { marginTop: moderateScale(10) },
+    scoreInputRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', gap: moderateScale(6) },
+    scoreInput:       { backgroundColor: colors.surface2, color:'#fff', borderRadius: moderateScale(10), paddingHorizontal: moderateScale(10), paddingVertical: moderateScale(8), borderWidth:1, borderColor: colors.border, fontSize: moderateScale(18), fontWeight:'800', width: moderateScale(60), textAlign:'center' },
 
     modalOverlay:     { flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' },
-    modalBox:         { backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, padding:21, paddingLeft:0, paddingRight:0, paddingBottom:37, maxHeight:'92%' },
-    modalHeader:      { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:20 },
-    modalTitle:       { color:'#fff', fontSize:18, fontWeight:'900' },
-    modalClose:       { color: colors.textMuted, fontSize:22 },
+    modalBox:         { backgroundColor: colors.surface, borderTopLeftRadius: moderateScale(24), borderTopRightRadius: moderateScale(24), padding: moderateScale(20), paddingLeft:0, paddingRight:0, paddingBottom: moderateScale(36), maxHeight:'92%' },
+    modalHeader:      { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: moderateScale(18) },
+    modalTitle:       { color:'#fff', fontSize: moderateScale(18), fontWeight:'900' },
+    modalClose:       { color: colors.textMuted, fontSize: moderateScale(22) },
 
-    fieldLabel:       { color: colors.textSecondary, fontSize:12, fontWeight:'700', marginBottom:6 },
-    fieldLabelRed:    { color: '#ef4444', fontSize:12, fontWeight:'700', marginBottom:6 },
-    fieldHint:        { color: colors.textMuted, fontSize:10, marginBottom:8 },
-    fieldInput:       { backgroundColor: colors.surface2, color:'#fff', borderRadius:12, paddingHorizontal:11, paddingVertical:9, borderWidth:1, borderColor: colors.border, fontSize:14, marginBottom:14 },
-    refQChip:         { color: colors.textSecondary, fontSize:11, backgroundColor: colors.surface, borderRadius:8, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor: colors.border },
-    compactLocInput:  { height:32, paddingVertical:0, paddingHorizontal:7, fontSize:11, marginBottom:0, borderRadius:8 },
-    chipRow:          { flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:14 },
-    chipBtn:          { paddingHorizontal:9, paddingVertical:6, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    fieldLabel:       { color: colors.textSecondary, fontSize: moderateScale(13), fontWeight:'700', marginBottom: moderateScale(6) },
+    fieldLabelRed:    { color: '#ef4444', fontSize: moderateScale(13), fontWeight:'700', marginBottom: moderateScale(6) },
+    fieldHint:        { color: colors.textMuted, fontSize: moderateScale(11), marginBottom: moderateScale(8) },
+    fieldInput:       { backgroundColor: colors.surface2, color:'#fff', borderRadius: moderateScale(12), paddingHorizontal: moderateScale(12), paddingVertical: moderateScale(12), minHeight: touchSize(44), borderWidth:1, borderColor: colors.border, fontSize: moderateScale(15), marginBottom: moderateScale(14) },
+    refQChip:         { color: colors.textSecondary, fontSize: moderateScale(12), backgroundColor: colors.surface, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(8), paddingVertical: moderateScale(6), borderWidth:1, borderColor: colors.border },
+    compactLocInput:  { height: touchSize(40), paddingVertical:0, paddingHorizontal: moderateScale(10), fontSize: moderateScale(13), marginBottom:0, borderRadius: moderateScale(8) },
+    chipRow:          { flexDirection:'row', flexWrap:'wrap', gap: moderateScale(6), marginBottom: moderateScale(14) },
+    chipBtn:          { paddingHorizontal: moderateScale(12), paddingVertical: moderateScale(10), minHeight: touchSize(40), justifyContent:'center', borderRadius: moderateScale(10), backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
     chipBtnActive:    { backgroundColor: colors.purple, borderColor: colors.purple },
-    chipBtnText:      { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
+    chipBtnText:      { color: colors.textSecondary, fontSize: moderateScale(13), fontWeight:'700' },
     chipBtnTextActive:{ color:'#fff' },
-    compactSelectBtn: { height:36, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, paddingHorizontal:6, alignItems:'center', justifyContent:'center' },
-    compactSelectText:{ color:'#fff', fontSize:11, fontWeight:'700' },
-    submitBtn:        { backgroundColor: colors.purple, borderRadius:14, paddingVertical:11, alignItems:'center', marginTop:8 },
-    submitBtnText:    { color:'#fff', fontWeight:'800', fontSize:15 },
+    compactSelectBtn: { minHeight: touchSize(40), backgroundColor: colors.surface2, borderRadius: moderateScale(10), borderWidth:1, borderColor: colors.border, paddingHorizontal: moderateScale(8), alignItems:'center', justifyContent:'center' },
+    compactSelectText:{ color:'#fff', fontSize: moderateScale(13), fontWeight:'700' },
+    submitBtn:        { backgroundColor: colors.purple, borderRadius: moderateScale(14), paddingVertical: moderateScale(14), minHeight: touchSize(48), justifyContent:'center', alignItems:'center', marginTop: moderateScale(8) },
+    submitBtnText:    { color:'#fff', fontWeight:'800', fontSize: moderateScale(16) },
 
-    switchRow:        { flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:11, marginBottom:14, borderWidth:1, borderColor: colors.border },
+    switchRow:        { flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius: moderateScale(14), padding: moderateScale(12), marginBottom: moderateScale(14), borderWidth:1, borderColor: colors.border },
 
-    eloWarning:       { backgroundColor:'#dc262615', borderRadius:12, padding:9, marginBottom:14, borderWidth:1, borderColor:'#dc262640' },
-    eloWarningText:   { color:'#fca5a5', fontSize:12, fontWeight:'600', lineHeight:18 },
-    modeHint:         { color:'#60a5fa', fontSize:11, fontWeight:'600', marginBottom:10, marginTop:-6 },
+    eloWarning:       { backgroundColor:'#dc262615', borderRadius: moderateScale(12), padding: moderateScale(12), marginBottom: moderateScale(14), borderWidth:1, borderColor:'#dc262640' },
+    eloWarningText:   { color:'#fca5a5', fontSize: moderateScale(13), fontWeight:'600', lineHeight: moderateScale(18) },
+    modeHint:         { color:'#60a5fa', fontSize: moderateScale(12), fontWeight:'600', marginBottom: moderateScale(10), marginTop: moderateScale(-6) },
 
-    profileHeader:    { alignItems:'center', paddingVertical:17, gap:3 },
-    profileName:      { color:'#fff', fontSize:20, fontWeight:'900', textAlign:'center' },
-    profileUsername:  { color: colors.textMuted, fontSize:13 },
-    profileMeta:      { color: colors.textSecondary, fontSize:12, marginTop:4 },
-    profileBioBox:    { backgroundColor: colors.surface2, borderRadius:12, padding:11, marginBottom:14, borderWidth:1, borderColor: colors.border },
-    profileBioText:   { color: colors.textSecondary, fontSize:13, lineHeight:20 },
-    profileSection:   { backgroundColor: colors.surface2, borderRadius:14, padding:11, marginBottom:14, borderWidth:1, borderColor: colors.border, gap:3 },
-    profileSectionTitle:{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:4 },
-    profileInterestRow: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:3, borderTopWidth:1, borderTopColor: colors.border },
-    profileInterestName:{ color:'#fff', fontSize:14, fontWeight:'700', textTransform:'capitalize' },
-    profileWL:        { color: colors.textMuted, fontSize:11, marginTop:2 },
-    profileRating:    { fontSize:15, fontWeight:'900' },
-    levelPill:        { borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1 },
-    levelPillText:    { fontSize:10, fontWeight:'700' },
-    privateBox:       { backgroundColor:'#374151', borderRadius:12, paddingHorizontal:13, paddingVertical:7, marginTop:8 },
-    privateText:      { color:'#9ca3af', fontSize:13, fontWeight:'700' },
+    profileHeader:    { alignItems:'center', paddingVertical: moderateScale(18), gap: moderateScale(6) },
+    profileName:      { color:'#fff', fontSize: moderateScale(22), fontWeight:'900', textAlign:'center' },
+    profileUsername:  { color: colors.textMuted, fontSize: moderateScale(14) },
+    profileMeta:      { color: colors.textSecondary, fontSize: moderateScale(13), marginTop:4 },
+    profileBioBox:    { backgroundColor: colors.surface2, borderRadius: moderateScale(12), padding: moderateScale(12), marginBottom: moderateScale(14), borderWidth:1, borderColor: colors.border },
+    profileBioText:   { color: colors.textSecondary, fontSize: moderateScale(14), lineHeight: moderateScale(20) },
+    profileSection:   { backgroundColor: colors.surface2, borderRadius: moderateScale(14), padding: moderateScale(12), marginBottom: moderateScale(14), borderWidth:1, borderColor: colors.border, gap: moderateScale(6) },
+    profileSectionTitle:{ color:'#fff', fontSize: moderateScale(14), fontWeight:'800', marginBottom: moderateScale(4) },
+    profileInterestRow: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical: moderateScale(6), borderTopWidth:1, borderTopColor: colors.border },
+    profileInterestName:{ color:'#fff', fontSize: moderateScale(15), fontWeight:'700', textTransform:'capitalize' },
+    profileWL:        { color: colors.textMuted, fontSize: moderateScale(12), marginTop:2 },
+    profileRating:    { fontSize: moderateScale(16), fontWeight:'900' },
+    levelPill:        { borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(2), borderWidth:1 },
+    levelPillText:    { fontSize: moderateScale(11), fontWeight:'700' },
+    privateBox:       { backgroundColor:'#374151', borderRadius: moderateScale(12), paddingHorizontal: moderateScale(14), paddingVertical: moderateScale(10), marginTop: moderateScale(8) },
+    privateText:      { color:'#9ca3af', fontSize: moderateScale(14), fontWeight:'700' },
 
-    courtResultsBox:  { backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, marginBottom:10, overflow:'hidden' },
-    courtResultRow:   { padding:9, borderBottomWidth:1, borderBottomColor: colors.border, flexDirection:'row', alignItems:'center' },
-    courtResultName:  { color:'#fff', fontSize:13, fontWeight:'700' },
-    courtResultCity:  { color: colors.textMuted, fontSize:11, marginTop:2 },
-    selectedCourtBox: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#16a34a20', borderRadius:10, padding:7, marginBottom:10, borderWidth:1, borderColor:'#16a34a50' },
-    selectedCourtText:{ color:'#4ade80', fontSize:13, fontWeight:'700', flex:1 },
-    addCourtBtn:      { paddingVertical:7, alignItems:'center', marginBottom:10 },
-    addCourtBtnText:  { color: colors.purple, fontSize:13, fontWeight:'700' },
-    manualCourtBox:   { backgroundColor: colors.surface2, borderRadius:12, padding:9, marginBottom:10, borderWidth:1, borderColor: colors.border },
-    manualCourtNote:  { color:'#fbbf24', fontSize:11, marginBottom:10, lineHeight:16 },
+    courtResultsBox:  { backgroundColor: colors.surface2, borderRadius: moderateScale(12), borderWidth:1, borderColor: colors.border, marginBottom: moderateScale(10), overflow:'hidden' },
+    courtResultRow:   { padding: moderateScale(12), borderBottomWidth:1, borderBottomColor: colors.border, flexDirection:'row', alignItems:'center' },
+    courtResultName:  { color:'#fff', fontSize: moderateScale(14), fontWeight:'700' },
+    courtResultCity:  { color: colors.textMuted, fontSize: moderateScale(12), marginTop:2 },
+    selectedCourtBox: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#16a34a20', borderRadius: moderateScale(10), padding: moderateScale(10), marginBottom: moderateScale(10), borderWidth:1, borderColor:'#16a34a50' },
+    selectedCourtText:{ color:'#4ade80', fontSize: moderateScale(14), fontWeight:'700', flex:1 },
+    addCourtBtn:      { paddingVertical: moderateScale(10), alignItems:'center', marginBottom: moderateScale(10) },
+    addCourtBtnText:  { color: colors.purple, fontSize: moderateScale(14), fontWeight:'700' },
+    manualCourtBox:   { backgroundColor: colors.surface2, borderRadius: moderateScale(12), padding: moderateScale(12), marginBottom: moderateScale(10), borderWidth:1, borderColor: colors.border },
+    manualCourtNote:  { color:'#fbbf24', fontSize: moderateScale(12), marginBottom: moderateScale(10), lineHeight: moderateScale(16) },
 
-    checkRow:         { flexDirection:'row', alignItems:'center', gap:3, marginBottom:14 },
-    checkbox:         { width:22, height:22, borderRadius:6, borderWidth:2, borderColor: colors.border, justifyContent:'center', alignItems:'center' },
+    checkRow:         { flexDirection:'row', alignItems:'center', gap: moderateScale(8), marginBottom: moderateScale(14) },
+    checkbox:         { width: touchSize(24), height: touchSize(24), borderRadius: moderateScale(6), borderWidth:2, borderColor: colors.border, justifyContent:'center', alignItems:'center' },
     checkboxChecked:  { backgroundColor: colors.purple, borderColor: colors.purple },
-    checkLabel:       { color: colors.textSecondary, fontSize:13, fontWeight:'600' },
+    checkLabel:       { color: colors.textSecondary, fontSize: moderateScale(14), fontWeight:'600' },
 
-    triRow:           { flexDirection:'row', gap:3, marginBottom:12 },
-    triBtn:           { flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:7, paddingHorizontal:6, borderWidth:1, borderColor: colors.border, alignItems:'center' },
+    triRow:           { flexDirection:'row', gap: moderateScale(6), marginBottom: moderateScale(12) },
+    triBtn:           { flex:1, backgroundColor: colors.surface2, borderRadius: moderateScale(10), paddingVertical: moderateScale(10), paddingHorizontal: moderateScale(8), minHeight: touchSize(44), borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
     triBtnFilled:     { borderColor: colors.purple+'80' },
-    triLabel:         { color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:2 },
-    triValue:         { color:'#fff', fontSize:12, fontWeight:'800', textAlign:'center' },
-    triPlaceholder:   { color: colors.textMuted, fontSize:13 },
+    triLabel:         { color: colors.textMuted, fontSize: moderateScale(11), fontWeight:'700', marginBottom:2 },
+    triValue:         { color:'#fff', fontSize: moderateScale(13), fontWeight:'800', textAlign:'center' },
+    triPlaceholder:   { color: colors.textMuted, fontSize: moderateScale(14) },
 
-    storyNavBtn:      { backgroundColor:'#ffffff20', borderRadius:12, paddingHorizontal:17, paddingVertical:7 },
+    storyNavBtn:      { backgroundColor:'#ffffff20', borderRadius: moderateScale(12), paddingHorizontal: moderateScale(18), paddingVertical: moderateScale(10), minHeight: touchSize(40), justifyContent:'center' },
 
-    chip:             { paddingHorizontal:9, paddingVertical:4, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
-    chipText:         { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
+    chip:             { paddingHorizontal: moderateScale(12), paddingVertical: moderateScale(8), borderRadius: moderateScale(10), backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
+    chipText:         { color: colors.textSecondary, fontSize: moderateScale(13), fontWeight:'700' },
 });
