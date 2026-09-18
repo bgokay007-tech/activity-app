@@ -19064,10 +19064,20 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             <Modal visible={extendTarget != null} animationType="slide" transparent onRequestClose={() => !extendingDeadline && setExtendTarget(null)} android_keyboardInputMode="adjustNothing">
                 <View style={s.modalOverlay}>
                     <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
-                        <View style={s.modalBox}>
-                            <View style={s.modalHeader}>
-                                <Text style={s.modalTitle}>{t.tournExtendTitle || 'Süre uzat'}</Text>
-                                <TouchableOpacity onPress={() => !extendingDeadline && setExtendTarget(null)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+                        <View style={[s.modalBox, {
+                            paddingLeft: 16,
+                            paddingRight: 18,
+                            paddingBottom: Math.max(28, insets.bottom + 22),
+                        }]}>
+                            <View style={[s.modalHeader, { marginBottom: 14 }]}>
+                                <Text style={[s.modalTitle, { flex:1, paddingRight: 10 }]}>{t.tournExtendTitle || 'Süre uzat'}</Text>
+                                <TouchableOpacity
+                                    onPress={() => !extendingDeadline && setExtendTarget(null)}
+                                    hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                                    style={{ paddingVertical: 6, paddingHorizontal: 10, marginRight: 2 }}
+                                >
+                                    <Text style={s.modalClose}>✕</Text>
+                                </TouchableOpacity>
                             </View>
                             <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10, lineHeight:18 }}>
                                 {extendTarget?.kind === 'round'
@@ -19097,7 +19107,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 placeholderTextColor={colors.textMuted}
                             />
                             <TouchableOpacity
-                                style={[s.submitBtn, extendingDeadline && { opacity:0.6 }]}
+                                style={[s.submitBtn, { marginTop: 4, marginBottom: 4 }, extendingDeadline && { opacity:0.6 }]}
                                 onPress={() => submitDeadlineExtend(extendDaysInput)}
                                 disabled={extendingDeadline}
                             >
