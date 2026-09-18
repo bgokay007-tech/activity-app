@@ -1132,7 +1132,7 @@ const en = {
     tournJoinFailed: 'Could not send join request',
 
     // SubCategory — tournament tabs & empty states
-    tournOpenTab: 'Open', tournInProgressTab: 'In Progress', tournCompletedTab: 'Completed',
+    tournOpenTab: 'Listings', tournInProgressTab: 'Ongoing tournaments', tournCompletedTab: 'Completed',
     emptyTournOpen: 'No open tournament listings', emptyTournInProgress: 'No tournaments in progress', emptyTournCompleted: 'No completed tournaments',
     emptyRivals: 'No rival listings yet', emptyTournaments: 'No tournaments yet',
     emptyCoaches: 'No support listings yet', emptyMedia: 'No media yet',
@@ -3015,7 +3015,7 @@ const tr = {
     tournJoinFailed: 'Katılım isteği gönderilemedi',
 
     // SubCategory — tournament tabs & empty states
-    tournOpenTab: 'Açık İlanlar', tournInProgressTab: 'Devam Eden', tournCompletedTab: 'Tamamlanan',
+    tournOpenTab: 'İlanlar', tournInProgressTab: 'Devam eden turnuvalar', tournCompletedTab: 'Tamamlanan',
     emptyTournOpen: 'Açık turnuva ilanı yok', emptyTournInProgress: 'Devam eden turnuva yok', emptyTournCompleted: 'Tamamlanan turnuva yok',
     emptyRivals: 'Henüz rakip ilanı yok', emptyTournaments: 'Henüz turnuva yok',
     emptyCoaches: 'Henüz destek ilanı yok', emptyMedia: 'Henüz medya yok',
@@ -4895,7 +4895,7 @@ const ru = {
     tournJoinFailed: 'Не удалось отправить запрос на участие',
 
     // SubCategory — tournament tabs & empty states
-    tournOpenTab: 'Открытые', tournInProgressTab: 'В процессе', tournCompletedTab: 'Завершённые',
+    tournOpenTab: 'Объявления', tournInProgressTab: 'Текущие турниры', tournCompletedTab: 'Завершённые',
     emptyTournOpen: 'Нет открытых объявлений турниров', emptyTournInProgress: 'Нет турниров в процессе', emptyTournCompleted: 'Нет завершённых турниров',
     emptyRivals: 'Пока нет объявлений соперников', emptyTournaments: 'Пока нет турниров',
     emptyCoaches: 'Пока нет объявлений поддержки', emptyMedia: 'Пока нет медиа',
@@ -6774,7 +6774,7 @@ const de = {
     tournJoinFailed: 'Beitrittsanfrage konnte nicht gesendet werden',
 
     // SubCategory — tournament tabs & empty states
-    tournOpenTab: 'Offen', tournInProgressTab: 'Läuft', tournCompletedTab: 'Abgeschlossen',
+    tournOpenTab: 'Anzeigen', tournInProgressTab: 'Laufende Turniere', tournCompletedTab: 'Abgeschlossen',
     emptyTournOpen: 'Keine offenen Turnier-Anzeigen', emptyTournInProgress: 'Keine laufenden Turniere', emptyTournCompleted: 'Keine abgeschlossenen Turniere',
     emptyRivals: 'Noch keine Gegner-Anzeigen', emptyTournaments: 'Noch keine Turniere',
     emptyCoaches: 'Noch keine Unterstützungsanzeigen', emptyMedia: 'Noch keine Medien',

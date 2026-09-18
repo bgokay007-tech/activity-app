@@ -26487,9 +26487,62 @@ export default function SubCategoryScreen({ route, navigation }) {
                         );
                         return (
                             <>
-                                {/* Tek satır: Turnuva oluştur + zil + filtre + Devam Eden.
-                                    Açık turnuvalar varsayılan listede; ayrı "Açık İlanlar" sekmesi yok. */}
-                                <CityAlertRow tab="tournaments" dateFilter>
+                                {/* Tek satır: Turnuva oluştur + zil + filtre + İlanlar + Devam eden turnuvalar.
+                                    Devam Eden sabit yükseklikte 2 satıra kırılır; sekme büyümez, yazı küçülür. */}
+                                <CityAlertRow
+                                    tab="tournaments"
+                                    dateFilter
+                                    endChildren={(
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 1 }}>
+                                            <TouchableOpacity
+                                                onPress={() => setTournSubTab('open')}
+                                                style={{
+                                                    width: 56,
+                                                    height: 40,
+                                                    paddingHorizontal: 2,
+                                                    borderRadius: 8,
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    backgroundColor: tournSubTab !== 'inprogress' ? cfg.color : colors.surface2,
+                                                    borderWidth: 1,
+                                                    borderColor: tournSubTab !== 'inprogress' ? cfg.color : colors.border,
+                                                }}
+                                            >
+                                                <Text
+                                                    style={{ color: tournSubTab !== 'inprogress' ? '#fff' : colors.textMuted, fontSize: 11, fontWeight: '800', textAlign: 'center' }}
+                                                    numberOfLines={2}
+                                                    adjustsFontSizeToFit
+                                                    minimumFontScale={0.65}
+                                                >
+                                                    {t.tournOpenTab}{open.length > 0 ? `\n${open.length}` : ''}
+                                                </Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => setTournSubTab('inprogress')}
+                                                style={{
+                                                    width: 72,
+                                                    height: 40,
+                                                    paddingHorizontal: 2,
+                                                    borderRadius: 8,
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    backgroundColor: tournSubTab === 'inprogress' ? cfg.color : colors.surface2,
+                                                    borderWidth: 1,
+                                                    borderColor: tournSubTab === 'inprogress' ? cfg.color : colors.border,
+                                                }}
+                                            >
+                                                <Text
+                                                    style={{ color: tournSubTab === 'inprogress' ? '#fff' : colors.textMuted, fontSize: 11, fontWeight: '800', textAlign: 'center', lineHeight: 13 }}
+                                                    numberOfLines={2}
+                                                    adjustsFontSizeToFit
+                                                    minimumFontScale={0.55}
+                                                >
+                                                    {`${t.tournInProgressTab}${inProgress.length > 0 ? ` (${inProgress.length})` : ''}`}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                >
                                     <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
                                         onPress={() => {
@@ -26498,24 +26551,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         }}
                                     >
                                         <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.createTournamentBtn}</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        onPress={() => setTournSubTab(prev => prev === 'inprogress' ? 'open' : 'inprogress')}
-                                        style={{
-                                            flexShrink: 1,
-                                            minHeight: 40,
-                                            paddingHorizontal: 3,
-                                            borderRadius: 8,
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            backgroundColor: tournSubTab === 'inprogress' ? cfg.color : colors.surface2,
-                                            borderWidth: 1,
-                                            borderColor: tournSubTab === 'inprogress' ? cfg.color : colors.border,
-                                        }}
-                                    >
-                                        <Text style={{ color: tournSubTab === 'inprogress' ? '#fff' : colors.textMuted, fontSize: moderateScale(12), fontWeight: '800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                                            {t.tournInProgressTab}{inProgress.length > 0 ? ` ${inProgress.length}` : ''}
-                                        </Text>
                                     </TouchableOpacity>
                                 </CityAlertRow>
 
