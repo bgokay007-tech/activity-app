@@ -5,7 +5,7 @@ export const CAT_PHOTOS = {
     SPORTS: require('../../assets/visual/cat-sports.png'),
     SOCIAL: require('../../assets/visual/cat-social.jpg'),
     ARTS:   require('../../assets/visual/cat-arts.png'),
-    GAMES:  require('../../assets/visual/cat-games.jpg'),
+    GAMES:  require('../../assets/visual/cat-games.png'),
 };
 
 export const SUB_PHOTOS = {
