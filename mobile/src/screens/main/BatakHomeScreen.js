@@ -561,12 +561,18 @@ export default function BatakHomeScreen({ navigation }) {
 // Tüm masa kurma ayarları (oyun türü, rakip türü, zorluk/derece aralığı,
 // puan bahsi, ekstra derece bahsi, seyirciye açıklık) tek modalda birlikte
 // gösterilir — adım adım sihirbaz yerine tek ekranda ayarlanıp kurulur.
+const RATING_STEPS = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
+const fmtRating = (n) => (n == null || Number.isNaN(n) ? null : Number(n).toFixed(1));
+
 function CreateTableModal({ visible, interest, t, onClose }) {
     const [variant, setVariant] = useState('ihaleli');
     const [opponentKind, setOpponentKind] = useState('online');
     const [difficulty, setDifficulty] = useState('medium');
-    const [ratingRangeMin, setRatingRangeMin] = useState('');
-    const [ratingRangeMax, setRatingRangeMax] = useState('');
+    const [ratingRangeMin, setRatingRangeMin] = useState(null);
+    const [ratingRangeMax, setRatingRangeMax] = useState(null);
+    const [ratingPickerOpen, setRatingPickerOpen] = useState(false);
+    const [draftMin, setDraftMin] = useState(null);
+    const [draftMax, setDraftMax] = useState(null);
     const [betAmount, setBetAmount] = useState('100');
     const [wagerRating, setWagerRating] = useState(false);
     const [ratingAmount, setRatingAmount] = useState('0.10');
@@ -576,7 +582,8 @@ function CreateTableModal({ visible, interest, t, onClose }) {
     useEffect(() => {
         if (visible) {
             setVariant('ihaleli'); setOpponentKind('online'); setDifficulty('medium');
-            setRatingRangeMin(''); setRatingRangeMax(''); setBetAmount('100');
+            setRatingRangeMin(null); setRatingRangeMax(null); setRatingPickerOpen(false);
+            setDraftMin(null); setDraftMax(null); setBetAmount('100');
             setWagerRating(false); setRatingAmount('0.10'); setSpectatorOpen(false); setTotalRounds(8);
         }
     }, [visible]);
@@ -585,9 +592,38 @@ function CreateTableModal({ visible, interest, t, onClose }) {
     const isGomme = variant === 'gomme';
     const parsedBet = Math.max(0, Math.floor(Number(betAmount) || 0));
     const parsedRating = wagerRating ? Math.max(0, Number(ratingAmount) || 0) : 0;
-    const parsedRangeMin = ratingRangeMin.trim() === '' ? null : Number(ratingRangeMin);
-    const parsedRangeMax = ratingRangeMax.trim() === '' ? null : Number(ratingRangeMax);
+    const parsedRangeMin = ratingRangeMin == null ? null : Number(ratingRangeMin);
+    const parsedRangeMax = ratingRangeMax == null ? null : Number(ratingRangeMax);
     const canAfford = interest && interest.walletPoints >= parsedBet && interest.skillRating >= parsedRating && parsedBet > 0;
+    const rangeBtnLabel = (parsedRangeMin != null || parsedRangeMax != null)
+        ? `${fmtRating(parsedRangeMin ?? 0)}–${fmtRating(parsedRangeMax ?? 5)}`
+        : (t.batakRatingRangeAny || 'Hepsi');
+
+    const openRatingPicker = () => {
+        setDraftMin(ratingRangeMin);
+        setDraftMax(ratingRangeMax);
+        setRatingPickerOpen(true);
+    };
+    const pickDraftMin = (v) => {
+        setDraftMin(v);
+        setDraftMax(prev => (prev != null && v > prev ? v : prev));
+    };
+    const pickDraftMax = (v) => {
+        setDraftMax(v);
+        setDraftMin(prev => (prev != null && v < prev ? v : prev));
+    };
+    const applyRatingRange = () => {
+        setRatingRangeMin(draftMin);
+        setRatingRangeMax(draftMax);
+        setRatingPickerOpen(false);
+    };
+    const clearRatingRange = () => {
+        setDraftMin(null);
+        setDraftMax(null);
+        setRatingRangeMin(null);
+        setRatingRangeMax(null);
+        setRatingPickerOpen(false);
+    };
 
     const payoutHintText = isTeam
         ? (t.batakPayoutTeam || 'Kazanan ikili potun tamamını alır, aralarında yarı yarıya paylaşır.')
@@ -665,14 +701,18 @@ function CreateTableModal({ visible, interest, t, onClose }) {
                             </>
                         ) : (
                             <>
-                                <Text style={s.fieldLabel}>{t.batakRatingRange || 'Rakip Derece Aralığı (isteğe bağlı)'}</Text>
                                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                                    <TextInput value={ratingRangeMin} onChangeText={setRatingRangeMin} placeholder="Min" placeholderTextColor={colors.textMuted} keyboardType="numeric" style={[s.freeInput, { flex: 1 }]} />
-                                    <TextInput value={ratingRangeMax} onChangeText={setRatingRangeMax} placeholder="Max" placeholderTextColor={colors.textMuted} keyboardType="numeric" style={[s.freeInput, { flex: 1 }]} />
+                                    <View style={{ flex: 1.1 }}>
+                                        <Text style={s.fieldLabel}>{t.batakRatingRange || 'Derece Aralığı'}</Text>
+                                        <TouchableOpacity style={s.rangeBtn} onPress={openRatingPicker} activeOpacity={0.85}>
+                                            <Text style={s.rangeBtnText} numberOfLines={1}>{rangeBtnLabel}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.fieldLabel}>{t.batakStake || 'Masaya Konacak Puan'}</Text>
+                                        <TextInput value={betAmount} onChangeText={setBetAmount} placeholder="250" placeholderTextColor={colors.textMuted} keyboardType="numeric" style={s.freeInputInline} />
+                                    </View>
                                 </View>
-
-                                <Text style={s.fieldLabel}>{t.batakStake || 'Masaya Konacak Puan'}</Text>
-                                <TextInput value={betAmount} onChangeText={setBetAmount} placeholder="Örn. 250" placeholderTextColor={colors.textMuted} keyboardType="numeric" style={s.freeInput} />
                                 {interest && parsedBet > interest.walletPoints && (
                                     <Text style={s.inputWarn}>Bakiyende bu kadar puan yok ({interest.walletPoints} puanın var).</Text>
                                 )}
@@ -707,6 +747,44 @@ function CreateTableModal({ visible, interest, t, onClose }) {
                         </TouchableOpacity>
                     </ScrollView>
                 </View>
+
+                <Modal visible={ratingPickerOpen} transparent animationType="fade" onRequestClose={() => setRatingPickerOpen(false)}>
+                    <View style={s.rangeOverlay}>
+                        <View style={s.rangeBox}>
+                            <Text style={s.modalTitle}>{t.batakRatingRange || 'Derece Aralığı'}</Text>
+                            <Text style={s.fieldLabel}>{t.batakRatingMin || 'Alt limit'}</Text>
+                            <View style={s.rangeChipGrid}>
+                                {RATING_STEPS.map(v => {
+                                    const active = draftMin === v;
+                                    return (
+                                        <TouchableOpacity key={`min-${v}`} style={[s.rangeChip, active && s.rangeChipActive]} onPress={() => pickDraftMin(v)} activeOpacity={0.85}>
+                                            <Text style={[s.rangeChipText, active && s.rangeChipTextActive]}>{v.toFixed(1)}</Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                            <Text style={s.fieldLabel}>{t.batakRatingMax || 'Üst limit'}</Text>
+                            <View style={s.rangeChipGrid}>
+                                {RATING_STEPS.map(v => {
+                                    const active = draftMax === v;
+                                    return (
+                                        <TouchableOpacity key={`max-${v}`} style={[s.rangeChip, active && s.rangeChipActive]} onPress={() => pickDraftMax(v)} activeOpacity={0.85}>
+                                            <Text style={[s.rangeChipText, active && s.rangeChipTextActive]}>{v.toFixed(1)}</Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+                                <TouchableOpacity style={[s.rangeActionBtn, s.rangeActionGhost]} onPress={clearRatingRange} activeOpacity={0.85}>
+                                    <Text style={s.rangeActionGhostText}>{t.batakRatingRangeClear || 'Temizle'}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[s.rangeActionBtn, s.rangeActionPrimary]} onPress={applyRatingRange} activeOpacity={0.85}>
+                                    <Text style={s.rangeActionPrimaryText}>{t.batakRatingRangeApply || 'Uygula'}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
             </View>
         </Modal>
     );
@@ -774,6 +852,7 @@ const s = StyleSheet.create({
     payoutHint: { color: '#fbbf24', fontSize: 11, fontWeight: '700', backgroundColor: '#f59e0b1a', borderRadius: 10, padding: 10, marginBottom: 14 },
     inputWarn: { color: '#f87171', fontSize: 11, marginBottom: 6, textAlign: 'center' },
     freeInput: { width: '100%', maxWidth: 280, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 4 },
+    freeInputInline: { width: '100%', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 14, fontWeight: '700' },
     checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 4 },
     checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
     checkboxChecked: { backgroundColor: colors.purple, borderColor: colors.purple },
@@ -810,4 +889,18 @@ const s = StyleSheet.create({
     modalInput: { backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9, color: '#fff', fontSize: 13, justifyContent: 'center' },
     submitBtn: { backgroundColor: colors.purple, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 16 },
     submitBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+    rangeBtn: { backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 11, justifyContent: 'center', minHeight: 42 },
+    rangeBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+    rangeOverlay: { flex: 1, backgroundColor: '#000000aa', justifyContent: 'center', paddingHorizontal: 18 },
+    rangeBox: { backgroundColor: colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: colors.border },
+    rangeChipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    rangeChip: { width: '17.5%', minWidth: 48, paddingVertical: 9, borderRadius: 10, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+    rangeChipActive: { backgroundColor: colors.purple + '33', borderColor: colors.purple },
+    rangeChipText: { color: colors.textMuted, fontSize: 12, fontWeight: '800' },
+    rangeChipTextActive: { color: colors.purpleLight || colors.purple },
+    rangeActionBtn: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+    rangeActionGhost: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+    rangeActionGhostText: { color: colors.textMuted, fontWeight: '800', fontSize: 13 },
+    rangeActionPrimary: { backgroundColor: colors.purple },
+    rangeActionPrimaryText: { color: '#fff', fontWeight: '900', fontSize: 13 },
 });

@@ -1086,10 +1086,7 @@ export function registerBatakHandlers(io, socket) {
         // Bahisli bir masada oyun devam ederken bilerek ayrılan oyuncu otomatik
         // kaybetmiş sayılır — puanını geri alamaz, oyun sonu ödemesinde en sona atılır.
         if (table.betAmount > 0) table.leftEarly[seat.seat] = true;
-        // Kullanıcı bilerek masadan ayrıldı — eşleşme kilidini hemen serbest bırak ki
-        // yeni bir oyuna girebilsin (aksi halde masa bitene kadar kilitli kalırdı).
-        broadcastState(io, table);
-        scheduleBotIfNeeded(io, table);
+        continueAfterAction(io, table);
     });
 
     socket.on('disconnect', () => {

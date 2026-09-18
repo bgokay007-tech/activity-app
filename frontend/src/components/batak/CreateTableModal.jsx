@@ -177,7 +177,7 @@ export default function CreateTableModal({ interest, defaultVariant, onClose }) 
                             </label>
                             <p className="text-gray-500 text-[11px]">{t('batak.step.spectatorOpenHint')}</p>
                             <p className="text-amber-300/90 text-[11px] bg-amber-500/10 rounded-lg px-3 py-2">
-                                {isTeam ? t('batak.payout.team') : t('batak.payout.solo')}
+                                {isTeam ? t('batak.payout.team') : (variant === 'gomme' ? t('batak.payout.gomme', '1. potun tamamını alır.') : t('batak.payout.solo'))}
                             </p>
                             <button onClick={createTable} disabled={!canAfford}
                                 className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-3 rounded-xl disabled:opacity-40">
