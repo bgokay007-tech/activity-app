@@ -4883,7 +4883,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         <Animated.View style={[s.card, { width: '100%', borderRadius: twoCol ? moderateScale(14) : (NEW_VISUAL ? 24 : moderateScale(14)), paddingHorizontal: twoCol ? moderateScale(8) : (NEW_VISUAL ? 12 : 0), paddingTop: twoCol ? moderateScale(8) : (NEW_VISUAL ? 12 : 0), paddingBottom: twoCol ? moderateScale(8) : (NEW_VISUAL ? 10 : 0), minHeight: NEW_VISUAL ? undefined : moderateScale(230), borderWidth: NEW_VISUAL ? 0 : 1 }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
             {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (ilan detayını açmaz). */}
             <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                style={{ position:'absolute', top: moderateScale(6), right: moderateScale(6), zIndex:10, backgroundColor:'#00000060', borderRadius: moderateScale(12), width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
+                style={{ position:'absolute', top: moderateScale(6), right: moderateScale(6), zIndex:10, backgroundColor: 'transparent', borderRadius: moderateScale(12), width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
                 <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
             </TouchableOpacity>
             {cardFlipped ? (
@@ -7549,7 +7549,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         >
             {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (ilan detayını açmaz). */}
             <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                style={{ position:'absolute', top:2, right:2, zIndex:10, backgroundColor:'#00000060', borderRadius:12, width:20, height:20, alignItems:'center', justifyContent:'center' }}>
+                style={{ position:'absolute', top:2, right:2, zIndex:10, backgroundColor: 'transparent', borderRadius:12, width:20, height:20, alignItems:'center', justifyContent:'center' }}>
                 <Text style={{ fontSize:11 }}>🔄</Text>
             </TouchableOpacity>
             {cardFlipped ? (
@@ -11710,7 +11710,7 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
         <Animated.View style={[s.card, { width:'100%', paddingHorizontal:0, paddingTop:0, paddingBottom:0, minHeight:92 }, highlighted && { borderColor:'#f97316', borderWidth:2 }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
             {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (detayı açmaz). */}
             <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                style={{ position:'absolute', top:6, right:6, zIndex:10, backgroundColor:'#00000060', borderRadius:12, width:22, height:22, alignItems:'center', justifyContent:'center' }}>
+                style={{ position:'absolute', top:6, right:6, zIndex:10, backgroundColor: 'transparent', borderRadius:12, width:22, height:22, alignItems:'center', justifyContent:'center' }}>
                 <Text style={{ fontSize:12 }}>🔄</Text>
             </TouchableOpacity>
             {/* Kullanıcı isteği: canlı takiple (saat/telefon) girilmiş, detaylı istatistikleri olan
