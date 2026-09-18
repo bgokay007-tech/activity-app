@@ -26497,7 +26497,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <TouchableOpacity
                                                 onPress={() => setTournSubTab('open')}
                                                 style={{
-                                                    width: 56,
+                                                    width: 48,
                                                     height: 40,
                                                     paddingHorizontal: 2,
                                                     borderRadius: 8,
@@ -26509,7 +26509,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 }}
                                             >
                                                 <Text
-                                                    style={{ color: tournSubTab !== 'inprogress' ? '#fff' : colors.textMuted, fontSize: 11, fontWeight: '800', textAlign: 'center' }}
+                                                    style={{ color: tournSubTab !== 'inprogress' ? '#fff' : colors.textMuted, fontSize: 12, fontWeight: '800', textAlign: 'center', lineHeight: 14 }}
                                                     numberOfLines={2}
                                                     adjustsFontSizeToFit
                                                     minimumFontScale={0.65}
