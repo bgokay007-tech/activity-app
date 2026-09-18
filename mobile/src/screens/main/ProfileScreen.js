@@ -13,6 +13,7 @@ import useT from '../../hooks/useT';
 import api from '../../services/api';
 import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
+import { moderateScale, touchSize } from '../../theme/scale';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ManageActivitiesModal from '../../components/ManageActivitiesModal';
 import AssessmentModal from '../../components/AssessmentModal';
@@ -518,7 +519,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     const isEditingAlias = aliasEditId === item.id;
 
     const BottomBtns = () => (
-        <View style={[fc.btnRow, { bottom: 28 + insets.bottom }]}>
+        <View style={[fc.btnRow, { bottom: moderateScale(28) + insets.bottom }]}>
             <TouchableOpacity style={fc.backBtn} onPress={onClose}>
                 <Text style={fc.backBtnText}>← {lang === 'tr' ? 'Geri' : lang === 'ru' ? 'Назад' : lang === 'de' ? 'Zurück' : 'Back'}</Text>
             </TouchableOpacity>
@@ -534,22 +535,22 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
             <Animated.View style={[fc.card, { transform: [{ perspective: 1200 }, { rotateY }] }]}>
                 {!isBack ? (
                     <View style={fc.face}>
-                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 67 }}>
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={fc.scrollContent}>
 
                             {/* ── Tek satır: emoji + isim + G/M/B butonları ── */}
                             <View style={fc.topRow}>
                                 {item.subCategory === 'padel'
-                                    ? <Image source={require('../../../assets/padel.png')} style={{ width: 16, height: 16 }} resizeMode="contain" />
+                                    ? <Image source={require('../../../assets/padel.png')} style={{ width: moderateScale(22), height: moderateScale(22) }} resizeMode="contain" />
                                     : <Text style={fc.smallEmoji}>{item.emoji || '🏅'}</Text>}
-                                <View style={{ flexShrink: 1 }}>
+                                <View style={{ flexShrink: 1, minWidth: moderateScale(52) }}>
                                     <Text style={fc.smallSportName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{getSubCategoryLabel(item.subCategory, lang)?.toUpperCase()}</Text>
-                                    {item.alias ? <Text style={{ color: '#a855f7', fontSize: 8, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.alias}</Text> : null}
+                                    {item.alias ? <Text style={{ color: '#a855f7', fontSize: moderateScale(11), fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.alias}</Text> : null}
                                 </View>
                                 {/* Kullanıcı isteği: onaylı antrenör/hakem rozeti olanlar, ELO puanının hemen
                                     altında (aynı kutu içinde) "Antrenör"/"Hakem" etiketiyle görünsün — bkz.
                                     backend interest.controller.js attachCoachRefereeBadges. */}
                                 {(item.assessmentCompleted || item.doublesAssessmentCompleted || item.isCoach || item.isReferee || (isOwnProfile && UTR_PROFILE_SUBS.includes(item.subCategory))) && (
-                                    <View style={{ alignItems: 'center', backgroundColor: '#facc1520', borderRadius: 6, paddingVertical: 1, paddingHorizontal: 4, borderWidth: 1, borderColor: '#facc1540' }}>
+                                    <View style={fc.eloBox}>
                                         {/* Tenis/padel: tekli/çiftler puanı AYRI gösterilir (bkz. backend
                                             utrRating.js) — ikisi de dokununca aynı ELO geçmişi grafiğini açar.
                                             Kullanıcı isteği: henüz hiç değerlendirme yapılmamışsa bile "—" ile
@@ -558,50 +559,50 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                             <>
                                                 <TouchableOpacity onPress={() => (item.assessmentCompleted || item.doublesAssessmentCompleted) && setShowEloModal(true)} disabled={!(item.assessmentCompleted || item.doublesAssessmentCompleted)} style={{ alignItems: 'center' }}>
                                                     {(item.subCategory !== 'padel' || item.assessmentCompleted || (item.singlesMatchCount || 0) > 0) && (
-                                                        <Text style={{ color: '#facc15', fontSize: 10, fontWeight: '900' }} numberOfLines={1}>
+                                                        <Text style={fc.eloLine} numberOfLines={1}>
                                                             {lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'Одиночный' : lang === 'de' ? 'Einzel' : 'Singles'} {item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'}
                                                         </Text>
                                                     )}
-                                                    <Text style={{ color: '#facc15', fontSize: 10, fontWeight: '900' }} numberOfLines={1}>
+                                                    <Text style={fc.eloLine} numberOfLines={1}>
                                                         {lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'Пары' : lang === 'de' ? 'Doppel' : 'Doubles'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
                                                     </Text>
-                                                    <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
+                                                    <Text style={fc.eloTag}>ELO ★</Text>
                                                 </TouchableOpacity>
                                                 {isOwnProfile && (
-                                                    <View style={{ flexDirection: 'row', gap: 3, marginTop: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
-                                                        <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={{ backgroundColor: '#f8717130', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
-                                                            <Text style={{ color: '#f87171', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
+                                                    <View style={fc.eloActionRow}>
+                                                        <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={fc.eloChipRed}>
+                                                            <Text style={fc.eloChipRedTxt} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
                                                         </TouchableOpacity>
-                                                        <TouchableOpacity onPress={openAssessPicker} style={{ backgroundColor: '#facc1530', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
-                                                            <Text style={{ color: '#facc15', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>📋 {lang === 'tr' ? 'Değerlendir' : lang === 'ru' ? 'Оценить' : lang === 'de' ? 'Bewerten' : 'Assess'}</Text>
+                                                        <TouchableOpacity onPress={openAssessPicker} style={fc.eloChipYellow}>
+                                                            <Text style={fc.eloChipYellowTxt} numberOfLines={1}>📋 {lang === 'tr' ? 'Değerlendir' : lang === 'ru' ? 'Оценить' : lang === 'de' ? 'Bewerten' : 'Assess'}</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                 )}
                                                 {!isOwnProfile && (
-                                                    <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={{ marginTop: 2, backgroundColor: '#f8717130', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
-                                                        <Text style={{ color: '#f87171', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
+                                                    <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={[fc.eloChipRed, { marginTop: moderateScale(4) }]}>
+                                                        <Text style={fc.eloChipRedTxt} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </>
                                         ) : item.assessmentCompleted && (
                                             <TouchableOpacity onPress={() => setShowEloModal(true)} style={{ alignItems: 'center' }}>
-                                                <Text style={{ color: '#facc15', fontSize: 13, fontWeight: '900' }}>{Number(item.skillRating).toFixed(2)}</Text>
-                                                <Text style={{ color: '#facc1599', fontSize: 8, fontWeight: '700' }}>ELO ★</Text>
+                                                <Text style={{ color: '#facc15', fontSize: moderateScale(16), fontWeight: '900' }}>{Number(item.skillRating).toFixed(2)}</Text>
+                                                <Text style={fc.eloTag}>ELO ★</Text>
                                             </TouchableOpacity>
                                         )}
                                         {!UTR_PROFILE_SUBS.includes(item.subCategory) && (
-                                            <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={{ marginTop: 2, backgroundColor: '#f8717130', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
-                                                <Text style={{ color: '#f87171', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
+                                            <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={[fc.eloChipRed, { marginTop: moderateScale(4) }]}>
+                                                <Text style={fc.eloChipRedTxt} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
                                             </TouchableOpacity>
                                         )}
-                                        {item.isCoach && <Text style={{ color: '#4ade80', fontSize: 8, fontWeight: '800' }}>🎓 {lang==='tr' ? 'Antrenör' : lang==='ru' ? 'Тренер' : lang==='de' ? 'Trainer' : 'Coach'}</Text>}
-                                        {item.isReferee && <Text style={{ color: '#fbbf24', fontSize: 8, fontWeight: '800' }}>🟨 {lang==='tr' ? 'Hakem' : lang==='ru' ? 'Судья' : lang==='de' ? 'Schiedsrichter' : 'Referee'}</Text>}
+                                        {item.isCoach && <Text style={fc.badgeTxtGreen}>🎓 {lang==='tr' ? 'Antrenör' : lang==='ru' ? 'Тренер' : lang==='de' ? 'Trainer' : 'Coach'}</Text>}
+                                        {item.isReferee && <Text style={fc.badgeTxtYellow}>🟨 {lang==='tr' ? 'Hakem' : lang==='ru' ? 'Судья' : lang==='de' ? 'Schiedsrichter' : 'Referee'}</Text>}
                                     </View>
                                 )}
                                 {/* UTR dışı / henüz ELO kutusu yoksa da oran butonu görünsün */}
                                 {!(item.assessmentCompleted || item.doublesAssessmentCompleted || item.isCoach || item.isReferee || (isOwnProfile && UTR_PROFILE_SUBS.includes(item.subCategory))) && (
-                                    <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={{ backgroundColor: '#f8717120', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 5, borderWidth: 1, borderColor: '#f8717140' }}>
-                                        <Text style={{ color: '#f87171', fontSize: 8, fontWeight: '800' }} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
+                                    <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={fc.eloChipRedStandalone}>
+                                        <Text style={fc.eloChipRedTxt} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
                                     </TouchableOpacity>
                                 )}
                                 {[
@@ -610,14 +611,14 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     { type: 'draw', count: drawsCount,  label: lang==='tr' ? 'Beraberlik' : lang==='ru' ? 'Ничья' : lang==='de' ? 'Unentschieden' : 'Draws',  color: '#facc15' },
                                 ].map(({ type, count, label, color }) => (
                                     <TouchableOpacity key={type} onPress={() => setMatchListType(type)} style={fc.miniStatBtn}>
-                                        <Text style={{ color, fontSize: 13, fontWeight: '900' }}>{count}</Text>
-                                        <Text style={{ color: '#6b7280', fontSize: 8, fontWeight: '700' }}>{label}</Text>
+                                        <Text style={{ color, fontSize: moderateScale(16), fontWeight: '900' }}>{count}</Text>
+                                        <Text style={fc.miniStatLbl}>{label}</Text>
                                     </TouchableOpacity>
                                 ))}
                                 {isOwnProfile && (item.reservationCount > 0) && (
                                     <TouchableOpacity onPress={onReservations} style={fc.miniStatBtn}>
-                                        <Text style={{ color: '#60a5fa', fontSize: 13, fontWeight: '900' }}>{item.reservationCount}</Text>
-                                        <Text style={{ color: '#6b7280', fontSize: 8, fontWeight: '700' }}>📅 Rezerv.</Text>
+                                        <Text style={{ color: '#60a5fa', fontSize: moderateScale(16), fontWeight: '900' }}>{item.reservationCount}</Text>
+                                        <Text style={fc.miniStatLbl}>📅 Rezerv.</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
@@ -634,18 +635,18 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                     </TouchableOpacity>
                                     {isOwnProfile && (
                                         isEditingAlias ? (
-                                            <View style={{ gap: 3 }}>
+                                            <View style={{ gap: moderateScale(6) }}>
                                                 <TextInput value={aliasValue} onChangeText={setAliasValue}
                                                     placeholder={`${profile?.username}`} placeholderTextColor="#6b7280" maxLength={30} autoFocus
-                                                    style={{ color: '#fff', fontSize: 11, backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 5, paddingVertical: 3, borderWidth: 1, borderColor: '#ffffff20' }} />
-                                                <View style={{ flexDirection: 'row', gap: 3 }}>
+                                                    style={{ color: '#fff', fontSize: moderateScale(14), backgroundColor: '#ffffff10', borderRadius: moderateScale(10), paddingHorizontal: moderateScale(10), paddingVertical: moderateScale(10), minHeight: touchSize(44), borderWidth: 1, borderColor: '#ffffff20' }} />
+                                                <View style={{ flexDirection: 'row', gap: moderateScale(6) }}>
                                                     <TouchableOpacity onPress={onSaveAlias} disabled={savingAlias}
-                                                        style={{ flex: 1, backgroundColor: '#a855f7', borderRadius: 6, paddingVertical: 2, alignItems: 'center' }}>
-                                                        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>✓</Text>
+                                                        style={{ flex: 1, backgroundColor: '#a855f7', borderRadius: moderateScale(8), minHeight: touchSize(40), justifyContent: 'center', alignItems: 'center' }}>
+                                                        <Text style={{ color: '#fff', fontSize: moderateScale(14), fontWeight: '700' }}>✓</Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity onPress={onCancelAlias}
-                                                        style={{ flex: 1, backgroundColor: '#ffffff10', borderRadius: 6, paddingVertical: 2, alignItems: 'center' }}>
-                                                        <Text style={{ color: '#9ca3af', fontSize: 11 }}>✕</Text>
+                                                        style={{ flex: 1, backgroundColor: '#ffffff10', borderRadius: moderateScale(8), minHeight: touchSize(40), justifyContent: 'center', alignItems: 'center' }}>
+                                                        <Text style={{ color: '#9ca3af', fontSize: moderateScale(14) }}>✕</Text>
                                                     </TouchableOpacity>
                                                 </View>
                                             </View>
@@ -678,9 +679,9 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                             {/* ── ELO seviye progress ── */}
                             {accuracy !== null && (
                                 <View style={fc.progressBox}>
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
-                                        <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '700' }}>{t?.levelTr?.[item.level] || item.level}</Text>
-                                        <Text style={{ color: levelColor, fontSize: 10, fontWeight: '800' }}>{accuracy}%</Text>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: moderateScale(6) }}>
+                                        <Text style={{ color: '#6b7280', fontSize: moderateScale(12), fontWeight: '700' }}>{t?.levelTr?.[item.level] || item.level}</Text>
+                                        <Text style={{ color: levelColor, fontSize: moderateScale(12), fontWeight: '800' }}>{accuracy}%</Text>
                                     </View>
                                     <View style={fc.progressTrack}>
                                         <View style={[fc.progressFill, { width: `${accuracy}%`, backgroundColor: levelColor }]} />
@@ -701,40 +702,40 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                           desc: lang==='tr' ? 'Gerginlikte odaklanmayı sürdürme, mazeret üretmeme.' : lang==='ru' ? 'Сохранение концентрации под давлением, без отговорок.' : lang==='de' ? 'Konzentration unter Druck bewahren, keine Ausreden suchen.' : 'Maintaining focus under pressure.' },
                                     ].map(({ key, emoji, title, desc }) => (
                                         <View key={key} style={fc.anketCard}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 3 }}>
-                                                <Text style={{ fontSize: 13 }}>{emoji}</Text>
-                                                <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', flex: 1 }}>{title}</Text>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: moderateScale(6), marginBottom: moderateScale(4) }}>
+                                                <Text style={{ fontSize: moderateScale(16) }}>{emoji}</Text>
+                                                <Text style={{ color: '#fff', fontSize: moderateScale(13), fontWeight: '800', flex: 1 }}>{title}</Text>
                                             </View>
-                                            <Text style={{ color: '#6b7280', fontSize: 9, marginBottom: 6, lineHeight: 13 }}>{desc}</Text>
-                                            <View style={{ flexDirection: 'row', gap: 3, justifyContent: 'flex-start' }}>
+                                            <Text style={{ color: '#6b7280', fontSize: moderateScale(12), marginBottom: moderateScale(8), lineHeight: moderateScale(17) }}>{desc}</Text>
+                                            <View style={{ flexDirection: 'row', gap: moderateScale(6), justifyContent: 'flex-start' }}>
                                                 {[1,2,3,4,5].map(n => {
                                                     const sel = anketScores[key] === n;
                                                     const col = n <= 2 ? '#f87171' : n === 3 ? '#facc15' : '#4ade80';
                                                     return (
                                                         <TouchableOpacity key={n}
                                                             onPress={() => canRate && saveScore(key, n)}
-                                                            style={{ width: 20, height: 20, borderRadius: 4, backgroundColor: sel ? col+'30' : '#ffffff08', borderWidth: sel ? 2 : 1, borderColor: sel ? col : '#ffffff15', alignItems: 'center', justifyContent: 'center', opacity: canRate ? 1 : 0.5 }}>
-                                                            <Text style={{ color: sel ? col : '#6b7280', fontSize: 9, fontWeight: '900' }}>{n}</Text>
+                                                            style={{ width: touchSize(36), height: touchSize(36), borderRadius: moderateScale(8), backgroundColor: sel ? col+'30' : '#ffffff08', borderWidth: sel ? 2 : 1, borderColor: sel ? col : '#ffffff15', alignItems: 'center', justifyContent: 'center', opacity: canRate ? 1 : 0.5 }}>
+                                                            <Text style={{ color: sel ? col : '#6b7280', fontSize: moderateScale(13), fontWeight: '900' }}>{n}</Text>
                                                         </TouchableOpacity>
                                                     );
                                                 })}
                                             </View>
                                         </View>
                                     ))}
-                                    {!canRate && <Text style={{ color: '#6b7280', fontSize: 9, textAlign: 'center', marginTop: 4 }}>{lang==='tr' ? 'Bu sporda birlikte maç yapmanız gerekiyor.' : lang==='ru' ? 'Вам нужно сыграть вместе в этом виде спорта.' : lang==='de' ? 'Ihr müsst in dieser Sportart schon zusammen gespielt haben.' : 'You need to have played together.'}</Text>}
+                                    {!canRate && <Text style={{ color: '#6b7280', fontSize: moderateScale(12), textAlign: 'center', marginTop: moderateScale(6) }}>{lang==='tr' ? 'Bu sporda birlikte maç yapmanız gerekiyor.' : lang==='ru' ? 'Вам нужно сыграть вместе в этом виде спорта.' : lang==='de' ? 'Ihr müsst in dieser Sportart schon zusammen gespielt haben.' : 'You need to have played together.'}</Text>}
                                 </View>
                             )}
 
                             {/* ── Voleybol Değerlendirmesi ── */}
                             {item.subCategory === 'volleyball' && (
-                                <TouchableOpacity style={fc.actionBtn} onPress={() => setShowVolleyballRating(true)}>
+                                <TouchableOpacity style={fc.actionBtnWide} onPress={() => setShowVolleyballRating(true)}>
                                     <Text style={[fc.actionTxt, { color: '#a855f7', textAlign: 'center' }]}>{t.volleyballRatingBtn}</Text>
                                 </TouchableOpacity>
                             )}
 
                             {/* Tenis/padel: antrenör + maç arkadaşı geri bildirimi — ELO'ya yazılmaz */}
                             {(item.subCategory === 'tennis' || item.subCategory === 'padel') && (
-                                <TouchableOpacity style={fc.actionBtn} onPress={() => setShowRacquetFeedback(true)}>
+                                <TouchableOpacity style={fc.actionBtnWide} onPress={() => setShowRacquetFeedback(true)}>
                                     <Text style={[fc.actionTxt, { color: item.subCategory === 'padel' ? '#06b6d4' : '#22c55e', textAlign: 'center' }]}>
                                         {item.subCategory === 'padel' ? t.racquetFeedbackBtnPadel : t.racquetFeedbackBtnTennis}
                                     </Text>
@@ -1263,37 +1264,51 @@ function AchievementsModal({ visible, onClose, profileUserId, isOwnProfile, lang
 
 const fc = StyleSheet.create({
     card: { flex: 1, elevation: 20 },
-    face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 0, paddingTop: 45 },
+    face: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: moderateScale(14), paddingTop: moderateScale(52) },
+    scrollContent: { paddingBottom: moderateScale(90), gap: moderateScale(10), flexGrow: 1 },
     backFace: { backgroundColor: '#0f0f1a', alignItems: 'center', justifyContent: 'center' },
-    topRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 10, backgroundColor: '#ffffff08', borderRadius: 10, padding: 3, borderWidth: 1, borderColor: '#ffffff10', flexWrap: 'nowrap' },
-    smallEmoji: { fontSize: 16 },
-    smallSportName: { color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 0.5, textTransform: 'uppercase' },
-    miniStatBtn: { alignItems: 'center', backgroundColor: '#ffffff10', borderRadius: 6, paddingVertical: 0, paddingHorizontal: 0, borderWidth: 1, borderColor: '#ffffff15' },
-    halfRow: { flexDirection: 'row', gap: 3, marginBottom: 3 },
-    rightCol: { flex: 1, gap: 3 },
-    actionCol: { flex: 1, gap: 3 },
-    statCard: { backgroundColor: '#ffffff08', borderRadius: 8, paddingVertical: 0, paddingHorizontal: 0, alignItems: 'center', borderWidth: 1, borderColor: '#ffffff10', gap: 3 },
-    statBigNum: { fontSize: 16, fontWeight: '900' },
-    statSmLbl: { color: '#6b7280', fontSize: 7, fontWeight: '700', letterSpacing: 0.5 },
-    actionBtn: { backgroundColor: '#ffffff08', borderRadius: 8, padding: 0, borderWidth: 1, borderColor: '#ffffff10' },
-    actionTxt: { fontSize: 11, fontWeight: '700' },
-    progressBox: { backgroundColor: '#ffffff06', borderRadius: 10, padding: 7, borderWidth: 1, borderColor: '#ffffff10', marginBottom: 10 },
-    progressTrack: { height: 5, backgroundColor: '#ffffff15', borderRadius: 3, overflow: 'hidden' },
-    progressFill: { height: 5, borderRadius: 3 },
-    graphBox: { backgroundColor: '#ffffff06', borderRadius: 12, padding: 11, borderWidth: 1, borderColor: '#ffffff10' },
-    btnRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', position: 'absolute', bottom: 28, left: 16, right: 16 },
-    backBtn: { backgroundColor: '#ffffff10', borderRadius: 8, paddingHorizontal: 0, paddingVertical: 0, borderWidth: 1, borderColor: '#ffffff20' },
-    backBtnText: { color: '#9ca3af', fontSize: 11, fontWeight: '700' },
-    flipBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#a855f730', borderWidth: 1, borderColor: '#a855f760', justifyContent: 'center', alignItems: 'center' },
-    flipBtnText: { fontSize: 13 },
-    backLogo: { fontSize: 64, marginBottom: 12 },
-    backTitle: { color: '#a855f7', fontSize: 20, fontWeight: '900', letterSpacing: 2, marginBottom: 8, textAlign: 'center' },
-    anketSection: { marginTop: 8 },
-    anketSectionTitle: { color: '#a855f7', fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
-    anketCard: { backgroundColor: '#ffffff06', borderRadius: 8, padding: 5, borderWidth: 1, borderColor: '#ffffff10', marginBottom: 6 },
-    backPattern: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 3, marginBottom: 32, paddingHorizontal: 17 },
-    backPatternEmoji: { fontSize: 32, opacity: 0.3 },
-    backComingSoon: { color: '#a855f780', fontSize: 16, fontWeight: '700', letterSpacing: 3 },
+    topRow: { flexDirection: 'row', alignItems: 'center', gap: moderateScale(6), marginBottom: moderateScale(12), backgroundColor: '#ffffff08', borderRadius: moderateScale(14), padding: moderateScale(10), borderWidth: 1, borderColor: '#ffffff10', flexWrap: 'wrap' },
+    smallEmoji: { fontSize: moderateScale(22) },
+    smallSportName: { color: '#fff', fontSize: moderateScale(15), fontWeight: '900', letterSpacing: 0.5, textTransform: 'uppercase' },
+    eloBox: { alignItems: 'center', backgroundColor: '#facc1520', borderRadius: moderateScale(10), paddingVertical: moderateScale(6), paddingHorizontal: moderateScale(8), borderWidth: 1, borderColor: '#facc1540', flexShrink: 1 },
+    eloLine: { color: '#facc15', fontSize: moderateScale(13), fontWeight: '900' },
+    eloTag: { color: '#facc1599', fontSize: moderateScale(11), fontWeight: '700' },
+    eloActionRow: { flexDirection: 'row', gap: moderateScale(4), marginTop: moderateScale(4), flexWrap: 'wrap', justifyContent: 'center' },
+    eloChipRed: { backgroundColor: '#f8717130', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(8), paddingVertical: moderateScale(6), minHeight: touchSize(32), justifyContent: 'center' },
+    eloChipRedTxt: { color: '#f87171', fontSize: moderateScale(11), fontWeight: '800' },
+    eloChipYellow: { backgroundColor: '#facc1530', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(8), paddingVertical: moderateScale(6), minHeight: touchSize(32), justifyContent: 'center' },
+    eloChipYellowTxt: { color: '#facc15', fontSize: moderateScale(11), fontWeight: '800' },
+    eloChipRedStandalone: { backgroundColor: '#f8717120', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), paddingHorizontal: moderateScale(8), borderWidth: 1, borderColor: '#f8717140', minHeight: touchSize(36), justifyContent: 'center' },
+    badgeTxtGreen: { color: '#4ade80', fontSize: moderateScale(11), fontWeight: '800' },
+    badgeTxtYellow: { color: '#fbbf24', fontSize: moderateScale(11), fontWeight: '800' },
+    miniStatBtn: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff10', borderRadius: moderateScale(10), paddingVertical: moderateScale(8), paddingHorizontal: moderateScale(8), minWidth: moderateScale(52), minHeight: touchSize(48), borderWidth: 1, borderColor: '#ffffff15' },
+    miniStatLbl: { color: '#6b7280', fontSize: moderateScale(10), fontWeight: '700', textAlign: 'center' },
+    halfRow: { flexDirection: 'row', gap: moderateScale(8), marginBottom: moderateScale(6) },
+    rightCol: { flex: 1, gap: moderateScale(8) },
+    actionCol: { flex: 1, gap: moderateScale(8) },
+    statCard: { backgroundColor: '#ffffff08', borderRadius: moderateScale(10), paddingVertical: moderateScale(8), paddingHorizontal: moderateScale(8), alignItems: 'center', borderWidth: 1, borderColor: '#ffffff10', gap: moderateScale(4) },
+    statBigNum: { fontSize: moderateScale(18), fontWeight: '900' },
+    statSmLbl: { color: '#6b7280', fontSize: moderateScale(10), fontWeight: '700', letterSpacing: 0.5 },
+    actionBtn: { backgroundColor: '#ffffff08', borderRadius: moderateScale(12), paddingVertical: moderateScale(14), paddingHorizontal: moderateScale(12), minHeight: touchSize(48), justifyContent: 'center', borderWidth: 1, borderColor: '#ffffff10' },
+    actionBtnWide: { backgroundColor: '#ffffff08', borderRadius: moderateScale(12), paddingVertical: moderateScale(16), paddingHorizontal: moderateScale(14), minHeight: touchSize(52), justifyContent: 'center', borderWidth: 1, borderColor: '#ffffff10', marginTop: moderateScale(4) },
+    actionTxt: { fontSize: moderateScale(15), fontWeight: '700' },
+    progressBox: { backgroundColor: '#ffffff06', borderRadius: moderateScale(12), padding: moderateScale(12), borderWidth: 1, borderColor: '#ffffff10', marginBottom: moderateScale(8) },
+    progressTrack: { height: moderateScale(8), backgroundColor: '#ffffff15', borderRadius: moderateScale(4), overflow: 'hidden' },
+    progressFill: { height: moderateScale(8), borderRadius: moderateScale(4) },
+    graphBox: { backgroundColor: '#ffffff06', borderRadius: moderateScale(12), padding: moderateScale(14), borderWidth: 1, borderColor: '#ffffff10' },
+    btnRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', position: 'absolute', bottom: 28, left: moderateScale(16), right: moderateScale(16) },
+    backBtn: { backgroundColor: '#ffffff10', borderRadius: moderateScale(12), paddingHorizontal: moderateScale(18), paddingVertical: moderateScale(12), minHeight: touchSize(44), justifyContent: 'center', borderWidth: 1, borderColor: '#ffffff20' },
+    backBtnText: { color: '#9ca3af', fontSize: moderateScale(15), fontWeight: '700' },
+    flipBtn: { width: touchSize(48), height: touchSize(48), borderRadius: touchSize(24), backgroundColor: '#a855f730', borderWidth: 1, borderColor: '#a855f760', justifyContent: 'center', alignItems: 'center' },
+    flipBtnText: { fontSize: moderateScale(18) },
+    backLogo: { fontSize: moderateScale(64), marginBottom: moderateScale(12) },
+    backTitle: { color: '#a855f7', fontSize: moderateScale(22), fontWeight: '900', letterSpacing: 2, marginBottom: moderateScale(8), textAlign: 'center' },
+    anketSection: { marginTop: moderateScale(8) },
+    anketSectionTitle: { color: '#a855f7', fontSize: moderateScale(13), fontWeight: '800', letterSpacing: 1, marginBottom: moderateScale(8) },
+    anketCard: { backgroundColor: '#ffffff06', borderRadius: moderateScale(10), padding: moderateScale(12), borderWidth: 1, borderColor: '#ffffff10', marginBottom: moderateScale(8) },
+    backPattern: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: moderateScale(6), marginBottom: moderateScale(32), paddingHorizontal: moderateScale(17) },
+    backPatternEmoji: { fontSize: moderateScale(32), opacity: 0.3 },
+    backComingSoon: { color: '#a855f780', fontSize: moderateScale(16), fontWeight: '700', letterSpacing: 3 },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
