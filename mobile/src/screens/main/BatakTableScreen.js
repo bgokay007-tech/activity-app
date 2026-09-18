@@ -360,10 +360,10 @@ export default function BatakTableScreen({ route, navigation }) {
     // Masa 4 kişi dolup geri sayım başladığında ekranda saniye saniye akması için —
     // sadece 'starting' fazındayken çalışır, gereksiz yere sürekli render'a sebep olmasın.
     useEffect(() => {
-        if (state?.phase !== 'starting') return;
+        if (state?.phase !== 'starting' && !state?.turnEndsAt) return;
         const iv = setInterval(() => setNowTick(Date.now()), 250);
         return () => clearInterval(iv);
-    }, [state?.phase]);
+    }, [state?.phase, state?.turnEndsAt]);
     const secondsLeft = state?.startsAt ? Math.max(0, Math.ceil((state.startsAt - nowTick) / 1000)) : 0;
 
     // "Masa Ayarları"ndaki sessize alma tercihi — AsyncStorage'da tutuluyor ki
@@ -499,10 +499,18 @@ export default function BatakTableScreen({ route, navigation }) {
     // "state henüz gelmedi" erken dönüşünden ÖNCE tanımlanır (state?. ile güvenli).
     const leadSuit = state?.leadSuit;
     const legalCards = useMemo(() => {
-        if (!leadSuit) return hand;
+        if (!hand.length) return [];
+        if (!leadSuit) {
+            // Koz kırılmadan koz açılamaz
+            if (state?.trumpSuit && !state?.trumpBroken) {
+                const nonTrump = hand.filter(c => cardSuit(c) !== state.trumpSuit);
+                if (nonTrump.length > 0) return nonTrump;
+            }
+            return hand;
+        }
         const follow = hand.filter(c => cardSuit(c) === leadSuit);
         return follow.length > 0 ? follow : hand;
-    }, [hand, leadSuit]);
+    }, [hand, leadSuit, state?.trumpSuit, state?.trumpBroken]);
 
     if (!state) {
         return (
@@ -540,11 +548,11 @@ export default function BatakTableScreen({ route, navigation }) {
     const isSpectator = spectating || !mySeatInfo;
     const mySeat = mySeatInfo ? mySeatInfo.seat : 0;
     const seatN = state.seats.length || 4;
-    // 4 kişi: alt / sol / üst / sağ. 3 kişi (gömme): alt / sol / sağ (üst boş).
+    // Sağdan sola akış: sıradaki oyuncu sağda (bottom → right → top → left)
     const order = seatN === 3
         ? [mySeat, (mySeat + 1) % 3, null, (mySeat + 2) % 3]
         : [mySeat, (mySeat + 1) % 4, (mySeat + 2) % 4, (mySeat + 3) % 4];
-    const [bottomSeat, leftSeat, topSeat, rightSeat] = order;
+    const [bottomSeat, rightSeat, topSeat, leftSeat] = order;
     const seatByIdx = (seat) => (seat == null ? {} : (state.seats.find(x => x.seat === seat) || {}));
     const isMyTurn = !isSpectator && state.turn === mySeat;
     const activeSeat = state.phase === 'choosingTrump' || state.phase === 'discarding'
@@ -578,9 +586,24 @@ export default function BatakTableScreen({ route, navigation }) {
     };
 
     const goBack = () => { leaveTable(); navigation.goBack(); };
+    const confirmLeave = () => {
+        Alert.alert(
+            t.batakLeaveInGameTitle || 'Masadan ayrıl?',
+            t.batakLeaveInGameMsg || 'Ayrılırsan bot senin yerine oynar; bahisli masada kaybetmiş sayılabilirsin.',
+            [
+                { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+                { text: t.batakLeaveBtn || 'Ayrıl', style: 'destructive', onPress: goBack },
+            ],
+        );
+    };
 
     const maxBid = state.maxBid || 13;
     const bidOptions = Array.from({ length: Math.max(0, maxBid - state.highestBid) }, (_, i) => state.highestBid + 1 + i);
+
+    const turnLeftSec = state.turnEndsAt
+        ? Math.max(0, Math.ceil((state.turnEndsAt - nowTick) / 1000))
+        : null;
+    const isLastPlayed = (seat) => state.lastPlayed && state.lastPlayed.seat === seat;
 
     return (
         <View style={s.root}>
@@ -591,21 +614,20 @@ export default function BatakTableScreen({ route, navigation }) {
                 </View>
             )}
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 20 }]}>
-                <TouchableOpacity onPress={goBack} style={s.backBtn}>
+                <TouchableOpacity onPress={confirmLeave} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
                 </TouchableOpacity>
                 <Text style={s.roundText}>
                     {t.batakRound || 'El'} {state.roundNumber}/{state.totalRounds}
                     {isSpectator ? ` · 👁️ ${t.batakSpectating || 'İzliyorsun'}` : ''}
+                    {turnLeftSec != null && activeSeat === mySeat && !isSpectator ? ` · ⏱ ${turnLeftSec}` : ''}
                 </Text>
-                {state.trumpSuit ? (
-                    <View style={s.trumpBadge}>
-                        <Text style={[s.trumpBadgeText, { color: SUIT_COLOR[state.trumpSuit] }]}>{t.batakTrump || 'Koz'}: {SUIT_SYMBOL[state.trumpSuit]}</Text>
-                    </View>
-                ) : <View style={{ width: 60 }} />}
+                <TouchableOpacity onPress={confirmLeave} style={s.leaveHeaderBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <Text style={s.leaveHeaderBtnText}>{t.batakLeaveBtn || 'Ayrıl'}</Text>
+                </TouchableOpacity>
             </View>
 
-            {/* Skor satırı */}
+            {/* Skor + alınan el sayısı */}
             <View style={s.scoreRow}>
                 {state.seats.map(seat => (
                     <View key={seat.seat} style={[s.scoreCell, seat.seat === activeSeat && s.scoreCellActive]}>
@@ -615,6 +637,7 @@ export default function BatakTableScreen({ route, navigation }) {
                             {seat.seat === state.dealerIndex ? ' 🎯' : ''}
                             {!seat.connected ? ' 🤖' : ''}
                         </Text>
+                        <Text style={s.tricksChip}>🃏 {state.tricksWon?.[seat.seat] ?? 0}</Text>
                         <Text style={[s.scoreValue, state.scores[seat.seat] < 0 && { color: '#f87171' }]}>{state.scores[seat.seat]}</Text>
                     </View>
                 ))}
@@ -622,13 +645,18 @@ export default function BatakTableScreen({ route, navigation }) {
 
             {/* Masa */}
             <View style={s.table}>
+                {state.trumpSuit ? (
+                    <Text style={[s.trumpInline, { color: SUIT_COLOR[state.trumpSuit] }]}>
+                        {t.batakTrump || 'Koz'}: {SUIT_SYMBOL[state.trumpSuit]}
+                        {!state.trumpBroken ? ` · ${t.batakTrumpNotBroken || 'koz henüz kırılmadı'}` : ''}
+                    </Text>
+                ) : null}
                 <View style={s.topSeat}>
                     {topSeat != null ? (
                         <>
                             <Avatar user={seatByIdx(topSeat)} size={26} ring={topSeat === activeSeat} />
                             <Text style={[s.seatLabel, topSeat === activeSeat && s.seatLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{seatByIdx(topSeat).username}</Text>
                             <View style={s.oppHand}>{Array.from({ length: seatByIdx(topSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
-                            {trickCardFor(topSeat) && <PopIn key={trickCardFor(topSeat)} trigger={trickCardFor(topSeat)}><PlayingCard card={trickCardFor(topSeat)} small /></PopIn>}
                         </>
                     ) : (
                         <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>
@@ -644,9 +672,18 @@ export default function BatakTableScreen({ route, navigation }) {
                         <View style={s.oppHandVert}>{Array.from({ length: seatByIdx(leftSeat).handCount || 0 }).slice(0, 5).map((_, i) => <CardBack key={i} small />)}</View>
                     </View>
                     <View style={s.trickCenter}>
-                        {trickCardFor(leftSeat) && <PopIn key={trickCardFor(leftSeat)} trigger={trickCardFor(leftSeat)}><PlayingCard card={trickCardFor(leftSeat)} small /></PopIn>}
-                        {trickCardFor(bottomSeat) && <PopIn key={trickCardFor(bottomSeat)} trigger={trickCardFor(bottomSeat)}><PlayingCard card={trickCardFor(bottomSeat)} small /></PopIn>}
-                        {trickCardFor(rightSeat) && <PopIn key={trickCardFor(rightSeat)} trigger={trickCardFor(rightSeat)}><PlayingCard card={trickCardFor(rightSeat)} small /></PopIn>}
+                        {[topSeat, leftSeat, bottomSeat, rightSeat].filter(x => x != null).map(seat => {
+                            const c = trickCardFor(seat);
+                            if (!c) return null;
+                            return (
+                                <PopIn key={`${seat}-${c}`} trigger={c}>
+                                    <View style={isLastPlayed(seat) ? s.lastPlayedWrap : null}>
+                                        <PlayingCard card={c} small />
+                                        {isLastPlayed(seat) ? <Text style={s.lastPlayedTag}>{t.batakLastPlayed || 'son'}</Text> : null}
+                                    </View>
+                                </PopIn>
+                            );
+                        })}
                         {(!state.trick || state.trick.length === 0) && <Text style={s.tableEmoji}>🎴</Text>}
                     </View>
                     <View style={s.sideSeat}>
@@ -803,6 +840,12 @@ const s = StyleSheet.create({
     roundText: { color: '#fff', fontSize: 14, fontWeight: '800' },
     trumpBadge: { backgroundColor: '#ffffffdd', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
     trumpBadgeText: { fontSize: 13, fontWeight: '900' },
+    trumpInline: { fontSize: 12, fontWeight: '900', textAlign: 'center', marginBottom: 4 },
+    leaveHeaderBtn: { paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#ef444433', borderRadius: 8 },
+    leaveHeaderBtnText: { color: '#fca5a5', fontSize: 12, fontWeight: '800' },
+    tricksChip: { color: '#fbbf24', fontSize: 10, fontWeight: '900' },
+    lastPlayedWrap: { borderWidth: 2, borderColor: '#38bdf8', borderRadius: 8, padding: 1 },
+    lastPlayedTag: { position: 'absolute', top: -8, right: -4, backgroundColor: '#38bdf8', color: '#0f172a', fontSize: 8, fontWeight: '900', paddingHorizontal: 4, borderRadius: 4, overflow: 'hidden' },
 
     startingBannerWrap: { position: 'absolute', top: Platform.OS === 'ios' ? 60 : 26, left: 16, right: 16, zIndex: 20, alignItems: 'center' },
     startingBannerText: { backgroundColor: '#f59e0bee', color: '#111827', fontSize: 15, fontWeight: '900', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 14, overflow: 'hidden' },

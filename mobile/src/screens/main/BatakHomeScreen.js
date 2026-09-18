@@ -570,13 +570,14 @@ function CreateTableModal({ visible, interest, t, onClose }) {
     const [betAmount, setBetAmount] = useState('100');
     const [wagerRating, setWagerRating] = useState(false);
     const [ratingAmount, setRatingAmount] = useState('0.10');
+    const [totalRounds, setTotalRounds] = useState(8);
     const [spectatorOpen, setSpectatorOpen] = useState(false);
 
     useEffect(() => {
         if (visible) {
             setVariant('ihaleli'); setOpponentKind('online'); setDifficulty('medium');
             setRatingRangeMin(''); setRatingRangeMax(''); setBetAmount('100');
-            setWagerRating(false); setRatingAmount('0.10'); setSpectatorOpen(false);
+            setWagerRating(false); setRatingAmount('0.10'); setSpectatorOpen(false); setTotalRounds(8);
         }
     }, [visible]);
 
@@ -597,7 +598,7 @@ function CreateTableModal({ visible, interest, t, onClose }) {
     const startVsBots = () => {
         const socket = getSocket();
         if (!socket) return Alert.alert('', t.batakNoConnection || 'Bağlantı kurulamadı, tekrar deneyin.');
-        socket.emit('batak:playVsBots', { difficulty, variant });
+        socket.emit('batak:playVsBots', { difficulty, variant, totalRounds });
         onClose();
     };
     const createTable = () => {
@@ -606,7 +607,7 @@ function CreateTableModal({ visible, interest, t, onClose }) {
         socket.emit('batak:createPrivateTable', {
             betAmount: parsedBet, ratingAmount: parsedRating,
             ratingRangeMin: parsedRangeMin, ratingRangeMax: parsedRangeMax,
-            variant, listed: true, spectatorOpen,
+            variant, listed: true, spectatorOpen, totalRounds,
         });
         onClose();
     };
@@ -635,6 +636,15 @@ function CreateTableModal({ visible, interest, t, onClose }) {
                             <TouchableOpacity style={[s.oppChip, opponentKind === 'bot' && s.oppChipActive]} onPress={() => setOpponentKind('bot')} activeOpacity={0.85}>
                                 <Text style={[s.oppChipText, opponentKind === 'bot' && s.oppChipTextActive]}>🤖 {t.batakVsBot || 'Botla Oyna'}</Text>
                             </TouchableOpacity>
+                        </View>
+
+                        <Text style={s.fieldLabel}>{t.batakRoundsLabel || 'Kaç el oynanacak?'}</Text>
+                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+                            {[4, 8, 12, 16].map(n => (
+                                <TouchableOpacity key={n} style={[s.oppChip, totalRounds === n && s.oppChipActive]} onPress={() => setTotalRounds(n)} activeOpacity={0.85}>
+                                    <Text style={[s.oppChipText, totalRounds === n && s.oppChipTextActive]}>{n}</Text>
+                                </TouchableOpacity>
+                            ))}
                         </View>
 
                         {opponentKind === 'bot' ? (
