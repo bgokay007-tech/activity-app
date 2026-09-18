@@ -47,6 +47,16 @@ export const SUB_PHOTOS = {
     ceramics:         require('../../assets/visual/sub-ceramics.jpg'),
     poetry:           require('../../assets/visual/sub-poetry.jpg'),
     photography:      require('../../assets/visual/sub-photography.jpg'),
+    // Oyunlar — her dalın kendi görseli (genel cat-games fallback yerine)
+    batak:            require('../../assets/visual/sub-batak.jpg'),
+    okey:             require('../../assets/visual/sub-okey.jpg'),
+    chess:            require('../../assets/visual/sub-chess.jpg'),
+    tavla:            require('../../assets/visual/sub-tavla.jpg'),
+    fps:              require('../../assets/visual/sub-fps.jpg'),
+    moba:             require('../../assets/visual/sub-moba.jpg'),
+    strategy:         require('../../assets/visual/sub-strategy.jpg'),
+    sports_games:     require('../../assets/visual/sub-sports-games.jpg'),
+    boardgames:       require('../../assets/visual/sub-boardgames.jpg'),
 };
 
 export function photoForSub(subId, category) {
