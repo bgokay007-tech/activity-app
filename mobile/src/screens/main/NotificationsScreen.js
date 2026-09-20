@@ -549,6 +549,17 @@ export default function NotificationsScreen({ navigation }) {
             navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'subscriptions' } });
         } else if (type === 'VENUE_REVIEW_PENDING') {
             navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'venuereviews' } });
+        } else if (type === 'SUPPORT_MESSAGE') {
+            // Yeni Destek Konusu / Destek Sohbetine Yeni Mesaj — admin Destek sekmesinde
+            // ilgili konuyu (ticket) doğrudan aç. Eski tek-mesaj modelinde messageId gelir.
+            navigation.navigate('ProfileTab', {
+                screen: 'AdminPortal',
+                params: {
+                    tab: 'support',
+                    openTicketId: data.ticketId || null,
+                    openMessageId: data.messageId || null,
+                },
+            });
         } else if (type === 'VENUE_REVIEW') {
             navigation.navigate('BusinessApp', { openReservations: false });
         } else if (type === 'VENUE_REVIEW_APPROVED' || type === 'VENUE_REVIEW_REJECTED') {

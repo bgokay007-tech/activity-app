@@ -1337,14 +1337,36 @@ function SupportTicketThread({ ticketId, onBack, onClosed }) {
     );
 }
 
-function SupportMessagesTab() {
-    const [viewMode, setViewMode] = useState('tickets'); // 'tickets' | 'legacy'
-    const [activeTicketId, setActiveTicketId] = useState(null);
+function SupportMessagesTab({ openTicketId: openTicketIdProp = null, openMessageId: openMessageIdProp = null, onOpenConsumed }) {
+    const [viewMode, setViewMode] = useState(openTicketIdProp ? 'tickets' : (openMessageIdProp ? 'legacy' : 'tickets'));
+    const [activeTicketId, setActiveTicketId] = useState(openTicketIdProp || null);
 
     const [tickets, setTickets] = useState([]);
     const [ticketStatusFilter, setTicketStatusFilter] = useState('OPEN');
     const [loadingTickets, setLoadingTickets] = useState(true);
     const [refreshingTickets, setRefreshingTickets] = useState(false);
+
+    const [msgs, setMsgs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [statusFilter, setStatusFilter] = useState('PENDING');
+    const [refreshing, setRefreshing] = useState(false);
+    const [replyId, setReplyId] = useState(null);
+    const [reply, setReply] = useState('');
+    const [sending, setSending] = useState(false);
+
+    // Bildirimden (NotificationsScreen / OS push) gelince ilgili konuyu / eski mesaj sekmesini aç.
+    // onOpenConsumed: parent'taki openTicketId'yi temizle — geri dönünce aynı id ile tekrar açılmasın.
+    useEffect(() => {
+        if (openTicketIdProp) {
+            setViewMode('tickets');
+            setActiveTicketId(openTicketIdProp);
+            onOpenConsumed?.();
+        } else if (openMessageIdProp) {
+            setViewMode('legacy');
+            setStatusFilter('PENDING');
+            onOpenConsumed?.();
+        }
+    }, [openTicketIdProp, openMessageIdProp]);
 
     const loadTickets = useCallback(async (st, isRefresh = false) => {
         if (isRefresh) setRefreshingTickets(true); else setLoadingTickets(true);
@@ -1356,14 +1378,6 @@ function SupportMessagesTab() {
     }, []);
 
     useEffect(() => { if (viewMode === 'tickets' && !activeTicketId) loadTickets(ticketStatusFilter); }, [viewMode, ticketStatusFilter, activeTicketId]);
-
-    const [msgs, setMsgs] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [statusFilter, setStatusFilter] = useState('PENDING');
-    const [refreshing, setRefreshing] = useState(false);
-    const [replyId, setReplyId] = useState(null);
-    const [reply, setReply] = useState('');
-    const [sending, setSending] = useState(false);
 
     const load = useCallback(async (st, isRefresh = false) => {
         if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -1723,10 +1737,25 @@ export default function AdminPortalScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState(route?.params?.tab || 'dashboard');
     const tabScrollRef = useRef(null);
+    // Bildirimden gelen destek ticket/mesaj id — SupportMessagesTab'a aktarılır.
+    const [openTicketId, setOpenTicketId] = useState(route?.params?.openTicketId || null);
+    const [openMessageId, setOpenMessageId] = useState(route?.params?.openMessageId || null);
 
     useEffect(() => {
         if (route?.params?.tab) setActiveTab(route.params.tab);
-    }, [route?.params?.tab]);
+        if (route?.params?.openTicketId) {
+            setOpenTicketId(route.params.openTicketId);
+            setActiveTab('support');
+        }
+        if (route?.params?.openMessageId) {
+            setOpenMessageId(route.params.openMessageId);
+            setActiveTab('support');
+        }
+        // Paramı tüket — aynı AdminPortal örneğine tekrar gelince eski id ile yeniden açılmasın.
+        if (route?.params?.openTicketId || route?.params?.openMessageId) {
+            navigation.setParams?.({ openTicketId: undefined, openMessageId: undefined });
+        }
+    }, [route?.params?.tab, route?.params?.openTicketId, route?.params?.openMessageId]);
 
     const renderContent = () => {
         switch (activeTab) {
@@ -1747,7 +1776,13 @@ export default function AdminPortalScreen({ navigation, route }) {
             case 'profilechanges': return <ProfileChangesTab />;
             case 'subscriptions':  return <SubscriptionsTab />;
             case 'venuereviews':   return <VenueReviewsTab />;
-            case 'support':        return <SupportMessagesTab />;
+            case 'support':        return (
+                <SupportMessagesTab
+                    openTicketId={openTicketId}
+                    openMessageId={openMessageId}
+                    onOpenConsumed={() => { setOpenTicketId(null); setOpenMessageId(null); }}
+                />
+            );
             default:               return null;
         }
     };

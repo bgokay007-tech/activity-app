@@ -70,6 +70,18 @@ function navigateFromNotif(data, isBusiness) {
         goToAppScreen(isBusiness, 'ProfileTab', { screen: 'AdminPortal', params: { tab: 'courts' } });
     } else if (type === 'SUBSCRIPTION_REQUEST' || type === 'SUBSCRIPTION_RECEIPT') {
         goToAppScreen(isBusiness, 'ProfileTab', { screen: 'AdminPortal', params: { tab: 'subscriptions' } });
+    } else if (type === 'SUPPORT_MESSAGE') {
+        // Yeni Destek Konusu / Destek Sohbetine Yeni Mesaj — OS bildirim tepsisinden
+        // tıklanınca admin Destek sekmesinde ilgili ticket açılsın (uygulama-içi
+        // NotificationsScreen ile aynı hedef; bu iki yol AYRI kod yolları).
+        goToAppScreen(isBusiness, 'ProfileTab', {
+            screen: 'AdminPortal',
+            params: {
+                tab: 'support',
+                openTicketId: data.ticketId || null,
+                openMessageId: data.messageId || null,
+            },
+        });
     } else if (data.category && data.subCategory) {
         let initialTab = 'rivals';
         // Tamamlanmış turnuvalar Turnuvalar sekmesinde (Açık İlanlar/Devam Eden) hiç
