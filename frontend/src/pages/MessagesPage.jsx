@@ -268,11 +268,16 @@ function MessagesPage() {
         if (!subject || !message) return;
         setCreatingTicket(true);
         try {
-            const { data } = await api.post('/users/me/support-tickets', { subject, message });
+            const lang = localStorage.getItem('i18nextLng') || 'tr';
+            const { data } = await api.post('/users/me/support-tickets', { subject, message, lang });
             setNewSubject('');
             setNewMessage('');
-            setSupportTickets(prev => [{ id: data.id, subject: data.subject, status: data.status, updatedAt: data.updatedAt, lastMessage: data.messages?.[0] || null, hasNewReply: false }, ...prev]);
-            openTicket(data);
+            const msgs = Array.isArray(data.messages) ? data.messages : [];
+            const last = msgs[msgs.length - 1] || null;
+            setSupportTickets(prev => [{ id: data.id, subject: data.subject, status: data.status, updatedAt: data.updatedAt, lastMessage: last, hasNewReply: !!(last?.isFromAdmin) }, ...prev]);
+            setActiveTicket(data);
+            setTicketMessages(msgs);
+            setSupportView('thread');
         } catch (err) {
             alert(err?.response?.data?.message || 'Konu oluşturulamadı');
         } finally {
@@ -284,8 +289,13 @@ function MessagesPage() {
         if (!supportText.trim() || !activeTicket) return;
         setSupportSending(true);
         try {
-            const { data } = await api.post(`/users/me/support-tickets/${activeTicket.id}/messages`, { message: supportText.trim() });
-            setTicketMessages(prev => [...prev, data]);
+            const lang = localStorage.getItem('i18nextLng') || 'tr';
+            const { data } = await api.post(`/users/me/support-tickets/${activeTicket.id}/messages`, { message: supportText.trim(), lang });
+            const added = [];
+            if (data?.message) added.push(data.message);
+            else if (data?.id) added.push(data);
+            if (data?.autoReply) added.push(data.autoReply);
+            if (added.length) setTicketMessages(prev => [...prev, ...added]);
             setSupportText('');
         } catch (err) {
             alert(err?.response?.data?.message || 'Mesaj gönderilemedi');
@@ -534,7 +544,7 @@ function MessagesPage() {
                                                     {t.hasNewReply && <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />}
                                                 </div>
                                                 {t.lastMessage && (
-                                                    <p className="text-gray-400 text-xs mt-1 truncate">{t.lastMessage.isFromAdmin ? 'Admin: ' : ''}{t.lastMessage.message}</p>
+                                                    <p className="text-gray-400 text-xs mt-1 truncate">{t.lastMessage.isFromAdmin ? (t.lastMessage.isAutoReply ? 'AcTiViTy Destek: ' : 'Admin: ') : ''}{t.lastMessage.message}</p>
                                                 )}
                                                 {t.status === 'CLOSED' && <p className="text-gray-600 text-[10px] mt-1">Kapatıldı</p>}
                                             </button>
@@ -550,7 +560,7 @@ function MessagesPage() {
                                     ) : (
                                         ticketMessages.map(m => (
                                             <div key={m.id} className={`rounded-xl p-3 border max-w-[85%] ${m.isFromAdmin ? 'bg-gray-800 border-gray-700 ml-0' : 'bg-purple-600/20 border-purple-500/40 ml-auto'}`}>
-                                                {m.isFromAdmin && <p className="text-purple-400 text-[10px] font-bold mb-0.5">Admin</p>}
+                                                {m.isFromAdmin && <p className="text-purple-400 text-[10px] font-bold mb-0.5">{m.isAutoReply ? 'AcTiViTy Destek' : 'Admin'}</p>}
                                                 <p className="text-white text-sm">{m.message}</p>
                                             </div>
                                         ))

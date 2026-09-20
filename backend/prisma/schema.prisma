@@ -241,6 +241,9 @@ model SupportMessage {
   ticketId    String?
   ticket      SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   isFromAdmin Boolean  @default(false) // ticketId doluyken: bu mesajı admin mi yazdı
+  // Kullanıcı destek yazınca saniyesinde giden resmi otomatik alındı yanıtı — gerçek
+  // admin cevabı gelene kadar ticket "admin bekliyor" sayılır (awaitingAdmin).
+  isAutoReply Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }

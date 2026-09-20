@@ -4,6 +4,7 @@ import {
     ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSelector } from 'react-redux';
 import api from '../services/api';
 import colors from '../theme/colors';
 
@@ -15,6 +16,7 @@ import colors from '../theme/colors';
 // hepsi artık bunu import ediyor.
 export default function SupportModal({ visible, onClose }) {
     const insets = useSafeAreaInsets();
+    const lang = useSelector(s => s.lang?.lang || 'tr');
     const [view, setView] = useState('list'); // 'list' | 'thread' | 'new'
     const [tickets, setTickets] = useState([]);
     const [loadingTickets, setLoadingTickets] = useState(false);
@@ -58,8 +60,12 @@ export default function SupportModal({ visible, onClose }) {
         if (!text || !activeTicket) return;
         setSending(true);
         try {
-            const { data } = await api.post(`/users/me/support-tickets/${activeTicket.id}/messages`, { message: text });
-            setMessages(prev => [...prev, data]);
+            const { data } = await api.post(`/users/me/support-tickets/${activeTicket.id}/messages`, { message: text, lang });
+            const added = [];
+            if (data?.message) added.push(data.message);
+            else if (data?.id) added.push(data);
+            if (data?.autoReply) added.push(data.autoReply);
+            if (added.length) setMessages(prev => [...prev, ...added]);
             setMessageText('');
         } catch (e) {
             // sessizce yut — kullanıcı tekrar deneyebilir, mevcut destek akışıyla aynı davranış
@@ -74,11 +80,15 @@ export default function SupportModal({ visible, onClose }) {
         if (!subject || !text) return;
         setCreating(true);
         try {
-            const { data } = await api.post('/users/me/support-tickets', { subject, message: text });
+            const { data } = await api.post('/users/me/support-tickets', { subject, message: text, lang });
             setNewSubject('');
             setNewMessage('');
-            setTickets(prev => [{ id: data.id, subject: data.subject, status: data.status, updatedAt: data.updatedAt, lastMessage: data.messages?.[0] || null, hasNewReply: false }, ...prev]);
-            openTicket(data);
+            const msgs = Array.isArray(data.messages) ? data.messages : [];
+            const last = msgs[msgs.length - 1] || null;
+            setTickets(prev => [{ id: data.id, subject: data.subject, status: data.status, updatedAt: data.updatedAt, lastMessage: last, hasNewReply: !!(last?.isFromAdmin) }, ...prev]);
+            setActiveTicket(data);
+            setMessages(msgs);
+            setView('thread');
         } catch (e) {
             // sessizce yut
         } finally {
@@ -160,7 +170,7 @@ export default function SupportModal({ visible, onClose }) {
                                                 </View>
                                                 {t.lastMessage && (
                                                     <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }} numberOfLines={1}>
-                                                        {t.lastMessage.isFromAdmin ? '👤 Admin: ' : ''}{t.lastMessage.message}
+                                                        {t.lastMessage.isFromAdmin ? (t.lastMessage.isAutoReply ? 'AcTiViTy Destek: ' : 'Admin: ') : ''}{t.lastMessage.message}
                                                     </Text>
                                                 )}
                                                 <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 4 }}>{fmtAgo(t.updatedAt)} önce{t.status === 'CLOSED' ? ' · Kapatıldı' : ''}</Text>
@@ -184,7 +194,11 @@ export default function SupportModal({ visible, onClose }) {
                                                 borderRadius: 12, padding: 9, marginBottom: 8, maxWidth: '85%',
                                                 borderWidth: 1, borderColor: m.isFromAdmin ? colors.border : colors.purple + '50',
                                             }}>
-                                                {m.isFromAdmin && <Text style={{ color: colors.purple, fontSize: 10, fontWeight: '800', marginBottom: 2 }}>Admin</Text>}
+                                                {m.isFromAdmin && (
+                                                    <Text style={{ color: colors.purple, fontSize: 10, fontWeight: '800', marginBottom: 2 }}>
+                                                        {m.isAutoReply ? 'AcTiViTy Destek' : 'Admin'}
+                                                    </Text>
+                                                )}
                                                 <Text style={{ color: '#fff', fontSize: 13 }}>{m.message}</Text>
                                             </View>
                                         ))

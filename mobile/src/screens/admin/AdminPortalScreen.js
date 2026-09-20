@@ -1316,6 +1316,7 @@ function SupportTicketThread({ ticketId, onBack, onClosed }) {
                         borderWidth: 1, borderColor: m.isFromAdmin ? colors.purple + '50' : colors.border,
                     }}>
                         {!m.isFromAdmin && <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '800', marginBottom: 2 }}>@{ticket?.user?.username}</Text>}
+                        {m.isFromAdmin && m.isAutoReply && <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '800', marginBottom: 2 }}>Otomatik yanıt</Text>}
                         <Text style={{ color: '#fff', fontSize: 13 }}>{m.message}</Text>
                     </View>
                 )}
@@ -1446,7 +1447,7 @@ function SupportMessagesTab({ openTicketId: openTicketIdProp = null, openMessage
                                         {t.awaitingAdmin && <Text style={{ color: '#f59e0b', fontSize: 10, fontWeight: '800' }}>⏳ Yanıt bekliyor</Text>}
                                     </View>
                                     {t.lastMessage && (
-                                        <Text style={s.cardMeta} numberOfLines={1}>{t.lastMessage.isFromAdmin ? 'Siz: ' : ''}{t.lastMessage.message}</Text>
+                                        <Text style={s.cardMeta} numberOfLines={1}>{t.lastMessage.isAutoReply ? 'Otomatik: ' : (t.lastMessage.isFromAdmin ? 'Siz: ' : '')}{t.lastMessage.message}</Text>
                                     )}
                                 </TouchableOpacity>
                             )}

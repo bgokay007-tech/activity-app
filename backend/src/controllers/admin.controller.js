@@ -660,9 +660,8 @@ export const getSupportTickets = async (req, res, next) => {
         res.json(tickets.map(t => ({
             id: t.id, subject: t.subject, status: t.status, createdAt: t.createdAt, updatedAt: t.updatedAt,
             user: t.user, lastMessage: t.messages[0] || null,
-            // Kullanıcı isteği: admin, henüz kendisinin yanıtlamadığı (son mesaj kullanıcıdan
-            // gelen) konuları öncelikli görebilsin.
-            awaitingAdmin: !!(t.messages[0] && !t.messages[0].isFromAdmin),
+            // Son mesaj kullanıcıdan VEYA otomatik alındı yanıtıysa admin hâlâ bakmalı.
+            awaitingAdmin: !!(t.messages[0] && (!t.messages[0].isFromAdmin || t.messages[0].isAutoReply)),
         })));
     } catch (e) { next(e); }
 };
@@ -689,7 +688,7 @@ export const replySupportTicket = async (req, res, next) => {
         if (!ticket) return res.status(404).json({ message: 'Konu bulunamadı' });
 
         const [newMessage] = await prisma.$transaction([
-            prisma.supportMessage.create({ data: { ticketId: id, userId: req.userId, message: message.trim(), isFromAdmin: true } }),
+            prisma.supportMessage.create({ data: { ticketId: id, userId: req.userId, message: message.trim(), isFromAdmin: true, isAutoReply: false } }),
             prisma.supportTicket.update({ where: { id }, data: { updatedAt: new Date() } }),
         ]);
 
