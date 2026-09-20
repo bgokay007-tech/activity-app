@@ -4534,7 +4534,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpened, myRating = 0, refereeListings = [], highlightSlot = null, autoOpenOrder = false }) {
     const t = useT();
     const cfg = getConfig(sub);
-    const isVolleyball = sub === 'volleyball';
     const isOwner = item.senderId === myId;
     // Hakem Arıyorum ilanları (matchType PLAYER_WANTED, positions:['REFEREE']) — ilan
     // sahibi (asıl maçın kurucusuyla aynı kişi) olsa bile bu kart üzerinde asıl maça ait
@@ -5077,10 +5076,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 {/* Tarih / Saat / Süre */}
                 {!item.flexibleSchedule && (item.matchDate || item.matchTime || item.duration) && (
                     <View style={{ gap:3, marginBottom:3 }}>
-                        {item.matchDate && <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={2}>{isVolleyball ? '' : '📅 '}{new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'long',weekday:'long'})}</Text>}
+                        {item.matchDate && <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={2}>{new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'long',weekday:'long'})}</Text>}
                         {(item.matchTime || item.duration) && (
                             <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {item.matchTime ? (() => { const [h,m]=item.matchTime.split(':').map(Number); const dur=parseInt(item.duration||0); const tot=h*60+m+dur; const endT=dur>0?`–${String(Math.floor(tot/60)%24).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`:''; return `${isVolleyball ? '' : '🕐 '}${item.matchTime}${endT}`; })() : ''}{item.matchTime && item.duration ? '  ·  ' : ''}{item.duration ? `${item.duration} ${t.timeMinSuffix}` : ''}
+                                {item.matchTime ? (() => { const [h,m]=item.matchTime.split(':').map(Number); const dur=parseInt(item.duration||0); const tot=h*60+m+dur; const endT=dur>0?`–${String(Math.floor(tot/60)%24).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`:''; return `${item.matchTime}${endT}`; })() : ''}{item.matchTime && item.duration ? '  ·  ' : ''}{item.duration ? `${item.duration} ${t.timeMinSuffix}` : ''}
                             </Text>
                         )}
                     </View>
@@ -5114,7 +5113,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 )}
                 {item.courtName && (
                     <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)}>
-                        <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#60a5fa', textDecorationLine:'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{isVolleyball ? '' : '🏟️ '}{item.courtName}</Text>
+                        <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#60a5fa', textDecorationLine:'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.courtName}</Text>
                     </TouchableOpacity>
                 )}
                 {/* Hakem — kullanıcı isteğiyle salon adının altında, "rezerve edildi" satırının
@@ -5146,10 +5145,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     (kort taraflar arasında ortaklaşa kararlaştırılacak) nötr renkte gösterilir. */}
                 <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {item.isCourtReserved
-                        ? `${isVolleyball ? '' : '✅ '}${sportFacilityLabels(item.subCategory || sub, t).reserved}`
+                        ? sportFacilityLabels(item.subCategory || sub, t).reserved
                         : item.location === 'Ortaklaşa Kararlaştırılır'
-                            ? `${isVolleyball ? '' : '🤝 '}${t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır'}`
-                            : `${isVolleyball ? '' : '❌ '}${sportFacilityLabels(item.subCategory || sub, t).notReserved}`}
+                            ? (t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır')
+                            : sportFacilityLabels(item.subCategory || sub, t).notReserved}
                 </Text>
                 {item.courtFeePerPerson > 0 && (() => {
                     // Kullanıcı isteği: kart üzerinde tüm ödeme yöntemlerinin ayrı bir satırda
@@ -5160,8 +5159,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     const showCc = ccPrice > 0 && ccPrice !== item.courtFeePerPerson;
                     return (
                         <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#4ade80' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                            {isVolleyball ? '' : '💰 '}{item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
-                            {showCc && ` · 💳 ${ccPrice}₺`}
+                            {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
+                            {showCc && ` · ${ccPrice}₺`}
                         </Text>
                     );
                 })()}
