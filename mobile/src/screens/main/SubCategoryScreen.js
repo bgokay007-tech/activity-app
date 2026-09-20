@@ -4979,8 +4979,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                  göre daralıyordu), flex:1 ile kalan tüm dikey alanı da kapsıyor. */}
             <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)} style={{ flex:1 }}>
 
-                {/* Avatar + isim/puan + mod/format */}
-                <View style={{ flexDirection:'row', alignItems:'flex-start', gap: twoCol ? moderateScale(6) : (NEW_VISUAL ? 10 : 3), marginBottom: twoCol ? moderateScale(6) : (NEW_VISUAL ? 8 : 3) }}>
+                {/* Avatar + isim/puan */}
+                <View style={{ flexDirection:'row', alignItems:'flex-start', gap: twoCol ? moderateScale(6) : (NEW_VISUAL ? 10 : 3), marginBottom: twoCol ? moderateScale(4) : (NEW_VISUAL ? 6 : 2) }}>
                     <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={twoCol ? moderateScale(42) : (NEW_VISUAL ? 52 : moderateScale(34))} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
                     <View style={{ flex:1, minWidth:0 }}>
                         <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
@@ -4991,19 +4991,27 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                 </Text>
                             )}
                         </View>
-                        {/* Mod + 1v1/2v2 — fotoğrafın sağına, isimle aynı hizada */}
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginTop:3, flexWrap:'wrap' }}>
+                    </View>
+                </View>
+                {/* Kullanıcı isteği: format satırı kartın en sol hizasından başlasın; sağında
+                    (varsa) cinsiyet kısıtlaması ve derece aralığı aynı satırda dursun. */}
+                {(() => {
+                    const hasRatingRange = item.ratingGenderSplit
+                        ? (item.minRatingMale != null || item.maxRatingMale != null || item.minRatingFemale != null || item.maxRatingFemale != null)
+                        : (item.minRating != null || item.maxRating != null);
+                    const hasSingleGenderReq = item.genderReq && item.genderReq !== 'MIX';
+                    const hasDoubleGenderReq = item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX');
+                    return (
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom: twoCol ? moderateScale(6) : (NEW_VISUAL ? 8 : 3), flexWrap:'wrap', alignSelf:'stretch' }}>
                             <ModeBadge mode={item.matchMode} noEmoji={isVolleyball} />
                             <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }]}>
                                 <Text style={[s.modeBadgeText, { color: cfg.color, fontSize: moderateScale(11) }]}>
                                     {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
                                 </Text>
                             </View>
-                            {/* Kullanıcı isteği: takım büyüklüğünün ("6v6") hemen sağında kadronun
-                                şu an kaçta kaç dolduğu (ör. 4/12) — kart açılmadan görülsün. */}
                             {TEAM_SPORTS.has(sub) && (() => {
                                 const teamSizeN = item.teamSize || 1;
-                                const filledCount = 1 // kurucu
+                                const filledCount = 1
                                     + senderTeamArr.filter(p => p?.id || p?.manualName).length
                                     + participants.filter(p => p?.id || p?.manualName).length
                                     + (Array.isArray(item.oppTeamManualNames) ? item.oppTeamManualNames.length : 0)
@@ -5014,9 +5022,32 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                     </Text>
                                 );
                             })()}
+                            {hasSingleGenderReq && (
+                                <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
+                                    <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(9), fontWeight:'800' }}>
+                                        {item.genderReq === 'MALE' ? '👨' : '👩'}
+                                    </Text>
+                                </View>
+                            )}
+                            {hasDoubleGenderReq && (() => {
+                                const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
+                                const label = `${gL(item.sender?.gender)}${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`;
+                                return (
+                                    <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
+                                        <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }} numberOfLines={1}>{label}</Text>
+                                    </View>
+                                );
+                            })()}
+                            {hasRatingRange && (
+                                <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
+                                    {item.ratingGenderSplit
+                                        ? `⭐ 👨${item.minRatingMale ?? 0}-${item.maxRatingMale ?? 5}  👩${item.minRatingFemale ?? 0}-${item.maxRatingFemale ?? 5}`
+                                        : `⭐ ${item.minRating ?? '0'}–${item.maxRating ?? '5'}`}
+                                </Text>
+                            )}
                         </View>
-                    </View>
-                </View>
+                    );
+                })()}
                 {Array.isArray(item.positions) && (item.positions.includes('REFEREE') || item.positions.includes('REFEREE_OFFER')) && (
                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3 }}>
                         <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50', flexShrink:1 }}>
@@ -5044,25 +5075,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </View>
                 )}
                 {(() => {
-                    // ratingGenderSplit seçiliyse minRating/maxRating boş kalır, gösterge minRatingMale/
-                    // Female'e bakmalı — aksi halde "derece kısıtlaması koydum ama görünmüyor" oluyordu.
-                    const hasRatingRange = item.ratingGenderSplit
-                        ? (item.minRatingMale != null || item.maxRatingMale != null || item.minRatingFemale != null || item.maxRatingFemale != null)
-                        : (item.minRating != null || item.maxRating != null);
-                    const hasSingleGenderReq = item.genderReq && item.genderReq !== 'MIX';
-                    const hasDoubleGenderReq = item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX');
                     const hasGenderCount = item.subCategory === 'volleyball' && item.teamSize > 1 && hasGenderCountInfo(item);
                     const hasCancelPenalty = item.subCategory === 'volleyball' && item.cancelPenaltyHours != null;
-                    if (!hasRatingRange && !hasSingleGenderReq && !hasDoubleGenderReq && !hasGenderCount && !hasCancelPenalty) return null;
+                    if (!hasGenderCount && !hasCancelPenalty) return null;
                     return (
                         <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:3, flexWrap:'wrap' }}>
-                            {hasRatingRange && (
-                                <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700' }}>
-                                    {item.ratingGenderSplit
-                                        ? `⭐ 👨${item.minRatingMale ?? 0}-${item.maxRatingMale ?? 5}  👩${item.minRatingFemale ?? 0}-${item.maxRatingFemale ?? 5}`
-                                        : `⭐ ${item.minRating ?? '0'}–${item.maxRating ?? '5'}`}
-                                </Text>
-                            )}
                             {hasGenderCount && (
                                 <Text style={{ color:'#a855f7', fontSize:moderateScale(10), fontWeight:'700' }}>
                                     {genderCountDisplayLabel(item)}
@@ -5073,28 +5090,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                     {t.cancelPenaltyBadge(item.cancelPenaltyHours)}
                                 </Text>
                             )}
-                            {hasSingleGenderReq && (
-                                <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
-                                    <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(9), fontWeight:'800' }}>
-                                        {item.genderReq === 'MALE' ? '👨' : '👩'}
-                                    </Text>
-                                </View>
-                            )}
-                            {hasDoubleGenderReq && (() => {
-                                const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
-                                // Kullanıcı isteği: detay ekranındaki gibi burada da ilanı açan kişinin
-                                // (kurucu) GERÇEK cinsiyeti dahil edildi — 2v2'de 4 kişi olduğu için 4
-                                // emoji gösterilmesi lazım, önceden sadece 3 slotun kısıtlaması
-                                // gösteriliyordu (bkz. RivalDetailModal'daki aynı isim ve gerekçeli
-                                // düzeltme, orada "hepsi aynı" tek-sembol kısayolu da aynı sebeple
-                                // kaldırıldı).
-                                const label = `${gL(item.sender?.gender)}${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`;
-                                return (
-                                    <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
-                                        <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }} numberOfLines={1}>{label}</Text>
-                                    </View>
-                                );
-                            })()}
                         </View>
                     );
                 })()}
