@@ -4991,9 +4991,18 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                 </Text>
                             )}
                         </View>
-                        <View style={{ marginTop:3, alignSelf:'flex-start' }}>
-                            <ModeBadge mode={item.matchMode} noEmoji={isVolleyball} />
-                        </View>
+                        <Text style={{
+                            marginTop: 3,
+                            color: item.matchMode === 'COMPETITIVE' ? '#f87171' : item.matchMode === 'BOTH' ? '#c084fc' : '#60a5fa',
+                            fontSize: moderateScale(11),
+                            fontWeight: '700',
+                        }} numberOfLines={1}>
+                            {noEmojiStr(
+                                item.matchMode === 'COMPETITIVE' ? t.modeCompetitive
+                                    : item.matchMode === 'BOTH' ? t.modeBoth
+                                        : t.modePractice
+                            )}
+                        </Text>
                     </View>
                 </View>
                 {/* Kullanıcı isteği: format satırı kartın en sol hizasından başlasın; sağında
