@@ -5790,6 +5790,9 @@ function PhoneScorePad({ engine, compact, t, onPoint, onUndoPoint, onUndoGame, o
 
 // Maç saati gelince "Maçı Başlat" ile açılan seçim ekranı — kamera kaydı ve/ya da saatten
 // canlı skor takibi arasında seçim yapılır (kullanıcı isteği: ikisi de olabilir, biri de).
+// Ayrıca "Canlı Yayın" ana seçeneği: altından uygulama / YouTube / Instagram / bitince
+// telefona kaydet çoklu seçilebilir; algoritma seçime göre kamera, dış uygulama ve kayıt
+// davranışını ayarlar.
 function MatchStartModal({ visible, onClose, onStart, t }) {
     const insets = useSafeAreaInsets();
     const [wantCamera, setWantCamera] = useState(false);
@@ -5799,16 +5802,55 @@ function MatchStartModal({ visible, onClose, onStart, t }) {
     // canlı skor kaynağı ("Saat" ile "Telefondan Canlı Takip") birbirini dışlar, ikisi de
     // aynı anda skoru sürmeye çalışamaz; kamera ikisiyle de bağımsız birlikte açılabilir.
     const [wantPhone, setWantPhone] = useState(false);
+    const [wantLive, setWantLive] = useState(false);
+    const [liveApp, setLiveApp] = useState(false);
+    const [liveYoutube, setLiveYoutube] = useState(false);
+    const [liveInstagram, setLiveInstagram] = useState(false);
+    const [liveSave, setLiveSave] = useState(false);
     useEffect(() => {
-        if (visible) { setWantCamera(false); setWantWatch(false); setWantPhone(false); }
+        if (visible) {
+            setWantCamera(false); setWantWatch(false); setWantPhone(false);
+            setWantLive(false); setLiveApp(false); setLiveYoutube(false); setLiveInstagram(false); setLiveSave(false);
+        }
     }, [visible]);
-    const Toggle = ({ active, onPress, emoji, label, desc }) => (
+    const anyLiveSub = liveApp || liveYoutube || liveInstagram || liveSave;
+    const canStart = wantCamera || wantWatch || wantPhone || anyLiveSub;
+    const toggleLiveParent = () => {
+        setWantLive(v => {
+            if (v) { setLiveApp(false); setLiveYoutube(false); setLiveInstagram(false); setLiveSave(false); }
+            return !v;
+        });
+    };
+    const toggleLiveSub = (key) => {
+        const map = { liveApp: setLiveApp, liveYoutube: setLiveYoutube, liveInstagram: setLiveInstagram, liveSave: setLiveSave };
+        map[key](v => {
+            const next = !v;
+            if (next) setWantLive(true);
+            return next;
+        });
+    };
+    const handleStart = () => {
+        // Algoritma: uygulama yayını veya bitince kaydet → kamera yüzeyi şart.
+        // YouTube/Instagram dış uygulamada açılır; kamera yine de (app/save ile) açılabilir.
+        const needCam = wantCamera || liveApp || liveSave;
+        onStart({
+            wantCamera: needCam,
+            wantWatch,
+            wantPhone,
+            liveApp,
+            liveYoutube,
+            liveInstagram,
+            liveSave,
+            saveToGallery: wantCamera || liveSave,
+        });
+    };
+    const Toggle = ({ active, onPress, emoji, label, desc, nested }) => (
         <TouchableOpacity onPress={onPress}
-            style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor: active ? colors.purple+'20' : colors.surface2, borderRadius:12, borderWidth:1, borderColor: active ? colors.purple : colors.border, padding:12, marginBottom:10 }}>
-            <Text style={{ fontSize:22 }}>{emoji}</Text>
+            style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor: active ? colors.purple+'20' : colors.surface2, borderRadius:12, borderWidth:1, borderColor: active ? colors.purple : colors.border, padding: nested ? 10 : 12, marginBottom: nested ? 6 : 10, marginLeft: nested ? 14 : 0 }}>
+            <Text style={{ fontSize: nested ? 18 : 22 }}>{emoji}</Text>
             <View style={{ flex:1 }}>
-                <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>{label}</Text>
-                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:1 }}>{desc}</Text>
+                <Text style={{ color:'#fff', fontSize: nested ? 13 : 14, fontWeight:'800' }}>{label}</Text>
+                {!!desc && <Text style={{ color: colors.textMuted, fontSize: nested ? 10 : 11, marginTop:1 }}>{desc}</Text>}
             </View>
             <View style={{ width:22, height:22, borderRadius:11, borderWidth:2, borderColor: active ? colors.purple : colors.textMuted, backgroundColor: active ? colors.purple : 'transparent', alignItems:'center', justifyContent:'center' }}>
                 {active && <Text style={{ color:'#fff', fontSize:12, fontWeight:'900' }}>✓</Text>}
@@ -5818,17 +5860,29 @@ function MatchStartModal({ visible, onClose, onStart, t }) {
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={opt.overlay}>
-                <View style={[opt.box, { paddingBottom: insets.bottom + 16 }]}>
+                <View style={[opt.box, { paddingBottom: insets.bottom + 16, maxHeight: '88%' }]}>
                     <View style={opt.header}>
                         <Text style={opt.title}>{t.matchStartModalTitle}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
                     </View>
-                    <Toggle active={wantCamera} onPress={() => setWantCamera(v => !v)} emoji="📹" label={t.matchStartCameraLabel} desc={t.matchStartCameraDesc} />
-                    <Toggle active={wantWatch} onPress={() => { setWantWatch(v => !v); setWantPhone(false); }} emoji="⌚" label={t.matchStartWatchLabel} desc={t.matchStartWatchDesc} />
-                    <Toggle active={wantPhone} onPress={() => { setWantPhone(v => !v); setWantWatch(false); }} emoji="📱" label={t.matchStartPhoneLabel} desc={t.matchStartPhoneDesc} />
-                    <TouchableOpacity onPress={() => onStart({ wantCamera, wantWatch, wantPhone })}
-                        disabled={!wantCamera && !wantWatch && !wantPhone}
-                        style={{ backgroundColor: colors.purple, borderRadius:14, paddingVertical:12, alignItems:'center', marginTop:6, opacity: (!wantCamera && !wantWatch && !wantPhone) ? 0.5 : 1 }}>
+                    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                        <Toggle active={wantCamera} onPress={() => setWantCamera(v => !v)} emoji="📹" label={t.matchStartCameraLabel} desc={t.matchStartCameraDesc} />
+                        <Toggle active={wantWatch} onPress={() => { setWantWatch(v => !v); setWantPhone(false); }} emoji="⌚" label={t.matchStartWatchLabel} desc={t.matchStartWatchDesc} />
+                        <Toggle active={wantPhone} onPress={() => { setWantPhone(v => !v); setWantWatch(false); }} emoji="📱" label={t.matchStartPhoneLabel} desc={t.matchStartPhoneDesc} />
+                        <Toggle active={wantLive || anyLiveSub} onPress={toggleLiveParent} emoji="📡" label={t.matchStartLiveLabel} desc={t.matchStartLiveDesc} />
+                        {(wantLive || anyLiveSub) && (
+                            <View style={{ marginBottom: 8 }}>
+                                <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', marginLeft: 14, marginBottom: 6 }}>{t.matchStartLivePickHint}</Text>
+                                <Toggle nested active={liveApp} onPress={() => toggleLiveSub('liveApp')} emoji="📲" label={t.matchStartLiveAppLabel} desc={t.matchStartLiveAppDesc} />
+                                <Toggle nested active={liveYoutube} onPress={() => toggleLiveSub('liveYoutube')} emoji="▶️" label={t.matchStartLiveYoutubeLabel} desc={t.matchStartLiveYoutubeDesc} />
+                                <Toggle nested active={liveInstagram} onPress={() => toggleLiveSub('liveInstagram')} emoji="📸" label={t.matchStartLiveInstagramLabel} desc={t.matchStartLiveInstagramDesc} />
+                                <Toggle nested active={liveSave} onPress={() => toggleLiveSub('liveSave')} emoji="💾" label={t.matchStartLiveSaveLabel} desc={t.matchStartLiveSaveDesc} />
+                            </View>
+                        )}
+                    </ScrollView>
+                    <TouchableOpacity onPress={handleStart}
+                        disabled={!canStart}
+                        style={{ backgroundColor: colors.purple, borderRadius:14, paddingVertical:12, alignItems:'center', marginTop:6, opacity: !canStart ? 0.5 : 1 }}>
                         <Text style={{ color:'#fff', fontWeight:'800', fontSize:14 }}>{t.matchStartGoBtn}</Text>
                     </TouchableOpacity>
                 </View>
@@ -5839,8 +5893,14 @@ function MatchStartModal({ visible, onClose, onStart, t }) {
 
 // Maçı Başlat sonrası açılan tam ekran: kamera kaydı ve/veya saatten gelen canlı skor.
 // İkisi de seçiliyse kamera tam ekran, üstünde küçük canlı skor kutusu (kullanıcı isteği:
-// spor yayınlarındaki skorbord gibi). Kayıt bitince telefonun galerisine kaydedilir.
-function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPhone, matchStartedAt, matchMode, myGender, onMatchEnd, t }) {
+// spor yayınlarındaki skorbord gibi). Kayıt bitince (saveToGallery) telefonun galerisine kaydedilir.
+// Canlı yayın alt seçenekleri: uygulama içi LIVE, YouTube/Instagram dış uygulama, bitince kaydet.
+function MatchLiveScreen({
+    visible, onClose, sub, wantCamera, wantWatch, wantPhone,
+    liveApp = false, liveYoutube = false, liveInstagram = false, liveSave = false,
+    saveToGallery = false,
+    matchStartedAt, matchMode, myGender, onMatchEnd, t,
+}) {
     const insets = useSafeAreaInsets();
     const { width: winW, height: winH } = useWindowDimensions();
     const [camPerm, requestCamPerm] = useCameraPermissions();
@@ -5864,6 +5924,9 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
     // KameraView, üstteki seçim/detay modalı kapanmadan mount edilirse Android native
     // surface çöküp uygulamayı anasayfaya atıyordu — bir kare gecikmeyle takıyoruz.
     const [camMounted, setCamMounted] = useState(false);
+    const isLiveBroadcast = !!(liveApp || liveYoutube || liveInstagram);
+    // Galeri kaydı: klasik "Kamera ile Kaydet" VEYA canlı yayın altındaki "bitince telefona kaydet".
+    const gallerySave = !!(saveToGallery || liveSave);
 
     // ── Canlı takip motoru (saat ya da telefon-içi manuel dokunma) — bkz. liveMatchEngine.js.
     // Watch'tan gelen kümülatif güncellemeler (pointsA/B, gamesA/B, setsA/B) ardışık farkları
@@ -6026,8 +6089,42 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
         if (!visible || !wantCamera) return;
         requestCamPerm();
         requestMicPerm();
-        requestMediaPerm();
-    }, [visible, wantCamera]);
+        if (gallerySave) requestMediaPerm();
+    }, [visible, wantCamera, gallerySave]);
+
+    // YouTube / Instagram canlı yayın — seçildiyse maç ekranı açılınca ilgili uygulamaya yönlendir.
+    useEffect(() => {
+        if (!visible) return;
+        if (!liveYoutube && !liveInstagram) return;
+        const buttons = [];
+        if (liveYoutube) {
+            buttons.push({
+                text: t.matchStartLiveOpenYoutube || 'YouTube Live',
+                onPress: () => {
+                    Linking.openURL('https://www.youtube.com/live_dashboard').catch(() =>
+                        Linking.openURL('https://studio.youtube.com/').catch(() => {}));
+                },
+            });
+        }
+        if (liveInstagram) {
+            buttons.push({
+                text: t.matchStartLiveOpenInstagram || 'Instagram',
+                onPress: () => {
+                    Linking.openURL('instagram://camera').catch(() =>
+                        Linking.openURL('https://www.instagram.com/').catch(() => {}));
+                },
+            });
+        }
+        buttons.push({ text: t.cancelBtn || 'Tamam', style: 'cancel' });
+        const delay = setTimeout(() => {
+            Alert.alert(
+                t.matchStartLiveExternalTitle || 'Canlı Yayın',
+                t.matchStartLiveExternalMsg || 'Seçtiğin platformda canlı yayını başlat. Uygulamadaki maç ekranı açık kalır.',
+                buttons,
+            );
+        }, 450);
+        return () => clearTimeout(delay);
+    }, [visible, liveYoutube, liveInstagram]);
 
     useEffect(() => {
         if (!visible || !wantWatch) return;
@@ -6151,12 +6248,14 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
             if (video?.uri) {
                 setLastClipUri(video.uri);
                 setSaving(true);
-                try { await MediaLibrary.saveToLibraryAsync(video.uri); } catch (e) { /* galeri izni yoksa replay yine çalışsın */ }
+                if (gallerySave) {
+                    try { await MediaLibrary.saveToLibraryAsync(video.uri); } catch (e) { /* galeri izni yoksa replay yine çalışsın */ }
+                }
                 if (replayAfterStopRef.current) {
                     replayAfterStopRef.current = false;
                     setPreparingReplay(false);
                     setReplayUri(video.uri);
-                } else {
+                } else if (gallerySave) {
                     Alert.alert(t.matchRecordSavedTitle, t.matchRecordSavedMsg);
                 }
             } else if (replayAfterStopRef.current) {
@@ -6262,6 +6361,30 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
                     )
                 ) : wantPhone ? (
                     <ManualTapUI />
+                ) : isLiveBroadcast ? (
+                    <View style={{ flex:1, alignItems:'center', justifyContent:'center', paddingHorizontal:28 }}>
+                        <View style={{ backgroundColor:'#dc2626', borderRadius:8, paddingHorizontal:12, paddingVertical:4, marginBottom:14 }}>
+                            <Text style={{ color:'#fff', fontWeight:'900', fontSize:13 }}>● LIVE</Text>
+                        </View>
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', textAlign:'center', marginBottom:8 }}>{t.matchStartLiveExternalRunningTitle || 'Canlı yayın seçildi'}</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', lineHeight:18, marginBottom:18 }}>{t.matchStartLiveExternalRunningMsg || 'YouTube / Instagram uygulamasında yayını sürdür. Bitince buradan kapatabilirsin.'}</Text>
+                        {liveYoutube && (
+                            <TouchableOpacity onPress={() => Linking.openURL('https://www.youtube.com/live_dashboard').catch(() => {})}
+                                style={{ backgroundColor: colors.surface2, borderRadius:12, paddingVertical:12, paddingHorizontal:18, marginBottom:8, borderWidth:1, borderColor: colors.border, width:'100%', alignItems:'center' }}>
+                                <Text style={{ color:'#fff', fontWeight:'800' }}>▶️ YouTube Live</Text>
+                            </TouchableOpacity>
+                        )}
+                        {liveInstagram && (
+                            <TouchableOpacity onPress={() => Linking.openURL('instagram://camera').catch(() => Linking.openURL('https://www.instagram.com/'))}
+                                style={{ backgroundColor: colors.surface2, borderRadius:12, paddingVertical:12, paddingHorizontal:18, marginBottom:8, borderWidth:1, borderColor: colors.border, width:'100%', alignItems:'center' }}>
+                                <Text style={{ color:'#fff', fontWeight:'800' }}>📸 Instagram</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity onPress={onClose}
+                            style={{ backgroundColor: colors.purple, borderRadius:12, paddingVertical:12, paddingHorizontal:18, marginTop:8, width:'100%', alignItems:'center' }}>
+                            <Text style={{ color:'#fff', fontWeight:'800' }}>{t.matchLiveFinishBtn || 'Bitir'}</Text>
+                        </TouchableOpacity>
+                    </View>
                 ) : (
                     <View style={{ flex:1, alignItems:'center', justifyContent:'center' }}>
                         {wearScore ? (
@@ -6319,6 +6442,16 @@ function MatchLiveScreen({ visible, onClose, sub, wantCamera, wantWatch, wantPho
                             <TouchableOpacity onPress={() => manualPoint('B')} style={{ flex:1, backgroundColor:'#dc262640', borderRadius:10, paddingVertical:8, alignItems:'center' }}>
                                 <Text style={{ color:'#fff', fontWeight:'800', fontSize:11 }}>{t.matchLivePointForOpponentBtn}</Text>
                             </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
+                {isLiveBroadcast && wantCamera && (
+                    <View style={{ position:'absolute', top: insets.top + 14, alignSelf:'center', left: 56, right: 56, alignItems:'center' }}>
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:6, backgroundColor:'#dc2626', borderRadius:8, paddingHorizontal:10, paddingVertical:4 }}>
+                            <Text style={{ color:'#fff', fontWeight:'900', fontSize:12 }}>● LIVE</Text>
+                            {liveApp && <Text style={{ color:'#fff', fontSize:10, fontWeight:'700' }}>App</Text>}
+                            {liveYoutube && <Text style={{ color:'#fff', fontSize:10, fontWeight:'700' }}>YT</Text>}
+                            {liveInstagram && <Text style={{ color:'#fff', fontSize:10, fontWeight:'700' }}>IG</Text>}
                         </View>
                     </View>
                 )}
@@ -6426,7 +6559,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // Maçı Başlat — kamera kaydı ve/ya da saatten canlı skor takibi.
     const [showMatchStart, setShowMatchStart] = useState(false);
     const [showMatchLive, setShowMatchLive] = useState(false);
-    const [matchLiveOptions, setMatchLiveOptions] = useState({ wantCamera: false, wantWatch: false, wantPhone: false });
+    const [matchLiveOptions, setMatchLiveOptions] = useState({
+        wantCamera: false, wantWatch: false, wantPhone: false,
+        liveApp: false, liveYoutube: false, liveInstagram: false, liveSave: false, saveToGallery: false,
+    });
     // Canlı takip (saat ya da telefondan manuel) bittiğinde deriveStats() çıktısı + türetilmiş
     // set skorları buraya düşer — skor giriş formu bunlarla ön dolu açılır, kullanıcı onaylayıp
     // gönderir (tam otomatik değil, kullanıcı son kontrolü yapar).
@@ -9284,6 +9420,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             wantCamera={matchLiveOptions.wantCamera}
             wantWatch={matchLiveOptions.wantWatch}
             wantPhone={matchLiveOptions.wantPhone}
+            liveApp={matchLiveOptions.liveApp}
+            liveYoutube={matchLiveOptions.liveYoutube}
+            liveInstagram={matchLiveOptions.liveInstagram}
+            liveSave={matchLiveOptions.liveSave}
+            saveToGallery={matchLiveOptions.saveToGallery}
             matchStartedAt={matchStartedAtRef.current}
             matchMode={match.matchMode}
             myGender={myGender}
