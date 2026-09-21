@@ -5164,12 +5164,23 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     const ccPrice = item.courtFeePerPersonByMethod?.CREDIT_CARD;
                     const showCc = ccPrice > 0 && ccPrice !== item.courtFeePerPerson;
                     return (
-                        <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#4ade80' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                        <Text style={{ fontSize:moderateScale(11), marginBottom:0, color:'#4ade80' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                             {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
                             {showCc && ` · ${ccPrice}₺`}
                         </Text>
                     );
                 })()}
+                {/* Kullanıcı isteği: yorum + çevir satırı fiyatın hemen altında, arada boşluk yok
+                    (önceden flex:1 yüzünden kartın en dibine itilip fiyatla arasında boşluk kalıyordu). */}
+                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop: item.courtFeePerPerson > 0 ? 2 : 0, marginBottom:3 }}>
+                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
+                        💬 {item.commentCount ?? 0}
+                    </Text>
+                    <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                        style={{ width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
+                        <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
+                    </TouchableOpacity>
+                </View>
 
                 {/* Kullanıcı isteği: "Sipariş Ver" artık burada (ön yüz) değil, arka yüzde
                     oyuncu listesinin altında (bkz. cardFlipped bloğu yukarıda) — modal
@@ -5208,16 +5219,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     çevrilince açılan arka yüzde, oyuncu listesinin altında (bkz. cardFlipped
                     bloğu yukarıda) — ön yüz sadece yorum sayısını gösterir. */}
             </TouchableOpacity>
-            {/* Kullanıcı isteği: çevir butonu yorum satırıyla aynı hizada — yorum solda, 🔄 en sağda. */}
-            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
-                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
-                    💬 {item.commentCount ?? 0}
-                </Text>
-                <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                    style={{ width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
-                    <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
-                </TouchableOpacity>
-            </View>
             </View>
 
             {/* Aksiyon: Mesaj at | Maça katılma isteği gönder (yan yana).
