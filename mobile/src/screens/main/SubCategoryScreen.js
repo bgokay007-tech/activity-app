@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { setUser } from '../../store/slices/authSlice';
+import { setUnreadCount } from '../../store/slices/notificationSlice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -6517,6 +6518,7 @@ function MatchLiveScreen({
 
 function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUserPress, autoOpen = false, onAutoOpened, autoOpenOrder = false }) {
     const t = useT();
+    const dispatch = useDispatch();
     const insets = useSafeAreaInsets();
     // Sağlık verisi bulunamazsa (bkz. MatchLiveScreen finishAndReport) MET tabanlı tahmini
     // kalori hesabı için kullanılıyor.
@@ -7095,6 +7097,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 if (!firstErr.response) await doRequest();
                 else throw firstErr;
             }
+            // Kullanıcı isteği: skor girilince "Skorunuzu Girin" bildirimi okundu —
+            // backend enterScore de işaretler; burada istemci yedek + rozeti anında senkronlar
+            // (socket kaçsa / eski deploy olsa bile Bildirimler çekmeden düzelir).
+            try {
+                await api.patch('/notifications/score-entry-read', { rivalId: match.id });
+                const { data: notifData } = await api.get('/notifications');
+                dispatch(setUnreadCount(notifData?.unreadCount || 0));
+            } catch { /* non-critical */ }
             setShowScore(false);
             setSets([{ my: '', opp: '' }]);
             setPendingLiveStats(null);

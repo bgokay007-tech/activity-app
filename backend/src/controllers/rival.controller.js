@@ -5327,7 +5327,9 @@ export const enterScore = async (req, res, next) => {
         });
         // Kullanıcı isteği: skor girildiği anda "Skorunuzu Girin" hatırlatması okundu olsun
         // (Bildirimler listesi / rozet sayfa yenilenmeden güncellenir — bkz. notificationRead).
-        markScoreEntryRequiredRead(request.id).catch(() => {});
+        // await: fire-and-forget'ta Prisma hatası yutuluyordu, işaretleme hiç çalışmıyordu.
+        try { await markScoreEntryRequiredRead(request.id); }
+        catch (e) { console.warn('[enterScore] markScoreEntryRequiredRead:', e?.message); }
 
         // Test botları: rakip tarafta demo varsa 5sn'lik job'u beklemeden burada onayla
         // (turnuva skorunun p1AllDemo/p2AllDemo davranışıyla aynı kolaylık).

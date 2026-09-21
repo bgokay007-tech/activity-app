@@ -40,6 +40,12 @@ async function sendPush(pushToken, title, body, data = {}, priority = 'default',
 
 export const getNotifications = async (req, res, next) => {
     try {
+        // Self-heal: skor zaten girilmiş (NONE değil) maçların SCORE_ENTRY_REQUIRED
+        // satırları hâlâ okunmadıysa burada düzelt — kullanıcı skor girdikten sonra
+        // eski deploy / kaçan işaret yüzünden takılı kalan satırlar Bildirimler açılınca
+        // (veya rozet poll'unda) otomatik okundu olur.
+        await healStaleScoreEntryRequired(req.userId);
+
         const notifications = await prisma.notification.findMany({
             where: { userId: req.userId },
             orderBy: { createdAt: 'desc' },
@@ -49,6 +55,49 @@ export const getNotifications = async (req, res, next) => {
         res.json({ notifications, unreadCount });
     } catch (error) { next(error); }
 };
+
+async function healStaleScoreEntryRequired(userId) {
+    try {
+        const unread = await prisma.notification.findMany({
+            where: { userId, type: 'SCORE_ENTRY_REQUIRED', read: false },
+            select: { id: true, data: true },
+            take: 50,
+        });
+        if (unread.length === 0) return;
+        const rivalIds = [...new Set(unread.map(n => {
+            const d = n.data;
+            if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+            return d.rivalId ?? d.rival_id ?? null;
+        }).filter(Boolean).map(String))];
+        if (rivalIds.length === 0) return;
+        const scored = await prisma.activityRequest.findMany({
+            where: { id: { in: rivalIds }, scoreStatus: { not: 'NONE' } },
+            select: { id: true },
+        });
+        const scoredSet = new Set(scored.map(r => String(r.id)));
+        const toMark = unread.filter(n => {
+            const d = n.data;
+            const rid = d && typeof d === 'object' && !Array.isArray(d) ? (d.rivalId ?? d.rival_id) : null;
+            return rid != null && scoredSet.has(String(rid));
+        });
+        if (toMark.length === 0) return;
+        await prisma.notification.updateMany({
+            where: { id: { in: toMark.map(n => n.id) } },
+            data: { read: true },
+        });
+        for (const n of toMark) {
+            emitToUser(userId, 'notificationRead', {
+                id: n.id,
+                type: 'SCORE_ENTRY_REQUIRED',
+                data: n.data,
+                read: true,
+            });
+        }
+        console.log(`[notif] healStaleScoreEntryRequired: marked=${toMark.length} user=${userId}`);
+    } catch (e) {
+        console.warn('[notif] healStaleScoreEntryRequired failed:', e.message);
+    }
+}
 
 export const markAllRead = async (req, res, next) => {
     try {
@@ -76,23 +125,35 @@ export const markOneRead = async (req, res, next) => {
 // Kullanıcı isteği: skor girilince "📝 Skorunuzu Girin" (SCORE_ENTRY_REQUIRED) bildirimi
 // sayfa yenilenmeden okundu olsun — DB'de işaretle + her etkilenen kullanıcıya socket ile
 // anında yansıt (mobil badge + Bildirimler listesi dinliyor).
-export async function markScoreEntryRequiredRead(rivalId) {
-    if (!rivalId) return;
+// Not: Prisma JsonFilter `path/equals` bazı kayıtlarda eşleşmiyor / hata fırlatabiliyor;
+// bu yüzden tip+okunmadı ile çekip rivalId'yi JS'te karşılaştırıyoruz (sessiz fail yok).
+export async function markScoreEntryRequiredRead(rivalId, onlyUserId = null) {
+    if (!rivalId) return { marked: 0 };
     try {
         const unread = await prisma.notification.findMany({
             where: {
                 type: 'SCORE_ENTRY_REQUIRED',
                 read: false,
-                data: { path: ['rivalId'], equals: rivalId },
+                ...(onlyUserId ? { userId: onlyUserId } : {}),
             },
             select: { id: true, userId: true, type: true, data: true },
+            take: 300,
         });
-        if (unread.length === 0) return;
+        const matched = unread.filter(n => {
+            const d = n.data;
+            if (!d || typeof d !== 'object' || Array.isArray(d)) return false;
+            const rid = d.rivalId ?? d.rival_id;
+            return rid != null && String(rid) === String(rivalId);
+        });
+        if (matched.length === 0) {
+            console.log(`[notif] markScoreEntryRequiredRead: no match rivalId=${rivalId} scanned=${unread.length}`);
+            return { marked: 0 };
+        }
         await prisma.notification.updateMany({
-            where: { id: { in: unread.map(n => n.id) } },
+            where: { id: { in: matched.map(n => n.id) } },
             data: { read: true },
         });
-        for (const n of unread) {
+        for (const n of matched) {
             emitToUser(n.userId, 'notificationRead', {
                 id: n.id,
                 type: n.type,
@@ -100,10 +161,24 @@ export async function markScoreEntryRequiredRead(rivalId) {
                 read: true,
             });
         }
+        console.log(`[notif] markScoreEntryRequiredRead: marked=${matched.length} rivalId=${rivalId}`);
+        return { marked: matched.length };
     } catch (e) {
         console.warn('[notif] markScoreEntryRequiredRead failed:', e.message);
+        return { marked: 0, error: e.message };
     }
 }
+
+// Skoru giren istemci yedek çağrı — enterScore zaten işaretler; socket kaçarsa / eski
+// deploy'da kalmışsa mobil bu endpoint ile kendi SCORE_ENTRY_REQUIRED satırını okur.
+export const markMyScoreEntryRequiredRead = async (req, res, next) => {
+    try {
+        const rivalId = req.body?.rivalId || req.params?.rivalId;
+        if (!rivalId) return res.status(400).json({ message: 'rivalId required' });
+        const result = await markScoreEntryRequiredRead(rivalId, req.userId);
+        res.json(result);
+    } catch (error) { next(error); }
+};
 
 // Helper — called from other controllers
 // priority: 'default' | 'high' — Expo push'un Android FCM teslim önceliği. Sadece gerçekten

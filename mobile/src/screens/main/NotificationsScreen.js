@@ -8,7 +8,7 @@ import api from '../../services/api';
 import { onSocket, getSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
-import { decrementUnread, clearUnread, incrementUnread } from '../../store/slices/notificationSlice';
+import { decrementUnread, clearUnread, incrementUnread, setUnreadCount } from '../../store/slices/notificationSlice';
 import { setUser } from '../../store/slices/authSlice';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import NotificationModePickerModal from '../../components/NotificationModePickerModal';
@@ -261,6 +261,7 @@ export default function NotificationsScreen({ navigation }) {
                 api.get('/rivals/my-pending-score-count').catch(() => ({ data: { pendingScoreCount: 0 } })),
             ]);
             setNotifications(data.notifications || []);
+            dispatch(setUnreadCount(data.unreadCount || 0));
             setHasPendingScore((scoreRes.data?.pendingScoreCount || 0) > 0);
         } catch (e) { console.warn(e?.message); }
         finally { setLoading(false); setRefreshing(false); }
