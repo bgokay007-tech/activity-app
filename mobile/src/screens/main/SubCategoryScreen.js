@@ -4550,7 +4550,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const participants = Array.isArray(item.participants) ? item.participants : [];
     const senderTeamArr = Array.isArray(item.senderTeam) ? item.senderTeam : [];
     // Kullanıcı isteği: tüm ilan kartları (Açık İlanlar/Bekleyen/Skor Bekleyen Maçlar) artık
-    // önlü-arkalı bir "digimon kart" — sağ üst köşedeki 🔄 ile çevrilince arka yüzde katılan
+    // önlü-arkalı bir "digimon kart" — sağ alt köşedeki 🔄 ile çevrilince arka yüzde katılan
     // oyuncular + elo puanları listeleniyor, ön yüz hiç değişmedi. Diğer digimon kartlarla
     // (DoubleRosterCard vb.) AYNI iki aşamalı çevirme deseni: 0→90'da içerik henüz eskisi,
     // kart tam yan (görünmez) olduğu anda içerik değişip 90→0'a devam ediyor — böylece
@@ -4911,16 +4911,17 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         // sonraki bölümdeki (Skor Bekleyen) kartların üstüne biniyordu.
         <View style={s.listGridCell} collapsable={false}>
         <Animated.View style={[s.card, { width: '100%', borderRadius: twoCol ? moderateScale(14) : (NEW_VISUAL ? 24 : moderateScale(14)), paddingHorizontal: twoCol ? moderateScale(8) : (NEW_VISUAL ? 12 : 0), paddingTop: twoCol ? moderateScale(8) : (NEW_VISUAL ? 12 : 0), paddingBottom: twoCol ? moderateScale(8) : (NEW_VISUAL ? 10 : 0), minHeight: NEW_VISUAL ? undefined : moderateScale(230), borderWidth: NEW_VISUAL ? 0 : 1 }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
-            {/* 🔄 Çevir — sağ üst çapraz köşeye yakın (ilan detayını açmaz). */}
-            <TouchableOpacity onPress={flipCard} hitSlop={{ top:10, bottom:8, left:8, right:10 }}
-                style={{ position:'absolute', top: moderateScale(2), right: moderateScale(2), zIndex:10, backgroundColor: 'transparent', borderRadius: moderateScale(12), width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
-                <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
-            </TouchableOpacity>
             {cardFlipped ? (
                 // Kullanıcı isteği: arka yüzden (oyuncu listesi) de dokununca ilan detayı açılsın —
                 // önceden sadece ön yüz açıyordu, arka yüzde dokunmanın hiçbir etkisi yoktu. İçindeki
                 // "istek"/"Sipariş Ver" gibi kendi onPress'i olan öğeler yine kendi işlevini korur.
-                <TouchableOpacity activeOpacity={0.85} style={{ padding: twoCol ? moderateScale(4) : moderateScale(9), flex:1 }} onPress={() => setDetailVisible(true)}>
+                <View style={{ flex:1, position:'relative' }}>
+                {/* 🔄 Çevir — sağ alt çapraz köşe (ilan detayını / aksiyonları açmaz). */}
+                <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:10, left:8, right:10 }}
+                    style={{ position:'absolute', bottom: moderateScale(0), right: moderateScale(0), zIndex:10, backgroundColor: 'transparent', borderRadius: moderateScale(12), width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
+                    <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
+                </TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.85} style={{ padding: twoCol ? moderateScale(4) : moderateScale(9), flex:1, paddingBottom: touchSize(28) }} onPress={() => setDetailVisible(true)}>
                     <Text style={{ color:'#fff', fontSize:moderateScale(13), fontWeight:'800', marginBottom:8 }}>👥 {t.rosterPoolLabel}</Text>
                     {(cardFounderTeamAvg != null || cardOppTeamAvg != null) && (
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6, gap:6 }}>
@@ -4966,6 +4967,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         </TouchableOpacity>
                     )}
                 </TouchableOpacity>
+                </View>
             ) : (
             <>
             {/* ── Tappable info area → opens detail modal ──
@@ -4977,12 +4979,18 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                  ilanlarda minHeight'ten kalan) boş alana dokununca da detay açılsın — bu
                  alan önceden bu TouchableOpacity'nin İÇİNDE değildi (dokunma hedefi içeriğe
                  göre daralıyordu), flex:1 ile kalan tüm dikey alanı da kapsıyor. */}
-            <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)} style={{ flex:1 }}>
+            <View style={{ flex:1, position:'relative' }}>
+            {/* 🔄 Çevir — bilgi alanının sağ alt çaprazı (Mesaj/Katıl butonlarının üstünde). */}
+            <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:10, left:8, right:10 }}
+                style={{ position:'absolute', bottom: moderateScale(0), right: moderateScale(0), zIndex:10, backgroundColor: 'transparent', borderRadius: moderateScale(12), width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
+                <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
+            </TouchableOpacity>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)} style={{ flex:1, paddingBottom: touchSize(22) }}>
 
                 {/* Avatar + isim/puan + mod (mod kullanıcı adının altında tek başına) */}
                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap: twoCol ? moderateScale(6) : (NEW_VISUAL ? 10 : 3), marginBottom: twoCol ? moderateScale(4) : (NEW_VISUAL ? 6 : 2) }}>
                     <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={twoCol ? moderateScale(42) : (NEW_VISUAL ? 52 : moderateScale(34))} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
-                    <View style={{ flex:1, minWidth:0, paddingRight: touchSize(28) }}>
+                    <View style={{ flex:1, minWidth:0 }}>
                         <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
                             <Text style={[s.cardName, { fontSize: twoCol ? moderateScale(14) : (NEW_VISUAL ? 16 : moderateScale(13)), flexShrink:1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(item.sender)}</Text>
                             {item.sender?.interests?.[0]?.assessmentCompleted && (
@@ -5208,6 +5216,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </Text>
                 </View>
             </TouchableOpacity>
+            </View>
 
             {/* Aksiyon: Mesaj at | Maça katılma isteği gönder (yan yana).
                 Slot/pozisyon gereken ilanlarda detay veya mevcut picker açılır; düz katılımda doğrudan istek. */}
