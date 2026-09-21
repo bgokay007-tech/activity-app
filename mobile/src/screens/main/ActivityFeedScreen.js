@@ -16,74 +16,7 @@ import CalendarPickerModal from '../../components/CalendarPickerModal';
 import SupportModal from '../../components/SupportModal';
 import useT from '../../hooks/useT';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
-
-// ── Statik kategori + dal tanımları (her zaman gösterilir) ──
-const STATIC_CATS = [
-    {
-        key: 'SPORTS', label: 'Spor', emoji: '⚽', color: '#22c55e',
-        subs: [
-            { key: 'football',    label: 'Futbol',        emoji: '⚽' },
-            { key: 'basketball',  label: 'Basketbol',     emoji: '🏀' },
-            { key: 'tennis',      label: 'Tenis',         emoji: '🎾' },
-            { key: 'padel',       label: 'Padel',         emoji: '🏓' },
-            { key: 'volleyball',  label: 'Voleybol',      emoji: '🏐' },
-            { key: 'swimming',    label: 'Yüzme',         emoji: '🏊' },
-            { key: 'running',     label: 'Koşu',          emoji: '🏃' },
-            { key: 'cycling',     label: 'Bisiklet',      emoji: '🚴' },
-            { key: 'boxing',      label: 'Boks',          emoji: '🥊' },
-            { key: 'martial_arts',label: 'Dövüş Sanatı',  emoji: '🥋' },
-            { key: 'wellness',    label: 'Wellness',      emoji: '🧘' },
-            { key: 'table_tennis',      label: 'Masa Tenisi',              emoji: '🏓' },
-            { key: 'climbing',          label: 'Tırmanış',                 emoji: '🧗' },
-            { key: 'archery',           label: 'Okçuluk',                  emoji: '🏹' },
-            { key: 'walking',           label: 'Yürüyüş',                  emoji: '🚶' },
-            { key: 'foot_tennis',       label: 'Ayak Tenisi',              emoji: '🦶' },
-            { key: 'sup_kano',          label: 'Supboard ve Kano',         emoji: '🛶' },
-            { key: 'handball',          label: 'Hentbol',                  emoji: '🤾' },
-            { key: 'badminton',         label: 'Badminton',                emoji: '🏸' },
-            { key: 'shooting_hunting',  label: 'Atıcılık ve Avcılık',      emoji: '🔫' },
-            { key: 'equestrian',        label: 'Binicilik',                emoji: '🐎' },
-            { key: 'golf',              label: 'Golf',                     emoji: '⛳' },
-            { key: 'fitness_gym',       label: 'Fitness ve Gym',           emoji: '🏋️' },
-            { key: 'skiing_snowboard',  label: 'Kayak ve Snowboard',       emoji: '⛷️' },
-            { key: 'ice_skating',       label: 'Buz Pateni',               emoji: '⛸️' },
-            { key: 'hiking',            label: 'Dağ Bayır Doğa Yürüyüşleri', emoji: '🥾' },
-            { key: 'camping',           label: 'Kamp',                     emoji: '🏕️' },
-            { key: 'motorcycle',        label: 'Sürüş (Motosiklet)',       emoji: '🏍️' },
-            { key: 'extreme_sports',    label: 'Ekstrem Sporları',         emoji: '🪂' },
-            { key: 'paintball',         label: 'Paintball',                emoji: '🎯' },
-            { key: 'airsoft',           label: 'Airsoft',                  emoji: '🪖' },
-        ],
-    },
-    {
-        key: 'SOCIAL', label: 'Sosyal', emoji: '🤝', color: '#60a5fa',
-        subs: [],
-    },
-    {
-        key: 'ARTS', label: 'Sanat', emoji: '🎨', color: '#f472b6',
-        subs: [
-            { key: 'music',       label: 'Müzik',         emoji: '🎵' },
-            { key: 'painting',    label: 'Resim',         emoji: '🎨' },
-            { key: 'dance',       label: 'Dans',          emoji: '💃' },
-            { key: 'photography', label: 'Fotoğraf',      emoji: '📸' },
-            { key: 'theater',     label: 'Tiyatro',       emoji: '🎭' },
-            { key: 'writing',     label: 'Yazarlık',      emoji: '✍️' },
-            { key: 'cinema',      label: 'Sinema',        emoji: '🎬' },
-        ],
-    },
-    {
-        key: 'GAMES', label: 'Oyunlar', emoji: '🎮', color: '#fb923c',
-        subs: [
-            { key: 'fps',          label: 'FPS',          emoji: '🎯' },
-            { key: 'rpg',          label: 'RPG',          emoji: '⚔️' },
-            { key: 'strategy',     label: 'Strateji',     emoji: '♟️' },
-            { key: 'moba',         label: 'MOBA',         emoji: '🏆' },
-            { key: 'battle_royale',label: 'Battle Royale', emoji: '💥' },
-            { key: 'puzzle',       label: 'Bulmaca',      emoji: '🧩' },
-            { key: 'card_games',   label: 'Kart Oyunu',   emoji: '🃏' },
-        ],
-    },
-];
+import { STATIC_CATS } from '../../constants/activityStaticCats';
 
 // hızlı lookup
 const CAT_MAP  = Object.fromEntries(STATIC_CATS.map(c => [c.key, c]));
@@ -405,203 +338,6 @@ function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) 
     );
 }
 
-// ── Aktivite bildirim filtresi modalı ──
-function ActivityAlertModal({ visible, onClose, categories, onSaved }) {
-    const t = useT();
-    const insets = useSafeAreaInsets();
-    const [loading, setLoading] = useState(false);
-    const [saving,  setSaving]  = useState(false);
-    const [enabled, setEnabled] = useState(false);
-    const [cats, setCats] = useState([]);
-    const [subs, setSubs] = useState([]);
-    const [cities, setCities] = useState([]);
-    const [cityInput, setCityInput] = useState('');
-    const [useProximity, setUseProximity] = useState(false);
-    const [radiusKm, setRadiusKm] = useState(25);
-    const [artists, setArtists] = useState([]);
-    const [artistInput, setArtistInput] = useState('');
-
-    useEffect(() => {
-        if (!visible) return;
-        setLoading(true);
-        api.get('/activity-alerts/me').then(({ data }) => {
-            setEnabled(!!data.enabled);
-            setCats(data.categories || []);
-            setSubs(data.subCategories || []);
-            setCities(data.cities || []);
-            setUseProximity(!!data.useProximity);
-            setRadiusKm(data.radiusKm || 25);
-            setArtists(data.favoriteArtists || []);
-        }).catch(() => {}).finally(() => setLoading(false));
-    }, [visible]);
-
-    const toggleCat = (key) => {
-        setCats(prev => {
-            const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
-            if (!next.includes(key)) {
-                const catSubs = (categories.find(c => c.key === key)?.subs || []).map(s => s.key);
-                setSubs(p => p.filter(s => !catSubs.includes(s)));
-            }
-            return next;
-        });
-    };
-    const toggleSub = (key) => setSubs(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
-
-    const addCity = () => {
-        const v = cityInput.trim();
-        if (v && !cities.some(c => c.toLowerCase() === v.toLowerCase())) setCities(prev => [...prev, v]);
-        setCityInput('');
-    };
-    const removeCity = (c) => setCities(prev => prev.filter(x => x !== c));
-
-    const addArtist = () => {
-        const v = artistInput.trim();
-        if (v && !artists.some(a => a.toLowerCase() === v.toLowerCase())) setArtists(prev => [...prev, v]);
-        setArtistInput('');
-    };
-    const removeArtist = (a) => setArtists(prev => prev.filter(x => x !== a));
-
-    const visibleSubs = (cats.length === 0 ? categories : categories.filter(c => cats.includes(c.key)))
-        .flatMap(c => c.subs);
-
-    const save = async () => {
-        setSaving(true);
-        try {
-            await api.put('/activity-alerts/me', {
-                enabled, categories: cats, subCategories: subs, cities,
-                useProximity, radiusKm, favoriteArtists: artists,
-            });
-            onSaved?.(enabled);
-            onClose();
-        } catch (e) {
-            Alert.alert('', e?.response?.data?.message || t.actAlertSaveFailed);
-        } finally { setSaving(false); }
-    };
-
-    return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <View style={m.overlay}>
-                <View style={[m.sheet, { height: '90%', paddingBottom: (Platform.OS === 'ios' ? 36 : 24) + insets.bottom }]}>
-                    <View style={m.handle} />
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Text style={m.title}>{t.actAlertTitle}</Text>
-                        <TouchableOpacity onPress={() => setEnabled(v => !v)} style={[am.toggle, enabled && am.toggleActive]} activeOpacity={0.8}>
-                            <View style={[am.toggleDot, enabled && am.toggleDotActive]} />
-                        </TouchableOpacity>
-                    </View>
-
-                    {loading ? <ActivityIndicator color={colors.purple} style={{ marginVertical: 24 }} /> : (
-                        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 8 }}>
-                            <Text style={m.subLabel}>{t.actAlertCategory}</Text>
-                            <View style={m.subGrid}>
-                                {categories.map(cat => {
-                                    const active = cats.includes(cat.key);
-                                    return (
-                                        <TouchableOpacity key={cat.key}
-                                            style={[m.subChip, active && { backgroundColor: cat.color + '28', borderColor: cat.color }]}
-                                            onPress={() => toggleCat(cat.key)} activeOpacity={0.8}>
-                                            <Text style={m.subChipEmoji}>{cat.emoji}</Text>
-                                            <Text style={[m.subChipText, active && { color: cat.color }]}>{cat.label}</Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-
-                            <Text style={[m.subLabel, { marginTop: 14 }]}>{t.actAlertSub}</Text>
-                            <View style={m.subGrid}>
-                                {visibleSubs.map(sub => {
-                                    const active = subs.includes(sub.key);
-                                    return (
-                                        <TouchableOpacity key={sub.key}
-                                            style={[m.subChip, active && { backgroundColor: colors.purple + '28', borderColor: colors.purple }]}
-                                            onPress={() => toggleSub(sub.key)} activeOpacity={0.8}>
-                                            <Text style={m.subChipEmoji}>{sub.emoji}</Text>
-                                            <Text style={[m.subChipText, active && { color: colors.purpleLight }]}>{sub.label}</Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-
-                            <Text style={[m.subLabel, { marginTop: 14 }]}>{t.actAlertCityLabel}</Text>
-                            <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
-                                <TextInput
-                                    style={[s.filterInput, { flex: 1 }]}
-                                    value={cityInput} onChangeText={setCityInput}
-                                    placeholder={t.actAlertCityPlaceholder} placeholderTextColor={colors.textMuted}
-                                    onSubmitEditing={addCity} returnKeyType="done"
-                                />
-                                <TouchableOpacity onPress={addCity} style={am.addBtn} activeOpacity={0.8}>
-                                    <Text style={am.addBtnText}>{t.actAlertAdd}</Text>
-                                </TouchableOpacity>
-                            </View>
-                            {cities.length > 0 && (
-                                <View style={[m.subGrid, { marginTop: 6 }]}>
-                                    {cities.map(c => (
-                                        <TouchableOpacity key={c} style={am.tagChip} onPress={() => removeCity(c)} activeOpacity={0.8}>
-                                            <Text style={am.tagChipText}>📍 {c}  ✕</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
-
-                            <TouchableOpacity
-                                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}
-                                onPress={() => setUseProximity(v => !v)} activeOpacity={0.8}
-                            >
-                                <Text style={m.subLabel}>{t.actAlertProximity}</Text>
-                                <View style={[am.toggle, useProximity && am.toggleActive]}>
-                                    <View style={[am.toggleDot, useProximity && am.toggleDotActive]} />
-                                </View>
-                            </TouchableOpacity>
-                            {useProximity && (
-                                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                                    {[10, 25, 50, 100].map(r => (
-                                        <TouchableOpacity key={r} onPress={() => setRadiusKm(r)}
-                                            style={[m.hourChip, radiusKm === r && m.hourChipActive]} activeOpacity={0.8}>
-                                            <Text style={[m.hourText, radiusKm === r && m.hourTextActive]}>{r} km</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
-
-                            <Text style={[m.subLabel, { marginTop: 16 }]}>{t.actAlertArtistLabel}</Text>
-                            <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
-                                <TextInput
-                                    style={[s.filterInput, { flex: 1 }]}
-                                    value={artistInput} onChangeText={setArtistInput}
-                                    placeholder={t.actAlertArtistPlaceholder} placeholderTextColor={colors.textMuted}
-                                    onSubmitEditing={addArtist} returnKeyType="done"
-                                />
-                                <TouchableOpacity onPress={addArtist} style={am.addBtn} activeOpacity={0.8}>
-                                    <Text style={am.addBtnText}>{t.actAlertAdd}</Text>
-                                </TouchableOpacity>
-                            </View>
-                            {artists.length > 0 && (
-                                <View style={[m.subGrid, { marginTop: 6 }]}>
-                                    {artists.map(a => (
-                                        <TouchableOpacity key={a} style={am.tagChip} onPress={() => removeArtist(a)} activeOpacity={0.8}>
-                                            <Text style={am.tagChipText}>🎤 {a}  ✕</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
-                        </ScrollView>
-                    )}
-
-                    <View style={m.btnRow}>
-                        <TouchableOpacity style={m.clearBtn} onPress={onClose} activeOpacity={0.8}>
-                            <Text style={m.clearBtnText}>{t.actAlertCancel}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[m.applyBtn, saving && { opacity: 0.6 }]} onPress={save} disabled={saving} activeOpacity={0.8}>
-                            {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={m.applyBtnText}>{t.actAlertSave}</Text>}
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </View>
-        </Modal>
-    );
-}
-
 // ── Konum girişi + öneri ──
 function LocationInput({ placeholder, value, onChange, type, province, compact }) {
     const [suggestions, setSuggestions] = useState([]);
@@ -834,8 +570,6 @@ export default function ActivityFeedScreen({ navigation }) {
     const [showTimeModal, setShowTimeModal] = useState(false);
     const [showSubsModal, setShowSubsModal] = useState(false);
     const [showCatsModal, setShowCatsModal] = useState(false);
-    const [showAlertModal, setShowAlertModal] = useState(false);
-    const [alertEnabled, setAlertEnabled] = useState(false);
 
     // Yakındaki aktiviteleri harita üzerinde gösteren modal.
     const [showActivityMap, setShowActivityMap] = useState(false);
@@ -899,9 +633,6 @@ export default function ActivityFeedScreen({ navigation }) {
         fetchMapData(date);
     };
 
-    useEffect(() => {
-        api.get('/activity-alerts/me').then(({ data }) => setAlertEnabled(!!data.enabled)).catch(() => {});
-    }, []);
 
     // Destek mesajı — kullanıcı isteği: konu bazlı sohbetler, bkz. paylaşılan SupportModal.
     const [supportOpen, setSupportOpen] = useState(false);
@@ -1094,9 +825,6 @@ export default function ActivityFeedScreen({ navigation }) {
                     <TouchableOpacity onPress={openActivityMap} style={am.bellBtn} activeOpacity={0.8}>
                         <Text style={am.bellBtnText}>🗺️</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setShowAlertModal(true)} style={[am.bellBtn, alertEnabled && am.bellBtnActive]} activeOpacity={0.8}>
-                        <Text style={am.bellBtnText}>{alertEnabled ? '🔔' : '🔕'}</Text>
-                    </TouchableOpacity>
                     <TouchableOpacity onPress={openSupport} style={s.supportBtn} activeOpacity={0.8}>
                         <Text style={s.supportBtnText}>💬 Destek</Text>
                     </TouchableOpacity>
@@ -1239,13 +967,6 @@ export default function ActivityFeedScreen({ navigation }) {
                 onClose={() => setShowSubsModal(false)}
             />
 
-            {/* Aktivite bildirim filtresi modalı */}
-            <ActivityAlertModal
-                visible={showAlertModal}
-                categories={categories}
-                onSaved={setAlertEnabled}
-                onClose={() => setShowAlertModal(false)}
-            />
 
             {/* Destek mesajı modalı — kullanıcı isteği: konu bazlı sohbetler (bkz. SupportModal) */}
             <SupportModal visible={supportOpen} onClose={() => setSupportOpen(false)} />

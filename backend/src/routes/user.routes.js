@@ -6,7 +6,7 @@ import {
     submitProfileChangeRequest, getMyProfileChangeRequests,
     submitSupportMessage, getMySupportMessages,
     createSupportTicket, getMySupportTickets, getSupportTicketMessages, sendSupportTicketMessage,
-    updateExtraNotifyChannel,
+    updateExtraNotifyChannel, updateNotifyFriendListings,
 } from '../controllers/user.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 
@@ -27,6 +27,7 @@ router.get('/:userId',                 authenticate, getProfile);
 router.patch('/me',                    authenticate, updateProfile);
 router.post('/me',                     authenticate, updateProfile);
 router.patch('/me/notify-channel',     authenticate, updateExtraNotifyChannel);
+router.patch('/me/notify-friend-listings', authenticate, updateNotifyFriendListings);
 router.post('/me/change-requests',     authenticate, submitProfileChangeRequest);
 router.get('/me/change-requests',      authenticate, getMyProfileChangeRequests);
 router.post('/me/support-messages',    authenticate, submitSupportMessage);

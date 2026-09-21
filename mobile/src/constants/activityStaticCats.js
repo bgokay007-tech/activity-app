@@ -1,0 +1,70 @@
+// Aktivite akışı + bildirim ayarları ortak kategori/dal listesi
+const STATIC_CATS = [
+    {
+        key: 'SPORTS', label: 'Spor', emoji: '⚽', color: '#22c55e',
+        subs: [
+            { key: 'football',    label: 'Futbol',        emoji: '⚽' },
+            { key: 'basketball',  label: 'Basketbol',     emoji: '🏀' },
+            { key: 'tennis',      label: 'Tenis',         emoji: '🎾' },
+            { key: 'padel',       label: 'Padel',         emoji: '🏓' },
+            { key: 'volleyball',  label: 'Voleybol',      emoji: '🏐' },
+            { key: 'swimming',    label: 'Yüzme',         emoji: '🏊' },
+            { key: 'running',     label: 'Koşu',          emoji: '🏃' },
+            { key: 'cycling',     label: 'Bisiklet',      emoji: '🚴' },
+            { key: 'boxing',      label: 'Boks',          emoji: '🥊' },
+            { key: 'martial_arts',label: 'Dövüş Sanatı',  emoji: '🥋' },
+            { key: 'wellness',    label: 'Wellness',      emoji: '🧘' },
+            { key: 'table_tennis',      label: 'Masa Tenisi',              emoji: '🏓' },
+            { key: 'climbing',          label: 'Tırmanış',                 emoji: '🧗' },
+            { key: 'archery',           label: 'Okçuluk',                  emoji: '🏹' },
+            { key: 'walking',           label: 'Yürüyüş',                  emoji: '🚶' },
+            { key: 'foot_tennis',       label: 'Ayak Tenisi',              emoji: '🦶' },
+            { key: 'sup_kano',          label: 'Supboard ve Kano',         emoji: '🛶' },
+            { key: 'handball',          label: 'Hentbol',                  emoji: '🤾' },
+            { key: 'badminton',         label: 'Badminton',                emoji: '🏸' },
+            { key: 'shooting_hunting',  label: 'Atıcılık ve Avcılık',      emoji: '🔫' },
+            { key: 'equestrian',        label: 'Binicilik',                emoji: '🐎' },
+            { key: 'golf',              label: 'Golf',                     emoji: '⛳' },
+            { key: 'fitness_gym',       label: 'Fitness ve Gym',           emoji: '🏋️' },
+            { key: 'skiing_snowboard',  label: 'Kayak ve Snowboard',       emoji: '⛷️' },
+            { key: 'ice_skating',       label: 'Buz Pateni',               emoji: '⛸️' },
+            { key: 'hiking',            label: 'Dağ Bayır Doğa Yürüyüşleri', emoji: '🥾' },
+            { key: 'camping',           label: 'Kamp',                     emoji: '🏕️' },
+            { key: 'motorcycle',        label: 'Sürüş (Motosiklet)',       emoji: '🏍️' },
+            { key: 'extreme_sports',    label: 'Ekstrem Sporları',         emoji: '🪂' },
+            { key: 'paintball',         label: 'Paintball',                emoji: '🎯' },
+            { key: 'airsoft',           label: 'Airsoft',                  emoji: '🪖' },
+        ],
+    },
+    {
+        key: 'SOCIAL', label: 'Sosyal', emoji: '🤝', color: '#60a5fa',
+        subs: [],
+    },
+    {
+        key: 'ARTS', label: 'Sanat', emoji: '🎨', color: '#f472b6',
+        subs: [
+            { key: 'music',       label: 'Müzik',         emoji: '🎵' },
+            { key: 'painting',    label: 'Resim',         emoji: '🎨' },
+            { key: 'dance',       label: 'Dans',          emoji: '💃' },
+            { key: 'photography', label: 'Fotoğraf',      emoji: '📸' },
+            { key: 'theater',     label: 'Tiyatro',       emoji: '🎭' },
+            { key: 'writing',     label: 'Yazarlık',      emoji: '✍️' },
+            { key: 'cinema',      label: 'Sinema',        emoji: '🎬' },
+        ],
+    },
+    {
+        key: 'GAMES', label: 'Oyunlar', emoji: '🎮', color: '#fb923c',
+        subs: [
+            { key: 'fps',          label: 'FPS',          emoji: '🎯' },
+            { key: 'rpg',          label: 'RPG',          emoji: '⚔️' },
+            { key: 'strategy',     label: 'Strateji',     emoji: '♟️' },
+            { key: 'moba',         label: 'MOBA',         emoji: '🏆' },
+            { key: 'battle_royale',label: 'Battle Royale', emoji: '💥' },
+            { key: 'puzzle',       label: 'Bulmaca',      emoji: '🧩' },
+            { key: 'card_games',   label: 'Kart Oyunu',   emoji: '🃏' },
+        ],
+    },
+];
+
+export default STATIC_CATS;
+export { STATIC_CATS };

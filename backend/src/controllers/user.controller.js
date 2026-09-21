@@ -29,6 +29,7 @@ export const getProfile = async (req, res, next) => {
                 cEmailPrivacy: true, cEmailSelected: true,
                 instagramPrivacy: true, instagramSelected: true,
                 extraNotifyChannel: true, extraNotifyPhone: true, extraNotifyEmail: true, telegramChatId: true,
+                notifyFriendListings: true,
                 phone: true, email: true,
                 interests: {
                     select: { id: true, category: true, subCategory: true, level: true, skillRating: true, singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true, totalPoints: true, wins: true, losses: true, lateCancelCount: true, assessmentCompleted: true },
@@ -106,6 +107,7 @@ export const getProfile = async (req, res, next) => {
                 instagramPrivacy: user.instagramPrivacy, instagramSelected: user.instagramSelected,
                 extraNotifyChannel: user.extraNotifyChannel, extraNotifyPhone: user.extraNotifyPhone,
                 extraNotifyEmail: user.extraNotifyEmail, telegramLinked: !!user.telegramChatId,
+                notifyFriendListings: user.notifyFriendListings !== false,
                 accountPhone: user.phone, accountEmail: user.email,
             }),
         });
@@ -222,6 +224,18 @@ export const updateExtraNotifyChannel = async (req, res, next) => {
                 ...(email !== undefined && { extraNotifyEmail: email || null }),
             },
             select: { extraNotifyChannel: true, extraNotifyPhone: true, extraNotifyEmail: true },
+        });
+        res.json(updated);
+    } catch (error) { next(error); }
+};
+
+export const updateNotifyFriendListings = async (req, res, next) => {
+    try {
+        const enabled = req.body?.enabled !== false;
+        const updated = await prisma.user.update({
+            where: { id: req.userId },
+            data: { notifyFriendListings: enabled },
+            select: { notifyFriendListings: true },
         });
         res.json(updated);
     } catch (error) { next(error); }

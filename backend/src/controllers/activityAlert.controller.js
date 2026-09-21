@@ -95,3 +95,36 @@ export async function notifyActivityAlertSubscribers({ subCategory, category, se
         }
     } catch (err) { console.error('[activityAlert] notifyActivityAlertSubscribers error:', err.message); }
 }
+
+// Kullanıcı isteği: arkadaşların açtığı ilanlardan bildirim — alıcının
+// notifyFriendListings tercihi açıksa (varsayılan true) gider.
+export async function notifyFriendsOfNewListing({ senderId, senderUsername, category, subCategory, itemId, tab = 'rivals' }) {
+    if (!senderId) return;
+    try {
+        const friendships = await prisma.friendship.findMany({
+            where: {
+                status: 'ACCEPTED',
+                OR: [{ senderId }, { receiverId: senderId }],
+            },
+            select: { senderId: true, receiverId: true },
+        });
+        const friendIds = [...new Set(friendships.map(f => (f.senderId === senderId ? f.receiverId : f.senderId)))];
+        if (friendIds.length === 0) return;
+
+        const recipients = await prisma.user.findMany({
+            where: { id: { in: friendIds }, notifyFriendListings: true },
+            select: { id: true },
+        });
+        if (recipients.length === 0) return;
+
+        const sportName = SUB_NAMES_TR[subCategory] || subCategory;
+        for (const r of recipients) {
+            createNotification(
+                r.id, 'FRIEND_LISTING',
+                `👥 Arkadaşın ilan açtı`,
+                `@${senderUsername || 'Bir arkadaşın'} yeni bir ${sportName.toLowerCase()} ilanı ekledi.`,
+                { category, subCategory, rivalId: itemId, tab, fromUserId: senderId }
+            ).catch(() => {});
+        }
+    } catch (err) { console.error('[activityAlert] notifyFriendsOfNewListing error:', err.message); }
+}

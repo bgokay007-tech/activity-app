@@ -12,8 +12,10 @@ import { decrementUnread, clearUnread, incrementUnread, setUnreadCount } from '.
 import { setUser } from '../../store/slices/authSlice';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import NotificationModePickerModal from '../../components/NotificationModePickerModal';
+import NotificationSettingsModal from '../../components/NotificationSettingsModal';
 import { sharePost } from '../../utils/share';
 import { adminPortalParamsForNotif } from '../../utils/adminNotifNav';
+import { STATIC_CATS as NOTIF_ALERT_CATS } from '../../constants/activityStaticCats';
 
 // "Okundu" işareti PATCH isteği, kullanıcı bildirime dokunduktan hemen sonra
 // uygulamayı kapatırsa yarıda kesilip sunucuya hiç ulaşmayabiliyordu — bu durumda
@@ -51,6 +53,7 @@ const TYPE_ICON = {
     FOLLOW_REQUEST: '🔔',
     FOLLOW_ACCEPTED: '✅',
     MESSAGE: '💬',
+    FRIEND_LISTING: '👥',
     SCORE_SUBMITTED: '📊',
     SCORE_CONFIRMED: '🏆',
     SCORE_DISPUTED: '⚠️',
@@ -220,6 +223,7 @@ export default function NotificationsScreen({ navigation }) {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [modePickerVisible, setModePickerVisible] = useState(false);
+    const [settingsVisible, setSettingsVisible] = useState(false);
     const [hasPendingScore, setHasPendingScore] = useState(false);
     const [hintDir, setHintDir] = useState(null);
     const listRef = useRef(null);
@@ -490,7 +494,7 @@ export default function NotificationsScreen({ navigation }) {
                 screen: 'AdminPortal',
                 params: adminPortalParamsForNotif(type, data),
             });
-        } else if (type === 'NEW_LISTING') {
+        } else if (type === 'NEW_LISTING' || type === 'FRIEND_LISTING') {
             goToSub(data.tab || 'rivals');
         } else if (type === 'EQUIPMENT_OFFER') {
             goToSub('equipment');
@@ -639,6 +643,9 @@ export default function NotificationsScreen({ navigation }) {
             <View style={styles.header}>
                 <Text style={styles.title}>{t.notificationsTitle}</Text>
                 <View style={styles.headerBtns}>
+                    <TouchableOpacity onPress={() => setSettingsVisible(true)} style={styles.muteBtn}>
+                        <Text style={styles.muteBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.notifSettingsBtn}</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => setModePickerVisible(true)} style={styles.muteBtn}>
                         <Text style={styles.muteBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.muteBtn}</Text>
                     </TouchableOpacity>
@@ -656,6 +663,11 @@ export default function NotificationsScreen({ navigation }) {
                 onSelect={changeNotificationMode}
                 currentValue={notificationMode}
                 t={t}
+            />
+            <NotificationSettingsModal
+                visible={settingsVisible}
+                onClose={() => setSettingsVisible(false)}
+                categories={NOTIF_ALERT_CATS}
             />
 
             {loading ? (

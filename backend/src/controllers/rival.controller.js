@@ -2,7 +2,7 @@ import prisma from '../config/prisma.js';
 import { createNotification, markScoreEntryRequiredRead } from './notification.controller.js';
 import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
-import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
+import { notifyActivityAlertSubscribers, notifyFriendsOfNewListing } from './activityAlert.controller.js';
 import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags } from '../utils/tennisElo.js';
 import { UTR_SUBCATEGORIES, applyUtrRatingForMatch, getDisplayRating, isDoublesFormat, buildPenaltyUpdate } from '../utils/utrRating.js';
 
@@ -2788,6 +2788,13 @@ export const createRivalRequest = async (req, res, next) => {
                     itemId: request.id,
                     lat: request.courtLat ?? null,
                     lng: request.courtLng ?? null,
+                    tab: notifyTab,
+                });
+                notifyFriendsOfNewListing({
+                    senderId: creatorId,
+                    senderUsername: request.sender?.username || '',
+                    category, subCategory,
+                    itemId: request.id,
                     tab: notifyTab,
                 });
             })
