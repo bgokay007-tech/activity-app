@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { emitToUser } from '../config/socket.js';
-import { createNotification } from '../controllers/notification.controller.js';
+import { createNotification, markScoreEntryRequiredRead } from '../controllers/notification.controller.js';
 import { runScoreConfirmation } from '../controllers/rival.controller.js';
 import { turkeyDateTimeToUtc } from '../utils/tzTime.js';
 
@@ -112,6 +112,8 @@ export async function autoDrawUnscored() {
         for (const r of updated) {
             const participants = Array.isArray(r.participants) ? r.participants : [];
             const allIds = [...new Set([r.senderId, ...participants.map(p => p.id)])];
+            // Skor otomatik 0-0 olunca hatırlatma bildirimleri de okundu sayılır.
+            markScoreEntryRequiredRead(r.id).catch(() => {});
             for (const uid of allIds) {
                 emitToUser(uid, 'rivalUpdate', r);
                 await createNotification(

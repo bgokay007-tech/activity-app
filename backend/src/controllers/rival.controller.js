@@ -1,5 +1,5 @@
 import prisma from '../config/prisma.js';
-import { createNotification } from './notification.controller.js';
+import { createNotification, markScoreEntryRequiredRead } from './notification.controller.js';
 import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
@@ -5325,6 +5325,10 @@ export const enterScore = async (req, res, next) => {
                 // archived is intentionally not reset — auto-completed matches stay archived=true
             },
         });
+        // Kullanıcı isteği: skor girildiği anda "Skorunuzu Girin" hatırlatması okundu olsun
+        // (Bildirimler listesi / rozet sayfa yenilenmeden güncellenir — bkz. notificationRead).
+        markScoreEntryRequiredRead(request.id).catch(() => {});
+
         // Test botları: rakip tarafta demo varsa 5sn'lik job'u beklemeden burada onayla
         // (turnuva skorunun p1AllDemo/p2AllDemo davranışıyla aynı kolaylık).
         const autoConfirmed = await tryDemoAutoConfirmScore(updated);

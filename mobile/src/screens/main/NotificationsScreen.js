@@ -283,7 +283,23 @@ export default function NotificationsScreen({ navigation }) {
                 return [{ ...notif, read: false, createdAt: notif.createdAt || new Date().toISOString() }, ...prev];
             });
         });
-        return off;
+        // Kullanıcı isteği: skor girilince ilgili SCORE_ENTRY_REQUIRED satırı çekmeden
+        // okundu görünsün (backend markScoreEntryRequiredRead → notificationRead).
+        const offRead = onSocket('notificationRead', (payload) => {
+            if (!payload?.id) return;
+            setNotifications(prev => {
+                const target = prev.find(n => n.id === payload.id);
+                if (!target || target.read) return prev;
+                return prev.map(n => n.id === payload.id ? { ...n, read: true } : n);
+            });
+            if (payload.type === 'SCORE_ENTRY_REQUIRED') {
+                setHasPendingScore(false);
+                api.get('/rivals/my-pending-score-count')
+                    .then(({ data }) => setHasPendingScore((data?.pendingScoreCount || 0) > 0))
+                    .catch(() => {});
+            }
+        });
+        return () => { off(); offRead(); };
     }, []);
 
     const onRefresh = () => { setRefreshing(true); load(); };

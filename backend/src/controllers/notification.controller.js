@@ -73,6 +73,38 @@ export const markOneRead = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// Kullanıcı isteği: skor girilince "📝 Skorunuzu Girin" (SCORE_ENTRY_REQUIRED) bildirimi
+// sayfa yenilenmeden okundu olsun — DB'de işaretle + her etkilenen kullanıcıya socket ile
+// anında yansıt (mobil badge + Bildirimler listesi dinliyor).
+export async function markScoreEntryRequiredRead(rivalId) {
+    if (!rivalId) return;
+    try {
+        const unread = await prisma.notification.findMany({
+            where: {
+                type: 'SCORE_ENTRY_REQUIRED',
+                read: false,
+                data: { path: ['rivalId'], equals: rivalId },
+            },
+            select: { id: true, userId: true, type: true, data: true },
+        });
+        if (unread.length === 0) return;
+        await prisma.notification.updateMany({
+            where: { id: { in: unread.map(n => n.id) } },
+            data: { read: true },
+        });
+        for (const n of unread) {
+            emitToUser(n.userId, 'notificationRead', {
+                id: n.id,
+                type: n.type,
+                data: n.data,
+                read: true,
+            });
+        }
+    } catch (e) {
+        console.warn('[notif] markScoreEntryRequiredRead failed:', e.message);
+    }
+}
+
 // Helper — called from other controllers
 // priority: 'default' | 'high' — Expo push'un Android FCM teslim önceliği. Sadece gerçekten
 // aciliyeti olan durumlarda (ör. yedekten asıl kadroya terfi — maçı kaçırmasınlar) 'high' kullan,

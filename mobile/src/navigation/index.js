@@ -438,11 +438,18 @@ function AppTabs() {
             // gerçek push zaten native bildirimi gösteriyor; bu yerel kopya kaldırıldı, aksi
             // halde aynı bildirim hem push'tan hem buradan olmak üzere iki kez görünüyordu.
         });
+        // Kullanıcı isteği: skor girilince SCORE_ENTRY_REQUIRED okundu — rozeti anında düşür,
+        // zil yanıp sönmesini de bekleyen skor sayacını tazele (poll'u beklemesin).
+        const offRead = onSocket('notificationRead', (payload) => {
+            if (!payload?.id) return;
+            dispatch(decrementUnread());
+            if (payload.type === 'SCORE_ENTRY_REQUIRED') syncPendingScoreCount();
+        });
         const offMsg = onSocket('newMessage', ({ message }) => {
             if (message?.senderId && message.senderId !== userId) setUnreadMessages(c => c + 1);
         });
-        return () => { off(); offMsg(); disconnectSocket(); };
-    }, [userId, dispatch]);
+        return () => { off(); offRead(); offMsg(); disconnectSocket(); };
+    }, [userId, dispatch, syncPendingScoreCount]);
 
     return (
         <View style={{ flex: 1 }}>
