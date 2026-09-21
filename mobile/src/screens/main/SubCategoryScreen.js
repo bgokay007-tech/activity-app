@@ -4910,13 +4910,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         // Tek View hücre — Fragment + Modal kardeşleri flexWrap satırına karışınca
         // sonraki bölümdeki (Skor Bekleyen) kartların üstüne biniyordu.
         <View style={s.listGridCell} collapsable={false}>
-        <Animated.View style={[s.card, { width: '100%', borderRadius: twoCol ? moderateScale(14) : (NEW_VISUAL ? 24 : moderateScale(14)), paddingHorizontal: twoCol ? moderateScale(8) : (NEW_VISUAL ? 12 : 0), paddingTop: twoCol ? moderateScale(8) : (NEW_VISUAL ? 12 : 0), paddingBottom: twoCol ? moderateScale(8) : (NEW_VISUAL ? 10 : 0), minHeight: NEW_VISUAL ? undefined : moderateScale(230), borderWidth: NEW_VISUAL ? 0 : 1 }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
+        <Animated.View style={[s.card, { width: '100%', borderRadius: twoCol ? moderateScale(14) : (NEW_VISUAL ? 24 : moderateScale(14)), padding: 3, minHeight: NEW_VISUAL ? undefined : moderateScale(230), borderWidth: NEW_VISUAL ? 0 : 1 }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
             {cardFlipped ? (
                 // Kullanıcı isteği: arka yüzden (oyuncu listesi) de dokununca ilan detayı açılsın —
                 // önceden sadece ön yüz açıyordu, arka yüzde dokunmanın hiçbir etkisi yoktu. İçindeki
                 // "istek"/"Sipariş Ver" gibi kendi onPress'i olan öğeler yine kendi işlevini korur.
                 <View style={{ flex:1 }}>
-                <TouchableOpacity activeOpacity={0.85} style={{ padding: twoCol ? moderateScale(4) : moderateScale(9), flex:1 }} onPress={() => setDetailVisible(true)}>
+                <TouchableOpacity activeOpacity={0.85} style={{ padding: 0, flex:1 }} onPress={() => setDetailVisible(true)}>
                     <Text style={{ color:'#fff', fontSize:moderateScale(13), fontWeight:'800', marginBottom:8 }}>👥 {t.rosterPoolLabel}</Text>
                     {(cardFounderTeamAvg != null || cardOppTeamAvg != null) && (
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6, gap:6 }}>
@@ -4963,7 +4963,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     )}
                 </TouchableOpacity>
                 {/* Arka yüzde de çevir — ön yüzdeki yorum satırıyla aynı sağ hiza. */}
-                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'flex-end', marginBottom:3, paddingHorizontal: twoCol ? moderateScale(4) : moderateScale(9) }}>
+                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'flex-end', marginBottom:0 }}>
                     <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
                         style={{ width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
                         <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
