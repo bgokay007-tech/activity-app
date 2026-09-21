@@ -4984,7 +4984,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             <View style={{ flex:1 }}>
             <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)}>
 
-                {/* Avatar + isim/puan + mod (mod kullanıcı adının altında tek başına) */}
+                {/* Avatar + isim/puan; altında mod + format aynı satırda (gap:5). */}
                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap: twoCol ? moderateScale(6) : (NEW_VISUAL ? 10 : 3), marginBottom: twoCol ? moderateScale(4) : (NEW_VISUAL ? 6 : 2) }}>
                     <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={(twoCol ? moderateScale(42) : (NEW_VISUAL ? 52 : moderateScale(34))) - 1} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
                     <View style={{ flex:1, minWidth:0 }}>
@@ -4996,48 +4996,50 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                 </Text>
                             )}
                         </View>
-                        <Text style={{
-                            marginTop: 3,
-                            color: item.matchMode === 'COMPETITIVE' ? '#f87171' : item.matchMode === 'BOTH' ? '#c084fc' : '#60a5fa',
-                            fontSize: moderateScale(11),
-                            fontWeight: '700',
-                        }} numberOfLines={1}>
-                            {noEmojiStr(
-                                item.matchMode === 'COMPETITIVE' ? t.modeCompetitive
-                                    : item.matchMode === 'BOTH' ? t.modeBoth
-                                        : t.modePractice
-                            )}
-                        </Text>
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginTop:3, flexWrap:'wrap' }}>
+                            <Text style={{
+                                color: item.matchMode === 'COMPETITIVE' ? '#f87171' : item.matchMode === 'BOTH' ? '#c084fc' : '#60a5fa',
+                                fontSize: moderateScale(11),
+                                fontWeight: '700',
+                            }} numberOfLines={1}>
+                                {noEmojiStr(
+                                    item.matchMode === 'COMPETITIVE' ? t.modeCompetitive
+                                        : item.matchMode === 'BOTH' ? t.modeBoth
+                                            : t.modePractice
+                                )}
+                            </Text>
+                            <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }]}>
+                                <Text style={[s.modeBadgeText, { color: cfg.color, fontSize: moderateScale(11) }]}>
+                                    {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                                </Text>
+                            </View>
+                        </View>
                     </View>
                 </View>
-                {/* Kullanıcı isteği: format satırı kartın en sol hizasından başlasın; sağında
-                    (varsa) cinsiyet kısıtlaması ve derece aralığı aynı satırda dursun. Mod burada değil. */}
+                {/* Format artık modun yanında; burada kalan: doluluk, cinsiyet, derece aralığı. */}
                 {(() => {
                     const hasRatingRange = item.ratingGenderSplit
                         ? (item.minRatingMale != null || item.maxRatingMale != null || item.minRatingFemale != null || item.maxRatingFemale != null)
                         : (item.minRating != null || item.maxRating != null);
                     const hasSingleGenderReq = item.genderReq && item.genderReq !== 'MIX';
                     const hasDoubleGenderReq = item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX');
+                    const teamSizeN = item.teamSize || 1;
+                    const filledCount = TEAM_SPORTS.has(sub) ? (
+                        1
+                        + senderTeamArr.filter(p => p?.id || p?.manualName).length
+                        + participants.filter(p => p?.id || p?.manualName).length
+                        + (Array.isArray(item.oppTeamManualNames) ? item.oppTeamManualNames.length : 0)
+                        + (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers.filter(p => p?.id || p?.manualName).length : 0)
+                    ) : null;
+                    const showMetaRow = TEAM_SPORTS.has(sub) || hasSingleGenderReq || hasDoubleGenderReq || hasRatingRange;
+                    if (!showMetaRow) return null;
                     return (
                         <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom: twoCol ? moderateScale(6) : (NEW_VISUAL ? 8 : 3), flexWrap:'wrap', alignSelf:'stretch' }}>
-                            <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }]}>
-                                <Text style={[s.modeBadgeText, { color: cfg.color, fontSize: moderateScale(11) }]}>
-                                    {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                            {TEAM_SPORTS.has(sub) && (
+                                <Text style={{ color: colors.textMuted, fontSize: moderateScale(10), fontWeight:'700' }}>
+                                    {filledCount}/{teamSizeN * 2}
                                 </Text>
-                            </View>
-                            {TEAM_SPORTS.has(sub) && (() => {
-                                const teamSizeN = item.teamSize || 1;
-                                const filledCount = 1
-                                    + senderTeamArr.filter(p => p?.id || p?.manualName).length
-                                    + participants.filter(p => p?.id || p?.manualName).length
-                                    + (Array.isArray(item.oppTeamManualNames) ? item.oppTeamManualNames.length : 0)
-                                    + (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers.filter(p => p?.id || p?.manualName).length : 0);
-                                return (
-                                    <Text style={{ color: colors.textMuted, fontSize: moderateScale(10), fontWeight:'700' }}>
-                                        {filledCount}/{teamSizeN * 2}
-                                    </Text>
-                                );
-                            })()}
+                            )}
                             {hasSingleGenderReq && (
                                 <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
                                     <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(9), fontWeight:'800' }}>
@@ -5149,7 +5151,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 {/* Kullanıcı isteği: "Ortaklaşa Kararlaştırılır" seçilen ilanlarda "❌ Kort Rezerve
                     Edilmedi" gibi yanıltıcı bir kırmızı uyarı yerine, gerçekten seçilen durum
                     (kort taraflar arasında ortaklaşa kararlaştırılacak) nötr renkte gösterilir.
-                    Rezerve edildiyse durum + fiyat aynı satırda, gap:5. */}
+                    Durum + fiyat (rezerve veya değil) aynı satırda, gap:5. */}
                 {(() => {
                     const reservedLabel = item.isCourtReserved
                         ? sportFacilityLabels(item.subCategory || sub, t).reserved
