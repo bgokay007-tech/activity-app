@@ -4910,7 +4910,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         // Tek View hücre — Fragment + Modal kardeşleri flexWrap satırına karışınca
         // sonraki bölümdeki (Skor Bekleyen) kartların üstüne biniyordu.
         <View style={s.listGridCell} collapsable={false}>
-        <Animated.View style={[s.card, { width: '100%', borderRadius: twoCol ? moderateScale(14) : (NEW_VISUAL ? 24 : moderateScale(14)), paddingTop: 3, paddingBottom: 3, paddingLeft: 3, paddingRight: 3, minHeight: NEW_VISUAL ? undefined : moderateScale(230), borderWidth: NEW_VISUAL ? 0 : 1 }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
+        <Animated.View style={[s.card, { width: '100%', borderRadius: twoCol ? moderateScale(14) : (NEW_VISUAL ? 24 : moderateScale(14)), paddingTop: 1, paddingBottom: 3, paddingLeft: 1, paddingRight: 3, minHeight: NEW_VISUAL ? undefined : moderateScale(230), borderWidth: NEW_VISUAL ? 0 : 1 }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
             {cardFlipped ? (
                 // Kullanıcı isteği: arka yüzden (oyuncu listesi) de dokununca ilan detayı açılsın —
                 // önceden sadece ön yüz açıyordu, arka yüzde dokunmanın hiçbir etkisi yoktu. İçindeki
@@ -4986,7 +4986,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
 
                 {/* Avatar + isim/puan + mod (mod kullanıcı adının altında tek başına) */}
                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap: twoCol ? moderateScale(6) : (NEW_VISUAL ? 10 : 3), marginBottom: twoCol ? moderateScale(4) : (NEW_VISUAL ? 6 : 2) }}>
-                    <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={twoCol ? moderateScale(42) : (NEW_VISUAL ? 52 : moderateScale(34))} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
+                    <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={(twoCol ? moderateScale(42) : (NEW_VISUAL ? 52 : moderateScale(34))) - 1} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
                     <View style={{ flex:1, minWidth:0 }}>
                         <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
                             <Text style={[s.cardName, { fontSize: twoCol ? moderateScale(14) : (NEW_VISUAL ? 16 : moderateScale(13)), flexShrink:1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(item.sender)}</Text>
@@ -5162,7 +5162,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     const feeText = item.courtFeePerPerson > 0
                         ? `${item.courtFeePerPerson}${item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺${item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / ${t.perPerson}${showCc ? ` · ${ccPrice}₺` : ''}`
                         : null;
-                    if (item.isCourtReserved && feeText) {
+                    if (feeText) {
                         return (
                             <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:0, minWidth:0 }}>
                                 <Text style={{ fontSize:moderateScale(11), color: statusColor, flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
@@ -5175,16 +5175,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         );
                     }
                     return (
-                        <>
-                            <Text style={{ fontSize:moderateScale(11), marginBottom:0, color: statusColor }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {reservedLabel}
-                            </Text>
-                            {!!feeText && (
-                                <Text style={{ fontSize:moderateScale(11), marginBottom:0, color:'#4ade80', lineHeight: moderateScale(14) }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                    {feeText}
-                                </Text>
-                            )}
-                        </>
+                        <Text style={{ fontSize:moderateScale(11), marginBottom:0, color: statusColor }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                            {reservedLabel}
+                        </Text>
                     );
                 })()}
                 {/* Kullanıcı isteği: yorum + çevir fiyatın hemen altında; üst/alt boşluk yok.
