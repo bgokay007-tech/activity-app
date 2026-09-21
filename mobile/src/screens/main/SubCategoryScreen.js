@@ -4550,7 +4550,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     const participants = Array.isArray(item.participants) ? item.participants : [];
     const senderTeamArr = Array.isArray(item.senderTeam) ? item.senderTeam : [];
     // Kullanıcı isteği: tüm ilan kartları (Açık İlanlar/Bekleyen/Skor Bekleyen Maçlar) artık
-    // önlü-arkalı bir "digimon kart" — sağ alt köşedeki 🔄 ile çevrilince arka yüzde katılan
+    // önlü-arkalı bir "digimon kart" — yorum satırındaki 🔄 ile çevrilince arka yüzde katılan
     // oyuncular + elo puanları listeleniyor, ön yüz hiç değişmedi. Diğer digimon kartlarla
     // (DoubleRosterCard vb.) AYNI iki aşamalı çevirme deseni: 0→90'da içerik henüz eskisi,
     // kart tam yan (görünmez) olduğu anda içerik değişip 90→0'a devam ediyor — böylece
@@ -4915,13 +4915,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 // Kullanıcı isteği: arka yüzden (oyuncu listesi) de dokununca ilan detayı açılsın —
                 // önceden sadece ön yüz açıyordu, arka yüzde dokunmanın hiçbir etkisi yoktu. İçindeki
                 // "istek"/"Sipariş Ver" gibi kendi onPress'i olan öğeler yine kendi işlevini korur.
-                <View style={{ flex:1, position:'relative' }}>
-                {/* 🔄 Çevir — sağ alt çapraz köşe (ilan detayını / aksiyonları açmaz). */}
-                <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:10, left:8, right:10 }}
-                    style={{ position:'absolute', bottom: moderateScale(0), right: moderateScale(0), zIndex:10, backgroundColor: 'transparent', borderRadius: moderateScale(12), width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
-                    <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
-                </TouchableOpacity>
-                <TouchableOpacity activeOpacity={0.85} style={{ padding: twoCol ? moderateScale(4) : moderateScale(9), flex:1, paddingBottom: touchSize(28) }} onPress={() => setDetailVisible(true)}>
+                <View style={{ flex:1 }}>
+                <TouchableOpacity activeOpacity={0.85} style={{ padding: twoCol ? moderateScale(4) : moderateScale(9), flex:1 }} onPress={() => setDetailVisible(true)}>
                     <Text style={{ color:'#fff', fontSize:moderateScale(13), fontWeight:'800', marginBottom:8 }}>👥 {t.rosterPoolLabel}</Text>
                     {(cardFounderTeamAvg != null || cardOppTeamAvg != null) && (
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6, gap:6 }}>
@@ -4967,6 +4962,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         </TouchableOpacity>
                     )}
                 </TouchableOpacity>
+                {/* Arka yüzde de çevir — ön yüzdeki yorum satırıyla aynı sağ hiza. */}
+                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'flex-end', marginBottom:3, paddingHorizontal: twoCol ? moderateScale(4) : moderateScale(9) }}>
+                    <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                        style={{ width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
+                        <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
+                    </TouchableOpacity>
+                </View>
                 </View>
             ) : (
             <>
@@ -4979,13 +4981,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                  ilanlarda minHeight'ten kalan) boş alana dokununca da detay açılsın — bu
                  alan önceden bu TouchableOpacity'nin İÇİNDE değildi (dokunma hedefi içeriğe
                  göre daralıyordu), flex:1 ile kalan tüm dikey alanı da kapsıyor. */}
-            <View style={{ flex:1, position:'relative' }}>
-            {/* 🔄 Çevir — bilgi alanının sağ alt çaprazı (Mesaj/Katıl butonlarının üstünde). */}
-            <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:10, left:8, right:10 }}
-                style={{ position:'absolute', bottom: moderateScale(0), right: moderateScale(0), zIndex:10, backgroundColor: 'transparent', borderRadius: moderateScale(12), width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
-                <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
-            </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)} style={{ flex:1, paddingBottom: touchSize(22) }}>
+            <View style={{ flex:1 }}>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)} style={{ flex:1 }}>
 
                 {/* Avatar + isim/puan + mod (mod kullanıcı adının altında tek başına) */}
                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap: twoCol ? moderateScale(6) : (NEW_VISUAL ? 10 : 3), marginBottom: twoCol ? moderateScale(4) : (NEW_VISUAL ? 6 : 2) }}>
@@ -5210,12 +5207,17 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 {/* Kullanıcı isteği: istek rozeti artık burada (ön yüz) değil, 🔄 ile
                     çevrilince açılan arka yüzde, oyuncu listesinin altında (bkz. cardFlipped
                     bloğu yukarıda) — ön yüz sadece yorum sayısını gösterir. */}
-                <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:3 }}>
-                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
-                        💬 {item.commentCount ?? 0}
-                    </Text>
-                </View>
             </TouchableOpacity>
+            {/* Kullanıcı isteği: çevir butonu yorum satırıyla aynı hizada — yorum solda, 🔄 en sağda. */}
+            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
+                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
+                    💬 {item.commentCount ?? 0}
+                </Text>
+                <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                    style={{ width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
+                    <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
+                </TouchableOpacity>
+            </View>
             </View>
 
             {/* Aksiyon: Mesaj at | Maça katılma isteği gönder (yan yana).
