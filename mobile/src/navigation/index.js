@@ -37,6 +37,8 @@ function goToAppScreen(isBusiness, screen, params) {
 function navigateFromNotif(data, isBusiness) {
     if (!navigationRef.isReady() || !data) return;
     const type = data.type;
+    // Aynı SubCategory zaten açıksa params bazen “değişmedi” sayılıyor — her tap'te benzersiz anahtar.
+    const notifNavKey = String(Date.now());
     if (type === 'MESSAGE') {
         if (data.senderId) {
             goToAppScreen(isBusiness, 'MessagesTab', {
@@ -95,6 +97,7 @@ function navigateFromNotif(data, isBusiness) {
             screen: 'SubCategory',
             params: {
                 category: data.category, sub: data.subCategory, initialTab, highlightRivalId: data.rivalId || null,
+                notifNavKey,
                 // Kadro kartındaki bir slota doğrudan davet edildiyse (bkz. inviteToRival),
                 // ilan detayı açılınca kartın arka yüzü o slotu vurgulayarak açılsın diye.
                 ...(data.inviteSide && { inviteSide: data.inviteSide, inviteSlotIndex: data.inviteSlotIndex ?? null }),
@@ -113,6 +116,9 @@ function navigateFromNotif(data, isBusiness) {
                 ...(type === 'CLUB_MEMBERSHIP' && { initialCoachSubTab: 'clubs' }),
             },
         });
+    } else if (data.notificationId || type) {
+        // Hedef yoksa en azından Bildirimler'e götür — uygulama içindeyken tıklanınca yerinde kalmasın.
+        goToAppScreen(isBusiness, 'NotificationsTab', { screen: 'NotificationsList', params: { notifNavKey } });
     }
 }
 
@@ -126,8 +132,18 @@ function navigateFromNotif(data, isBusiness) {
 async function resolveDeepLinkAndNavigate(url, isBusiness) {
     if (!url) return;
     try {
-        const { path } = ExpoLinking.parse(url);
+        const parsed = ExpoLinking.parse(url);
+        const { path, hostname, queryParams } = parsed;
         const segments = (path || '').replace(/^\/+/, '').split('/').filter(Boolean);
+        // Android NotifActionsMessagingService: activityapp://notif?type=...&category=...
+        // (uygulama açıkken/arka plandayken bildirime tıklanınca Linking bu URL'yi verir).
+        if (hostname === 'notif' || segments[0] === 'notif') {
+            const data = { ...(queryParams || {}) };
+            // FCM data Map'i her değeri string taşır; scoreAppeal vb. truthy string kalsın.
+            if (!navigationRef.isReady()) return;
+            navigateFromNotif(data, isBusiness);
+            return;
+        }
         const [kind, id] = segments.slice(-2);
         if (!id) return;
         if (kind === 'rival') {

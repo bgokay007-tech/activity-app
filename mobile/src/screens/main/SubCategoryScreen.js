@@ -5172,11 +5172,19 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 })()}
                 {/* Kullanıcı isteği: yorum + çevir fiyatın hemen altında; üst/alt boşluk yok.
                     touchSize() min 44px olduğu için satırı şişiriyordu — hitSlop ile dokunma
-                    alanını koruyup görsel yüksekliği metin satırına indirdik. */}
+                    alanını koruyup görsel yüksekliği metin satırına indirdik.
+                    Ödül (wager) varsa yorumun hemen sağında, gap:5. */}
                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:0, marginBottom:0, paddingTop:0, paddingBottom:0 }}>
-                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), lineHeight: moderateScale(14) }}>
-                        💬 {item.commentCount ?? 0}
-                    </Text>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:5, flex:1, paddingRight:8, minWidth:0 }}>
+                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), lineHeight: moderateScale(14) }}>
+                            💬 {item.commentCount ?? 0}
+                        </Text>
+                        {!!item.wager && (
+                            <Text style={{ color:'#fbbf24', fontSize: moderateScale(11), fontWeight:'700', lineHeight: moderateScale(14), flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                🏆 {item.wager}
+                            </Text>
+                        )}
+                    </View>
                     <TouchableOpacity onPress={flipCard} hitSlop={{ top:10, bottom:10, left:10, right:10 }}
                         style={{ alignItems:'center', justifyContent:'center', paddingVertical:0 }}>
                         <Text style={{ fontSize: moderateScale(13), lineHeight: moderateScale(14) }}>🔄</Text>
@@ -5207,11 +5215,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </View>
                 )}
                 {item.message && <Text style={[s.cardMsg, { fontSize: moderateScale(12), marginTop:3, marginBottom:3 }]} numberOfLines={2}>{item.message}</Text>}
-                {item.wager && (
-                    <Text style={{ color:'#fbbf24', fontSize: moderateScale(11), fontWeight:'700', marginTop:3, marginBottom:0 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                        🏆 {item.wager}
-                    </Text>
-                )}
+                {/* wager artık yorum satırında (yukarıda) — ayrı satır yok */}
                 {/* Kullanıcı isteği: kabul edilen oyuncuların listesi ön yüzden kaldırıldı —
                     kart artık önlü-arkalı "digimon kart" (bkz. backFacePlayers/cardFlipped
                     yukarıda), aynı liste zaten 🔄 ile çevrilince arka yüzde görünüyor, ön
@@ -5226,7 +5230,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 Slot/pozisyon gereken ilanlarda detay veya mevcut picker açılır; düz katılımda doğrudan istek. */}
             <View>
                 {NEW_VISUAL && !isOwner && item.senderId && item.senderId !== myId && !mySentReq && !myInvite && !isFull ? (
-                    <View style={{ flexDirection: 'row', gap: twoCol ? moderateScale(6) : 8, marginTop: twoCol ? moderateScale(8) : 8 }}>
+                    <View style={{ flexDirection: 'row', gap: twoCol ? moderateScale(6) : 8, marginTop: 3 }}>
                         <TouchableOpacity
                             style={{ flex: 1, backgroundColor: colors.purple, borderRadius: moderateScale(12), minHeight: touchSize(40), paddingVertical: moderateScale(10), alignItems: 'center', justifyContent: 'center', paddingHorizontal: moderateScale(6) }}
                             onPress={openChatWithRivalOwner}
@@ -22683,7 +22687,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId, inviteSide, inviteSlotIndex, inviteDoubleSlot, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
             openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor,
-            openEquipmentId, initialCoachSubTab, openCoachId, initialArchiveSubTab, openArchiveTournamentId, autoOpenOrder, initialDateFilter } = route.params;
+            openEquipmentId, initialCoachSubTab, openCoachId, initialArchiveSubTab, openArchiveTournamentId, autoOpenOrder, initialDateFilter, notifNavKey } = route.params;
     const dispatch = useDispatch();
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
@@ -23924,7 +23928,12 @@ export default function SubCategoryScreen({ route, navigation }) {
             }
         } catch(e) { console.warn(e?.message); }
         finally { setLoading(false); setRefreshing(false); }
-    }, [category, sub, myId, highlightRivalId]);
+    }, [category, sub, myId, highlightRivalId, notifNavKey]);
+
+    useEffect(() => {
+        // OS bildirimine her tıklamada (aynı ilan bile olsa) detay yeniden açılsın.
+        if (notifNavKey) autoOpenHandledRef.current = null;
+    }, [notifNavKey]);
 
     useEffect(() => {
         const task = InteractionManager.runAfterInteractions(() => { load(); });

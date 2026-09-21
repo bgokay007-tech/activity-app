@@ -88,11 +88,25 @@ private fun showNotification(
     val isTurkish = lang == null || lang == "tr"
 
     // MainActivity sinifina derleme-zamani referans veremeyiz (bu kutuphane modulu :app'ten
-    // ONCE derlenir, tersi bir bagimlilik dongusu olurdu) — paket adindan varsayilan
-    // baslatma intent'ini almak, herhangi bir sinif referansi gerektirmeyen standart yol.
-    val openIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-    } ?: Intent()
+    // ONCE derlenir, tersi bir bagimlilik dongusu olurdu) — paket adindan VIEW intent'i
+    // kuruyoruz. KRITIK: onceki getLaunchIntentForPackage yalnizca uygulamayi one getiriyordu,
+    // bildirim verisini (type/category/rivalId…) hic tasimiyordu; uygulama icindeyken bildirime
+    // tiklaninca kullanici ayni ekranda kaliyordu. activityapp://notif?... deep link'i JS
+    // tarafindaki Linking + navigateFromNotif ile hedefe goturur.
+    val uriBuilder = android.net.Uri.Builder()
+        .scheme("activityapp")
+        .authority("notif")
+    for ((key, value) in data) {
+        if (value.isNotEmpty()) uriBuilder.appendQueryParameter(key, value)
+    }
+    val openIntent = Intent(Intent.ACTION_VIEW, uriBuilder.build()).apply {
+        setPackage(context.packageName)
+        addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP
+        )
+    }
     val contentPendingIntent = PendingIntent.getActivity(
         context, id, openIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
