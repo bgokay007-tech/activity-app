@@ -76,6 +76,14 @@ function NotificationPanel({ notifications, onMarkAll, onMarkOne, onClose }) {
         VENUE_REVIEW_PENDING: 'venue-reviews',
         REVIEW_APPEAL: 'venue-reviews',
         TOURNAMENT_PERMISSION_REQUEST: 'tournament-perms',
+        PROFILE_CHANGE_REQUEST: 'profile-changes',
+        COACH_LISTING_SUBMITTED: 'coach-listing-approval',
+        REFEREE_LISTING_SUBMITTED: 'referee-approval',
+        NO_SHOW_REPORT: 'noshow',
+        LISTING_FLAGGED: 'flagged-listings',
+        CITY_PENDING: 'cities',
+        CLUB_LISTING_SUBMITTED: 'club-approval',
+        FAKE_SPECTATOR_REPORTED: 'disputes',
     };
     const OUTCOME_TYPES = new Set([
         'VENUE_APPROVED', 'VENUE_REJECTED',

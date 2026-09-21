@@ -199,3 +199,17 @@ export async function createNotification(userId, type, title, body, data = {}, p
         return notif;
     } catch { /* non-critical */ }
 }
+
+// Kullanıcı isteği / onay kuyruğu (profil değişikliği, kulüp, şehir, ilan bayrağı vb.)
+// admin paneline düştüğünde TÜM adminlere bildirim + push. excludeUserId: talebi
+// gönderen kişi kendisi adminse kendini atlamak için.
+export async function notifyAllAdmins(type, title, body, data = {}, { excludeUserId = null, priority = 'default' } = {}) {
+    try {
+        const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
+        await Promise.all(admins
+            .filter(a => !excludeUserId || a.id !== excludeUserId)
+            .map(a => createNotification(a.id, type, title, body, data, priority)
+                .then(() => emitToUser(a.id, 'notification', {}))
+                .catch(() => {})));
+    } catch { /* non-critical */ }
+}

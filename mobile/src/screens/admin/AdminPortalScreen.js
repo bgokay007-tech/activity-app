@@ -28,6 +28,7 @@ const TABS = [
     // Kullanıcı isteği: abonelik satışları şimdilik gizli — ücretli dönem açılınca geri ekle.
     // { key: 'subscriptions',    label: '💳 Abonelik' },
     { key: 'venuereviews',     label: '⭐ Tesis Yorumu' },
+    { key: 'clubApproval',     label: '🏟️ Kulüp Onayı' },
     { key: 'support',          label: '💬 Destek' },
 ];
 
@@ -1009,6 +1010,106 @@ function RefereeApprovalTab() {
 }
 
 // ── Team Name Approvals (voleybol "Resmi Takım Adı") ──────────────────────────────
+function ClubApprovalTab() {
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [filter, setFilter] = useState('PENDING');
+    const [refreshing, setRefreshing] = useState(false);
+    const [rejectId, setRejectId] = useState(null);
+    const [rejectNote, setRejectNote] = useState('');
+
+    const load = useCallback(async (st, isRefresh = false) => {
+        if (isRefresh) setRefreshing(true); else setLoading(true);
+        try {
+            const status = st === 'APPROVED' ? 'ACTIVE' : st;
+            const { data } = await api.get(`/admin/club-approvals?status=${status}`);
+            setItems(Array.isArray(data) ? data : []);
+        } catch {}
+        if (isRefresh) setRefreshing(false); else setLoading(false);
+    }, []);
+
+    useEffect(() => { load(filter); }, [filter, load]);
+
+    const approve = async (id) => {
+        try {
+            await api.patch(`/admin/club-approvals/${id}`, { action: 'APPROVE' });
+            load(filter);
+        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'İşlem başarısız.'); }
+    };
+
+    const reject = async () => {
+        try {
+            await api.patch(`/admin/club-approvals/${rejectId}`, { action: 'REJECT', adminNote: rejectNote || undefined });
+            setItems(prev => prev.filter(r => r.id !== rejectId));
+            setRejectId(null);
+            setRejectNote('');
+        } catch { Alert.alert('Hata', 'Reddedilemedi.'); }
+    };
+
+    if (loading) return <LoadingView />;
+
+    return (
+        <View style={{ flex: 1 }}>
+            <FilterRow
+                options={[
+                    { key: 'PENDING',  label: '⏳ Bekleyen' },
+                    { key: 'APPROVED', label: '✅ Onaylılar' },
+                    { key: 'REJECTED', label: '❌ Reddedilenler' },
+                ]}
+                active={filter}
+                onChange={setFilter}
+            />
+            <FlatList
+                data={items}
+                keyExtractor={r => r.id}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(filter, true)} tintColor={colors.purple} />}
+                renderItem={({ item: c }) => (
+                    <View style={s.card}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={s.cardTitle}>{c.name}</Text>
+                            <Text style={s.cardMeta}>@{c.user?.username || '?'} · {c.subCategory}</Text>
+                            <Text style={s.cardMeta}>
+                                {Array.isArray(c.cities) && c.cities.length ? c.cities.join(', ') : (c.city || '—')}
+                                {c.location ? ` · ${c.location}` : ''}
+                            </Text>
+                            {c.adminNote && filter !== 'PENDING' ? (
+                                <Text style={[s.cardMeta, { color: '#f59e0b' }]}>Not: {c.adminNote}</Text>
+                            ) : null}
+                        </View>
+                        {filter === 'PENDING' && (
+                            <View style={s.actionCol}>
+                                <Btn label="✓ Onayla" onPress={() => approve(c.id)} color="#10b981" small />
+                                <Btn label="✕ Reddet" onPress={() => setRejectId(c.id)} color="#ef4444" small />
+                            </View>
+                        )}
+                    </View>
+                )}
+                ListEmptyComponent={<EmptyView text={filter === 'PENDING' ? 'Onay bekleyen kulüp yok. ✅' : 'Kayıt bulunamadı.'} />}
+            />
+
+            <Modal visible={!!rejectId} transparent animationType="fade" onRequestClose={() => setRejectId(null)}>
+                <View style={s.overlay}>
+                    <View style={s.modalBox}>
+                        <Text style={s.modalTitle}>Ret Nedeni</Text>
+                        <TextInput
+                            style={s.textArea}
+                            placeholder="Ret notu (opsiyonel)..."
+                            placeholderTextColor={colors.textMuted}
+                            value={rejectNote}
+                            onChangeText={setRejectNote}
+                            multiline
+                        />
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                            <Btn label="Vazgeç" onPress={() => setRejectId(null)} color={colors.textMuted} flex />
+                            <Btn label="Reddet" onPress={reject} color="#ef4444" flex />
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+        </View>
+    );
+}
+
 function TeamNameApprovalTab() {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -1777,6 +1878,7 @@ export default function AdminPortalScreen({ navigation, route }) {
             case 'profilechanges': return <ProfileChangesTab />;
             case 'subscriptions':  return <SubscriptionsTab />;
             case 'venuereviews':   return <VenueReviewsTab />;
+            case 'clubApproval':   return <ClubApprovalTab />;
             case 'support':        return (
                 <SupportMessagesTab
                     openTicketId={openTicketId}

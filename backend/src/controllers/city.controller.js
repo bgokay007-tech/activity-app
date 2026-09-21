@@ -1,4 +1,5 @@
 import prisma from '../config/prisma.js';
+import { notifyAllAdmins } from './notification.controller.js';
 
 // GET /cities?q=ist&province=İstanbul  — approved cities for autocomplete
 export const getCities = async (req, res, next) => {
@@ -20,12 +21,24 @@ export const submitCity = async (req, res, next) => {
     try {
         const { province, district } = req.body;
         if (!province?.trim()) return res.status(400).json({ message: 'Province required' });
-        const city = await prisma.city.upsert({
-            where: { province_district: { province: province.trim(), district: district?.trim() || null } },
-            update: {},
-            create: { province: province.trim(), district: district?.trim() || null, status: 'PENDING' },
+        const prov = province.trim();
+        const dist = district?.trim() || null;
+        const existing = await prisma.city.findUnique({
+            where: { province_district: { province: prov, district: dist } },
+        });
+        if (existing) {
+            return res.status(201).json(existing);
+        }
+        const city = await prisma.city.create({
+            data: { province: prov, district: dist, status: 'PENDING' },
         });
         res.status(201).json(city);
+        notifyAllAdmins(
+            'CITY_PENDING',
+            '📍 Yeni Şehir/İlçe Talebi',
+            dist ? `${prov} / ${dist}` : prov,
+            { cityId: city.id, province: prov, district: dist },
+        ).catch(() => {});
     } catch (e) { next(e); }
 };
 

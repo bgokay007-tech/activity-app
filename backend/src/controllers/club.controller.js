@@ -1,7 +1,7 @@
 import prisma from '../config/prisma.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
-import { createNotification } from './notification.controller.js';
+import { createNotification, notifyAllAdmins } from './notification.controller.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 const VENUE_SELECT = { id: true, name: true, branch: true, city: true, district: true, phone: true, website: true };
@@ -194,6 +194,15 @@ export const createListing = async (req, res, next) => {
         });
         // Admin onayı bekler — şehir abonelerine henüz bildirim yok
         res.status(201).json(listing);
+
+        const submitter = listing.user;
+        notifyAllAdmins(
+            'CLUB_LISTING_SUBMITTED',
+            '🏟️ Yeni Kulüp İlanı Onayı',
+            `${submitter?.fullName || submitter?.username || '?'}: "${listing.name}" (${listing.subCategory}) — onay bekliyor.`,
+            { clubListingId: listing.id, category: listing.category, subCategory: listing.subCategory },
+            { excludeUserId: req.userId },
+        ).catch(() => {});
     } catch (err) { next(err); }
 };
 

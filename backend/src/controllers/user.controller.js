@@ -1,5 +1,5 @@
 import prisma from '../config/prisma.js';
-import { createNotification } from './notification.controller.js';
+import { createNotification, notifyAllAdmins } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 import { getRelation, canAccess } from '../utils/privacy.js';
 
@@ -248,7 +248,7 @@ export const submitProfileChangeRequest = async (req, res, next) => {
         if (existing)
             return res.status(409).json({ message: 'Bu alan için zaten bekleyen bir talebiniz var' });
 
-        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { fullName: true, gender: true, birthDate: true } });
+        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { fullName: true, gender: true, birthDate: true, username: true } });
         const currentValue = field === 'birthDate'
             ? user.birthDate?.toISOString().split('T')[0] ?? null
             : (user[field] ?? null);
@@ -257,6 +257,15 @@ export const submitProfileChangeRequest = async (req, res, next) => {
             data: { userId: req.userId, field, currentValue, newValue: newValue.trim(), documentUrl, status: 'PENDING' },
         });
         res.status(201).json(request);
+
+        const fieldLabel = field === 'fullName' ? 'Ad Soyad' : field === 'gender' ? 'Cinsiyet' : 'Doğum Tarihi';
+        notifyAllAdmins(
+            'PROFILE_CHANGE_REQUEST',
+            '🪪 Profil Değişiklik Talebi',
+            `${user?.username || '?'}: ${fieldLabel} → "${newValue.trim().slice(0, 60)}"`,
+            { requestId: request.id, field, userId: req.userId },
+            { excludeUserId: req.userId },
+        ).catch(() => {});
     } catch (error) { next(error); }
 };
 

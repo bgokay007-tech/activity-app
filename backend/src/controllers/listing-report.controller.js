@@ -1,4 +1,5 @@
 import prisma from '../config/prisma.js';
+import { notifyAllAdmins } from './notification.controller.js';
 
 const FLAG_THRESHOLD = 3;
 
@@ -35,7 +36,8 @@ export const reportListing = async (req, res, next) => {
 
         const count = await prisma.listingReport.count({ where: { listingType, listingId: id } });
 
-        const updateData = { reportCount: count, ...(count >= FLAG_THRESHOLD && { status: 'FLAGGED' }) };
+        const becameFlagged = count >= FLAG_THRESHOLD;
+        const updateData = { reportCount: count, ...(becameFlagged && { status: 'FLAGGED' }) };
 
         if (type === 'equipment') {
             await prisma.equipmentListing.update({ where: { id }, data: updateData });
@@ -48,6 +50,16 @@ export const reportListing = async (req, res, next) => {
         }
 
         res.json({ ok: true });
+
+        if (becameFlagged) {
+            const label = type === 'equipment' ? 'Ekipman' : type === 'referee' ? 'Hakem' : type === 'club' ? 'Kulüp' : 'Antrenör';
+            notifyAllAdmins(
+                'LISTING_FLAGGED',
+                '🚩 İlan Şikayet Eşiğine Ulaştı',
+                `${label} ilanı ${count} şikayet aldı, inceleme bekliyor.`,
+                { listingId: id, listingType, category: listing.category, subCategory: listing.subCategory },
+            ).catch(() => {});
+        }
     } catch (e) {
         if (e.code === 'P2002') return res.status(409).json({ message: 'Bu ilanı zaten bildirdiniz' });
         next(e);

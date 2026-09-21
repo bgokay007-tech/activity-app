@@ -1,7 +1,7 @@
 import prisma from '../config/prisma.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
-import { createNotification } from './notification.controller.js';
+import { createNotification, notifyAllAdmins } from './notification.controller.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -243,8 +243,20 @@ export const createListing = async (req, res, next) => {
         });
         res.status(201).json(listing);
 
+        // Antrenörlük ile aynı: onay gerektiren dallarda (profileOnly CV dahil) admin'e bildirim.
+        if (REFEREE_APPROVAL_SPORTS.includes(subCategory)) {
+            const user = listing.user;
+            notifyAllAdmins(
+                'REFEREE_LISTING_SUBMITTED',
+                '🟨 Yeni Hakemlik CV/İlan Başvurusu',
+                `${user?.fullName || user?.username || '?'} tarafından ${listing.subCategory} hakemliği için ${profileOnly ? 'CV/kimlik-belge bilgisi' : 'ilan'} gönderildi. Onay bekliyor.`,
+                { refereeListingId: listing.id, category: listing.category, subCategory: listing.subCategory },
+                { excludeUserId: req.userId },
+            ).catch(() => {});
+        }
+
         // Bir "sadece CV/kimlik-belge" gönderisi henüz gerçek bir hakemlik teklifi değil,
-        // kimseye bildirim gitmemeli.
+        // şehir abonelerine bildirim gitmemeli.
         if (profileOnly) return;
 
         // Notify city-alert subscribers for referees tab (async, non-blocking) — artık

@@ -17,6 +17,7 @@ import Constants from 'expo-constants';
 import api from '../services/api';
 import { connectSocket, disconnectSocket, onSocket } from '../services/socket';
 import { handleNotificationAction } from '../services/notificationActions';
+import { adminPortalParamsForNotif } from '../utils/adminNotifNav';
 
 const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
 
@@ -64,23 +65,14 @@ function navigateFromNotif(data, isBusiness) {
         // reservationId varsa (ör. iptal talebi) takvimde o saat kutucuğu yanıp söner ve
         // dokununca doğrudan Onayla/Reddet sorulur (kullanıcı isteği).
         navigationRef.navigate('BusinessApp', { openReservations: true, venueId: data.venueId || null, highlightReservationId: data.reservationId || null, highlightDate: data.date || null });
-    } else if (type === 'VENUE_REQUEST' || type === 'VENUE_EDIT_REQUEST') {
-        goToAppScreen(isBusiness, 'ProfileTab', { screen: 'AdminPortal', params: { tab: 'venues' } });
-    } else if (type === 'COURT_EDIT_REQUEST') {
-        goToAppScreen(isBusiness, 'ProfileTab', { screen: 'AdminPortal', params: { tab: 'courts' } });
-    } else if (type === 'SUBSCRIPTION_REQUEST' || type === 'SUBSCRIPTION_RECEIPT') {
-        goToAppScreen(isBusiness, 'ProfileTab', { screen: 'AdminPortal', params: { tab: 'subscriptions' } });
-    } else if (type === 'SUPPORT_MESSAGE') {
-        // Yeni Destek Konusu / Destek Sohbetine Yeni Mesaj — OS bildirim tepsisinden
-        // tıklanınca admin Destek sekmesinde ilgili ticket açılsın (uygulama-içi
-        // NotificationsScreen ile aynı hedef; bu iki yol AYRI kod yolları).
+    } else if (type === 'SCORE_DISPUTED' && data.scoreAppeal) {
+        goToAppScreen(isBusiness, 'ProfileTab', { screen: 'AdminPortal', params: { tab: 'disputes' } });
+    } else if (adminPortalParamsForNotif(type, data)) {
+        // Kullanıcı talebi / onay kuyruğu — AdminPortal ilgili sekme (uygulama-içi
+        // NotificationsScreen ile aynı harita; OS push tıklaması için AYRI yol).
         goToAppScreen(isBusiness, 'ProfileTab', {
             screen: 'AdminPortal',
-            params: {
-                tab: 'support',
-                openTicketId: data.ticketId || null,
-                openMessageId: data.messageId || null,
-            },
+            params: adminPortalParamsForNotif(type, data),
         });
     } else if (data.category && data.subCategory) {
         let initialTab = 'rivals';

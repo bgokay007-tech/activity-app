@@ -13,6 +13,7 @@ import { setUser } from '../../store/slices/authSlice';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import NotificationModePickerModal from '../../components/NotificationModePickerModal';
 import { sharePost } from '../../utils/share';
+import { adminPortalParamsForNotif } from '../../utils/adminNotifNav';
 
 // "Okundu" işareti PATCH isteği, kullanıcı bildirime dokunduktan hemen sonra
 // uygulamayı kapatırsa yarıda kesilip sunucuya hiç ulaşmayabiliyordu — bu durumda
@@ -66,6 +67,25 @@ const TYPE_ICON = {
     TOURNAMENT_PERMISSION_REQUEST:  '📋',
     TOURNAMENT_PERMISSION_APPROVED: '✅',
     TOURNAMENT_PERMISSION_REJECTED: '❌',
+    PROFILE_CHANGE_REQUEST: '🪪',
+    PROFILE_CHANGE_APPROVED: '✅',
+    PROFILE_CHANGE_REJECTED: '❌',
+    COACH_LISTING_SUBMITTED: '🎓',
+    REFEREE_LISTING_SUBMITTED: '🟨',
+    TEAM_NAME_REQUEST: '🏐',
+    NO_SHOW_REPORT: '🚫',
+    LISTING_FLAGGED: '🚩',
+    CITY_PENDING: '📍',
+    CLUB_LISTING_SUBMITTED: '🏟️',
+    SUPPORT_MESSAGE: '💬',
+    SUPPORT_MESSAGE_REPLIED: '💬',
+    FAKE_SPECTATOR_REPORTED: '🚩',
+    VENUE_REQUEST: '🏟️',
+    VENUE_EDIT_REQUEST: '✏️',
+    COURT_EDIT_REQUEST: '✏️',
+    VENUE_REVIEW_PENDING: '⭐',
+    SUBSCRIPTION_REQUEST: '💳',
+    SUBSCRIPTION_RECEIPT: '🧾',
     TOURNAMENT_JOIN: '🏆',
     TOURNAMENT_CHAT_MESSAGE: '💬',
     TOURNAMENT_CHAT_MENTION: '📣',
@@ -446,6 +466,9 @@ export default function NotificationsScreen({ navigation }) {
                 category: data.category, sub: data.subCategory, initialTab: 'archive',
                 highlightRivalId: data.rivalId || null, openPeerReviewRivalId: data.rivalId || null,
             });
+        } else if (type === 'SCORE_DISPUTED' && data.scoreAppeal) {
+            // Admin skor itirazı — rakip ilanına değil Admin → Anlaşmazlık sekmesine.
+            navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'disputes' } });
         } else if (type === 'SCORE_DISPUTED') {
             goToSub('rivals');
         } else if (type === 'ASSESSMENT_RECHECK') {
@@ -460,8 +483,13 @@ export default function NotificationsScreen({ navigation }) {
             goToSub('rivals');
         } else if (type === 'MATCH_COMMENT' || type === 'MATCH_COMMENT_MENTION' || type === 'MATCH_COMMENT_REPLY') {
             goToSub('rivals');
-        } else if (type === 'TOURNAMENT_PERMISSION_REQUEST') {
-            navigation.push('Profile', { openTournamentPermissions: true });
+        } else if (adminPortalParamsForNotif(type, data)) {
+            // Kullanıcı talebi / onay kuyruğu — AdminPortal ilgili sekme (profil değişikliği,
+            // destek, turnuva izni, antrenör/hakem CV, kulüp, şehir, bayraklı ilan vb.).
+            navigation.navigate('ProfileTab', {
+                screen: 'AdminPortal',
+                params: adminPortalParamsForNotif(type, data),
+            });
         } else if (type === 'NEW_LISTING') {
             goToSub(data.tab || 'rivals');
         } else if (type === 'EQUIPMENT_OFFER') {
@@ -558,25 +586,6 @@ export default function NotificationsScreen({ navigation }) {
             } else {
                 navigation.navigate('HomeTab', { screen: 'MyReservations' });
             }
-        } else if (type === 'VENUE_REQUEST' || type === 'VENUE_EDIT_REQUEST') {
-            navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'venues' } });
-        } else if (type === 'COURT_EDIT_REQUEST') {
-            navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'courts' } });
-        } else if (type === 'SUBSCRIPTION_REQUEST' || type === 'SUBSCRIPTION_RECEIPT') {
-            navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'subscriptions' } });
-        } else if (type === 'VENUE_REVIEW_PENDING') {
-            navigation.navigate('ProfileTab', { screen: 'AdminPortal', params: { tab: 'venuereviews' } });
-        } else if (type === 'SUPPORT_MESSAGE') {
-            // Yeni Destek Konusu / Destek Sohbetine Yeni Mesaj — admin Destek sekmesinde
-            // ilgili konuyu (ticket) doğrudan aç. Eski tek-mesaj modelinde messageId gelir.
-            navigation.navigate('ProfileTab', {
-                screen: 'AdminPortal',
-                params: {
-                    tab: 'support',
-                    openTicketId: data.ticketId || null,
-                    openMessageId: data.messageId || null,
-                },
-            });
         } else if (type === 'VENUE_REVIEW') {
             navigation.navigate('BusinessApp', { openReservations: false });
         } else if (type === 'VENUE_REVIEW_APPROVED' || type === 'VENUE_REVIEW_REJECTED') {
