@@ -5148,26 +5148,43 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 )}
                 {/* Kullanıcı isteği: "Ortaklaşa Kararlaştırılır" seçilen ilanlarda "❌ Kort Rezerve
                     Edilmedi" gibi yanıltıcı bir kırmızı uyarı yerine, gerçekten seçilen durum
-                    (kort taraflar arasında ortaklaşa kararlaştırılacak) nötr renkte gösterilir. */}
-                <Text style={{ fontSize:moderateScale(11), marginBottom:0, color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                    {item.isCourtReserved
+                    (kort taraflar arasında ortaklaşa kararlaştırılacak) nötr renkte gösterilir.
+                    Rezerve edildiyse durum + fiyat aynı satırda, gap:5. */}
+                {(() => {
+                    const reservedLabel = item.isCourtReserved
                         ? sportFacilityLabels(item.subCategory || sub, t).reserved
                         : item.location === 'Ortaklaşa Kararlaştırılır'
                             ? (t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır')
-                            : sportFacilityLabels(item.subCategory || sub, t).notReserved}
-                </Text>
-                {item.courtFeePerPerson > 0 && (() => {
-                    // Kullanıcı isteği: kart üzerinde tüm ödeme yöntemlerinin ayrı bir satırda
-                    // dökümü yerine (o detayda zaten var), sadece kredi kartı fiyatı aynı satıra
-                    // eklensin — kart için iki fiyat (nakit + kredi kartı) yeterli, detayda hepsi
-                    // görünmeye devam ediyor (bkz. RivalDetailModal'daki feeByMethodEntries).
+                            : sportFacilityLabels(item.subCategory || sub, t).notReserved;
+                    const statusColor = item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171';
                     const ccPrice = item.courtFeePerPersonByMethod?.CREDIT_CARD;
                     const showCc = ccPrice > 0 && ccPrice !== item.courtFeePerPerson;
+                    const feeText = item.courtFeePerPerson > 0
+                        ? `${item.courtFeePerPerson}${item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺${item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / ${t.perPerson}${showCc ? ` · ${ccPrice}₺` : ''}`
+                        : null;
+                    if (item.isCourtReserved && feeText) {
+                        return (
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:0, minWidth:0 }}>
+                                <Text style={{ fontSize:moderateScale(11), color: statusColor, flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    {reservedLabel}
+                                </Text>
+                                <Text style={{ fontSize:moderateScale(11), color:'#4ade80', lineHeight: moderateScale(14), flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    {feeText}
+                                </Text>
+                            </View>
+                        );
+                    }
                     return (
-                        <Text style={{ fontSize:moderateScale(11), marginBottom:0, color:'#4ade80', lineHeight: moderateScale(14) }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                            {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
-                            {showCc && ` · ${ccPrice}₺`}
-                        </Text>
+                        <>
+                            <Text style={{ fontSize:moderateScale(11), marginBottom:0, color: statusColor }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                {reservedLabel}
+                            </Text>
+                            {!!feeText && (
+                                <Text style={{ fontSize:moderateScale(11), marginBottom:0, color:'#4ade80', lineHeight: moderateScale(14) }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    {feeText}
+                                </Text>
+                            )}
+                        </>
                     );
                 })()}
                 {/* Kullanıcı isteği: yorum + çevir fiyatın hemen altında; üst/alt boşluk yok.
