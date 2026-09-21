@@ -26415,23 +26415,28 @@ export default function SubCategoryScreen({ route, navigation }) {
                     <Text style={s.title}>{cfg.emoji} {sportDisplayName}</Text>
                 )}
                 {(sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'volleyball') ? (
-                    <View style={{ flexDirection:'row', alignItems:'center', gap: moderateScale(6) }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap: 5 }}>
                         {/* Kullanıcı isteği: sıralama şu düzende olsun — kupa (sıralama), digimon
-                            kart (günün yıldızı), kortlar/salonlar, en sonda bilgilendirme (ℹ️). */}
-                        <TouchableOpacity onPress={() => setShowLeaderboard(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                            <Text style={{ fontSize: moderateScale(22) }}>🏆</Text>
+                            kart (günün yıldızı), kortlar/salonlar, en sonda bilgilendirme (ℹ️).
+                            Dördü de aynı yükseklikte (emoji hizası); Kortlar/Salonlar border'ı
+                            eskiden minHeight 36 ile çok uzundu. Aralarında gap 5. */}
+                        <TouchableOpacity onPress={() => setShowLeaderboard(true)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                            style={{ height: moderateScale(28), width: moderateScale(28), alignItems:'center', justifyContent:'center' }}>
+                            <Text style={{ fontSize: moderateScale(22), lineHeight: moderateScale(28) }}>🏆</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setShowSpotlight(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                            <Text style={{ fontSize: moderateScale(24) }}>🃏</Text>
+                        <TouchableOpacity onPress={() => setShowSpotlight(true)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                            style={{ height: moderateScale(28), width: moderateScale(28), alignItems:'center', justifyContent:'center' }}>
+                            <Text style={{ fontSize: moderateScale(22), lineHeight: moderateScale(28) }}>🃏</Text>
                         </TouchableOpacity>
                         {/* Kullanıcı isteği: voleybolde de kortlar butonu görünsün, sadece etiketi
                             "Salonlar" olsun (kort değil salon aranıyor). */}
                         <TouchableOpacity onPress={() => setShowVenuesSheet(true)}
-                            style={{ paddingHorizontal: moderateScale(10), paddingVertical: moderateScale(7), minHeight: touchSize(36), justifyContent: 'center', borderRadius: moderateScale(10), backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
-                            <Text style={{ color:'#c084fc', fontSize: moderateScale(13), fontWeight:'800' }}>{sub === 'volleyball' ? (lang === 'tr' ? 'Salonlar' : lang === 'ru' ? 'Залы' : lang === 'de' ? 'Hallen' : 'Halls') : (lang === 'tr' ? 'Kortlar' : lang === 'ru' ? 'Корты' : lang === 'de' ? 'Plätze' : 'Courts')}</Text>
+                            style={{ height: moderateScale(28), paddingHorizontal: moderateScale(8), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
+                            <Text style={{ color:'#c084fc', fontSize: moderateScale(12), fontWeight:'800', lineHeight: moderateScale(16) }}>{sub === 'volleyball' ? (lang === 'tr' ? 'Salonlar' : lang === 'ru' ? 'Залы' : lang === 'de' ? 'Hallen' : 'Halls') : (lang === 'tr' ? 'Kortlar' : lang === 'ru' ? 'Корты' : lang === 'de' ? 'Plätze' : 'Courts')}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setShowRatingInfo(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                            <Text style={{ fontSize: moderateScale(22) }}>ℹ️</Text>
+                        <TouchableOpacity onPress={() => setShowRatingInfo(true)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                            style={{ height: moderateScale(28), width: moderateScale(28), alignItems:'center', justifyContent:'center' }}>
+                            <Text style={{ fontSize: moderateScale(22), lineHeight: moderateScale(28) }}>ℹ️</Text>
                         </TouchableOpacity>
                     </View>
                 ) : (
