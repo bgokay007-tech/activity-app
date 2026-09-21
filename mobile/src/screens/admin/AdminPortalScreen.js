@@ -1315,7 +1315,11 @@ function ProfileChangesTab() {
                         <Text style={s.cardMeta}>Mevcut: {r.currentValue || '—'}</Text>
                         <Text style={[s.cardMeta, { color: '#10b981' }]}>Yeni: {r.newValue}</Text>
                         {r.adminNote ? <Text style={[s.cardMeta, { color: '#f59e0b' }]}>Not: {r.adminNote}</Text> : null}
-                        {r.documentUrl ? <Text style={[s.cardMeta, { color: '#3b82f6' }]}>📎 Belge mevcut</Text> : null}
+                        {r.documentUrl ? (
+                            <TouchableOpacity onPress={() => Linking.openURL(r.documentUrl).catch(() => Alert.alert('Hata', 'Belge açılamadı.'))}>
+                                <Text style={[s.cardMeta, { color: '#3b82f6', fontWeight: '700' }]}>📎 Belgeyi Aç</Text>
+                            </TouchableOpacity>
+                        ) : null}
                         {statusFilter === 'PENDING' && (
                             <>
                                 {noteId === r.id && (
