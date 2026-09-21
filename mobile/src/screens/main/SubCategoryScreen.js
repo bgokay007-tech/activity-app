@@ -4910,7 +4910,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         // Tek View hücre — Fragment + Modal kardeşleri flexWrap satırına karışınca
         // sonraki bölümdeki (Skor Bekleyen) kartların üstüne biniyordu.
         <View style={s.listGridCell} collapsable={false}>
-        <Animated.View style={[s.card, { width: '100%', borderRadius: twoCol ? moderateScale(14) : (NEW_VISUAL ? 24 : moderateScale(14)), padding: 3, minHeight: NEW_VISUAL ? undefined : moderateScale(230), borderWidth: NEW_VISUAL ? 0 : 1 }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
+        <Animated.View style={[s.card, { width: '100%', borderRadius: twoCol ? moderateScale(14) : (NEW_VISUAL ? 24 : moderateScale(14)), paddingTop: 3, paddingBottom: 3, paddingLeft: 3, paddingRight: 3, minHeight: NEW_VISUAL ? undefined : moderateScale(230), borderWidth: NEW_VISUAL ? 0 : 1 }, item.flexibleSchedule && { borderColor:'#eab30840' }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
             {cardFlipped ? (
                 // Kullanıcı isteği: arka yüzden (oyuncu listesi) de dokununca ilan detayı açılsın —
                 // önceden sadece ön yüz açıyordu, arka yüzde dokunmanın hiçbir etkisi yoktu. İçindeki
@@ -4963,10 +4963,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     )}
                 </TouchableOpacity>
                 {/* Arka yüzde de çevir — ön yüzdeki yorum satırıyla aynı sağ hiza. */}
-                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'flex-end', marginBottom:0 }}>
-                    <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                        style={{ width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
-                        <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
+                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'flex-end', marginBottom:0, marginTop:0 }}>
+                    <TouchableOpacity onPress={flipCard} hitSlop={{ top:10, bottom:10, left:10, right:10 }}
+                        style={{ alignItems:'center', justifyContent:'center' }}>
+                        <Text style={{ fontSize: moderateScale(13), lineHeight: moderateScale(14) }}>🔄</Text>
                     </TouchableOpacity>
                 </View>
                 </View>
@@ -4982,7 +4982,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                  alan önceden bu TouchableOpacity'nin İÇİNDE değildi (dokunma hedefi içeriğe
                  göre daralıyordu), flex:1 ile kalan tüm dikey alanı da kapsıyor. */}
             <View style={{ flex:1 }}>
-            <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)} style={{ flex:1 }}>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)}>
 
                 {/* Avatar + isim/puan + mod (mod kullanıcı adının altında tek başına) */}
                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap: twoCol ? moderateScale(6) : (NEW_VISUAL ? 10 : 3), marginBottom: twoCol ? moderateScale(4) : (NEW_VISUAL ? 6 : 2) }}>
@@ -5149,7 +5149,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 {/* Kullanıcı isteği: "Ortaklaşa Kararlaştırılır" seçilen ilanlarda "❌ Kort Rezerve
                     Edilmedi" gibi yanıltıcı bir kırmızı uyarı yerine, gerçekten seçilen durum
                     (kort taraflar arasında ortaklaşa kararlaştırılacak) nötr renkte gösterilir. */}
-                <Text style={{ fontSize:moderateScale(11), marginBottom:3, color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                <Text style={{ fontSize:moderateScale(11), marginBottom:0, color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                     {item.isCourtReserved
                         ? sportFacilityLabels(item.subCategory || sub, t).reserved
                         : item.location === 'Ortaklaşa Kararlaştırılır'
@@ -5164,21 +5164,22 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     const ccPrice = item.courtFeePerPersonByMethod?.CREDIT_CARD;
                     const showCc = ccPrice > 0 && ccPrice !== item.courtFeePerPerson;
                     return (
-                        <Text style={{ fontSize:moderateScale(11), marginBottom:0, color:'#4ade80' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                        <Text style={{ fontSize:moderateScale(11), marginBottom:0, color:'#4ade80', lineHeight: moderateScale(14) }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                             {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
                             {showCc && ` · ${ccPrice}₺`}
                         </Text>
                     );
                 })()}
-                {/* Kullanıcı isteği: yorum + çevir satırı fiyatın hemen altında, arada boşluk yok
-                    (önceden flex:1 yüzünden kartın en dibine itilip fiyatla arasında boşluk kalıyordu). */}
-                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop: item.courtFeePerPerson > 0 ? 2 : 0, marginBottom:3 }}>
-                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
+                {/* Kullanıcı isteği: yorum + çevir fiyatın hemen altında; üst/alt boşluk yok.
+                    touchSize() min 44px olduğu için satırı şişiriyordu — hitSlop ile dokunma
+                    alanını koruyup görsel yüksekliği metin satırına indirdik. */}
+                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:0, marginBottom:0, paddingTop:0, paddingBottom:0 }}>
+                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), lineHeight: moderateScale(14) }}>
                         💬 {item.commentCount ?? 0}
                     </Text>
-                    <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                        style={{ width: touchSize(28), height: touchSize(28), alignItems:'center', justifyContent:'center' }}>
-                        <Text style={{ fontSize: moderateScale(13) }}>🔄</Text>
+                    <TouchableOpacity onPress={flipCard} hitSlop={{ top:10, bottom:10, left:10, right:10 }}
+                        style={{ alignItems:'center', justifyContent:'center', paddingVertical:0 }}>
+                        <Text style={{ fontSize: moderateScale(13), lineHeight: moderateScale(14) }}>🔄</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -5194,20 +5195,20 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 />
 
                 {item.flexibleSchedule && (
-                    <View style={[s.flexBanner, { borderRadius: moderateScale(10), padding:0, marginBottom:3 }]}>
+                    <View style={[s.flexBanner, { borderRadius: moderateScale(10), padding:0, marginTop:3, marginBottom:3 }]}>
                         <Text style={[s.flexTitle, { fontSize: moderateScale(11), marginBottom:3 }]}>{t.flexibleBanner}</Text>
                         <Text style={[s.flexDesc, { fontSize: moderateScale(10) }]}>{t.flexibleBannerDesc}</Text>
                     </View>
                 )}
                 {(item.level || item.levelDetail) && (
-                    <View style={[s.levelRow, { gap:3, marginBottom:3 }]}>
+                    <View style={[s.levelRow, { gap:3, marginTop:3, marginBottom:3 }]}>
                         {item.level && <Text style={[s.levelBadge, { borderRadius: moderateScale(8), paddingHorizontal:3, paddingVertical:3, fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>}
                         {item.levelDetail && <Text style={[s.levelDetail, { borderRadius: moderateScale(8), paddingHorizontal:3, paddingVertical:3, fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.levelDetail}</Text>}
                     </View>
                 )}
-                {item.message && <Text style={[s.cardMsg, { fontSize: moderateScale(12), marginBottom:3 }]} numberOfLines={2}>{item.message}</Text>}
+                {item.message && <Text style={[s.cardMsg, { fontSize: moderateScale(12), marginTop:3, marginBottom:3 }]} numberOfLines={2}>{item.message}</Text>}
                 {item.wager && (
-                    <Text style={{ color:'#fbbf24', fontSize: moderateScale(11), fontWeight:'700', marginBottom:4 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                    <Text style={{ color:'#fbbf24', fontSize: moderateScale(11), fontWeight:'700', marginTop:3, marginBottom:0 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         🏆 {item.wager}
                     </Text>
                 )}
