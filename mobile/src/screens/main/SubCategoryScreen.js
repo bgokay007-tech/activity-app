@@ -2346,8 +2346,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     {FEE_METHOD_LABEL[k] || k}: {v}₺
                                 </Text>
                             ))}
+                            <Text style={{ fontSize:moderateScale(10), fontWeight:'700', color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1}>
+                                {item.isCourtReserved
+                                    ? sportFacilityLabels(sub, t).reserved
+                                    : item.location === 'Ortaklaşa Kararlaştırılır'
+                                        ? (t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır')
+                                        : sportFacilityLabels(sub, t).notReserved}
+                            </Text>
                         </View>
-                        {/* Sağ: mod+format, tarih, saat, konum, rezervasyon */}
+                        {/* Sağ: mod+format, tarih, saat, konum */}
                         <View style={{ flex:1, minWidth:0, gap:2 }}>
                             <View style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap' }}>
                                 <Text style={{
@@ -2390,13 +2397,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <Text style={{ color:'#60a5fa', fontSize:moderateScale(10), textDecorationLine:'underline' }} numberOfLines={2}>{item.courtName}</Text>
                                 </TouchableOpacity>
                             )}
-                            <Text style={{ fontSize:moderateScale(10), fontWeight:'700', color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1}>
-                                {item.isCourtReserved
-                                    ? sportFacilityLabels(sub, t).reserved
-                                    : item.location === 'Ortaklaşa Kararlaştırılır'
-                                        ? (t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır')
-                                        : sportFacilityLabels(sub, t).notReserved}
-                            </Text>
                             {item.subCategory === 'volleyball' && item.cancelPenaltyHours != null && (
                                 <Text style={{ color:'#f87171', fontSize:moderateScale(9), fontWeight:'700' }} numberOfLines={1}>
                                     {t.cancelPenaltyBadge(item.cancelPenaltyHours)}
@@ -3914,51 +3914,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </TouchableOpacity>
                                 )}
                             </View>
-                        ) : Array.isArray(item.positions) && item.positions.includes('REFEREE') ? (
+                        ) : (Array.isArray(item.positions) && item.positions.includes('REFEREE')) || (item.refereeRequested && !item.refereeUser) ? (
+                            // Oyuncu katıl kutuları kaldırıldı — digimon arka yüz slotlarından başvurulur.
+                            // Burada sadece hakemlik başvurusu kalır.
                             <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
                                 <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>{t.refereeApplyBtn}</Text>
                             </TouchableOpacity>
-                        ) : item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (() => {
-                            const senderTeamArrStrict = Array.isArray(item.senderTeam) ? item.senderTeam : [];
-                            const partnerStrict = senderTeamArrStrict[0] || null;
-                            const opp1Strict = participants[0] || null;
-                            const opp2Strict = participants[1] || null;
-                            const gParenStrict = (g) => g === 'MALE' ? ' (Erkek)' : g === 'FEMALE' ? ' (Kadın)' : '';
-                            const SlotPick = ({ slotKey, p, gReq, label }) => (
-                                <TouchableOpacity
-                                    disabled={!!p?.id}
-                                    onPress={() => { onClose(); setTimeout(() => handleJoin(slotKey), 300); }}
-                                    activeOpacity={p?.id ? 1 : 0.7}
-                                    style={{ flex:1, backgroundColor: p?.id ? colors.surface2 : cfg.color+'12', borderRadius: moderateScale(8), padding: moderateScale(6), borderWidth:1, borderColor: p?.id ? colors.border : cfg.color+'60', borderStyle: p?.id ? 'solid' : 'dashed', alignItems:'center', minHeight: moderateScale(44), justifyContent:'center' }}>
-                                    <Text style={{ color: colors.textMuted, fontSize: moderateScale(9), fontWeight:'700' }} numberOfLines={1}>{label}{gReq && gReq !== 'MIX' ? gParenStrict(gReq) : ''}</Text>
-                                    {p?.id ? (
-                                        <Text style={{ color:'#fff', fontSize: moderateScale(11), fontWeight:'700', marginTop:2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(p)}</Text>
-                                    ) : (
-                                        <Text style={{ color: cfg.color, fontSize: moderateScale(11), fontWeight:'800', marginTop:2 }}>+ {t.joinBtn}</Text>
-                                    )}
-                                </TouchableOpacity>
-                            );
-                            return (
-                                <View style={{ gap:6 }}>
-                                    <SlotPick slotKey="partner" p={partnerStrict} gReq={partnerGenderReq} label={t.founderTeamLabel} />
-                                    <View style={{ flexDirection:'row', gap:6 }}>
-                                        <SlotPick slotKey="opp1" p={opp1Strict} gReq={opp1GenderReq} label={t.opp1Label} />
-                                        <SlotPick slotKey="opp2" p={opp2Strict} gReq={opp2GenderReq} label={t.opp2Label} />
-                                    </View>
-                                </View>
-                            );
-                        })() : (
-                            <View style={{ flexDirection:'row', gap:6 }}>
-                                <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => { onClose(); setTimeout(handleJoin, 300); }}>
-                                    <Text style={[s.joinBtnText, { fontSize: moderateScale(12) }]}>{t.joinBtn}</Text>
-                                </TouchableOpacity>
-                                {item.refereeRequested && !item.refereeUser && (
-                                    <TouchableOpacity style={{ flex:1, backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', justifyContent:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
-                                        <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.refereeApplyBtn}</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        )}
+                        ) : null}
                     </View>
 
                     {/* Kullanıcı isteği: bu sporda onaylı hakemliği olan biri, ilan sahibi hakem
