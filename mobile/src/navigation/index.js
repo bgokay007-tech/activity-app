@@ -48,6 +48,15 @@ function navigateFromNotif(data, isBusiness) {
         } else {
             goToAppScreen(isBusiness, 'MessagesTab');
         }
+    } else if (type === 'CHALLENGE_OFFER' || type === 'CHALLENGE_ACCEPTED' || type === 'CHALLENGE_DECLINED' || type === 'CHALLENGE_SCHEDULE') {
+        goToAppScreen(isBusiness, 'MessagesTab', {
+            screen: 'Chat',
+            params: {
+                conversation: { id: data.conversationId || null, _userId: data.senderId },
+                other: data.senderId ? { id: data.senderId, username: data.senderUsername } : undefined,
+                challenge: data.challengeId ? { id: data.challengeId, status: type === 'CHALLENGE_ACCEPTED' ? 'ACCEPTED' : 'PENDING', activityRequestId: data.rivalId, category: data.category, subCategory: data.subCategory } : undefined,
+            },
+        });
     } else if (type === 'FRIEND_REQUEST' || type === 'FRIEND_ACCEPTED') {
         if (data.senderId) {
             goToAppScreen(isBusiness, 'HomeTab', { screen: 'Profile', params: { userId: data.senderId } });

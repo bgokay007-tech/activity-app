@@ -114,6 +114,8 @@ model User {
   messageBlockedUsers MessageBlock[] @relation("msgBlocker")
   messageBlockedBy    MessageBlock[] @relation("msgBlocked")
   sentMessages     Message[]
+  challengesSent   MatchChallenge[] @relation("challengeSender")
+  challengesReceived MatchChallenge[] @relation("challengeReceiver")
   tournamentMessages TournamentMessage[]
   tournamentChatNotifyPrefs TournamentChatNotify[]
   conversations1   Conversation[] @relation("convUser1")
@@ -1120,6 +1122,7 @@ model ActivityRequest {
   refereeReviews  RefereeReview[]
   spectators      MatchSpectator[]
   messages        Message[]
+  matchChallenges MatchChallenge[]
 }
 
 // Voleybolda bir ilana "seyirci" olarak katılım kaydı. Amaç: onaylı antrenörlerin sadece
@@ -1727,6 +1730,11 @@ model Message {
   activityRequestId String?
   activityRequest   ActivityRequest? @relation(fields: [activityRequestId], references: [id], onDelete: SetNull)
 
+  // Algoritmik / yapılandırılmış sohbet kartları — meydan okuma teklifi, yer-zaman önerisi vb.
+  // { kind: 'CHALLENGE_OFFER'|'CHALLENGE_ACCEPTED'|'SCHEDULE_PROPOSAL'|'SCHEDULE_ACCEPTED',
+  //   challengeId, category, subCategory, status, date, time, location, courtName, activityRequestId }
+  meta Json?
+
   // Hikaye yanıtı / post-reels-hikaye iletme — sohbette önizleme kartı; alıcı açınca
   // sahibinin postsPrivacy/reelsPrivacy kuralları uygulanır (bkz. checkPostMediaAccess).
   sharedPostId String?
@@ -1740,6 +1748,28 @@ model Message {
 
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+// Derece sıralamasından / profilden "Meydan Oku" — kabul edilince MATCHED esnek maç +
+// sohbette yer/zaman teklif mesajları açılır (bkz. challenge.controller.js).
+model MatchChallenge {
+  id                String   @id @default(uuid())
+  challengerId      String
+  challengedId      String
+  category          CategoryType
+  subCategory       String
+  status            String   @default("PENDING") // PENDING | ACCEPTED | DECLINED | CANCELLED
+  activityRequestId String?
+  conversationId    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  challenger      User             @relation("challengeSender", fields: [challengerId], references: [id], onDelete: Cascade)
+  challenged      User             @relation("challengeReceiver", fields: [challengedId], references: [id], onDelete: Cascade)
+  activityRequest ActivityRequest? @relation(fields: [activityRequestId], references: [id], onDelete: SetNull)
+
+  @@index([challengedId, status])
+  @@index([challengerId, status])
 }
 
 // Bir kullanıcının bir mesajı sadece kendi görünümünden sildiği ("Benden Sil")

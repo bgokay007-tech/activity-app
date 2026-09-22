@@ -32,7 +32,7 @@ function timeAgo(date) {
 }
 
 export default function ChatScreen({ route, navigation }) {
-    const { conversation: convParam, other: otherProp, rival, equipment, coach, club } = route.params;
+    const { conversation: convParam, other: otherProp, rival, equipment, coach, club, challenge: challengeParam } = route.params || {};
     const myId = useSelector(s => s.auth.user?.id);
     const t = useT();
     const [messages, setMessages] = useState([]);
@@ -59,6 +59,13 @@ export default function ChatScreen({ route, navigation }) {
     const [playingId, setPlayingId] = useState(null);
     const soundRef = useRef(null);
 
+    // Meydan okuma — yer/zaman teklifi formu
+    const [scheduleOpen, setScheduleOpen] = useState(false);
+    const [schedDate, setSchedDate] = useState('');
+    const [schedTime, setSchedTime] = useState('');
+    const [schedPlace, setSchedPlace] = useState('');
+    const [schedBusy, setSchedBusy] = useState(false);
+
     const other = otherProp || convParam?.other;
 
     // "coach"/"rival" route param yalnızca "Mesaj At" / "İletişime Geç" ile sohbeti
@@ -68,6 +75,19 @@ export default function ChatScreen({ route, navigation }) {
     const coachListingCtx = coach || [...messages].reverse().find(m => m.coachListing)?.coachListing || null;
     const clubListingCtx = club || [...messages].reverse().find(m => m.clubListing)?.clubListing || null;
     const rivalCtx = rival || [...messages].reverse().find(m => m.activityRequest)?.activityRequest || null;
+
+    const activeChallengeMeta = [...messages].reverse().find(m =>
+        m.meta?.kind === 'CHALLENGE_ACCEPTED' || m.meta?.kind === 'SCHEDULE_PROMPT' || m.meta?.kind === 'SCHEDULE_PROPOSAL'
+    )?.meta || (challengeParam?.status === 'ACCEPTED' ? {
+        challengeId: challengeParam.id,
+        activityRequestId: challengeParam.activityRequestId,
+        category: challengeParam.category,
+        subCategory: challengeParam.subCategory,
+    } : null);
+
+    const pendingOffer = [...messages].reverse().find(m =>
+        m.meta?.kind === 'CHALLENGE_OFFER' && m.meta?.status === 'PENDING' && m.senderId !== myId
+    );
 
     const openEquipmentListing = (listing) => {
         if (!listing?.category || !listing?.subCategory) return;
@@ -102,6 +122,63 @@ export default function ChatScreen({ route, navigation }) {
             return new Date(r.matchDate).toLocaleDateString(locale, { day: 'numeric', month: 'long' }) + (r.matchTime ? ` · ${r.matchTime}` : '');
         } catch {
             return r.matchTime || '';
+        }
+    };
+
+    const appendMessages = (arr) => {
+        const list = Array.isArray(arr) ? arr : [arr];
+        setMessages(prev => {
+            const ids = new Set(prev.map(m => m.id));
+            const fresh = list.filter(m => m?.id && !ids.has(m.id));
+            return fresh.length ? [...prev, ...fresh] : prev;
+        });
+    };
+
+    const respondToChallenge = async (challengeId, action) => {
+        try {
+            const { data } = await api.patch(`/challenges/${challengeId}/respond`, { action });
+            if (data.message) appendMessages(data.message);
+            if (data.messages) appendMessages(data.messages);
+            if (action === 'accept') {
+                Alert.alert('', t.challengeAcceptedHint || 'Meydan okuma kabul edildi. Yer ve zaman önerin.');
+            }
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        }
+    };
+
+    const submitScheduleProposal = async () => {
+        const challengeId = activeChallengeMeta?.challengeId || challengeParam?.id;
+        if (!challengeId || !schedDate.trim() || !schedTime.trim()) {
+            Alert.alert('', t.challengeScheduleNeed || 'Tarih ve saat gerekli');
+            return;
+        }
+        setSchedBusy(true);
+        try {
+            const { data } = await api.post(`/challenges/${challengeId}/propose-schedule`, {
+                date: schedDate.trim(),
+                time: schedTime.trim(),
+                location: schedPlace.trim() || undefined,
+                courtName: schedPlace.trim() || undefined,
+            });
+            if (data.message) appendMessages(data.message);
+            setScheduleOpen(false);
+            setSchedDate('');
+            setSchedTime('');
+            setSchedPlace('');
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setSchedBusy(false);
+        }
+    };
+
+    const acceptScheduleProposal = async (challengeId) => {
+        try {
+            const { data } = await api.post(`/challenges/${challengeId}/accept-schedule`);
+            if (data.message) appendMessages(data.message);
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
         }
     };
 
@@ -588,6 +665,31 @@ export default function ChatScreen({ route, navigation }) {
                             </View>
                         </TouchableOpacity>
                     )}
+                    {item.meta?.kind === 'CHALLENGE_OFFER' && item.meta.status === 'PENDING' && !isMe && (
+                        <View style={styles.challengeActions}>
+                            <TouchableOpacity style={[styles.challengeBtn, { backgroundColor: '#16a34a' }]} onPress={() => respondToChallenge(item.meta.challengeId, 'accept')}>
+                                <Text style={styles.challengeBtnText}>{t.challengeAccept || 'Kabul Et'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.challengeBtn, { backgroundColor: '#dc2626' }]} onPress={() => respondToChallenge(item.meta.challengeId, 'decline')}>
+                                <Text style={styles.challengeBtnText}>{t.challengeDecline || 'Reddet'}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                    {item.meta?.kind === 'SCHEDULE_PROPOSAL' && item.meta.status === 'PENDING' && item.senderId !== myId && (
+                        <View style={styles.challengeActions}>
+                            <TouchableOpacity style={[styles.challengeBtn, { backgroundColor: '#16a34a' }]} onPress={() => acceptScheduleProposal(item.meta.challengeId)}>
+                                <Text style={styles.challengeBtnText}>{t.challengeAcceptSchedule || 'Tarihi Kabul Et'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.challengeBtn, { backgroundColor: '#7c3aed' }]} onPress={() => {
+                                setSchedDate(item.meta.date || '');
+                                setSchedTime(item.meta.time || '');
+                                setSchedPlace(item.meta.courtName || item.meta.location || '');
+                                setScheduleOpen(true);
+                            }}>
+                                <Text style={styles.challengeBtnText}>{t.challengeCounterSchedule || 'Karşı Öneri'}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                     {item.sharedPost && (
                         <TouchableOpacity style={styles.msgEquipCard} onPress={() => openSharedCard(item.sharedPost)} activeOpacity={0.8}>
                             {item.sharedPost.locked ? (
@@ -750,6 +852,46 @@ export default function ChatScreen({ route, navigation }) {
                 if (!lastMine?.read || !lastMine?.readAt) return null;
                 return <Text style={styles.seenText}>{timeAgo(lastMine.readAt)}</Text>;
             })()}
+
+            {/* Meydan okuma kabul edildiyse yer/zaman öneri şeridi */}
+            {activeChallengeMeta?.challengeId && !scheduleOpen && (
+                <TouchableOpacity style={styles.scheduleBanner} onPress={() => setScheduleOpen(true)} activeOpacity={0.85}>
+                    <Text style={styles.scheduleBannerText}>{t.challengeProposeCta || '📅 Yer ve zaman öner'}</Text>
+                </TouchableOpacity>
+            )}
+            {scheduleOpen && (
+                <View style={styles.scheduleForm}>
+                    <TextInput
+                        style={styles.scheduleInput}
+                        placeholder={t.challengeDatePh || 'Tarih (YYYY-MM-DD)'}
+                        placeholderTextColor={colors.textMuted}
+                        value={schedDate}
+                        onChangeText={setSchedDate}
+                    />
+                    <TextInput
+                        style={styles.scheduleInput}
+                        placeholder={t.challengeTimePh || 'Saat (HH:MM)'}
+                        placeholderTextColor={colors.textMuted}
+                        value={schedTime}
+                        onChangeText={setSchedTime}
+                    />
+                    <TextInput
+                        style={styles.scheduleInput}
+                        placeholder={t.challengePlacePh || 'Mekan / kort (opsiyonel)'}
+                        placeholderTextColor={colors.textMuted}
+                        value={schedPlace}
+                        onChangeText={setSchedPlace}
+                    />
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity style={[styles.challengeBtn, { flex: 1, backgroundColor: colors.surface2 }]} onPress={() => setScheduleOpen(false)}>
+                            <Text style={styles.challengeBtnText}>{t.cancelBtn || 'Vazgeç'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.challengeBtn, { flex: 1, backgroundColor: '#7c3aed', opacity: schedBusy ? 0.6 : 1 }]} disabled={schedBusy} onPress={submitScheduleProposal}>
+                            <Text style={styles.challengeBtnText}>{schedBusy ? '...' : (t.challengeSendProposal || 'Öner')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
 
             {/* Input */}
             <View style={styles.inputRow}>
@@ -967,4 +1109,11 @@ const styles = StyleSheet.create({
     actionSheetBox: { backgroundColor: colors.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 20 },
     actionSheetRow: { paddingVertical: 15, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border + '50' },
     actionSheetRowText: { color: '#fff', fontSize: 15, fontWeight: '700', textAlign: 'center' },
+    challengeActions: { flexDirection: 'row', gap: 6, marginTop: 6, marginBottom: 2 },
+    challengeBtn: { flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: 'center', paddingHorizontal: 6 },
+    challengeBtnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+    scheduleBanner: { backgroundColor: '#7c3aed22', borderTopWidth: 1, borderTopColor: '#7c3aed50', paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center' },
+    scheduleBannerText: { color: '#c4b5fd', fontSize: 13, fontWeight: '800' },
+    scheduleForm: { backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, padding: 12, gap: 8 },
+    scheduleInput: { backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, color: '#fff', fontSize: 13, paddingHorizontal: 12, paddingVertical: 9 },
 });

@@ -279,9 +279,9 @@ export const getMessages = async (req, res, next) => {
 export const sendMessage = async (req, res, next) => {
     try {
         const { userId: receiverId } = req.params;
-        const { content, equipmentListingId, coachListingId, clubListingId, activityRequestId, imageUrl, audioUrl, audioDuration, sharedPostId } = req.body;
+        const { content, equipmentListingId, coachListingId, clubListingId, activityRequestId, imageUrl, audioUrl, audioDuration, sharedPostId, meta } = req.body;
 
-        if (!content?.trim() && !imageUrl && !audioUrl && !sharedPostId && !equipmentListingId && !coachListingId && !clubListingId && !activityRequestId) {
+        if (!content?.trim() && !imageUrl && !audioUrl && !sharedPostId && !equipmentListingId && !coachListingId && !clubListingId && !activityRequestId && !meta) {
             return res.status(400).json({ message: 'Message cannot be empty' });
         }
 
@@ -319,6 +319,7 @@ export const sendMessage = async (req, res, next) => {
                 ...(clubListingId && { clubListingId }),
                 ...(activityRequestId && { activityRequestId }),
                 ...(sharedPostId && { sharedPostId }),
+                ...(meta && typeof meta === 'object' && { meta }),
                 ...(imageUrl && { imageUrl }),
                 ...(audioUrl && { audioUrl, audioDuration: Number(audioDuration) || null }),
             },

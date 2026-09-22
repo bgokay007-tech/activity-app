@@ -82,6 +82,10 @@ const TYPE_ICON = {
     CLUB_LISTING_SUBMITTED: '🏟️',
     SUPPORT_MESSAGE: '💬',
     SUPPORT_MESSAGE_REPLIED: '💬',
+    CHALLENGE_OFFER: '⚔️',
+    CHALLENGE_ACCEPTED: '✅',
+    CHALLENGE_DECLINED: '❌',
+    CHALLENGE_SCHEDULE: '📅',
     FAKE_SPECTATOR_REPORTED: '🚩',
     VENUE_REQUEST: '🏟️',
     VENUE_EDIT_REQUEST: '✏️',
@@ -442,6 +446,17 @@ export default function NotificationsScreen({ navigation }) {
                 });
             } else {
                 navigation.navigate('MessagesTab');
+            }
+        } else if (type === 'CHALLENGE_OFFER' || type === 'CHALLENGE_ACCEPTED' || type === 'CHALLENGE_DECLINED' || type === 'CHALLENGE_SCHEDULE') {
+            if (data.conversationId || data.senderId) {
+                navigation.navigate('MessagesTab', {
+                    screen: 'Chat',
+                    params: {
+                        conversation: { id: data.conversationId || null, _userId: data.senderId },
+                        other: data.senderId ? { id: data.senderId, username: data.senderUsername } : undefined,
+                        challenge: data.challengeId ? { id: data.challengeId, status: type === 'CHALLENGE_ACCEPTED' ? 'ACCEPTED' : 'PENDING', activityRequestId: data.rivalId, category: data.category, subCategory: data.subCategory } : undefined,
+                    },
+                });
             }
         } else if (type === 'FRIEND_REQUEST' || type === 'FRIEND_ACCEPTED' || type === 'FOLLOW_REQUEST' || type === 'FOLLOW_ACCEPTED') {
             if (data.senderId) {

@@ -527,10 +527,12 @@ function Avatar({ name, avatar, size=40, color=colors.purple, onPress }) {
 
 const LEVEL_COLORS = { BEGINNER:'#4ade80', INTERMEDIATE:'#facc15', ADVANCED:'#fb923c', PRO:'#f87171' };
 
-function UserProfileModal({ visible, userId, onClose, navigation }) {
+function UserProfileModal({ visible, userId, onClose, navigation, category, sub }) {
     const t = useT();
+    const myId = useSelector(s => s.auth.user?.id);
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [challenging, setChallenging] = useState(false);
 
     useEffect(() => {
         if (!visible || !userId) return;
@@ -541,6 +543,50 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
             .catch(() => {})
             .finally(() => setLoading(false));
     }, [visible, userId]);
+
+    const openChat = () => {
+        if (!profile?.id) return;
+        onClose();
+        navigation.navigate('MessagesTab', {
+            screen: 'Chat',
+            params: {
+                other: { id: profile.id, username: profile.username, fullName: profile.fullName },
+                conversation: { id: null, _userId: profile.id },
+            },
+        });
+    };
+
+    const sendChallenge = async () => {
+        if (!profile?.id || !category || !sub || challenging) return;
+        if (profile.id === myId) return;
+        setChallenging(true);
+        try {
+            const { data } = await api.post('/challenges', {
+                challengedId: profile.id,
+                category: String(category).toUpperCase(),
+                subCategory: sub,
+            });
+            onClose();
+            const conv = data.conversation;
+            navigation.navigate('MessagesTab', {
+                screen: 'Chat',
+                params: {
+                    conversation: conv,
+                    other: conv?.other || { id: profile.id, username: profile.username, fullName: profile.fullName },
+                    challenge: data.challenge,
+                },
+            });
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setChallenging(false);
+        }
+    };
+
+    const canChallenge = !!category && !!sub && profile?.id && profile.id !== myId
+        && !profile.isPrivate
+        && Array.isArray(profile.interests)
+        && profile.interests.some(i => i.subCategory === sub && !i.hidden);
 
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -658,16 +704,19 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
                                 </View>
                             )}
 
-                            {/* Message button */}
+                            {/* Meydan oku (sıralama/dal bağlamı) — Mesaj gönder'in üstünde */}
+                            {canChallenge && (
+                                <TouchableOpacity
+                                    style={[s.submitBtn, { backgroundColor: '#dc2626', marginTop: 8, opacity: challenging ? 0.6 : 1 }]}
+                                    disabled={challenging}
+                                    onPress={sendChallenge}
+                                >
+                                    <Text style={s.submitBtnText}>{challenging ? '...' : (t.challengeBtn || '⚔️ Meydan Oku')}</Text>
+                                </TouchableOpacity>
+                            )}
                             <TouchableOpacity
                                 style={[s.submitBtn, { backgroundColor: '#2563eb', marginTop: 8 }]}
-                                onPress={() => {
-                                    onClose();
-                                    navigation.navigate('MessagesTab', {
-                                        screen: 'Chat',
-                                        params: { other: { id: profile.id, username: profile.username, fullName: profile.fullName }, conversation: { id: null, _userId: profile.id } },
-                                    });
-                                }}
+                                onPress={openChat}
                             >
                                 <Text style={s.submitBtnText}>{t.msgSendBtn}</Text>
                             </TouchableOpacity>
@@ -30733,7 +30782,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             </Modal>
             {showCreateTournament && <CreateTournamentModal visible onClose={() => setShowCreateTournament(false)} category={category} sub={sub} onCreated={loadTournaments} />}
             {showTournamentPermission && <TournamentPermissionModal visible onClose={() => setShowTournamentPermission(false)} onStatusChange={setTournamentPermStatus} />}
-            {!!profileUserId && <UserProfileModal visible userId={profileUserId} onClose={() => setProfileUserId(null)} navigation={navigation} />}
+            {!!profileUserId && <UserProfileModal visible userId={profileUserId} onClose={() => setProfileUserId(null)} navigation={navigation} category={category} sub={sub} />}
 
             {/* ── İlan Bildir Modal ── */}
             {reportModal.visible && (
