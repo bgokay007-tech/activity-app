@@ -2279,27 +2279,31 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             göstermesiyle çözüldü — bkz. o bileşendeki showDropdown yorumu.) */}
         <Modal visible={visible} animationType="slide" onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={{ flex:1, backgroundColor: colors.bg }}>
-                {/* Header: geri + ilan sahibi fotosu + 2 kolon bilgi (eski bilgi kartı kaldırıldı). */}
+                {/* Header: geri + foto(altında isim+elo) + 2 kolon bilgi. */}
                 <View style={{ flexDirection:'row', alignItems:'flex-start', paddingHorizontal:5, paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(10), borderBottomWidth:1, borderBottomColor: colors.border, gap: moderateScale(8) }}>
                     <TouchableOpacity onPress={onClose} style={{ padding:1, marginTop: moderateScale(4) }}>
                         <Text style={{ color:'#fff', fontSize:moderateScale(22), fontWeight:'300' }}>←</Text>
                     </TouchableOpacity>
-                    <Avatar
-                        name={item.sender?.username}
-                        avatar={item.sender?.avatar}
-                        size={moderateScale(56)}
-                        color={cfg.color}
-                        onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })}
-                    />
-                    <View style={{ flex:1, flexDirection:'row', alignItems:'flex-start', gap: moderateScale(6), minWidth:0 }}>
-                        {/* Sol: isim+elo, cinsiyet, derece, fiyat */}
-                        <View style={{ flex:1, minWidth:0, gap:2 }}>
-                            <Text style={{ color:'#fff', fontSize: moderateScale(13), fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {senderAlias(item.sender)}
-                                {item.sender?.interests?.[0]?.assessmentCompleted
-                                    ? `  ${Number(item.sender.interests[0].skillRating).toFixed(2)} ★`
-                                    : ''}
+                    <View style={{ alignItems:'center', width: moderateScale(64), gap: 2 }}>
+                        <Avatar
+                            name={item.sender?.username}
+                            avatar={item.sender?.avatar}
+                            size={moderateScale(56)}
+                            color={cfg.color}
+                            onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })}
+                        />
+                        <Text style={{ color:'#fff', fontSize: moderateScale(11), fontWeight:'800', textAlign:'center', maxWidth: moderateScale(64) }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                            {senderAlias(item.sender)}
+                        </Text>
+                        {item.sender?.interests?.[0]?.assessmentCompleted && (
+                            <Text style={{ color:'#facc15', fontSize: moderateScale(10), fontWeight:'800', textAlign:'center' }} numberOfLines={1}>
+                                {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
                             </Text>
+                        )}
+                    </View>
+                    <View style={{ flex:1, flexDirection:'row', alignItems:'flex-start', gap: moderateScale(6), minWidth:0 }}>
+                        {/* Sol: cinsiyet, derece, fiyat, rezervasyon */}
+                        <View style={{ flex:1, minWidth:0, gap:2 }}>
                             {(() => {
                                 const hasSingleGenderReq = item.genderReq && item.genderReq !== 'MIX';
                                 const hasDoubleGenderReq = item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX');
