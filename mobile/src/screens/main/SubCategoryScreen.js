@@ -2442,18 +2442,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                        biri varken bile toplam "(1/4)" gibi eksik gösteriyordu. */
                                     : `(${senderSideCount + filled + unassignedSlots.length + (item.matchType === 'DOUBLE' ? 0 : oppManualNames.length)} / ${totalCapacity})`}
                             </Text>
-                            {/* Herkes digimon arka yüzünü (takımları) görüp çevirebilir; başka kullanıcı
-                                boş slotlardan katıl isteği atar. STRICT'te sahip takım düzenleme yüzünü
-                                açmaz (eski kural). */}
-                            {item.matchType === 'DOUBLE' && !isRefereeAd && showTeamCards && (
-                                <TouchableOpacity onPress={() => { cancelHighlightSequence(); toggleTeamCards(false); }} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🔄 Çevir</Text>
-                                </TouchableOpacity>
-                            )}
-                            {item.matchType === 'DOUBLE' && !isRefereeAd && !showTeamCards && (isOwner ? item.teamFlexibility !== 'STRICT' : true) && (
-                                <TouchableOpacity onPress={() => { cancelHighlightSequence(); toggleTeamCards(true); }} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20', position:'relative' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🗂️ {isOwner ? 'Takımları Düzenle' : 'Takımları Gör'}</Text>
-                                    {flipHintActive && (
+                            {/* Digimon kart her zaman aktif — katılım olmasa / STRICT olsa bile
+                                herkes (sahip dahil) çevirip takım yüzünü görür. */}
+                            {item.matchType === 'DOUBLE' && !isRefereeAd && (
+                                <TouchableOpacity onPress={() => { cancelHighlightSequence(); toggleTeamCards(!showTeamCards); }} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20', position:'relative' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>
+                                        {showTeamCards ? '🔄 Çevir' : (isOwner ? '🗂️ Takımları Düzenle' : '🗂️ Takımları Gör')}
+                                    </Text>
+                                    {flipHintActive && !showTeamCards && (
                                         <Animated.View style={{ position:'absolute', top:-3, right:-3, width:9, height:9, borderRadius:5, backgroundColor:'#ef4444', opacity: highlightPulse }} />
                                     )}
                                 </TouchableOpacity>
