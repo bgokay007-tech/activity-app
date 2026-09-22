@@ -479,6 +479,24 @@ const openCourtMap = (courtName, courtLat, courtLng, courtAddress) => {
     );
 };
 
+// İlan kartı görünümü: ilk 3 kelime tam; 4. kelimeden itibaren sadece baş harf (ör.
+// "Nashira Spor Kulubu Tenis Akademisi" → "Nashira Spor Kulubu T.A."). Detay ve harita
+// açılışında her zaman tam isim kullanılır.
+function shortenCourtNameForCard(name) {
+    if (!name || typeof name !== 'string') return name || '';
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length <= 3) return parts.join(' ');
+    const head = parts.slice(0, 3).join(' ');
+    const initials = parts.slice(3)
+        .map(w => {
+            const ch = [...w].find(c => /\p{L}|\p{N}/u.test(c));
+            return ch ? `${ch.toLocaleUpperCase('tr-TR')}.` : '';
+        })
+        .filter(Boolean)
+        .join('');
+    return initials ? `${head} ${initials}` : head;
+}
+
 function Avatar({ name, avatar, size=40, color=colors.purple, onPress }) {
     const circle = (
         <View style={[s.avatar, { width:size, height:size, borderRadius:size/2, backgroundColor: color+'40', borderColor: color+'60', overflow:'hidden' }]}>
@@ -5121,7 +5139,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 )}
                 {item.courtName && (
                     <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)}>
-                        <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#60a5fa', textDecorationLine:'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.courtName}</Text>
+                        <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#60a5fa', textDecorationLine:'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{shortenCourtNameForCard(item.courtName)}</Text>
                     </TouchableOpacity>
                 )}
                 {/* Hakem — kullanıcı isteğiyle salon adının altında, "rezerve edildi" satırının
@@ -7848,10 +7866,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 Maçlar'da (matchEnded=false) tıklanabilir. */}
             {match.courtName && (
                 matchEnded ? (
-                    <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2 }]}>{isVolleyball ? '' : '🏟️ '}{match.courtName}</Text>
+                    <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2 }]}>{isVolleyball ? '' : '🏟️ '}{shortenCourtNameForCard(match.courtName)}</Text>
                 ) : (
                     <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
-                        <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2, textDecorationLine:'underline' }]}>{isVolleyball ? '' : '🏟️ '}{match.courtName}</Text>
+                        <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2, textDecorationLine:'underline' }]}>{isVolleyball ? '' : '🏟️ '}{shortenCourtNameForCard(match.courtName)}</Text>
                     </TouchableOpacity>
                 )
             )}
