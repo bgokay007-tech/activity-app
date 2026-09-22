@@ -972,7 +972,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // Çiftlerde kabul edilen oyuncular varsayılan olarak Partner/Rakip 1/Rakip 2 kartlarına
     // otomatik yerleşmiş gösterilmez — önce sırayla "Katılımcı 1/2/3" olarak listelenir,
     // kurucu isterse "Takımları Düzenle" ile mevcut kart/takas ekranını açar.
-    const [showTeamCards, setShowTeamCards] = useState(false);
+    // Başka kullanıcı detaya girince doğrudan arka yüz (takımlar) açılsın — slotlardan katılabilsin.
+    const [showTeamCards, setShowTeamCards] = useState(() => item.matchType === 'DOUBLE' && item.senderId !== myId);
     // Kullanıcı isteği: "İstekler" ve "Yedek İstekleri" listeleri yer kaplıyordu — en sağa
     // dokununca açılıp kapanan bir ok eklendi. Varsayılan durum istek sayısına göre değişir:
     // 5'ten fazla istek varsa varsayılan KAPALI (ok sola dönük, yer tasarrufu için), 5 ya da
@@ -1333,7 +1334,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         setLocalJoinRequests(null);
         setLocalGender(null);
         setSwapSlot(null);
-        setShowTeamCards(false);
+        setShowTeamCards(item?.matchType === 'DOUBLE' && item?.senderId !== myId);
         setComments([]);
         setCommentText('');
         setSpectators([]);
@@ -2278,14 +2279,130 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             göstermesiyle çözüldü — bkz. o bileşendeki showDropdown yorumu.) */}
         <Modal visible={visible} animationType="slide" onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={{ flex:1, backgroundColor: colors.bg }}>
-                {/* Header */}
-                <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:5, paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(14), borderBottomWidth:1, borderBottomColor: colors.border }}>
-                    <TouchableOpacity onPress={onClose} style={{ marginRight:14, padding:1 }}>
+                {/* Header: geri + ilan sahibi fotosu + 2 kolon bilgi (eski bilgi kartı kaldırıldı). */}
+                <View style={{ flexDirection:'row', alignItems:'flex-start', paddingHorizontal:5, paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(10), borderBottomWidth:1, borderBottomColor: colors.border, gap: moderateScale(8) }}>
+                    <TouchableOpacity onPress={onClose} style={{ padding:1, marginTop: moderateScale(4) }}>
                         <Text style={{ color:'#fff', fontSize:moderateScale(22), fontWeight:'300' }}>←</Text>
                     </TouchableOpacity>
-                    <View style={{ flex:1 }}>
-                        <Text style={{ color:'#fff', fontSize:moderateScale(16), fontWeight:'800' }}>{getSubCategoryLabel(item.subCategory, t.lang)}</Text>
-                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(12), marginTop:1 }}>{senderAlias(item.sender)}</Text>
+                    <Avatar
+                        name={item.sender?.username}
+                        avatar={item.sender?.avatar}
+                        size={moderateScale(56)}
+                        color={cfg.color}
+                        onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })}
+                    />
+                    <View style={{ flex:1, flexDirection:'row', alignItems:'flex-start', gap: moderateScale(6), minWidth:0 }}>
+                        {/* Sol: isim+elo, cinsiyet, derece, fiyat */}
+                        <View style={{ flex:1, minWidth:0, gap:2 }}>
+                            <Text style={{ color:'#fff', fontSize: moderateScale(13), fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                {senderAlias(item.sender)}
+                                {item.sender?.interests?.[0]?.assessmentCompleted
+                                    ? `  ${Number(item.sender.interests[0].skillRating).toFixed(2)} ★`
+                                    : ''}
+                            </Text>
+                            {(() => {
+                                const hasSingleGenderReq = item.genderReq && item.genderReq !== 'MIX';
+                                const hasDoubleGenderReq = item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX');
+                                if (!hasSingleGenderReq && !hasDoubleGenderReq) return null;
+                                if (hasSingleGenderReq) {
+                                    return (
+                                        <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(11), fontWeight:'700' }}>
+                                            {item.genderReq === 'MALE' ? '👨' : '👩'}
+                                        </Text>
+                                    );
+                                }
+                                const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
+                                return (
+                                    <Text style={{ color:'#a855f7', fontSize: moderateScale(11), fontWeight:'700' }} numberOfLines={1}>
+                                        {`${gL(item.sender?.gender)}${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`}
+                                    </Text>
+                                );
+                            })()}
+                            {item.subCategory === 'volleyball' && item.teamSize > 1 && hasGenderCountInfo(item) && (
+                                <Text style={{ color:'#a855f7', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
+                                    {genderCountDisplayLabel(item)}
+                                </Text>
+                            )}
+                            {(() => {
+                                const hasRatingRange = item.ratingGenderSplit
+                                    ? (item.minRatingMale != null || item.maxRatingMale != null || item.minRatingFemale != null || item.maxRatingFemale != null)
+                                    : (item.minRating != null || item.maxRating != null);
+                                if (!hasRatingRange) return null;
+                                return (
+                                    <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
+                                        {item.ratingGenderSplit
+                                            ? `⭐ 👨${item.minRatingMale ?? 0}-${item.maxRatingMale ?? 5}  👩${item.minRatingFemale ?? 0}-${item.maxRatingFemale ?? 5}`
+                                            : `⭐ ${item.minRating ?? '0'}–${item.maxRating ?? '5'}`}
+                                    </Text>
+                                );
+                            })()}
+                            {item.courtFeePerPerson > 0 && (
+                                <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                    {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
+                                </Text>
+                            )}
+                            {feeByMethodEntries(item.courtFeePerPersonByMethod).length > 0 && feeByMethodEntries(item.courtFeePerPersonByMethod).map(([k, v]) => (
+                                <Text key={k} style={{ color:'#86efac', fontSize:moderateScale(9) }} numberOfLines={1}>
+                                    {FEE_METHOD_LABEL[k] || k}: {v}₺
+                                </Text>
+                            ))}
+                        </View>
+                        {/* Sağ: mod+format, tarih, saat, konum, rezervasyon */}
+                        <View style={{ flex:1, minWidth:0, gap:2 }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap' }}>
+                                <Text style={{
+                                    color: item.matchMode === 'COMPETITIVE' ? '#f87171' : item.matchMode === 'BOTH' ? '#c084fc' : '#60a5fa',
+                                    fontSize: moderateScale(11), fontWeight: '700',
+                                }} numberOfLines={1}>
+                                    {noEmojiStr(
+                                        item.matchMode === 'COMPETITIVE' ? t.modeCompetitive
+                                            : item.matchMode === 'BOTH' ? t.modeBoth
+                                                : t.modePractice
+                                    )}
+                                </Text>
+                                <Text style={{ color: cfg.color, fontSize: moderateScale(11), fontWeight: '700' }} numberOfLines={1}>
+                                    {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                                </Text>
+                            </View>
+                            {item.matchDate && (
+                                <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={2}>
+                                    {new Date(item.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' })}
+                                </Text>
+                            )}
+                            {(item.matchTime || item.duration) && (
+                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>
+                                    {item.matchTime ? (() => {
+                                        const [h, m] = item.matchTime.split(':').map(Number);
+                                        const dur = parseInt(item.duration || 0);
+                                        const tot = h * 60 + m + dur;
+                                        const endT = dur > 0 ? `–${String(Math.floor(tot / 60) % 24).padStart(2, '0')}:${String(tot % 60).padStart(2, '0')}` : '';
+                                        return `${item.matchTime}${endT}`;
+                                    })() : `${item.duration} ${t.timeMinSuffix}`}
+                                </Text>
+                            )}
+                            {item.subCategory === 'volleyball' && !!VOLLEYBALL_SURFACES.find(v => v.id === item.surface) && (
+                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
+                                    {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === item.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : t.lang === 'ru' ? v.labelRu : t.lang === 'de' ? v.labelDe : v.labelEn}`; })()}
+                                </Text>
+                            )}
+                            {item.courtName && (
+                                <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)}>
+                                    <Text style={{ color:'#60a5fa', fontSize:moderateScale(10), textDecorationLine:'underline' }} numberOfLines={2}>{item.courtName}</Text>
+                                </TouchableOpacity>
+                            )}
+                            <Text style={{ fontSize:moderateScale(10), fontWeight:'700', color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1}>
+                                {item.isCourtReserved
+                                    ? sportFacilityLabels(sub, t).reserved
+                                    : item.location === 'Ortaklaşa Kararlaştırılır'
+                                        ? (t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır')
+                                        : sportFacilityLabels(sub, t).notReserved}
+                            </Text>
+                            {item.subCategory === 'volleyball' && item.cancelPenaltyHours != null && (
+                                <Text style={{ color:'#f87171', fontSize:moderateScale(9), fontWeight:'700' }} numberOfLines={1}>
+                                    {t.cancelPenaltyBadge(item.cancelPenaltyHours)}
+                                </Text>
+                            )}
+                        </View>
                     </View>
                 </View>
 
@@ -2306,154 +2423,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     dokunmatik tuşlarıyla çakışıp basılamıyordu (kullanıcı raporu). */}
                 <ScrollView style={{ flex:1 }} contentContainerStyle={{ paddingHorizontal:5, paddingTop:13, paddingBottom: insets.bottom + 16 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" maintainVisibleContentPosition={{ minIndexForVisible: 0 }}>
 
-                    {/* Kurucu (sol) + Tarih/Saat/Kort/Fiyat (sağ, küçük) — kullanıcı isteği: tüm bu
-                        bilgiler (isim/resim/elo/format/cinsiyet kısıtlaması dahil tarih/konum/derece
-                        kısıtlamasına kadar) tek bir kutuda, en tepeden başlayarak toplansın. */}
-                    <View style={[det.section, { flexDirection:'row', alignItems:'flex-start', gap:moderateScale(8) }]}>
-                        {/* Sol: kurucu */}
-                        <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:moderateScale(8), minWidth:0 }}>
-                            <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={moderateScale(34)} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
-                            <View style={{ flex:1, minWidth:0 }}>
-                                <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap' }}>
-                                    <Text style={[s.cardName, { fontSize: moderateScale(13) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(item.sender)}</Text>
-                                    {item.sender?.gender && item.sender.gender !== 'OTHER' && (
-                                        <Text style={{ fontSize: moderateScale(11), fontWeight:'700', color: item.sender.gender === 'MALE' ? '#3b82f6' : '#ec4899' }}>
-                                            {item.sender.gender === 'MALE' ? '♂' : '♀'}
-                                        </Text>
-                                    )}
-                                </View>
-                                {item.sender?.interests?.[0]?.assessmentCompleted && (
-                                    // "T ELO 3.45" gibi etiketli metin eskiden "3.45★"ten uzun — numberOfLines
-                                    // olmadan sol sütunu genişletip sağ taraftaki tarih/kort bilgisini sıkıştırıyordu
-                                    // (kullanıcı raporu). Diğer rozetlerle (isim, cinsiyet vb.) tutarlı korunuyor.
-                                    <Text style={{ color:'#facc15', fontSize:moderateScale(11), fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{ratingBadgeText(sub, isDoublesFmt, t.lang, item.sender.interests[0].skillRating)}</Text>
-                                )}
-                                {/* Kullanıcı isteği: kart'ta (RivalCard) zaten gösterilen tüm bilgiler
-                                    (cinsiyet kısıtlaması, derece aralığı, iptal cezası, kort/salon
-                                    rezerve durumu) detay ekranında da alt alta görünsün — öncesinde
-                                    bunların çoğu sadece kartta vardı, detayda eksikti. Takım büyüklüğü
-                                    formatı (2v2/6v6) artık burada değil, sağdaki mod rozetinin yanında
-                                    (bkz. aşağıdaki ModeBadge) — "Rekabetçi 2v2" gibi aynı satırda. */}
-                                {item.genderReq && item.genderReq !== 'MIX' && (
-                                    <View style={{ flexDirection:'row', marginTop:3 }}>
-                                        <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }}>
-                                            <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(9), fontWeight:'800' }}>
-                                                {item.genderReq === 'MALE' ? '👨' : '👩'}
-                                            </Text>
-                                        </View>
-                                    </View>
-                                )}
-                                {item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX') && (() => {
-                                    const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
-                                    // Kullanıcı isteği: ilanı açan kişinin (kurucu) GERÇEK cinsiyeti de
-                                    // eklendi — 2v2'de 4 kişi olduğu için 4 emoji gösterilmesi lazım,
-                                    // önceden sadece 3 slotun (partner/rakip1/rakip2) kısıtlaması
-                                    // gösteriliyordu, kurucunun kendisi hiç yoktu. Bu yüzden "hepsi aynı"
-                                    // durumunda tek sembole sıkıştırma da kaldırıldı — kurucu her zaman
-                                    // ayrı bir sembol olarak sayılır. "+" ayırıcılar kaldırıldı (kullanıcı
-                                    // ekran görüntüsü: 4 sembol + 3 "+" dar sol sütuna sığmayıp rozet 2
-                                    // satıra bölünüyor, üstteki bilgiler kayıyormuş gibi görünüyordu) —
-                                    // RivalCard'daki (liste kartı) aynı rozetle TUTARLI, o zaten "+" kullanmıyor.
-                                    const label = `${gL(item.sender?.gender)}${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`;
-                                    return (
-                                        <View style={{ flexDirection:'row', marginTop:3 }}>
-                                            <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }}>
-                                                <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }} numberOfLines={1}>{label}</Text>
-                                            </View>
-                                        </View>
-                                    );
-                                })()}
-                                {item.subCategory === 'volleyball' && item.teamSize > 1 && hasGenderCountInfo(item) && (
-                                    <Text style={{ color:'#a855f7', fontSize:moderateScale(10), fontWeight:'700', marginTop:3 }}>
-                                        {genderCountDisplayLabel(item)}
-                                    </Text>
-                                )}
-                                {(() => {
-                                    const hasRatingRange = item.ratingGenderSplit
-                                        ? (item.minRatingMale != null || item.maxRatingMale != null || item.minRatingFemale != null || item.maxRatingFemale != null)
-                                        : (item.minRating != null || item.maxRating != null);
-                                    if (!hasRatingRange) return null;
-                                    return (
-                                        <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700', marginTop:3 }}>
-                                            {item.ratingGenderSplit
-                                                ? `⭐ 👨${item.minRatingMale ?? 0}-${item.maxRatingMale ?? 5}  👩${item.minRatingFemale ?? 0}-${item.maxRatingFemale ?? 5}`
-                                                : `⭐ ${item.minRating ?? '0'}–${item.maxRating ?? '5'}`}
-                                        </Text>
-                                    );
-                                })()}
-                                {item.subCategory === 'volleyball' && item.cancelPenaltyHours != null && (
-                                    <Text style={{ color:'#f87171', fontSize:moderateScale(10), fontWeight:'700', marginTop:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                        {t.cancelPenaltyBadge(item.cancelPenaltyHours)}
-                                    </Text>
-                                )}
-                                {/* Kullanıcı isteği: "Ortaklaşa Kararlaştırılır" seçilen ilanlarda
-                                    detayda da yanıltıcı "❌ Kort Rezerve Edilmedi" yerine gerçek durum
-                                    gösterilsin — RivalCard'daki (liste kartı) aynı desen. */}
-                                <Text style={{ fontSize:moderateScale(10), fontWeight:'700', marginTop:3, color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1}>
-                                    {item.isCourtReserved
-                                        ? `${sub === 'volleyball' ? '' : '✅ '}${sportFacilityLabels(sub, t).reserved}`
-                                        : item.location === 'Ortaklaşa Kararlaştırılır'
-                                            ? `${sub === 'volleyball' ? '' : '🤝 '}${t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır'}`
-                                            : `${sub === 'volleyball' ? '' : '❌ '}${sportFacilityLabels(sub, t).notReserved}`}
-                                </Text>
-                            </View>
-                        </View>
-
-                        {/* Sağ: mod + tarih/saat/kort/fiyat — küçük, sola yaslı */}
-                        <View style={{ flex:1.1, alignItems:'flex-start', gap:3, minWidth:0 }}>
-                            {/* Kullanıcı isteği: takım büyüklüğü/format rozeti (2v2/6v6) artık ayrı bir
-                                satırda değil, mod rozetinin (Rekabetçi/Antrenman) hemen sağında, aynı
-                                satırda — "Rekabetçi 2v2" gibi. */}
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap' }}>
-                                <ModeBadge mode={item.matchMode} />
-                                <View style={[s.modeBadge, { backgroundColor:cfg.color+'20', borderColor:cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(2) }]}>
-                                    <Text style={[s.modeBadgeText, { color:cfg.color, fontSize: moderateScale(9) }]}>
-                                        {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
-                                    </Text>
-                                </View>
-                            </View>
-                            {item.matchDate && (
-                                <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={2}>
-                                    📅 {new Date(item.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' })}
-                                </Text>
-                            )}
-                            {(item.matchTime || item.duration) && (
-                                <Text style={{ color: cfg.color, fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>
-                                    {item.matchTime ? `🕐 ${item.matchTime}${item.duration ? (() => { const [h,m]=item.matchTime.split(':').map(Number); const tot=h*60+m+parseInt(item.duration); return `–${String(Math.floor(tot/60)%24).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`; })() : ''}` : `⏱ ${item.duration} ${t.timeMinSuffix}`}
-                                </Text>
-                            )}
-                            {item.subCategory === 'volleyball' && !!VOLLEYBALL_SURFACES.find(v => v.id === item.surface) && (
-                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
-                                    {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === item.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : t.lang === 'ru' ? v.labelRu : t.lang === 'de' ? v.labelDe : v.labelEn}`; })()}
-                                </Text>
-                            )}
-                            {item.courtName && (
-                                <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)} style={{ maxWidth:'100%' }}>
-                                    <Text style={{ color:'#60a5fa', fontSize:moderateScale(10), textDecorationLine:'underline' }} numberOfLines={2}>🏟️ {item.courtName}</Text>
-                                </TouchableOpacity>
-                            )}
-                            {item.courtFeePerPerson > 0 && (
-                                <Text style={{ color:'#4ade80', fontSize:moderateScale(10) }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                    💰 {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''}/{t.perPerson}
-                                </Text>
-                            )}
-                            {/* Kullanıcı isteği: tek satırda " · " ile ayrılmış hali (EFT/Nakit/Online/Kredi
-                                Kartı) dar kolona sığmıyordu — her yöntem kendi satırında, hepsi aynı sol
-                                kenardan başlayarak alt alta listeleniyor. */}
-                            {feeByMethodEntries(item.courtFeePerPersonByMethod).length > 0 && (
-                                <View>
-                                    {feeByMethodEntries(item.courtFeePerPersonByMethod).map(([k, v]) => (
-                                        <Text key={k} style={{ color:'#86efac', fontSize:moderateScale(9) }} numberOfLines={1}>
-                                            {FEE_METHOD_LABEL[k] || k}: {v}₺
-                                        </Text>
-                                    ))}
-                                </View>
-                            )}
-                            {item.level && (
-                                <Text style={[s.levelBadge, { borderRadius: moderateScale(8), paddingHorizontal: moderateScale(6), paddingVertical: moderateScale(2), fontSize: moderateScale(9) }]} numberOfLines={1}>{LEVEL_EMOJI[item.level]} {t.levelTr[item.level] || item.level}</Text>
-                            )}
-                        </View>
-                    </View>
                     {/* Oyuncular — kullanıcı isteği: Kurucu/Rakip Takım kadro kartını saran bu
                         bölümün sağ/sol iç boşluğu daraltıldı (Kurucu Takım biraz sola, Rakip
                         Takım biraz sağa yaklaşsın diye) — üst/alt det.section'daki gibi kalıyor. */}
@@ -2473,20 +2442,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                        biri varken bile toplam "(1/4)" gibi eksik gösteriyordu. */
                                     : `(${senderSideCount + filled + unassignedSlots.length + (item.matchType === 'DOUBLE' ? 0 : oppManualNames.length)} / ${totalCapacity})`}
                             </Text>
-                            {/* isOwner/isParticipant'a ek olarak highlightSlot.doubleSlot da butonu açık tutar —
-                                bir DOUBLE forma davetiyle (bildirimden) gelen kişi henüz participants
-                                listesinde değil (daveti kabul etmedi), önceden bu yüzden buton hiç
-                                görünmüyordu ve "dıgımon kart olarak görmüyor" şikayetine yol açıyordu. */}
-                            {item.matchType === 'DOUBLE' && (isOwner || isParticipant || !!highlightSlot?.doubleSlot) && showTeamCards && (
+                            {/* Herkes digimon arka yüzünü (takımları) görüp çevirebilir; başka kullanıcı
+                                boş slotlardan katıl isteği atar. STRICT'te sahip takım düzenleme yüzünü
+                                açmaz (eski kural). */}
+                            {item.matchType === 'DOUBLE' && !isRefereeAd && showTeamCards && (
                                 <TouchableOpacity onPress={() => { cancelHighlightSequence(); toggleTeamCards(false); }} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🔄 Çevir</Text>
                                 </TouchableOpacity>
                             )}
-                            {/* Voleyboldeki (teamSize>1) çevirme butonu kimse katılmasa da hep görünür —
-                                DOUBLE'da eskiden en az bir katılımcı kabul edilmiş olması şart koşuluyordu,
-                                bu da henüz kimsenin katılmadığı yeni bir ilanda butonun hiç çıkmamasına
-                                (kullanıcı "digimon kart nerede" diye şaşırmasına) yol açıyordu. */}
-                            {item.matchType === 'DOUBLE' && (isOwner || isParticipant || !!highlightSlot?.doubleSlot) && !showTeamCards && (isOwner ? item.teamFlexibility !== 'STRICT' : true) && (
+                            {item.matchType === 'DOUBLE' && !isRefereeAd && !showTeamCards && (isOwner ? item.teamFlexibility !== 'STRICT' : true) && (
                                 <TouchableOpacity onPress={() => { cancelHighlightSequence(); toggleTeamCards(true); }} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20', position:'relative' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>🗂️ {isOwner ? 'Takımları Düzenle' : 'Takımları Gör'}</Text>
                                     {flipHintActive && (
@@ -3444,165 +3408,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         </Animated.View>
                     </View>
 
-                    {/* İstekler — kullanıcı isteği: kadroya katılmamış olsalar bile maç detayına
-                        giren HERKES kimlerin başvurduğunu görebilsin (ör. sevmediği biri zaten
-                        başvurmuşsa kendisi başvurmayabilsin); kabul/red butonları yine sadece ilan
-                        sahibinde kalır (bkz. aşağıdaki isOwner kontrolü). */}
-                    {joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
-                        <View style={det.section}>
-                            {/* Kullanıcı isteği: yer tasarrufu için en sağdaki oka dokununca açılıp
-                                kapanıyor — varsayılan kapalı. */}
-                            <TouchableOpacity onPress={() => setRequestsExpanded(v => !v)} style={{ flexDirection:'row', alignItems:'center' }}>
-                                <Text style={[det.sectionTitle, { flex:1 }]}>📬 {t.requests || 'İstekler'} ({joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
-                                <Text style={{ color:'#fff', fontSize:14 }}>{requestsExpanded ? '▼' : '◀'}</Text>
-                            </TouchableOpacity>
-                            {requestsExpanded && (item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (() => {
-                                // STRICT çiftler maçında başvuran, hangi slota (Kurucu Takımı /
-                                // Rakip 1 / Rakip 2) başvurduğunu request sırasında zaten seçmişti
-                                // (requestedSlot) — burada eşleştirme/partner mantığına gerek yok,
-                                // sadece hangi slotu istediği açıkça gösterilir.
-                                const slotLabel = (slot) => slot === 'partner' ? t.founderTeamLabel : slot === 'opp1' ? t.opp1Label : slot === 'opp2' ? t.opp2Label : t.opp1Label;
-                                return joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').map(jr => (
-                                    <View key={jr.id} style={det.playerRow}>
-                                        <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
-                                        <View style={{ flex:1 }}>
-                                            <Text style={det.playerName}>{playerDisplayName(jr.user)}</Text>
-                                            <Text style={det.playerSub}>
-                                                {jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{eloSuffix(jr.user?.interests?.find(i => i.subCategory === sub), sub, isDoublesFmt, t.lang)}{reqGenderParen(jr.user?.gender, t.lang)}
-                                            </Text>
-                                            <Text style={{ color: cfg.color, fontSize:moderateScale(10), fontWeight:'700', marginTop:1 }} numberOfLines={1}>
-                                                → {slotLabel(jr.requestedSlot)}
-                                            </Text>
-                                        </View>
-                                        {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
-                                            <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
-                                        ) : (
-                                            <View style={{ flexDirection:'row', gap:3 }}>
-                                                <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
-                                                    <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✓</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity style={[s.declineBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => rejectLocal(jr.id)}>
-                                                    <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✕</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        ))}
-                                    </View>
-                                ));
-                            })() : item.matchType === 'DOUBLE' ? (() => {
-                                // Hâlâ boş olan koltukların cinsiyet gereksinimine uyan istekler
-                                // öne alınır — sahibi kotayı dolduracak adayları hemen görsün.
-                                const senderTeamNow = Array.isArray(item.senderTeam) ? item.senderTeam : [];
-                                const openGenderReqs = [
-                                    !senderTeamNow[0]?.id && partnerGenderReq,
-                                    !participants[0]?.id && opp1GenderReq,
-                                    !participants[1]?.id && opp2GenderReq,
-                                ].filter(g => g && g !== 'MIX');
-                                const fitsOpenSlot = (jr) => {
-                                    if (openGenderReqs.length === 0) return true;
-                                    const g = jr.user?.gender;
-                                    if (!g || g === 'OTHER') return true;
-                                    return openGenderReqs.includes(g);
-                                };
-                                const incoming = joinRequests.filter(jr => jr.initiatedBy !== 'OWNER')
-                                    .slice()
-                                    .sort((a, b) => (fitsOpenSlot(a) === fitsOpenSlot(b) ? 0 : fitsOpenSlot(a) ? -1 : 1));
-                                const { pairs, solos, byUserId } = groupDoublesPairs(incoming);
-                                const solosWithPartnerLink = solos.filter(s => s.partnerId || solos.some(o => o.partnerId === s.userId && o.userId !== s.userId));
-                                const solosIndividual = solos.filter(s => !s.partnerId && !solos.some(o => o.partnerId === s.userId && o.userId !== s.userId));
-                                return (
-                                    <View>
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
-                                            {pairs.map(([a, b]) => renderRivalDuoCard(a, b, solos, byUserId))}
-                                            {solosWithPartnerLink.map(s => renderRivalDuoCard(s, null, solos, byUserId))}
-                                        </View>
-                                        {solosIndividual.map(jr => (
-                                            <View key={jr.id} style={det.playerRow}>
-                                                <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
-                                                <View style={{ flex:1 }}>
-                                                    <Text style={det.playerName}>{playerDisplayName(jr.user)}</Text>
-                                                    <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{eloSuffix(jr.user?.interests?.find(i => i.subCategory === sub), sub, isDoublesFmt, t.lang)}{reqGenderParen(jr.user?.gender, t.lang)}</Text>
-                                                </View>
-                                                {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
-                                                    <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
-                                                ) : (
-                                                    <View style={{ flexDirection:'row', gap:3 }}>
-                                                        <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
-                                                            <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✓</Text>
-                                                        </TouchableOpacity>
-                                                        <TouchableOpacity style={[s.declineBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => rejectLocal(jr.id)}>
-                                                            <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✕</Text>
-                                                        </TouchableOpacity>
-                                                    </View>
-                                                ))}
-                                            </View>
-                                        ))}
-                                    </View>
-                                );
-                            })() : joinRequests.filter(jr => jr.initiatedBy !== 'OWNER')
-                                // Kullanıcı isteği: istekler her zaman istek atma sırasına göre
-                                // gösterilir — backend zaten createdAt artan sırayla döndürüyor,
-                                // burada ayrıca cinsiyet uygunluğuna göre öne alma kaldırıldı.
-                                .map(jr => (
-                                <View key={jr.id} style={det.playerRow}>
-                                    <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
-                                    {/* Voleybol "Rakip Aranıyor": tek isim yerine tam takım kadrosu + ortalama
-                                        puan gösterilir — bkz. TeamJoinRequestModal (bu isteği gönderen kişi
-                                        kendi tam takımını doldurup göndermişti). */}
-                                    {Array.isArray(jr.joiningTeam) && jr.joiningTeam.length > 0 ? (
-                                        <View style={{ flex:1 }}>
-                                            <Text style={det.playerName}>
-                                                {t.teamJoinRequestLabel}
-                                                {(() => {
-                                                    const ratings = jr.joiningTeam.filter(m => !m.isSubstitute && m.skillRating != null).map(m => m.skillRating);
-                                                    const avg = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
-                                                    return avg != null ? `  Ort ${avg.toFixed(2)}★` : '';
-                                                })()}
-                                            </Text>
-                                            <Text style={det.playerSub} numberOfLines={2}>
-                                                {jr.joiningTeam.filter(m => !m.isSubstitute).map(m => m.username || m.fullName || m.manualName).join(', ')}
-                                            </Text>
-                                            {jr.joiningTeam.some(m => m.isSubstitute) && (
-                                                <Text style={{ color: colors.textMuted, fontSize: moderateScale(9) }} numberOfLines={1}>
-                                                    {t.subsLabel}: {jr.joiningTeam.filter(m => m.isSubstitute).map(m => m.username || m.fullName || m.manualName).join(', ')}
-                                                </Text>
-                                            )}
-                                            <Text style={{ color: colors.textMuted, fontSize: moderateScale(9) }}>🕐 {reqTimeAgo(jr.createdAt)}</Text>
-                                        </View>
-                                    ) : (
-                                        <View style={{ flex:1 }}>
-                                            <Text style={det.playerName}>{playerDisplayName(jr.user)}</Text>
-                                            <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{eloSuffix(jr.user?.interests?.find(i => i.subCategory === sub), sub, isDoublesFmt, t.lang)}{reqGenderParen(jr.user?.gender, t.lang)}</Text>
-                                            {jr.requestedSlot && (
-                                                <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'700', marginTop:1 }}>
-                                                    🎯 {jr.requestedSlot === 'partner' ? t.founderTeamLabel : jr.requestedSlot === 'opp1' ? t.opp1Label : jr.requestedSlot === 'opp2' ? t.opp2Label : t.joinAsOpponentBtn}
-                                                </Text>
-                                            )}
-                                            {/* Kullanıcı isteği: voleybolde başvuran hangi pozisyon(lar)ı istediğini
-                                                (öncelik sırasıyla) belirtmişse, ilan sahibi kabul/red kararını buna
-                                                göre versin diye burada gösterilir. */}
-                                            {Array.isArray(jr.positionPreferences) && jr.positionPreferences.length > 0 && (
-                                                <Text style={{ color:'#38bdf8', fontSize: moderateScale(9), fontWeight:'700', marginTop:1 }} numberOfLines={1}>
-                                                    🏐 {jr.positionPreferences.map((p, i) => `${i + 1}. ${p === 'SETTER' ? t.positionSetter : p === 'SPIKER' ? t.positionSpiker : t.positionLibero}`).join('  ')}
-                                                </Text>
-                                            )}
-                                        </View>
-                                    )}
-                                    {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
-                                        <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
-                                    ) : (
-                                        <View style={{ flexDirection:'row', gap:3 }}>
-                                            <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
-                                                <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✓</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity style={[s.declineBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => rejectLocal(jr.id)}>
-                                                <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✕</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    ))}
-                                </View>
-                            )))}
-                        </View>
-                    )}
                     {/* Ilan sahibinin gönderdiği (OWNER) davetler — kullanıcı isteği: DOUBLE'da davet
                         durumu artık kadro kartının İÇİNDE (ne ön ne arka yüzde) hiç gösterilmiyor,
                         SADECE burada — bu yüzden partner davetleri de (önceden Kurucu Takımı
