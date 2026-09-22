@@ -5003,8 +5003,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 // Kullanıcı isteği: arka yüzden (oyuncu listesi) de dokununca ilan detayı açılsın —
                 // önceden sadece ön yüz açıyordu, arka yüzde dokunmanın hiçbir etkisi yoktu. İçindeki
                 // "istek"/"Sipariş Ver" gibi kendi onPress'i olan öğeler yine kendi işlevini korur.
-                <View style={{ flex:1, position:'relative' }}>
-                <TouchableOpacity activeOpacity={0.85} style={{ padding: 0, flex:1 }} onPress={() => setDetailVisible(true)}>
+                <View style={{ flex:1, position:'relative', minHeight: moderateScale(120), paddingBottom: moderateScale(24) }}>
+                <TouchableOpacity activeOpacity={0.85} style={{ padding: 0, flex:1, paddingRight: moderateScale(22) }} onPress={() => setDetailVisible(true)}>
                     <Text style={{ color:'#fff', fontSize:moderateScale(13), fontWeight:'800', marginBottom:8 }}>👥 {t.rosterPoolLabel}</Text>
                     {(cardFounderTeamAvg != null || cardOppTeamAvg != null) && (
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6, gap:6 }}>
@@ -5019,7 +5019,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     {backFacePlayers.length === 0 ? (
                         <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
                     ) : (
-                        <ScrollView showsVerticalScrollIndicator={false}>
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: moderateScale(4) }}>
                             {backFacePlayers.map((p, i) => {
                                 const r = p.skillRating ?? p.interests?.[0]?.skillRating;
                                 return (
@@ -5050,7 +5050,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         </TouchableOpacity>
                     )}
                 </TouchableOpacity>
-                {/* 🔄 sağ alt köşe — ön yüzle aynı hiza. */}
+                {/* 🔄 sağ alt köşe — alt padding ile elo çakışmaz. */}
                 <TouchableOpacity onPress={flipCard} hitSlop={{ top:10, bottom:10, left:10, right:10 }}
                     style={{ position:'absolute', right: 0, bottom: 0, zIndex:10, alignItems:'center', justifyContent:'center' }}>
                     <Text style={{ fontSize: moderateScale(13), lineHeight: moderateScale(14) }}>🔄</Text>
