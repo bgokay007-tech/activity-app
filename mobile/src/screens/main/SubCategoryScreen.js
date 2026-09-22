@@ -679,6 +679,36 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
     );
 }
 
+/** İlanları yatay sayfalara böler — her sayfada `size` kart (varsayılan 3). */
+function chunkIntoPages(items, size = 3) {
+    const pages = [];
+    for (let i = 0; i < items.length; i += size) pages.push(items.slice(i, i + size));
+    return pages;
+}
+
+/** Açık ilan satırı: ekranda 3 kart, sağa kaydırınca sonraki 3. */
+function RivalCardsHScroll({ pageWidth, pages, renderCard }) {
+    if (!pages.length) return null;
+    return (
+        <ScrollView
+            horizontal
+            nestedScrollEnabled
+            showsHorizontalScrollIndicator={false}
+            decelerationRate="fast"
+            snapToInterval={pageWidth}
+            snapToAlignment="start"
+            disableIntervalMomentum
+            contentContainerStyle={{ flexGrow: 0 }}
+        >
+            {pages.map((page, pi) => (
+                <View key={`rp-${pi}`} style={[s.listGridHPage, { width: pageWidth }]}>
+                    {page.map(renderCard)}
+                </View>
+            ))}
+        </ScrollView>
+    );
+}
+
 function EmptyState({ emoji, text, onAdd, addLabel }) {
     const t = useT();
     return (
@@ -4951,8 +4981,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         const vals = [participants[0]?.skillRating, participants[1]?.skillRating].filter(v => v != null);
         return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
     })() : null;
-    // Her dalda açık ilanlar 2'li ızgara (eski tenis twoCol). Tam genişlik kartlar
-    // yaklaşan/oynanan/skor bekleyen ile aynı satıra sığmıyordu (kullanıcı isteği).
+    // Her dalda açık ilanlar 3'lü satır (yatay kaydırma ile sonraki 3).
     const twoCol = !!NEW_VISUAL;
 
     return (
@@ -5011,8 +5040,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         </TouchableOpacity>
                     )}
                 </TouchableOpacity>
-                {/* Arka yüzde de çevir — ön yüzdeki yorum satırıyla aynı sağ hiza. */}
-                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'flex-end', marginBottom:0, marginTop:0 }}>
+                {/* Arka yüzde de çevir — yazı bitince hemen yanında (gereksiz sağ boşluk yok). */}
+                <View style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:5, marginBottom:0, marginTop:0 }}>
                     <TouchableOpacity onPress={flipCard} hitSlop={{ top:10, bottom:10, left:10, right:10 }}
                         style={{ alignItems:'center', justifyContent:'center' }}>
                         <Text style={{ fontSize: moderateScale(13), lineHeight: moderateScale(14) }}>🔄</Text>
@@ -5241,27 +5270,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         </Text>
                     );
                 })()}
-                {/* Kullanıcı isteği: yorum + çevir fiyatın hemen altında; üst/alt boşluk yok.
-                    touchSize() min 44px olduğu için satırı şişiriyordu — hitSlop ile dokunma
-                    alanını koruyup görsel yüksekliği metin satırına indirdik.
-                    Ödül (wager) varsa yorumun hemen sağında, gap:5. */}
-                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:0, marginBottom:0, paddingTop:0, paddingBottom:0 }}>
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:5, flex:1, paddingRight:8, minWidth:0 }}>
-                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), lineHeight: moderateScale(14) }}>
-                            💬 {item.commentCount ?? 0}
-                        </Text>
-                        {!!item.wager && (
-                            <Text style={{ color:'#fbbf24', fontSize: moderateScale(11), fontWeight:'700', lineHeight: moderateScale(14), flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                🏆 {item.wager}
-                            </Text>
-                        )}
-                    </View>
-                    <TouchableOpacity onPress={flipCard} hitSlop={{ top:10, bottom:10, left:10, right:10 }}
-                        style={{ alignItems:'center', justifyContent:'center', paddingVertical:0 }}>
-                        <Text style={{ fontSize: moderateScale(13), lineHeight: moderateScale(14) }}>🔄</Text>
-                    </TouchableOpacity>
-                </View>
-
                 {/* Kullanıcı isteği: "Sipariş Ver" artık burada (ön yüz) değil, arka yüzde
                     oyuncu listesinin altında (bkz. cardFlipped bloğu yukarıda) — modal
                     (VenueMenuOrderModal) paylaşılan orderVenueId state'i sayesinde hangi
@@ -5295,7 +5303,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         {t.servicesCountLabel(rivalServicesCount(item))}
                     </Text>
                 )}
-                {/* wager artık yorum satırında (yukarıda) — ayrı satır yok */}
                 {/* Kullanıcı isteği: kabul edilen oyuncuların listesi ön yüzden kaldırıldı —
                     kart artık önlü-arkalı "digimon kart" (bkz. backFacePlayers/cardFlipped
                     yukarıda), aynı liste zaten 🔄 ile çevrilince arka yüzde görünüyor, ön
@@ -5304,6 +5311,22 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     çevrilince açılan arka yüzde, oyuncu listesinin altında (bkz. cardFlipped
                     bloğu yukarıda) — ön yüz sadece yorum sayısını gösterir. */}
             </TouchableOpacity>
+                {/* Yorum + ödül + çevir: son yazıların bittiği hizada; detay Touchable dışında
+                    (çevir detayı açmasın). space-between yok — kartı gereksiz genişletmesin. */}
+                <View style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:5, marginTop:0, marginBottom:0, paddingTop:0, paddingBottom:0, maxWidth:'100%' }}>
+                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), lineHeight: moderateScale(14) }}>
+                        💬 {item.commentCount ?? 0}
+                    </Text>
+                    {!!item.wager && (
+                        <Text style={{ color:'#fbbf24', fontSize: moderateScale(11), fontWeight:'700', lineHeight: moderateScale(14), flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                            🏆 {item.wager}
+                        </Text>
+                    )}
+                    <TouchableOpacity onPress={flipCard} hitSlop={{ top:10, bottom:10, left:10, right:10 }}
+                        style={{ alignItems:'center', justifyContent:'center', paddingVertical:0 }}>
+                        <Text style={{ fontSize: moderateScale(13), lineHeight: moderateScale(14) }}>🔄</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* Aksiyon: Mesaj at | Maça katılma isteği gönder (yan yana).
@@ -22829,7 +22852,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const requireActivityThenVenueSearch = () => requireActivity(() => navigation.navigate('VenueSearch', { branch: sub }), 'kort rezervasyonu yapabilmen');
     const lang = useSelector(s => s.lang?.lang || 'en');
     const insets = useSafeAreaInsets();
-    const { height: winH } = useWindowDimensions();
+    const { width: winW, height: winH } = useWindowDimensions();
+    const rivalPageW = winW - moderateScale(8); // list paddingHorizontal×2
     const t = useT();
     const cfg = getConfig(sub);
     const sportDisplayName = getSubCategoryLabel(sub, lang) || (lang === 'tr' ? (cfg.nameTR || cfg.name) : lang === 'ru' ? (cfg.nameRu || cfg.name) : lang === 'de' ? (cfg.nameDe || cfg.name) : cfg.name);
@@ -26593,11 +26617,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     ? <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />
                                     : (
                                         <>
-                                        <View style={s.listGrid}>
-                                            {filteredRivals.map(item => (
+                                        <RivalCardsHScroll
+                                            pageWidth={rivalPageW}
+                                            pages={chunkIntoPages(filteredRivals, 3)}
+                                            renderCard={(item) => (
                                                 <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} refereeListings={refereeListings} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
-                                            ))}
-                                        </View>
+                                            )}
+                                        />
                                         {/* Yedek kadrosu (substituteCount) henüz dolmamış eşleşmiş maçlar — kullanıcı isteği:
                                             as kadro dolsa bile yedek dolana kadar Yaklaşan Maçlar'a değil, Açık İlanlar'da
                                             kalsın (herkes hâlâ yedek olarak başvurabileceğini görsün). Maç saati gelince
@@ -26605,11 +26631,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             kalması maçın iptaline yol açmaz. Ayrı ızgara: %50 hücre + gap aynı wrap'te
                                             üçüncü kartı Skor Bekleyen'in üstüne bindiriyordu. */}
                                         {upcomingNeedingSubs.length > 0 && (
-                                        <View style={s.listGrid}>
-                                            {upcomingNeedingSubs.map(m => (
+                                        <RivalCardsHScroll
+                                            pageWidth={rivalPageW}
+                                            pages={chunkIntoPages(upcomingNeedingSubs, 3)}
+                                            renderCard={(m) => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
-                                            ))}
-                                        </View>
+                                            )}
+                                        />
                                         )}
                                         </>
                                     )
@@ -26628,11 +26656,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Text>
                                     </TouchableOpacity>
                                     {upcomingExpanded && (
-                                        <View style={s.listGrid}>
-                                            {upcomingSubsFull.map(m => (
+                                        <RivalCardsHScroll
+                                            pageWidth={rivalPageW}
+                                            pages={chunkIntoPages(upcomingSubsFull, 3)}
+                                            renderCard={(m) => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
-                                            ))}
-                                        </View>
+                                            )}
+                                        />
                                     )}
                                 </>
                             )}
@@ -26650,11 +26680,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Text>
                                     </TouchableOpacity>
                                     {playingExpanded && (
-                                        <View style={s.listGrid}>
-                                            {playingMatches.map(m => (
+                                        <RivalCardsHScroll
+                                            pageWidth={rivalPageW}
+                                            pages={chunkIntoPages(playingMatches, 3)}
+                                            renderCard={(m) => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
-                                            ))}
-                                        </View>
+                                            )}
+                                        />
                                     )}
                                 </>
                             )}
@@ -26672,11 +26704,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Text>
                                     </TouchableOpacity>
                                     {pendingScoreExpanded && (
-                                        <View style={s.listGrid}>
-                                            {pendingScoreAll.map(m => (
+                                        <RivalCardsHScroll
+                                            pageWidth={rivalPageW}
+                                            pages={chunkIntoPages(pendingScoreAll, 3)}
+                                            renderCard={(m) => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
-                                            ))}
-                                        </View>
+                                            )}
+                                        />
                                     )}
                                 </>
                             )}
@@ -26697,11 +26731,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </Animated.Text>
                                     </TouchableOpacity>
                                     {scoreConfirmExpanded && (
-                                        <View style={s.listGrid}>
-                                            {scoreConfirmPendingMatches.map(m => (
+                                        <RivalCardsHScroll
+                                            pageWidth={rivalPageW}
+                                            pages={chunkIntoPages(scoreConfirmPendingMatches, 3)}
+                                            renderCard={(m) => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
-                                            ))}
-                                        </View>
+                                            )}
+                                        />
                                     )}
                                 </>
                             )}
@@ -26737,11 +26773,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {playerWanted.length === 0
                                 ? <EmptyState emoji="👤" text={sub === 'volleyball' ? t.emptyOpponentWanted : t.emptyPlayerWanted} />
                                 : (
-                                    <View style={s.listGrid}>
-                                        {playerWanted.map(item => (
+                                    <RivalCardsHScroll
+                                        pageWidth={rivalPageW}
+                                        pages={chunkIntoPages(playerWanted, 3)}
+                                        renderCard={(item) => (
                                             <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} />
-                                        ))}
-                                    </View>
+                                        )}
+                                    />
                                 )
                             }
                         </>
@@ -27645,11 +27683,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {refereeMatches.length === 0
                                         ? <EmptyState emoji="🟨" text={t.emptyRefereeMatches} />
                                         : (
-                                            <View style={s.listGrid}>
-                                                {refereeMatches.map(item => (
+                                            <RivalCardsHScroll
+                                                pageWidth={rivalPageW}
+                                                pages={chunkIntoPages(refereeMatches, 3)}
+                                                renderCard={(item) => (
                                                     <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
-                                                ))}
-                                            </View>
+                                                )}
+                                            />
                                         )
                                     }
                                 </>
@@ -31522,9 +31562,11 @@ const s = StyleSheet.create({
     tabTextActive:    { color:'#fff' },
 
     list:             { paddingHorizontal: moderateScale(4), gap: moderateScale(6), paddingBottom: moderateScale(64) },
-    // gap + %50 hücre Android Yoga'da sığmaz, sonraki satır Skor Bekleyen'in üstüne biner.
+    // %33.33 → satırda 3 ilan. Yatay sayfa kaydırması listGridHScroll ile.
+    // gap + yüzde hücre Android Yoga'da sığmaz diye padding hücre içinde (eski %50 yorumu).
     listGrid:         { flexDirection:'row', flexWrap:'wrap', alignItems:'flex-start', alignContent:'flex-start' },
-    listGridCell:     { width:'50%', maxWidth:'50%', flexGrow:0, flexShrink:0, paddingHorizontal: moderateScale(4), paddingBottom: moderateScale(10) },
+    listGridCell:     { width:'33.333%', maxWidth:'33.333%', flexGrow:0, flexShrink:0, paddingHorizontal: moderateScale(3), paddingBottom: moderateScale(10) },
+    listGridHPage:    { flexDirection:'row', alignItems:'flex-start' },
     sectionTitle:     { color: colors.textSecondary, fontSize: moderateScale(14), fontWeight:'800', marginTop: moderateScale(6), marginBottom: moderateScale(6) },
 
     createBtn:        { flexShrink:1, backgroundColor: colors.surface, borderRadius: moderateScale(12), minHeight: touchSize(44), justifyContent:'center', paddingHorizontal: 1, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
