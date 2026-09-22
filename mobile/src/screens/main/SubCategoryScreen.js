@@ -679,33 +679,43 @@ function UserProfileModal({ visible, userId, onClose, navigation }) {
     );
 }
 
-/** İlanları yatay sayfalara böler — her sayfada `size` kart (varsayılan 3). */
+/** İlanları satırlara böler — her satırda `size` kart (varsayılan 3); fazlası bir alt satıra. */
 function chunkIntoPages(items, size = 3) {
     const pages = [];
     for (let i = 0; i < items.length; i += size) pages.push(items.slice(i, i + size));
     return pages;
 }
 
-/** Açık ilan satırı: ekranda 3 kart, sağa kaydırınca sonraki 3. */
-function RivalCardsHScroll({ pageWidth, pages, renderCard }) {
-    if (!pages.length) return null;
+/**
+ * Satır başına 3 ilan; 4. alta iner.
+ * Kart biraz geniş: 2'si rahat sığar, 3.'nün ucu hafif taşar → az sağa kaydırınca tam görünür.
+ */
+function RivalCardsHScroll({ viewportW, items, renderCard, perRow = 3 }) {
+    const rows = chunkIntoPages(items, perRow);
+    if (!rows.length) return null;
+    // ~2.45 kart görünür → 3. kartın bir kısmı peek; sağa kaydırınca tamamı.
+    const cardW = Math.floor(viewportW / 2.45);
     return (
-        <ScrollView
-            horizontal
-            nestedScrollEnabled
-            showsHorizontalScrollIndicator={false}
-            decelerationRate="fast"
-            snapToInterval={pageWidth}
-            snapToAlignment="start"
-            disableIntervalMomentum
-            contentContainerStyle={{ flexGrow: 0 }}
-        >
-            {pages.map((page, pi) => (
-                <View key={`rp-${pi}`} style={[s.listGridHPage, { width: pageWidth }]}>
-                    {page.map(renderCard)}
-                </View>
+        <View>
+            {rows.map((row, ri) => (
+                <ScrollView
+                    key={`rr-${ri}`}
+                    horizontal
+                    nestedScrollEnabled
+                    showsHorizontalScrollIndicator={false}
+                    decelerationRate="fast"
+                    bounces
+                    overScrollMode="always"
+                    contentContainerStyle={{ paddingRight: moderateScale(2) }}
+                >
+                    {row.map((item, ii) => (
+                        <View key={item.id != null ? String(item.id) : `c-${ri}-${ii}`} style={{ width: cardW }}>
+                            {renderCard(item)}
+                        </View>
+                    ))}
+                </ScrollView>
             ))}
-        </ScrollView>
+        </View>
     );
 }
 
@@ -4981,7 +4991,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         const vals = [participants[0]?.skillRating, participants[1]?.skillRating].filter(v => v != null);
         return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
     })() : null;
-    // Her dalda açık ilanlar 3'lü satır (yatay kaydırma ile sonraki 3).
+    // Her dalda açık ilanlar satırda 3 (peek kaydırma); hücre genişliği dış sarmalayıcıda.
     const twoCol = !!NEW_VISUAL;
 
     return (
@@ -7834,7 +7844,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
     return (
         <View style={s.listGridCell} collapsable={false}>
-        {/* Hücre %50 — flexWrap+gap+%48 Android'de sonraki satırı aynı yere bindiriyordu. */}
         <Animated.View
             style={[s.card, {
                 width: '100%', minWidth: 0,
@@ -12009,7 +12018,7 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
     const cardFlipRotate = cardFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
 
     return (
-        <View style={s.listGridCell} collapsable={false}>
+        <View style={[s.listGridCell, s.listGridCellThird]} collapsable={false}>
         <Animated.View style={[s.card, { width:'100%', paddingHorizontal:0, paddingTop:0, paddingBottom:0, minHeight:92 }, highlighted && { borderColor:'#f97316', borderWidth:2 }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
             {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (detayı açmaz). */}
             <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
@@ -26618,8 +26627,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     : (
                                         <>
                                         <RivalCardsHScroll
-                                            pageWidth={rivalPageW}
-                                            pages={chunkIntoPages(filteredRivals, 3)}
+                                            viewportW={rivalPageW}
+                                            items={filteredRivals}
                                             renderCard={(item) => (
                                                 <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} refereeListings={refereeListings} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
                                             )}
@@ -26632,8 +26641,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             üçüncü kartı Skor Bekleyen'in üstüne bindiriyordu. */}
                                         {upcomingNeedingSubs.length > 0 && (
                                         <RivalCardsHScroll
-                                            pageWidth={rivalPageW}
-                                            pages={chunkIntoPages(upcomingNeedingSubs, 3)}
+                                            viewportW={rivalPageW}
+                                            items={upcomingNeedingSubs}
                                             renderCard={(m) => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             )}
@@ -26657,8 +26666,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                     {upcomingExpanded && (
                                         <RivalCardsHScroll
-                                            pageWidth={rivalPageW}
-                                            pages={chunkIntoPages(upcomingSubsFull, 3)}
+                                            viewportW={rivalPageW}
+                                            items={upcomingSubsFull}
                                             renderCard={(m) => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             )}
@@ -26681,8 +26690,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                     {playingExpanded && (
                                         <RivalCardsHScroll
-                                            pageWidth={rivalPageW}
-                                            pages={chunkIntoPages(playingMatches, 3)}
+                                            viewportW={rivalPageW}
+                                            items={playingMatches}
                                             renderCard={(m) => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             )}
@@ -26705,8 +26714,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                     {pendingScoreExpanded && (
                                         <RivalCardsHScroll
-                                            pageWidth={rivalPageW}
-                                            pages={chunkIntoPages(pendingScoreAll, 3)}
+                                            viewportW={rivalPageW}
+                                            items={pendingScoreAll}
                                             renderCard={(m) => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             )}
@@ -26732,8 +26741,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                     {scoreConfirmExpanded && (
                                         <RivalCardsHScroll
-                                            pageWidth={rivalPageW}
-                                            pages={chunkIntoPages(scoreConfirmPendingMatches, 3)}
+                                            viewportW={rivalPageW}
+                                            items={scoreConfirmPendingMatches}
                                             renderCard={(m) => (
                                                 <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             )}
@@ -26774,8 +26783,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 ? <EmptyState emoji="👤" text={sub === 'volleyball' ? t.emptyOpponentWanted : t.emptyPlayerWanted} />
                                 : (
                                     <RivalCardsHScroll
-                                        pageWidth={rivalPageW}
-                                        pages={chunkIntoPages(playerWanted, 3)}
+                                        viewportW={rivalPageW}
+                                        items={playerWanted}
                                         renderCard={(item) => (
                                             <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} />
                                         )}
@@ -27684,8 +27693,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         ? <EmptyState emoji="🟨" text={t.emptyRefereeMatches} />
                                         : (
                                             <RivalCardsHScroll
-                                                pageWidth={rivalPageW}
-                                                pages={chunkIntoPages(refereeMatches, 3)}
+                                                viewportW={rivalPageW}
+                                                items={refereeMatches}
                                                 renderCard={(item) => (
                                                     <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
                                                 )}
@@ -31562,11 +31571,11 @@ const s = StyleSheet.create({
     tabTextActive:    { color:'#fff' },
 
     list:             { paddingHorizontal: moderateScale(4), gap: moderateScale(6), paddingBottom: moderateScale(64) },
-    // %33.33 → satırda 3 ilan. Yatay sayfa kaydırması listGridHScroll ile.
-    // gap + yüzde hücre Android Yoga'da sığmaz diye padding hücre içinde (eski %50 yorumu).
+    // Hücre genişliği: RivalCardsHScroll sarmalayıcısı (peek) veya listGrid %33.
+    // gap + yüzde hücre Android Yoga'da sığmaz diye padding hücre içinde.
     listGrid:         { flexDirection:'row', flexWrap:'wrap', alignItems:'flex-start', alignContent:'flex-start' },
-    listGridCell:     { width:'33.333%', maxWidth:'33.333%', flexGrow:0, flexShrink:0, paddingHorizontal: moderateScale(3), paddingBottom: moderateScale(10) },
-    listGridHPage:    { flexDirection:'row', alignItems:'flex-start' },
+    listGridCell:     { width:'100%', maxWidth:'100%', flexGrow:0, flexShrink:0, paddingHorizontal: moderateScale(3), paddingBottom: moderateScale(10) },
+    listGridCellThird:{ width:'33.333%', maxWidth:'33.333%' },
     sectionTitle:     { color: colors.textSecondary, fontSize: moderateScale(14), fontWeight:'800', marginTop: moderateScale(6), marginBottom: moderateScale(6) },
 
     createBtn:        { flexShrink:1, backgroundColor: colors.surface, borderRadius: moderateScale(12), minHeight: touchSize(44), justifyContent:'center', paddingHorizontal: 1, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
