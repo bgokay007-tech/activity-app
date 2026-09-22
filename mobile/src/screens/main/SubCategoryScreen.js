@@ -5045,32 +5045,58 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                 </Text>
                             )}
                         </View>
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:5, flexWrap:'wrap' }}>
-                            <Text style={{
-                                color: item.matchMode === 'COMPETITIVE' ? '#f87171' : item.matchMode === 'BOTH' ? '#c084fc' : '#60a5fa',
-                                fontSize: moderateScale(11),
-                                lineHeight: moderateScale(13),
-                                fontWeight: '700',
-                            }} numberOfLines={1}>
-                                {noEmojiStr(
-                                    item.matchMode === 'COMPETITIVE' ? t.modeCompetitive
-                                        : item.matchMode === 'BOTH' ? t.modeBoth
-                                            : t.modePractice
-                                )}
-                            </Text>
-                            <Text style={{ color: cfg.color, fontSize: moderateScale(11), lineHeight: moderateScale(13), fontWeight: '700' }} numberOfLines={1}>
-                                {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
-                            </Text>
+                        {/* Mod + format; varsa hemen altında cinsiyet (gap:2.5). */}
+                        <View style={{ gap:2.5 }}>
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:5, flexWrap:'wrap' }}>
+                                <Text style={{
+                                    color: item.matchMode === 'COMPETITIVE' ? '#f87171' : item.matchMode === 'BOTH' ? '#c084fc' : '#60a5fa',
+                                    fontSize: moderateScale(11),
+                                    lineHeight: moderateScale(13),
+                                    fontWeight: '700',
+                                }} numberOfLines={1}>
+                                    {noEmojiStr(
+                                        item.matchMode === 'COMPETITIVE' ? t.modeCompetitive
+                                            : item.matchMode === 'BOTH' ? t.modeBoth
+                                                : t.modePractice
+                                    )}
+                                </Text>
+                                <Text style={{ color: cfg.color, fontSize: moderateScale(11), lineHeight: moderateScale(13), fontWeight: '700' }} numberOfLines={1}>
+                                    {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                                </Text>
+                            </View>
+                            {(() => {
+                                const hasSingleGenderReq = item.genderReq && item.genderReq !== 'MIX';
+                                const hasDoubleGenderReq = item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX');
+                                if (!hasSingleGenderReq && !hasDoubleGenderReq) return null;
+                                return (
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap' }}>
+                                        {hasSingleGenderReq && (
+                                            <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
+                                                <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(9), fontWeight:'800' }}>
+                                                    {item.genderReq === 'MALE' ? '👨' : '👩'}
+                                                </Text>
+                                            </View>
+                                        )}
+                                        {hasDoubleGenderReq && (() => {
+                                            const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
+                                            const label = `${gL(item.sender?.gender)}${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`;
+                                            return (
+                                                <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
+                                                    <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }} numberOfLines={1}>{label}</Text>
+                                                </View>
+                                            );
+                                        })()}
+                                    </View>
+                                );
+                            })()}
                         </View>
                     </View>
                 </View>
-                {/* Format artık modun yanında; burada kalan: doluluk, cinsiyet, derece aralığı. */}
+                {/* Doluluk + derece aralığı (cinsiyet artık mod/format altında). */}
                 {(() => {
                     const hasRatingRange = item.ratingGenderSplit
                         ? (item.minRatingMale != null || item.maxRatingMale != null || item.minRatingFemale != null || item.maxRatingFemale != null)
                         : (item.minRating != null || item.maxRating != null);
-                    const hasSingleGenderReq = item.genderReq && item.genderReq !== 'MIX';
-                    const hasDoubleGenderReq = item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX');
                     const teamSizeN = item.teamSize || 1;
                     const filledCount = TEAM_SPORTS.has(sub) ? (
                         1
@@ -5079,7 +5105,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         + (Array.isArray(item.oppTeamManualNames) ? item.oppTeamManualNames.length : 0)
                         + (Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers.filter(p => p?.id || p?.manualName).length : 0)
                     ) : null;
-                    const showMetaRow = TEAM_SPORTS.has(sub) || hasSingleGenderReq || hasDoubleGenderReq || hasRatingRange;
+                    const showMetaRow = TEAM_SPORTS.has(sub) || hasRatingRange;
                     if (!showMetaRow) return null;
                     return (
                         <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom: twoCol ? moderateScale(6) : (NEW_VISUAL ? 8 : 3), flexWrap:'wrap', alignSelf:'stretch' }}>
@@ -5088,22 +5114,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                     {filledCount}/{teamSizeN * 2}
                                 </Text>
                             )}
-                            {hasSingleGenderReq && (
-                                <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
-                                    <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(9), fontWeight:'800' }}>
-                                        {item.genderReq === 'MALE' ? '👨' : '👩'}
-                                    </Text>
-                                </View>
-                            )}
-                            {hasDoubleGenderReq && (() => {
-                                const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
-                                const label = `${gL(item.sender?.gender)}${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`;
-                                return (
-                                    <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
-                                        <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }} numberOfLines={1}>{label}</Text>
-                                    </View>
-                                );
-                            })()}
                             {hasRatingRange && (
                                 <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
                                     {item.ratingGenderSplit
@@ -5129,17 +5139,46 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         {t.refereeForMatchLabel}
                     </Text>
                 )}
-                {/* Tarih / Saat / Süre */}
-                {!item.flexibleSchedule && (item.matchDate || item.matchTime || item.duration) && (
-                    <View style={{ gap:3, marginBottom:3 }}>
-                        {item.matchDate && <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={2}>{new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'long',weekday:'long'})}</Text>}
-                        {(item.matchTime || item.duration) && (
-                            <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {item.matchTime ? (() => { const [h,m]=item.matchTime.split(':').map(Number); const dur=parseInt(item.duration||0); const tot=h*60+m+dur; const endT=dur>0?`–${String(Math.floor(tot/60)%24).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`:''; return `${item.matchTime}${endT}`; })() : ''}{item.matchTime && item.duration ? '  ·  ' : ''}{item.duration ? `${item.duration} ${t.timeMinSuffix}` : ''}
-                            </Text>
-                        )}
-                    </View>
-                )}
+                {/* Tarih / Saat aralığı; sürenin yerine fiyat. */}
+                {(() => {
+                    const ccPrice = item.courtFeePerPersonByMethod?.CREDIT_CARD;
+                    const showCc = ccPrice > 0 && ccPrice !== item.courtFeePerPerson;
+                    const feeText = item.courtFeePerPerson > 0
+                        ? `${item.courtFeePerPerson}${item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺${item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / ${t.perPerson}${showCc ? ` · ${ccPrice}₺` : ''}`
+                        : null;
+                    const timeRange = (!item.flexibleSchedule && item.matchTime) ? (() => {
+                        const [h, m] = item.matchTime.split(':').map(Number);
+                        const dur = parseInt(item.duration || 0);
+                        const tot = h * 60 + m + dur;
+                        const endT = dur > 0 ? `–${String(Math.floor(tot / 60) % 24).padStart(2, '0')}:${String(tot % 60).padStart(2, '0')}` : '';
+                        return `${item.matchTime}${endT}`;
+                    })() : '';
+                    const showDate = !item.flexibleSchedule && item.matchDate;
+                    if (!showDate && !timeRange && !feeText) return null;
+                    return (
+                        <View style={{ gap:3, marginBottom:3 }}>
+                            {showDate && (
+                                <Text style={[s.metaItemText, { fontSize: moderateScale(11) }]} numberOfLines={2}>
+                                    {new Date(item.matchDate).toLocaleDateString(t.dateLocale,{day:'numeric',month:'long',weekday:'long'})}
+                                </Text>
+                            )}
+                            {(timeRange || feeText) && (
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:0, minWidth:0, flexWrap:'nowrap' }}>
+                                    {!!timeRange && (
+                                        <Text style={[s.metaItemText, { fontSize: moderateScale(11), flexShrink:1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                            {timeRange}{feeText ? '  ·  ' : ''}
+                                        </Text>
+                                    )}
+                                    {!!feeText && (
+                                        <Text style={{ fontSize: moderateScale(11), color:'#4ade80', flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                            {feeText}
+                                        </Text>
+                                    )}
+                                </View>
+                            )}
+                        </View>
+                    );
+                })()}
                 {(() => {
                     const hasGenderCount = item.subCategory === 'volleyball' && item.teamSize > 1 && hasGenderCountInfo(item);
                     const hasCancelPenalty = item.subCategory === 'volleyball' && item.cancelPenaltyHours != null;
@@ -5196,10 +5235,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         </View>
                     </View>
                 )}
-                {/* Kullanıcı isteği: "Ortaklaşa Kararlaştırılır" seçilen ilanlarda "❌ Kort Rezerve
-                    Edilmedi" gibi yanıltıcı bir kırmızı uyarı yerine, gerçekten seçilen durum
-                    (kort taraflar arasında ortaklaşa kararlaştırılacak) nötr renkte gösterilir.
-                    Durum + fiyat (rezerve veya değil) aynı satırda, gap:5. */}
+                {/* Durum satırı — fiyat artık saat satırında; burada sadece rezervasyon durumu. */}
                 {(() => {
                     const reservedLabel = item.isCourtReserved
                         ? sportFacilityLabels(item.subCategory || sub, t).reserved
@@ -5207,23 +5243,6 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                             ? (t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır')
                             : sportFacilityLabels(item.subCategory || sub, t).notReserved;
                     const statusColor = item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171';
-                    const ccPrice = item.courtFeePerPersonByMethod?.CREDIT_CARD;
-                    const showCc = ccPrice > 0 && ccPrice !== item.courtFeePerPerson;
-                    const feeText = item.courtFeePerPerson > 0
-                        ? `${item.courtFeePerPerson}${item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺${item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / ${t.perPerson}${showCc ? ` · ${ccPrice}₺` : ''}`
-                        : null;
-                    if (feeText) {
-                        return (
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:0, minWidth:0 }}>
-                                <Text style={{ fontSize:moderateScale(11), color: statusColor, flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                    {reservedLabel}
-                                </Text>
-                                <Text style={{ fontSize:moderateScale(11), color:'#4ade80', lineHeight: moderateScale(14), flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                    {feeText}
-                                </Text>
-                            </View>
-                        );
-                    }
                     return (
                         <Text style={{ fontSize:moderateScale(11), marginBottom:0, color: statusColor }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                             {reservedLabel}
