@@ -5036,19 +5036,20 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 {/* Avatar + isim/puan; altında mod + format aynı satırda (gap:5). */}
                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap: twoCol ? moderateScale(6) : (NEW_VISUAL ? 10 : 3), marginBottom: twoCol ? moderateScale(4) : (NEW_VISUAL ? 6 : 2) }}>
                     <Avatar name={item.sender?.username} avatar={item.sender?.avatar} size={(twoCol ? moderateScale(42) : (NEW_VISUAL ? 52 : moderateScale(34))) - 1} color={cfg.color} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })} />
-                    <View style={{ flex:1, minWidth:0 }}>
+                    <View style={{ flex:1, minWidth:0, gap:3 }}>
                         <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-                            <Text style={[s.cardName, { fontSize: twoCol ? moderateScale(14) : (NEW_VISUAL ? 16 : moderateScale(13)), flexShrink:1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(item.sender)}</Text>
+                            <Text style={[s.cardName, { fontSize: twoCol ? moderateScale(14) : (NEW_VISUAL ? 16 : moderateScale(13)), lineHeight: twoCol ? moderateScale(16) : (NEW_VISUAL ? 18 : moderateScale(15)), flexShrink:1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(item.sender)}</Text>
                             {item.sender?.interests?.[0]?.assessmentCompleted && (
-                                <Text style={[s.ratingText, { color: cfg.color, fontSize: moderateScale(12) }]}>
+                                <Text style={[s.ratingText, { color: cfg.color, fontSize: moderateScale(12), lineHeight: moderateScale(14) }]}>
                                     {Number(item.sender.interests[0].skillRating).toFixed(2)} ★
                                 </Text>
                             )}
                         </View>
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginTop:3, flexWrap:'wrap' }}>
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:5, flexWrap:'wrap' }}>
                             <Text style={{
                                 color: item.matchMode === 'COMPETITIVE' ? '#f87171' : item.matchMode === 'BOTH' ? '#c084fc' : '#60a5fa',
                                 fontSize: moderateScale(11),
+                                lineHeight: moderateScale(13),
                                 fontWeight: '700',
                             }} numberOfLines={1}>
                                 {noEmojiStr(
@@ -5057,7 +5058,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                             : t.modePractice
                                 )}
                             </Text>
-                            <Text style={{ color: cfg.color, fontSize: moderateScale(11), fontWeight: '700' }} numberOfLines={1}>
+                            <Text style={{ color: cfg.color, fontSize: moderateScale(11), lineHeight: moderateScale(13), fontWeight: '700' }} numberOfLines={1}>
                                 {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
                             </Text>
                         </View>
