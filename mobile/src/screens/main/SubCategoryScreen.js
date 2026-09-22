@@ -5003,7 +5003,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 // Kullanıcı isteği: arka yüzden (oyuncu listesi) de dokununca ilan detayı açılsın —
                 // önceden sadece ön yüz açıyordu, arka yüzde dokunmanın hiçbir etkisi yoktu. İçindeki
                 // "istek"/"Sipariş Ver" gibi kendi onPress'i olan öğeler yine kendi işlevini korur.
-                <View style={{ flex:1 }}>
+                <View style={{ flex:1, position:'relative' }}>
                 <TouchableOpacity activeOpacity={0.85} style={{ padding: 0, flex:1 }} onPress={() => setDetailVisible(true)}>
                     <Text style={{ color:'#fff', fontSize:moderateScale(13), fontWeight:'800', marginBottom:8 }}>👥 {t.rosterPoolLabel}</Text>
                     {(cardFounderTeamAvg != null || cardOppTeamAvg != null) && (
@@ -5050,13 +5050,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         </TouchableOpacity>
                     )}
                 </TouchableOpacity>
-                {/* Arka yüzde de çevir — yazı bitince hemen yanında (gereksiz sağ boşluk yok). */}
-                <View style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:5, marginBottom:0, marginTop:0 }}>
-                    <TouchableOpacity onPress={flipCard} hitSlop={{ top:10, bottom:10, left:10, right:10 }}
-                        style={{ alignItems:'center', justifyContent:'center' }}>
-                        <Text style={{ fontSize: moderateScale(13), lineHeight: moderateScale(14) }}>🔄</Text>
-                    </TouchableOpacity>
-                </View>
+                {/* 🔄 sağ alt köşe — ön yüzle aynı hiza. */}
+                <TouchableOpacity onPress={flipCard} hitSlop={{ top:10, bottom:10, left:10, right:10 }}
+                    style={{ position:'absolute', right: 0, bottom: 0, zIndex:10, alignItems:'center', justifyContent:'center' }}>
+                    <Text style={{ fontSize: moderateScale(13), lineHeight: moderateScale(14) }}>🔄</Text>
+                </TouchableOpacity>
                 </View>
             ) : (
             <>
@@ -5069,7 +5067,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                  ilanlarda minHeight'ten kalan) boş alana dokununca da detay açılsın — bu
                  alan önceden bu TouchableOpacity'nin İÇİNDE değildi (dokunma hedefi içeriğe
                  göre daralıyordu), flex:1 ile kalan tüm dikey alanı da kapsıyor. */}
-            <View style={{ flex:1 }}>
+            <View style={{ flex:1, position:'relative' }}>
             <TouchableOpacity activeOpacity={0.85} onPress={() => setDetailVisible(true)}>
 
                 {/* Avatar + isim/puan; altında mod + format aynı satırda (gap:5). */}
@@ -5321,9 +5319,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     çevrilince açılan arka yüzde, oyuncu listesinin altında (bkz. cardFlipped
                     bloğu yukarıda) — ön yüz sadece yorum sayısını gösterir. */}
             </TouchableOpacity>
-                {/* Yorum + ödül + çevir: son yazıların bittiği hizada; detay Touchable dışında
-                    (çevir detayı açmasın). space-between yok — kartı gereksiz genişletmesin. */}
-                <View style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:5, marginTop:0, marginBottom:0, paddingTop:0, paddingBottom:0, maxWidth:'100%' }}>
+                {/* Yorum + ödül solda; 🔄 sağ alt köşede (kırmızı kare). */}
+                <View style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:5, marginTop:0, marginBottom:0, paddingTop:0, paddingBottom:0, maxWidth:'85%' }}>
                     <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), lineHeight: moderateScale(14) }}>
                         💬 {item.commentCount ?? 0}
                     </Text>
@@ -5332,11 +5329,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                             🏆 {item.wager}
                         </Text>
                     )}
-                    <TouchableOpacity onPress={flipCard} hitSlop={{ top:10, bottom:10, left:10, right:10 }}
-                        style={{ alignItems:'center', justifyContent:'center', paddingVertical:0 }}>
-                        <Text style={{ fontSize: moderateScale(13), lineHeight: moderateScale(14) }}>🔄</Text>
-                    </TouchableOpacity>
                 </View>
+                <TouchableOpacity onPress={flipCard} hitSlop={{ top:10, bottom:10, left:10, right:10 }}
+                    style={{ position:'absolute', right: 0, bottom: 0, zIndex:10, alignItems:'center', justifyContent:'center' }}>
+                    <Text style={{ fontSize: moderateScale(13), lineHeight: moderateScale(14) }}>🔄</Text>
+                </TouchableOpacity>
             </View>
 
             {/* Aksiyon: Mesaj at | Maça katılma isteği gönder (yan yana).
