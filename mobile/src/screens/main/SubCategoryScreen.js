@@ -5068,25 +5068,17 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                 const hasSingleGenderReq = item.genderReq && item.genderReq !== 'MIX';
                                 const hasDoubleGenderReq = item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX');
                                 if (!hasSingleGenderReq && !hasDoubleGenderReq) return null;
+                                if (hasSingleGenderReq) {
+                                    return (
+                                        <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(11), lineHeight: moderateScale(13), fontWeight:'700' }}>
+                                            {item.genderReq === 'MALE' ? '👨' : '👩'}
+                                        </Text>
+                                    );
+                                }
+                                const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
+                                const label = `${gL(item.sender?.gender)}${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`;
                                 return (
-                                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap' }}>
-                                        {hasSingleGenderReq && (
-                                            <View style={{ backgroundColor: item.genderReq === 'MALE' ? '#3b82f620' : '#ec489920', borderColor: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
-                                                <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(9), fontWeight:'800' }}>
-                                                    {item.genderReq === 'MALE' ? '👨' : '👩'}
-                                                </Text>
-                                            </View>
-                                        )}
-                                        {hasDoubleGenderReq && (() => {
-                                            const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
-                                            const label = `${gL(item.sender?.gender)}${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`;
-                                            return (
-                                                <View style={{ backgroundColor:'#a855f715', borderColor:'#a855f740', borderWidth:1, borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(1) }}>
-                                                    <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'800' }} numberOfLines={1}>{label}</Text>
-                                                </View>
-                                            );
-                                        })()}
-                                    </View>
+                                    <Text style={{ color:'#a855f7', fontSize: moderateScale(11), lineHeight: moderateScale(13), fontWeight:'700' }} numberOfLines={1}>{label}</Text>
                                 );
                             })()}
                         </View>
