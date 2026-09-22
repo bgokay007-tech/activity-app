@@ -3907,49 +3907,51 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         )}
                         {isOwner && isRefereeAd ? null : isOwner ? (
                             <>
-                                {/* Kullanıcı isteği: Oyuncu Davet Et solda, Paylaş ortada, Düzenle
-                                    sağda — aynı satırda. Oyuncu Davet Et artık yukarıdaki kendi
-                                    satırında değil (ilan sahibi için), burada gösteriliyor. */}
+                                {/* Oyuncu Davet Et + Paylaş + Düzenle dar; İptal Et aynı satırda en sağda.
+                                    Yükseklik biraz düşük (paddingVertical 3). */}
                                 {!isRefereeAd && (
-                                    <View style={{ flexDirection: 'row', gap: 3, marginBottom: 3 }}>
-                                        {!isFull && (
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 3 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 1, minWidth: 0 }}>
+                                            {!isFull && (
+                                                <TouchableOpacity
+                                                    style={[s.joinBtn, { flex: 0, flexShrink: 1, minHeight: 0, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(3), paddingHorizontal: moderateScale(6) }]}
+                                                    onPress={() => setInviteModalVisible(true)}
+                                                >
+                                                    <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.inviteBtn}</Text>
+                                                </TouchableOpacity>
+                                            )}
                                             <TouchableOpacity
-                                                style={[s.joinBtn, { flex: 1, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
-                                                onPress={() => setInviteModalVisible(true)}
+                                                style={[s.cancelBtn, { flex: 0, flexShrink: 1, minHeight: 0, borderRadius: moderateScale(8), paddingVertical: moderateScale(3), paddingHorizontal: moderateScale(6) }]}
+                                                onPress={() => shareRival(item, t)}
                                             >
-                                                <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteBtn}</Text>
+                                                <Text style={[s.cancelBtnText, { fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.shareBtn || '📤 Paylaş'}</Text>
                                             </TouchableOpacity>
-                                        )}
+                                            <TouchableOpacity
+                                                style={[s.cancelBtn, { flex: 0, flexShrink: 1, minHeight: 0, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(8), paddingVertical: moderateScale(3), paddingHorizontal: moderateScale(6) }]}
+                                                onPress={() => { onClose(); setTimeout(onEdit, 300); }}
+                                            >
+                                                <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>✏️ Düzenle</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                         <TouchableOpacity
-                                            style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
-                                            onPress={() => shareRival(item, t)}
+                                            style={[s.cancelBtn, { flex: 0, flexShrink: 0, minHeight: 0, marginLeft: 'auto', borderRadius: moderateScale(8), paddingVertical: moderateScale(3), paddingHorizontal: moderateScale(6) }]}
+                                            onPress={() => { onClose(); setTimeout(handleCancel, 300); }}
                                         >
-                                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || '📤 Paylaş'}</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
-                                            onPress={() => { onClose(); setTimeout(onEdit, 300); }}
-                                        >
-                                            <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]}>✏️ Düzenle</Text>
+                                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(10) }]} numberOfLines={1}>{t.cancelAdBtn}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 )}
-                                {/* Kullanıcı isteği: Sipariş Ver, İptal Et'in solunda — aynı satırda —
-                                    böylece ilan sahibi detaydan çıkmadan da tesis menüsünden sipariş
-                                    verebilir (bkz. VenueMenuOrderModal, RivalCard'daki ile aynı akış). */}
-                                <View style={{ flexDirection: 'row', gap: 3 }}>
-                                    {item.venueId && (
+                                {/* Sipariş Ver ayrı satırda (varsa); İptal artık üst satırda. */}
+                                {item.venueId && (
+                                    <View style={{ flexDirection: 'row', gap: 3 }}>
                                         <TouchableOpacity
-                                            style={[s.cancelBtn, { flex: 1, backgroundColor:'#22c55e20', borderColor:'#22c55e50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                            style={[s.cancelBtn, { flex: 0, flexShrink: 1, minHeight: 0, backgroundColor:'#22c55e20', borderColor:'#22c55e50', borderRadius: moderateScale(8), paddingVertical: moderateScale(3), paddingHorizontal: moderateScale(6) }]}
                                             onPress={() => setOrderVenueId(item.venueId)}
                                         >
-                                            <Text style={[s.cancelBtnText, { color:'#22c55e', fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📋 Sipariş Ver</Text>
+                                            <Text style={[s.cancelBtnText, { color:'#22c55e', fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>📋 Sipariş Ver</Text>
                                         </TouchableOpacity>
-                                    )}
-                                    <TouchableOpacity style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]} onPress={() => { onClose(); setTimeout(handleCancel, 300); }}>
-                                        <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>{t.cancelAdBtn}</Text>
-                                    </TouchableOpacity>
-                                </View>
+                                    </View>
+                                )}
                                 {/* Kullanıcı isteği: Demo Botları Başlat artık Paylaş/Düzenle/İptal
                                     satırının ALTINDA — demo botları ilerleyen zamanlarda tamamen
                                     kaldırılacak, şimdilik burada kalıyor. */}
