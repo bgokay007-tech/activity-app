@@ -3957,36 +3957,36 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         {isOwner && isRefereeAd ? null : isOwner ? (
                             <>
                                 {/* Oyuncu Davet Et + Paylaş + Düzenle dar; İptal Et aynı satırda en sağda.
-                                    Yükseklik biraz düşük (paddingVertical 3). */}
+                                    Aralarında gap:3; yükseklik paddingVertical 6. */}
                                 {!isRefereeAd && (
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 3 }}>
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 1, minWidth: 0 }}>
                                             {!isFull && (
                                                 <TouchableOpacity
-                                                    style={[s.joinBtn, { flex: 0, flexShrink: 1, minHeight: 0, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(3), paddingHorizontal: moderateScale(6) }]}
+                                                    style={[s.joinBtn, { flex: 0, flexShrink: 1, minHeight: 0, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), paddingHorizontal: moderateScale(8) }]}
                                                     onPress={() => setInviteModalVisible(true)}
                                                 >
-                                                    <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.inviteBtn}</Text>
+                                                    <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.inviteBtn}</Text>
                                                 </TouchableOpacity>
                                             )}
                                             <TouchableOpacity
-                                                style={[s.cancelBtn, { flex: 0, flexShrink: 1, minHeight: 0, borderRadius: moderateScale(8), paddingVertical: moderateScale(3), paddingHorizontal: moderateScale(6) }]}
+                                                style={[s.cancelBtn, { flex: 0, flexShrink: 1, minHeight: 0, borderRadius: moderateScale(8), paddingVertical: moderateScale(6), paddingHorizontal: moderateScale(8) }]}
                                                 onPress={() => shareRival(item, t)}
                                             >
-                                                <Text style={[s.cancelBtnText, { fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.shareBtn || '📤 Paylaş'}</Text>
+                                                <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.shareBtn || '📤 Paylaş'}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity
-                                                style={[s.cancelBtn, { flex: 0, flexShrink: 1, minHeight: 0, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(8), paddingVertical: moderateScale(3), paddingHorizontal: moderateScale(6) }]}
+                                                style={[s.cancelBtn, { flex: 0, flexShrink: 1, minHeight: 0, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), paddingHorizontal: moderateScale(8) }]}
                                                 onPress={() => { onClose(); setTimeout(onEdit, 300); }}
                                             >
-                                                <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>✏️ Düzenle</Text>
+                                                <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>✏️ Düzenle</Text>
                                             </TouchableOpacity>
                                         </View>
                                         <TouchableOpacity
-                                            style={[s.cancelBtn, { flex: 0, flexShrink: 0, minHeight: 0, marginLeft: 'auto', borderRadius: moderateScale(8), paddingVertical: moderateScale(3), paddingHorizontal: moderateScale(6) }]}
+                                            style={[s.cancelBtn, { flex: 0, flexShrink: 0, minHeight: 0, marginLeft: 'auto', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), paddingHorizontal: moderateScale(8) }]}
                                             onPress={() => { onClose(); setTimeout(handleCancel, 300); }}
                                         >
-                                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(10) }]} numberOfLines={1}>{t.cancelAdBtn}</Text>
+                                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1}>{t.cancelAdBtn}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 )}
@@ -3994,10 +3994,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 {item.venueId && (
                                     <View style={{ flexDirection: 'row', gap: 3 }}>
                                         <TouchableOpacity
-                                            style={[s.cancelBtn, { flex: 0, flexShrink: 1, minHeight: 0, backgroundColor:'#22c55e20', borderColor:'#22c55e50', borderRadius: moderateScale(8), paddingVertical: moderateScale(3), paddingHorizontal: moderateScale(6) }]}
+                                            style={[s.cancelBtn, { flex: 0, flexShrink: 1, minHeight: 0, backgroundColor:'#22c55e20', borderColor:'#22c55e50', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), paddingHorizontal: moderateScale(8) }]}
                                             onPress={() => setOrderVenueId(item.venueId)}
                                         >
-                                            <Text style={[s.cancelBtnText, { color:'#22c55e', fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>📋 Sipariş Ver</Text>
+                                            <Text style={[s.cancelBtnText, { color:'#22c55e', fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>📋 Sipariş Ver</Text>
                                         </TouchableOpacity>
                                     </View>
                                 )}
