@@ -497,6 +497,19 @@ function shortenCourtNameForCard(name) {
     return initials ? `${head} ${initials}` : head;
 }
 
+// İlan kartı: mesaj 4 kelimeden uzunsa kalanı " ..." — tam metin detayda.
+function shortenMessageForCard(msg) {
+    if (!msg || typeof msg !== 'string') return msg || '';
+    const parts = msg.trim().split(/\s+/).filter(Boolean);
+    if (parts.length <= 4) return parts.join(' ');
+    return `${parts.slice(0, 4).join(' ')} ...`;
+}
+
+function rivalServicesCount(item) {
+    const n = Array.isArray(item?.extraServices) ? item.extraServices.length : 0;
+    return n + (item?.refereeRequested ? 1 : 0);
+}
+
 function Avatar({ name, avatar, size=40, color=colors.purple, onPress }) {
     const circle = (
         <View style={[s.avatar, { width:size, height:size, borderRadius:size/2, backgroundColor: color+'40', borderColor: color+'60', overflow:'hidden' }]}>
@@ -4075,6 +4088,24 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             <Text style={{ color:'#fbbf24', fontSize: moderateScale(12), fontWeight:'700', flex:1 }}>{item.wager}</Text>
                         </View>
                     )}
+                    {(Array.isArray(item.extraServices) && item.extraServices.length > 0) || item.refereeRequested ? (
+                        <View style={{ marginBottom:12 }}>
+                            <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:4 }}>{t.extraServicesSummaryLabel}</Text>
+                            {item.refereeRequested && (
+                                <Text style={{ color:'#e5e7eb', fontSize:12, marginTop:1 }}>
+                                    🧑‍⚖️ {t.refereeSlotLabel}{item.refereeUser ? ` — ${item.refereeUser.fullName || item.refereeUser.username}` : item.manualRefereeName ? ` — ${item.manualRefereeName}` : ''}
+                                    {item.refereeFeeIncluded
+                                        ? <Text style={{ color:'#4ade80' }}> — {t.refereeFeeIncludedBtn}</Text>
+                                        : (item.refereePayment ? ` — +${item.refereePayment}` : '')}
+                                </Text>
+                            )}
+                            {(item.extraServices || []).map(sv => (
+                                <Text key={sv.id || sv.name} style={{ color:'#e5e7eb', fontSize:12, marginTop:1 }}>
+                                    🎉 {sv.name} — {sv.included ? <Text style={{ color:'#4ade80' }}>{t.refereeFeeIncludedBtn}</Text> : `+${sv.price}₺`}
+                                </Text>
+                            ))}
+                        </View>
+                    ) : null}
 
                     {/* Seyirci Listesi — sadece voleybolda: onaylı antrenörler ancak seyirci olarak
                         katıldıkları maçlardaki oyuncuları değerlendirebilir (bkz. resolveRaterRole). */}
@@ -5026,11 +5057,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                             : t.modePractice
                                 )}
                             </Text>
-                            <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40', borderRadius: moderateScale(8), paddingHorizontal: moderateScale(5), paddingVertical: moderateScale(2) }]}>
-                                <Text style={[s.modeBadgeText, { color: cfg.color, fontSize: moderateScale(11) }]}>
-                                    {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
-                                </Text>
-                            </View>
+                            <Text style={{ color: cfg.color, fontSize: moderateScale(11), fontWeight: '700' }} numberOfLines={1}>
+                                {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                            </Text>
                         </View>
                     </View>
                 </View>
@@ -5244,7 +5273,16 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         {item.levelDetail && <Text style={[s.levelDetail, { borderRadius: moderateScale(8), paddingHorizontal:3, paddingVertical:3, fontSize: moderateScale(10) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.levelDetail}</Text>}
                     </View>
                 )}
-                {item.message && <Text style={[s.cardMsg, { fontSize: moderateScale(12), marginTop:3, marginBottom:3 }]} numberOfLines={2}>{item.message}</Text>}
+                {!!item.message && (
+                    <Text style={[s.cardMsg, { fontSize: moderateScale(12), marginTop:3, marginBottom:3 }]} numberOfLines={1}>
+                        {shortenMessageForCard(item.message)}
+                    </Text>
+                )}
+                {rivalServicesCount(item) > 0 && (
+                    <Text style={{ color: colors.purpleLight || colors.purple, fontSize: moderateScale(11), fontWeight: '700', marginTop:0, marginBottom:3 }} numberOfLines={1}>
+                        {t.servicesCountLabel(rivalServicesCount(item))}
+                    </Text>
+                )}
                 {/* wager artık yorum satırında (yukarıda) — ayrı satır yok */}
                 {/* Kullanıcı isteği: kabul edilen oyuncuların listesi ön yüzden kaldırıldı —
                     kart artık önlü-arkalı "digimon kart" (bkz. backFacePlayers/cardFlipped
