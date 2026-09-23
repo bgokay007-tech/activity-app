@@ -117,6 +117,10 @@ function navigateFromNotif(data, isBusiness) {
                 // çıkıyordu (kullanıcı raporu).
                 ...(data.inviteDoubleSlot && { inviteDoubleSlot: data.inviteDoubleSlot }),
                 ...(type === 'TOURNAMENT_COMPLETED' && { initialArchiveSubTab: 'tournaments', openArchiveTournamentId: data.tournamentId || null }),
+                ...(type === 'TOURNAMENT_ROUND_SCORE_NEEDED' && {
+                    openMatchTournamentId: data.tournamentId || null,
+                    openExpiredResolve: true,
+                }),
                 ...(type === 'PEER_REVIEW_PROMPT' && { openPeerReviewRivalId: data.rivalId || null }),
                 // Kullanıcı isteği: "Sipariş Güncellendi/Onaylandı/Hazır" bildirimine dokununca
                 // doğrudan o maçın detayı, kadro kartında kendi "Adisyonu Var" ikonu otomatik

@@ -16982,7 +16982,7 @@ function insertMatchCommentMention(text, username) {
     return String(text || '').replace(/@([A-Za-z0-9._]*)$/, `@${username} `);
 }
 
-function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, openChatTournamentId, onChatOpened, openMatchId, openMatchTournamentId, onMatchOpened, onUserPress }) {
+function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, openChatTournamentId, onChatOpened, openMatchId, openMatchTournamentId, openExpiredResolve, onMatchOpened, onUserPress }) {
     const insets = useSafeAreaInsets();
     const myPart = item.participants?.[0];
     const [myStatus, setMyStatus] = useState(myPart?.status ?? null);
@@ -17139,6 +17139,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [extendTarget, setExtendTarget] = useState(null); // null | { kind:'round', phase, round, label } | { kind:'match', match, label }
     const [extendDaysInput, setExtendDaysInput] = useState('7');
     const [extendingDeadline, setExtendingDeadline] = useState(false);
+    const [drawingUnscored, setDrawingUnscored] = useState(false);
     const [detailMatch, setDetailMatch] = useState(null); // tur kartına tıklanınca maç detayı
     const [playoffDeadlineDate, setPlayoffDeadlineDate] = useState(null);
     const [playoffDeadlineTime, setPlayoffDeadlineTime] = useState('');
@@ -17216,6 +17217,23 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setExtendingDeadline(false); }
+    };
+
+    const submitDrawUnscored = async ({ matchIds, phase, round } = {}) => {
+        if (drawingUnscored) return;
+        setDrawingUnscored(true);
+        try {
+            const body = {};
+            if (Array.isArray(matchIds) && matchIds.length) body.matchIds = matchIds;
+            if (phase) body.phase = phase;
+            if (round != null) body.round = round;
+            const { data } = await api.post(`/tournaments/${item.id}/draw-unscored`, body);
+            if (Array.isArray(data?.matches)) setTournMatches(data.matches);
+            else await fetchMatches();
+            Alert.alert('✅', (t.tournExpiredDrawDone || '{n} maç berabere kaydedildi').replace('{n}', String(data?.drawn ?? 0)));
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally { setDrawingUnscored(false); }
     };
 
     // Turnuva grup sohbeti — sahip + AS/yedek onaylanmış katılımcılar
@@ -17376,6 +17394,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             })();
         }
     }, [openMatchId, openMatchTournamentId, item.id]);
+
+    // Süre dolmuş skor yok → sahibe bildirim; maç listesini aç (beraberlik / uzat / skor)
+    useEffect(() => {
+        if (!openExpiredResolve || openMatchTournamentId !== item.id) return;
+        (async () => {
+            await fetchMatches();
+            setMatchTab('matches');
+            setShowMatchesModal(true);
+            onMatchOpened?.();
+        })();
+    }, [openExpiredResolve, openMatchTournamentId, item.id]);
 
     useEffect(() => {
         const off = onSocket('tournament:chat_message', ({ tournamentId, message }) => {
@@ -18872,6 +18901,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 ...carriedOverMatches,
                             ];
 
+                            const nowMs = Date.now();
+                            const expiredUnscored = (isCreator || myIsAdmin)
+                                ? tournMatches.filter(m =>
+                                    m.status === 'PENDING' && m.p1Id && m.p2Id && m.deadline
+                                    && new Date(m.deadline).getTime() < nowMs
+                                    && !m.isThirdPlaceMatch)
+                                : [];
+                            const expiredInActiveRound = expiredUnscored.filter(m => m.phase === activePhase && m.round === activeRound);
+                            const expiredGroupAll = expiredUnscored.filter(m => m.phase === 'GROUP');
+
                             return (
                                 <>
                                     {/* Kullanıcı isteği: grup turları bitip play-off aşamasına geçilince
@@ -18886,6 +18925,83 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             </Text>
                                             <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'900' }}>Git ›</Text>
                                         </TouchableOpacity>
+                                    )}
+                                    {expiredUnscored.length > 0 && (
+                                        <View style={{ backgroundColor:'#f59e0b18', borderRadius:8, borderWidth:1, borderColor:'#f59e0b55', padding:8, marginBottom:8, gap:6 }}>
+                                            <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'800' }}>
+                                                {t.tournExpiredTitle || 'Süre doldu — aksiyon gerekli'}
+                                            </Text>
+                                            <Text style={{ color:'#fde68a', fontSize:10, lineHeight:14 }}>
+                                                {(t.tournExpiredBanner || '{n} maçın süresi doldu, skor yok — beraberlik gir, süre uzat veya bildiğin skoru gir.')
+                                                    .replace('{n}', String(expiredUnscored.length))}
+                                            </Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:9 }}>
+                                                {t.tournExpiredScoreHint || 'Skor için maça dokun'}
+                                            </Text>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4 }}>
+                                                {expiredGroupAll.length > 0 && (
+                                                    <TouchableOpacity
+                                                        disabled={drawingUnscored}
+                                                        onPress={() => Alert.alert(
+                                                            t.tournExpiredDrawAll || 'Tümüne beraberlik',
+                                                            (t.tournExpiredDrawConfirm || '{n} skor girilmemiş maça 0-0 beraberlik yazılsın mı? Puan değişmez.')
+                                                                .replace('{n}', String(expiredGroupAll.length)),
+                                                            [
+                                                                { text: t.cancel || 'Vazgeç', style: 'cancel' },
+                                                                { text: t.tournExpiredDrawAll || 'Beraberlik', onPress: () => submitDrawUnscored({ matchIds: expiredGroupAll.map(m => m.id) }) },
+                                                            ],
+                                                        )}
+                                                        style={{ backgroundColor:'#f59e0b25', borderRadius:8, borderWidth:1, borderColor:'#f59e0b60', paddingHorizontal:8, paddingVertical:6, opacity: drawingUnscored ? 0.5 : 1 }}
+                                                    >
+                                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
+                                                            {drawingUnscored ? '…' : (t.tournExpiredDrawAll || 'Tümüne beraberlik')}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                {expiredInActiveRound.filter(m => m.phase === 'GROUP').length > 0 && (
+                                                    <TouchableOpacity
+                                                        disabled={drawingUnscored}
+                                                        onPress={() => {
+                                                            const n = expiredInActiveRound.filter(m => m.phase === 'GROUP').length;
+                                                            Alert.alert(
+                                                                t.tournExpiredDrawRound || 'Bu tura beraberlik',
+                                                                (t.tournExpiredDrawConfirm || '{n} skor girilmemiş maça 0-0 beraberlik yazılsın mı? Puan değişmez.')
+                                                                    .replace('{n}', String(n)),
+                                                                [
+                                                                    { text: t.cancel || 'Vazgeç', style: 'cancel' },
+                                                                    { text: t.tournExpiredDrawRound || 'Beraberlik', onPress: () => submitDrawUnscored({ phase: 'GROUP', round: activeRound }) },
+                                                                ],
+                                                            );
+                                                        }}
+                                                        style={{ backgroundColor:'#334155', borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:8, paddingVertical:6, opacity: drawingUnscored ? 0.5 : 1 }}
+                                                    >
+                                                        <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'800' }}>
+                                                            {t.tournExpiredDrawRound || 'Bu tura beraberlik'}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                {!item.dayTrip && expiredInActiveRound.length > 0 && (
+                                                    <TouchableOpacity
+                                                        onPress={() => Alert.alert(
+                                                            t.tournExtendRoundTitle || 'Tur süresi uzat',
+                                                            (t.tournExtendRoundConfirm7 || '{label} ve sonraki turlar +7 gün uzatılacak. Devam?')
+                                                                .replace('{label}', getRoundLabel(activeRound, activePhase)),
+                                                            [
+                                                                { text: t.cancel || 'Vazgeç', style: 'cancel' },
+                                                                { text: '+7', onPress: () => {
+                                                                    submitDeadlineExtend(7, { kind:'round', phase: activePhase, round: activeRound, label: getRoundLabel(activeRound, activePhase) });
+                                                                }},
+                                                            ],
+                                                        )}
+                                                        style={{ backgroundColor:'#0ea5e920', borderRadius:8, borderWidth:1, borderColor:'#0ea5e950', paddingHorizontal:8, paddingVertical:6 }}
+                                                    >
+                                                        <Text style={{ color:'#38bdf8', fontSize:10, fontWeight:'800' }}>
+                                                            {t.tournExpiredExtend || '+7 gün uzat'}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        </View>
                                     )}
                                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
                                         <View style={{ flexDirection:'row', gap:3 }}>
@@ -19069,6 +19185,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         })()}
                                                         <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:3, marginTop:3 }}>
                                                             {(isBye || isTBD) && <Text style={{ color: colors.textMuted, fontSize:9 }}>{isBye ? 'BYE' : 'TBD'}</Text>}
+                                                            {isReady && match.deadline && new Date(match.deadline).getTime() < Date.now() && (
+                                                                <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'800' }}>⌛ {t.tournExpiredBadge || 'Süre doldu'}</Text>
+                                                            )}
                                                             {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (
                                                                 <TouchableOpacity onPress={() => openScoreEntry(match)}
                                                                     style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor: infoColor+'50' }}>
@@ -22745,6 +22864,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 
 export default function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId, inviteSide, inviteSlotIndex, inviteDoubleSlot, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
+            openExpiredResolve,
             openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor,
             openEquipmentId, initialCoachSubTab, openCoachId, initialArchiveSubTab, openArchiveTournamentId, autoOpenOrder, initialDateFilter, notifNavKey } = route.params;
     const dispatch = useDispatch();
@@ -26765,7 +26885,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 onChatOpened={() => navigation.setParams({ openChatTournamentId: undefined })}
                                 openMatchId={openMatchId}
                                 openMatchTournamentId={openMatchTournamentId}
-                                onMatchOpened={() => navigation.setParams({ openMatchId: undefined, openMatchTournamentId: undefined })}
+                                openExpiredResolve={!!openExpiredResolve && openMatchTournamentId === item.id}
+                                onMatchOpened={() => navigation.setParams({ openMatchId: undefined, openMatchTournamentId: undefined, openExpiredResolve: undefined })}
                                 onUserPress={setProfileUserId}
                             />
                         );
@@ -31174,29 +31295,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                         const isBye = match.status === 'BYE';
                                                                         const isTBD = !match.p1Id || !match.p2Id;
                                                                         const mSets2 = match.score?.sets || [];
-                                                                        const p1SW2 = mSets2.filter(s=>(s.p1||0)>(s.p2||0)).length;
-                                                                        const p2SW2 = mSets2.filter(s=>(s.p2||0)>(s.p1||0)).length;
                                                                         return (
-                                                                            <View key={match.id} style={{ width:'48.5%', backgroundColor:'#0f172a', borderRadius:8, padding:0, marginBottom:3, borderWidth:1, borderColor: isDone ? '#16a34a30' : '#334155' }}>
-                                                                                <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                                                                    <Text style={{ color: isDone && match.winnerId===match.p1Id ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{match.p1Name || 'TBD'}</Text>
-                                                                                    {isDone && mSets2.length > 0 && (
-                                                                                        <View style={{ flexDirection:'row', gap:3 }}>
-                                                                                            {mSets2.map((s,i) => <Text key={i} style={{ color: isDone && match.winnerId===match.p1Id ? '#4ade80' : '#94a3b8', fontSize:12, fontWeight:'900', minWidth:16, textAlign:'center' }}>{s.p1}</Text>)}
-                                                                                            <Text style={{ color: isDone && match.winnerId===match.p1Id ? '#4ade80' : '#475569', fontSize:10, fontWeight:'800', minWidth:12, textAlign:'center' }}>{p1SW2}</Text>
-                                                                                        </View>
-                                                                                    )}
-                                                                                </View>
-                                                                                <Text style={{ color:colors.textMuted, fontSize:9, marginVertical:3 }}>vs</Text>
-                                                                                <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                                                                    <Text style={{ color: isDone && match.winnerId===match.p2Id ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{match.p2Name || 'TBD'}</Text>
-                                                                                    {isDone && mSets2.length > 0 && (
-                                                                                        <View style={{ flexDirection:'row', gap:3 }}>
-                                                                                            {mSets2.map((s,i) => <Text key={i} style={{ color: isDone && match.winnerId===match.p2Id ? '#4ade80' : '#94a3b8', fontSize:12, fontWeight:'900', minWidth:16, textAlign:'center' }}>{s.p2}</Text>)}
-                                                                                            <Text style={{ color: isDone && match.winnerId===match.p2Id ? '#4ade80' : '#475569', fontSize:10, fontWeight:'800', minWidth:12, textAlign:'center' }}>{p2SW2}</Text>
-                                                                                        </View>
-                                                                                    )}
-                                                                                </View>
+                                                                            <View key={match.id} style={{ width:'48.5%', backgroundColor:'#0f172a', borderRadius:8, padding:6, marginBottom:3, borderWidth:1, borderColor: isDone ? '#16a34a30' : '#334155' }}>
+                                                                                <Text style={{ color: isDone && match.winnerId===match.p1Id ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{match.p1Name || 'TBD'}</Text>
+                                                                                {isDone && mSets2.length > 0
+                                                                                    ? <TournMatchCenterScore sets={mSets2} compact />
+                                                                                    : <Text style={{ color:colors.textMuted, fontSize:9, marginVertical:3, textAlign:'center' }}>vs</Text>}
+                                                                                <Text style={{ color: isDone && match.winnerId===match.p2Id ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{match.p2Name || 'TBD'}</Text>
                                                                                 {(isBye || isTBD) && (
                                                                                     <Text style={{ color:colors.textMuted, fontSize:9, marginTop:3 }}>{isBye ? 'BYE' : 'TBD'}</Text>
                                                                                 )}

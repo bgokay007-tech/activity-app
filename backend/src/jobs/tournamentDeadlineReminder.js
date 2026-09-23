@@ -1,6 +1,10 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from '../controllers/notification.controller.js';
-import { advanceTournamentAfterMatch, resolveThirdPlaceByAveraj } from '../controllers/tournament.controller.js';
+import {
+    advanceTournamentAfterMatch,
+    resolveThirdPlaceByAveraj,
+    applyTournamentMatchAutoDraw,
+} from '../controllers/tournament.controller.js';
 
 // tournament.controller.js'teki advanceTournamentAfterMatch, tip '1' turnuvalarda bir turun
 // deadline'ı geçtiğinde joker'li tek bir açık maçı beklemeden bir sonraki grup turunu kurar —
@@ -16,6 +20,10 @@ const WINDOWS = [
     { key: '24h', hours: 24, label: '24 saat' },
     { key: '12h', hours: 12, label: '12 saat' },
 ];
+
+/** Süre bitince önce turnuva sahibine bir kez bildirim; bu süre içinde sahip beraberlik /
+ *  uzatma / skor girebilir. Grace dolunca GROUP maçları otomatik 0-0. */
+const CREATOR_GRACE_MS = 48 * 3600 * 1000; // 48 saat
 
 // tournament.type === '2'/'4' (Çiftler Rekabetçi/Çiftler Antrenman) maçlarında p1Id/p2Id bir
 // TournamentTeam id'sidir, gerçek kullanıcı id'lerine buradan çözülür (bkz. cleanupTournaments.js).
@@ -92,7 +100,7 @@ async function checkAndNotifyUpcomingDeadlines() {
 
                     const deadlineConsequence = match.phase === 'PLAYOFF'
                         ? 'Süre dolduğunda maç otomatik sonuçlanmaz — turnuva sahibiyle iletişime geçmezseniz eleme gecikebilir.'
-                        : 'Süre dolduğunda maç otomatik olarak berabere sayılacaktır.';
+                        : 'Süre dolduğunda önce turnuva sahibine haber verilir; işlem yapılmazsa maç berabere sayılır.';
                     createNotification(
                         userId,
                         'TOURNAMENT_MATCH_DEADLINE_WARNING',
@@ -109,15 +117,98 @@ async function checkAndNotifyUpcomingDeadlines() {
     }
 }
 
-/** Deadline'ı geçmiş, hâlâ PENDING olan GROUP maçlarını otomatik olarak berabere (0-0, kazanan yok)
- *  kaydeder — puana/dereceye hiçbir etkisi olmaz. Tur ilerletme ve turnuva otomatik tamamlama,
- *  skor girişiyle aynı yolu (advanceTournamentAfterMatch) kullanır, böylece bu maç yüzünden
- *  bir sonraki tur/play-off asla oluşturulmadan takılı kalmaz. */
-async function autoDrawExpiredMatches() {
+/** Tur / maç süresi bitti, hâlâ PENDING skor yok → turnuva sahibine TEK SEFER bildirim.
+ *  Sahip: beraberlik gir / süre uzat / skor gir. Grace dolunca GROUP için auto-draw. */
+async function notifyCreatorExpiredUnscored() {
     try {
         const now = new Date();
         const expired = await prisma.tournamentMatch.findMany({
-            where: { status: 'PENDING', phase: 'GROUP', deadline: { lt: now }, p1Id: { not: null }, p2Id: { not: null } },
+            where: {
+                status: 'PENDING',
+                phase: { in: ['GROUP', 'PLAYOFF'] },
+                deadline: { lt: now },
+                p1Id: { not: null },
+                p2Id: { not: null },
+            },
+            select: {
+                id: true, tournamentId: true, phase: true, round: true,
+                p1Name: true, p2Name: true, deadline: true,
+            },
+        });
+        if (expired.length === 0) return;
+
+        const tournamentIds = [...new Set(expired.map(m => m.tournamentId))];
+        const tournaments = await prisma.tournament.findMany({ where: { id: { in: tournamentIds } } });
+        const tournamentMap = Object.fromEntries(tournaments.map(t => [t.id, t]));
+
+        const since = new Date(now.getTime() - 14 * 86400000);
+        const sentNotifs = await prisma.notification.findMany({
+            where: { type: 'TOURNAMENT_ROUND_SCORE_NEEDED', createdAt: { gte: since } },
+            select: { data: true },
+        });
+        const sentKeys = new Set(sentNotifs.map(n => `${n.data?.tournamentId}|${n.data?.phase}|${n.data?.round}`));
+
+        // (tournament, phase, round) başına bir bildirim
+        const groups = new Map();
+        for (const m of expired) {
+            const key = `${m.tournamentId}|${m.phase}|${m.round}`;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(m);
+        }
+
+        let sentCount = 0;
+        for (const [key, matches] of groups) {
+            if (sentKeys.has(key)) continue;
+            const sample = matches[0];
+            const tournament = tournamentMap[sample.tournamentId];
+            if (!tournament || tournament.status !== 'IN_PROGRESS' || !tournament.creatorId) continue;
+
+            sentKeys.add(key);
+            sentCount++;
+            const count = matches.length;
+            const phaseLabel = sample.phase === 'PLAYOFF' ? 'Play-off' : 'Grup';
+                const graceHours = Math.round(CREATOR_GRACE_MS / 3600000);
+            const actionHint = sample.phase === 'GROUP'
+                ? `Beraberlik girebilir, süreyi uzatabilir veya bildiğin skoru girebilirsin. ${graceHours} saat içinde işlem olmazsa sistem otomatik beraberlik yazar.`
+                : 'Süreyi uzatabilir veya bildiğin skoru girebilirsin (elemede otomatik beraberlik yok).';
+
+            createNotification(
+                tournament.creatorId,
+                'TOURNAMENT_ROUND_SCORE_NEEDED',
+                '⚠️ Skor girilmeyen maçlar — aksiyon gerekli',
+                `${tournament.name}: ${phaseLabel} Tur ${sample.round} — ${count} maçın süresi doldu, skor yok. ${actionHint}`,
+                {
+                    tournamentId: tournament.id,
+                    phase: sample.phase,
+                    round: sample.round,
+                    matchCount: count,
+                    matchIds: matches.map(m => m.id),
+                    openExpiredResolve: true,
+                    category: tournament.category,
+                    subCategory: tournament.subCategory,
+                },
+            ).catch(() => {});
+        }
+        if (sentCount > 0) console.log(`[tournamentDeadlineReminder] Notified creator for ${sentCount} expired round(s)`);
+    } catch (err) {
+        console.error('[tournamentDeadlineReminder] notifyCreatorExpiredUnscored error:', err.message);
+    }
+}
+
+/** Deadline + creator grace geçmiş, hâlâ PENDING GROUP maçlarını otomatik 0-0.
+ *  Önce sahibe bildirim gider (notifyCreatorExpiredUnscored); grace içinde sahip
+ *  draw-unscored / extend / skor ile çözebilir. Play-off otomatik beraberlik almaz. */
+async function autoDrawExpiredMatches() {
+    try {
+        const graceCutoff = new Date(Date.now() - CREATOR_GRACE_MS);
+        const expired = await prisma.tournamentMatch.findMany({
+            where: {
+                status: 'PENDING',
+                phase: 'GROUP',
+                deadline: { lt: graceCutoff },
+                p1Id: { not: null },
+                p2Id: { not: null },
+            },
         });
         if (expired.length === 0) return;
 
@@ -134,47 +225,8 @@ async function autoDrawExpiredMatches() {
                 });
                 if (!tournament || tournament.status !== 'IN_PROGRESS') continue;
 
-                const isTeamTournament = tournament.type === '2' || tournament.type === '4';
-                let p1Members = [match.p1Id].filter(Boolean);
-                let p2Members = [match.p2Id].filter(Boolean);
-                if (isTeamTournament) {
-                    const teams = await prisma.tournamentTeam.findMany({ where: { id: { in: [match.p1Id, match.p2Id].filter(Boolean) } } });
-                    const t1 = teams.find(t => t.id === match.p1Id);
-                    const t2 = teams.find(t => t.id === match.p2Id);
-                    if (t1) p1Members = [t1.player1Id, t1.player2Id].filter(Boolean);
-                    if (t2) p2Members = [t2.player1Id, t2.player2Id].filter(Boolean);
-                }
-
-                const score = {
-                    sets: [], winner: null, p1Sets: 0, p2Sets: 0, p1Games: 0, p2Games: 0,
-                    p1EloDelta: 0, p2EloDelta: 0,
-                    p1RatingBefore: null, p1RatingAfter: null, p2RatingBefore: null, p2RatingAfter: null,
-                    p1MemberRatings: [], p2MemberRatings: [],
-                    autoDraw: true,
-                };
-
-                await prisma.tournamentMatch.update({
-                    where: { id: match.id },
-                    data: {
-                        score, status: 'COMPLETED', winnerId: null,
-                        scoreEnteredBy: null,
-                        p1Confirmed: true, p2Confirmed: true,
-                        scoreSubmittedAt: now,
-                    },
-                });
-
-                await advanceTournamentAfterMatch(tournament, match, isTeamTournament, false);
-
-                for (const uid of [...new Set([...p1Members, ...p2Members])]) {
-                    createNotification(
-                        uid, 'TOURNAMENT_MATCH_AUTO_DRAW',
-                        '🤝 Maç süresi doldu, berabere sayıldı',
-                        `${tournament.name}: ${match.p1Name || '?'} - ${match.p2Name || '?'} maçı süresi içinde oynanmadığı için otomatik olarak berabere kaydedildi.`,
-                        { tournamentId: tournament.id, matchId: match.id, category: tournament.category, subCategory: tournament.subCategory }
-                    ).catch(() => {});
-                }
-
-                console.log(`[tournamentDeadlineReminder] Auto-drew expired match ${match.id} (tournament ${tournament.id})`);
+                await applyTournamentMatchAutoDraw(match, tournament, { source: 'auto', notifyPlayers: true });
+                console.log(`[tournamentDeadlineReminder] Auto-drew expired match ${match.id} (tournament ${tournament.id}) after creator grace`);
             } catch (matchErr) {
                 console.error(`[tournamentDeadlineReminder] Failed to auto-draw match ${match.id}:`, matchErr.message);
             }
@@ -335,19 +387,22 @@ async function resolveExpiredThirdPlaceMatches() {
 
 export function startTournamentDeadlineReminderJob() {
     checkAndNotifyUpcomingDeadlines();
+    notifyCreatorExpiredUnscored();
     autoDrawExpiredMatches();
     advanceStuckDynamicRounds();
     autoAssignPlayoffDeadlines();
     resolveExpiredThirdPlaceMatches();
     notifyCreatorPlayoffRoundReady();
     setInterval(checkAndNotifyUpcomingDeadlines, 30 * 60 * 1000); // every 30 minutes
+    setInterval(notifyCreatorExpiredUnscored, 15 * 60 * 1000); // every 15 minutes
     setInterval(autoDrawExpiredMatches, 15 * 60 * 1000); // every 15 minutes
     setInterval(advanceStuckDynamicRounds, 15 * 60 * 1000); // every 15 minutes
     setInterval(autoAssignPlayoffDeadlines, 30 * 60 * 1000); // every 30 minutes
     setInterval(resolveExpiredThirdPlaceMatches, 15 * 60 * 1000); // every 15 minutes
     setInterval(notifyCreatorPlayoffRoundReady, 30 * 60 * 1000); // every 30 minutes
     console.log('⏳ Tournament match deadline reminder job started (every 30 min)');
-    console.log('🤝 Tournament match auto-draw job started (every 15 min)');
+    console.log('📣 Tournament creator expired-score alert job started (every 15 min)');
+    console.log('🤝 Tournament match auto-draw job started (every 15 min, after 48h creator grace)');
     console.log('🔓 Tournament stuck-round unblock job started (every 15 min)');
     console.log('📅 Tournament playoff round auto-deadline job started (every 30 min)');
     console.log("🥉 Third-place match auto-resolve job started (every 15 min)");

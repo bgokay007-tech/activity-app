@@ -4161,3 +4161,159 @@ export const clearMatchScheduleAgreed = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+/**
+ * Deadline sonrası 0-0 beraberlik (puan/ELO yok). Job (grace sonrası) ve turnuva sahibi
+ * "skor girilmeyenlere beraberlik" aksiyonu ortak kullanır.
+ * `tournament` ACCEPTED participants (user) içermeli — advanceTournamentAfterMatch için.
+ */
+export async function applyTournamentMatchAutoDraw(match, tournament, { source = 'auto', notifyPlayers = true } = {}) {
+    if (!match || match.status !== 'PENDING' || !match.p1Id || !match.p2Id) return null;
+    if (!tournament || tournament.status !== 'IN_PROGRESS') return null;
+
+    const now = new Date();
+    const isTeamTournament = tournament.type === '2' || tournament.type === '4';
+    let p1Members = [match.p1Id].filter(Boolean);
+    let p2Members = [match.p2Id].filter(Boolean);
+    if (isTeamTournament) {
+        const teams = await prisma.tournamentTeam.findMany({
+            where: { id: { in: [match.p1Id, match.p2Id].filter(Boolean) } },
+        });
+        const t1 = teams.find(t => t.id === match.p1Id);
+        const t2 = teams.find(t => t.id === match.p2Id);
+        if (t1) p1Members = [t1.player1Id, t1.player2Id].filter(Boolean);
+        if (t2) p2Members = [t2.player1Id, t2.player2Id].filter(Boolean);
+    }
+
+    const score = {
+        sets: [], winner: null, p1Sets: 0, p2Sets: 0, p1Games: 0, p2Games: 0,
+        p1EloDelta: 0, p2EloDelta: 0,
+        p1RatingBefore: null, p1RatingAfter: null, p2RatingBefore: null, p2RatingAfter: null,
+        p1MemberRatings: [], p2MemberRatings: [],
+        autoDraw: true,
+        creatorDraw: source === 'creator',
+    };
+
+    await prisma.tournamentMatch.update({
+        where: { id: match.id },
+        data: {
+            score, status: 'COMPLETED', winnerId: null,
+            scoreEnteredBy: source === 'creator' ? (tournament.creatorId || null) : null,
+            p1Confirmed: true, p2Confirmed: true,
+            scoreSubmittedAt: now,
+        },
+    });
+
+    await advanceTournamentAfterMatch(tournament, match, isTeamTournament, false);
+
+    if (notifyPlayers) {
+        const title = source === 'creator'
+            ? '🤝 Maç berabere kaydedildi'
+            : '🤝 Maç süresi doldu, berabere sayıldı';
+        const body = source === 'creator'
+            ? `${tournament.name}: ${match.p1Name || '?'} - ${match.p2Name || '?'} maçı turnuva sahibi tarafından berabere kaydedildi.`
+            : `${tournament.name}: ${match.p1Name || '?'} - ${match.p2Name || '?'} maçı süresi içinde oynanmadığı için otomatik olarak berabere kaydedildi.`;
+        for (const uid of [...new Set([...p1Members, ...p2Members])]) {
+            createNotification(
+                uid, 'TOURNAMENT_MATCH_AUTO_DRAW', title, body,
+                { tournamentId: tournament.id, matchId: match.id, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
+        }
+    }
+
+    return match;
+}
+
+/**
+ * Turnuva sahibi: süresi dolmuş (veya seçilen) skor girilmemiş maçlara 0-0 beraberlik girer.
+ * Body: { matchIds?: string[], phase?: string, round?: number }
+ * - matchIds varsa sadece onlar (PENDING + iki taraf dolu)
+ * - yoksa phase+round (veya tüm turnuva) içinde deadline geçmiş PENDING'ler
+ * Play-off'ta beraberlik bracket'ı tıkayacağı için sadece GROUP (veya açıkça seçilen matchIds).
+ */
+export const drawUnscoredMatches = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const matchIds = Array.isArray(req.body?.matchIds) ? req.body.matchIds.filter(Boolean) : [];
+        const phase = req.body?.phase != null ? String(req.body.phase) : null;
+        const round = req.body?.round != null ? parseInt(req.body.round, 10) : null;
+
+        const tournament = await prisma.tournament.findUnique({
+            where: { id },
+            include: {
+                participants: {
+                    where: { status: 'ACCEPTED' },
+                    include: { user: { select: { id: true, username: true, fullName: true } } },
+                },
+            },
+        });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        if (tournament.status !== 'IN_PROGRESS') return res.status(400).json({ message: 'Turnuva devam etmiyor' });
+
+        const isCreator = tournament.creatorId === req.userId;
+        if (!isCreator) {
+            const u = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
+            if (!u?.isAdmin) return res.status(403).json({ message: 'Yalnızca turnuva sahibi veya admin beraberlik girebilir' });
+        }
+
+        const now = new Date();
+        let targets;
+        if (matchIds.length > 0) {
+            targets = await prisma.tournamentMatch.findMany({
+                where: {
+                    tournamentId: id,
+                    id: { in: matchIds },
+                    status: 'PENDING',
+                    p1Id: { not: null },
+                    p2Id: { not: null },
+                },
+            });
+        } else {
+            const where = {
+                tournamentId: id,
+                status: 'PENDING',
+                phase: phase || 'GROUP',
+                deadline: { lt: now },
+                p1Id: { not: null },
+                p2Id: { not: null },
+            };
+            if (Number.isFinite(round) && round >= 1) where.round = round;
+            targets = await prisma.tournamentMatch.findMany({ where });
+        }
+
+        // Play-off / eleme: beraberlik kazanan üretmez — sadece GROUP veya açıkça seçilen id'ler
+        if (matchIds.length === 0) {
+            targets = targets.filter(m => m.phase === 'GROUP');
+        }
+
+        if (targets.length === 0) {
+            return res.status(400).json({ message: 'Berabere kaydedilecek skor girilmemiş maç bulunamadı' });
+        }
+
+        let drawn = 0;
+        for (const match of targets) {
+            try {
+                const ok = await applyTournamentMatchAutoDraw(match, tournament, { source: 'creator', notifyPlayers: true });
+                if (ok) drawn++;
+            } catch (err) {
+                console.error(`[drawUnscoredMatches] match ${match.id}:`, err.message);
+            }
+        }
+
+        const allMatches = await prisma.tournamentMatch.findMany({
+            where: { tournamentId: id },
+            orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+        });
+
+        const parts = await prisma.tournamentParticipant.findMany({
+            where: { tournamentId: id, status: 'ACCEPTED', userId: { not: null } },
+            select: { userId: true },
+        });
+        const notifyIds = new Set([tournament.creatorId, ...parts.map(p => p.userId)].filter(Boolean));
+        for (const uid of notifyIds) {
+            emitToUser(uid, 'tournament:match_scored', { tournamentId: id, matches: allMatches });
+        }
+
+        res.json({ drawn, matches: allMatches });
+    } catch (e) { next(e); }
+};
+

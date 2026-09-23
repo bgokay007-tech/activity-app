@@ -43,6 +43,7 @@ import {
     assignPlayoffRoundDeadline,
     extendRoundDeadline,
     extendMatchDeadline,
+    drawUnscoredMatches,
     setMatchAvailability,
     proposeMatchSchedule,
     agreeMatchSchedule,
@@ -96,6 +97,7 @@ router.delete('/:id/matches/:matchId/schedule-agreed', clearMatchScheduleAgreed)
 router.patch('/:id/playoff-round-deadline',  assignPlayoffRoundDeadline);
 router.post('/:id/extend-round',             extendRoundDeadline);
 router.post('/:id/matches/:matchId/extend',  extendMatchDeadline);
+router.post('/:id/draw-unscored',            drawUnscoredMatches);
 router.patch('/:id',                         updateTournament);
 router.delete('/:id',                        deleteTournament);
 
