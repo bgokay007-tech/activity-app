@@ -2719,6 +2719,17 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             const teamSlots = allTeamSlots.filter(sl => sl.p?.id);
                             const acceptedOthers = teamSlots.map(sl => sl.p);
                             const unassignedDoubleSlots = unassignedArr.filter(p => p?.id);
+                            // Kullanıcı isteği: ön yüzde atanmamışlar "5. forma + Atanmamış" diye
+                            // EKSTRA gösterilmesin — sabit 3 Katılımcı slotunun boşluklarına
+                            // kabul sırasıyla (unassignedPlayers dizisi ekleme sırası) dolsun.
+                            // Partner/opp1/opp2 zaten doluysa o slot korunur; boşsa sıradaki
+                            // atanmamış oraya yazılır. Artan atanmış (kapasite dışı) ön yüzde yok.
+                            const unassignedQueue = [...unassignedDoubleSlots];
+                            const frontParticipantSlots = allTeamSlots.map((sl) => {
+                                if (sl.p?.id) return { p: sl.p, fromUnassigned: false };
+                                const next = unassignedQueue.shift() || null;
+                                return next ? { p: next, fromUnassigned: true } : { p: null, fromUnassigned: false };
+                            });
 
                             if (!showTeamCards) {
                                 // Kullanıcı isteğiyle ön yüzde her satıra 2 oyuncu sığıyor (önceden tek
@@ -2747,8 +2758,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </View>
                                             </TouchableOpacity>
                                         </View>
-                                        {allTeamSlots.map((sl, i) => sl.p?.id ? (
-                                            <View key={sl.key} style={cardBox}>
+                                        {frontParticipantSlots.map((sl, i) => sl.p?.id ? (
+                                            <View key={sl.p.id || `fp-${i}`} style={cardBox}>
                                                 <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => sl.p.id && navigation.push('Profile', { userId: sl.p.id })}>
                                                     <Avatar name={sl.p.username} avatar={sl.p.avatar} size={moderateScale(28)} color={cfg.color} />
                                                     <View style={{ flex:1 }}>
@@ -2778,7 +2789,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 )}
                                             </View>
                                         ) : (
-                                            <View key={sl.key} style={[cardBox, { opacity:0.55, flexDirection:'row', alignItems:'center', gap:6 }]}>
+                                            <View key={`empty-fp-${i}`} style={[cardBox, { opacity:0.55, flexDirection:'row', alignItems:'center', gap:6 }]}>
                                                 <View style={{ width:moderateScale(28), height:moderateScale(28), borderRadius:moderateScale(14), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
                                                     <Text style={{ color: colors.textMuted, fontSize:13 }}>?</Text>
                                                 </View>
@@ -2786,37 +2797,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     <Text style={[det.playerSub, { color: colors.textMuted }]} numberOfLines={1}>{t.cardParticipantLabel(i + 1)}</Text>
                                                     <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>Bekleniyor</Text>
                                                 </View>
-                                            </View>
-                                        ))}
-                                        {unassignedDoubleSlots.map((p) => (
-                                            <View key={p.id} style={cardBox}>
-                                                <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => navigation.push('Profile', { userId: p.id })}>
-                                                    <Avatar name={p.username} avatar={p.avatar} size={moderateScale(28)} color={cfg.color} />
-                                                    <View style={{ flex:1 }}>
-                                                        <View style={{ flexDirection:'row', alignItems:'center' }}>
-                                                            <Text style={[det.playerName, { flexShrink:1 }]} numberOfLines={1}>
-                                                                {playerDisplayName(p)}
-                                                                {(p.gender === 'MALE' || p.gender === 'FEMALE') && (
-                                                                    <Text style={{ color: colors.textMuted, fontWeight:'400' }}> ({p.gender === 'MALE' ? t.genderMaleShort : t.genderFemaleShort})</Text>
-                                                                )}
-                                                            </Text>
-                                                            {p.id && localOrderedUserIds.includes(p.id) && (
-                                                                <TouchableOpacity onPress={() => p.id === myId && setShowMyOrder(true)} hitSlop={{ top:6, bottom:6, left:4, right:6 }} disabled={p.id !== myId}>
-                                                                    <Animated.Text style={{ fontSize:12, marginLeft:4, opacity: orderBlink }}>📋</Animated.Text>
-                                                                </TouchableOpacity>
-                                                            )}
-                                                            {p.skillRating != null && (
-                                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{ratingBadgeText(sub, isDoublesFmt, t.lang, p.skillRating)}</Text>
-                                                            )}
-                                                        </View>
-                                                        <Text style={[det.playerSub, { color:'#fbbf24' }]} numberOfLines={1}>{t.unassignedLabel}</Text>
-                                                    </View>
-                                                </TouchableOpacity>
-                                                {isOwner && (
-                                                    <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ marginTop:3, alignSelf:'flex-end' }}>
-                                                        <Text style={{ color:'#f87171', fontSize:moderateScale(10), fontWeight:'700' }}>Çıkar</Text>
-                                                    </TouchableOpacity>
-                                                )}
                                             </View>
                                         ))}
                                         {acceptedOthers.length === 0 && unassignedDoubleSlots.length === 0 && (
@@ -8168,18 +8148,23 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 </View>
                             );
                         };
-                        // Ön yüz havuzu — kurucu kilitli ilk forma + partner/rakip1/rakip2 + henüz
-                        // role atanmamış (unassignedArr) kabul edilmiş oyuncular, hepsi sırayla
-                        // numaralı "Katılımcı N" olarak, voleyboldeki TeamAssignCard'ın ön yüzüyle
-                        // AYNI görsel dil (kullanıcı isteği: atanmamış olmak ön yüzde bir "uyarı"
-                        // gibi görünmemeli — hangi role gideceği sadece arka yüzü ilgilendirir).
-                        // Sabit 4 forma: 1 kurucu + Katılımcı 1/2/3. Boşları süzmek Elif'i
-                        // 3'ten 2'ye kaydırıyordu; atanmamışlar bu numaralara GİRMEZ.
+                        // Ön yüz havuzu — kurucu + Katılımcı 1/2/3. Atanmamışlar ekstra 5. forma
+                        // DEĞİL: boş Katılımcı slotlarına kabul sırasıyla (unassignedArr ekleme
+                        // sırası) yerleşir — arka yüzdeki "Atanmamış" listesi takım ataması için
+                        // kalır (kullanıcı isteği: ön yüzde "Atanmamış" 5. forma saçma).
+                        const unassignedForPool = [...unassignedArr.filter(p => p?.id)];
+                        const fillFront = (assigned) => {
+                            if (rosterFilled(assigned)) return assigned;
+                            return unassignedForPool.shift() || null;
+                        };
+                        const frontP1 = fillFront(partner);
+                        const frontP2 = fillFront(opp1);
+                        const frontP3 = fillFront(opp2);
                         const doublePool = [
                             { p: { ...match.sender, skillRating: match.senderSkillRating }, filled: true, label: t.founder || 'Kurucu' },
-                            { p: partner, filled: rosterFilled(partner), label: t.cardParticipantLabel(1) },
-                            { p: opp1, filled: rosterFilled(opp1), label: t.cardParticipantLabel(2) },
-                            { p: opp2, filled: rosterFilled(opp2), label: t.cardParticipantLabel(3) },
+                            { p: frontP1, filled: rosterFilled(frontP1), label: t.cardParticipantLabel(1) },
+                            { p: frontP2, filled: rosterFilled(frontP2), label: t.cardParticipantLabel(2) },
+                            { p: frontP3, filled: rosterFilled(frontP3), label: t.cardParticipantLabel(3) },
                         ];
                         const rotateY = doubleFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
                         return (
