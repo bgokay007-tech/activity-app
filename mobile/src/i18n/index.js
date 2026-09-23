@@ -402,7 +402,8 @@ const en = {
         if (max != null) parts.push(`at most ${max}★`);
         return `This person's rating (${val.toFixed(2)}★) does not meet your restriction (${parts.join(' / ')}).`;
     },
-    youAreInvitedHere: 'You were invited to this slot',
+    youAreInvitedHere: 'Your invited team',
+    invitedTeamSlotBlink: 'Your invited team',
     applyForSlotBtn: '+ Apply for this slot',
     musicTitle: '🎵 Music', musicSearchPh: 'Search songs, artists...', musicSearchBtn: 'Search',
     musicTabSearch: 'Results', musicTabPlaylists: 'My Playlists', musicTabLiked: 'Liked',
@@ -2325,7 +2326,8 @@ const tr = {
         if (max != null) parts.push(`en fazla ${max}★`);
         return `Bu kişinin derece puanı (${val.toFixed(2)}★) belirlediğiniz kısıtlamaya (${parts.join(' / ')}) uymuyor.`;
     },
-    youAreInvitedHere: 'Buraya davet edildiniz',
+    youAreInvitedHere: 'Davet edildiğiniz takım',
+    invitedTeamSlotBlink: 'Davet edildiğiniz takım',
     applyForSlotBtn: '+ Bu Slota Başvur',
     musicTitle: '🎵 Müzik', musicSearchPh: 'Şarkı, sanatçı ara...', musicSearchBtn: 'Ara',
     musicTabSearch: 'Sonuçlar', musicTabPlaylists: 'Çalma Listelerim', musicTabLiked: 'Beğendiklerim',
@@ -4245,7 +4247,8 @@ const ru = {
         if (max != null) parts.push(`максимум ${max}★`);
         return `Рейтинг этого человека (${val.toFixed(2)}★) не соответствует вашему ограничению (${parts.join(' / ')}).`;
     },
-    youAreInvitedHere: 'Вас пригласили на это место',
+    youAreInvitedHere: 'Ваша приглашённая команда',
+    invitedTeamSlotBlink: 'Ваша приглашённая команда',
     applyForSlotBtn: '+ Подать заявку на это место',
     musicTitle: '🎵 Музыка', musicSearchPh: 'Поиск песен, исполнителей...', musicSearchBtn: 'Поиск',
     musicTabSearch: 'Результаты', musicTabPlaylists: 'Мои плейлисты', musicTabLiked: 'Понравившиеся',
@@ -6164,7 +6167,8 @@ const de = {
         if (max != null) parts.push(`höchstens ${max}★`);
         return `Der Rang dieser Person (${val.toFixed(2)}★) erfüllt nicht deine Beschränkung (${parts.join(' / ')}).`;
     },
-    youAreInvitedHere: 'Du wurdest zu diesem Platz eingeladen',
+    youAreInvitedHere: 'Dein eingeladenes Team',
+    invitedTeamSlotBlink: 'Dein eingeladenes Team',
     applyForSlotBtn: '+ Für diesen Platz bewerben',
     musicTitle: '🎵 Musik', musicSearchPh: 'Songs, Künstler suchen...', musicSearchBtn: 'Suchen',
     musicTabSearch: 'Ergebnisse', musicTabPlaylists: 'Meine Playlists', musicTabLiked: 'Gefällt mir',

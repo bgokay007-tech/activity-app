@@ -965,7 +965,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 ? 'partner'
                 : (myPendingSlotInvite.requestedSlot === 'opp1' || myPendingSlotInvite.requestedSlot === 'opp2' || myPendingSlotInvite.requestedSlot === 'partner')
                     ? myPendingSlotInvite.requestedSlot
-                    : (myPendingSlotInvite.isUnassignedInvite || myPendingSlotInvite.isSubstituteInvite ? 'unassigned' : 'opp1');
+                    : 'unassigned';
             return { doubleSlot };
         }
         if (myPendingSlotInvite.isUnassignedInvite || myPendingSlotInvite.isSubstituteInvite) {
@@ -1690,7 +1690,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const mySentReq = item._myJoinStatus;
     const isFull = filled >= required;
     const isParticipant = participants.some(p => p?.id === myId);
-    const myInvite = joinRequests.find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER');
+    const myInvite = joinRequests.find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING');
     const isInvolved = isOwner || isParticipant || (mySentReq !== null && mySentReq !== undefined);
     const participantIds = new Set([item.senderId, ...participants.filter(p => p?.id).map(p => p.id)]);
     const canDeleteComment = (c) => {
@@ -3885,6 +3885,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             </View>
                         ) : myInvite ? (
                             <View style={{ gap:3 }}>
+                                <Animated.Text style={{ color: cfg.color, fontSize: moderateScale(11), fontWeight:'800', textAlign:'center', opacity: highlightPulse }}>
+                                    👉 {t.invitedTeamSlotBlink || t.youAreInvitedHere}
+                                </Animated.Text>
                                 {myInvite.isPartnerInvite && (
                                     <Text style={{ color:'#a78bfa', fontSize: moderateScale(11), fontWeight:'700', textAlign:'center' }}>🤝 Partner Daveti</Text>
                                 )}
@@ -4535,7 +4538,19 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
     // patern) yarım kalan "Katıl" isteği otomatik devam eder.
     const [joinAssessGate, setJoinAssessGate] = useState(null); // { interestId, ratingType, requestedSlot, positionPreferences }
     const mySentReq = localJoinStatus ?? item._myJoinStatus;
-    const myInvite = (Array.isArray(item.joinRequests) ? item.joinRequests : []).find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER');
+    // Kullanıcı isteği: davet rozeti / yanıp sönen "Davet edildiğiniz takım" sadece
+    // henüz yanıtlanmamış (PENDING) OWNER davetinde görünsün — kabul/red sonrası sönsün.
+    const myInvite = (Array.isArray(item.joinRequests) ? item.joinRequests : []).find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING');
+    const invitePulse = useRef(new Animated.Value(0.45)).current;
+    useEffect(() => {
+        if (!myInvite) return;
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(invitePulse, { toValue: 1, duration: 550, useNativeDriver: true }),
+            Animated.timing(invitePulse, { toValue: 0.45, duration: 550, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [myInvite?.id]);
     const [detailVisible, setDetailVisible] = useState(false);
     const [editVisible, setEditVisible] = useState(false);
     // Voleybol "Rakip Aranıyor" (player_wanted + teamSize>1): katılma tek başına değil,
@@ -4881,7 +4896,14 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         </View>
                     )}
                     {backFacePlayers.length === 0 ? (
-                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
+                        myInvite ? (
+                            <Animated.View style={{ opacity: invitePulse }}>
+                                <Text style={{ color: cfg.color, fontSize:moderateScale(12), fontWeight:'800' }}>{t.invitedTeamSlotBlink || t.youAreInvitedHere}</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), marginTop:2 }}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
+                            </Animated.View>
+                        ) : (
+                            <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
+                        )
                     ) : (
                         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: moderateScale(4) }}>
                             {backFacePlayers.map((p, i) => {
@@ -5239,6 +5261,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     // Kullanıcı isteğiyle davet rozeti artık hangi takıma/role davet edildiğini
                     // açıkça yazıyor — önceden hepsi aynı genel "Davet Edildi" yazısıydı, oyuncu
                     // Kurucu mu Rakip mi olacağını ancak detaya girip bakınca anlayabiliyordu.
+                    // Ayrıca kabul/reddedilene kadar yanıp sönsün (invitePulse).
                     const teamHint = (item.teamSize || 1) > 1
                         ? (myInvite.isPartnerInvite ? ` (${t.founderTeamShortLabel})`
                             : myInvite.isSubstituteInvite ? ` (${t.subsLabel})`
@@ -5246,12 +5269,15 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                             : ` (${t.opponentTeamShortLabel})`)
                         : (myInvite.isPartnerInvite ? ` (${t.founderTeamShortLabel})` : '');
                     return (
-                        <TouchableOpacity
-                            style={{ backgroundColor:'#16a34a', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center' }}
-                            onPress={() => setDetailVisible(true)}
-                        >
-                            <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.invitedBadge}{teamHint}</Text>
-                        </TouchableOpacity>
+                        <Animated.View style={{ opacity: invitePulse }}>
+                            <TouchableOpacity
+                                style={{ backgroundColor:'#16a34a', borderRadius:moderateScale(8), paddingVertical:moderateScale(5), alignItems:'center', borderWidth:1.5, borderColor:'#86efac' }}
+                                onPress={() => setDetailVisible(true)}
+                            >
+                                <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.invitedBadge}{teamHint}</Text>
+                                <Text style={{ color:'#dcfce7', fontSize:moderateScale(9), fontWeight:'700', marginTop:1 }} numberOfLines={1}>{t.invitedTeamSlotBlink || t.youAreInvitedHere}</Text>
+                            </TouchableOpacity>
+                        </Animated.View>
                     );
                 })() : mySentReq === 'AWAITING_JOINER_CONFIRM' ? (
                     <View style={{ gap:3 }}>
