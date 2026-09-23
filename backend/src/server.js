@@ -103,6 +103,14 @@ async function ensureTables() {
     } catch (e) {
         console.error('❌ Post.mentions column error:', e.message);
     }
+
+    // Turnuva maç ortak yer/zaman müzakeresi
+    try {
+        await prisma.$executeRawUnsafe(`ALTER TABLE "TournamentMatch" ADD COLUMN IF NOT EXISTS "scheduleData" JSONB`);
+        console.log('✅ TournamentMatch.scheduleData column ready');
+    } catch (e) {
+        console.error('❌ TournamentMatch.scheduleData column error:', e.message);
+    }
 }
 
 const httpServer = createServer(app);

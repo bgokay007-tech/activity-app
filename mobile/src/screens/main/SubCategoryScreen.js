@@ -28,6 +28,7 @@ import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
 import { moderateScale, touchSize } from '../../theme/scale';
+import TournamentMatchDetailModal from '../../components/TournamentMatchDetailModal';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
@@ -17114,6 +17115,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [extendTarget, setExtendTarget] = useState(null); // null | { kind:'round', phase, round, label } | { kind:'match', match, label }
     const [extendDaysInput, setExtendDaysInput] = useState('7');
     const [extendingDeadline, setExtendingDeadline] = useState(false);
+    const [detailMatch, setDetailMatch] = useState(null); // tur kartına tıklanınca maç detayı
     const [playoffDeadlineDate, setPlayoffDeadlineDate] = useState(null);
     const [playoffDeadlineTime, setPlayoffDeadlineTime] = useState('');
     const [showPlayoffDatePicker, setShowPlayoffDatePicker] = useState(false);
@@ -18555,7 +18557,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         const myUnconfirmedSide = (match.p1Id === mySideId && !match.p1Confirmed) ? 'p1'
                             : (match.p2Id === mySideId && !match.p2Confirmed) ? 'p2' : null;
                         return (
-                            <View key={match.id} style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:6, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : '#334155' }}>
+                            <TouchableOpacity
+                                key={match.id}
+                                activeOpacity={0.85}
+                                onPress={() => { if (!isBye) setDetailMatch(match); }}
+                                style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:6, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : '#334155' }}
+                            >
                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                                     <Text style={{ color: p1Win ? '#4ade80' : '#fff', fontSize:12, fontWeight: p1Win ? '800' : '600', flex:1 }} numberOfLines={1}>{match.p1Name || 'TBD'}</Text>
                                     {isDone && mSets.length > 0 && (
@@ -18629,7 +18636,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </View>
                                     </View>
                                 )}
-                            </View>
+                                {(() => {
+                                    const agreed = match.scheduleData?.agreed;
+                                    if (!agreed) return null;
+                                    const txt = [agreed.date, `${agreed.timeFrom || ''}-${agreed.timeTo || ''}`, agreed.venueName].filter(Boolean).join(' · ');
+                                    if (!txt) return null;
+                                    return (
+                                        <Text style={{ color: '#4ade80', fontSize: 9, fontWeight: '700', marginTop: 4 }} numberOfLines={2}>
+                                            📍 {txt}
+                                        </Text>
+                                    );
+                                })()}
+                            </TouchableOpacity>
                         );
                     };
                     const respondThirdPlace = (accept) => {
@@ -18917,8 +18935,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             const p1SW = mSets.filter(s=>(s.p1||0)>(s.p2||0)).length;
                                             const p2SW = mSets.filter(s=>(s.p2||0)>(s.p1||0)).length;
                                             return (
-                                                <View key={match.id} style={{ width: isEntering ? '100%' : ((item.type === '2' || item.type === '4' || item.type === '7') ? '48.5%' : '31.5%'), backgroundColor:'#0f172a', borderRadius:8, padding:0, marginBottom:3, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}>
-                                                        <View style={{ flex:1 }}>
+                                                <TouchableOpacity
+                                                    key={match.id}
+                                                    activeOpacity={0.85}
+                                                    onPress={() => {
+                                                        if (isBye || isTBD) return;
+                                                        setDetailMatch(match);
+                                                    }}
+                                                    style={{ width: isEntering ? '100%' : ((item.type === '2' || item.type === '4' || item.type === '7') ? '48.5%' : '31.5%'), backgroundColor:'#0f172a', borderRadius:8, padding:0, marginBottom:3, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}
+                                                >
+                                                        <View style={{ flex:1, padding: 6 }}>
                                                             {match._carriedOverFromRound != null && (
                                                                 <Text style={{ color:'#c084fc', fontSize:8, fontWeight:'800', marginBottom:2 }}>
                                                                     🃏 Joker'den sarkan — Tur {match._carriedOverFromRound} maçı
@@ -19185,7 +19211,19 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             </View>
                                                         </View>
                                                     )}
-                                                </View>
+                                                    {(() => {
+                                                        const agreed = match.scheduleData?.agreed;
+                                                        if (!agreed) return null;
+                                                        const txt = [agreed.date, `${agreed.timeFrom || ''}-${agreed.timeTo || ''}`, agreed.venueName].filter(Boolean).join(' · ');
+                                                        if (!txt) return null;
+                                                        return (
+                                                            <Text style={{ color: '#4ade80', fontSize: 8, fontWeight: '700', marginTop: 3 }} numberOfLines={2}>
+                                                                📍 {txt}
+                                                            </Text>
+                                                        );
+                                                    })()}
+                                                        </View>
+                                                </TouchableOpacity>
                                             );
                                         })}
                                         </View>
@@ -19199,6 +19237,42 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 </KeyboardAvoidingView>
             </View>
         </Modal>
+
+            <TournamentMatchDetailModal
+                visible={!!detailMatch}
+                onClose={() => setDetailMatch(null)}
+                tournament={item}
+                match={detailMatch}
+                t={t}
+                lang={t.lang || 'tr'}
+                infoColor={infoColor}
+                mySideId={
+                    detailMatch && (item.type === '7')
+                        ? (myTeamIds.find(id => id === detailMatch.p1Id || id === detailMatch.p2Id) || null)
+                        : mySideId
+                }
+                isCreator={isCreator}
+                myIsAdmin={myIsAdmin}
+                tournMyJokerUsed={tournMyJokerUsed}
+                playersArrangeCourts={!hasTournSpecificCourt(item)}
+                onOpenScore={(m) => openScoreEntry(m)}
+                onRequestExtend={(m) => {
+                    setExtendDaysInput('7');
+                    setExtendTarget({
+                        kind: 'match',
+                        match: m,
+                        label: `${m.p1Name || '?'} vs ${m.p2Name || '?'}`,
+                    });
+                }}
+                onRefresh={async () => {
+                    const list = await fetchMatches();
+                    setDetailMatch(prev => {
+                        if (!prev) return null;
+                        const fresh = (list || []).find(m => m.id === prev.id);
+                        return fresh || prev;
+                    });
+                }}
+            />
 
             {/* Play-off turu için tarih atama */}
             <Modal visible={playoffDeadlineRound != null} animationType="slide" transparent onRequestClose={() => setPlayoffDeadlineRound(null)} android_keyboardInputMode="adjustNothing">

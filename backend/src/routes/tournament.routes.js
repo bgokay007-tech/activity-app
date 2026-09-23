@@ -43,6 +43,10 @@ import {
     assignPlayoffRoundDeadline,
     extendRoundDeadline,
     extendMatchDeadline,
+    setMatchAvailability,
+    proposeMatchSchedule,
+    agreeMatchSchedule,
+    clearMatchScheduleAgreed,
 } from '../controllers/tournament.controller.js';
 
 const router = Router();
@@ -85,6 +89,10 @@ router.get('/:id/courts',                    getTournamentCourts);
 router.post('/:id/courts',                   addTournamentCourt);
 router.delete('/:id/courts/:courtId',        removeTournamentCourt);
 router.patch('/:id/matches/:matchId/court',  assignCourtToMatch);
+router.patch('/:id/matches/:matchId/availability', setMatchAvailability);
+router.post('/:id/matches/:matchId/schedule-propose', proposeMatchSchedule);
+router.post('/:id/matches/:matchId/schedule-agree', agreeMatchSchedule);
+router.delete('/:id/matches/:matchId/schedule-agreed', clearMatchScheduleAgreed);
 router.patch('/:id/playoff-round-deadline',  assignPlayoffRoundDeadline);
 router.post('/:id/extend-round',             extendRoundDeadline);
 router.post('/:id/matches/:matchId/extend',  extendMatchDeadline);

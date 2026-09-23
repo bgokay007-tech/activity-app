@@ -1,4 +1,5 @@
 ﻿import prisma from '../config/prisma.js';
+import crypto from 'crypto';
 import { createNotification } from './notification.controller.js';
 import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
@@ -2250,13 +2251,17 @@ export const rematchTournament = async (req, res, next) => {
 export const getTournamentMatches = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const tournament = await prisma.tournament.findUnique({ where: { id }, select: { category: true, subCategory: true } });
+        const tournament = await prisma.tournament.findUnique({
+            where: { id },
+            select: { id: true, category: true, subCategory: true, type: true },
+        });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
 
-        const [matches, myTeams, teams] = await Promise.all([
+        const [matchesRaw, myTeams, teams] = await Promise.all([
             prisma.tournamentMatch.findMany({
                 where: { tournamentId: id },
                 orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+                include: { court: { select: { id: true, name: true, address: true } } },
             }),
             // Çiftler / Americano: maçlarda p1Id/p2Id takım id'sidir — Americano'da oyuncu
             // her tur farklı takımda olabilir, bu yüzden tüm takım id'lerini döndürürüz.
@@ -2270,6 +2275,7 @@ export const getTournamentMatches = async (req, res, next) => {
             }),
         ]);
         const myTeam = myTeams[0] || null;
+        const matches = await attachSanitizedSchedules(tournament, matchesRaw, req.userId);
 
         // Her oyuncunun GÜNCEL bireysel puanı — takımın sabit avgRating snapshot'ı değil,
         // skor girildikten sonra değişen anlık skillRating'e göre hesaplanır (Bireysel ve
@@ -3887,3 +3893,271 @@ function buildDateTime(date, time) {
     const t = time || '00:00';
     return new Date(`${d}T${t}:00+03:00`);
 }
+
+function emptySchedule() {
+    return { availability: { p1: [], p2: [] }, proposals: [], agreed: null };
+}
+
+function normalizeSchedule(raw) {
+    const base = emptySchedule();
+    if (!raw || typeof raw !== 'object') return base;
+    return {
+        availability: {
+            p1: Array.isArray(raw.availability?.p1) ? raw.availability.p1 : [],
+            p2: Array.isArray(raw.availability?.p2) ? raw.availability.p2 : [],
+        },
+        proposals: Array.isArray(raw.proposals) ? raw.proposals : [],
+        agreed: raw.agreed && typeof raw.agreed === 'object' ? raw.agreed : null,
+    };
+}
+
+/** Kullanıcı bu maçın p1/p2 tarafında mı? (bireysel veya takım üyesi) */
+async function resolveUserMatchSide(tournament, match, userId) {
+    if (!userId || !match) return null;
+    const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+    if (!isTeamEngine) {
+        if (match.p1Id === userId) return 'p1';
+        if (match.p2Id === userId) return 'p2';
+        return null;
+    }
+    const teams = await prisma.tournamentTeam.findMany({
+        where: { tournamentId: tournament.id, OR: [{ player1Id: userId }, { player2Id: userId }] },
+        select: { id: true },
+    });
+    const ids = new Set(teams.map(t => t.id));
+    if (ids.has(match.p1Id)) return 'p1';
+    if (ids.has(match.p2Id)) return 'p2';
+    return null;
+}
+
+function sanitizeScheduleForViewer(scheduleData, isMatchParticipant) {
+    const s = normalizeSchedule(scheduleData);
+    if (isMatchParticipant) return s;
+    // Diğer katılımcılar yalnızca anlaşılmış yer/zamanı görür
+    return s.agreed ? { availability: { p1: [], p2: [] }, proposals: [], agreed: s.agreed } : null;
+}
+
+/** Maç listesinde her maçın scheduleData'sını izleyiciye göre kırp */
+async function attachSanitizedSchedules(tournament, matches, userId) {
+    const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+    let myTeamIds = new Set();
+    if (isTeamEngine && userId) {
+        const teams = await prisma.tournamentTeam.findMany({
+            where: { tournamentId: tournament.id, OR: [{ player1Id: userId }, { player2Id: userId }] },
+            select: { id: true },
+        });
+        myTeamIds = new Set(teams.map(t => t.id));
+    }
+    return matches.map(m => {
+        const onMatch = isTeamEngine
+            ? (myTeamIds.has(m.p1Id) || myTeamIds.has(m.p2Id))
+            : (m.p1Id === userId || m.p2Id === userId);
+        return {
+            ...m,
+            scheduleData: sanitizeScheduleForViewer(m.scheduleData, onMatch),
+            _iAmMatchSide: onMatch,
+        };
+    });
+}
+
+export const setMatchAvailability = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const slots = Array.isArray(req.body?.slots) ? req.body.slots : null;
+        if (!slots) return res.status(400).json({ message: 'slots gerekli' });
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+        if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadı' });
+        if (match.status !== 'PENDING' || !match.p1Id || !match.p2Id) {
+            return res.status(400).json({ message: 'Bu maç için müsaitlik girilemez' });
+        }
+
+        const side = await resolveUserMatchSide(tournament, match, req.userId);
+        if (!side) return res.status(403).json({ message: 'Sadece eşleşen taraflar müsaitlik girebilir' });
+
+        const cleaned = slots
+            .filter(s => s && (s.weekday != null || s.date) && s.timeFrom && s.timeTo)
+            .map(s => ({
+                ...(s.weekday != null ? { weekday: Number(s.weekday) } : {}),
+                ...(s.date ? { date: String(s.date).slice(0, 10) } : {}),
+                timeFrom: String(s.timeFrom).slice(0, 5),
+                timeTo: String(s.timeTo).slice(0, 5),
+            }))
+            .slice(0, 21);
+
+        const schedule = normalizeSchedule(match.scheduleData);
+        schedule.availability[side] = cleaned;
+
+        const updated = await prisma.tournamentMatch.update({
+            where: { id: matchId },
+            data: { scheduleData: schedule },
+        });
+        res.json({ scheduleData: schedule, match: updated });
+    } catch (e) { next(e); }
+};
+
+export const proposeMatchSchedule = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const { date, timeFrom, timeTo, venueName, courtId } = req.body || {};
+        if (!date || !timeFrom || !timeTo) {
+            return res.status(400).json({ message: 'Tarih ve saat aralığı zorunlu' });
+        }
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+        if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadı' });
+        if (match.status !== 'PENDING' || !match.p1Id || !match.p2Id) {
+            return res.status(400).json({ message: 'Bu maç için teklif verilemez' });
+        }
+
+        const side = await resolveUserMatchSide(tournament, match, req.userId);
+        if (!side) return res.status(403).json({ message: 'Sadece eşleşen taraflar teklif verebilir' });
+
+        const loc = String(tournament.location || '').trim();
+        const playersArrange = !loc || /ortaklaşa|oyuncular|players decide|gemeinsam|соглас/i.test(loc);
+        const resolvedVenue = playersArrange
+            ? (String(venueName || '').trim() || null)
+            : loc;
+        if (playersArrange && !resolvedVenue && !courtId) {
+            return res.status(400).json({ message: 'Kort / mekan adı gerekli' });
+        }
+
+        const schedule = normalizeSchedule(match.scheduleData);
+        const proposal = {
+            id: crypto.randomUUID(),
+            side,
+            byUserId: req.userId,
+            venueName: resolvedVenue,
+            courtId: courtId || null,
+            date: String(date).slice(0, 10),
+            timeFrom: String(timeFrom).slice(0, 5),
+            timeTo: String(timeTo).slice(0, 5),
+            createdAt: new Date().toISOString(),
+        };
+        schedule.proposals = [...schedule.proposals, proposal].slice(-30);
+
+        await prisma.tournamentMatch.update({
+            where: { id: matchId },
+            data: { scheduleData: schedule },
+        });
+
+        // Rakip tarafa bildir
+        const otherSideId = side === 'p1' ? match.p2Id : match.p1Id;
+        const notifyIds = new Set();
+        const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+        if (isTeamEngine && otherSideId) {
+            const team = await prisma.tournamentTeam.findUnique({ where: { id: otherSideId } });
+            if (team?.player1Id) notifyIds.add(team.player1Id);
+            if (team?.player2Id) notifyIds.add(team.player2Id);
+        } else if (otherSideId) {
+            notifyIds.add(otherSideId);
+        }
+        for (const uid of notifyIds) {
+            if (!uid || uid === req.userId) continue;
+            createNotification(
+                uid,
+                'TOURNAMENT_SCHEDULE_PROPOSAL',
+                '📅 Maç yeri / zaman teklifi',
+                `${tournament.name}: ${proposal.date} ${proposal.timeFrom}-${proposal.timeTo}${proposal.venueName ? ` · ${proposal.venueName}` : ''}`,
+                { tournamentId: id, matchId, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
+            emitToUser(uid, 'tournament:schedule_updated', { tournamentId: id, matchId, scheduleData: schedule });
+        }
+
+        res.json({ scheduleData: schedule, proposal });
+    } catch (e) { next(e); }
+};
+
+export const agreeMatchSchedule = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const { proposalId } = req.body || {};
+        if (!proposalId) return res.status(400).json({ message: 'proposalId gerekli' });
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+        if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadı' });
+
+        const side = await resolveUserMatchSide(tournament, match, req.userId);
+        if (!side) return res.status(403).json({ message: 'Sadece eşleşen taraflar anlaşabilir' });
+
+        const schedule = normalizeSchedule(match.scheduleData);
+        const proposal = schedule.proposals.find(p => p.id === proposalId);
+        if (!proposal) return res.status(404).json({ message: 'Teklif bulunamadı' });
+        // Kendi teklifini tek taraflı "anlaştık" sayma — rakip onaylamalı
+        if (proposal.side === side) {
+            return res.status(400).json({ message: 'Kendi teklifinizi onaylayamazsınız — rakibin onayı gerekir' });
+        }
+
+        schedule.agreed = {
+            venueName: proposal.venueName || null,
+            courtId: proposal.courtId || null,
+            date: proposal.date,
+            timeFrom: proposal.timeFrom,
+            timeTo: proposal.timeTo,
+            proposalId: proposal.id,
+            agreedByUserId: req.userId,
+            agreedAt: new Date().toISOString(),
+        };
+
+        const updateData = { scheduleData: schedule };
+        if (proposal.courtId) updateData.courtId = proposal.courtId;
+
+        await prisma.tournamentMatch.update({ where: { id: matchId }, data: updateData });
+
+        // Her iki taraf + yaratıcıya bildir
+        const notifyIds = new Set([tournament.creatorId]);
+        const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+        for (const sideId of [match.p1Id, match.p2Id].filter(Boolean)) {
+            if (isTeamEngine) {
+                const team = await prisma.tournamentTeam.findUnique({ where: { id: sideId } }).catch(() => null);
+                if (team?.player1Id) notifyIds.add(team.player1Id);
+                if (team?.player2Id) notifyIds.add(team.player2Id);
+            } else {
+                notifyIds.add(sideId);
+            }
+        }
+        const place = [
+            schedule.agreed.date,
+            `${schedule.agreed.timeFrom}-${schedule.agreed.timeTo}`,
+            schedule.agreed.venueName,
+        ].filter(Boolean).join(' · ');
+        for (const uid of notifyIds) {
+            if (!uid) continue;
+            createNotification(
+                uid,
+                'TOURNAMENT_SCHEDULE_AGREED',
+                '✅ Maç yeri / zamanı anlaşıldı',
+                `${tournament.name}: ${place}`,
+                { tournamentId: id, matchId, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
+            emitToUser(uid, 'tournament:schedule_updated', { tournamentId: id, matchId, scheduleData: schedule });
+        }
+
+        res.json({ scheduleData: schedule });
+    } catch (e) { next(e); }
+};
+
+export const clearMatchScheduleAgreed = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+        if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadı' });
+
+        const side = await resolveUserMatchSide(tournament, match, req.userId);
+        if (!side) return res.status(403).json({ message: 'Yetkisiz' });
+
+        const schedule = normalizeSchedule(match.scheduleData);
+        schedule.agreed = null;
+        await prisma.tournamentMatch.update({ where: { id: matchId }, data: { scheduleData: schedule } });
+        res.json({ scheduleData: schedule });
+    } catch (e) { next(e); }
+};
+
