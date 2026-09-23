@@ -394,8 +394,17 @@ const starEmoji = (rating) => rating > 5 ? '⭐⭐⭐' : '⭐';
 
 // Returns sport alias if set, otherwise falls back to @username
 // Handles both the sender shape ({interests:[{alias}]}) and the participant snapshot shape ({alias})
-const senderAlias = (p) => p?.alias || p?.interests?.[0]?.alias || `${p?.username}`;
-const playerDisplayName = (p) => p?.alias || p?.interests?.[0]?.alias || p?.fullName || p?.username || '';
+// Spor dalı görünen adı: bu dalda alias varsa o (örn. tenis "Güzellik"), yoksa gerçek ad.
+// sub verilirse interests içinden o dalın alias'ı seçilir; verilmezse p.alias veya interests[0].
+const sportAliasOf = (p, sub) => {
+    if (!p) return '';
+    if (p.alias) return p.alias;
+    const ints = Array.isArray(p.interests) ? p.interests : [];
+    const matched = sub ? ints.find(i => i.subCategory === sub) : null;
+    return matched?.alias || ints[0]?.alias || '';
+};
+const senderAlias = (p, sub) => sportAliasOf(p, sub) || p?.fullName || p?.username || '';
+const playerDisplayName = (p, sub) => sportAliasOf(p, sub) || p?.fullName || p?.username || '';
 // Kullanıcı isteği: antrenör CV'sinde doğum tarihi artık gün/ay/yıl — GG.AA.YYYY olarak
 // gösterilir (bkz. CoachListing.personalBirthDate, eskiden sadece yıldı).
 const formatBirthDate = (dateStr) => {
@@ -940,16 +949,33 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // varsa, ilana nereden girilmiş olursa olsun (liste, arama, doğrudan dokunuş...) aynı
     // vurgu/çevirme dizisi tetiklenir. Tenis/padel (DOUBLE) VE voleybol/airsoft (takım slotu)
     // için ortak — isPartnerInvite iki türde de kullanılıyor, matchType'a göre ayrıştırılıyor.
+    // Kullanıcı isteği: davet edilen kişi kabul/reddetene kadar "Davet edildiğiniz takım"
+    // slotu yanıp sönsün — OWNER PENDING davetinin HEPSİ (partner/opp/unassigned/substitute
+    // /requestedSlot) sayılır; önceden sadece partner/opp/requestedSlot vardı, atanmamış veya
+    // yedek davetinde hiç vurgu çıkmıyordu.
     const myPendingSlotInvite = (localJoinRequests ?? (Array.isArray(item.joinRequests) ? item.joinRequests : []))
-        .find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING' && (jr.isPartnerInvite || jr.isOppTeamInvite || jr.requestedSlot));
+        .find(jr => jr.userId === myId && jr.initiatedBy === 'OWNER' && jr.status === 'PENDING');
     // useMemo: aşağıdaki highlightPulse animasyon efekti highlightSlot'u dependency olarak
     // kullanıyor — her render'da yeni bir {} referansı üretilirse (myPendingSlotInvite aynı
     // kalsa bile) animasyon loop'u gereksiz yere durup yeniden başlıyor, yanıp sönme kekeliyordu.
-    const derivedHighlightSlot = useMemo(() => (myPendingSlotInvite ? (
-        item.matchType === 'DOUBLE'
-            ? { doubleSlot: myPendingSlotInvite.isPartnerInvite ? 'partner' : myPendingSlotInvite.requestedSlot }
-            : { side: myPendingSlotInvite.isPartnerInvite ? 'my' : 'opp', slotIndex: Number.isInteger(myPendingSlotInvite.slotIndex) ? myPendingSlotInvite.slotIndex : null }
-    ) : null), [myPendingSlotInvite?.isPartnerInvite, myPendingSlotInvite?.isOppTeamInvite, myPendingSlotInvite?.requestedSlot, myPendingSlotInvite?.slotIndex, item.matchType]);
+    const derivedHighlightSlot = useMemo(() => {
+        if (!myPendingSlotInvite) return null;
+        if (item.matchType === 'DOUBLE') {
+            const doubleSlot = myPendingSlotInvite.isPartnerInvite
+                ? 'partner'
+                : (myPendingSlotInvite.requestedSlot === 'opp1' || myPendingSlotInvite.requestedSlot === 'opp2' || myPendingSlotInvite.requestedSlot === 'partner')
+                    ? myPendingSlotInvite.requestedSlot
+                    : (myPendingSlotInvite.isUnassignedInvite || myPendingSlotInvite.isSubstituteInvite ? 'unassigned' : 'opp1');
+            return { doubleSlot };
+        }
+        if (myPendingSlotInvite.isUnassignedInvite || myPendingSlotInvite.isSubstituteInvite) {
+            return { side: 'unassigned', slotIndex: null };
+        }
+        return {
+            side: myPendingSlotInvite.isPartnerInvite ? 'my' : 'opp',
+            slotIndex: Number.isInteger(myPendingSlotInvite.slotIndex) ? myPendingSlotInvite.slotIndex : null,
+        };
+    }, [myPendingSlotInvite?.isPartnerInvite, myPendingSlotInvite?.isOppTeamInvite, myPendingSlotInvite?.isUnassignedInvite, myPendingSlotInvite?.isSubstituteInvite, myPendingSlotInvite?.requestedSlot, myPendingSlotInvite?.slotIndex, item.matchType]);
     const highlightSlot = useMemo(() => highlightSlotFromNotif || derivedHighlightSlot, [highlightSlotFromNotif, derivedHighlightSlot]);
     const [localGender, setLocalGender] = useState(null); // {genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq}
     const [swapSlot, setSwapSlot] = useState(null); // 'partner'|'opp1'|'opp2' — seçili slot
@@ -2143,7 +2169,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
 
     // Çiftler: eşleşmiş bir çifti ya da partner arayan bireyseli ikili kart olarak render eder
     const renderRivalDuoCard = (p1, p2, solos, byUserId) => {
-        const nameOf = (jr) => jr?.user?.fullName || jr?.user?.username || '';
+        const nameOf = (jr) => playerDisplayName(jr?.user);
         const ratingOf = (jr) => jr?.user?.interests?.find(i => i.subCategory === sub)?.skillRating;
         const Half = ({ jr }) => (
             <View>
@@ -2649,16 +2675,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 )}
                                             </View>
                                         ) : highlighted ? (
-                                            // Kullanıcı raporu: bu boş forma için bekleyen bir davetim varsa
-                                            // (bildirimden tıklayınca ya da ilana kendim girince) yanıp sönen
-                                            // bir işaretle vurgulanması gerekiyordu — "highlighted" prop'u
-                                            // taşınıyordu ama burada hiç kullanılmadığı için görsel etki
-                                            // tamamen kayboluyordu. İsim/"Onay Bekleniyor" GÖSTERİLMİYOR
-                                            // (yukarıdaki yorumdaki kural korunuyor, slot dolu görünmemeli) —
-                                            // sadece hangi boş formanın kendisine ait olduğu yanıp söner.
+                                            // Kullanıcı isteği: davet edilen boş forma "Henüz katılan yok"
+                                            // yerine "Davet edildiğiniz takım" yazsın ve kabul/reddedilene
+                                            // kadar yanıp sönsün (highlightPulse).
                                             <Animated.View style={{ flexDirection:'row', alignItems:'center', gap:4, opacity: highlightPulse }}>
                                                 <Text style={{ fontSize:12 }}>👉</Text>
-                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800', flex:1 }}>{fallback}</Text>
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800' }} numberOfLines={1}>{t.invitedTeamSlotBlink || t.youAreInvitedHere}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:8 }} numberOfLines={1}>{fallback || t.noPlayersYet}</Text>
+                                                </View>
                                             </Animated.View>
                                         ) : (
                                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
@@ -2794,7 +2819,16 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 )}
                                             </View>
                                         ))}
-                                        {acceptedOthers.length === 0 && unassignedDoubleSlots.length === 0 && <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>}
+                                        {acceptedOthers.length === 0 && unassignedDoubleSlots.length === 0 && (
+                                            highlightSlot ? (
+                                                <Animated.View style={{ opacity: highlightPulse, alignItems:'center', paddingVertical:6 }}>
+                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{t.invitedTeamSlotBlink || t.youAreInvitedHere}</Text>
+                                                    <Text style={[det.emptyTxt, { marginTop:2 }]}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
+                                                </Animated.View>
+                                            ) : (
+                                                <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
+                                            )
+                                        )}
                                     </View>
                                 );
                             }
@@ -3054,15 +3088,27 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     </View>
                                 );
                             };
-                            const EmptyCell = () => (
-                                <View style={{ flexDirection:'row', alignItems:'center', gap:2, opacity:0.55 }}>
-                                    <View style={{ width:14, height:14, borderRadius:7, borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:8 }}>?</Text>
+                            const EmptyCell = ({ invited } = {}) => (
+                                invited ? (
+                                    <Animated.View style={{ flexDirection:'row', alignItems:'center', gap:2, opacity: highlightPulse }}>
+                                        <View style={{ width:14, height:14, borderRadius:7, borderWidth:1.5, borderColor: cfg.color, alignItems:'center', justifyContent:'center' }}>
+                                            <Text style={{ color: cfg.color, fontSize:8 }}>👉</Text>
+                                        </View>
+                                        <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', minHeight:0, borderColor: cfg.color+'60' }]}>
+                                            <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800' }} numberOfLines={1}>{t.invitedTeamSlotBlink || t.youAreInvitedHere}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:8 }} numberOfLines={1}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
+                                        </View>
+                                    </Animated.View>
+                                ) : (
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:2, opacity:0.55 }}>
+                                        <View style={{ width:14, height:14, borderRadius:7, borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
+                                            <Text style={{ color: colors.textMuted, fontSize:8 }}>?</Text>
+                                        </View>
+                                        <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', minHeight:0 }]}>
+                                            <Text style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>Bekleniyor</Text>
+                                        </View>
                                     </View>
-                                    <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', minHeight:0 }]}>
-                                        <Text style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>Bekleniyor</Text>
-                                    </View>
-                                </View>
+                                )
                             );
                             // Kullanıcı isteğiyle her slot SABİT bir pozisyon — "6. forma yazdım"
                             // gerçekten 6. sırada kalır, dizinin sonuna atlamaz. peoplePositional
@@ -3097,8 +3143,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         {slots.map((p, i) => {
                                             // Bildirimden ("...Rakip Takım'a davet etti") gelindiyse, davet edilen
                                             // boş slot yanıp sönen bir çerçeveyle vurgulanır (kullanıcı isteği:
-                                            // hangi forma davet edildiğini görsün).
-                                            const isHighlighted = !p && highlightSlot?.side === side && highlightSlot?.slotIndex === i;
+                                            // hangi forma davet edildiğini görsün). slotIndex yoksa (takım
+                                            // daveti) o taraftaki İLK boş forma yanıp söner.
+                                            const sideMatches = highlightSlot?.side === side;
+                                            const exactSlot = sideMatches && highlightSlot?.slotIndex === i;
+                                            const firstEmptyFallback = sideMatches && highlightSlot?.slotIndex == null
+                                                && !p && slots.findIndex(x => !x) === i;
+                                            const isHighlighted = !p && (exactSlot || firstEmptyFallback);
                                             return p ? (
                                                 <View key={p.id || `m-${i}`} style={{ marginBottom:3 }}><Cell p={p} side={side} allowRemove={allowRemove} /></View>
                                             ) : (
@@ -3109,8 +3160,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                             onInvite={(u) => inviteToTeamSlot(u, side, i)} />
                                                     ) : isHighlighted ? (
                                                         <Animated.View style={{ flexDirection:'row', alignItems:'center', gap:3, borderWidth:2, borderColor: cfg.color, borderRadius:8, padding:2, opacity: highlightPulse }}>
-                                                            <Text style={{ fontSize:12 }}>👉</Text>
-                                                            <View style={{ flex:1 }}><EmptyCell /></View>
+                                                            <View style={{ flex:1 }}><EmptyCell invited /></View>
                                                         </Animated.View>
                                                     ) : <EmptyCell />}
                                                 </View>
@@ -6744,7 +6794,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // match.senderSkillRating alanı olarak geliyor (bkz. kart üstündeki kurucu avatarı), o
     // yüzden burada normalize edilip senderTeam/participants'taki diğer oyuncularla aynı
     // şekilde okunabiliyor.
-    const playerLabel = (p) => p?.fullName || p?.username || '';
+    const playerLabel = (p) => playerDisplayName(p);
     const founderSidePlayers = [
         match.sender ? { ...match.sender, skillRating: match.senderSkillRating } : null,
         ...senderTeamArr,
@@ -16847,7 +16897,7 @@ const GENDER_EMOJI = { KADIN: '👩', ERKEK: '👨', MIX: '🤝' };
 // Turnuva sohbeti / maç yorumunda @username parçalarını vurgula.
 function renderMentionContent(content, mentionColor = '#4ade80') {
     const text = String(content || '');
-    const parts = text.split(/(@[A-Za-z0-9._]+)/g);
+    const parts = text.split(/(@[\p{L}\p{N}._]+)/gu);
     if (parts.length === 1) return text;
     return parts.map((part, i) => (
         part.startsWith('@')
@@ -17173,7 +17223,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             for (const p of rows) {
                 const u = p.user || p;
                 if (!u?.id || u.id === myId || !u.username) continue;
-                map.set(u.id, { id: u.id, username: u.username, fullName: u.fullName });
+                map.set(u.id, {
+                    id: u.id,
+                    username: u.username,
+                    fullName: u.fullName,
+                    alias: u.interests?.[0]?.alias || null,
+                });
             }
             setChatMentionUsers([...map.values()].sort((a, b) =>
                 String(a.username || '').localeCompare(String(b.username || ''), 'tr', { sensitivity: 'base' }),
@@ -17208,7 +17263,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         }
     };
 
-    const mentionQueryMatch = chatInput.match(/@([A-Za-z0-9._]*)$/);
+    const mentionQueryMatch = chatInput.match(/@([\p{L}\p{N}._]*)$/u);
     const mentionQuery = mentionQueryMatch ? mentionQueryMatch[1].toLowerCase() : null;
     // Sadece @ → herkes (kaydırarak); harf yazıldıkça daralır; alfabetik sırada.
     const mentionSuggestions = mentionQuery === null
@@ -17218,7 +17273,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 if (!mentionQuery) return true;
                 const un = String(u.username || '').toLowerCase();
                 const fn = String(u.fullName || '').toLowerCase();
-                return un.startsWith(mentionQuery) || un.includes(mentionQuery) || fn.includes(mentionQuery);
+                const al = String(u.alias || u.interests?.[0]?.alias || '').toLowerCase();
+                return un.startsWith(mentionQuery) || un.includes(mentionQuery) || fn.includes(mentionQuery) || (al && (al.startsWith(mentionQuery) || al.includes(mentionQuery)));
             })
             .slice()
             .sort((a, b) => {
@@ -17233,9 +17289,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             });
 
     const insertChatMention = (user) => {
-        const username = user?.username;
-        if (!username) return;
-        setChatInput(prev => prev.replace(/@([A-Za-z0-9._]*)$/, `@${username} `));
+        const tag = user?.alias || user?.username;
+        if (!tag) return;
+        setChatInput(prev => prev.replace(/@([\p{L}\p{N}._]*)$/u, `@${tag} `));
         requestAnimationFrame(() => chatInputRef.current?.focus());
     };
 
@@ -17477,7 +17533,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     // olarak render eder. p2 null ise p1 bireyseldir — slot 2'de davet/kabul/bekleme durumu gösterilir.
     const renderDuoCard = (p1, p2, solos, byUserId, isCreatorView, label) => {
         const regEnded = isRegEnded();
-        const nameOf = (p) => p?.manualName || p?.user?.fullName || p?.user?.username || '';
+        const nameOf = (p) => p?.manualName || playerDisplayName(p?.user);
         const ratingOf = (p) => p?.user?.interests?.[0]?.skillRating;
         const PlayerHalf = ({ p }) => (
             <View>
@@ -19615,16 +19671,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'800' }}>AS {i+1}</Text>
                                                 </View>
                                                 <View style={{ flex:1 }}>
-                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{playerDisplayName(r.user)}</Text>
                                                     <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                     {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti</Text>}
                                                 </View>
                                                 {r.cancelRequested && (
                                                     <View style={{ flexDirection:'row', gap:3 }}>
-                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${playerDisplayName(r.user)} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                                             <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
                                                         </TouchableOpacity>
-                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
+                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${playerDisplayName(r.user)} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
                                                             <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
                                                         </TouchableOpacity>
                                                     </View>
@@ -19646,16 +19702,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800' }}>YDK {i+1}</Text>
                                                     </View>
                                                     <View style={{ flex:1 }}>
-                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{playerDisplayName(r.user)}</Text>
                                                         <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                         {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti</Text>}
                                                     </View>
                                                     {r.cancelRequested && (
                                                         <View style={{ flexDirection:'row', gap:3 }}>
-                                                            <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                            <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${playerDisplayName(r.user)} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                                                 <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
                                                             </TouchableOpacity>
-                                                            <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
+                                                            <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${playerDisplayName(r.user)} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
                                                                 <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
                                                             </TouchableOpacity>
                                                         </View>
@@ -19676,7 +19732,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 <View key={r.userId || r.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < pendingList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
                                                     <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i+1}.</Text>
                                                     <View style={{ flex:1 }}>
-                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.manualName || r.user?.fullName || r.user?.username}</Text>
+                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.manualName || playerDisplayName(r.user)}</Text>
                                                         {r.manualName
                                                             ? <Text style={{ color:'#3b82f6', fontSize:10, fontWeight:'700' }}>✏️ Manuel</Text>
                                                             : <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
@@ -19690,7 +19746,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                                                 <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Kabul</Text>
                                                             </TouchableOpacity>
-                                                            <TouchableOpacity onPress={() => { setRejectReason(''); setRejectTarget({ userId: r.userId, name: r.user?.fullName || r.user?.username }); }} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
+                                                            <TouchableOpacity onPress={() => { setRejectReason(''); setRejectTarget({ userId: r.userId, name: playerDisplayName(r.user) }); }} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
                                                                 <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
                                                             </TouchableOpacity>
                                                         </View>
@@ -19706,7 +19762,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 <View key={r.userId || r.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < rejectedList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', opacity: 0.75 }}>
                                                     <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i+1}.</Text>
                                                     <View style={{ flex:1 }}>
-                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.manualName || r.user?.fullName || r.user?.username}</Text>
+                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.manualName || playerDisplayName(r.user)}</Text>
                                                         <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}</Text>
                                                     </View>
                                                     <View style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}>
@@ -19770,7 +19826,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 <Text style={{ color: colors.textMuted, fontSize:11, width:22 }}>{i+1}.</Text>
                                             )}
                                             <View style={{ flex:1 }}>
-                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.manualName || r.user?.fullName || r.user?.username}</Text>
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.manualName || playerDisplayName(r.user)}</Text>
                                                 {r.manualName
                                                     ? <Text style={{ color:'#3b82f6', fontSize:10, fontWeight:'700' }}>✏️ Manuel</Text>
                                                     : <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
@@ -19787,10 +19843,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 )}
                                                 {r.cancelRequested && (
                                                     <View style={{ flexDirection:'row', gap:3 }}>
-                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${r.user?.fullName || r.user?.username} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${playerDisplayName(r.user)} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                                             <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
                                                         </TouchableOpacity>
-                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${r.user?.fullName || r.user?.username} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
+                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${playerDisplayName(r.user)} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
                                                             <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
                                                         </TouchableOpacity>
                                                     </View>
@@ -19800,7 +19856,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
                                                             <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Kabul</Text>
                                                         </TouchableOpacity>
-                                                        <TouchableOpacity onPress={() => { setRejectReason(''); setRejectTarget({ userId: r.userId, name: r.user?.fullName || r.user?.username }); }} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
+                                                        <TouchableOpacity onPress={() => { setRejectReason(''); setRejectTarget({ userId: r.userId, name: playerDisplayName(r.user) }); }} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
                                                             <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
                                                         </TouchableOpacity>
                                                     </View>
@@ -19875,7 +19931,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'800' }}>AS {i+1}</Text>
                                                 </View>
                                                 <View style={{ flex:1 }}>
-                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{playerDisplayName(r.user)}</Text>
                                                     <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                 </View>
                                             </View>
@@ -19890,7 +19946,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800' }}>YDK {i+1}</Text>
                                                     </View>
                                                     <View style={{ flex:1 }}>
-                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{playerDisplayName(r.user)}</Text>
                                                         <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                     </View>
                                                 </View>
@@ -19925,7 +19981,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     {pending.map((r, i) => (
                                                         <View key={r.id || r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:3, borderBottomWidth: i < pending.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
                                                             <View style={{ flex:1 }}>
-                                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{r.user?.fullName || r.user?.username}</Text>
+                                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(r.user)}</Text>
                                                                 <Text style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                             </View>
                                                             <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>⏳ Bekliyor</Text>
@@ -19961,7 +20017,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 <Text style={{ color: labelColor, fontSize:9, fontWeight:'800' }}>{label}</Text>
                                             </View>
                                             <View style={{ flex:1 }}>
-                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{playerDisplayName(r.user)}</Text>
                                                 <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                             </View>
                                         </View>
@@ -20076,8 +20132,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             key={u.id}
                                             onPressIn={() => insertChatMention(u)}
                                             style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#334155' }}>
-                                            <Text style={{ color: '#4ade80', fontSize: 12, fontWeight: '800' }}>@{u.username}</Text>
-                                            {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize: 10 }}>{u.fullName}</Text>}
+                                            <Text style={{ color: '#4ade80', fontSize: 12, fontWeight: '800' }}>@{u.alias || u.username}</Text>
+                                            {!!(u.fullName || (u.alias && u.username)) && (
+                                                <Text style={{ color: colors.textMuted, fontSize: 10 }}>
+                                                    {u.alias ? (u.fullName || u.username) : u.fullName}
+                                                </Text>
+                                            )}
                                         </TouchableOpacity>
                                     ))}
                                 </ScrollView>
@@ -27457,7 +27517,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <TouchableOpacity onPress={() => setProfileUserId(r.userId)}>
                                                             {/* Kullanıcı isteği: hakemlik ücretli olduğu için sadece kullanıcı
                                                                 adı değil, gerçek isim soyisim de görünsün. */}
-                                                            <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{r.user?.fullName || r.user?.username}</Text>
+                                                            <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{playerDisplayName(r.user)}</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:4 }}>
@@ -29712,6 +29772,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 onChangeText={setMediaShareCaption}
                                                 multiline
                                                 maxLength={1000}
+                                                category={category}
+                                                subCategory={sub}
                                             />
                                             {/* Müzik + Konum butonları */}
                                             <View style={{ flexDirection: 'row', gap: 3, marginBottom: 12 }}>
@@ -30080,6 +30142,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     onChangeText={setNewPostText}
                                     multiline
                                     maxLength={1000}
+                                    category={category}
+                                    subCategory={sub}
                                 />
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
                                     <Text style={{ color: colors.textMuted, fontSize: 11 }}>{newPostText.length}/1000</Text>

@@ -13,15 +13,26 @@ const POST_INCLUDE = (userId) => ({
     _count: { select: { likes: true, comments: true } },
 });
 
-async function resolveMentionsFromContent(content, excludeUserId) {
-    const usernames = [...new Set(
-        [...String(content || '').matchAll(/@([A-Za-z0-9._]+)/g)].map(m => m[1].toLowerCase()),
+async function resolveMentionsFromContent(content, excludeUserId, { category, subCategory } = {}) {
+    const tags = [...new Set(
+        [...String(content || '').matchAll(/@([\p{L}\p{N}._]+)/gu)].map(m => m[1].toLowerCase()),
     )];
-    if (usernames.length === 0) return [];
+    if (tags.length === 0) return [];
     const users = await prisma.user.findMany({
         where: {
             id: { not: excludeUserId },
-            OR: usernames.map(u => ({ username: { equals: u, mode: 'insensitive' } })),
+            OR: [
+                ...tags.map(u => ({ username: { equals: u, mode: 'insensitive' } })),
+                ...(subCategory ? [{
+                    interests: {
+                        some: {
+                            subCategory,
+                            ...(category ? { category } : {}),
+                            OR: tags.map(u => ({ alias: { equals: u, mode: 'insensitive' } })),
+                        },
+                    },
+                }] : []),
+            ],
         },
         select: { id: true, username: true },
         take: 20,
@@ -102,7 +113,10 @@ export const createPost = async (req, res, next) => {
             }
         }
 
-        const mentions = await resolveMentionsFromContent(content, req.userId);
+        const mentions = await resolveMentionsFromContent(content, req.userId, {
+            category: primaryCategory,
+            subCategory: primarySubCategory,
+        });
 
         const post = await prisma.post.create({
             data: {

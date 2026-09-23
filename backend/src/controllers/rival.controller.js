@@ -331,9 +331,16 @@ async function enrichRivalWithRatings(rival) {
         })
         : [];
     const rivalIsDoubles = isDoublesFormat(rival);
-    const withTeamRating = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id
-        ? { ...p, skillRating: teamDisplayRating(teamInterests.find(i => i.userId === p.id), rival.subCategory, rivalIsDoubles) }
-        : p);
+    const withTeamRating = (arr) => (Array.isArray(arr) ? arr : []).map(p => {
+        if (!p?.id) return p;
+        const interest = teamInterests.find(i => i.userId === p.id);
+        return {
+            ...p,
+            skillRating: teamDisplayRating(interest, rival.subCategory, rivalIsDoubles),
+            // Canlı spor dalı takma adı — snapshot eski/boş olsa bile bu daldaki alias görünsün.
+            alias: interest?.alias ?? p.alias ?? null,
+        };
+    });
     const senderInterestRaw = teamInterests.find(i => i.userId === rival.senderId);
     const senderInterest = senderInterestRaw
         ? { ...senderInterestRaw, skillRating: teamDisplayRating(senderInterestRaw, rival.subCategory, rivalIsDoubles) }
@@ -1296,9 +1303,15 @@ export const getRivalById = async (req, res, next) => {
         // Tenis/padel'de tekli/çiftli AYRI puan (bkz. teamDisplayRating) — bu ilanın FORMATINA
         // göre doğru puan gösterilir, düz (format'tan bağımsız) skillRating mirror'ı DEĞİL.
         const rivalIsDoubles = isDoublesFormat(rival);
-        const withTeamRating = (arr) => (Array.isArray(arr) ? arr : []).map(p => p?.id
-            ? { ...p, skillRating: teamDisplayRating(teamInterests.find(i => i.userId === p.id), rival.subCategory, rivalIsDoubles) }
-            : p);
+        const withTeamRating = (arr) => (Array.isArray(arr) ? arr : []).map(p => {
+            if (!p?.id) return p;
+            const interest = teamInterests.find(i => i.userId === p.id);
+            return {
+                ...p,
+                skillRating: teamDisplayRating(interest, rival.subCategory, rivalIsDoubles),
+                alias: interest?.alias ?? p.alias ?? null,
+            };
+        });
         const senderInterestRaw = teamInterests.find(i => i.userId === rival.senderId);
         const senderInterest = senderInterestRaw
             ? { ...senderInterestRaw, skillRating: teamDisplayRating(senderInterestRaw, rival.subCategory, rivalIsDoubles) }
@@ -2993,15 +3006,22 @@ export const getRivalRequests = async (req, res, next) => {
             ? await prisma.userInterest.findMany({
                 where: { userId: { in: teamUserIds } },
                 select: {
-                    userId: true, subCategory: true, skillRating: true,
+                    userId: true, subCategory: true, alias: true, skillRating: true,
                     singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true,
                 },
             })
             : [];
         // matchType formatına (tekli/çiftli) göre doğru puan — bkz. teamDisplayRating yorumu.
-        const withTeamRating = (arr, subCategory, isDoubles) => (Array.isArray(arr) ? arr : []).map(p => p?.id
-            ? { ...p, skillRating: teamDisplayRating(teamInterests.find(i => i.userId === p.id && i.subCategory === subCategory), subCategory, isDoubles) }
-            : p);
+        // alias da canlı UserInterest'ten gelir; kadro JSON snapshot'ında eski/boş olabilir.
+        const withTeamRating = (arr, subCategory, isDoubles) => (Array.isArray(arr) ? arr : []).map(p => {
+            if (!p?.id) return p;
+            const interest = teamInterests.find(i => i.userId === p.id && i.subCategory === subCategory);
+            return {
+                ...p,
+                skillRating: teamDisplayRating(interest, subCategory, isDoubles),
+                alias: interest?.alias ?? p.alias ?? null,
+            };
+        });
         // sender/joinRequests.user.interests[0] de aynı şekilde format-doğru puana çevrilir —
         // kullanıcı raporu: yeni oluşturulan bir ilanın kartında/detayında ilan sahibinin kendi
         // puanı hâlâ 0 görünüyordu çünkü bu iki alan düz (aynalanmış, format'tan bağımsız)
@@ -3327,6 +3347,11 @@ export const sendJoinRequest = async (req, res, next) => {
         }
 
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: SENDER_SELECT });
+        const meInterest = await prisma.userInterest.findFirst({
+            where: { userId: req.userId, subCategory: request.subCategory },
+            select: { alias: true },
+        });
+        const meDisplayName = meInterest?.alias || me?.fullName || me?.username || 'Biri';
 
         // Push updated rival data (with new join request) to everyone viewing this listing —
         // other solo joiners need to see this in real-time too (çiftler takım kartları).
@@ -3339,8 +3364,8 @@ export const sendJoinRequest = async (req, res, next) => {
                 // (kullanıcı raporu: "bir anda 3.40 oldu, 20-30 saniye sonra 1.26'ya döndü" —
                 // bu uç nokta socket'le CANLI yayınlandığı için (ör. bir demo bot katılım
                 // isteği gönderince) hata anlık ama görünür oluyordu).
-                sender: { select: { ...SENDER_SELECT, interests: { where: { category: request.category, subCategory: request.subCategory }, select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true } } } },
-                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: request.category, subCategory: request.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true, singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true } } } } } },
+                sender: { select: { ...SENDER_SELECT, interests: { where: { category: request.category, subCategory: request.subCategory }, select: { level: true, skillRating: true, totalPoints: true, wins: true, losses: true, assessmentCompleted: true, alias: true } } } },
+                joinRequests: { where: { status: { in: ['PENDING', 'AWAITING_JOINER_CONFIRM'] } }, orderBy: [{ initiatedBy: 'desc' }, { createdAt: 'asc' }], include: { user: { select: { ...SENDER_SELECT, interests: { where: { category: request.category, subCategory: request.subCategory }, select: { category: true, subCategory: true, level: true, skillRating: true, totalPoints: true, assessmentCompleted: true, alias: true, singlesRating: true, doublesRating: true, singlesSeedRating: true, doublesSeedRating: true, singlesRatingOffset: true, doublesRatingOffset: true } } } } } },
             },
         });
         // UTR-tipi dallarda (tenis/padel) participants/senderTeam/unassignedPlayers içindeki
@@ -3361,10 +3386,10 @@ export const sendJoinRequest = async (req, res, next) => {
             'RIVAL_JOIN_REQUEST',
             isRefereeAd ? '🟨 Yeni Hakemlik Başvurusu' : (teamAvgForNotif != null ? '📥 Bir Takımdan Başvuru' : '📥 Yeni Katılım İsteği'),
             isRefereeAd
-                ? `${me?.fullName || me?.username || 'Biri'}, "${subCategoryTR(request.subCategory)}" maçınız için hakemlik başvurusu gönderdi.`
+                ? `${meDisplayName}, "${subCategoryTR(request.subCategory)}" maçınız için hakemlik başvurusu gönderdi.`
                 : teamAvgForNotif != null
-                    ? `${me?.fullName || me?.username || 'Biri'} takımıyla (Ort ${teamAvgForNotif.toFixed(2)}★) "${subCategoryTR(request.subCategory)}" ilanınıza başvurdu.`
-                    : `${me?.fullName || me?.username || 'Biri'}, "${subCategoryTR(request.subCategory)}" ilanınıza katılmak istiyor.`,
+                    ? `${meDisplayName} takımıyla (Ort ${teamAvgForNotif.toFixed(2)}★) "${subCategoryTR(request.subCategory)}" ilanınıza başvurdu.`
+                    : `${meDisplayName}, "${subCategoryTR(request.subCategory)}" ilanınıza katılmak istiyor.`,
             // Hakem başvurusunda bildirim, bağlı bir maç varsa asıl maça yönlendirir — başvurular
             // orada "Hakem Başvuruları" bölümünde görünür. Bağımsız hakem ilanıysa (eski akış)
             // ilanın kendisine, Hakemler sekmesi üzerinden.
@@ -3380,8 +3405,8 @@ export const sendJoinRequest = async (req, res, next) => {
                 partnerId, 'MATCH_CONFIRMED',
                 mutual ? '🤝 Çift Eşleşmesi Tamamlandı' : '🤝 Çift Daveti',
                 mutual
-                    ? `${me?.username || 'Biri'} ile çift olarak eşleştiniz, ilan sahibinin onayı bekleniyor.`
-                    : `${me?.username || 'Biri'} sizi bir ${subCategoryTR(request.subCategory)} ilanında çift partneri olarak seçti. Aynı ilana onu partner göstererek başvurursanız çift olarak eşleşirsiniz.`,
+                    ? `${meDisplayName} ile çift olarak eşleştiniz, ilan sahibinin onayı bekleniyor.`
+                    : `${meDisplayName} sizi bir ${subCategoryTR(request.subCategory)} ilanında çift partneri olarak seçti. Aynı ilana onu partner göstererek başvurursanız çift olarak eşleşirsiniz.`,
                 { rivalId: id, subCategory: request.subCategory }
             ).catch(() => {});
         }

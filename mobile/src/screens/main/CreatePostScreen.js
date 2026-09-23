@@ -308,6 +308,8 @@ export default function CreatePostScreen({ navigation }) {
                         placeholderTextColor={colors.textMuted}
                         multiline
                         maxLength={2200}
+                        category={branch.isGeneral ? undefined : branch.category}
+                        subCategory={branch.isGeneral ? undefined : branch.subCategory}
                     />
                     <Text style={s.charCount}>{content.length}/2200</Text>
 

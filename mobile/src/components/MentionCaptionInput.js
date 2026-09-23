@@ -3,8 +3,8 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator 
 import api from '../services/api';
 import colors from '../theme/colors';
 
-const MENTION_SPLIT = /(@[A-Za-z0-9._]+)/g;
-const MENTION_TAIL = /@([A-Za-z0-9._]*)$/;
+const MENTION_SPLIT = /(@[\p{L}\p{N}._]+)/gu;
+const MENTION_TAIL = /@([\p{L}\p{N}._]*)$/u;
 
 export function renderMentionText(content, mentionColor = '#a78bfa') {
     const text = String(content || '');
@@ -17,8 +17,8 @@ export function renderMentionText(content, mentionColor = '#a78bfa') {
     ));
 }
 
-export function insertMention(text, username) {
-    return String(text || '').replace(MENTION_TAIL, `@${username} `);
+export function insertMention(text, tag) {
+    return String(text || '').replace(MENTION_TAIL, `@${tag} `);
 }
 
 export function getMentionQuery(text) {
@@ -29,6 +29,7 @@ export function getMentionQuery(text) {
 /**
  * Instagram tarzı yazı alanı: @ yazınca kullanıcı önerisi çıkar.
  * value/onChangeText dışarıda tutulur (caption state).
+ * category/subCategory verilirse o dalın spor alias'ı aranır ve etiketlenir.
  */
 export default function MentionCaptionInput({
     value,
@@ -39,6 +40,8 @@ export default function MentionCaptionInput({
     multiline = true,
     maxLength = 2000,
     inputRef,
+    category,
+    subCategory,
 }) {
     const [suggestions, setSuggestions] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -55,38 +58,38 @@ export default function MentionCaptionInput({
         timer.current = setTimeout(async () => {
             setLoading(true);
             try {
+                const sportQs = [
+                    subCategory ? `subCategory=${encodeURIComponent(subCategory)}` : '',
+                    category ? `category=${encodeURIComponent(category)}` : '',
+                ].filter(Boolean).join('&');
+                const mapUser = (u) => ({
+                    id: u.id,
+                    username: u.username,
+                    fullName: u.fullName,
+                    alias: u.interests?.[0]?.alias || null,
+                });
                 if (query.length === 0) {
                     const { data } = await api.get('/friends');
                     const rows = Array.isArray(data) ? data : [];
-                    setSuggestions(rows.slice(0, 8).map(u => ({
-                        id: u.id,
-                        username: u.username,
-                        fullName: u.fullName,
-                    })).filter(u => u.id && u.username));
+                    setSuggestions(rows.slice(0, 8).map(mapUser).filter(u => u.id && u.username));
                 } else if (query.length >= 1) {
                     if (query.length < 2) {
                         const { data } = await api.get('/friends');
                         const rows = Array.isArray(data) ? data : [];
                         const ql = query.toLowerCase();
                         setSuggestions(rows
-                            .map(u => ({
-                                id: u.id,
-                                username: u.username,
-                                fullName: u.fullName,
-                            }))
+                            .map(mapUser)
                             .filter(u => u.id && u.username && (
                                 String(u.username).toLowerCase().includes(ql)
                                 || String(u.fullName || '').toLowerCase().includes(ql)
+                                || String(u.alias || '').toLowerCase().includes(ql)
                             ))
                             .slice(0, 8));
                     } else {
-                        const { data } = await api.get(`/users/search?q=${encodeURIComponent(query)}`);
+                        const qs = `q=${encodeURIComponent(query)}${sportQs ? `&${sportQs}` : ''}`;
+                        const { data } = await api.get(`/users/search?${qs}`);
                         const rows = Array.isArray(data) ? data : [];
-                        setSuggestions(rows.slice(0, 8).map(u => ({
-                            id: u.id,
-                            username: u.username,
-                            fullName: u.fullName,
-                        })).filter(u => u.id && u.username));
+                        setSuggestions(rows.slice(0, 8).map(mapUser).filter(u => u.id && u.username));
                     }
                 }
             } catch {
@@ -96,10 +99,10 @@ export default function MentionCaptionInput({
             }
         }, 250);
         return () => { if (timer.current) clearTimeout(timer.current); };
-    }, [query]);
+    }, [query, category, subCategory]);
 
     const pick = (user) => {
-        onChangeText(insertMention(value, user.username));
+        onChangeText(insertMention(value, user.alias || user.username));
         setSuggestions([]);
     };
 
@@ -129,8 +132,12 @@ export default function MentionCaptionInput({
                             key={u.id}
                             onPress={() => pick(u)}
                             style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#334155' }}>
-                            <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '800' }}>@{u.username}</Text>
-                            {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize: 10 }}>{u.fullName}</Text>}
+                            <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '800' }}>@{u.alias || u.username}</Text>
+                            {!!(u.fullName || (u.alias && u.username)) && (
+                                <Text style={{ color: colors.textMuted, fontSize: 10 }}>
+                                    {u.alias ? (u.fullName || u.username) : u.fullName}
+                                </Text>
+                            )}
                         </TouchableOpacity>
                     ))}
                 </ScrollView>

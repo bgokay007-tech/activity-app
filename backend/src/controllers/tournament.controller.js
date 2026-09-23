@@ -22,6 +22,13 @@ import {
     applyByeToStandings,
 } from '../utils/tournamentEngines.js';
 
+/** Bu spor dalındaki görünen ad: UserInterest.alias varsa o, yoksa fullName/username. */
+function sportDisplayName(userOrPlayer, interest) {
+    const alias = interest?.alias ?? userOrPlayer?.alias ?? null;
+    if (alias) return alias;
+    return userOrPlayer?.fullName || userOrPlayer?.username || 'Oyuncu';
+}
+
 // UTR dalları (tenis/padel/badminton/masa tenisi): tekli ve çiftler anketleri BAĞIMSIZ.
 // Genel "bu dalı hiç kullanabilir miyim" kapısı İKİSİNDEN BİRİ tamamlanmışsa açılır;
 // format-özel kapı (ilan aç/katıl) matchType'a göre ayrı kontrol edilir.
@@ -106,8 +113,8 @@ function randomMatches(players, tournamentId, matchesPerPlayer) {
         }
         roundPairs.forEach((pair, idx) => result.push({
             tournamentId, round, phase: 'GROUP', matchIndex: idx,
-            p1Id: pair.p1.id, p1Name: pair.p1.fullName || pair.p1.username,
-            p2Id: pair.p2.id, p2Name: pair.p2.fullName || pair.p2.username,
+            p1Id: pair.p1.id, p1Name: sportDisplayName(pair.p1),
+            p2Id: pair.p2.id, p2Name: sportDisplayName(pair.p2),
             status: 'PENDING',
         }));
     }
@@ -139,8 +146,8 @@ function seededMatches(players, tournamentId, matchesPerPlayer) {
         }
         roundPairs.forEach((pair, idx) => result.push({
             tournamentId, round, phase: 'GROUP', matchIndex: idx,
-            p1Id: pair.p1.id, p1Name: pair.p1.fullName || pair.p1.username,
-            p2Id: pair.p2.id, p2Name: pair.p2.fullName || pair.p2.username,
+            p1Id: pair.p1.id, p1Name: sportDisplayName(pair.p1),
+            p2Id: pair.p2.id, p2Name: sportDisplayName(pair.p2),
             status: 'PENDING',
         }));
     }
@@ -183,8 +190,8 @@ function eloBasedMatches(players, tournamentId, matchesPerPlayer) {
         roundPairs.forEach((pair, idx) => {
             result.push({
                 tournamentId, round, phase: 'GROUP', matchIndex: idx,
-                p1Id: pair.p1.id, p1Name: pair.p1.fullName || pair.p1.username,
-                p2Id: pair.p2.id, p2Name: pair.p2.fullName || pair.p2.username,
+                p1Id: pair.p1.id, p1Name: sportDisplayName(pair.p1),
+                p2Id: pair.p2.id, p2Name: sportDisplayName(pair.p2),
                 status: 'PENDING',
             });
         });
@@ -208,8 +215,8 @@ function singleElimMatches(players, tournamentId, startRound = 1, phase = 'PLAYO
         const real = p1 || p2;
         all.push({
             tournamentId, round: startRound, phase, matchIndex: i,
-            p1Id:   isBye ? null : p1?.id,   p1Name: isBye ? null : (p1?.fullName || p1?.username),
-            p2Id:   isBye ? null : p2?.id,   p2Name: isBye ? null : (p2?.fullName || p2?.username),
+            p1Id:   isBye ? null : p1?.id,   p1Name: isBye ? null : sportDisplayName(p1),
+            p2Id:   isBye ? null : p2?.id,   p2Name: isBye ? null : sportDisplayName(p2),
             status:   isBye ? 'BYE' : 'PENDING',
             winnerId: isBye ? real?.id : null,
         });
@@ -306,7 +313,7 @@ function compareStandingsCore(a, b, tournamentType) {
 function computeStandings(players, matches, tournamentType, tournamentId) {
     const stats = {};
     for (const p of players) {
-        stats[p.id] = { userId: p.id, name: p.fullName || p.username, played: 0, won: 0, lost: 0, setsWon: 0, setsLost: 0, gamesWon: 0, gamesLost: 0, points: 0 };
+        stats[p.id] = { userId: p.id, name: sportDisplayName(p), played: 0, won: 0, lost: 0, setsWon: 0, setsLost: 0, gamesWon: 0, gamesLost: 0, points: 0 };
     }
     for (const m of matches) {
         if ((m.status !== 'COMPLETED' && m.status !== 'FORFEIT') || !m.score || m.phase !== 'GROUP') continue;
@@ -441,9 +448,9 @@ function fullRoundRobinByElo(teams, tournamentId, baseDate) {
                 phase: 'GROUP',
                 matchIndex: idx,
                 p1Id: pair.a.id,
-                p1Name: pair.a.fullName || pair.a.username,
+                p1Name: sportDisplayName(pair.a),
                 p2Id: pair.b.id,
-                p2Name: pair.b.fullName || pair.b.username,
+                p2Name: sportDisplayName(pair.b),
                 status: 'PENDING',
                 deadline,
             });
@@ -468,17 +475,17 @@ async function createAmericanoRoundMatches(tournament, players, round, history, 
         teamCreates.push({
             tournamentId: tournament.id,
             player1Id: a[0].id,
-            player1Name: a[0].fullName || a[0].username,
+            player1Name: sportDisplayName(a[0]),
             player2Id: a[1].id,
-            player2Name: a[1].fullName || a[1].username,
+            player2Name: sportDisplayName(a[1]),
             avgRating: avg(a),
         });
         teamCreates.push({
             tournamentId: tournament.id,
             player1Id: b[0].id,
-            player1Name: b[0].fullName || b[0].username,
+            player1Name: sportDisplayName(b[0]),
             player2Id: b[1].id,
-            player2Name: b[1].fullName || b[1].username,
+            player2Name: sportDisplayName(b[1]),
             avgRating: avg(b),
         });
     }
@@ -559,6 +566,7 @@ async function getCurrentPlayerRatings(tournament, userIds) {
         id: p.userId,
         fullName: p.user.fullName || null,
         username: p.user.username || null,
+        alias: p.user.interests?.[0]?.alias || null,
         skillRating: getDisplayRating(p.user.interests?.[0], tournament.subCategory, isDoubles),
     }));
 }
@@ -612,9 +620,9 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
         phase: 'GROUP',
         matchIndex: idx,
         p1Id: pair.p1.id,
-        p1Name: pair.p1.fullName || pair.p1.username,
+        p1Name: sportDisplayName(pair.p1),
         p2Id: pair.p2.id,
-        p2Name: pair.p2.fullName || pair.p2.username,
+        p2Name: sportDisplayName(pair.p2),
         status: 'PENDING',
         deadline,
     }));
@@ -659,7 +667,7 @@ function pairSoloPlayers(solo, avoidSameGenderFemale, random = false) {
 async function formTeamsForTournament(tournament, acceptedList, random = false) {
     const byUserId = new Map(acceptedList.filter(p => p.userId).map(p => [p.userId, p]));
     const ratingOf = (p) => p.user?.interests?.[0]?.skillRating || 0;
-    const nameOf   = (p) => p.user?.fullName || p.user?.username || 'Oyuncu';
+    const nameOf   = (p) => sportDisplayName(p.user, p.user?.interests?.[0]);
     const genderOf = (p) => p.user?.gender || null;
     const orderOf  = (p) => (p.acceptedAt || p.createdAt)?.getTime() ?? Infinity;
     const paired = new Set();
@@ -1216,7 +1224,7 @@ export const joinTournament = async (req, res, next) => {
                         id: true, username: true, fullName: true, avatar: true,
                         interests: {
                             where: { category: tournament.category, subCategory: tournament.subCategory },
-                            select: { skillRating: true, level: true, assessmentCompleted: true },
+                            select: { skillRating: true, level: true, assessmentCompleted: true, alias: true },
                         },
                     },
                 },
@@ -1224,11 +1232,12 @@ export const joinTournament = async (req, res, next) => {
         });
 
         emitToUser(tournament.creatorId, 'tournament:join_requested', { tournamentId: id, participant });
+        const joinDisplayName = sportDisplayName(participant.user, participant.user?.interests?.[0]);
         createNotification(
             tournament.creatorId,
             'TOURNAMENT_JOIN_REQUEST',
             '📬 Katılım İsteği',
-            `${participant.user?.fullName || participant.user?.username} "${tournament.name}" turnuvasına katılmak istiyor.`,
+            `${joinDisplayName} "${tournament.name}" turnuvasına katılmak istiyor.`,
             { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
         ).catch(() => {});
 
@@ -1244,7 +1253,7 @@ export const joinTournament = async (req, res, next) => {
                 mutual ? '🤝 Çift Eşleşmesi Tamamlandı' : '🤝 Çift Daveti',
                 mutual
                     ? `"${tournament.name}" turnuvasında çift olarak eşleştiniz, organizatör onayı bekleniyor.`
-                    : `${participant.user?.fullName || participant.user?.username} sizi "${tournament.name}" turnuvasında çift partneri olarak seçti. Aynı turnuvaya onu partner göstererek başvurursanız çift olarak eşleşirsiniz.`,
+                    : `${joinDisplayName} sizi "${tournament.name}" turnuvasında çift partneri olarak seçti. Aynı turnuvaya onu partner göstererek başvurursanız çift olarak eşleşirsiniz.`,
                 { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
             ).catch(() => {});
         }
@@ -1329,7 +1338,7 @@ export const setTournamentPartner = async (req, res, next) => {
                         id: true, username: true, fullName: true, avatar: true,
                         interests: {
                             where: { category: tournament.category, subCategory: tournament.subCategory },
-                            select: { skillRating: true, level: true, assessmentCompleted: true },
+                            select: { skillRating: true, level: true, assessmentCompleted: true, alias: true },
                         },
                     },
                 },
@@ -1341,11 +1350,12 @@ export const setTournamentPartner = async (req, res, next) => {
                 where: { tournamentId_userId: { tournamentId: id, userId: partnerId } },
             });
             const mutual = partnerRow?.partnerId === req.userId;
+            const partnerDisplayName = sportDisplayName(updated.user, updated.user?.interests?.[0]);
             createNotification(
                 partnerId, 'TOURNAMENT_JOIN', mutual ? '🤝 Çift Eşleşmesi Tamamlandı' : '🤝 Çift Daveti',
                 mutual
                     ? `"${tournament.name}" turnuvasında çift olarak eşleştiniz.`
-                    : `${updated.user?.fullName || updated.user?.username} sizi "${tournament.name}" turnuvasında çift partneri olarak seçti. Onu partner göstererek seçerseniz çift olarak eşleşirsiniz.`,
+                    : `${partnerDisplayName} sizi "${tournament.name}" turnuvasında çift partneri olarak seçti. Onu partner göstererek seçerseniz çift olarak eşleşirsiniz.`,
                 { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
             ).catch(() => {});
             emitToUser(partnerId, 'tournament:partner_request', { tournamentId: id, participant: updated, mutual });
@@ -1373,7 +1383,7 @@ export const getJoinRequests = async (req, res, next) => {
                         id: true, username: true, fullName: true, avatar: true,
                         interests: {
                             where: { category: tournament.category, subCategory: tournament.subCategory },
-                            select: { skillRating: true, level: true, assessmentCompleted: true },
+                            select: { skillRating: true, level: true, assessmentCompleted: true, alias: true },
                         },
                     },
                 },
@@ -1407,7 +1417,7 @@ export const getParticipants = async (req, res, next) => {
                         id: true, username: true, fullName: true, avatar: true,
                         interests: {
                             where: { category: tournament.category, subCategory: tournament.subCategory },
-                            select: { skillRating: true, level: true, assessmentCompleted: true },
+                            select: { skillRating: true, level: true, assessmentCompleted: true, alias: true },
                         },
                     },
                 },
@@ -1923,6 +1933,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         id: p.userId || p.id,
         fullName: p.userId ? (p.user?.fullName || null) : p.manualName,
         username: p.userId ? (p.user?.username || null) : p.manualName,
+        alias: p.userId ? (p.user?.interests?.[0]?.alias || null) : null,
         skillRating: p.userId ? getDisplayRating(p.user?.interests?.[0], tournament.subCategory, isDoublesTournament) : 0,
     }));
 
@@ -2213,6 +2224,7 @@ export const rematchTournament = async (req, res, next) => {
             id: p.userId || p.id,
             fullName: p.userId ? (p.user?.fullName || null) : p.manualName,
             username: p.userId ? (p.user?.username || null) : p.manualName,
+            alias: p.userId ? (p.user?.interests?.[0]?.alias || null) : null,
             skillRating: p.userId ? getDisplayRating(p.user?.interests?.[0], tournament.subCategory, false) : 0,
         }));
 
@@ -2518,20 +2530,15 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
 
             if (!preGenerated && maxRound < matchesPerPlayer && !existingPlayoff && !nextRoundAlreadyExists) {
                 if (tournament.type === '5') {
-                    const players = tournament.participants.map(p => ({
-                        id: p.userId, fullName: p.user?.fullName, username: p.user?.username, skillRating: 0,
-                    }));
+                    const playerIds = tournament.participants.map(p => p.userId).filter(Boolean);
+                    const players = await getCurrentPlayerRatings(tournament, playerIds);
                     const nextRoundMatches = await generateNextSwissRound(tournament, players, maxRound + 1, allGroupMatches);
                     if (nextRoundMatches.length > 0) {
                         await prisma.tournamentMatch.createMany({ data: nextRoundMatches });
                     }
                 } else if (tournament.type === '7') {
-                    const players = tournament.participants.map(p => ({
-                        id: p.userId,
-                        fullName: p.user?.fullName,
-                        username: p.user?.username,
-                        skillRating: 0,
-                    })).filter(p => p.id);
+                    const playerIds = tournament.participants.map(p => p.userId).filter(Boolean);
+                    const players = (await getCurrentPlayerRatings(tournament, playerIds)).filter(p => p.id);
                     const history = bracketMeta.americano || { partners: [], opponents: [], sitOutLog: [] };
                     const { matches: nextMatches, history: nextHistory } = await createAmericanoRoundMatches(
                         tournament, players, maxRound + 1, history, tournamentBaseDate(tournament),
@@ -3433,16 +3440,27 @@ export const sendTournamentChatMessage = async (req, res, next) => {
             emitToUser(uid, 'tournament:chat_message', { tournamentId: id, message });
         }
 
-        // @username etiketleri — sessize alınmış olsa bile etiketlenene özel bildirim gider.
-        const mentionUsernames = [...new Set(
-            [...String(message.content).matchAll(/@([A-Za-z0-9._]+)/g)].map(m => m[1].toLowerCase()),
+        // @username veya bu daldaki spor alias etiketleri — sessize alınmış olsa bile etiketlenene özel bildirim gider.
+        const mentionTags = [...new Set(
+            [...String(message.content).matchAll(/@([\p{L}\p{N}._]+)/gu)].map(m => m[1].toLowerCase()),
         )];
         let mentionedIds = new Set();
-        if (mentionUsernames.length > 0) {
+        if (mentionTags.length > 0) {
             const mentionUsers = await prisma.user.findMany({
                 where: {
                     id: { in: [...recipientIds] },
-                    OR: mentionUsernames.map(u => ({ username: { equals: u, mode: 'insensitive' } })),
+                    OR: [
+                        ...mentionTags.map(u => ({ username: { equals: u, mode: 'insensitive' } })),
+                        {
+                            interests: {
+                                some: {
+                                    subCategory: tournament.subCategory,
+                                    ...(tournament.category ? { category: tournament.category } : {}),
+                                    OR: mentionTags.map(u => ({ alias: { equals: u, mode: 'insensitive' } })),
+                                },
+                            },
+                        },
+                    ],
                 },
                 select: { id: true },
             });
@@ -3460,7 +3478,14 @@ export const sendTournamentChatMessage = async (req, res, next) => {
                 });
                 muted = new Set(rows.map(r => r.userId));
             } catch { /* tercih tablosu yoksa herkese bildir */ }
-            const senderName = message.sender?.fullName || message.sender?.username || '';
+            const senderInterest = await prisma.userInterest.findFirst({
+                where: { userId: req.userId, subCategory: tournament.subCategory },
+                select: { alias: true },
+            });
+            const senderName = sportDisplayName(
+                { ...message.sender, alias: senderInterest?.alias },
+                senderInterest,
+            );
             for (const userId of recipientIds) {
                 const isMentioned = mentionedIds.has(userId);
                 if (!isMentioned && muted.has(userId)) continue;
