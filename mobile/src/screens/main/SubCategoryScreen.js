@@ -3807,48 +3807,47 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         )}
                         {isOwner && isRefereeAd ? null : isOwner ? (
                             <>
-                                {/* Oyuncu Davet Et + Paylaş + Düzenle dar; İptal Et aynı satırda en sağda.
-                                    Aralarında gap:3; yükseklik paddingVertical 6. */}
+                                {/* Kullanıcı isteği: Oyuncu Davet Et / Paylaş / Düzenle / İptal Et
+                                    diğer kullanıcı satırı gibi büyük (joinBtn/cancelBtn minHeight)
+                                    ve TEK satırda flex:1. */}
                                 {!isRefereeAd && (
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 3 }}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 1, minWidth: 0 }}>
-                                            {!isFull && (
-                                                <TouchableOpacity
-                                                    style={[s.joinBtn, { flex: 0, flexShrink: 1, minHeight: 0, backgroundColor: cfg.color + '20', borderWidth:1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), paddingHorizontal: moderateScale(8) }]}
-                                                    onPress={() => setInviteModalVisible(true)}
-                                                >
-                                                    <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.inviteBtn}</Text>
-                                                </TouchableOpacity>
-                                            )}
+                                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
+                                        {!isFull && (
                                             <TouchableOpacity
-                                                style={[s.cancelBtn, { flex: 0, flexShrink: 1, minHeight: 0, borderRadius: moderateScale(8), paddingVertical: moderateScale(6), paddingHorizontal: moderateScale(8) }]}
-                                                onPress={() => shareRival(item, t)}
+                                                style={[s.joinBtn, { flex: 1, backgroundColor: cfg.color + '20', borderWidth: 1, borderColor: cfg.color + '50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                                onPress={() => setInviteModalVisible(true)}
                                             >
-                                                <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.shareBtn || '📤 Paylaş'}</Text>
+                                                <Text style={[s.joinBtnText, { color: cfg.color, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.inviteBtn}</Text>
                                             </TouchableOpacity>
-                                            <TouchableOpacity
-                                                style={[s.cancelBtn, { flex: 0, flexShrink: 1, minHeight: 0, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), paddingHorizontal: moderateScale(8) }]}
-                                                onPress={() => { onClose(); setTimeout(onEdit, 300); }}
-                                            >
-                                                <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>✏️ Düzenle</Text>
-                                            </TouchableOpacity>
-                                        </View>
+                                        )}
                                         <TouchableOpacity
-                                            style={[s.cancelBtn, { flex: 0, flexShrink: 0, minHeight: 0, marginLeft: 'auto', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), paddingHorizontal: moderateScale(8) }]}
+                                            style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                            onPress={() => shareRival(item, t)}
+                                        >
+                                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || '📤 Paylaş'}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
+                                            onPress={() => { onClose(); setTimeout(onEdit, 300); }}
+                                        >
+                                            <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>✏️ Düzenle</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
                                             onPress={() => { onClose(); setTimeout(handleCancel, 300); }}
                                         >
-                                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1}>{t.cancelAdBtn}</Text>
+                                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.cancelAdBtn}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 )}
-                                {/* Sipariş Ver ayrı satırda (varsa); İptal artık üst satırda. */}
+                                {/* Sipariş Ver ayrı satırda (varsa). */}
                                 {item.venueId && (
-                                    <View style={{ flexDirection: 'row', gap: 3 }}>
+                                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
                                         <TouchableOpacity
-                                            style={[s.cancelBtn, { flex: 0, flexShrink: 1, minHeight: 0, backgroundColor:'#22c55e20', borderColor:'#22c55e50', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), paddingHorizontal: moderateScale(8) }]}
+                                            style={[s.cancelBtn, { flex: 1, backgroundColor: '#22c55e20', borderColor: '#22c55e50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
                                             onPress={() => setOrderVenueId(item.venueId)}
                                         >
-                                            <Text style={[s.cancelBtnText, { color:'#22c55e', fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>📋 Sipariş Ver</Text>
+                                            <Text style={[s.cancelBtnText, { color: '#22c55e', fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📋 Sipariş Ver</Text>
                                         </TouchableOpacity>
                                     </View>
                                 )}
