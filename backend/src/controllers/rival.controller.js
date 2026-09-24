@@ -3548,6 +3548,9 @@ export const inviteToRival = async (req, res, next) => {
         // hiç dokunmadan DOUBLE'a (tenis/padel 2v2) forma-özel davet ekliyor (kullanıcı isteği:
         // DOUBLE de Digimon kart'taki gibi boş formadan davet edilebilsin).
         const isDoubleSlotInvite = rival.matchType === 'DOUBLE' && !!slot;
+        // DOUBLE ön yüz (Katılan Oyuncular) daveti — takım slotu seçilmeden; kabul edilince
+        // unassignedPlayers'a düşer (arka yüzdeki takımlardan bağımsız kabul sırası).
+        const isUnassignedPoolInvite = rival.matchType === 'DOUBLE' && !slot && side == null;
         const isRefereeAd = Array.isArray(rival.positions) && rival.positions.includes('REFEREE');
 
         // Sahibi her zaman davet edebilir. Hakem ilanına davet ediliyorsa (linkedRivalId
@@ -3608,7 +3611,8 @@ export const inviteToRival = async (req, res, next) => {
         }
         if (userId === req.userId) return res.status(400).json({ message: 'Kendinizi davet edemezsiniz' });
 
-        if (participants.some(p => p?.id === userId) || senderTeamArr.some(p => p?.id === userId)) {
+        if (participants.some(p => p?.id === userId) || senderTeamArr.some(p => p?.id === userId)
+            || (Array.isArray(rival.unassignedPlayers) && rival.unassignedPlayers.some(p => p?.id === userId))) {
             return res.status(400).json({ message: 'Bu kullanıcı zaten maça katılmış' });
         }
         // Kullanıcı isteği: maçın onaylı hakemi aynı zamanda oyuncu olarak davet edilemez —
@@ -3672,13 +3676,14 @@ export const inviteToRival = async (req, res, next) => {
         const doubleSlotFlags = isDoubleSlotInvite
             ? (slot === 'partner' ? { isPartnerInvite: true } : { requestedSlot: slot })
             : {};
+        const unassignedInviteFlags = isUnassignedPoolInvite ? { isUnassignedInvite: true } : {};
         if (existing) {
             await prisma.rivalJoinRequest.update({
                 where: { rivalId_userId: { rivalId: id, userId } },
-                data: { status: 'PENDING', initiatedBy: 'OWNER', joiningTeam: [], isPartnerInvite: false, isOppTeamInvite: false, isSubstituteInvite: false, isUnassignedInvite: false, requestedSlot: null, ...teamSlotFlags, ...doubleSlotFlags },
+                data: { status: 'PENDING', initiatedBy: 'OWNER', joiningTeam: [], isPartnerInvite: false, isOppTeamInvite: false, isSubstituteInvite: false, isUnassignedInvite: false, requestedSlot: null, ...teamSlotFlags, ...doubleSlotFlags, ...unassignedInviteFlags },
             });
         } else {
-            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId, initiatedBy: 'OWNER', ...teamSlotFlags, ...doubleSlotFlags } });
+            await prisma.rivalJoinRequest.create({ data: { rivalId: id, userId, initiatedBy: 'OWNER', ...teamSlotFlags, ...doubleSlotFlags, ...unassignedInviteFlags } });
         }
 
         const me = await prisma.user.findUnique({ where: { id: req.userId }, select: SENDER_SELECT });
@@ -4063,7 +4068,7 @@ export const respondToJoin = async (req, res, next) => {
             // openSlotOptions/genderFitsSlot) — önceden bu bilgi hiç taşınmıyordu, bu yüzden
             // örn. erkek bir oyuncuya kadın-kısıtlı bir slot seçenek olarak sunulup "zaten dolu"
             // gibi alakasız bir hatayla reddediliyordu (asıl sebep cinsiyetti, doluluk değildi).
-            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender, alias: joinerInterestForAlias?.alias || null };
+            const joinerData = { id: joinReq.userId, username: joinReq.user.username, fullName: joinReq.user.fullName, avatar: joinReq.user.avatar, gender: joinReq.user.gender, alias: joinerInterestForAlias?.alias || null, acceptedAt: new Date().toISOString() };
             const existingUnassigned = Array.isArray(joinReq.rival.unassignedPlayers) ? joinReq.rival.unassignedPlayers : [];
             const nextUnassigned = [...existingUnassigned, joinerData];
             // Kullanıcı isteği/bug raporu: bu kabul kadroyu (headcount olarak, taraf ataması
@@ -4166,7 +4171,7 @@ export const respondToJoin = async (req, res, next) => {
         // gender EKSİKTİ — atanmamış havuzuna (unassignedPlayers) düşen bu kayıt cinsiyet
         // bilgisi taşımayınca, DOUBLE'da cinsiyet kısıtlı slotlara "Takımlara Ata" seçeneği
         // hiç çıkmıyordu (genderFitsSlot(undefined, 'FEMALE') hep false dönüyordu).
-        const joinerEntry = { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null, gender: u.gender };
+        const joinerEntry = { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null, gender: u.gender, acceptedAt: new Date().toISOString() };
 
         let updatedParticipants;
         let assignedToPartner = false;
@@ -4613,7 +4618,7 @@ export const confirmLateJoin = async (req, res, next) => {
             select: { alias: true },
         });
         // gender EKSİKTİ — bkz. respondToJoin'deki aynı isim ve gerekçeli düzeltme.
-        const joinerEntry = { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null, gender: u.gender };
+        const joinerEntry = { id: u.id, username: u.username, fullName: u.fullName, avatar: u.avatar, alias: joinerInterest?.alias || null, gender: u.gender, acceptedAt: new Date().toISOString() };
 
         // Bu onay 1 saatten geç kabul yüzünden bekletiliyordu — o süre zarfında ilan sahibi
         // başka bir oyuncuyu kabul edip maç dolmuş (ya da ilan iptal edilmiş) olabilir. İlan
@@ -6747,10 +6752,12 @@ export const assignDoubleSlot = async (req, res, next) => {
                     const player = senderTeam.find(p => p?.id === userId) || participants.find(p => p?.id === userId) || unassigned.find(p => p?.id === userId);
                     if (!player) { const e = new Error('Oyuncu bu ilanda bulunamadı'); e.status = 404; throw e; }
 
-                    // Kendini atayan kişi (owner değilse) sadece atanmamışken hareket edebilir —
-                    // zaten yerleşmiş birini owner dışında kimse oynatamaz.
+                    // Kendini atayan kişi: STRICT'te sadece atanmamışken hareket edebilir;
+                    // FLEXIBLE'ta (takım değişikliği açık) atandıktan sonra da kendi slotunu değiştirebilir.
                     const alreadyPlaced = senderTeam.some(p => p?.id === userId) || participants.some(p => p?.id === userId);
-                    if (!isOwner && alreadyPlaced) { const e = new Error('Zaten bir slottasınız, yerinizi sadece ilan sahibi değiştirebilir'); e.status = 403; throw e; }
+                    if (!isOwner && alreadyPlaced && rival.teamFlexibility === 'STRICT') {
+                        const e = new Error('Bu ilan katı ayarlı; yerinizi sadece ilan sahibi değiştirebilir'); e.status = 403; throw e;
+                    }
 
                     if (slot) {
                         const gReq = slot === 'partner' ? rival.partnerGenderReq : slot === 'opp1' ? rival.opp1GenderReq : rival.opp2GenderReq;

@@ -999,8 +999,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // Çiftlerde kabul edilen oyuncular varsayılan olarak Partner/Rakip 1/Rakip 2 kartlarına
     // otomatik yerleşmiş gösterilmez — önce sırayla "Katılımcı 1/2/3" olarak listelenir,
     // kurucu isterse "Takımları Düzenle" ile mevcut kart/takas ekranını açar.
-    // Başka kullanıcı detaya girince doğrudan arka yüz (takımlar) açılsın — slotlardan katılabilsin.
-    const [showTeamCards, setShowTeamCards] = useState(() => item.matchType === 'DOUBLE' && item.senderId !== myId);
+    // Başka kullanıcı detaya girince de önce ön yüz (Katılan Oyuncular, kabul sırası);
+    // çevirince arka yüz (takımlar). Önceden non-owner doğrudan arka yüzde açılıyordu.
+    const [showTeamCards, setShowTeamCards] = useState(false);
     // Kullanıcı isteği: "İstekler" ve "Yedek İstekleri" listeleri yer kaplıyordu — en sağa
     // dokununca açılıp kapanan bir ok eklendi. Varsayılan durum istek sayısına göre değişir:
     // 5'ten fazla istek varsa varsayılan KAPALI (ok sola dönük, yer tasarrufu için), 5 ya da
@@ -1361,7 +1362,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         setLocalJoinRequests(null);
         setLocalGender(null);
         setSwapSlot(null);
-        setShowTeamCards(item?.matchType === 'DOUBLE' && item?.senderId !== myId);
+        setShowTeamCards(false);
         setComments([]);
         setCommentText('');
         setSpectators([]);
@@ -2137,15 +2138,22 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // (eskiden bu iki adımlı seç+dokun akışı güvenilir çalışmıyordu), doğrudan
     // "nereye taşınsın" diye net butonlu bir onay gösterip anında taşıyor.
     const promptMove = (fromSlot) => {
-        if (!isOwner) return;
+        const mySlot = (() => {
+            if (senderTeamArr[0]?.id === myId) return 'partner';
+            if (participants[0]?.id === myId) return 'opp1';
+            if (participants[1]?.id === myId) return 'opp2';
+            return null;
+        })();
+        const canSelf = !isOwner && item.teamFlexibility !== 'STRICT' && mySlot === fromSlot;
+        if (!isOwner && !canSelf) return;
         if (item.teamFlexibility === 'STRICT') {
             Alert.alert('Takım Sabit', 'Bu ilan katı ayarlı: oyuncular başvururken seçtikleri slotta sabit kalır. Değiştirmek için o katılımcıyı çıkarıp slotu yeniden açabilirsin.');
             return;
         }
         const targets = ['partner', 'opp1', 'opp2'].filter(s => s !== fromSlot);
         Alert.alert(
-            'Oyuncuyu Taşı',
-            'Bu oyuncu nereye taşınsın?',
+            canSelf ? (t.changeOwnTeamTitle || 'Takımını değiştir') : 'Oyuncuyu Taşı',
+            canSelf ? (t.changeOwnTeamMsg || 'Hangi takım slotuna geçmek istersin?') : 'Bu oyuncu nereye taşınsın?',
             [
                 ...targets.map(s => ({ text: SLOT_LABELS[s], onPress: () => movePlayer(fromSlot, s) })),
                 { text: 'Vazgeç', style: 'cancel' },
@@ -2156,7 +2164,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // DOUBLE: iki slot arasında oyuncu taşı (seç + taşı) — eski tıkla-seç-sonra-
     // tıkla-tamamla akışı, uzun-basış kısayolu için hâlâ burada duruyor.
     const handleSlotTap = async (slot) => {
-        if (!isOwner) return;
+        const mySlot = (() => {
+            if (senderTeamArr[0]?.id === myId) return 'partner';
+            if (participants[0]?.id === myId) return 'opp1';
+            if (participants[1]?.id === myId) return 'opp2';
+            return null;
+        })();
+        const flexible = item.teamFlexibility !== 'STRICT';
+        const canSelfAct = !isOwner && flexible && (mySlot === slot || (!!swapSlot && mySlot === swapSlot));
+        if (!isOwner && !canSelfAct) return;
         if (item.teamFlexibility === 'STRICT') {
             Alert.alert('Takım Sabit', 'Bu ilan katı ayarlı: oyuncular başvururken seçtikleri slotta sabit kalır. Değiştirmek için o katılımcıyı çıkarıp slotu yeniden açabilirsin.');
             return;
@@ -2598,7 +2614,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 // seçerekde başvurabilir takım kısmından" — kadro kartındaki bu formaya
                                 // dokunarak doğrudan O SLOTA başvurabilsin (bkz. backend sendJoinRequest'teki
                                 // requestedSlot artık FLEXIBLE ilanlarda da opsiyonel olarak kabul ediliyor).
-                                if (!p && !locked && !isOwner && !isParticipant && mySentReq == null && item.status === 'OPEN' && genderFitsSlot(myGender, gReqValue)) {
+                                const iAmOnDoubleRoster = isOwner
+                                    || senderTeamArr.some(x => x?.id === myId)
+                                    || participants.some(x => x?.id === myId)
+                                    || unassignedArr.some(x => x?.id === myId);
+                                if (!p && !locked && !isOwner && !iAmOnDoubleRoster && mySentReq == null && item.status === 'OPEN' && genderFitsSlot(myGender, gReqValue)) {
                                     return (
                                         <View>
                                             {gReqLabel && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:1 }}>{gReqLabel}</Text>}
@@ -2612,15 +2632,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 const isSelected = swapSlot === slot;
                                 // Hedef slot boş da olabilir — o zaman oyuncu oraya taşınır (swap değil, move).
                                 const isTarget   = !!swapSlot && !locked && swapSlot !== slot;
+                                const isMySlot = p?.id === myId;
+                                const canSelfTeamChange = isMySlot && !isOwner && item.teamFlexibility !== 'STRICT';
+                                const canActOnSlot = isOwner || canSelfTeamChange || (!!swapSlot && (isOwner || senderTeamArr.some(x => x?.id === myId) || participants.some(x => x?.id === myId)));
                                 const borderColor = isSelected ? '#f59e0b' : isTarget ? '#a855f7' : colors.border + '40';
                                 const bg = isSelected ? '#f59e0b18' : isTarget ? '#a855f710' : undefined;
                                 return (
                                     <TouchableOpacity
-                                        onPress={() => { if (!locked && isOwner && swapSlot) handleSlotTap(slot); }}
-                                        onLongPress={() => { if (!locked && p && isOwner && !swapSlot) handleSlotTap(slot); }}
+                                        onPress={() => { if (!locked && canActOnSlot && swapSlot) handleSlotTap(slot); }}
+                                        onLongPress={() => { if (!locked && p && (isOwner || canSelfTeamChange) && !swapSlot) handleSlotTap(slot); }}
                                         delayLongPress={300}
                                         hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                                        activeOpacity={locked || !isOwner || (!p && !isTarget) ? 1 : 0.7}
+                                        activeOpacity={locked || !canActOnSlot || (!p && !isTarget) ? 1 : 0.7}
                                         style={{ borderWidth: isSelected || isTarget ? 1.5 : 0, borderColor, borderRadius:6, padding:4, backgroundColor: bg }}
                                     >
                                         {gReqLabel && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:1 }}>{gReqLabel}</Text>}
@@ -2660,11 +2683,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     {isSelected && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'900', marginLeft:4 }}>✓</Text>}
                                                     {isTarget  && <Text style={{ color:'#a855f7', fontSize:10, fontWeight:'900', marginLeft:4 }}>⇄</Text>}
                                                 </View>
-                                                {!locked && isOwner && !swapSlot && (onRemove || item.teamFlexibility !== 'STRICT') && (
+                                                {!locked && !swapSlot && (onRemove || ((isOwner || canSelfTeamChange) && item.teamFlexibility !== 'STRICT')) && (
                                                     <View style={{ flexDirection:'row', gap:8, marginTop:2 }}>
-                                                        {item.teamFlexibility !== 'STRICT' && (
+                                                        {(isOwner || canSelfTeamChange) && item.teamFlexibility !== 'STRICT' && (
                                                             <TouchableOpacity onPress={() => promptMove(slot)}>
-                                                                <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>⇄ Taşı</Text>
+                                                                <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>
+                                                                    {canSelfTeamChange ? (t.changeOwnTeamBtn || '⇄ Takım Değiştir') : '⇄ Taşı'}
+                                                                </Text>
                                                             </TouchableOpacity>
                                                         )}
                                                         {onRemove && (
@@ -2708,9 +2733,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             const founderTeamAvgDetail = avgOfPair([item.sender?.interests?.[0]?.skillRating, PartnerContent?.skillRating]);
                             const oppTeamAvgDetail = avgOfPair([participants[0]?.skillRating, participants[1]?.skillRating]);
 
-                            // Kabul edilmiş katılımcılar (kurucu hariç) — henüz Partner/Rakip 1/
-                            // Rakip 2 kartlarına atanmış gibi değil, sırayla numaralı gösterilir.
-                            // Her slotun kendi cinsiyet gereksinimi (varsa) etiketle birlikte taşınır.
+                            // Ön yüz = kabul sırasına göre Katılan Oyuncular (takım slotlarından BAĞIMSIZ).
+                            // Arka yüz = Partner/Rakip1/Rakip2. acceptedAt varsa ona göre sırala;
+                            // yoksa ekleme sırası (unassigned → partner → opp1 → opp2) korunur.
                             const gParen = (g) => g === 'MALE' ? ' (Erkek)' : g === 'FEMALE' ? ' (Kadın)' : '';
                             const allTeamSlots = [
                                 { key: 'partner', p: PartnerContent, gReq: partnerGenderReq },
@@ -2720,24 +2745,50 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             const teamSlots = allTeamSlots.filter(sl => sl.p?.id);
                             const acceptedOthers = teamSlots.map(sl => sl.p);
                             const unassignedDoubleSlots = unassignedArr.filter(p => p?.id);
-                            // Kullanıcı isteği: ön yüzde atanmamışlar "5. forma + Atanmamış" diye
-                            // EKSTRA gösterilmesin — sabit 3 Katılımcı slotunun boşluklarına
-                            // kabul sırasıyla (unassignedPlayers dizisi ekleme sırası) dolsun.
-                            // Partner/opp1/opp2 zaten doluysa o slot korunur; boşsa sıradaki
-                            // atanmamış oraya yazılır. Artan atanmış (kapasite dışı) ön yüzde yok.
-                            const unassignedQueue = [...unassignedDoubleSlots];
-                            const frontParticipantSlots = allTeamSlots.map((sl) => {
-                                if (sl.p?.id) return { p: sl.p, fromUnassigned: false };
-                                const next = unassignedQueue.shift() || null;
-                                return next ? { p: next, fromUnassigned: true } : { p: null, fromUnassigned: false };
+                            const seenFrontIds = new Set();
+                            const acceptedByOrder = [];
+                            const pushAccepted = (p) => {
+                                if (!p?.id || seenFrontIds.has(p.id)) return;
+                                seenFrontIds.add(p.id);
+                                acceptedByOrder.push(p);
+                            };
+                            unassignedDoubleSlots.forEach(pushAccepted);
+                            allTeamSlots.forEach(sl => pushAccepted(sl.p));
+                            acceptedByOrder.sort((a, b) => {
+                                const ta = a.acceptedAt ? new Date(a.acceptedAt).getTime() : null;
+                                const tb = b.acceptedAt ? new Date(b.acceptedAt).getTime() : null;
+                                if (ta != null && tb != null && ta !== tb) return ta - tb;
+                                if (ta != null && tb == null) return -1;
+                                if (ta == null && tb != null) return 1;
+                                return 0;
                             });
+                            const frontParticipantSlots = [0, 1, 2].map(i => ({
+                                p: acceptedByOrder[i] || null,
+                                fromUnassigned: !!(acceptedByOrder[i] && unassignedDoubleSlots.some(u => u.id === acceptedByOrder[i].id)),
+                            }));
+                            const iAmOnDoubleRosterFront = isOwner
+                                || senderTeamArr.some(x => x?.id === myId)
+                                || participants.some(x => x?.id === myId)
+                                || unassignedArr.some(x => x?.id === myId);
+                            const inviteToPoolFromFront = (u) => {
+                                api.post(`/rivals/${item.id}/invite`, { userId: u.id })
+                                    .then(({ data }) => {
+                                        if (Array.isArray(data?.request?.joinRequests)) setLocalJoinRequests(data.request.joinRequests);
+                                        onRefresh();
+                                        Alert.alert('', t.inviteSentToMsg(playerDisplayName(u)));
+                                    })
+                                    .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+                            };
 
+                            var doubleFrontFace = null;
                             if (!showTeamCards) {
                                 // Kullanıcı isteğiyle ön yüzde her satıra 2 oyuncu sığıyor (önceden tek
                                 // sütun, alt alta tam genişlikti) — kart stiline geçildi (48% genişlik,
                                 // sınırlı çerçeve), tek-sütun playerRow yerine.
                                 const cardBox = { width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:6, marginBottom:6 };
-                                return (
+                                // Erken return YOK — FriendsMultiPickerModal aşağıda ortak render edilir
+                                // (ön yüzden açılan havuz daveti de aynı modalı kullanır).
+                                var doubleFrontFace = (
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
                                         <View key="founder" style={cardBox}>
                                             <TouchableOpacity style={{ flexDirection:'row', alignItems:'center', gap:6 }} onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })}>
@@ -2790,27 +2841,91 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 )}
                                             </View>
                                         ) : (
-                                            <View key={`empty-fp-${i}`} style={[cardBox, { opacity:0.55, flexDirection:'row', alignItems:'center', gap:6 }]}>
-                                                <View style={{ width:moderateScale(28), height:moderateScale(28), borderRadius:moderateScale(14), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
-                                                    <Text style={{ color: colors.textMuted, fontSize:13 }}>?</Text>
-                                                </View>
-                                                <View style={{ flex:1 }}>
-                                                    <Text style={[det.playerSub, { color: colors.textMuted }]} numberOfLines={1}>{t.cardParticipantLabel(i + 1)}</Text>
-                                                    <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>Bekleniyor</Text>
-                                                </View>
+                                            <View key={`empty-fp-${i}`} style={[cardBox, { opacity:0.9 }]}>
+                                                {isOwner && item.status === 'OPEN' ? (
+                                                    <TeamSlotInviteField sub={sub} category={item.category} cfg={cfg} t={t}
+                                                        placeholder={t.cardParticipantLabel(i + 1)}
+                                                        onInvite={inviteToPoolFromFront}
+                                                        onOpenPicker={() => { setDoubleInviteFromSlot(null); setShowDoubleFriendsPicker(true); }} />
+                                                ) : !isOwner && !iAmOnDoubleRosterFront && mySentReq == null && item.status === 'OPEN' ? (
+                                                    <TouchableOpacity onPress={() => handleJoin()}
+                                                        style={{ borderWidth:1, borderStyle:'dashed', borderColor: cfg.color+'70', borderRadius:8, paddingVertical:8, alignItems:'center', backgroundColor: cfg.color+'10' }}>
+                                                        <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }} numberOfLines={1}>
+                                                            {t.applyForPoolBtn || t.applyForSlotBtn}
+                                                        </Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:8, marginTop:2 }}>{t.cardParticipantLabel(i + 1)}</Text>
+                                                    </TouchableOpacity>
+                                                ) : (
+                                                    <View style={{ flexDirection:'row', alignItems:'center', gap:6, opacity:0.55 }}>
+                                                        <View style={{ width:moderateScale(28), height:moderateScale(28), borderRadius:moderateScale(14), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
+                                                            <Text style={{ color: colors.textMuted, fontSize:13 }}>?</Text>
+                                                        </View>
+                                                        <View style={{ flex:1 }}>
+                                                            <Text style={[det.playerSub, { color: colors.textMuted }]} numberOfLines={1}>{t.cardParticipantLabel(i + 1)}</Text>
+                                                            <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>Bekleniyor</Text>
+                                                        </View>
+                                                    </View>
+                                                )}
                                             </View>
                                         ))}
-                                        {acceptedOthers.length === 0 && unassignedDoubleSlots.length === 0 && (
+                                        {acceptedByOrder.length === 0 && !isOwner && (mySentReq != null || iAmOnDoubleRosterFront) && (
                                             highlightSlot ? (
-                                                <Animated.View style={{ opacity: highlightPulse, alignItems:'center', paddingVertical:6 }}>
+                                                <Animated.View style={{ opacity: highlightPulse, alignItems:'center', paddingVertical:6, width:'100%' }}>
                                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{t.invitedTeamSlotBlink || t.youAreInvitedHere}</Text>
                                                     <Text style={[det.emptyTxt, { marginTop:2 }]}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
                                                 </Animated.View>
-                                            ) : (
-                                                <Text style={det.emptyTxt}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
-                                            )
+                                            ) : null
                                         )}
+                                        <Text style={{ color: colors.textMuted, fontSize:9, width:'100%', marginTop:2, marginBottom:2 }}>
+                                            {t.rosterFrontJoinHint || 'Boş slota başvur veya kartı çevirip takım slotundan istek at.'}
+                                        </Text>
                                     </View>
+                                );
+                            } else {
+                                doubleFrontFace = null;
+                            }
+
+                            const doubleFriendsPicker = (() => {
+                                        // Kullanıcı hangi boş kutunun 👥 ikonuna dokunduysa (bkz. doubleInviteFromSlot),
+                                        // o slot listenin BAŞINA alınır — picker'daki İLK seçim her zaman GERÇEKTEN
+                                        // tıklanan slotun cinsiyet kuralına göre kontrol edilir. Önceden sıra her
+                                        // zaman sabit partner→opp1→opp2 idi, tıklanan kutu ne olursa olsun ilk seçim
+                                        // partner'ın (genelde farklı cinsiyet) kuralına göre kontrol ediliyordu —
+                                        // "2./3./4. oyuncu formundan davet ediyorum, hep kadın kabul ediyor" hatası
+                                        // buradan geliyordu (kullanıcı raporu).
+                                        // doubleInviteFromSlot === null → ön yüz havuz daveti (takım slotu yok).
+                                        const isPoolInvitePicker = showDoubleFriendsPicker && doubleInviteFromSlot == null;
+                                        const rawEmptyKeys = ['partner', 'opp1', 'opp2'].filter(k => !rosterFilled(({ partner: PartnerContent, opp1: participants[0], opp2: participants[1] }[k])));
+                                        const emptyKeys = isPoolInvitePicker
+                                            ? Array.from({ length: Math.max(1, 3 - acceptedByOrder.length) }, () => null)
+                                            : (doubleInviteFromSlot && rawEmptyKeys.includes(doubleInviteFromSlot)
+                                                ? [doubleInviteFromSlot, ...rawEmptyKeys.filter(k => k !== doubleInviteFromSlot)]
+                                                : rawEmptyKeys);
+                                        return (
+                                            <FriendsMultiPickerModal
+                                                visible={showDoubleFriendsPicker}
+                                                onClose={() => { setShowDoubleFriendsPicker(false); setDoubleInviteFromSlot(null); }}
+                                                sub={sub} category={item.category} cfg={cfg} t={t}
+                                                maxSelect={Math.max(1, emptyKeys.length)}
+                                                slotGenderReqs={isPoolInvitePicker ? emptyKeys.map(() => 'MIX') : emptyKeys.map(k => ({ partner: partnerGenderReq, opp1: opp1GenderReq, opp2: opp2GenderReq }[k]))}
+                                                confirmLabel={(n) => t.friendsMultiPickerInviteBtn(n)}
+                                                onConfirm={(users) => {
+                                                    Promise.all(users.map((u, i) => api.post(`/rivals/${item.id}/invite`, isPoolInvitePicker
+                                                        ? { userId: u.id }
+                                                        : { userId: u.id, slot: emptyKeys[i] })))
+                                                        .then(() => onRefresh())
+                                                        .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
+                                                }}
+                                            />
+                                        );
+                            })();
+
+                            if (doubleFrontFace) {
+                                return (
+                                    <>
+                                        {doubleFrontFace}
+                                        {doubleFriendsPicker}
+                                    </>
                                 );
                             }
 
@@ -2932,34 +3047,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             })}
                                         </View>
                                     )}
-                                    {(() => {
-                                        // Kullanıcı hangi boş kutunun 👥 ikonuna dokunduysa (bkz. doubleInviteFromSlot),
-                                        // o slot listenin BAŞINA alınır — picker'daki İLK seçim her zaman GERÇEKTEN
-                                        // tıklanan slotun cinsiyet kuralına göre kontrol edilir. Önceden sıra her
-                                        // zaman sabit partner→opp1→opp2 idi, tıklanan kutu ne olursa olsun ilk seçim
-                                        // partner'ın (genelde farklı cinsiyet) kuralına göre kontrol ediliyordu —
-                                        // "2./3./4. oyuncu formundan davet ediyorum, hep kadın kabul ediyor" hatası
-                                        // buradan geliyordu (kullanıcı raporu).
-                                        const rawEmptyKeys = ['partner', 'opp1', 'opp2'].filter(k => !rosterFilled(({ partner: PartnerContent, opp1: participants[0], opp2: participants[1] }[k])));
-                                        const emptyKeys = doubleInviteFromSlot && rawEmptyKeys.includes(doubleInviteFromSlot)
-                                            ? [doubleInviteFromSlot, ...rawEmptyKeys.filter(k => k !== doubleInviteFromSlot)]
-                                            : rawEmptyKeys;
-                                        return (
-                                            <FriendsMultiPickerModal
-                                                visible={showDoubleFriendsPicker}
-                                                onClose={() => { setShowDoubleFriendsPicker(false); setDoubleInviteFromSlot(null); }}
-                                                sub={sub} category={item.category} cfg={cfg} t={t}
-                                                maxSelect={emptyKeys.length}
-                                                slotGenderReqs={emptyKeys.map(k => ({ partner: partnerGenderReq, opp1: opp1GenderReq, opp2: opp2GenderReq }[k]))}
-                                                confirmLabel={(n) => t.friendsMultiPickerInviteBtn(n)}
-                                                onConfirm={(users) => {
-                                                    Promise.all(users.map((u, i) => api.post(`/rivals/${item.id}/invite`, { userId: u.id, slot: emptyKeys[i] })))
-                                                        .then(() => onRefresh())
-                                                        .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
-                                                }}
-                                            />
-                                        );
-                                    })()}
+                                    {doubleFriendsPicker}
                                 </View>
                             );
                         })() : (senderTeamArr.length > 0 || (item.teamSize || 1) > 1) ? (() => {
@@ -8149,23 +8237,32 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 </View>
                             );
                         };
-                        // Ön yüz havuzu — kurucu + Katılımcı 1/2/3. Atanmamışlar ekstra 5. forma
-                        // DEĞİL: boş Katılımcı slotlarına kabul sırasıyla (unassignedArr ekleme
-                        // sırası) yerleşir — arka yüzdeki "Atanmamış" listesi takım ataması için
-                        // kalır (kullanıcı isteği: ön yüzde "Atanmamış" 5. forma saçma).
-                        const unassignedForPool = [...unassignedArr.filter(p => p?.id)];
-                        const fillFront = (assigned) => {
-                            if (rosterFilled(assigned)) return assigned;
-                            return unassignedForPool.shift() || null;
+                        // Ön yüz havuzu — kurucu + Katılımcı 1/2/3 kabul sırasına göre (takım
+                        // slotlarından bağımsız). acceptedAt varsa ona göre; yoksa unassigned
+                        // ekleme sırası + partner/opp1/opp2.
+                        const unassignedForPool = unassignedArr.filter(p => p?.id);
+                        const seenPool = new Set();
+                        const acceptedPool = [];
+                        const pushPool = (p) => {
+                            if (!rosterFilled(p) || seenPool.has(p.id)) return;
+                            seenPool.add(p.id);
+                            acceptedPool.push(p);
                         };
-                        const frontP1 = fillFront(partner);
-                        const frontP2 = fillFront(opp1);
-                        const frontP3 = fillFront(opp2);
+                        unassignedForPool.forEach(pushPool);
+                        [partner, opp1, opp2].forEach(pushPool);
+                        acceptedPool.sort((a, b) => {
+                            const ta = a.acceptedAt ? new Date(a.acceptedAt).getTime() : null;
+                            const tb = b.acceptedAt ? new Date(b.acceptedAt).getTime() : null;
+                            if (ta != null && tb != null && ta !== tb) return ta - tb;
+                            if (ta != null && tb == null) return -1;
+                            if (ta == null && tb != null) return 1;
+                            return 0;
+                        });
                         const doublePool = [
                             { p: { ...match.sender, skillRating: match.senderSkillRating }, filled: true, label: t.founder || 'Kurucu' },
-                            { p: frontP1, filled: rosterFilled(frontP1), label: t.cardParticipantLabel(1) },
-                            { p: frontP2, filled: rosterFilled(frontP2), label: t.cardParticipantLabel(2) },
-                            { p: frontP3, filled: rosterFilled(frontP3), label: t.cardParticipantLabel(3) },
+                            { p: acceptedPool[0], filled: rosterFilled(acceptedPool[0]), label: t.cardParticipantLabel(1) },
+                            { p: acceptedPool[1], filled: rosterFilled(acceptedPool[1]), label: t.cardParticipantLabel(2) },
+                            { p: acceptedPool[2], filled: rosterFilled(acceptedPool[2]), label: t.cardParticipantLabel(3) },
                         ];
                         const rotateY = doubleFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
                         return (
