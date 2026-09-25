@@ -135,6 +135,73 @@ function stableTiebreakHash(tournamentId, playerId) {
     return h;
 }
 
+/** İkili averaj (head-to-head) — backend compareHeadToHead ile aynı sıra:
+ *  karşılıklı puan → set averajı → oyun averajı. */
+function compareHeadToHead(aId, bId, matches) {
+    if (!aId || !bId || !Array.isArray(matches) || matches.length === 0) return 0;
+    let aPts = 0, bPts = 0, aSetsW = 0, aSetsL = 0, aGamesW = 0, aGamesL = 0;
+    for (const m of matches) {
+        if (m.phase !== 'GROUP' || (m.status !== 'COMPLETED' && m.status !== 'FORFEIT' && m.status !== 'BYE')) continue;
+        const aIsP1 = m.p1Id === aId && m.p2Id === bId;
+        const aIsP2 = m.p1Id === bId && m.p2Id === aId;
+        if (!aIsP1 && !aIsP2) continue;
+        const sc = m.score || {};
+        let p1s = 0, p2s = 0, p1g = 0, p2g = 0;
+        for (const set of (sc.sets || [])) {
+            p1g += set.p1 || 0; p2g += set.p2 || 0;
+            if ((set.p1 || 0) > (set.p2 || 0)) p1s++; else if ((set.p2 || 0) > (set.p1 || 0)) p2s++;
+        }
+        aSetsW += aIsP1 ? p1s : p2s;
+        aSetsL += aIsP1 ? p2s : p1s;
+        aGamesW += aIsP1 ? p1g : p2g;
+        aGamesL += aIsP1 ? p2g : p1g;
+        if (sc.autoDraw || (sc.winner !== 'p1' && sc.winner !== 'p2')) {
+            aPts += 1; bPts += 1;
+        } else if ((sc.winner === 'p1' && aIsP1) || (sc.winner === 'p2' && aIsP2) || m.winnerId === aId) {
+            aPts += 3;
+        } else {
+            bPts += 3;
+        }
+    }
+    if (aPts !== bPts) return bPts - aPts;
+    const ratio = (w, l) => { const t = w + l; return t === 0 ? 0 : w / t; };
+    const bSetsW = aSetsL, bSetsL = aSetsW;
+    if (Math.abs(ratio(bSetsW, bSetsL) - ratio(aSetsW, aSetsL)) > 0.001) {
+        return ratio(bSetsW, bSetsL) - ratio(aSetsW, aSetsL);
+    }
+    const bGamesW = aGamesL, bGamesL = aGamesW;
+    if (Math.abs(ratio(bGamesW, bGamesL) - ratio(aGamesW, aGamesL)) > 0.001) {
+        return ratio(bGamesW, bGamesL) - ratio(aGamesW, aGamesL);
+    }
+    return 0;
+}
+
+/** Puan tablosu sıralaması — backend compareStandingsCore + kura ile aynı:
+ *  puan → oyun averajı → set averajı → oyun oranı → ikili averaj → sabit kura. */
+function compareStandingsRows(a, b, tournamentType, tournamentId, matches) {
+    if (b.points !== a.points) return b.points - a.points;
+    if (['1', '2', '3', '4', '5', '6', '7'].includes(String(tournamentType))) {
+        const averaj = (x) => {
+            const total = x.gamesWon + x.gamesLost;
+            return total === 0 ? 0 : x.gamesWon / total;
+        };
+        if (Math.abs(averaj(b) - averaj(a)) > 0.001) return averaj(b) - averaj(a);
+    }
+    const setAveraj = (x) => {
+        const total = x.setsWon + x.setsLost;
+        return total === 0 ? 0 : x.setsWon / total;
+    };
+    if (Math.abs(setAveraj(b) - setAveraj(a)) > 0.001) return setAveraj(b) - setAveraj(a);
+    const gr = (x) => x.gamesLost === 0 ? (x.gamesWon === 0 ? 0 : Infinity) : x.gamesWon / x.gamesLost;
+    if (gr(b) !== gr(a)) return gr(b) - gr(a);
+    if (matches) {
+        const h2h = compareHeadToHead(a.id, b.id, matches);
+        if (h2h !== 0) return h2h;
+    }
+    if (!tournamentId) return 0;
+    return stableTiebreakHash(tournamentId, b.id) - stableTiebreakHash(tournamentId, a.id);
+}
+
 const FOOTBALL_SURFACES = [
     { id: 'HALI_SAHA', label: 'Halı Saha', emoji: '🟩' },
     { id: 'CIM_SAHA',  label: 'Çim Saha',  emoji: '🌿' },
@@ -18289,18 +18356,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             s2.setsWon+=p2s; s2.setsLost+=p1s; s2.gamesWon+=p2g; s2.gamesLost+=p1g;
             if (sc.winner==='p1') { s1.won++; s1.points+=3; s2.lost++; } else { s2.won++; s2.points+=3; s1.lost++; }
         }
-        return Object.values(stats).sort((a,b) => {
-            if (b.points!==a.points) return b.points-a.points;
-            if (item.type === '1' || item.type === '2' || item.type === '3' || item.type === '4' || item.type === '5' || item.type === '7') {
-                const averaj=x=>(x.gamesWon+x.gamesLost)===0?0:x.gamesWon/(x.gamesWon+x.gamesLost);
-                if (Math.abs(averaj(b)-averaj(a))>0.001) return averaj(b)-averaj(a);
-            }
-            const sr=x=>x.setsLost===0?(x.setsWon===0?0:Infinity):x.setsWon/x.setsLost;
-            if (Math.abs(sr(b)-sr(a))>0.001) return sr(b)-sr(a);
-            const gr=x=>x.gamesLost===0?(x.gamesWon===0?0:Infinity):x.gamesWon/x.gamesLost;
-            if (gr(b)!==gr(a)) return gr(b)-gr(a);
-            return stableTiebreakHash(item.id, b.id) - stableTiebreakHash(item.id, a.id);
-        });
+        return Object.values(stats).sort((a,b) => compareStandingsRows(a, b, item.type, item.id, tournMatches));
     })();
 
     return (
@@ -31299,18 +31355,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     s2.setsWon+=p2s; s2.setsLost+=p1s; s2.gamesWon+=p2g; s2.gamesLost+=p1g;
                                     if (sc.winner==='p1') { s1.won++; s1.points+=3; s2.lost++; } else { s2.won++; s2.points+=3; s1.lost++; }
                                 }
-                                return Object.values(stats).sort((a,b) => {
-                                    if (b.points!==a.points) return b.points-a.points;
-                                    if (tourn.type === '1' || tourn.type === '2' || tourn.type === '3' || tourn.type === '4') {
-                                        const averaj=x=>(x.gamesWon+x.gamesLost)===0?0:x.gamesWon/(x.gamesWon+x.gamesLost);
-                                        if (Math.abs(averaj(b)-averaj(a))>0.001) return averaj(b)-averaj(a);
-                                    }
-                                    const sr=x=>x.setsLost===0?(x.setsWon===0?0:Infinity):x.setsWon/x.setsLost;
-                                    if (Math.abs(sr(b)-sr(a))>0.001) return sr(b)-sr(a);
-                                    const gr=x=>x.gamesLost===0?(x.gamesWon===0?0:Infinity):x.gamesWon/x.gamesLost;
-                                    if (gr(b)!==gr(a)) return gr(b)-gr(a);
-                                    return stableTiebreakHash(tourn.id, b.id) - stableTiebreakHash(tourn.id, a.id);
-                                });
+                                return Object.values(stats).sort((a,b) => compareStandingsRows(a, b, tourn.type, tourn.id, archiveModalMatches));
                             })();
                             const hasGroup = archiveModalMatches.some(m => m.phase === 'GROUP');
                             const playoffMs = archiveModalMatches.filter(m => m.phase === 'PLAYOFF');

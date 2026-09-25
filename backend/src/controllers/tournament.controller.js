@@ -287,11 +287,57 @@ export async function resolveThirdPlaceByAveraj(match) {
     return prisma.tournamentMatch.update({ where: { id: match.id }, data: { status: 'FORFEIT', winnerId } });
 }
 
-/** Real-stat comparator (puan → averaj → set oranı → game oranı), without the final kura
- *  fallback. Returns 0 only when two standings rows are genuinely indistinguishable —
- *  used to detect a tie straddling the playoff cutoff so an extra round can be played
- *  instead of deciding qualification by lot. */
-function compareStandingsCore(a, b, tournamentType) {
+/** İki taraf arasındaki GROUP maçlarından ikili averaj (head-to-head).
+ *  Sıra: karşılıklı puan → set averajı → oyun averajı. Maç yoksa 0. */
+function compareHeadToHead(aId, bId, matches) {
+    if (!aId || !bId || !Array.isArray(matches) || matches.length === 0) return 0;
+    let aPts = 0, bPts = 0, aSetsW = 0, aSetsL = 0, aGamesW = 0, aGamesL = 0;
+    for (const m of matches) {
+        if (m.phase !== 'GROUP' || (m.status !== 'COMPLETED' && m.status !== 'FORFEIT' && m.status !== 'BYE')) continue;
+        const aIsP1 = m.p1Id === aId && m.p2Id === bId;
+        const aIsP2 = m.p1Id === bId && m.p2Id === aId;
+        if (!aIsP1 && !aIsP2) continue;
+        const sc = m.score || {};
+        let p1s = 0, p2s = 0, p1g = 0, p2g = 0;
+        for (const set of (sc.sets || [])) {
+            p1g += set.p1 || 0; p2g += set.p2 || 0;
+            if ((set.p1 || 0) > (set.p2 || 0)) p1s++; else if ((set.p2 || 0) > (set.p1 || 0)) p2s++;
+        }
+        const mySetsW = aIsP1 ? p1s : p2s;
+        const mySetsL = aIsP1 ? p2s : p1s;
+        const myGamesW = aIsP1 ? p1g : p2g;
+        const myGamesL = aIsP1 ? p2g : p1g;
+        aSetsW += mySetsW; aSetsL += mySetsL;
+        aGamesW += myGamesW; aGamesL += myGamesL;
+        if (sc.autoDraw || (sc.winner !== 'p1' && sc.winner !== 'p2')) {
+            aPts += 1; bPts += 1;
+        } else if ((sc.winner === 'p1' && aIsP1) || (sc.winner === 'p2' && aIsP2) || m.winnerId === aId) {
+            aPts += 3;
+        } else {
+            bPts += 3;
+        }
+    }
+    if (aPts !== bPts) return bPts - aPts;
+    const setAv = (w, l) => { const t = w + l; return t === 0 ? 0 : w / t; };
+    // aSetsL = b'nin a'ya karşı kazandığı setler
+    const bSetsW = aSetsL, bSetsL = aSetsW;
+    if (Math.abs(setAv(bSetsW, bSetsL) - setAv(aSetsW, aSetsL)) > 0.001) {
+        return setAv(bSetsW, bSetsL) - setAv(aSetsW, aSetsL);
+    }
+    const gameAv = (w, l) => { const t = w + l; return t === 0 ? 0 : w / t; };
+    const bGamesW = aGamesL, bGamesL = aGamesW;
+    if (Math.abs(gameAv(bGamesW, bGamesL) - gameAv(aGamesW, aGamesL)) > 0.001) {
+        return gameAv(bGamesW, bGamesL) - gameAv(aGamesW, aGamesL);
+    }
+    return 0;
+}
+
+/** Real-stat comparator: puan → oyun averajı → set averajı → oyun oranı → ikili averaj,
+ *  without the final kura fallback. Returns 0 only when two standings rows are genuinely
+ *  indistinguishable — used to detect a tie straddling the playoff cutoff so an extra
+ *  round can be played instead of deciding qualification by lot.
+ *  `matches` verilirse puan/averaj/set/oyun eşitliğinde ikili averaj (head-to-head) bakılır. */
+function compareStandingsCore(a, b, tournamentType, matches = null) {
     if (b.points !== a.points) return b.points - a.points;
     if (['1', '2', '3', '4', '5', '6', '7'].includes(String(tournamentType))) {
         const averaj = (x) => {
@@ -300,16 +346,25 @@ function compareStandingsCore(a, b, tournamentType) {
         };
         if (Math.abs(averaj(b) - averaj(a)) > 0.001) return averaj(b) - averaj(a);
     }
-    const sr = (x) => x.setsLost === 0 ? (x.setsWon === 0 ? 0 : Infinity) : x.setsWon / x.setsLost;
-    if (Math.abs(sr(b) - sr(a)) > 0.001) return sr(b) - sr(a);
+    // Set averajı (kazanılan set / toplam set)
+    const setAveraj = (x) => {
+        const total = x.setsWon + x.setsLost;
+        return total === 0 ? 0 : x.setsWon / total;
+    };
+    if (Math.abs(setAveraj(b) - setAveraj(a)) > 0.001) return setAveraj(b) - setAveraj(a);
+    // Oyun oranı (kazanılan oyun / kaybedilen oyun) — set averajından sonra
     const gr = (x) => x.gamesLost === 0 ? (x.gamesWon === 0 ? 0 : Infinity) : x.gamesWon / x.gamesLost;
     if (gr(b) !== gr(a)) return gr(b) - gr(a);
+    // İkili averaj (aralarındaki maç)
+    if (matches) {
+        const h2h = compareHeadToHead(a.userId, b.userId, matches);
+        if (h2h !== 0) return h2h;
+    }
     return 0;
 }
 
 /** Compute GROUP-phase standings from completed matches.
- *  Tiebreaker for type '1' (Bireysel Rekabetçi): puan → averaj (gamesWon/totalGames) → set oranı
- *  → game oranı → (hepsi de eşitse) sabit kura
+ *  Tiebreaker: puan → oyun averajı → set averajı → oyun oranı → ikili averaj → (hepsi eşitse) sabit kura
  */
 function computeStandings(players, matches, tournamentType, tournamentId) {
     const stats = {};
@@ -322,6 +377,11 @@ function computeStandings(players, matches, tournamentType, tournamentId) {
         const s1 = stats[m.p1Id], s2 = stats[m.p2Id];
         if (!s1 || !s2) continue;
         s1.played++; s2.played++;
+        // Otomatik/berabere 0-0: her iki tarafa 1 puan (mobil puan tablosu ile aynı).
+        if (sc.autoDraw || (sc.winner !== 'p1' && sc.winner !== 'p2')) {
+            s1.points += 1; s2.points += 1;
+            continue;
+        }
         let p1s = 0, p2s = 0, p1g = 0, p2g = 0;
         for (const set of (sc.sets || [])) {
             p1g += set.p1 || 0; p2g += set.p2 || 0;
@@ -335,7 +395,7 @@ function computeStandings(players, matches, tournamentType, tournamentId) {
     // Swiss bye: tek taraflı BYE maçı → +3 puan / +1 galibiyet
     applyByeToStandings(stats, matches);
     return Object.values(stats).sort((a, b) => {
-        const core = compareStandingsCore(a, b, tournamentType);
+        const core = compareStandingsCore(a, b, tournamentType, matches);
         if (core !== 0) return core;
         if (!tournamentId) return 0;
         return stableTiebreakHash(tournamentId, b.userId) - stableTiebreakHash(tournamentId, a.userId);
@@ -2589,7 +2649,7 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                 // kurayla karar vermek yerine bir tur daha ekleyip (oynamayanları en yakın
                 // ELO'lu rakiple eşleştirerek) eşitliğin doğal yoldan bozulmasını bekle.
                 const boundaryTied = standings.length > qualifiers &&
-                    compareStandingsCore(standings[qualifiers - 1], standings[qualifiers], tournament.type) === 0;
+                    compareStandingsCore(standings[qualifiers - 1], standings[qualifiers], tournament.type, allGroupMatches) === 0;
 
                 let extraRoundMatches = [];
                 if (boundaryTied) {
@@ -2603,7 +2663,7 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                     await prisma.tournamentMatch.createMany({ data: extraRoundMatches });
 
                     const tiedNames = standings
-                        .filter(s => compareStandingsCore(s, standings[qualifiers - 1], tournament.type) === 0)
+                        .filter(s => compareStandingsCore(s, standings[qualifiers - 1], tournament.type, allGroupMatches) === 0)
                         .map(s => s.name).join(', ');
                     const recipients = isTeamTournament
                         ? [...new Set((await prisma.tournamentTeam.findMany({ where: { tournamentId: id } }))
