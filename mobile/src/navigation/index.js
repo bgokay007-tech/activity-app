@@ -580,6 +580,11 @@ export default function Navigation() {
             // zaten hazırsa direkt deneniyor.
             if (navigationRef.isReady()) navigateFromNotif(data, isBusiness);
             else pendingNavRef.current = data;
+            if (data.notificationId) {
+                api.patch(`/notifications/${data.notificationId}/read`, { read: true })
+                    .then(() => dispatch(decrementUnread()))
+                    .catch(() => {});
+            }
         }).catch(() => {});
         const sub = Notifications.addNotificationResponseReceivedListener(response => {
             const data = response.notification.request.content.data || {};
@@ -597,6 +602,13 @@ export default function Navigation() {
             // tüketsin, veri kaybolmasın.
             if (navigationRef.isReady()) navigateFromNotif(data, isBusiness);
             else pendingNavRef.current = data;
+            // Kullanıcı isteği: OS bildirimine dokununca da okundu — listeye dönünce yenilemeden
+            // okundu görünsün, rozet anında düşsün.
+            if (data.notificationId) {
+                api.patch(`/notifications/${data.notificationId}/read`, { read: true })
+                    .then(() => dispatch(decrementUnread()))
+                    .catch(() => {});
+            }
         });
         return () => sub.remove();
         // isBusiness dependency: kullanıcı bilgisi /auth/me'den geç yüklendiği için, effect ilk

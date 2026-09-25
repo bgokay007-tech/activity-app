@@ -235,6 +235,9 @@ export default function NotificationsScreen({ navigation }) {
     const targetIndexRef = useRef(-1);
     const targetIdRef = useRef(null);
     const viewableRef = useRef({ ids: new Set(), minIdx: Infinity, maxIdx: -1 });
+    // Tıklanınca anında okundu yapılan id'ler — focus/load sunucudan eski "okunmadı"
+    // gelirse bile satırı tekrar bozmasın (PATCH bitene / pending kuyruğuna yazılana kadar).
+    const locallyReadRef = useRef(new Set());
 
     const applyHintFromViewable = useCallback(() => {
         const idx = targetIndexRef.current;
@@ -285,12 +288,23 @@ export default function NotificationsScreen({ navigation }) {
     const load = async () => {
         try {
             await flushPendingReads();
+            const pending = await loadPendingReads();
             const [{ data }, scoreRes] = await Promise.all([
                 api.get('/notifications'),
                 api.get('/rivals/my-pending-score-count').catch(() => ({ data: { pendingScoreCount: 0 } })),
             ]);
-            setNotifications(data.notifications || []);
-            dispatch(setUnreadCount(data.unreadCount || 0));
+            // Hâlâ kuyrukta olanlar / henüz PATCH bitmeyen tıklamalar sunucuda
+            // okunmadı görünebilir — tıklanınca okundu yapılan satır focus yenilemesinde
+            // tekrar "okunmadı"ya dönmesin.
+            const list = (data.notifications || []).map(n => (
+                pending.includes(n.id) || locallyReadRef.current.has(n.id) ? { ...n, read: true } : n
+            ));
+            for (const n of list) {
+                if (n.read) locallyReadRef.current.delete(n.id);
+            }
+            setNotifications(list);
+            const unreadFromList = list.filter(n => !n.read).length;
+            dispatch(setUnreadCount(unreadFromList));
             setHasPendingScore((scoreRes.data?.pendingScoreCount || 0) > 0);
         } catch (e) { console.warn(e?.message); }
         finally { setLoading(false); setRefreshing(false); }
@@ -336,6 +350,7 @@ export default function NotificationsScreen({ navigation }) {
 
     const markRead = async (id) => {
         const wasUnread = notifications.find(n => n.id === id)?.read === false;
+        locallyReadRef.current.add(id);
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
         if (wasUnread) dispatch(decrementUnread());
         const pending = await loadPendingReads();
@@ -344,6 +359,7 @@ export default function NotificationsScreen({ navigation }) {
             await api.patch(`/notifications/${id}/read`, { read: true });
             const after = await loadPendingReads();
             await savePendingReads(after.filter(pid => pid !== id));
+            locallyReadRef.current.delete(id);
         } catch (e) {
             console.warn(e?.message);
         }
@@ -351,6 +367,7 @@ export default function NotificationsScreen({ navigation }) {
 
     const markUnread = async (id) => {
         const wasRead = notifications.find(n => n.id === id)?.read !== false;
+        locallyReadRef.current.delete(id);
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: false } : n));
         if (wasRead) dispatch(incrementUnread());
         // Okunmadıya çevirince kuyruktaki "okundu" niyetini de iptal et
@@ -377,8 +394,9 @@ export default function NotificationsScreen({ navigation }) {
     };
 
     const handlePress = async (item) => {
-        // Bildirimi açmak otomatik okundu yapmaz — kullanıcı diğerlerini unutmamak için
-        // satırdaki Okundu/Okunmadı ile sadece istediğini işaretler.
+        // Kullanıcı isteği: bildirime dokununca sayfa yenilemeden okunmadı → okundu
+        // (rozette de anında düşer). API yarıda kesilirse pending kuyruğu tamamlar.
+        if (!item.read) markRead(item.id);
         const data = item.data || {};
         const type = item.type;
         const goToSub = (tab = 'rivals', tournSubTab = null, openChatTournamentId = null, archiveTournamentId = null) => {
