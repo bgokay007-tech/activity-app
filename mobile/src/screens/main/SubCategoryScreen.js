@@ -4153,10 +4153,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     {commentMentionSuggestions.map(u => (
                                         <TouchableOpacity
                                             key={u.id}
-                                            // İlk dokunuşta sadece klavye kapanmasın diye onPressIn —
-                                            // onPress, TextInput blur yarışında bazen hiç tetiklenmiyor
-                                            // (bkz. TeamSlotInviteField / turnuva sohbeti aynı desen).
-                                            onPressIn={() => insertCommentMention(u)}
+                                            // onPressIn YASAK — ilk dokunuş sadece klavyeyi indirip
+                                            // seçimi 2. dokunuşa bırakıyordu. keyboardShouldPersistTaps=
+                                            // "always" + onPress: ilk dokunuşta seçer, klavye kapanmaz
+                                            // (klavye-form skill + TeamSlotInviteField).
+                                            onPress={() => insertCommentMention(u)}
                                             style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                                             <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>@{u.username}</Text>
                                             {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize: 10 }}>{u.fullName}</Text>}
@@ -9392,7 +9393,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     {localMentionSuggestions.map(u => (
                                         <TouchableOpacity
                                             key={u.id}
-                                            onPressIn={() => insertLocalCommentMention(u)}
+                                            // onPressIn YASAK — ilk dokunuş klavyeyi kapatıp seçimi
+                                            // 2. dokunuşa bırakıyordu (klavye-form skill).
+                                            onPress={() => insertLocalCommentMention(u)}
                                             style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                                             <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>@{u.username}</Text>
                                             {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize: 10 }}>{u.fullName}</Text>}
@@ -20454,7 +20457,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     {mentionSuggestions.map(u => (
                                         <TouchableOpacity
                                             key={u.id}
-                                            onPressIn={() => insertChatMention(u)}
+                                            // onPressIn YASAK — ilk dokunuş sadece klavyeyi indirip
+                                            // seçimi 2. dokunuşa bırakıyordu. always + onPress:
+                                            // ilk dokunuşta seçer, klavye açık kalır (klavye-form).
+                                            onPress={() => insertChatMention(u)}
                                             style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#334155' }}>
                                             <Text style={{ color: '#4ade80', fontSize: 12, fontWeight: '800' }}>@{u.alias || u.username}</Text>
                                             {!!(u.fullName || (u.alias && u.username)) && (
@@ -31216,7 +31222,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         {commentModalMentionSuggestions.map(u => (
                                             <TouchableOpacity
                                                 key={u.id}
-                                                onPressIn={() => insertCommentModalMention(u)}
+                                                // onPressIn YASAK — ilk dokunuş klavyeyi kapatıp
+                                                // seçimi 2. dokunuşa bırakıyordu (klavye-form skill).
+                                                onPress={() => insertCommentModalMention(u)}
                                                 style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                                                 <Text style={{ color: cfg2.color, fontSize: 12, fontWeight: '800' }}>@{u.username}</Text>
                                                 {!!u.fullName && <Text style={{ color: colors.textMuted, fontSize: 10 }}>{u.fullName}</Text>}
