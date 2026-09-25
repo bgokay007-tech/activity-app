@@ -22,8 +22,9 @@ const WINDOWS = [
 ];
 
 /** Süre bitince önce turnuva sahibine bir kez bildirim; bu süre içinde sahip beraberlik /
- *  uzatma / skor girebilir. Grace dolunca GROUP maçları otomatik 0-0. */
-const CREATOR_GRACE_MS = 48 * 3600 * 1000; // 48 saat
+ *  uzatma / skor girebilir. Grace dolunca GROUP maçları otomatik 0-0.
+ *  Kullanıcı isteği: ELO grup eleme (tip 1) + çiftler lig eleme (tip 2) için 24 saat. */
+const CREATOR_GRACE_MS = 24 * 3600 * 1000; // 24 saat
 
 // tournament.type === '2'/'4' (Çiftler Rekabetçi/Çiftler Antrenman) maçlarında p1Id/p2Id bir
 // TournamentTeam id'sidir, gerçek kullanıcı id'lerine buradan çözülür (bkz. cleanupTournaments.js).
@@ -100,7 +101,7 @@ async function checkAndNotifyUpcomingDeadlines() {
 
                     const deadlineConsequence = match.phase === 'PLAYOFF'
                         ? 'Süre dolduğunda maç otomatik sonuçlanmaz — turnuva sahibiyle iletişime geçmezseniz eleme gecikebilir.'
-                        : 'Süre dolduğunda önce turnuva sahibine haber verilir; işlem yapılmazsa maç berabere sayılır.';
+                        : 'Süre dolduğunda önce turnuva sahibine haber verilir; 24 saat içinde işlem olmazsa maç berabere sayılır.';
                     createNotification(
                         userId,
                         'TOURNAMENT_MATCH_DEADLINE_WARNING',
@@ -402,7 +403,7 @@ export function startTournamentDeadlineReminderJob() {
     setInterval(notifyCreatorPlayoffRoundReady, 30 * 60 * 1000); // every 30 minutes
     console.log('⏳ Tournament match deadline reminder job started (every 30 min)');
     console.log('📣 Tournament creator expired-score alert job started (every 15 min)');
-    console.log('🤝 Tournament match auto-draw job started (every 15 min, after 48h creator grace)');
+    console.log('🤝 Tournament match auto-draw job started (every 15 min, after 24h creator grace)');
     console.log('🔓 Tournament stuck-round unblock job started (every 15 min)');
     console.log('📅 Tournament playoff round auto-deadline job started (every 30 min)');
     console.log("🥉 Third-place match auto-resolve job started (every 15 min)");

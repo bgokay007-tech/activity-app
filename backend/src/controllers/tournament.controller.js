@@ -2717,6 +2717,43 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
     return allMatches;
 }
 
+/**
+ * Antreman eleme (tip 3/4): tüm GROUP turları başta bellidir. Oyuncu hâlâ önceki turda
+ * PENDING maçı varken bir sonraki tur maçına skor girmek isterse — rakiple yer/zaman
+ * konusunda karşılıklı anlaşmış olmalı (scheduleData.agreed). Aksi halde erken oynama yok.
+ * Creator/admin bu kilitten muaf (süre dolunca skor girebilir).
+ */
+async function assertTrainingEarlyPlayAllowed(tournament, match, { isCreatorOrAdmin = false } = {}) {
+    if (isCreatorOrAdmin) return;
+    if (tournament.type !== '3' && tournament.type !== '4') return;
+    if (match.phase !== 'GROUP' || !(match.round > 1) || !match.p1Id || !match.p2Id) return;
+
+    const sideIds = [match.p1Id, match.p2Id];
+    const earlierPending = await prisma.tournamentMatch.findFirst({
+        where: {
+            tournamentId: tournament.id,
+            phase: 'GROUP',
+            round: { lt: match.round },
+            status: 'PENDING',
+            OR: [
+                { p1Id: { in: sideIds } },
+                { p2Id: { in: sideIds } },
+            ],
+        },
+        select: { id: true, round: true },
+    });
+    if (!earlierPending) return;
+
+    const schedule = normalizeSchedule(match.scheduleData);
+    if (schedule.agreed) return;
+
+    const err = new Error(
+        'Önceki tur bitmeden sonraki tur maçını oynamak için rakiple yer ve zaman konusunda anlaşmanız gerekir (maç kartından teklif → Anlaş).'
+    );
+    err.status = 400;
+    throw err;
+}
+
 export const enterTournamentMatchScore = async (req, res, next) => {
     try {
         const { id, matchId } = req.params;
@@ -2756,9 +2793,19 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         const isPlayer = isTeamTournament
             ? (p1Members.includes(req.userId) || p2Members.includes(req.userId))
             : (match.p1Id === req.userId || match.p2Id === req.userId);
+        let isAdminUser = false;
         if (!isCreator && !isPlayer) {
             const requester = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
             if (!requester?.isAdmin) return res.status(403).json({ message: 'Not authorized' });
+            isAdminUser = true;
+        }
+
+        // Tip 3/4 antreman: önceki tur bitmeden sonraki tur skoruna karşılıklı anlaşma şart.
+        try {
+            await assertTrainingEarlyPlayAllowed(tournament, match, { isCreatorOrAdmin: isCreator || isAdminUser });
+        } catch (gateErr) {
+            if (gateErr?.status === 400) return res.status(400).json({ message: gateErr.message });
+            throw gateErr;
         }
 
         let p1Sets = 0, p2Sets = 0, p1Games = 0, p2Games = 0;

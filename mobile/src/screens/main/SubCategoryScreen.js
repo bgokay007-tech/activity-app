@@ -17964,6 +17964,22 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     };
 
     const openScoreEntry = (match) => {
+        // Antreman eleme (tip 3/4): önceki tur hâlâ bitmemişken sonraki tur skoruna
+        // rakiple yer/zaman anlaşması şart (backend assertTrainingEarlyPlayAllowed ile aynı).
+        if ((item.type === '3' || item.type === '4') && match.phase === 'GROUP' && match.round > 1
+            && !(isCreator || myIsAdmin) && !match.scheduleData?.agreed) {
+            const sideIds = [match.p1Id, match.p2Id].filter(Boolean);
+            const earlierPending = tournMatches.some(m =>
+                m.phase === 'GROUP' && m.round < match.round && m.status === 'PENDING'
+                && (sideIds.includes(m.p1Id) || sideIds.includes(m.p2Id)));
+            if (earlierPending) {
+                Alert.alert(
+                    t.tournEarlyPlayTitle || 'Erken oynama',
+                    t.tournEarlyPlayNeedAgree || 'Önceki tur bitmeden sonraki tur maçını oynamak için rakiple yer ve zaman konusunda anlaşmanız gerekir. Maç kartından teklif gönderip Anlaş’a basın.',
+                );
+                return;
+            }
+        }
         setScoreEntry({ matchId: match.id, p1Name: match.p1Name, p2Name: match.p2Name });
         const initialCount = numSets >= 3 ? 2 : numSets;
         setScoreSets(Array.from({ length: initialCount }, () => ({ p1: '', p2: '' })));
@@ -19285,12 +19301,28 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             {isReady && match.deadline && new Date(match.deadline).getTime() < Date.now() && (
                                                                 <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'800' }}>⌛ {t.tournExpiredBadge || 'Süre doldu'}</Text>
                                                             )}
-                                                            {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (
+                                                            {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (() => {
+                                                                const needsEarlyAgree = (item.type === '3' || item.type === '4')
+                                                                    && match.phase === 'GROUP' && match.round > 1
+                                                                    && !(isCreator || myIsAdmin)
+                                                                    && !match.scheduleData?.agreed
+                                                                    && tournMatches.some(m =>
+                                                                        m.phase === 'GROUP' && m.round < match.round && m.status === 'PENDING'
+                                                                        && (m.p1Id === match.p1Id || m.p2Id === match.p1Id || m.p1Id === match.p2Id || m.p2Id === match.p2Id));
+                                                                if (needsEarlyAgree) {
+                                                                    return (
+                                                                        <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700', flex:1 }} numberOfLines={2}>
+                                                                            {t.tournEarlyPlayHint || 'Erken skor için rakiple yer/zaman anlaşın'}
+                                                                        </Text>
+                                                                    );
+                                                                }
+                                                                return (
                                                                 <TouchableOpacity onPress={() => openScoreEntry(match)}
                                                                     style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor: infoColor+'50' }}>
                                                                     <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>Skor Gir</Text>
                                                                 </TouchableOpacity>
-                                                            )}
+                                                                );
+                                                            })()}
                                                             {(isCreator || myIsAdmin) && !item.dayTrip && isReady && match.deadline && !isEntering && (
                                                                 <TouchableOpacity
                                                                     onPress={() => {
