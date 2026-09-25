@@ -17409,6 +17409,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [loadingChat, setLoadingChat] = useState(false);
     const [chatInput, setChatInput] = useState('');
     const [sendingChat, setSendingChat] = useState(false);
+    const sendingChatRef = useRef(false);
     const chatInputRef = useRef(null);
     const [chatMessageCount, setChatMessageCount] = useState(item._count?.messages ?? 0);
     const [chatMentionUsers, setChatMentionUsers] = useState([]);
@@ -17466,7 +17467,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
     const sendChatMessage = async () => {
         const content = chatInput.trim();
-        if (!content || sendingChat) return;
+        // sync guard — onPressIn+onPress veya çift dokunuş aynı mesajı iki kez atmasın
+        if (!content || sendingChatRef.current) return;
+        sendingChatRef.current = true;
         // Klavyeyi kapatma — sadece telefonun geri tuşu kapatsın. Odak burada kalsın.
         chatInputRef.current?.focus();
         setSendingChat(true);
@@ -17479,6 +17482,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally {
+            sendingChatRef.current = false;
             setSendingChat(false);
             chatInputRef.current?.focus();
         }
@@ -20549,7 +20553,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     maxLength={500}
                                 />
                                 <TouchableOpacity
-                                    onPress={sendChatMessage}
+                                    // Modal + KAV: ilk dokunuş TextInput blur → layout kayması → onPress
+                                    // iptal oluyordu (klavye kapanıp 2. dokunuşta gönderiyordu).
+                                    // onPressIn dokunuşun başında gönderir; sync ref çift gönderimi engeller.
+                                    onPressIn={() => {
+                                        if (!sendingChatRef.current && chatInput.trim()) sendChatMessage();
+                                    }}
                                     disabled={sendingChat || !chatInput.trim()}
                                     style={{ backgroundColor:'#16a34a', borderRadius:10, paddingHorizontal:11, paddingVertical:7, opacity: (sendingChat || !chatInput.trim()) ? 0.5 : 1 }}>
                                     <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>{sendingChat ? '...' : t.sendBtn}</Text>
