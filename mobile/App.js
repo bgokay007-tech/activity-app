@@ -17,7 +17,12 @@ import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { store } from './src/store';
 import Navigation from './src/navigation';
-import { addMatchUpdateListener } from './modules/wear-bridge';
+let addMatchUpdateListener = () => ({ remove() {} });
+try {
+    addMatchUpdateListener = require('./modules/wear-bridge').addMatchUpdateListener;
+} catch {
+    addMatchUpdateListener = () => ({ remove() {} });
+}
 
 // Bazı Android cihazlar "kapat" hareketinde uygulamayı gerçekten öldürmüyor,
 // arka planda canlı tutuyor — bu yüzden expo-updates'in varsayılan "sadece
@@ -44,7 +49,15 @@ function useAutoUpdate() {
                 const result = await Updates.checkForUpdateAsync();
                 if (!result.isAvailable || cancelled) return;
                 await Updates.fetchUpdateAsync();
-                if (cancelled || firstRun) return;
+                if (cancelled) return;
+                // Bildirimden açılışta yönlendirme kaybolmasın diye ilk kontrolde
+                // hemen reload etmiyoruz; birkaç saniye sonra uyguluyoruz. "Durmaya
+                // zorla" her açılışı firstRun yaptığı için aksi halde güncelleme
+                // indirilip hiç uygulanmıyordu.
+                if (firstRun) {
+                    setTimeout(() => { if (!cancelled) Updates.reloadAsync(); }, 4000);
+                    return;
+                }
                 await Updates.reloadAsync();
             } catch (e) {
                 // güncelleme kontrolü başarısız olursa sessizce yut, uygulama normal akışına devam etsin
