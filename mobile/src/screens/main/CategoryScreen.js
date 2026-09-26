@@ -27,8 +27,8 @@ const COURT_SUBS = new Set([
 // ids sırası = ilan sayısı eşitken popülerlik (soldan sağa). Grup içinde önce açık
 // ilan sayısı, eşitse bu sıra kullanılır.
 const SPORT_GROUPS = [
-    // Pickleball padel'in hemen yanında — yatay sırada kaydırmadan görünsün (kullanıcı raporu).
-    { id: 'racket', key: 'sportGroupRacket', emoji: '🎾', ids: ['tennis', 'padel', 'pickleball', 'table_tennis', 'badminton'] },
+    // Sıra: tenis → padel → masa tenisi → badminton → pickleball (en sonda).
+    { id: 'racket', key: 'sportGroupRacket', emoji: '🎾', ids: ['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball'] },
     { id: 'team', key: 'sportGroupTeam', emoji: '⚽', ids: ['volleyball', 'football', 'basketball', 'foot_tennis', 'handball'] },
     { id: 'outdoor', key: 'sportGroupOutdoor', emoji: '🥾', ids: ['running', 'walking', 'hiking', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano'] },
     { id: 'studio', key: 'sportGroupStudio', emoji: '🧘', ids: ['wellness', 'fitness_gym', 'ice_skating'] },
