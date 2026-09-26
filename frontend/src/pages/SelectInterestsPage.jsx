@@ -4,6 +4,8 @@ import api from '../services/api';
 
 const ENABLED_SUBS = new Set([
     'tennis', 'padel', 'pickleball', 'volleyball',
+    // Sosyal
+    'friend_finding', 'sanal_alem', 'travel_explore',
     // Sanat — tüm dallar
     'music', 'painting', 'dance', 'photography', 'theater', 'writing', 'sculpture', 'cinema', 'poetry', 'illustration',
     // Oyunlar — tüm dallar

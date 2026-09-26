@@ -81,6 +81,7 @@ const SUB_MAP = {
     SOCIAL:  [
         { id: 'friend_finding', label: 'Friend Finding',    labelTR: 'Arkadaş Bulma',   labelRU: 'Поиск друзей',      labelDE: 'Freunde finden',    emoji: '🎉' },
         { id: 'sanal_alem',     label: 'Virtual World',     labelTR: 'Sanal Alem',      labelRU: 'Виртуальный мир',   labelDE: 'Virtuelle Welt',    emoji: '🌐' },
+        { id: 'travel_explore', label: 'Travel / Explore',  labelTR: 'Seyahat / Keşfetme', labelRU: 'Путешествия / Открытия', labelDE: 'Reisen / Entdecken', emoji: '✈️' },
     ],
     ARTS:    [
         { id: 'painting',     label: 'Painting',      labelTR: 'Resim',       labelRU: 'Живопись',        labelDE: 'Malerei',        emoji: '🎨' },

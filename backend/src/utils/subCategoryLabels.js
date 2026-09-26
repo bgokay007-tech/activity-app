@@ -11,7 +11,7 @@ const SUB_NAMES_TR = {
     ice_skating: 'Buz Pateni', hiking: 'Doğa Yürüyüşü', camping: 'Kamp', motorcycle: 'Motosiklet',
     extreme_sports: 'Ekstrem Sporlar', paintball: 'Paintball', airsoft: 'Airsoft', swimming: 'Yüzme',
     cycling: 'Bisiklet', boxing: 'Boks', martial_arts: 'Dövüş Sanatları',
-    friend_finding: 'Arkadaş Bulma', sanal_alem: 'Sanal Alem',
+    friend_finding: 'Arkadaş Bulma', sanal_alem: 'Sanal Alem', travel_explore: 'Seyahat / Keşfetme',
     painting: 'Resim', music: 'Müzik', theater: 'Tiyatro', cinema: 'Sinema', literature: 'Edebiyat',
     writing: 'Yazarlık', sculpture: 'Heykel', architecture: 'Mimari', opera: 'Opera', ceramics: 'Seramik',
     poetry: 'Şiir', photography: 'Fotoğrafçılık', illustration: 'İllüstrasyon', dance: 'Dans',

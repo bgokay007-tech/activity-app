@@ -19,6 +19,7 @@ export const ENABLED_SUBS = {
     // Social
     friend_finding: true,
     sanal_alem: true,
+    travel_explore: true,
     // Arts
     music:      true,
     // Games

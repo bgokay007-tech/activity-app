@@ -38,6 +38,7 @@ const LABELS = {
     // SOCIAL
     friend_finding: { en: 'Friend Finding', tr: 'Arkadaş Bulma', ru: 'Поиск друзей', de: 'Freunde finden' },
     sanal_alem: { en: 'Virtual World', tr: 'Sanal Alem', ru: 'Виртуальный мир', de: 'Virtuelle Welt' },
+    travel_explore: { en: 'Travel / Explore', tr: 'Seyahat / Keşfetme', ru: 'Путешествия / Открытия', de: 'Reisen / Entdecken' },
     // ARTS
     painting: { en: 'Painting', tr: 'Resim', ru: 'Живопись', de: 'Malerei' },
     music: { en: 'Music', tr: 'Müzik', ru: 'Музыка', de: 'Musik' },

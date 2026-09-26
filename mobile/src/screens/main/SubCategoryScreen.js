@@ -302,6 +302,7 @@ const SUB_CONFIG = {
     ice_skating:      { name:'Ice Skating',                nameTR:'Buz Pateni',                 nameRu:'Катание на коньках',        nameDe:'Eislaufen',                 emoji:'⛸️', color:'#0891b2' },
     motorcycle:       { name:'Motorcycle Riding',          nameTR:'Motosiklet',                 nameRu:'Мотоциклы',                 nameDe:'Motorradfahren',            emoji:'🏍️', color:'#b91c1c' },
     sanal_alem:     { name:'Virtual World',  nameTR:'Sanal Alem',     nameRu:'Виртуальный мир', nameDe:'Virtuelle Welt', emoji:'🌐', color:'#ec4899' },
+    travel_explore: { name:'Travel / Explore', nameTR:'Seyahat / Keşfetme', nameRu:'Путешествия / Открытия', nameDe:'Reisen / Entdecken', emoji:'✈️', color:'#ea580c' },
     painting:       { name:'Painting',      nameTR:'Resim',         nameRu:'Живопись',        nameDe:'Malerei',        emoji:'🎨', color:'#db2777' },
     music:          { name:'Music',         nameTR:'Müzik',         nameRu:'Музыка',          nameDe:'Musik',          emoji:'🎵', color:'#c026d3' },
     theater:        { name:'Theater',       nameTR:'Tiyatro',       nameRu:'Театр',           nameDe:'Theater',        emoji:'🎭', color:'#a21caf' },
@@ -385,7 +386,7 @@ const SIMPLE_TAB_SUBS = new Set([
 
 // GPS rota kaydetme/paylaşma (Wikiloc tarzı) mantıklı olan dallar — "Etkinlik"in
 // hemen sağında ayrı bir "Rotalar" sekmesi.
-const ROUTE_ENABLED_SUBS = new Set(['hiking', 'camping', 'running', 'motorcycle', 'sup_kano', 'climbing', 'walking']);
+const ROUTE_ENABLED_SUBS = new Set(['hiking', 'camping', 'running', 'motorcycle', 'sup_kano', 'climbing', 'walking', 'travel_explore']);
 
 // Backend'de gerçek bilet satışı entegre edilen ama getTabs'te henüz özel bir dal olmayıp
 // genel varsayılana düşen dallar — bkz. sportsTicket.controller.js SPORT_CLASSIFICATION.
@@ -398,7 +399,7 @@ const TICKET_ENABLED_EXTRA_SUBS = new Set(['basketball', 'boxing', 'martial_arts
 // arama bloğu tamamen kaldırılıp yerine basit Ücretli/Ücretsiz seçimi konur.
 const SIMPLIFIED_FEE_SUBS = new Set([
     'sup_kano', 'airsoft', 'equestrian', 'fitness_gym', 'camping', 'running', 'walking', 'extreme_sports', 'hiking', 'archery', 'climbing', 'paintball',
-    'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting', 'golf',
+    'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting', 'golf', 'travel_explore',
 ]);
 
 // extreme_sports için Format'ın yerini alan asıl dal seçimi — mevcut `surface`
@@ -428,6 +429,9 @@ function getTabs(sub, category) {
     // foto/video akışının olduğu tek sekme.
     if (sub === 'sanal_alem')
         return ['media'];
+    // Seyahat / Keşfetme — seyahat arkadaşı + rota; koç/ekipman/bilet yok.
+    if (sub === 'travel_explore')
+        return ['rivals', 'routes', 'media', 'posts', 'news', 'archive'];
     if (ROUTE_ENABLED_SUBS.has(sub))
         return ['rivals', 'routes', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
     // Airsoft: Destek (koç) ve Bilet Al sekmelerine ihtiyaç yok, Etkinlikler'in

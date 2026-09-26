@@ -39,7 +39,11 @@ const STATIC_CATS = [
     },
     {
         key: 'SOCIAL', label: 'Sosyal', emoji: '🤝', color: '#60a5fa',
-        subs: [],
+        subs: [
+            { key: 'friend_finding', label: 'Arkadaş Bulma',     emoji: '🎉' },
+            { key: 'sanal_alem',     label: 'Sanal Alem',        emoji: '🌐' },
+            { key: 'travel_explore', label: 'Seyahat / Keşfetme', emoji: '✈️' },
+        ],
     },
     {
         key: 'ARTS', label: 'Sanat', emoji: '🎨', color: '#f472b6',

@@ -26,6 +26,7 @@ const RSS_FEEDS_EN = {
     walking:        'https://news.google.com/rss/search?q=walking+fitness&hl=en-US&gl=US&ceid=US:en',
     hiking:         'https://news.google.com/rss/search?q=hiking+trail&hl=en-US&gl=US&ceid=US:en',
     shooting_hunting: 'https://news.google.com/rss/search?q=shooting+sport+hunting&hl=en-US&gl=US&ceid=US:en',
+    travel_explore: 'https://news.google.com/rss/search?q=travel+explore+tourism&hl=en-US&gl=US&ceid=US:en',
 };
 
 // Turkish Google News RSS feeds
@@ -52,6 +53,7 @@ const RSS_FEEDS_TR = {
     walking:        'https://news.google.com/rss/search?q=yürüyüş+spor&hl=tr&gl=TR&ceid=TR:tr',
     hiking:         'https://news.google.com/rss/search?q=doğa+yürüyüşü&hl=tr&gl=TR&ceid=TR:tr',
     shooting_hunting: 'https://news.google.com/rss/search?q=atıcılık+avcılık&hl=tr&gl=TR&ceid=TR:tr',
+    travel_explore: 'https://news.google.com/rss/search?q=seyahat+keşfet+turizm&hl=tr&gl=TR&ceid=TR:tr',
 };
 
 const WELLNESS_QUERIES = {
