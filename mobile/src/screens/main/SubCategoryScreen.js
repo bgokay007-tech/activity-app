@@ -1173,10 +1173,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             sender: item?.sender,
             participants: item?.participants,
             senderTeam: item?.senderTeam,
+            unassignedPlayers: item?.unassignedPlayers,
             comments,
             sub,
         }),
-        [myId, item?.sender, item?.participants, item?.senderTeam, comments, sub],
+        [myId, item?.sender, item?.participants, item?.senderTeam, item?.unassignedPlayers, comments, sub],
     );
     const { query: commentMentionQuery, suggestions: commentMentionSuggestions } = useMemo(
         () => getMatchCommentMentionSuggestions(commentText, commentMentionUsers),
@@ -4234,7 +4235,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             {replyingTo && (
                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
                                     <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
-                                        Yanıtlanıyor: {comments.find(c => c.id === replyingTo)?.user?.username}
+                                        Yanıtlanıyor: {playerDisplayName(comments.find(c => c.id === replyingTo)?.user, sub)}
                                     </Text>
                                     <TouchableOpacity onPress={() => setReplyingTo(null)}>
                                         <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }}>✕ Vazgeç</Text>
@@ -7868,10 +7869,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             sender: match?.sender,
             participants: match?.participants,
             senderTeam: match?.senderTeam,
+            unassignedPlayers: match?.unassignedPlayers,
             comments: localComments,
             sub: localSportSub,
         }),
-        [myId, match?.sender, match?.participants, match?.senderTeam, localComments, localSportSub],
+        [myId, match?.sender, match?.participants, match?.senderTeam, match?.unassignedPlayers, localComments, localSportSub],
     );
     const { query: localMentionQuery, suggestions: localMentionSuggestions } = useMemo(
         () => getMatchCommentMentionSuggestions(localCommentText, localCommentMentionUsers),
@@ -9479,7 +9481,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             {localReplyingTo && (
                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
                                     <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                        Yanıtlanıyor: {localComments.find(c => c.id === localReplyingTo)?.user?.username}
+                                        Yanıtlanıyor: {playerDisplayName(localComments.find(c => c.id === localReplyingTo)?.user, localSportSub)}
                                     </Text>
                                     <TouchableOpacity onPress={() => setLocalReplyingTo(null)}>
                                         <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>✕ Vazgeç</Text>
@@ -17147,7 +17149,7 @@ function renderMentionContent(content, mentionColor = '#4ade80') {
 // Maç yorumu @etiket adayları: kadro + bu maça yorum yazmış dışarıdakiler.
 // tag = bu dalın spor adı (alias) varsa o, yoksa username — turnuva sohbetiyle aynı kural
 // (kullanıcı: tenis "Güzellik" ise etiket @Güzellik olsun, gerçek ad çıkmasın).
-function buildMatchCommentMentionUsers({ myId, sender, participants, senderTeam, comments, sub }) {
+function buildMatchCommentMentionUsers({ myId, sender, participants, senderTeam, comments, sub, unassignedPlayers }) {
     const map = new Map();
     const add = (u) => {
         if (!u?.id || u.id === myId || !u.username) return;
@@ -17167,6 +17169,7 @@ function buildMatchCommentMentionUsers({ myId, sender, participants, senderTeam,
     add(sender);
     (Array.isArray(participants) ? participants : []).forEach(add);
     (Array.isArray(senderTeam) ? senderTeam : []).forEach(add);
+    (Array.isArray(unassignedPlayers) ? unassignedPlayers : []).forEach(add);
     (Array.isArray(comments) ? comments : []).forEach(c => add(c?.user));
     return [...map.values()].sort((a, b) =>
         String(a.tag || a.username || '').localeCompare(String(b.tag || b.username || ''), 'tr', { sensitivity: 'base' }),
@@ -20579,9 +20582,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             onPress={() => insertChatMention(u)}
                                             style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#334155' }}>
                                             <Text style={{ color: '#4ade80', fontSize: 12, fontWeight: '800' }}>@{u.alias || u.username}</Text>
-                                            {!!(u.fullName || (u.alias && u.username)) && (
+                                            {!!(u.alias && u.username) && (
                                                 <Text style={{ color: colors.textMuted, fontSize: 10 }}>
-                                                    {u.alias ? (u.fullName || u.username) : u.fullName}
+                                                    @{u.username}
                                                 </Text>
                                             )}
                                         </TouchableOpacity>
@@ -24137,10 +24140,11 @@ export default function SubCategoryScreen({ route, navigation }) {
             sender: commentMatch?.sender,
             participants: commentMatch?.participants,
             senderTeam: commentMatch?.senderTeam,
+            unassignedPlayers: commentMatch?.unassignedPlayers,
             comments,
             sub: commentModalSportSub,
         }),
-        [myId, commentMatch?.sender, commentMatch?.participants, commentMatch?.senderTeam, comments, commentModalSportSub],
+        [myId, commentMatch?.sender, commentMatch?.participants, commentMatch?.senderTeam, commentMatch?.unassignedPlayers, comments, commentModalSportSub],
     );
     const { query: commentModalMentionQuery, suggestions: commentModalMentionSuggestions } = useMemo(
         () => getMatchCommentMentionSuggestions(commentText, commentModalMentionUsers),

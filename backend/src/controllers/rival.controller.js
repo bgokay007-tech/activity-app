@@ -4968,10 +4968,32 @@ export const getUpcomingMatches = async (req, res, next) => {
 export const getMatchComments = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const match = await prisma.activityRequest.findUnique({
+            where: { id },
+            select: { subCategory: true, category: true },
+        });
+        if (!match) return res.status(404).json({ message: 'Match not found' });
         const comments = await prisma.matchComment.findMany({
             where: { rivalId: id },
             include: {
-                user: { select: { id: true, username: true, avatar: true } },
+                // Spor dalı alias'ı — yorum yazarında ve @etiket önerisinde tenis adı (ör. Güzellik)
+                // görünsün; yoksa username'e düşülür (kullanıcı isteği).
+                user: {
+                    select: {
+                        id: true,
+                        username: true,
+                        avatar: true,
+                        fullName: true,
+                        interests: {
+                            where: {
+                                subCategory: match.subCategory,
+                                ...(match.category ? { category: match.category } : {}),
+                            },
+                            select: { alias: true, subCategory: true },
+                            take: 1,
+                        },
+                    },
+                },
                 likes: { where: { userId: req.userId }, select: { id: true } },
                 _count: { select: { likes: true } },
             },
@@ -4988,13 +5010,17 @@ export const getMatchComments = async (req, res, next) => {
             })));
             toMark.forEach(c => { c.viewedBy = [...(Array.isArray(c.viewedBy) ? c.viewedBy : []), req.userId]; });
         }
-        res.json(comments.map(c => ({
-            ...c,
-            isLiked: c.likes.length > 0,
-            likeCount: c._count.likes,
-            likes: undefined,
-            _count: undefined,
-        })));
+        res.json(comments.map(c => {
+            const alias = c.user?.interests?.[0]?.alias || null;
+            return {
+                ...c,
+                user: c.user ? { ...c.user, alias, interests: undefined } : c.user,
+                isLiked: c.likes.length > 0,
+                likeCount: c._count.likes,
+                likes: undefined,
+                _count: undefined,
+            };
+        }));
     } catch (error) { next(error); }
 };
 
@@ -5018,13 +5044,37 @@ export const addMatchComment = async (req, res, next) => {
         }
         const comment = await prisma.matchComment.create({
             data: { rivalId: id, userId: req.userId, content: content.trim(), parentId: parentId || null },
-            include: { user: { select: { id: true, username: true, avatar: true, fullName: true } } },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        username: true,
+                        avatar: true,
+                        fullName: true,
+                        interests: {
+                            where: {
+                                subCategory: match.subCategory,
+                                ...(match.category ? { category: match.category } : {}),
+                            },
+                            select: { alias: true },
+                            take: 1,
+                        },
+                    },
+                },
+            },
         });
-        res.status(201).json(comment);
+        const commenterAlias = comment.user?.interests?.[0]?.alias || null;
+        const commentOut = {
+            ...comment,
+            user: comment.user
+                ? { ...comment.user, alias: commenterAlias, interests: undefined }
+                : comment.user,
+        };
+        res.status(201).json(commentOut);
 
         // Yorum sayacı sayfa yenilenmeden anlık artsın diye yorumu atan kullanıcıya da
         // 'newComment' gönderilir (bildirim değil, sadece canlı sayaç güncellemesi için).
-        emitToUser(req.userId, 'newComment', { rivalId: id, comment });
+        emitToUser(req.userId, 'newComment', { rivalId: id, comment: commentOut });
 
         const parts = Array.isArray(match.participants) ? match.participants : [];
         const team = Array.isArray(match.senderTeam) ? match.senderTeam : [];
@@ -5046,22 +5096,34 @@ export const addMatchComment = async (req, res, next) => {
             ...priorCommenters.map(c => c.userId),
         ]);
 
-        const mentionUsernames = [...new Set(
-            [...String(content).matchAll(/@([A-Za-z0-9._]+)/g)].map(m => m[1].toLowerCase()),
+        // @username VEYA bu daldaki spor alias (ör. @Güzellik) — Unicode dahil (turnuva sohbetiyle aynı).
+        const mentionTags = [...new Set(
+            [...String(content).matchAll(/@([\p{L}\p{N}._]+)/gu)].map(m => m[1].toLowerCase()),
         )];
         let mentionedIds = new Set();
-        if (mentionUsernames.length > 0 && taggableIds.size > 0) {
+        if (mentionTags.length > 0 && taggableIds.size > 0) {
             const mentionUsers = await prisma.user.findMany({
                 where: {
                     id: { in: [...taggableIds] },
-                    OR: mentionUsernames.map(u => ({ username: { equals: u, mode: 'insensitive' } })),
+                    OR: [
+                        ...mentionTags.map(u => ({ username: { equals: u, mode: 'insensitive' } })),
+                        {
+                            interests: {
+                                some: {
+                                    subCategory: match.subCategory,
+                                    ...(match.category ? { category: match.category } : {}),
+                                    OR: mentionTags.map(u => ({ alias: { equals: u, mode: 'insensitive' } })),
+                                },
+                            },
+                        },
+                    ],
                 },
                 select: { id: true },
             });
             mentionedIds = new Set(mentionUsers.map(u => u.id));
         }
 
-        const commenterUsername = comment.user?.username || 'Biri';
+        const commenterDisplay = commenterAlias || comment.user?.username || 'Biri';
         const snippet = content.trim().slice(0, 80);
         const notifData = { rivalId: id, category: match.category, subCategory: match.subCategory };
         const notified = new Set([req.userId]);
@@ -5070,11 +5132,11 @@ export const addMatchComment = async (req, res, next) => {
         for (const uid of mentionedIds) {
             if (notified.has(uid)) continue;
             notified.add(uid);
-            emitToUser(uid, 'newComment', { rivalId: id, comment });
+            emitToUser(uid, 'newComment', { rivalId: id, comment: commentOut });
             createNotification(
                 uid, 'MATCH_COMMENT_MENTION',
                 '📣 Yorumda etiketlendin',
-                `@${commenterUsername}: ${snippet}`,
+                `@${commenterDisplay}: ${snippet}`,
                 notifData,
             ).catch(() => {});
         }
@@ -5082,11 +5144,11 @@ export const addMatchComment = async (req, res, next) => {
         // Yanıtlandıysa üst yorumun yazarına bildir (kendisi değilse / zaten etiketlenmediyse).
         if (parentAuthorId && !notified.has(parentAuthorId)) {
             notified.add(parentAuthorId);
-            emitToUser(parentAuthorId, 'newComment', { rivalId: id, comment });
+            emitToUser(parentAuthorId, 'newComment', { rivalId: id, comment: commentOut });
             createNotification(
                 parentAuthorId, 'MATCH_COMMENT_REPLY',
                 '💬 Yoruma yanıt',
-                `@${commenterUsername}: ${snippet}`,
+                `@${commenterDisplay}: ${snippet}`,
                 notifData,
             ).catch(() => {});
         }
@@ -5095,11 +5157,11 @@ export const addMatchComment = async (req, res, next) => {
         for (const uid of rosterIds) {
             if (notified.has(uid)) continue;
             notified.add(uid);
-            emitToUser(uid, 'newComment', { rivalId: id, comment });
+            emitToUser(uid, 'newComment', { rivalId: id, comment: commentOut });
             createNotification(
                 uid, 'MATCH_COMMENT',
                 '💬 Yeni Yorum',
-                `@${commenterUsername}: ${snippet}`,
+                `@${commenterDisplay}: ${snippet}`,
                 notifData,
             ).catch(() => {});
         }
