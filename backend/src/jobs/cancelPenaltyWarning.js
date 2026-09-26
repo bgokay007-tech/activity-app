@@ -8,7 +8,7 @@ import { turkeyDateTimeToUtc } from '../utils/tzTime.js';
 // bitiyor". Ceza hesaplaması cancelMatch/removeRivalParticipant ile AYNI (bkz.
 // rival.controller.js — tenis/padel sabit 5 saat, voleybolde ilan sahibinin belirlediği
 // cancelPenaltyHours; belirlemediyse voleybolde hiç ceza yok, bu job da o ilanı atlar).
-const PENALIZED_SUBS = ['tennis', 'padel', 'volleyball'];
+const PENALIZED_SUBS = ['tennis', 'padel', 'pickleball', 'volleyball'];
 
 function getMatchStart(rival) {
     if (!rival.matchDate || !rival.matchTime) return null;

@@ -7,7 +7,7 @@ const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
 // coach.controller.js'deki COACH_APPROVAL_SPORTS ile aynı desen — kullanıcı isteği: voleybolde
 // zaten çalışan CV + admin onayı zorunluluğu artık tenis ve padelde de geçerli.
-const REFEREE_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+const REFEREE_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel', 'pickleball'];
 
 // coach.controller.js'deki SENSITIVE_COACH_FIELDS/redactSensitiveCoachFields ile aynı desen —
 // adli sicil ve disiplin cezası belgeleri sadece sahibi ve admin görür.

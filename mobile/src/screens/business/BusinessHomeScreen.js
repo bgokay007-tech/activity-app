@@ -377,6 +377,7 @@ const VENUE_BRANCHES = [
     { key: 'football',    label: '⚽ Futbol / Halı Saha', subCategory: 'football', color: '#16a34a' },
     { key: 'tennis',      label: '🎾 Tenis',              subCategory: 'tennis', color: '#eab308' },
     { key: 'padel',       label: '🏓 Padel',              subCategory: 'padel', color: '#06b6d4' },
+    { key: 'pickleball',  label: '🏓 Pickleball',         subCategory: 'pickleball', color: '#4d7c0f' },
     { key: 'basketball',  label: '🏀 Basketbol',          subCategory: 'basketball', color: '#f97316' },
     { key: 'volleyball',  label: '🏐 Voleybol',           subCategory: 'volleyball', color: '#a855f7' },
     { key: 'badminton',   label: '🏸 Badminton',          subCategory: 'badminton', color: '#14b8a6' },
@@ -1023,9 +1024,9 @@ const SURFACE_OPTIONS_FULL = [
     { key: 'PARQUET',   label: 'Parke',      icon: '🟫' },
     { key: 'SYNTHETIC', label: 'Sentetik',   icon: '🟩' },
 ];
-// Padel kortlarının gerçekte tek zemin tipi var: sentetik çim — ileride başka zemin
+// Padel/pickleball kortlarının gerçekte tek zemin tipi var: sentetik çim — ileride başka zemin
 // tipleri eklenirse burası genişletilir.
-const getSurfaceOptions = (branch) => branch === 'padel'
+const getSurfaceOptions = (branch) => (branch === 'padel' || branch === 'pickleball')
     ? SURFACE_OPTIONS_FULL.filter(s => s.key === 'SYNTHETIC')
     : SURFACE_OPTIONS_FULL;
 
@@ -4420,7 +4421,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                     </Text>
                                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                                         {getSurfaceOptions(venue.branch).map(s => {
-                                            const isActive = globalSurface === s.key || (!globalSurface && venue.branch === 'padel' && s.key === 'SYNTHETIC');
+                                            const isActive = globalSurface === s.key || (!globalSurface && (venue.branch === 'padel' || venue.branch === 'pickleball') && s.key === 'SYNTHETIC');
                                             return (
                                                 <TouchableOpacity key={s.key}
                                                     onPress={() => handleGlobalSurface(s.key)}
@@ -4631,7 +4632,7 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                                             </Text>
                                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                                                 {getSurfaceOptions(venue.branch).map(s => {
-                                                    const effectiveSurface = currentSurface || globalSurface || (venue.branch === 'padel' ? 'SYNTHETIC' : null);
+                                                    const effectiveSurface = currentSurface || globalSurface || ((venue.branch === 'padel' || venue.branch === 'pickleball') ? 'SYNTHETIC' : null);
                                                     const isActive = effectiveSurface === s.key;
                                                     return (
                                                         <TouchableOpacity key={s.key}

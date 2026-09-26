@@ -4,10 +4,10 @@ import { emitToUser } from '../config/socket.js';
 
 // coach.controller.js'deki COACH_APPROVAL_SPORTS ile aynı liste — antrenörlük ilan onayı
 // artık voleybol dışında tenis ve padelde de gerekiyor (kullanıcı isteği).
-const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel', 'pickleball'];
 // referee.controller.js'deki REFEREE_APPROVAL_SPORTS ile aynı liste — hakemlik onayı da
 // aynı mantıkla voleybol dışında tenis ve padelde de gerekiyor.
-const REFEREE_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+const REFEREE_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel', 'pickleball'];
 
 export const getStats = async (req, res, next) => {
     try {

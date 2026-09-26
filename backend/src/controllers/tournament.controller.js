@@ -3732,7 +3732,7 @@ export const requestTournamentPermission = async (req, res, next) => {
 // coach.controller.js'deki COACH_APPROVAL_SPORTS ile aynı liste — admin onayı gerektiren
 // dallarda (bkz. resolveRefereeEligibility ile aynı desen) onaylı bir antrenörlük ilanı olan
 // kullanıcılar zaten ciddiyeti kanıtlanmış sayılır, turnuva oluşturma iznini otomatik alır.
-const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel', 'pickleball'];
 
 export const getTournamentPermissionStatus = async (req, res, next) => {
     try {

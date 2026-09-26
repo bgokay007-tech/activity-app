@@ -64,7 +64,7 @@ import { TOURNAMENT_PRESETS, getPresetById, buildFormatConfig, tournFormatLabel,
 // aynı liste (backend requireActiveInterest ile de tutarlı). İlan oluşturma/kort rezervasyonu
 // öncesi bu dallarda anket tamamlanmamışsa direkt anketi açıyoruz (bkz. requireActivity).
 const RATING_REQUIRED_SUBS = new Set([
-    'tennis', 'padel', 'volleyball', 'basketball', 'football',
+    'tennis', 'padel', 'pickleball', 'volleyball', 'basketball', 'football',
     'badminton', 'golf', 'handball', 'table_tennis',
 ]);
 
@@ -4952,7 +4952,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                 if (!interest) return;
                                 const ratingType = code === 'DOUBLES_ASSESSMENT_REQUIRED' ? 'doubles'
                                     : code === 'SINGLES_ASSESSMENT_REQUIRED' ? undefined
-                                    : (sub === 'padel' ? 'doubles' : undefined);
+                                    : ((sub === 'padel' || sub === 'pickleball') ? 'doubles' : undefined);
                                 setJoinAssessGate({ interestId: interest.id, ratingType, requestedSlot, positionPreferences });
                             } catch {}
                         }},
@@ -23155,8 +23155,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     // formu doldurup gönderene kadar bunu öğrenmiyordu. Şimdi anket eksikse form hiç açılmıyor,
     // direkt anket (AssessmentModal) açılıyor; tamamlanınca orijinal eylem otomatik devam eder.
     const [gateAssessTarget, setGateAssessTarget] = useState(null); // { interestId, pendingAction, ratingType }
-    // Padel: varsayılan/birincil anket ÇİFTLER. Tenis/masa tenisi/badminton: TEKLİ Elo için tekli anket.
-    const defaultAssessRatingType = sub === 'padel' ? 'doubles' : undefined;
+    // Padel/pickleball: varsayılan/birincil anket ÇİFTLER. Tenis/masa tenisi/badminton: TEKLİ.
+    const defaultAssessRatingType = (sub === 'padel' || sub === 'pickleball') ? 'doubles' : undefined;
     const requireActivity = async (onOk, actionLabel = 'bu özelliği kullanabilmen') => {
         try {
             const { data } = await api.get('/interests/my');
@@ -23257,7 +23257,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         AsyncStorage.getItem('activity_data_saver').then(v => setDataSaverMode(v === 'true')).catch(() => {});
     }, []));
     useEffect(() => {
-        if (sub !== 'tennis' && sub !== 'padel' && sub !== 'badminton' && sub !== 'table_tennis' && sub !== 'volleyball') return;
+        if (sub !== 'tennis' && sub !== 'padel' && sub !== 'pickleball' && sub !== 'badminton' && sub !== 'table_tennis' && sub !== 'volleyball') return;
         const today = new Date().toISOString().slice(0, 10);
         const storageKey = `${sub}_spotlight_shown`;
         AsyncStorage.getItem(storageKey).then(raw => {
@@ -24581,7 +24581,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     // Kullanıcı isteği: konum artık zorunlu değil, onun yerine bir/birden fazla şehir
     // zorunlu; CV/admin onayı zorunluluğu voleybol dışında tenis ve padelde de geçerli.
-    const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+    const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel', 'pickleball'];
 
     const DAY_OPTIONS = [
         { key:'Pzt', label:'Pzt' }, { key:'Sal', label:'Sal' }, { key:'Çar', label:'Çar' },
@@ -24849,7 +24849,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     // Kullanıcı isteği: konum artık zorunlu değil, onun yerine bir/birden fazla şehir zorunlu;
     // CV/admin onayı zorunluluğu voleybol dışında tenis ve padelde de geçerli (bkz. coach
     // formundaki COACH_APPROVAL_SPORTS ile aynı desen).
-    const REFEREE_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+    const REFEREE_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel', 'pickleball'];
 
     // Kullanıcı isteği: "İlan Oluştur"a basınca daha önce CV yüklemiş bir hakemin
     // kimlik/belge bilgisi otomatik dolsun, yeniden başvuru gibi davranmasın (bkz.
@@ -26863,9 +26863,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                 <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                     <Text style={[s.back, { color: cfg.color }]}>{t.back}</Text>
                 </TouchableOpacity>
-                {sub === 'padel' ? (
+                {(sub === 'padel' || sub === 'pickleball') ? (
                     <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap: moderateScale(6) }}>
-                        <Image source={require('../../../assets/padel.png')} style={{ width: moderateScale(28), height: moderateScale(28) }} resizeMode="contain" />
+                        <Image
+                            source={sub === 'pickleball' ? require('../../../assets/pickleball.png') : require('../../../assets/padel.png')}
+                            style={{ width: moderateScale(28), height: moderateScale(28) }}
+                            resizeMode="contain"
+                        />
                         <Text style={s.title}>{sportDisplayName}</Text>
                     </View>
                 ) : (

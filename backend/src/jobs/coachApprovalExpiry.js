@@ -4,7 +4,7 @@ import { createNotification } from '../controllers/notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 
 // coach.controller.js'deki COACH_APPROVAL_SPORTS ile aynı liste.
-const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel', 'pickleball'];
 const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 // Kullanıcı isteği: admin onaylarken "şu bilgiler eksik/yanlış, X gün içinde düzeltilmezse

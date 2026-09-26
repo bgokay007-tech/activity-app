@@ -21,7 +21,7 @@ function redactSensitiveCoachFields(listing, viewerId) {
 // padelde de geçerli — bu dallardaki antrenörlük başvurusu da CV'siz gönderilemiyor, admin
 // onaylamadan ilan başkalarına görünmüyor. Diğer dallarda (badminton, masa tenisi, airsoft vb.)
 // önceki davranış (CV isteğe bağlı, yayınlanır yayınlanmaz görünür) değişmedi.
-const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel'];
+const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel', 'pickleball'];
 
 // Kullanıcı isteği: bu seviyelerden biri seçilirse belge adı/fotoğrafı/deneyim yılı
 // zorunlu hale geliyor — iddia edilen krendansiyeli belge doğruluyor (bkz. createListing).

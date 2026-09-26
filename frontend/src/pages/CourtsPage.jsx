@@ -8,6 +8,7 @@ const SPORTS = [
     { id: '',             label: 'All Sports' },
     { id: 'tennis',       label: '🎾 Tennis'      },
     { id: 'padel',        label: '🏓 Padel'        },
+    { id: 'pickleball',   label: '🏓 Pickleball'  },
     { id: 'volleyball',   label: '🏐 Volleyball'   },
     { id: 'football',     label: '⚽ Football'     },
     { id: 'basketball',   label: '🏀 Basketball'   },

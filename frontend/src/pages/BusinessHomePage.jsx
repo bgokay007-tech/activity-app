@@ -6,7 +6,7 @@ import api from '../services/api';
 import Navbar from '../components/Navbar';
 
 const BRANCHES = [
-    'football','tennis','padel','basketball','volleyball','badminton','swimming','boxing','martial_arts','wellness',
+    'football','tennis','padel','pickleball','basketball','volleyball','badminton','swimming','boxing','martial_arts','wellness',
     'cycling','running','table_tennis','climbing','archery','walking','foot_tennis','sup_kano','handball',
     'shooting_hunting','equestrian','golf','fitness_gym','skiing_snowboard','ice_skating','hiking','camping',
     'motorcycle','extreme_sports','paintball','airsoft',

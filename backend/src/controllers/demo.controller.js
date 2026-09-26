@@ -381,7 +381,7 @@ async function ensureDemoRivalPlayer(demo, subCategory) {
     // eşleşme/derece kontrolleri singlesRating/doublesRating'ten (seed'e düşerek) okunuyor.
     // Tenis'te ayrıca doublesAssessmentCompleted true olmalı — yoksa demo botlar artık ayrı
     // olan çiftler anketini tamamlamamış sayılıp çiftler test ilanlarına katılamazdı.
-    const isUtrSubCategory = subCategory === 'tennis' || subCategory === 'padel';
+    const isUtrSubCategory = subCategory === 'tennis' || subCategory === 'padel' || subCategory === 'pickleball';
     const isTennis = subCategory === 'tennis';
     // MID havuzu tekli/çiftler için AYRI değer taşıyor (bkz. demo.singlesRating/doublesRating) —
     // diğer havuzlar (ADA/HI vb.) bu alanları hiç taşımıyor, o zaman düz skillRating ikisine de

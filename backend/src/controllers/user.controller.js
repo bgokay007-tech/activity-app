@@ -643,7 +643,7 @@ export const searchUsers = async (req, res, next) => {
                 // tenis/padelde ayrıca admin onayı (approved) şart — CV başvurusu onaylanmadan
                 // hakem olarak önerilmez (bkz. RefereeListing.approved, resolveRefereeEligibility).
                 ...(refereeOnly === 'true' && subCategory && {
-                    refereeListings: { some: { subCategory, ...(category && { category }), status: 'ACTIVE', ...(['volleyball', 'tennis', 'padel'].includes(subCategory) && { approved: true }) } },
+                    refereeListings: { some: { subCategory, ...(category && { category }), status: 'ACTIVE', ...(['volleyball', 'tennis', 'padel', 'pickleball'].includes(subCategory) && { approved: true }) } },
                 }),
             },
             select: {
@@ -687,7 +687,7 @@ export const getUsersBySport = async (req, res, next) => {
         // aktif bir hakem kaydı (RefereeListing) olanlar olmalı — davet edilemeyecek/hakem
         // olarak atanamayacak biri öneri olarak hiç çıkmasın.
         const membershipFilter = refereeOnly === 'true'
-            ? { refereeListings: { some: { subCategory, ...(category && { category }), status: 'ACTIVE', ...(['volleyball', 'tennis', 'padel'].includes(subCategory) && { approved: true }) } } }
+            ? { refereeListings: { some: { subCategory, ...(category && { category }), status: 'ACTIVE', ...(['volleyball', 'tennis', 'padel', 'pickleball'].includes(subCategory) && { approved: true }) } } }
             : { interests: { some: { subCategory, ...(category && { category }) } } };
 
         const users = await prisma.user.findMany({

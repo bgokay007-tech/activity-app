@@ -926,6 +926,7 @@ function VenueCard({ venue, onPress }) {
 const BRANCH_MAP = {
     tennis:     'tenis',
     padel:      'padel',
+    pickleball: 'pickleball',
     football:   'futbol',
     basketball: 'basketbol',
     volleyball: 'voleybol',

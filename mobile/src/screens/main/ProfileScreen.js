@@ -456,8 +456,8 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
         const canRedoSingles = ((item.singlesMatchCount ?? ((item.wins || 0) + (item.losses || 0))) < 3) || !item.assessmentCompleted;
         const canDoDoubles = !item.doublesAssessmentCompleted || (item.doublesMatchCount || 0) < 3;
         if (!canRedoSingles && !canDoDoubles) return;
-        // Padelde tekli disiplin gizli — bkz. ManageActivitiesModal openAssessPicker.
-        const singlesVisible = item.subCategory !== 'padel'
+        // Padel/pickleballde tekli disiplin gizli — bkz. ManageActivitiesModal openAssessPicker.
+        const singlesVisible = (item.subCategory !== 'padel' && item.subCategory !== 'pickleball')
             || item.assessmentCompleted
             || (item.singlesMatchCount || 0) > 0;
         if (!singlesVisible) {
@@ -540,6 +540,8 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                             <View style={fc.topRow}>
                                 {item.subCategory === 'padel'
                                     ? <Image source={require('../../../assets/padel.png')} style={{ width: moderateScale(22), height: moderateScale(22) }} resizeMode="contain" />
+                                    : item.subCategory === 'pickleball'
+                                    ? <Image source={require('../../../assets/pickleball.png')} style={{ width: moderateScale(22), height: moderateScale(22) }} resizeMode="contain" />
                                     : <Text style={fc.smallEmoji}>{item.emoji || '🏅'}</Text>}
                                 <View style={{ flexShrink: 1, minWidth: moderateScale(52) }}>
                                     <Text style={fc.smallSportName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{getSubCategoryLabel(item.subCategory, lang)?.toUpperCase()}</Text>
@@ -557,11 +559,11 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                         {UTR_PROFILE_SUBS.includes(item.subCategory) ? (
                                             <>
                                                 <TouchableOpacity onPress={() => (item.assessmentCompleted || item.doublesAssessmentCompleted) && setShowEloModal(true)} disabled={!(item.assessmentCompleted || item.doublesAssessmentCompleted)} style={{ alignItems: 'center' }}>
-                                                    {(item.subCategory !== 'padel' || item.assessmentCompleted || (item.singlesMatchCount || 0) > 0) && (
+                                                    {(item.subCategory !== 'padel' && item.subCategory !== 'pickleball') || item.assessmentCompleted || (item.singlesMatchCount || 0) > 0 ? (
                                                         <Text style={fc.eloLine} numberOfLines={1}>
                                                             {lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'Одиночный' : lang === 'de' ? 'Einzel' : 'Singles'} {item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'}
                                                         </Text>
-                                                    )}
+                                                    ) : null}
                                                     <Text style={fc.eloLine} numberOfLines={1}>
                                                         {lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'Пары' : lang === 'de' ? 'Doppel' : 'Doubles'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
                                                     </Text>
@@ -732,11 +734,13 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 </TouchableOpacity>
                             )}
 
-                            {/* Tenis/padel: antrenör + maç arkadaşı geri bildirimi — ELO'ya yazılmaz */}
-                            {(item.subCategory === 'tennis' || item.subCategory === 'padel') && (
+                            {/* Tenis/padel/pickleball: antrenör + maç arkadaşı geri bildirimi — ELO'ya yazılmaz */}
+                            {(item.subCategory === 'tennis' || item.subCategory === 'padel' || item.subCategory === 'pickleball') && (
                                 <TouchableOpacity style={fc.actionBtnWide} onPress={() => setShowRacquetFeedback(true)}>
-                                    <Text style={[fc.actionTxt, { color: item.subCategory === 'padel' ? '#06b6d4' : '#22c55e', textAlign: 'center' }]}>
-                                        {item.subCategory === 'padel' ? t.racquetFeedbackBtnPadel : t.racquetFeedbackBtnTennis}
+                                    <Text style={[fc.actionTxt, { color: item.subCategory === 'padel' || item.subCategory === 'pickleball' ? '#06b6d4' : '#22c55e', textAlign: 'center' }]}>
+                                        {item.subCategory === 'pickleball' ? t.racquetFeedbackBtnPickleball
+                                            : item.subCategory === 'padel' ? t.racquetFeedbackBtnPadel
+                                            : t.racquetFeedbackBtnTennis}
                                     </Text>
                                 </TouchableOpacity>
                             )}
@@ -809,7 +813,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                         <View>
                                             {UTR_PROFILE_SUBS.includes(item.subCategory) ? (
                                                 <Text style={{ color: '#facc15', fontSize: 14, fontWeight: '900' }} numberOfLines={1}>
-                                                    ELO ★{(item.subCategory !== 'padel' || item.assessmentCompleted || (item.singlesMatchCount || 0) > 0) ? ` ${lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'О' : lang === 'de' ? 'E' : 'S'} ${item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'} ·` : ''} {lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'П' : lang === 'de' ? 'D' : 'D'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
+                                                    ELO ★{(item.subCategory !== 'padel' && item.subCategory !== 'pickleball') || item.assessmentCompleted || (item.singlesMatchCount || 0) > 0 ? ` ${lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'О' : lang === 'de' ? 'E' : 'S'} ${item.singlesDisplayRating != null ? Number(item.singlesDisplayRating).toFixed(2) : '—'} ·` : ''} {lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'П' : lang === 'de' ? 'D' : 'D'} {item.doublesDisplayRating != null ? Number(item.doublesDisplayRating).toFixed(2) : '—'}
                                                 </Text>
                                             ) : (
                                                 <Text style={{ color: '#facc15', fontSize: 16, fontWeight: '900' }}>ELO ★ {Number(item.skillRating || 0).toFixed(2)}</Text>
@@ -866,7 +870,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 ) : (
                     /* ── Arka Yüz ── */
                     <View style={[fc.face, fc.backFace]}>
-                        {(item?.subCategory === 'tennis' || item?.subCategory === 'padel') ? (
+                        {(item?.subCategory === 'tennis' || item?.subCategory === 'padel' || item?.subCategory === 'pickleball') ? (
                             <TennisDailyAnimation color={cfg.color} lang={lang} />
                         ) : (
                             <>
@@ -1313,7 +1317,7 @@ const fc = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SUB_EMOJI = {
-    football:'⚽', basketball:'🏀', tennis:'🎾', padel:'🏓', volleyball:'🏐',
+    football:'⚽', basketball:'🏀', tennis:'🎾', padel:'🏓', pickleball:'🏓', volleyball:'🏐',
     swimming:'🏊', running:'🏃', cycling:'🚴', boxing:'🥊', martial_arts:'🥋', wellness:'🧘',
     music:'🎵', painting:'🎨', dance:'💃', photography:'📸', theater:'🎭',
     writing:'✍️', sculpture:'🗿', cinema:'🎬', poetry:'📜', illustration:'🖼️',
@@ -1330,6 +1334,7 @@ function reservationMatchesSport(reservation, subCategory) {
     const s = (subCategory || '').toLowerCase();
     if (s === 'tennis')     return b.includes('tenis') || b.includes('tennis');
     if (s === 'padel')      return b.includes('padel');
+    if (s === 'pickleball') return b.includes('pickleball') || b.includes('pickleb');
     if (s === 'football')   return b.includes('futbol') || b.includes('hali') || b.includes('halı');
     if (s === 'basketball') return b.includes('basketbol') || b.includes('basket');
     if (s === 'volleyball') return b.includes('voleybol') || b.includes('volley');
@@ -1371,6 +1376,7 @@ const ALL_BRANCHES = [
     { key: 'basketball',    label: '🏀 Basketbol',        category: 'SPORTS', subCategory: 'basketball' },
     { key: 'tennis',        label: '🎾 Tenis',            category: 'SPORTS', subCategory: 'tennis' },
     { key: 'padel',         label: '🏓 Padel',            category: 'SPORTS', subCategory: 'padel' },
+    { key: 'pickleball',    label: '🏓 Pickleball',       category: 'SPORTS', subCategory: 'pickleball' },
     { key: 'volleyball',    label: '🏐 Voleybol',         category: 'SPORTS', subCategory: 'volleyball' },
     { key: 'swimming',      label: '🏊 Yüzme',            category: 'SPORTS', subCategory: 'swimming' },
     { key: 'running',       label: '🏃 Koşu',             category: 'SPORTS', subCategory: 'running' },
@@ -2945,6 +2951,8 @@ export default function ProfileScreen({ route, navigation }) {
                                         >
                                             {i.subCategory === 'padel'
                                                 ? <Image source={require('../../../assets/padel.png')} style={{ width: 34, height: 34 }} resizeMode="contain" />
+                                                : i.subCategory === 'pickleball'
+                                                ? <Image source={require('../../../assets/pickleball.png')} style={{ width: 34, height: 34 }} resizeMode="contain" />
                                                 : <Text style={{ fontSize: 34 }}>{SUB_EMOJI[i.subCategory] || '🏅'}</Text>}
                                             <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', textAlign: 'center' }} numberOfLines={1}>{getSubCategoryLabel(i.subCategory, lang)}</Text>
                                             {/* Alias varsa gösterilir, yoksa hiç render edilmez — boş bir satır
@@ -2954,11 +2962,11 @@ export default function ProfileScreen({ route, navigation }) {
                                                 iki kısa satır olarak gösterilir, diğer dallarda tek birleşik puan. */}
                                             {UTR_PROFILE_SUBS.includes(i.subCategory) ? (
                                                 <View style={{ alignItems: 'center' }}>
-                                                    {(i.subCategory !== 'padel' || i.assessmentCompleted || (i.singlesMatchCount || 0) > 0) && (
+                                                    {(i.subCategory !== 'padel' && i.subCategory !== 'pickleball') || i.assessmentCompleted || (i.singlesMatchCount || 0) > 0 ? (
                                                         <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '900' }} numberOfLines={1}>
                                                             {lang === 'tr' ? 'T' : lang === 'ru' ? 'О' : lang === 'de' ? 'E' : 'S'}: {i.singlesDisplayRating != null ? Number(i.singlesDisplayRating).toFixed(2) : '—'}★
                                                         </Text>
-                                                    )}
+                                                    ) : null}
                                                     <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '900' }} numberOfLines={1}>
                                                         {lang === 'tr' ? 'Ç' : lang === 'ru' ? 'П' : lang === 'de' ? 'D' : 'D'}: {i.doublesDisplayRating != null ? Number(i.doublesDisplayRating).toFixed(2) : '—'}★
                                                     </Text>

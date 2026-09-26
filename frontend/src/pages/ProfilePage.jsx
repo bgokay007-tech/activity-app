@@ -214,7 +214,7 @@ function PersonalInfoModal({ user, onClose, onSave }) {
     );
 }
 
-const ENABLED_SUBS = new Set(['tennis', 'padel', 'volleyball', 'batak']);
+const ENABLED_SUBS = new Set(['tennis', 'padel', 'pickleball', 'volleyball', 'batak']);
 const WAGERED_GAMES = new Set(['okey', 'batak']);
 
 function AddActivityModal({ currentInterests, onClose, onAdd, onRemove }) {

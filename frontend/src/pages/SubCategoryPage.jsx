@@ -54,9 +54,9 @@ const WELLNESS_BRANCHES = new Set(['wellness']);
 
 // Team sports — Player Wanted + Find Opponent tabs
 const TEAM_SPORTS = new Set(['volleyball', 'football']);
-const TICKET_SPORTS = new Set(['tennis', 'padel', 'volleyball']);
-const COACH_EXPANDED_SPORTS = new Set(['tennis', 'padel', 'volleyball']);
-const EQUIPMENT_SPORTS = new Set(['tennis', 'padel']);
+const TICKET_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'volleyball']);
+const COACH_EXPANDED_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'volleyball']);
+const EQUIPMENT_SPORTS = new Set(['tennis', 'padel', 'pickleball']);
 
 // 15-minute interval time select (06:00 – 23:45)
 const TIME_OPTIONS = (() => {
@@ -551,7 +551,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
     const isCompetitiveTeam = sub === 'football' && form.matchMode === 'COMPETITIVE' && form.teamSize > 1;
     // Tenis/Padel çiftler: ilanı oluştururken partner seçimi zorunlu (mevcut takım kurucu
     // arayüzü 1 partner aramak için tekrar kullanılıyor — teamSize zaten varsayılan 2).
-    const needsPartner     = (sub === 'tennis' || sub === 'padel') && form.matchType === 'DOUBLE';
+    const needsPartner     = (sub === 'tennis' || sub === 'padel' || sub === 'pickleball') && form.matchType === 'DOUBLE';
     const isTeamBuilder     = (sub === 'football' && form.teamSize > 1) || needsPartner;
     const spotsLeft = form.teamSize - 1 - senderTeam.length; // how many more teammates needed
 
@@ -951,7 +951,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
             )}
 
             {/* Gender restriction — tennis/padel only */}
-            {(sub === 'tennis' || sub === 'padel') && form.matchType === 'SINGLE' && (
+            {(sub === 'tennis' || sub === 'padel' || sub === 'pickleball') && form.matchType === 'SINGLE' && (
                 <div>
                     <label className="text-gray-400 text-xs mb-2 block">{t('rival.gender_req_label')}</label>
                     <div className="flex gap-2">
@@ -4776,7 +4776,7 @@ function SubCategoryPage() {
                                     sub={sub}
                                     myId={myId}
                                     myInterest={myInterest}
-                                    defaultMatchType={sub === 'padel' ? 'DOUBLE' : 'SINGLE'}
+                                    defaultMatchType={(sub === 'padel' || sub === 'pickleball') ? 'DOUBLE' : 'SINGLE'}
                                     editItem={editingRival}
                                     onSubmit={(data, isEdit) => {
                                         if (isEdit) {
@@ -4995,7 +4995,7 @@ function SubCategoryPage() {
                                                     ))}
                                                 </div>
                                             )}
-                                            {rival.senderId === myId && filled < required && (sub === 'tennis' || sub === 'padel') && (
+                                            {rival.senderId === myId && filled < required && (sub === 'tennis' || sub === 'padel' || sub === 'pickleball') && (
                                                 <button onClick={() => sendRivalDemoJoin(rival.id)} disabled={seedingDemoRivalId === rival.id}
                                                     className="w-full bg-purple-600/10 border border-purple-500/30 text-purple-400 hover:bg-purple-600/20 font-bold text-xs px-3 py-1.5 rounded-xl transition mb-3 disabled:opacity-50">
                                                     {seedingDemoRivalId === rival.id ? '...' : '🤖 Send Demo Join Request'}
