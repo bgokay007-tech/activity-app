@@ -12,6 +12,7 @@ export const ENABLED_SUBS = {
     // Sports
     tennis:     true,
     padel:      true,
+    pickleball: true,
     volleyball:  true,
     football:   false,
     basketball: false,

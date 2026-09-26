@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 const ENABLED_SUBS = new Set([
-    'tennis', 'padel', 'volleyball',
+    'tennis', 'padel', 'pickleball', 'volleyball',
     // Sanat — tüm dallar
     'music', 'painting', 'dance', 'photography', 'theater', 'writing', 'sculpture', 'cinema', 'poetry', 'illustration',
     // Oyunlar — tüm dallar

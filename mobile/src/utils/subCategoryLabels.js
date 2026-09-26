@@ -5,6 +5,7 @@ const LABELS = {
     // SPORTS
     tennis: { en: 'Tennis', tr: 'Tenis', ru: 'Теннис', de: 'Tennis' },
     padel: { en: 'Padel', tr: 'Padel', ru: 'Падел', de: 'Padel' },
+    pickleball: { en: 'Pickleball', tr: 'Pickleball', ru: 'Пиклбол', de: 'Pickleball' },
     volleyball: { en: 'Volleyball', tr: 'Voleybol', ru: 'Волейбол', de: 'Volleyball' },
     football: { en: 'Football', tr: 'Futbol', ru: 'Футбол', de: 'Fußball' },
     basketball: { en: 'Basketball', tr: 'Basketbol', ru: 'Баскетбол', de: 'Basketball' },

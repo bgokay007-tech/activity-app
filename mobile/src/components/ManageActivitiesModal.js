@@ -16,6 +16,7 @@ import useT from '../hooks/useT';
 // ayrım için kullanılan özel logo burada da aynı görünsün diye reuse ediliyor.
 const SUB_IMAGES = {
     padel: require('../../assets/padel.png'),
+    pickleball: require('../../assets/pickleball.png'),
 };
 
 // Puanlı (bahisli) oyunlar — geçmiş maç sayısına bakılmaksızın tamamen
@@ -26,14 +27,14 @@ const WAGERED_GAMES = new Set(['okey', 'batak']);
 // Bu dallarda derece anketi zorunlu — eklerken açılan anket kapatılamaz/atlanamaz
 // (backend'de de requireActiveInterest ile ayrıca korunuyor, bkz. rival.controller.js).
 const RATING_REQUIRED_SUBS = new Set([
-    'tennis', 'padel', 'volleyball', 'basketball', 'football',
+    'tennis', 'padel', 'pickleball', 'volleyball', 'basketball', 'football',
     'badminton', 'golf', 'handball', 'table_tennis',
 ]);
 
 // UTR-esinli sisteme geçen dallar (bkz. backend utrRating.js) — tekli/çiftler puanı AYRI,
 // değerlendirme de iki seçenekli (Tekli/Çiftler) açılıyor. Diğer dallarda tek "Değerlendir".
 // Çiftler anketi tekliden bağımsız (çiftler katılımı / çiftler değerlendirmesi için).
-const SINGLES_DOUBLES_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis']);
+const SINGLES_DOUBLES_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball']);
 
 export default function ManageActivitiesModal({ visible, interests, onClose, onInterestsChange, privacyEmojiIcon, onPrivacyPress }) {
     const t = useT();
@@ -76,7 +77,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
             // Padel: %99 çiftler oynanan bir spor olduğu için (kullanıcı isteği) varsayılan/
             // birincil anket ÇİFTLER — tekli anketi hiç gerekmeden bağımsız tamamlanabilir.
             // Tenis'te hâlâ tekli varsayılan/birincil.
-            const isPadelDoublesDefault = subCategory === 'padel';
+            const isPadelDoublesDefault = subCategory === 'padel' || subCategory === 'pickleball';
             const alreadyAssessed = isPadelDoublesDefault
                 ? (data.assessmentCompleted || data.doublesAssessmentCompleted)
                 : data.assessmentCompleted;
@@ -159,7 +160,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
         // maça girdiyse (singlesMatchCount) görünür; o zamana kadar seçim sorulmadan doğrudan
         // çiftler anketi açılır. Tekli maça katılma yolu ilanı oluştururken/katılırken zaten
         // anketi tetikliyor (bkz. SubCategoryScreen tekli anket kapısı).
-        const singlesVisible = subId !== 'padel'
+        const singlesVisible = (subId !== 'padel' && subId !== 'pickleball')
             || existing.assessmentCompleted
             || (existing.singlesMatchCount || 0) > 0;
         if (!singlesVisible) {
@@ -304,7 +305,7 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
                                                     // Padelde tekli hiç açılmadıysa (anket yok + tekli maç yok) tekli
                                                     // satırı bile gösterilmez — varsayılan sadece çiftler.
                                                     <Text style={[s.subRating, { color: activeColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                        {(sub.id !== 'padel' || existing.assessmentCompleted || (existing.singlesMatchCount || 0) > 0)
+                                                        {((sub.id !== 'padel' && sub.id !== 'pickleball') || existing.assessmentCompleted || (existing.singlesMatchCount || 0) > 0)
                                                             ? `${t.singlesEloLabel}: ${existing.singlesDisplayRating != null ? Number(existing.singlesDisplayRating).toFixed(2) : '—'} ★  ·  `
                                                             : ''}{t.doublesEloLabel}: {existing.doublesDisplayRating != null ? Number(existing.doublesDisplayRating).toFixed(2) : '—'} ★
                                                     </Text>

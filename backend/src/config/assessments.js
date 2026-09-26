@@ -6,7 +6,7 @@
 // kapatılamaz/atlanamaz, ve rival.controller.js (createRivalRequest/sendJoinRequest)
 // bu dallarda assessmentCompleted olmadan ilan açmaya/katılmaya izin vermez.
 export const RATING_REQUIRED_SUBCATEGORIES = new Set([
-    'tennis', 'padel', 'volleyball', 'basketball', 'football',
+    'tennis', 'padel', 'pickleball', 'volleyball', 'basketball', 'football',
     'badminton', 'golf', 'handball', 'table_tennis',
 ]);
 
@@ -1604,7 +1604,9 @@ Object.assign(QUESTIONS, {
 
 // Get questions for a sport (falls back to _default), localised to lang ('en'|'tr')
 export function getQuestions(subCategory, lang = 'en') {
-    const raw = QUESTIONS[subCategory.toLowerCase()] || QUESTIONS._default;
+    // Pickleball: padel ile aynı anket yapısı (çiftler-öncelikli raket); soru seti padel'den alınır.
+    const key = subCategory.toLowerCase() === 'pickleball' ? 'padel' : subCategory.toLowerCase();
+    const raw = QUESTIONS[key] || QUESTIONS._default;
     if (lang === 'en') return raw;
     // Map each question to its TR text when available, fall back to English
     return raw.map(q => ({

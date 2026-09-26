@@ -19,7 +19,7 @@ const TABLE = [
 // Kullanıcı isteği: badminton ve masa tenisi, padel'in maç/kadro/puanlama mantığının birebir
 // aynısını kullanıyor — bu listeye eklenmesi ELO tablosu, turnuva puanlama ve kort rezervasyon
 // iptal senkronizasyonu gibi bu listeyi okuyan TÜM yerlere otomatik olarak yansıyor.
-export const TENNIS_PADEL_SUBCATEGORIES = ['tennis', 'padel', 'badminton', 'table_tennis'];
+export const TENNIS_PADEL_SUBCATEGORIES = ['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball'];
 
 // Winner-games-ratio threshold separating "dominant" from "competitive" for tennis/padel,
 // calibrated from the source table's own examples (6-3 ⇒ competitive at 66.7%, 6-2 ⇒

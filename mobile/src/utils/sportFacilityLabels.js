@@ -32,6 +32,20 @@ export function sportFacilityLabels(sub, t) {
             sportNamedEquipment: true,
         };
     }
+    if (sub === 'pickleball') {
+        return {
+            noun: t.pickleballCourtLabel,
+            reserved: t.pickleballReservedLabel,
+            notReserved: t.pickleballNotReserved,
+            promptQ: t.pickleballReservedPromptQ,
+            searchPh: t.pickleballSearchPlaceholder,
+            manualLabel: t.pickleballManualLabel,
+            specifyBtn: t.pickleballSpecifyBtn,
+            feeLabel: t.pickleballFeeLabel,
+            resBtn: t.venueResBtnPickleball,
+            sportNamedEquipment: true,
+        };
+    }
     if (sub === 'volleyball') {
         return {
             noun: t.volleyballHallLabel,

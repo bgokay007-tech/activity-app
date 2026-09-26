@@ -491,7 +491,7 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
 // ─── İşletme sahibi ───────────────────────────────────────────────────────────
 
 const VENUE_ALLOWED_PACKAGES = ['RAHATLATICI', 'PRO', 'PREMIUM'];
-const VALID_BRANCHES = ['football','tennis','padel','basketball','volleyball','badminton','swimming','boxing','martial_arts','wellness','cycling','running',
+const VALID_BRANCHES = ['football','tennis','padel','pickleball','basketball','volleyball','badminton','swimming','boxing','martial_arts','wellness','cycling','running',
     'table_tennis','climbing','archery','walking','foot_tennis','sup_kano','handball','shooting_hunting','equestrian','golf',
     'fitness_gym','skiing_snowboard','ice_skating','hiking','camping','motorcycle','extreme_sports','paintball','airsoft'];
 
@@ -548,7 +548,7 @@ export const createVenue = async (req, res, next) => {
                 pricePerSlot: pricePerSlot ? parseInt(pricePerSlot) : 0,
                 // Padel kortlarının gerçekte tek zemin tipi var: sentetik çim — ileride başka
                 // zemin tipleri eklenirse burası genişletilir.
-                courts: { create: courts.map(c => ({ name: c, ...(branch === 'padel' ? { surface: 'SYNTHETIC' } : {}) })) },
+                courts: { create: courts.map(c => ({ name: c, ...((branch === 'padel' || branch === 'pickleball') ? { surface: 'SYNTHETIC' } : {}) })) },
             },
             include: { courts: true },
         });
@@ -595,7 +595,7 @@ export const suggestVenue = async (req, res, next) => {
                     n++;
                     courts.push({
                         name: `Kort ${n}`,
-                        surface: g.surface || (branch === 'padel' ? 'SYNTHETIC' : null),
+                        surface: g.surface || ((branch === 'padel' || branch === 'pickleball') ? 'SYNTHETIC' : null),
                         indoor: typeof g.indoor === 'boolean' ? g.indoor : null,
                     });
                 }
@@ -605,7 +605,7 @@ export const suggestVenue = async (req, res, next) => {
         } else if (courtCount !== undefined && courtCount !== null && courtCount !== '') {
             const count = parseInt(courtCount, 10);
             if (!Number.isInteger(count) || count < 1 || count > 20) return res.status(400).json({ message: 'Kort sayısı 1-20 arasında olmalıdır' });
-            courts = Array.from({ length: count }, (_, i) => ({ name: `Kort ${i + 1}`, ...(branch === 'padel' ? { surface: 'SYNTHETIC' } : {}) }));
+            courts = Array.from({ length: count }, (_, i) => ({ name: `Kort ${i + 1}`, ...((branch === 'padel' || branch === 'pickleball') ? { surface: 'SYNTHETIC' } : {}) }));
         }
 
         const days = Array.isArray(openDays) && openDays.length ? openDays.filter(d => Number.isInteger(d) && d >= 1 && d <= 7) : [1, 2, 3, 4, 5, 6, 7];

@@ -20,7 +20,7 @@
 //   DATABASE_URL="<public proxy url>" node scripts/seedDemoUtrRatings.js --confirm  (gerçek)
 import prisma from '../src/config/prisma.js';
 
-const UTR_SUBCATEGORIES = ['tennis', 'padel', 'badminton', 'table_tennis'];
+const UTR_SUBCATEGORIES = ['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball'];
 const CONFIRM = process.argv.includes('--confirm');
 
 // Basit deterministik-ish rastgelelik: 0.5–4.5 arası, hafçe çan eğrisine yakın (3 zar ortalaması).

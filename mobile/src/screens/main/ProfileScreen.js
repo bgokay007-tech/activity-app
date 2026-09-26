@@ -31,7 +31,7 @@ import { sharePost } from '../../utils/share';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // UTR dalları — tekli/çiftler ayrı puan + anket (bkz. backend utrRating.js).
-const UTR_PROFILE_SUBS = ['tennis', 'padel', 'badminton', 'table_tennis'];
+const UTR_PROFILE_SUBS = ['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball'];
 
 // ─── Sport Card Flip Modal ────────────────────────────────────────────────────
 const { width: SW, height: SH } = Dimensions.get('window');

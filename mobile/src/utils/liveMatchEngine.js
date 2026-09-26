@@ -7,7 +7,7 @@
 // side her zaman 'A' (ilanı açan/kurucu taraf) veya 'B' (rakip taraf) — mobile tarafında
 // çağıran kod A/B'yi sender/opponent'a çevirir.
 
-export const RACKET_SPORTS = new Set(['tennis', 'padel', 'table_tennis', 'badminton']);
+export const RACKET_SPORTS = new Set(['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball']);
 export const RALLY_RACKET_SPORTS = new Set(['table_tennis', 'badminton']); // deuce/avantaj yok, direkt sayı
 export const VOLLEYBALL_SPORTS = new Set(['volleyball']);
 export const BASKETBALL_SPORTS = new Set(['basketball']);

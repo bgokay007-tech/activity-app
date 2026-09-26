@@ -6,6 +6,7 @@
 const MET_TABLE = {
     tennis: { COMPETITIVE: 8, PRACTICE: 6, BOTH: 7 },
     padel: { COMPETITIVE: 7, PRACTICE: 5, BOTH: 6 },
+    pickleball: { COMPETITIVE: 6, PRACTICE: 4.5, BOTH: 5.5 },
     table_tennis: { COMPETITIVE: 5, PRACTICE: 4, BOTH: 4.5 },
     badminton: { COMPETITIVE: 7, PRACTICE: 5.5, BOTH: 6 },
     volleyball: { COMPETITIVE: 6, PRACTICE: 4, BOTH: 5 },

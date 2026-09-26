@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import { onSocket } from '../../services/socket';
@@ -15,6 +16,7 @@ const STATUS_COLOR = { PENDING: '#eab308', CONFIRMED: '#22c55e', CANCELLED: '#6b
 
 function branchToSub(branch) {
     const b = (branch || '').toLowerCase();
+    if (b.includes('pickleball') || b.includes('pickleb')) return { sub: 'pickleball', cat: 'SPORTS' };
     if (b.includes('padel'))                             return { sub: 'padel',      cat: 'SPORTS' };
     if (b.includes('tenis') || b.includes('tennis'))     return { sub: 'tennis',     cat: 'SPORTS' };
     if (b.includes('futbol') || b.includes('hali') || b.includes('halı')) return { sub: 'football',  cat: 'SPORTS' };
@@ -22,6 +24,36 @@ function branchToSub(branch) {
     if (b.includes('voleybol') || b.includes('volley'))  return { sub: 'volleyball', cat: 'SPORTS' };
     if (b.includes('badminton'))                         return { sub: 'badminton',  cat: 'SPORTS' };
     return { sub: b || 'tennis', cat: 'SPORTS' };
+}
+
+function isMyMatch(item, userId) {
+    if (!item || !userId) return false;
+    if (item.senderId === userId || item.sender?.id === userId) return true;
+    if ((item.participants || []).some(p => p?.id === userId)) return true;
+    if ((item.senderTeam || []).some(p => p?.id === userId)) return true;
+    if ((item.unassignedPlayers || []).some(p => p?.id === userId)) return true;
+    if ((item.substitutePlayers || []).some(p => p?.id === userId)) return true;
+    return false;
+}
+
+function matchStartDate(item) {
+    if (!item?.matchDate || !item?.matchTime) return null;
+    const [h, min] = String(item.matchTime).split(':').map(Number);
+    const d = new Date(item.matchDate);
+    if (isNaN(d) || Number.isNaN(h)) return null;
+    d.setHours(h, min || 0, 0, 0);
+    return d;
+}
+
+function matchHasStarted(item, now) {
+    const d = matchStartDate(item);
+    return !!(d && now >= d);
+}
+
+function formatBadge(item) {
+    if (item.matchType === 'DOUBLE') return '2v2';
+    if ((item.teamSize || 1) > 1) return `${item.teamSize}v${item.teamSize}`;
+    return '1v1';
 }
 
 function calcDuration(start, end) {
@@ -243,18 +275,110 @@ function ReservationCard({ item, onCancel, onCancelRequested, navigation }) {
     );
 }
 
+function MatchCard({ item, navigation }) {
+    const t = useT();
+    const lang = useSelector(s => s.lang?.lang || 'tr');
+    const subLabel = getSubCategoryLabel(item.subCategory, lang);
+    const mode = String(item.matchMode || '').toUpperCase();
+    const players = [
+        item.sender,
+        ...(Array.isArray(item.participants) ? item.participants : []),
+        ...(Array.isArray(item.senderTeam) ? item.senderTeam : []),
+    ].filter(p => p && (p.id || p.username || p.manualName));
+    const seen = new Set();
+    const uniquePlayers = players.filter(p => {
+        const key = p.id || p.username || p.manualName;
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+    const dateLabel = item.flexibleSchedule && !item.matchDate
+        ? t.resFlexibleSchedule
+        : [
+            item.matchDate ? new Date(item.matchDate).toLocaleDateString(t.dateLocale, { day: 'numeric', month: 'short', weekday: 'short' }) : null,
+            item.matchTime || null,
+        ].filter(Boolean).join(' · ');
+    const courtLabel = item.isCourtReserved ? t.courtReservedLabel : t.courtNotReserved;
+    const place = [item.courtName, item.location].filter(Boolean).join(' · ');
+
+    return (
+        <TouchableOpacity
+            style={s.card}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('SubCategory', {
+                category: item.category || 'SPORTS',
+                sub: item.subCategory,
+                initialTab: 'rivals',
+                highlightRivalId: item.id,
+            })}
+        >
+            <View style={s.cardHeader}>
+                <View style={{ flex: 1 }}>
+                    <Text style={s.venueName}>{subLabel || item.subCategory}</Text>
+                    {!!place && <Text style={s.courtName} numberOfLines={1}>{place}</Text>}
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 3 }}>
+                    <View style={s.subBadge}>
+                        <Text style={s.subBadgeText}>{formatBadge(item)}</Text>
+                    </View>
+                    {mode === 'COMPETITIVE' && (
+                        <View style={[s.badge, { backgroundColor: '#ef444420', borderColor: '#ef444450' }]}>
+                            <Text style={[s.badgeText, { color: '#ef4444' }]}>{t.competitiveMode}</Text>
+                        </View>
+                    )}
+                    {mode === 'PRACTICE' && (
+                        <View style={[s.badge, { backgroundColor: '#22c55e20', borderColor: '#22c55e50' }]}>
+                            <Text style={[s.badgeText, { color: '#22c55e' }]}>{t.practiceMode}</Text>
+                        </View>
+                    )}
+                </View>
+            </View>
+
+            <View style={s.timeRow}>
+                <Text style={s.timeText}>📅 {dateLabel}</Text>
+            </View>
+
+            {uniquePlayers.length > 0 && (
+                <Text style={s.locationText} numberOfLines={2}>
+                    {uniquePlayers.map(p => p.username || p.fullName || p.manualName).filter(Boolean).join(' · ')}
+                </Text>
+            )}
+
+            <Text style={[s.payText, { color: item.isCourtReserved ? '#4ade80' : '#f87171' }]}>
+                {item.isCourtReserved ? '✅' : '❌'} {courtLabel}
+            </Text>
+            <Text style={s.goMatchHint}>{t.seeYourMatch} →</Text>
+        </TouchableOpacity>
+    );
+}
+
 export default function MyReservationsScreen({ navigation, route }) {
     const t = useT();
+    const insets = useSafeAreaInsets();
+    const userId = useSelector(s => s.auth?.user?.id);
     const { sportFilter } = route?.params || {};
+    const [section, setSection] = useState(route?.params?.section === 'matches' ? 'matches' : 'reservations');
     const [reservations, setRes] = useState([]);
+    const [matches, setMatches] = useState([]);
     const [loading, setLoading]  = useState(false);
     const [filter, setFilter]    = useState('upcoming');
+    const [nowMs, setNowMs] = useState(Date.now());
+
+    useEffect(() => {
+        if (route?.params?.section === 'matches' || route?.params?.section === 'reservations') {
+            setSection(route.params.section);
+        }
+    }, [route?.params?.section]);
 
     const fetchAll = useCallback(async () => {
         setLoading(true);
         try {
-            const { data } = await api.get('/venues/reservations/mine');
-            setRes(data);
+            const [resResult, matchResult] = await Promise.all([
+                api.get('/venues/reservations/mine'),
+                api.get('/rivals/my-upcoming').catch(() => ({ data: [] })),
+            ]);
+            setRes(resResult.data);
+            setMatches(Array.isArray(matchResult.data) ? matchResult.data : []);
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.resLoadFailed);
         } finally { setLoading(false); }
@@ -268,7 +392,14 @@ export default function MyReservationsScreen({ navigation, route }) {
         });
     }, []);
 
-    const now    = new Date();
+    // Saat gelince maç listeden düşsün — ekranda otururken 1 sn'de bir kontrol.
+    useEffect(() => {
+        if (section !== 'matches') return undefined;
+        const id = setInterval(() => setNowMs(Date.now()), 1000);
+        return () => clearInterval(id);
+    }, [section]);
+
+    const now    = new Date(nowMs);
     const today  = now.toISOString().slice(0, 10);
     const isPast = (r) => {
         if (r.date < today) return true;
@@ -297,47 +428,88 @@ export default function MyReservationsScreen({ navigation, route }) {
         return true;
     });
 
+    const upcomingMatches = matches
+        .filter(m => (!userId || isMyMatch(m, userId)) && !matchHasStarted(m, now))
+        .sort((a, b) => (matchStartDate(a)?.getTime() || Infinity) - (matchStartDate(b)?.getTime() || Infinity));
+
     const emptyText = filter === 'upcoming' ? t.resEmptyUpcoming
         : filter === 'pending' ? t.resEmptyPending
         : filter === 'await'   ? t.resEmptyAwait
         : t.resEmpty;
 
+    const listPad = { ...s.list, paddingBottom: Math.max(24, 56 + insets.bottom + 16) };
+
     return (
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
-            <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
+            <View style={[s.header, { paddingTop: insets.top + (Platform.OS === 'ios' ? 8 : 14) }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
                 </TouchableOpacity>
-                <Text style={s.title}>{t.resTitle}</Text>
+                <Text style={s.title}>{section === 'matches' ? t.resMyMatchesTitle : t.resTitle}</Text>
             </View>
 
-            <View style={s.filterRow}>
+            <View style={s.sectionRow}>
                 {[
-                    { key: 'upcoming', label: t.resFilterUpcoming },
-                    { key: 'pending',  label: t.resFilterPending },
-                    { key: 'await',    label: awaitCount > 0 ? t.resFilterAwaitCount(awaitCount) : t.resFilterAwait },
-                    { key: 'past',     label: t.resFilterPast },
-                    { key: 'all',      label: t.resFilterAll },
-                ].map(f => (
+                    { key: 'reservations', label: t.resSectionReservations },
+                    { key: 'matches', label: t.resSectionMyMatches },
+                ].map(tab => (
                     <TouchableOpacity
-                        key={f.key}
-                        style={[s.filterBtn, filter === f.key && (f.key === 'await' ? s.filterBtnAwait : s.filterBtnActive)]}
-                        onPress={() => setFilter(f.key)}
+                        key={tab.key}
+                        style={[s.sectionBtn, section === tab.key && s.sectionBtnActive]}
+                        onPress={() => setSection(tab.key)}
                         activeOpacity={0.7}
                     >
-                        <Text style={[s.filterBtnText, filter === f.key && (f.key === 'await' ? s.filterBtnTextAwait : s.filterBtnTextActive)]}>{f.label}</Text>
+                        <Text style={[s.sectionBtnText, section === tab.key && s.sectionBtnTextActive]} numberOfLines={1}>
+                            {tab.label}
+                        </Text>
                     </TouchableOpacity>
                 ))}
             </View>
 
+            {section === 'reservations' && (
+                <View style={s.filterRow}>
+                    {[
+                        { key: 'upcoming', label: t.resFilterUpcoming },
+                        { key: 'pending',  label: t.resFilterPending },
+                        { key: 'await',    label: awaitCount > 0 ? t.resFilterAwaitCount(awaitCount) : t.resFilterAwait },
+                        { key: 'past',     label: t.resFilterPast },
+                        { key: 'all',      label: t.resFilterAll },
+                    ].map(f => (
+                        <TouchableOpacity
+                            key={f.key}
+                            style={[s.filterBtn, filter === f.key && (f.key === 'await' ? s.filterBtnAwait : s.filterBtnActive)]}
+                            onPress={() => setFilter(f.key)}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={[s.filterBtnText, filter === f.key && (f.key === 'await' ? s.filterBtnTextAwait : s.filterBtnTextActive)]}>{f.label}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+
             {loading ? (
                 <View style={s.center}><ActivityIndicator size="large" color={colors.purple} /></View>
+            ) : section === 'matches' ? (
+                <FlatList
+                    data={upcomingMatches}
+                    keyExtractor={m => m.id}
+                    contentContainerStyle={listPad}
+                    ListEmptyComponent={
+                        <View style={s.empty}>
+                            <Text style={s.emptyIcon}>🎾</Text>
+                            <Text style={s.emptyText}>{t.resMyMatchesEmpty}</Text>
+                        </View>
+                    }
+                    renderItem={({ item }) => (
+                        <MatchCard item={item} navigation={navigation} />
+                    )}
+                />
             ) : (
                 <FlatList
                     data={filtered}
                     keyExtractor={r => r.id}
-                    contentContainerStyle={s.list}
+                    contentContainerStyle={listPad}
                     ListEmptyComponent={
                         <View style={s.empty}>
                             <Text style={s.emptyIcon}>📭</Text>
@@ -365,9 +537,16 @@ const s = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 14, backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.border },
     backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
     backBtnText: { color: colors.textSecondary, fontSize: 26, fontWeight: '300' },
-    title: { color: '#fff', fontSize: 17, fontWeight: '900' },
+    title: { color: '#fff', fontSize: 17, fontWeight: '900', flex: 1 },
+
+    sectionRow: { flexDirection: 'row', paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4, gap: 8 },
+    sectionBtn: { flex: 1, borderRadius: 14, paddingVertical: 11, alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+    sectionBtnActive: { backgroundColor: colors.purple, borderColor: colors.purple },
+    sectionBtnText: { color: colors.textMuted, fontSize: 13, fontWeight: '800' },
+    sectionBtnTextActive: { color: '#fff' },
 
     filterRow: { flexDirection: 'row', padding: 12, gap: 8 },
+    goMatchHint: { color: colors.purple, fontSize: 12, fontWeight: '800', marginTop: 2 },
     filterBtn: { flex: 1, borderRadius: 20, paddingVertical: 8, alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
     filterBtnActive: { backgroundColor: colors.purple, borderColor: colors.purple },
     filterBtnAwait: { backgroundColor: '#92400e', borderColor: '#eab308' },

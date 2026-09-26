@@ -7,6 +7,7 @@ const STATIC_CATS = [
             { key: 'basketball',  label: 'Basketbol',     emoji: '🏀' },
             { key: 'tennis',      label: 'Tenis',         emoji: '🎾' },
             { key: 'padel',       label: 'Padel',         emoji: '🏓' },
+            { key: 'pickleball',  label: 'Pickleball',    emoji: '🏓' },
             { key: 'volleyball',  label: 'Voleybol',      emoji: '🏐' },
             { key: 'swimming',    label: 'Yüzme',         emoji: '🏊' },
             { key: 'running',     label: 'Koşu',          emoji: '🏃' },

@@ -3,7 +3,7 @@
 // görmesi gerekirken "volleyball" görüyordu. mobile/src/utils/subCategoryLabels.js'teki
 // aynı çevirilerin Türkçe tarafı.
 const SUB_NAMES_TR = {
-    tennis: 'Tenis', padel: 'Padel', volleyball: 'Voleybol', football: 'Futbol', basketball: 'Basketbol',
+    tennis: 'Tenis', padel: 'Padel', pickleball: 'Pickleball', volleyball: 'Voleybol', football: 'Futbol', basketball: 'Basketbol',
     running: 'Koşu', wellness: 'Yoga / Pilates / Reformer', table_tennis: 'Masa Tenisi', climbing: 'Tırmanış',
     archery: 'Okçuluk', walking: 'Yürüyüş', foot_tennis: 'Ayak Tenisi', sup_kano: 'SUP & Kano',
     handball: 'Hentbol', badminton: 'Badminton', shooting_hunting: 'Atıcılık & Avcılık', equestrian: 'Binicilik',

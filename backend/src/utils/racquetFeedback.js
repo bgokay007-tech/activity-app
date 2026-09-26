@@ -3,7 +3,7 @@ import { computeMatchSides } from './peerReview.js';
 
 // Tenis + padel ortak geri bildirim — ELO / seed / skillRating'e HİÇ yazılmaz.
 // Sadece profilde görünen antrenör/maç arkadaşı notları için.
-export const RACQUET_FEEDBACK_SUBS = ['tennis', 'padel'];
+export const RACQUET_FEEDBACK_SUBS = ['tennis', 'padel', 'pickleball'];
 
 export const CATEGORY_WEIGHTS = { technical: 0.40, physical: 0.30, tactical: 0.30 };
 

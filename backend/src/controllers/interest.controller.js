@@ -11,6 +11,7 @@ export const SUBCATEGORIES = {
         { id: 'basketball', name: 'Basketball', emoji: '🏀' },
         { id: 'tennis', name: 'Tennis', emoji: '🎾' },
         { id: 'padel', name: 'Padel', emoji: '🏓' },
+        { id: 'pickleball', name: 'Pickleball', emoji: '🏓' },
         { id: 'volleyball', name: 'Volleyball', emoji: '🏐' },
         { id: 'swimming', name: 'Swimming', emoji: '🏊' },
         { id: 'running', name: 'Running', emoji: '🏃' },
@@ -409,8 +410,8 @@ export const saveAssessment = async (req, res, next) => {
         // Anket sonucu doğrudan doublesSeedRating'e yazılır — tenis çiftlerdeki ile birebir aynı
         // saf ELO yolu. Eskiden araya antrenör %10 / takım arkadaşı %5 harmanı giriyordu
         // (applyBlendedPadelRating); kullanıcı isteğiyle o sistem tamamen kaldırıldı.
-        if (interest.subCategory === 'padel' && ratingType === 'doubles') {
-            const questions = getQuestions('padel');
+        if ((interest.subCategory === 'padel' || interest.subCategory === 'pickleball') && ratingType === 'doubles') {
+            const questions = getQuestions(interest.subCategory);
             const maxScore = questions.reduce((sum, q) => sum + Math.max(...q.options.map(o => o.points)), 0);
             const totalScore = answers.reduce((sum, a) => sum + (a.points || 0), 0);
             const { skillRating: doublesSkill } = calculateLevel(totalScore, maxScore);
@@ -422,9 +423,9 @@ export const saveAssessment = async (req, res, next) => {
                 // noktalarında 0.00 görünürdü.
                 data: { doublesSeedRating: doublesSkill, skillRating: doublesSkill, doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() },
             });
-            return res.json({ interest: withDisplayRatings(updated), totalScore, maxScore, skillRating: getDisplayRating(updated, 'padel', true) });
+            return res.json({ interest: withDisplayRatings(updated), totalScore, maxScore, skillRating: getDisplayRating(updated, interest.subCategory, true) });
         }
-        // Padel TEKLİ için ayrı bir dal YOK — aşağıdaki genel UTR dalına düşüyor, yani tenis
+        // Padel/pickleball TEKLİ için ayrı bir dal YOK — aşağıdaki genel UTR dalına düşüyor, yani tenis
         // teklisiyle birebir aynı: anket sonucu doğrudan singlesSeedRating'e yazılır.
 
         // Tenis/badminton/masa tenisi ÇİFTLER anketi: tekli anketten TAMAMEN AYRI soru seti
@@ -661,7 +662,7 @@ export const getUsersByCategory = async (req, res, next) => {
 // sıralaması — yerel (şehir)/ulusal (ülke)/uluslararası (herkes) 3 kapsam. UTR dallarında
 // (tenis/padel/badminton/masa tenisi) `ratingType` (singles/doubles) query parametresi ile
 // hangi disiplin sıralanacağı seçilir (default singles). Voleybol hâlâ tek skillRating.
-const LEADERBOARD_SPORTS = ['tennis', 'padel', 'badminton', 'table_tennis', 'volleyball'];
+const LEADERBOARD_SPORTS = ['tennis', 'padel', 'pickleball', 'badminton', 'table_tennis', 'volleyball'];
 
 export const getLeaderboard = async (req, res, next) => {
     try {

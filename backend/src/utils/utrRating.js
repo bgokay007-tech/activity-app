@@ -18,7 +18,7 @@ import { subCategoryTR } from './subCategoryLabels.js';
 // Kullanıcı isteği: badminton + masa tenisi tenis ile aynı UTR algoritması / turnuva çeşitleri /
 // puan kazanım-kayıp mantığını kullanır. Tekli/çiftler AYRI (tenis gibi; padel çiftler-öncelikli
 // istisnası bu iki dala uygulanmaz).
-export const UTR_SUBCATEGORIES = ['tennis', 'padel', 'badminton', 'table_tennis'];
+export const UTR_SUBCATEGORIES = ['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball'];
 
 // Bu dallarda çiftler ankete AYRI soru seti (assessments.js QUESTIONS.<dal>_doubles).
 // Tekli ve çiftler anketleri birbirinden bağımsız — çiftler ilanına katılırken / çiftler
