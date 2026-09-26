@@ -26870,7 +26870,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 {(sub === 'padel' || sub === 'pickleball') ? (
                     <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap: moderateScale(6) }}>
                         <Image
-                            source={sub === 'pickleball' ? require('../../../assets/pickleball.png') : require('../../../assets/padel.png')}
+                            source={sub === 'pickleball' ? require('../../../assets/pickleball.jpg') : require('../../../assets/padel.png')}
                             style={{ width: moderateScale(28), height: moderateScale(28) }}
                             resizeMode="contain"
                         />

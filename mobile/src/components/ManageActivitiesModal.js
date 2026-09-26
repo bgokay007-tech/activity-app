@@ -16,7 +16,7 @@ import useT from '../hooks/useT';
 // ayrım için kullanılan özel logo burada da aynı görünsün diye reuse ediliyor.
 const SUB_IMAGES = {
     padel: require('../../assets/padel.png'),
-    pickleball: require('../../assets/pickleball.png'),
+    pickleball: require('../../assets/pickleball.jpg'),
 };
 
 // Puanlı (bahisli) oyunlar — geçmiş maç sayısına bakılmaksızın tamamen

@@ -51,7 +51,7 @@ const SUB_MAP = {
     SPORTS:  [
         { id: 'tennis',      label: 'Tennis',           labelTR: 'Tenis',              labelRU: 'Теннис',                    labelDE: 'Tennis',                     emoji: '🎾' },
         { id: 'padel',       label: 'Padel',            labelTR: 'Padel',              labelRU: 'Падел',                     labelDE: 'Padel',                      emoji: '🏓', image: require('../../../assets/padel.png') },
-        { id: 'pickleball',  label: 'Pickleball',       labelTR: 'Pickleball',         labelRU: 'Пиклбол',                   labelDE: 'Pickleball',                 emoji: '🏓', image: require('../../../assets/pickleball.png') },
+        { id: 'pickleball',  label: 'Pickleball',       labelTR: 'Pickleball',         labelRU: 'Пиклбол',                   labelDE: 'Pickleball',                 emoji: '🏓', image: require('../../../assets/pickleball.jpg') },
         { id: 'volleyball',  label: 'Volleyball',       labelTR: 'Voleybol',           labelRU: 'Волейбол',                  labelDE: 'Volleyball',                 emoji: '🏐' },
         { id: 'football',    label: 'Football',         labelTR: 'Futbol',             labelRU: 'Футбол',                    labelDE: 'Fußball',                    emoji: '⚽' },
         { id: 'basketball',  label: 'Basketball',       labelTR: 'Basketbol',          labelRU: 'Баскетбол',                 labelDE: 'Basketball',                 emoji: '🏀' },
