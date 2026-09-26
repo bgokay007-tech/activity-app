@@ -32,20 +32,20 @@ try {
 // varsa indirip otomatik uyguluyoruz.
 function useAutoUpdate() {
     useEffect(() => {
-        if (__DEV__ || !Updates.isEnabled) return;
+        // Preview APK'da __DEV__ false; yine de isEnabled yoksa çık.
+        if (!Updates.isEnabled) return;
         let cancelled = false;
-        // Android "geri" ile uygulamayı öldürmez; güncelleme indirilip uygulanmadan
-        // kalıyordu. Her ön plana gelişte kontrol et; yeni paket varsa kısa gecikmeyle
-        // reload et (bildirim deep-link'inin yazılması için ~2sn).
         const checkAndApply = async () => {
             try {
                 const result = await Updates.checkForUpdateAsync();
                 if (!result.isAvailable || cancelled) return;
                 await Updates.fetchUpdateAsync();
                 if (cancelled) return;
-                setTimeout(() => { if (!cancelled) Updates.reloadAsync(); }, 2000);
+                // Native soğuk açılış bazen indirmeyi uygalamadan bırakıyor —
+                // her yeni pakette kısa gecikmeyle zorla yenile.
+                setTimeout(() => { if (!cancelled) Updates.reloadAsync(); }, 1500);
             } catch (e) {
-                // güncelleme kontrolü başarısız olursa sessizce yut
+                // sessiz
             }
         };
         checkAndApply();
