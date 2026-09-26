@@ -2187,6 +2187,24 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     };
 
     const SLOT_LABELS = { partner: 'Kurucu Takımı (Partner)', opp1: 'Rakip 1', opp2: 'Rakip 2' };
+    const doubleSlotGReq = { partner: partnerGenderReq, opp1: opp1GenderReq, opp2: opp2GenderReq };
+    const getDoubleSlotPlayer = (slot) => {
+        if (slot === 'partner') return rosterFilled(senderTeamArr[0]) ? senderTeamArr[0] : null;
+        if (slot === 'opp1') return rosterFilled(participants[0]) ? participants[0] : null;
+        if (slot === 'opp2') return rosterFilled(participants[1]) ? participants[1] : null;
+        return null;
+    };
+    // İki slot arasında yer değişimi/taşıma cinsiyet kısıtına uyuyor mu — aksi halde
+    // kadın slotundaki oyuncuya erkek slotu (ör. Rakip 1) öneriliyordu (kullanıcı raporu).
+    const canSwapDoubleSlots = (fromSlot, toSlot) => {
+        if (!fromSlot || !toSlot || fromSlot === toSlot) return false;
+        const fromP = getDoubleSlotPlayer(fromSlot);
+        const toP = getDoubleSlotPlayer(toSlot);
+        if (!fromP && !toP) return false;
+        if (fromP && !genderFitsSlot(fromP.gender, doubleSlotGReq[toSlot])) return false;
+        if (toP && !genderFitsSlot(toP.gender, doubleSlotGReq[fromSlot])) return false;
+        return true;
+    };
 
     // Asıl taşıma isteğini backend'e gönderir ve İKİ dizinin de (participants +
     // senderTeam/partner) anında güncellenmesini sağlar — sadece participants
@@ -2201,9 +2219,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
     };
 
-    // "⇄ Taşı" butonuna basılınca: hedefi belirsiz bir dokunuş beklemek yerine
-    // (eskiden bu iki adımlı seç+dokun akışı güvenilir çalışmıyordu), doğrudan
-    // "nereye taşınsın" diye net butonlu bir onay gösterip anında taşıyor.
+    // "⇄ Değiştir" — sadece cinsiyet uyumlu hedef slotları öner (boş veya swap uygun).
     const promptMove = (fromSlot) => {
         const mySlot = (() => {
             if (senderTeamArr[0]?.id === myId) return 'partner';
@@ -2217,10 +2233,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             Alert.alert('Takım Sabit', 'Bu ilan katı ayarlı: oyuncular başvururken seçtikleri slotta sabit kalır. Değiştirmek için o katılımcıyı çıkarıp slotu yeniden açabilirsin.');
             return;
         }
-        const targets = ['partner', 'opp1', 'opp2'].filter(s => s !== fromSlot);
+        const targets = ['partner', 'opp1', 'opp2'].filter(s => canSwapDoubleSlots(fromSlot, s));
+        if (targets.length === 0) {
+            Alert.alert('', t.noValidSwapSlots || 'Cinsiyet uyumlu değiştirilecek slot yok.');
+            return;
+        }
         Alert.alert(
-            canSelf ? (t.changeOwnTeamTitle || 'Takımını değiştir') : 'Oyuncuyu Taşı',
-            canSelf ? (t.changeOwnTeamMsg || 'Hangi takım slotuna geçmek istersin?') : 'Bu oyuncu nereye taşınsın?',
+            canSelf ? (t.changeOwnTeamTitle || 'Takımını değiştir') : (t.changeSlotTitle || 'Oyuncuyu Değiştir'),
+            canSelf ? (t.changeOwnTeamMsg || 'Hangi takım slotuna geçmek istersin?') : (t.changeSlotMsg || 'Bu oyuncu nereye geçsin?'),
             [
                 ...targets.map(s => ({ text: SLOT_LABELS[s], onPress: () => movePlayer(fromSlot, s) })),
                 { text: 'Vazgeç', style: 'cancel' },
@@ -2246,6 +2266,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         }
         if (!swapSlot) { setSwapSlot(slot); return; }
         if (swapSlot === slot) { setSwapSlot(null); return; }
+        if (!canSwapDoubleSlots(swapSlot, slot)) {
+            Alert.alert('', t.noValidSwapSlots || 'Cinsiyet uyumlu değiştirilecek slot yok.');
+            return;
+        }
         const s1 = swapSlot; const s2 = slot;
         setSwapSlot(null);
         movePlayer(s1, s2);
@@ -2543,7 +2567,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     ilanlarda diğer kadro kartlarıyla (CreateRivalModal/UpcomingCard)
                                     tutarlı olsun diye "Oyuncular" yerine "Katılan Oyuncular"
                                     (kullanıcı isteği: voleybolda da aynı etiket kullanılsın). */}
-                                👥 {(item.matchType === 'DOUBLE' || item.matchType === 'SINGLE' || (item.teamSize || 1) > 1) ? t.rosterPoolLabel : (t.players || 'Oyuncular')} {isRefereeAd && item.linkedRival
+                                👥 {(item.matchType === 'DOUBLE' || item.matchType === 'SINGLE' || (item.teamSize || 1) > 1)
+                                    ? (showTeamCards ? (t.rosterTeamsLabel || 'Takımlar') : t.rosterPoolLabel)
+                                    : (t.players || 'Oyuncular')} {isRefereeAd && item.linkedRival
                                     ? `(${linkedSenderSideCount + linkedFilled} / ${linkedTotalCapacity})`
                                     /* Kullanıcı isteği: DOUBLE'da kabul edilip henüz Takım Arkadaşı/Rakip1/
                                        Rakip2'ye atanmamış oyuncular ("atanmamış havuzu") artık ön yüzde
@@ -2698,7 +2724,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 }
                                 const isSelected = swapSlot === slot;
                                 // Hedef slot boş da olabilir — o zaman oyuncu oraya taşınır (swap değil, move).
-                                const isTarget   = !!swapSlot && !locked && swapSlot !== slot;
+                                // Cinsiyet uyumsuz hedefler mor "⇄" ile önerilmesin.
+                                const isTarget   = !!swapSlot && !locked && swapSlot !== slot && canSwapDoubleSlots(swapSlot, slot);
                                 const isMySlot = p?.id === myId;
                                 const canSelfTeamChange = isMySlot && !isOwner && item.teamFlexibility !== 'STRICT';
                                 const canActOnSlot = isOwner || canSelfTeamChange || (!!swapSlot && (isOwner || senderTeamArr.some(x => x?.id === myId) || participants.some(x => x?.id === myId)));
@@ -2755,7 +2782,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         {(isOwner || canSelfTeamChange) && item.teamFlexibility !== 'STRICT' && (
                                                             <TouchableOpacity onPress={() => promptMove(slot)}>
                                                                 <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>
-                                                                    {canSelfTeamChange ? (t.changeOwnTeamBtn || '⇄ Takım Değiştir') : '⇄ Taşı'}
+                                                                    {t.changeSlotBtn || '⇄ Değiştir'}
                                                                 </Text>
                                                             </TouchableOpacity>
                                                         )}
@@ -8372,7 +8399,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     ) : (
                                         <>
                                             <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
-                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{cfg.emoji}</Text>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.rosterTeamsLabel || 'Takımlar'}</Text>
                                                 <TouchableOpacity onPress={flipDoubleCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
                                                     <Text style={{ fontSize:14 }}>🔄</Text>
                                                 </TouchableOpacity>
@@ -8457,8 +8484,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                         { key: 'opp1', label: SLOT_LABEL.opp1, gReq: match.opp1GenderReq, p: opp1 },
                                                         { key: 'opp2', label: SLOT_LABEL.opp2, gReq: match.opp2GenderReq, p: opp2 },
                                                     ].filter(s => s.key !== slotChangeTarget.slot && !s.p?.id
-                                                        && (!s.gReq || s.gReq === 'MIX' || s.gReq === slotChangeTarget.player?.gender))
-                                                        .map(s => ({ label: `➡️ ${s.label}'e Taşı`, onPress: () => assignDoubleSlot(slotChangeTarget.player.id, s.key) })),
+                                                        && genderFitsSlot(slotChangeTarget.player?.gender, s.gReq))
+                                                        .map(s => ({ label: `➡️ ${s.label}'e Değiştir`, onPress: () => assignDoubleSlot(slotChangeTarget.player.id, s.key) })),
                                                     { label: 'Atanmamış Listesine Ata', onPress: () => assignDoubleSlot(slotChangeTarget.player.id, null) },
                                                 ] : []}
                                             />
