@@ -34,33 +34,18 @@ function useAutoUpdate() {
     useEffect(() => {
         if (__DEV__ || !Updates.isEnabled) return;
         let cancelled = false;
-        // Soğuk başlatmadaki İLK kontrolde reloadAsync() JS bağlamını sıfırlıyor — uygulama bir
-        // bildirime dokunularak açıldıysa, navigation/index.js'teki getLastNotificationResponseAsync/
-        // pendingNavRef mekanizması henüz o yönlendirmeyi tüketmeden reload araya girip veriyi
-        // kaybediyordu (kullanıcı raporu: "ana ekrandan bildirime tıklayınca ilan detayına
-        // yönlendirmiyor"). İlk kontrolde güncelleme sessizce indirilip hazır tutulur, gerçek
-        // reload bir sonraki ön plana gelişte (ya da bir sonraki soğuk başlatmada, expo-updates
-        // zaten en son indirilmiş sürümü kullanır) uygulanır.
-        let isFirstRun = true;
+        // Android "geri" ile uygulamayı öldürmez; güncelleme indirilip uygulanmadan
+        // kalıyordu. Her ön plana gelişte kontrol et; yeni paket varsa kısa gecikmeyle
+        // reload et (bildirim deep-link'inin yazılması için ~2sn).
         const checkAndApply = async () => {
-            const firstRun = isFirstRun;
-            isFirstRun = false;
             try {
                 const result = await Updates.checkForUpdateAsync();
                 if (!result.isAvailable || cancelled) return;
                 await Updates.fetchUpdateAsync();
                 if (cancelled) return;
-                // Bildirimden açılışta yönlendirme kaybolmasın diye ilk kontrolde
-                // hemen reload etmiyoruz; birkaç saniye sonra uyguluyoruz. "Durmaya
-                // zorla" her açılışı firstRun yaptığı için aksi halde güncelleme
-                // indirilip hiç uygulanmıyordu.
-                if (firstRun) {
-                    setTimeout(() => { if (!cancelled) Updates.reloadAsync(); }, 4000);
-                    return;
-                }
-                await Updates.reloadAsync();
+                setTimeout(() => { if (!cancelled) Updates.reloadAsync(); }, 2000);
             } catch (e) {
-                // güncelleme kontrolü başarısız olursa sessizce yut, uygulama normal akışına devam etsin
+                // güncelleme kontrolü başarısız olursa sessizce yut
             }
         };
         checkAndApply();

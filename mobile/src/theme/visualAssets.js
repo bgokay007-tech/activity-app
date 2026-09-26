@@ -48,6 +48,8 @@ export const SUB_PHOTOS = {
     ceramics:         require('../../assets/visual/sub-ceramics.jpg'),
     poetry:           require('../../assets/visual/sub-poetry.jpg'),
     photography:      require('../../assets/visual/sub-photography.jpg'),
+    // Sosyal
+    travel_explore:   require('../../assets/visual/sub-travel-explore.jpg'),
     // Oyunlar — her dalın kendi görseli (genel cat-games fallback yerine)
     batak:            require('../../assets/visual/sub-batak.jpg'),
     okey:             require('../../assets/visual/sub-okey.jpg'),
