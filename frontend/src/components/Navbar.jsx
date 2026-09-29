@@ -84,6 +84,8 @@ function NotificationPanel({ notifications, onMarkAll, onMarkOne, onClose }) {
         CITY_PENDING: 'cities',
         CLUB_LISTING_SUBMITTED: 'club-approval',
         FAKE_SPECTATOR_REPORTED: 'disputes',
+        TEAM_NAME_REQUEST: 'team-name-approval',
+        SUPPORT_MESSAGE: 'support',
     };
     const OUTCOME_TYPES = new Set([
         'VENUE_APPROVED', 'VENUE_REJECTED',
@@ -125,8 +127,12 @@ function NotificationPanel({ notifications, onMarkAll, onMarkOne, onClose }) {
             navigate(data.senderId ? `/profile/${data.senderId}` : '/profile');
             return;
         }
+        if (type?.startsWith('TRAVEL_')) {
+            navigate(data.routeId ? `/travel/routes/${data.routeId}` : data.tripId ? `/travel/trips/${data.tripId}` : '/travel?tab=travel');
+            return;
+        }
         if (ADMIN_TAB_BY_TYPE[type]) {
-            navigate(`/admin?tab=${ADMIN_TAB_BY_TYPE[type]}`);
+            navigate(`/admin?tab=${ADMIN_TAB_BY_TYPE[type]}${data.ticketId ? `&ticketId=${data.ticketId}` : ''}`);
             return;
         }
         if (type === 'EQUIPMENT_OFFER') {

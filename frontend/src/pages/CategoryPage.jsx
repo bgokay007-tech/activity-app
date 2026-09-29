@@ -9,7 +9,7 @@ import pickleballImg from '../assets/pickleball.png';
 
 // Bazı alt kategoriler SubCategoryPage yerine kendi bağımsız sayfasına gider
 const SPECIAL_ROUTES = {
-    music: '/music', cinema: '/cinema', theater: '/theater', friend_finding: '/friend-finding',
+    music: '/music', cinema: '/cinema', theater: '/theater', friend_finding: '/friend-finding', travel_explore: '/travel',
     batak: '/games/batak', okey: '/games/okey', chess: '/games/chess', tavla: '/games/tavla',
 };
 

@@ -24,6 +24,14 @@ import TavlaPage from './pages/games/TavlaPage';
 import OkeyPage from './pages/games/OkeyPage';
 import BatakPage from './pages/games/BatakPage';
 import MyReservationsPage from './pages/MyReservationsPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import BusinessRegisterPage from './pages/BusinessRegisterPage';
+import TravelExplorePage from './pages/travel/TravelExplorePage';
+import TravelRouteCreatePage from './pages/travel/TravelRouteCreatePage';
+import TravelRouteDetailPage from './pages/travel/TravelRouteDetailPage';
+import TravelTripCreatePage from './pages/travel/TravelTripCreatePage';
+import TravelTripDetailPage from './pages/travel/TravelTripDetailPage';
+import TravelVerificationPage from './pages/travel/TravelVerificationPage';
 
 function App() {
   const token = useSelector(state => state.auth.token);
@@ -38,6 +46,8 @@ function App() {
     <Routes>
       <Route path="/login" element={!token ? <LoginPage /> : <Navigate to="/home" />} />
       <Route path="/register" element={!token ? <RegisterPage /> : <Navigate to="/home" />} />
+      <Route path="/register/business" element={!token ? <BusinessRegisterPage /> : <Navigate to="/home" />} />
+      <Route path="/forgot-password" element={!token ? <ForgotPasswordPage /> : <Navigate to="/home" />} />
       <Route path="/home" element={token ? <HomePage /> : <Navigate to="/login" />} />
       <Route path="/category/:category" element={token ? <CategoryPage /> : <Navigate to="/login" />} />
       <Route path="/category/:category/:sub" element={token ? <SubCategoryPage /> : <Navigate to="/login" />} />
@@ -60,6 +70,12 @@ function App() {
       <Route path="/games/okey" element={token ? <OkeyPage /> : <Navigate to="/login" />} />
       <Route path="/games/batak" element={token ? <BatakPage /> : <Navigate to="/login" />} />
       <Route path="/reservations" element={token ? <MyReservationsPage /> : <Navigate to="/login" />} />
+      <Route path="/travel" element={token ? <TravelExplorePage /> : <Navigate to="/login" />} />
+      <Route path="/travel/routes/new" element={token ? <TravelRouteCreatePage /> : <Navigate to="/login" />} />
+      <Route path="/travel/routes/:routeId" element={token ? <TravelRouteDetailPage /> : <Navigate to="/login" />} />
+      <Route path="/travel/trips/new" element={token ? <TravelTripCreatePage /> : <Navigate to="/login" />} />
+      <Route path="/travel/trips/:tripId" element={token ? <TravelTripDetailPage /> : <Navigate to="/login" />} />
+      <Route path="/travel/verify" element={token ? <TravelVerificationPage /> : <Navigate to="/login" />} />
       <Route path="*" element={<Navigate to={token ? "/home" : "/login"} />} />
     </Routes>
   );

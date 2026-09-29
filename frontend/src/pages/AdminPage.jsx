@@ -5,13 +5,13 @@ import api from '../services/api';
 import Navbar from '../components/Navbar';
 import { useTranslation } from 'react-i18next';
 
-const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'biz-venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'venue-reviews', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval', 'club-approval'];
+const TABS = ['dashboard', 'users', 'courts', 'disputes', 'posts', 'venues', 'biz-venues', 'noshow', 'cities', 'tournament-perms', 'flagged-listings', 'profile-changes', 'venue-reviews', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval', 'club-approval', 'team-name-approval', 'travel-verify', 'support'];
 // Kullanıcı isteği: sol panel ŞAHIS (bireysel kullanıcı/maç moderasyonu) ve KURUMSAL
 // (tesis/işletme onayları) olarak iki katlanır gruba ayrıldı.
 // Abonelik satışları şimdilik gizli (BUSINESS_SUBS_COMPLIMENTARY) — 'subscriptions' sekmesi
 // listeden çıkarıldı; ücretli dönem açılınca geri eklenir.
 const SIDEBAR_GROUPS = [
-    { key: 'individual', tabs: ['dashboard', 'users', 'disputes', 'posts', 'noshow', 'tournament-perms', 'flagged-listings', 'profile-changes', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval', 'club-approval'] },
+    { key: 'individual', tabs: ['dashboard', 'users', 'disputes', 'posts', 'noshow', 'tournament-perms', 'flagged-listings', 'profile-changes', 'coach-listing-approval', 'referee-approval', 'coach-rating-approval', 'club-approval', 'team-name-approval', 'travel-verify', 'support'] },
     { key: 'corporate', tabs: ['courts', 'venues', 'biz-venues', 'cities', 'venue-reviews'] },
 ];
 // Kullanıcı isteği: admin panelinin TAMAMI (sekme etiketleri dahil) TR/EN dil
@@ -1795,6 +1795,309 @@ function ClubApprovalPanel() {
     );
 }
 
+function StatusFilter({ value, onChange, options }) {
+    return (
+        <div className="flex gap-2 mb-4">
+            {options.map(([key, label]) => (
+                <button key={key} onClick={() => onChange(key)}
+                    className={`px-4 py-1.5 rounded-xl text-sm font-bold transition border ${value === key ? 'bg-purple-600 border-purple-500 text-white' : 'border-gray-700 text-gray-400 hover:bg-gray-800'}`}>
+                    {label}
+                </button>
+            ))}
+        </div>
+    );
+}
+
+const APPROVE_BTN = 'px-3 py-1.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-xs';
+const REJECT_BTN = 'px-3 py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-xs';
+const NOTE_INPUT = 'mt-2 w-full bg-gray-950 border border-gray-700 rounded-xl text-xs text-gray-300 p-2';
+
+// Seyahat Et: yol arkadaşı alabilmek için kimlik + adli sicil belgesi onayı (mobil AdminPortal ile aynı akış).
+function TravelVerificationPanel() {
+    const { t } = useTranslation();
+    const [filter, setFilter] = useState('PENDING');
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [notes, setNotes] = useState({});
+
+    const load = useCallback(() => {
+        setLoading(true);
+        api.get('/admin/travel-verifications', { params: { status: filter } })
+            .then(r => setItems(Array.isArray(r.data) ? r.data : []))
+            .catch(() => setItems([]))
+            .finally(() => setLoading(false));
+    }, [filter]);
+    useEffect(() => { load(); }, [load]);
+
+    const act = async (id, action) => {
+        setItems(prev => prev.filter(x => x.id !== id));
+        try {
+            await api.patch(`/admin/travel-verifications/${id}`, { action, adminNote: notes[id] || undefined });
+        } catch (e) {
+            alert(e?.response?.data?.message || t('admin.common.error'));
+            load();
+        }
+    };
+
+    const docLink = (url, label) => url ? <a href={url} target="_blank" rel="noreferrer" className="text-sky-400 text-xs font-bold hover:underline">{label}</a> : null;
+
+    return (
+        <div className="space-y-4">
+            <StatusFilter value={filter} onChange={setFilter} options={[
+                ['PENDING', t('admin.approvalQueue.pending_tab')], ['APPROVED', t('admin.approvalQueue.approved_tab')], ['REJECTED', t('admin.approvalQueue.rejected_tab')],
+            ]} />
+            {loading && <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>}
+            {!loading && items.length === 0 && (
+                <p className="text-gray-500 text-center py-16">{filter === 'PENDING' ? t('admin.extra.travel_empty_pending') : t('admin.extra.empty_other')}</p>
+            )}
+            {items.map(v => (
+                <div key={v.id} className="bg-gray-900 border border-sky-700/30 rounded-2xl p-5 flex items-start gap-4">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-white font-bold text-sm">{v.fullName}</p>
+                        <p className="text-gray-500 text-xs">@{v.user?.username || '?'} · {t('admin.extra.id_no')} {v.tcKimlikNo}</p>
+                        <p className="text-gray-500 text-xs">{t('admin.extra.birth')} {new Date(v.birthDate).toLocaleDateString()} · {t('admin.extra.phone')} {v.phone}</p>
+                        <div className="flex gap-4 mt-2 flex-wrap">
+                            {docLink(v.idCardUrl, `🪪 ${t('admin.extra.id_card')}`)}
+                            {docLink(v.adliSicilUrl, `📄 ${t('admin.extra.criminal_record')}`)}
+                            {docLink(v.selfieUrl, `🤳 ${t('admin.extra.selfie')}`)}
+                        </div>
+                        {filter === 'PENDING' && (
+                            <textarea className={NOTE_INPUT} rows={2} placeholder={t('admin.approvalQueue.reject_note_ph')}
+                                value={notes[v.id] || ''} onChange={e => setNotes(prev => ({ ...prev, [v.id]: e.target.value }))} />
+                        )}
+                        {v.adminNote && filter === 'REJECTED' && (
+                            <p className="text-amber-400 text-xs mt-1">{t('admin.common.note_prefix')} {v.adminNote}</p>
+                        )}
+                    </div>
+                    <div className="flex flex-col gap-2 shrink-0">
+                        {filter !== 'APPROVED' && <button className={APPROVE_BTN} onClick={() => act(v.id, 'APPROVE')}>{t('admin.approvalQueue.approve')}</button>}
+                        {filter === 'PENDING' && <button className={REJECT_BTN} onClick={() => act(v.id, 'REJECT')}>{t('admin.approvalQueue.reject')}</button>}
+                        {filter === 'APPROVED' && <button className={REJECT_BTN} onClick={() => act(v.id, 'REVOKE')}>{t('admin.approvalQueue.revoke')}</button>}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function TeamNameApprovalPanel() {
+    const { t } = useTranslation();
+    const [filter, setFilter] = useState('PENDING');
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [notes, setNotes] = useState({});
+
+    const load = useCallback(() => {
+        setLoading(true);
+        api.get('/admin/team-name-approvals', { params: { status: filter } })
+            .then(r => setItems(Array.isArray(r.data) ? r.data : []))
+            .catch(() => setItems([]))
+            .finally(() => setLoading(false));
+    }, [filter]);
+    useEffect(() => { load(); }, [load]);
+
+    const act = async (id, action) => {
+        setItems(prev => prev.filter(x => x.id !== id));
+        try {
+            await api.patch(`/admin/team-name-approvals/${id}`, { action, adminNote: notes[id] || undefined });
+        } catch (e) {
+            alert(e?.response?.data?.message || t('admin.common.error'));
+            load();
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <StatusFilter value={filter} onChange={setFilter} options={[
+                ['PENDING', t('admin.approvalQueue.pending_tab')], ['APPROVED', t('admin.approvalQueue.approved_tab')], ['REJECTED', t('admin.approvalQueue.rejected_tab')],
+            ]} />
+            {loading && <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>}
+            {!loading && items.length === 0 && (
+                <p className="text-gray-500 text-center py-16">{filter === 'PENDING' ? t('admin.extra.team_empty_pending') : t('admin.extra.empty_other')}</p>
+            )}
+            {items.map(r => (
+                <div key={r.id} className="bg-gray-900 border border-purple-700/30 rounded-2xl p-5 flex items-start gap-4">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-white font-bold text-sm">@{r.user?.username || '?'}</p>
+                        {r.user?.fullName && <p className="text-gray-500 text-xs">{r.user.fullName}</p>}
+                        <p className="text-purple-400 text-sm font-bold mt-1">🏆 "{r.teamName}"</p>
+                        {r.receiptUrl && <a href={r.receiptUrl} target="_blank" rel="noreferrer" className="text-green-400 text-xs font-bold hover:underline">📎 {t('admin.extra.open_receipt')}</a>}
+                        <p className="text-gray-600 text-xs mt-1">{new Date(r.createdAt).toLocaleDateString()}</p>
+                        {filter === 'PENDING' && (
+                            <textarea className={NOTE_INPUT} rows={2} placeholder={t('admin.approvalQueue.reject_note_ph')}
+                                value={notes[r.id] || ''} onChange={e => setNotes(prev => ({ ...prev, [r.id]: e.target.value }))} />
+                        )}
+                        {r.status === 'REJECTED' && r.adminNote && <p className="text-red-400 text-xs mt-1">{t('admin.common.note_prefix')} {r.adminNote}</p>}
+                    </div>
+                    {filter === 'PENDING' && (
+                        <div className="flex flex-col gap-2 shrink-0">
+                            <button className={APPROVE_BTN} onClick={() => act(r.id, 'APPROVE')}>{t('admin.approvalQueue.approve')}</button>
+                            <button className={REJECT_BTN} onClick={() => act(r.id, 'REJECT')}>{t('admin.approvalQueue.reject')}</button>
+                        </div>
+                    )}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// Destek: konu (ticket) bazlı sohbetler + konu sistemine geçmeden önceki eski düz mesajlar.
+function SupportTicketThread({ ticketId, onBack, onClosed }) {
+    const { t } = useTranslation();
+    const [ticket, setTicket] = useState(null);
+    const [messages, setMessages] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [reply, setReply] = useState('');
+    const [sending, setSending] = useState(false);
+
+    useEffect(() => {
+        setLoading(true);
+        api.get(`/admin/support-tickets/${ticketId}/messages`)
+            .then(({ data }) => { setTicket(data.ticket); setMessages(Array.isArray(data.messages) ? data.messages : []); })
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [ticketId]);
+
+    const sendReply = async (e) => {
+        e.preventDefault();
+        const text = reply.trim();
+        if (!text) return;
+        setSending(true);
+        try {
+            const { data } = await api.post(`/admin/support-tickets/${ticketId}/reply`, { message: text });
+            setMessages(prev => [...prev, data]);
+            setReply('');
+        } catch { alert(t('admin.common.error')); }
+        finally { setSending(false); }
+    };
+
+    const closeTicket = async () => {
+        if (!window.confirm(t('admin.extra.support_close_q'))) return;
+        try {
+            await api.patch(`/admin/support-tickets/${ticketId}/close`);
+            onClosed?.(ticketId);
+            onBack();
+        } catch { alert(t('admin.common.error')); }
+    };
+
+    if (loading) return <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>;
+
+    return (
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl flex flex-col max-h-[70vh]">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-800">
+                <button onClick={onBack} className="text-white font-bold text-sm truncate text-left">‹ @{ticket?.user?.username} — {ticket?.subject}</button>
+                {ticket?.status !== 'CLOSED' && <button onClick={closeTicket} className={REJECT_BTN}>{t('admin.extra.support_close')}</button>}
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                {messages.map(m => (
+                    <div key={m.id} className={`max-w-[85%] rounded-xl p-2.5 border text-sm text-white ${m.isFromAdmin ? 'ml-auto bg-purple-600/20 border-purple-600/40' : 'bg-gray-800 border-gray-700'}`}>
+                        {!m.isFromAdmin && <p className="text-gray-500 text-[10px] font-bold mb-0.5">@{ticket?.user?.username}</p>}
+                        {m.isFromAdmin && m.isAutoReply && <p className="text-gray-500 text-[10px] font-bold mb-0.5">{t('admin.extra.support_auto')}</p>}
+                        <p className="whitespace-pre-line">{m.message}</p>
+                    </div>
+                ))}
+            </div>
+            {ticket?.status !== 'CLOSED' && (
+                <form onSubmit={sendReply} className="flex gap-2 p-3 border-t border-gray-800">
+                    <input value={reply} onChange={e => setReply(e.target.value)} placeholder={t('admin.extra.support_reply_ph')}
+                        className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                    <button type="submit" disabled={sending || !reply.trim()} className="px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-sm disabled:opacity-40">
+                        {sending ? '…' : t('admin.extra.support_send')}
+                    </button>
+                </form>
+            )}
+        </div>
+    );
+}
+
+function SupportPanel() {
+    const { t } = useTranslation();
+    const [searchParams] = useSearchParams();
+    const [viewMode, setViewMode] = useState('tickets');
+    const [activeTicketId, setActiveTicketId] = useState(searchParams.get('ticketId'));
+    const [ticketFilter, setTicketFilter] = useState('OPEN');
+    const [tickets, setTickets] = useState([]);
+    const [msgFilter, setMsgFilter] = useState('PENDING');
+    const [msgs, setMsgs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [replies, setReplies] = useState({});
+
+    useEffect(() => {
+        if (activeTicketId) return;
+        setLoading(true);
+        const req = viewMode === 'tickets'
+            ? api.get('/admin/support-tickets', { params: { status: ticketFilter } }).then(r => setTickets(Array.isArray(r.data) ? r.data : []))
+            : api.get('/admin/support-messages', { params: { status: msgFilter } }).then(r => setMsgs(Array.isArray(r.data) ? r.data : []));
+        req.catch(() => {}).finally(() => setLoading(false));
+    }, [viewMode, ticketFilter, msgFilter, activeTicketId]);
+
+    const sendLegacyReply = async (id) => {
+        const text = (replies[id] || '').trim();
+        if (!text) return;
+        try {
+            await api.patch(`/admin/support-messages/${id}`, { reply: text });
+            setMsgs(prev => prev.filter(m => m.id !== id));
+        } catch { alert(t('admin.common.error')); }
+    };
+
+    if (activeTicketId) {
+        return <SupportTicketThread ticketId={activeTicketId} onBack={() => setActiveTicketId(null)}
+            onClosed={(id) => setTickets(prev => prev.filter(x => x.id !== id))} />;
+    }
+
+    return (
+        <div className="space-y-4">
+            <StatusFilter value={viewMode} onChange={setViewMode} options={[
+                ['tickets', `💬 ${t('admin.extra.support_topics')}`], ['legacy', `🗄 ${t('admin.extra.support_legacy')}`],
+            ]} />
+            {viewMode === 'tickets' ? (
+                <StatusFilter value={ticketFilter} onChange={setTicketFilter} options={[
+                    ['OPEN', t('admin.extra.support_open')], ['CLOSED', t('admin.extra.support_closed')],
+                ]} />
+            ) : (
+                <StatusFilter value={msgFilter} onChange={setMsgFilter} options={[
+                    ['PENDING', t('admin.approvalQueue.pending_tab')], ['ANSWERED', t('admin.extra.support_answered')],
+                ]} />
+            )}
+            {loading && <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>}
+            {!loading && viewMode === 'tickets' && (tickets.length === 0
+                ? <p className="text-gray-500 text-center py-16">{t('admin.extra.support_empty')}</p>
+                : tickets.map(tk => (
+                    <button key={tk.id} onClick={() => setActiveTicketId(tk.id)}
+                        className={`w-full text-left bg-gray-900 border rounded-2xl p-4 hover:bg-gray-800/60 transition ${tk.awaitingAdmin ? 'border-amber-500' : 'border-gray-800'}`}>
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-white font-bold text-sm truncate">@{tk.user?.username || '?'} — {tk.subject}</p>
+                            {tk.awaitingAdmin && <span className="text-amber-500 text-[10px] font-black shrink-0">⏳ {t('admin.extra.support_awaiting')}</span>}
+                        </div>
+                        {tk.lastMessage && (
+                            <p className="text-gray-500 text-xs truncate mt-1">
+                                {tk.lastMessage.isAutoReply ? `${t('admin.extra.support_auto')}: ` : tk.lastMessage.isFromAdmin ? `${t('admin.extra.support_you')}: ` : ''}{tk.lastMessage.message}
+                            </p>
+                        )}
+                    </button>
+                )))}
+            {!loading && viewMode === 'legacy' && (msgs.length === 0
+                ? <p className="text-gray-500 text-center py-16">{t('admin.extra.support_empty')}</p>
+                : msgs.map(m => (
+                    <div key={m.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-2">
+                        <p className="text-white font-bold text-sm">@{m.user?.username || '?'}</p>
+                        <p className="text-gray-300 text-sm whitespace-pre-line">{m.message}</p>
+                        {m.status === 'ANSWERED' && <p className="text-green-400 text-xs">{t('admin.extra.support_reply_label')} {m.adminReply}</p>}
+                        {msgFilter === 'PENDING' && (
+                            <div className="flex gap-2">
+                                <input value={replies[m.id] || ''} onChange={e => setReplies(prev => ({ ...prev, [m.id]: e.target.value }))}
+                                    placeholder={t('admin.extra.support_reply_ph')}
+                                    className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
+                                <button onClick={() => sendLegacyReply(m.id)} disabled={!(replies[m.id] || '').trim()}
+                                    className="px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm disabled:opacity-40">{t('admin.extra.support_send')}</button>
+                            </div>
+                        )}
+                    </div>
+                )))}
+        </div>
+    );
+}
+
 // ── MAIN ───────────────────────────────────────────────────────────────────
 export default function AdminPage() {
     const { t } = useTranslation();
@@ -1877,6 +2180,9 @@ export default function AdminPage() {
                     {activeTab === 'referee-approval'       && <RefereeApprovalPanel />}
                     {activeTab === 'coach-rating-approval'  && <CoachRatingApprovalPanel />}
                     {activeTab === 'club-approval' && <ClubApprovalPanel />}
+                    {activeTab === 'team-name-approval' && <TeamNameApprovalPanel />}
+                    {activeTab === 'travel-verify' && <TravelVerificationPanel />}
+                    {activeTab === 'support' && <SupportPanel />}
                 </div>
             </div>
         </div>

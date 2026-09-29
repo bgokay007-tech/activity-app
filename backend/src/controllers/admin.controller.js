@@ -36,7 +36,7 @@ export const getPendingCounts = async (req, res, next) => {
             tournamentPerms, flaggedEquipment, flaggedCoaches,
             profileChanges, subscriptions, venueReviews,
             coachListingApproval, refereeApproval, coachRatingApproval,
-            clubApproval,
+            clubApproval, teamNameApproval, travelVerify, legacySupport, openTickets,
         ] = await Promise.all([
             prisma.court.count({ where: { pending: true } }),
             prisma.court.count({ where: { pending: true, verified: false } }),
@@ -54,7 +54,17 @@ export const getPendingCounts = async (req, res, next) => {
             prisma.refereeListing.count({ where: { subCategory: { in: REFEREE_APPROVAL_SPORTS }, status: 'ACTIVE', approved: false } }),
             prisma.coachListing.count({ where: { subCategory: 'volleyball', status: 'ACTIVE', approvedForRating: false } }),
             prisma.clubListing.count({ where: { status: 'PENDING' } }),
+            prisma.teamNameRequest.count({ where: { status: 'PENDING' } }),
+            prisma.travelVerification.count({ where: { status: 'PENDING' } }),
+            prisma.supportMessage.count({ where: { status: 'PENDING', ticketId: null } }),
+            prisma.supportTicket.findMany({
+                where: { status: 'OPEN' },
+                select: { messages: { orderBy: { createdAt: 'desc' }, take: 1, select: { isFromAdmin: true, isAutoReply: true } } },
+            }),
         ]);
+        // getSupportTickets'taki awaitingAdmin ile aynı kural — admin'in zaten yanıtladığı
+        // açık konular sayaca girmesin, yoksa sayı hiç sıfırlanmıyor.
+        const awaitingTickets = openTickets.filter(t => t.messages[0] && (!t.messages[0].isFromAdmin || t.messages[0].isAutoReply)).length;
         res.json({
             courts,
             venues,
@@ -71,6 +81,9 @@ export const getPendingCounts = async (req, res, next) => {
             'referee-approval': refereeApproval,
             'coach-rating-approval': coachRatingApproval,
             'club-approval': clubApproval,
+            'team-name-approval': teamNameApproval,
+            'travel-verify': travelVerify,
+            support: legacySupport + awaitingTickets,
         });
     } catch (e) { next(e); }
 };

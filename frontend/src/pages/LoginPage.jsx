@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { setCredentials } from '../store/slices/authSlice';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
 function LoginPage() {
+    const { t } = useTranslation();
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const [formData, setFormData] = useState({ email: '', password: '' });
@@ -71,6 +73,11 @@ function LoginPage() {
                                 placeholder="••••••••"
                                 required
                             />
+                            <div className="text-right mt-2">
+                                <Link to="/forgot-password" className="text-purple-400 hover:text-purple-300 text-sm font-semibold">
+                                    {t('auth.forgotPassword')}
+                                </Link>
+                            </div>
                         </div>
 
                         <button
@@ -86,6 +93,12 @@ function LoginPage() {
                         Don't have an account?{' '}
                         <Link to="/register" className="text-purple-400 hover:text-purple-300 font-semibold">
                             Sign up
+                        </Link>
+                    </p>
+                    <p className="text-gray-400 text-center text-sm mt-3">
+                        🏢 {t('auth.bizNoAccount')}{' '}
+                        <Link to="/register/business" className="text-amber-400 hover:text-amber-300 font-semibold">
+                            {t('auth.bizCreateLink')}
                         </Link>
                     </p>
                 </div>
