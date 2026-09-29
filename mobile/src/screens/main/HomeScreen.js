@@ -15,13 +15,6 @@ import CityPickerModal from '../../components/CityPickerModal';
 import useT from '../../hooks/useT';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 
-let Updates;
-try {
-    Updates = require('expo-updates');
-} catch {
-    Updates = { isEnabled: false };
-}
-
 const HOME_CITY_KEY = 'home_listings_city';
 
 const CATEGORIES = [
@@ -183,8 +176,6 @@ export default function HomeScreen({ navigation }) {
     const [openListings, setOpenListings] = useState([]);
     const [showCityPicker, setShowCityPicker] = useState(false);
     const [listingsLoading, setListingsLoading] = useState(false);
-    const [otaBusy, setOtaBusy] = useState(false);
-
     const CAT_LABELS = {
         SPORTS: t.catLabelSports, SOCIAL: t.catLabelSocial, ARTS: t.catLabelArts, GAMES: t.catLabelGames,
     };
@@ -261,41 +252,6 @@ export default function HomeScreen({ navigation }) {
         });
     };
 
-    const otaLabel = (() => {
-        try {
-            if (!Updates?.isEnabled) return 'OTA kapalı';
-            const id = Updates.updateId ? String(Updates.updateId).slice(0, 8) : 'embedded';
-            const when = Updates.createdAt ? new Date(Updates.createdAt).toLocaleString() : '—';
-            return `${id} · ${when}`;
-        } catch {
-            return 'OTA ?';
-        }
-    })();
-
-    const forceOta = async () => {
-        if (otaBusy) return;
-        setOtaBusy(true);
-        try {
-            if (!Updates?.isEnabled) {
-                Alert.alert('Güncelleme', 'Bu APK OTA almıyor (Updates kapalı).');
-                return;
-            }
-            const cur = Updates.updateId ? String(Updates.updateId).slice(0, 12) : 'embedded';
-            const result = await Updates.checkForUpdateAsync();
-            if (!result.isAvailable) {
-                Alert.alert('Güncelleme', `Yeni paket yok.\nŞu an: ${cur}`);
-                return;
-            }
-            await Updates.fetchUpdateAsync();
-            Alert.alert('Güncelleme', 'İndi — uygulama yenileniyor…');
-            await Updates.reloadAsync();
-        } catch (e) {
-            Alert.alert('Güncelleme hatası', e?.message || String(e));
-        } finally {
-            setOtaBusy(false);
-        }
-    };
-
     if (loading) {
         return (
             <View style={[s.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -364,20 +320,6 @@ export default function HomeScreen({ navigation }) {
                 </View>
 
                 <Text style={nv.hello}>{t.helloName(name || '…')}</Text>
-                <TouchableOpacity
-                    onPress={forceOta}
-                    disabled={otaBusy}
-                    style={{
-                        alignSelf: 'flex-start', marginTop: 8, marginBottom: 4,
-                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
-                        backgroundColor: '#7c3aed33', borderWidth: 1, borderColor: '#a78bfa88',
-                    }}
-                >
-                    <Text style={{ color: '#ddd6fe', fontSize: 12, fontWeight: '800' }}>
-                        {otaBusy ? 'Güncelleniyor…' : '↻ Uygulamayı güncelle'}
-                    </Text>
-                    <Text style={{ color: '#a78bfa', fontSize: 10, marginTop: 2 }}>{otaLabel}</Text>
-                </TouchableOpacity>
                 <Text style={[nv.section, { marginTop: 18 }]}>{t.whatDoYouWant}</Text>
                 <View style={[nv.grid, { marginBottom: 22 }]}>
                     {CATEGORIES.map(cat => (
