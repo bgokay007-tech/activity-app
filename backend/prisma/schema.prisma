@@ -200,6 +200,13 @@ model User {
   ffMatchesAsUser1     FriendFindingMatch[] @relation("FFMatchUser1")
   ffMatchesAsUser2     FriendFindingMatch[] @relation("FFMatchUser2")
 
+  // Seyahat / Keşfetme
+  travelRoutes         TravelRoute[]
+  travelRouteReviews   TravelRouteReview[]
+  travelTrips          TravelTrip[]
+  travelTripRequests   TravelTripRequest[]
+  travelVerification   TravelVerification?
+
   @@index([lat, lng])
 }
 
@@ -2215,4 +2222,105 @@ model FriendFindingMatch {
   user2 User @relation("FFMatchUser2", fields: [user2Id], references: [id], onDelete: Cascade)
 
   @@unique([user1Id, user2Id])
+}
+
+// Seyahat / Keşfetme → "Yeni Yerler Keşfet": kullanıcıların paylaştığı rotalar.
+// Rota sahibi foto/video + deneyimini yazar, diğerleri TravelRouteReview ile puanlar.
+model TravelRoute {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  startPlace  String
+  endPlace    String?
+  stops       Json     @default("[]") // string[] — ara duraklar
+  distanceKm  Float?
+  durationText String?
+  difficulty  String?  // EASY | MEDIUM | HARD
+  experience  String?
+  media       Json     @default("[]") // [{ url, type: 'image' | 'video' }]
+  ratingAvg   Float    @default(0)
+  ratingCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviews TravelRouteReview[]
+
+  @@index([createdAt])
+}
+
+model TravelRouteReview {
+  id        String   @id @default(uuid())
+  routeId   String
+  userId    String
+  rating    Int      // 1-5
+  comment   String?
+  media     Json     @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  route TravelRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([routeId, userId])
+}
+
+// Seyahat / Keşfetme → "Seyahat Et": A'dan B'ye yolculuk paylaşıp yol arkadaşı alma.
+// Oluşturmak için TravelVerification APPROVED olmalı (bkz. travel.controller.js createTrip).
+model TravelTrip {
+  id           String   @id @default(uuid())
+  userId       String
+  fromPlace    String
+  toPlace      String
+  waypoints    Json     @default("[]") // string[] — güzergah üzerindeki duraklar
+  departAt     DateTime
+  seats        Int      @default(1)
+  pricePerSeat Int      @default(0) // 0 = ücretsiz
+  vehicle      String?
+  note         String?
+  status       String   @default("ACTIVE") // ACTIVE | CANCELLED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user     User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requests TravelTripRequest[]
+
+  @@index([departAt])
+}
+
+model TravelTripRequest {
+  id        String   @id @default(uuid())
+  tripId    String
+  userId    String
+  seats     Int      @default(1)
+  message   String?
+  status    String   @default("PENDING") // PENDING | ACCEPTED | REJECTED | CANCELLED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trip TravelTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, userId])
+}
+
+// Yol arkadaşı alabilmek için kimlik + adli sicil onayı. tcKimlikNo ve belge URL'leri
+// SADECE sahibi ve admin görür; diğer kullanıcılara sadece "doğrulanmış" rozeti gider.
+model TravelVerification {
+  id           String    @id @default(uuid())
+  userId       String    @unique
+  fullName     String
+  tcKimlikNo   String
+  birthDate    DateTime
+  phone        String
+  idCardUrl    String
+  adliSicilUrl String
+  selfieUrl    String?
+  status       String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  adminNote    String?
+  approvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

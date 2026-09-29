@@ -57,6 +57,14 @@ function navigateFromNotif(data, isBusiness) {
                 challenge: data.challengeId ? { id: data.challengeId, status: type === 'CHALLENGE_ACCEPTED' ? 'ACCEPTED' : 'PENDING', activityRequestId: data.rivalId, category: data.category, subCategory: data.subCategory } : undefined,
             },
         });
+    } else if (typeof type === 'string' && type.startsWith('TRAVEL_')) {
+        if (data.routeId) {
+            goToAppScreen(isBusiness, 'HomeTab', { screen: 'TravelRouteDetail', params: { routeId: data.routeId } });
+        } else if (data.tripId) {
+            goToAppScreen(isBusiness, 'HomeTab', { screen: 'TravelTripDetail', params: { tripId: data.tripId } });
+        } else {
+            goToAppScreen(isBusiness, 'HomeTab', { screen: 'TravelExploreHome', params: { initialTab: 'travel', _k: notifNavKey } });
+        }
     } else if (type === 'FRIEND_REQUEST' || type === 'FRIEND_ACCEPTED') {
         if (data.senderId) {
             goToAppScreen(isBusiness, 'HomeTab', { screen: 'Profile', params: { userId: data.senderId } });
@@ -245,6 +253,12 @@ import ChessTableScreen from '../screens/main/ChessTableScreen';
 import FriendFindingHomeScreen from '../screens/main/FriendFindingHomeScreen';
 import FriendFindingMatchesScreen from '../screens/main/FriendFindingMatchesScreen';
 import FriendFindingLiveScreen from '../screens/main/FriendFindingLiveScreen';
+import TravelExploreHomeScreen from '../screens/main/TravelExploreHomeScreen';
+import TravelRouteCreateScreen from '../screens/main/TravelRouteCreateScreen';
+import TravelRouteDetailScreen from '../screens/main/TravelRouteDetailScreen';
+import TravelTripCreateScreen from '../screens/main/TravelTripCreateScreen';
+import TravelTripDetailScreen from '../screens/main/TravelTripDetailScreen';
+import TravelVerificationScreen from '../screens/main/TravelVerificationScreen';
 import MiniPlayer from '../components/MiniPlayer';
 import YoutubeAudioPlayer from '../components/YoutubeAudioPlayer';
 import colors from '../theme/colors';
@@ -290,6 +304,12 @@ function HomeStackNav() {
             <HomeStack.Screen name="FriendFindingHome" component={FriendFindingHomeScreen} />
             <HomeStack.Screen name="FriendFindingMatches" component={FriendFindingMatchesScreen} />
             <HomeStack.Screen name="FriendFindingLive" component={FriendFindingLiveScreen} />
+            <HomeStack.Screen name="TravelExploreHome" component={TravelExploreHomeScreen} />
+            <HomeStack.Screen name="TravelRouteCreate" component={TravelRouteCreateScreen} />
+            <HomeStack.Screen name="TravelRouteDetail" component={TravelRouteDetailScreen} />
+            <HomeStack.Screen name="TravelTripCreate" component={TravelTripCreateScreen} />
+            <HomeStack.Screen name="TravelTripDetail" component={TravelTripDetailScreen} />
+            <HomeStack.Screen name="TravelVerification" component={TravelVerificationScreen} />
         </HomeStack.Navigator>
     );
 }
