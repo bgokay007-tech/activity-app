@@ -7241,7 +7241,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
     const submitScore = async () => {
         if (!hasAnyInput) { Alert.alert('', t.missingScore); return; }
-        if (match.subCategory === 'tennis' || match.subCategory === 'padel') {
+        if (match.subCategory === 'tennis' || match.subCategory === 'padel' || match.subCategory === 'pickleball') {
             for (const r of sets) {
                 const p1 = parseInt(r.my) || 0, p2 = parseInt(r.opp) || 0;
                 if (p1 === 0 && p2 === 0) continue;
@@ -18144,7 +18144,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const submitScore = async () => {
         if (!scoreEntry) return;
         const sets = scoreSets.map(s => ({ p1: parseInt(s.p1) || 0, p2: parseInt(s.p2) || 0 }));
-        if (item.subCategory === 'tennis' || item.subCategory === 'padel') {
+        if (item.subCategory === 'tennis' || item.subCategory === 'padel' || item.subCategory === 'pickleball') {
             for (const s of sets) {
                 if (s.p1 === 0 && s.p2 === 0) continue;
                 const hi = Math.max(s.p1, s.p2), lo = Math.min(s.p1, s.p2);

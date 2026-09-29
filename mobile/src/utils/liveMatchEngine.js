@@ -13,7 +13,7 @@ export const VOLLEYBALL_SPORTS = new Set(['volleyball']);
 export const BASKETBALL_SPORTS = new Set(['basketball']);
 // Tek telefon kamerasıyla otomatik hat yok; bu dallarda kullanıcı son 8 sn replay'den
 // IN/OUT işaretler. Masa tenisi/badminton/basketbol çizgi itirazı bu üründe yok.
-export const LINE_CALL_SPORTS = new Set(['tennis', 'padel', 'volleyball']);
+export const LINE_CALL_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'volleyball']);
 
 export function sportProfile(sport) {
     if (RACKET_SPORTS.has(sport)) return 'racket';
