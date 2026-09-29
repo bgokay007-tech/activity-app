@@ -6,16 +6,7 @@ import { setLang } from '../store/slices/langSlice';
 import { io } from 'socket.io-client';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
-
-const TYPE_ICON = {
-    JOIN_REQUEST:         '⚔️',
-    TOURNAMENT_JOIN:      '🏆',
-    MATCH_CONFIRMED:      '🎉',
-    MATCH_CANCELLED:      '❌',
-    FRIEND_REQUEST:       '👋',
-    MESSAGE:              '💬',
-    CANCELLATION_REQUEST: '⚠️',
-};
+import { TYPE_ICON, resolveNotificationPath } from '../utils/notifNav';
 
 const CYCLE_DURATION = 2.4; // seconds for full color cycle
 const LETTER_STEP    = CYCLE_DURATION / 8; // offset between each letter
@@ -59,120 +50,28 @@ function RainbowTitle() {
     );
 }
 
-function NotificationPanel({ notifications, onMarkAll, onMarkOne, onClose }) {
+function NotificationPanel({ notifications, onMarkAll, onMarkOne, onClose, isBusiness }) {
     const navigate = useNavigate();
-
-    const ADMIN_TAB_BY_TYPE = {
-        // VENUE_REQUEST: yeni İŞLETME tesisi başvurusu (createVenue/suggestVenue) — Court
-        // modeliyle karışan eski 'venues' hedefi yanlıştı, doğrusu 'biz-venues' (İşletme
-        // Tesisleri). VENUE_SUBMISSION ise yeni bir topluluk Court kaydı (rival ilanındaki
-        // "Kort Adı" alanından) — o gerçekten 'venues' (Salon/Kort/Saha bekleyenler) sekmesine gider.
-        VENUE_REQUEST: 'biz-venues',
-        VENUE_EDIT_REQUEST: 'biz-venues',
-        COURT_EDIT_REQUEST: 'courts',
-        VENUE_SUBMISSION: 'venues',
-        SUBSCRIPTION_REQUEST: 'subscriptions',
-        SUBSCRIPTION_RECEIPT: 'subscriptions',
-        VENUE_REVIEW_PENDING: 'venue-reviews',
-        REVIEW_APPEAL: 'venue-reviews',
-        TOURNAMENT_PERMISSION_REQUEST: 'tournament-perms',
-        PROFILE_CHANGE_REQUEST: 'profile-changes',
-        COACH_LISTING_SUBMITTED: 'coach-listing-approval',
-        REFEREE_LISTING_SUBMITTED: 'referee-approval',
-        NO_SHOW_REPORT: 'noshow',
-        LISTING_FLAGGED: 'flagged-listings',
-        CITY_PENDING: 'cities',
-        CLUB_LISTING_SUBMITTED: 'club-approval',
-        FAKE_SPECTATOR_REPORTED: 'disputes',
-        TEAM_NAME_REQUEST: 'team-name-approval',
-        SUPPORT_MESSAGE: 'support',
-    };
-    const OUTCOME_TYPES = new Set([
-        'VENUE_APPROVED', 'VENUE_REJECTED',
-        'SUBSCRIPTION_APPROVED', 'SUBSCRIPTION_REJECTED', 'SUBSCRIPTION_CANCELLED', 'SUBSCRIPTION_WARNING',
-        'TOURNAMENT_PERMISSION_APPROVED', 'TOURNAMENT_PERMISSION_REJECTED',
-        'PROFILE_CHANGE_APPROVED', 'PROFILE_CHANGE_REJECTED',
-        'APPEAL_RESOLVED', 'VENUE_REVIEW_APPROVED', 'VENUE_REVIEW_REJECTED', 'HOLIDAY_REMINDER',
-    ]);
-
-    const REFEREE_TYPES = new Set(['MATCH_INVITE', 'MATCH_INVITE_DECLINED', 'RIVAL_JOIN_REQUEST']);
-
-    const buildCatPath = (data) => {
-        if (!data.category || !data.subCategory) return null;
-        let path = `/category/${data.category.toLowerCase()}/${data.subCategory}`;
-        const params = new URLSearchParams();
-        if (data.tab) params.set('tab', data.tab);
-        else if (data.refereeAd || (data.rivalId && REFEREE_TYPES.has(data.type))) { params.set('tab', 'coaches'); params.set('coachSubTab', 'referees'); }
-        else if (data.equipmentOffer || data.listingId) params.set('tab', 'equipment');
-        if (data.listingId) params.set('openEquipmentId', data.listingId);
-        const qs = params.toString();
-        return qs ? `${path}?${qs}` : path;
-    };
+    const { t } = useTranslation();
 
     const handleClick = async (n) => {
         onMarkOne(n.id);
         onClose();
-        const { type, data = {} } = n;
-
-        if (type === 'MESSAGE') {
-            // Ekipman ilanı bağlamlı mesaj — sohbete değil, ilgili ilana git
-            if (data.listingId && data.category && data.subCategory) {
-                navigate(buildCatPath({ ...data, type }));
-                return;
-            }
-            navigate(data.senderId ? `/messages/${data.senderId}` : '/messages');
-            return;
-        }
-        if (['FRIEND_REQUEST', 'FRIEND_ACCEPTED', 'FOLLOW_REQUEST', 'FOLLOW_ACCEPTED'].includes(type)) {
-            navigate(data.senderId ? `/profile/${data.senderId}` : '/profile');
-            return;
-        }
-        if (type?.startsWith('TRAVEL_')) {
-            navigate(data.routeId ? `/travel/routes/${data.routeId}` : data.tripId ? `/travel/trips/${data.tripId}` : '/travel?tab=travel');
-            return;
-        }
-        if (ADMIN_TAB_BY_TYPE[type]) {
-            navigate(`/admin?tab=${ADMIN_TAB_BY_TYPE[type]}${data.ticketId ? `&ticketId=${data.ticketId}` : ''}`);
-            return;
-        }
-        if (type === 'EQUIPMENT_OFFER') {
-            navigate(buildCatPath({ ...data, type, equipmentOffer: true }));
-            return;
-        }
-        if (type?.startsWith('TOURNAMENT') && data.tournamentId && data.category && data.subCategory) {
-            navigate(`/category/${data.category.toLowerCase()}/${data.subCategory}?tab=tournaments&manageTournament=${data.tournamentId}`);
-            return;
-        }
-        const catPath = buildCatPath({ ...data, type });
-        if (catPath) { navigate(catPath); return; }
-        if (data.rivalId) {
-            // category/subCategory bilgisi bu bildirimde yoktu — ilanı çekip gerçek
-            // spora yönlendir (eskiden hep futbola gidiyordu, yanlıştı).
-            try {
-                const { data: rival } = await api.get(`/rivals/${data.rivalId}`);
-                if (rival?.category && rival?.subCategory) {
-                    navigate(buildCatPath({ ...data, type, category: rival.category, subCategory: rival.subCategory }));
-                    return;
-                }
-            } catch { /* ilan artık yoksa sessizce vazgeç */ }
-            return;
-        }
-        if (OUTCOME_TYPES.has(type)) {
-            navigate('/profile');
-        }
+        const path = await resolveNotificationPath(n, { isBusiness });
+        if (path) navigate(path);
     };
 
     return (
         <div className="absolute right-0 top-10 w-80 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl z-50 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-                <h3 className="text-white font-bold text-sm">Notifications</h3>
+                <h3 className="text-white font-bold text-sm">{t('notif.notificationsTitle')}</h3>
                 <button onClick={onMarkAll} className="text-purple-400 hover:text-purple-300 text-xs transition">
-                    Mark all read
+                    {t('notif.markAllRead')}
                 </button>
             </div>
             <div className="max-h-[min(24rem,70vh)] overflow-y-auto">
                 {notifications.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-8">No notifications yet.</p>
+                    <p className="text-gray-500 text-sm text-center py-8">{t('notif.noNotificationsText')}</p>
                 ) : (
                     notifications.map(n => (
                         <button
@@ -195,6 +94,12 @@ function NotificationPanel({ notifications, onMarkAll, onMarkOne, onClose }) {
                     ))
                 )}
             </div>
+            <button
+                onClick={() => { onClose(); navigate('/notifications'); }}
+                className="w-full py-2.5 text-center text-purple-400 hover:text-purple-300 hover:bg-gray-800 text-xs font-bold border-t border-gray-800 transition"
+            >
+                {t('notif.seeAll')}
+            </button>
         </div>
     );
 }
@@ -428,6 +333,7 @@ export default function Navbar({ onBack, backLabel, title }) {
                                 onMarkAll={handleMarkAll}
                                 onMarkOne={handleMarkOne}
                                 onClose={() => setPanelOpen(false)}
+                                isBusiness={!!user?.isBusiness}
                             />
                         )}
                     </div>

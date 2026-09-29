@@ -9,6 +9,7 @@ import Navbar from '../components/Navbar';
 import ContentViewer from '../components/ContentViewer';
 import CreatePostModal from '../components/CreatePostModal';
 import PeerReviewModal from '../components/PeerReviewModal';
+import TournamentMatchScheduleModal, { formatAgreed } from '../components/TournamentMatchScheduleModal';
 import { ENABLED_SUBS, MAINTENANCE_MESSAGE } from '../config/features';
 import { shareRival, shareTournament } from '../utils/share';
 
@@ -3376,6 +3377,7 @@ function SubCategoryPage() {
     const [tournInvitePicker, setTournInvitePicker] = useState(null); // { tournamentId, candidates }
     const [matchesModalTournament, setMatchesModalTournament] = useState(null);
     const [tournMatchesData, setTournMatchesData] = useState({ matches: [], myTeamId: null, teams: [] });
+    const [scheduleMatchId, setScheduleMatchId] = useState(null);
     const [matchTab, setMatchTab] = useState('matches'); // 'matches' | 'standings'
     const [scoreEntryMatchId, setScoreEntryMatchId] = useState(null);
     const [scoreSets, setScoreSets] = useState([{ p1: '', p2: '' }, { p1: '', p2: '' }]);
@@ -9629,12 +9631,21 @@ function SubCategoryPage() {
                                     {m.status === 'PENDING' && m.deadline && (
                                         <p className="text-gray-500 text-[11px] mt-0.5">⏰ {new Date(m.deadline).toLocaleDateString('tr-TR')}</p>
                                     )}
+                                    {formatAgreed(m.scheduleData?.agreed) && (
+                                        <p className="text-green-400 text-[11px] font-bold mt-0.5">📍 {formatAgreed(m.scheduleData.agreed)}</p>
+                                    )}
                                 </div>
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${m.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' : m.status === 'BYE' ? 'bg-gray-700 text-gray-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
                                     {m.status}
                                 </span>
                             </div>
 
+                            {m.status === 'PENDING' && m.p1Id && m.p2Id && (
+                                <button onClick={() => setScheduleMatchId(m.id)}
+                                    className="w-full bg-sky-500/10 border border-sky-500/40 text-sky-300 text-xs font-bold py-1.5 rounded-lg">
+                                    {t('tmatch.scheduleBtn')}
+                                </button>
+                            )}
                             {m.status === 'PENDING' && canScore && !editing && (
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => openScoreEntry(m)}
@@ -9685,7 +9696,10 @@ function SubCategoryPage() {
 
                 const roundsOf = (list) => [...new Set(list.map(m => m.round))].sort((a, b) => a - b);
 
+                const scheduleMatch = scheduleMatchId ? matches.find(x => x.id === scheduleMatchId) : null;
+
                 return (
+                    <>
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
                         onClick={closeModal}>
                         <div className="bg-gray-950 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col"
@@ -9805,6 +9819,19 @@ function SubCategoryPage() {
                             )}
                         </div>
                     </div>
+                    {scheduleMatch && (
+                        <TournamentMatchScheduleModal
+                            tournament={mt}
+                            match={scheduleMatch}
+                            mySide={myMatchSide(scheduleMatch)}
+                            onClose={() => setScheduleMatchId(null)}
+                            onUpdated={(scheduleData) => setTournMatchesData(prev => ({
+                                ...prev,
+                                matches: (prev.matches || []).map(x => x.id === scheduleMatch.id ? { ...x, scheduleData } : x),
+                            }))}
+                        />
+                    )}
+                    </>
                 );
             })()}
 

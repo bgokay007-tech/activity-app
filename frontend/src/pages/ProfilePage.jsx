@@ -8,6 +8,7 @@ import CreatePostModal from '../components/CreatePostModal';
 import Navbar from '../components/Navbar';
 import ContentViewer from '../components/ContentViewer';
 import AssessmentModal from '../components/AssessmentModal';
+import PlayerRatingModal, { RATING_SUBS } from '../components/PlayerRatingModal';
 
 const CATEGORY_CONFIG = {
     SPORTS: { color: 'from-green-500 to-emerald-500', bg: 'bg-green-500/10', border: 'border-green-500/30', path: 'sports' },
@@ -783,8 +784,15 @@ function ReelCard({ post: initialPost, isOwner, onOpen, onDelete, showComments =
     );
 }
 
-function ActivityCard({ interest, navigate, isOwn }) {
+function ActivityCard({ interest, navigate, isOwn, subjectId }) {
     const { t } = useTranslation();
+    const [ratingOpen, setRatingOpen] = useState(false);
+    const ratingBtnKey = {
+        volleyball: 'volleyballRatingBtn',
+        tennis: 'racquetFeedbackBtnTennis',
+        padel: 'racquetFeedbackBtnPadel',
+        pickleball: 'racquetFeedbackBtnPickleball',
+    }[interest.subCategory];
     const cfg = CATEGORY_CONFIG[interest.category] || CATEGORY_CONFIG.SPORTS;
     const lvl = LEVEL_BADGE[interest.level] || LEVEL_BADGE.BEGINNER;
     const total = (interest.wins || 0) + (interest.losses || 0);
@@ -922,6 +930,21 @@ function ActivityCard({ interest, navigate, isOwn }) {
                         <span className={`bg-gradient-to-r ${cfg.color} bg-clip-text text-transparent`}>🗃️ Match Records</span>
                         <span className="text-gray-500">{showMatches ? '▲' : '▼'}</span>
                     </button>
+
+                    {ratingBtnKey && subjectId && RATING_SUBS.includes(interest.subCategory) && (
+                        <button
+                            onClick={() => setRatingOpen(true)}
+                            className={`w-full px-4 py-2.5 border-t ${cfg.border} text-xs font-bold text-purple-300 hover:opacity-80 transition`}
+                        >
+                            {t(`rating.${ratingBtnKey}`)}
+                        </button>
+                    )}
+                    <PlayerRatingModal
+                        open={ratingOpen}
+                        subjectId={subjectId}
+                        subCategory={interest.subCategory}
+                        onClose={() => setRatingOpen(false)}
+                    />
 
             {showMatches && (
                 <div className="px-4 pb-4 space-y-3 border-t border-gray-800/50 pt-3">
@@ -1502,7 +1525,7 @@ function ProfilePage() {
                                     ) : (
                                         <div className="space-y-3">
                                             {profile.interests.map(interest => (
-                                                <ActivityCard key={interest.id} interest={interest} navigate={navigate} isOwn={isOwnProfile} />
+                                                <ActivityCard key={interest.id} interest={interest} navigate={navigate} isOwn={isOwnProfile} subjectId={profile.id} />
                                             ))}
                                         </div>
                                     )}

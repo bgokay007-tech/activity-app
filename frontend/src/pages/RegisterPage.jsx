@@ -2,13 +2,15 @@ import { useState, useRef, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { setCredentials } from '../store/slices/authSlice';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
+import CityAutocomplete from '../components/CityAutocomplete';
 
 const PASSWORD_RULES = [
-    { id: 'len',     label: '8-16 karakter',        test: p => p.length >= 8 && p.length <= 16 },
-    { id: 'upper',   label: 'Büyük harf (A-Z)',      test: p => /[A-Z]/.test(p) },
-    { id: 'lower',   label: 'Küçük harf (a-z)',      test: p => /[a-z]/.test(p) },
-    { id: 'special', label: 'Özel karakter (!@#…)',  test: p => /[^a-zA-Z0-9]/.test(p) },
+    { id: 'len',     key: 'passRuleLen',     test: p => p.length >= 8 && p.length <= 16 },
+    { id: 'upper',   key: 'passRuleUpper',   test: p => /[A-Z]/.test(p) },
+    { id: 'lower',   key: 'passRuleLower',   test: p => /[a-z]/.test(p) },
+    { id: 'special', key: 'passRuleSpecial', test: p => /[^a-zA-Z0-9]/.test(p) },
 ];
 
 const COUNTRIES = [
@@ -189,6 +191,8 @@ function calcAge(dateStr) {
 }
 
 function RegisterPage() {
+    const { t } = useTranslation();
+    const a = (k, o) => t(`auth.${k}`, o);
     const dispatch = useDispatch();
     const navigate = useNavigate();
 
@@ -248,14 +252,14 @@ function RegisterPage() {
 
     const handleSendOtp = async () => {
         setError(''); setInfo('');
-        if (!form.username.trim()) return showError('Kullanıcı adı zorunludur');
-        if (!form.email.trim() && !form.phone.trim()) return showError('En az e-posta veya telefon girilmeli');
-        if (!contactValue) return showError(`Doğrulama için ${otpMethod === 'email' ? 'e-posta' : 'telefon'} girilmeli`);
-        if (!form.gender) return showError('Cinsiyet seçiniz');
-        if (!passwordValid) return showError('Şifre tüm kuralları karşılamalıdır');
-        if (!agreed.terms) return showError('Kullanıcı Sözleşmesi\'ni kabul etmelisiniz');
-        if (!agreed.kvkk) return showError('KVKK Onayı zorunludur');
-        if (!captchaOk) return showError('Lütfen güvenlik sorusunu doğrulayın');
+        if (!form.username.trim()) return showError(a('usernameRequired'));
+        if (!form.email.trim() && !form.phone.trim()) return showError(a('contactRequired'));
+        if (!contactValue) return showError(a('contactRequired'));
+        if (!form.gender) return showError(a('gender'));
+        if (!passwordValid) return showError(a('passwordRules'));
+        if (!agreed.terms) return showError(a('termsRequired'));
+        if (!agreed.kvkk) return showError(a('kvkkRequired'));
+        if (!captchaOk) return showError(a('captchaRequired'));
 
         setLoading(true);
         try {
@@ -269,11 +273,11 @@ function RegisterPage() {
             setOtpSent(true);
             startTimer();
             if (res.data.devCode) {
-                setInfo(`Geliştirici modu — doğrulama kodunuz: ${res.data.devCode}`);
+                setInfo(`Dev: ${res.data.devCode}`);
             }
             setTimeout(() => otpBoxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
         } catch (e) {
-            showError(e.response?.data?.message || e.message || 'Doğrulama kodu gönderilemedi');
+            showError(e.response?.data?.message || e.message || a('otpSendFailed'));
         } finally {
             setLoading(false);
         }
@@ -281,7 +285,7 @@ function RegisterPage() {
 
     const handleVerify = async () => {
         setError(''); setInfo('');
-        if (otp.length !== 6) return showError('6 haneli kodu girin');
+        if (otp.length !== 6) return showError(a('otpSixDigits'));
         setLoading(true);
         try {
             await api.post('/auth/verify-otp', { method: otpMethod, value: contactValue, code: otp });
@@ -299,7 +303,7 @@ function RegisterPage() {
             dispatch(setCredentials(data));
             navigate('/home');
         } catch (e) {
-            showError(e.response?.data?.message || 'Doğrulama başarısız');
+            showError(e.response?.data?.message || a('otpVerifyFailed'));
         } finally {
             setLoading(false);
         }
@@ -322,7 +326,7 @@ function RegisterPage() {
                         <div className="px-6 py-4 border-t border-gray-800 flex-shrink-0">
                             <button onClick={() => setLegalModal(null)}
                                 className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl transition text-sm">
-                                Kapat
+                                {t('common.close')}
                             </button>
                         </div>
                     </div>
@@ -336,7 +340,7 @@ function RegisterPage() {
                         ))}
                     </h1>
                     <p className="text-gray-400 mt-2 text-sm">
-                        Hesabını oluştur
+                        {a('createAccount')}
                     </p>
                 </div>
 
@@ -356,34 +360,34 @@ function RegisterPage() {
                     {/* ── KAYIT FORMU ── */}
                     {true && (
                         <div className="space-y-4">
-                            <h2 className="text-lg font-bold text-white">Hesap Bilgileri</h2>
+                            <h2 className="text-lg font-bold text-white">{a('createAccount')}</h2>
 
                             {/* Ad Soyad + Kullanıcı Adı */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">Ad Soyad</label>
+                                    <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">{a('fullName')}</label>
                                     <input type="text" value={form.fullName} onChange={e => set('fullName', e.target.value)}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm"
-                                        placeholder="Adın Soyadın" />
+                                        placeholder={a('fullNamePh')} />
                                 </div>
                                 <div>
-                                    <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">Kullanıcı Adı *</label>
+                                    <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">{a('username')}</label>
                                     <input type="text" value={form.username} onChange={e => set('username', e.target.value)}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm"
-                                        placeholder="kullanici_adi" autoComplete="off" />
+                                        placeholder={a('usernamePh')} autoComplete="off" />
                                 </div>
                             </div>
 
                             {/* E-posta + Telefon */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">E-posta</label>
+                                    <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">{a('email')}</label>
                                     <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm"
-                                        placeholder="email@ornek.com" />
+                                        placeholder={a('emailPh')} />
                                 </div>
                                 <div>
-                                    <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">Cep Telefonu</label>
+                                    <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">{a('phone')}</label>
                                     <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm"
                                         placeholder="+90 555 000 00 00" />
@@ -392,24 +396,24 @@ function RegisterPage() {
 
                             {/* OTP Yöntemi */}
                             <div>
-                                <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1.5 block">Doğrulama Kodu Gönderilsin *</label>
+                                <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1.5 block">{a('otpMethodLabel')} *</label>
                                 <div className="grid grid-cols-2 gap-2">
                                     <button type="button" onClick={() => setOtpMethod('email')}
                                         className={`py-2.5 rounded-xl border font-bold text-sm transition ${otpMethod === 'email' ? 'border-purple-500 bg-purple-500/15 text-purple-300' : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'}`}>
-                                        📧 E-posta ile
+                                        {a('viaEmail')}
                                     </button>
                                     <div className="relative py-2.5 rounded-xl border border-gray-700 bg-gray-800 text-gray-600 text-sm font-bold text-center opacity-40 cursor-not-allowed">
-                                        📱 Telefon ile
-                                        <span className="absolute -top-2 -right-1 bg-gray-700 text-gray-400 text-[9px] font-black px-1.5 py-0.5 rounded-full">Yakında</span>
+                                        {a('viaPhone')}
+                                        <span className="absolute -top-2 -right-1 bg-gray-700 text-gray-400 text-[9px] font-black px-1.5 py-0.5 rounded-full">{a('comingSoon')}</span>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Cinsiyet */}
                             <div>
-                                <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1.5 block">Cinsiyet *</label>
+                                <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1.5 block">{a('gender')}</label>
                                 <div className="grid grid-cols-3 gap-2">
-                                    {[['MALE','👨 Erkek'],['FEMALE','👩 Kadın'],['OTHER','🧑 Diğer']].map(([val, lbl]) => (
+                                    {[['MALE', a('male')], ['FEMALE', a('female')], ['OTHER', a('otherGender')]].map(([val, lbl]) => (
                                         <button key={val} type="button" onClick={() => set('gender', val)}
                                             className={`py-2.5 rounded-xl border font-bold text-sm transition ${form.gender === val ? 'border-purple-500 bg-purple-500/15 text-purple-300' : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'}`}>
                                             {lbl}
@@ -420,13 +424,13 @@ function RegisterPage() {
 
                             {/* Doğum Tarihi */}
                             <div>
-                                <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">Doğum Tarihi</label>
+                                <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">{a('birthDate')}</label>
                                 <div className="flex items-center gap-3">
                                     <input type="date" value={form.birthDate} onChange={e => set('birthDate', e.target.value)}
                                         className="flex-1 bg-gray-800 text-white rounded-xl px-3 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm [color-scheme:dark]" />
                                     {age !== null && (
                                         <div className="bg-purple-500/20 border border-purple-500/40 rounded-xl px-3 py-2.5 whitespace-nowrap">
-                                            <span className="text-purple-300 font-black text-sm">{age} yaş</span>
+                                            <span className="text-purple-300 font-black text-sm">{age} {a('years')}</span>
                                         </div>
                                     )}
                                 </div>
@@ -435,24 +439,23 @@ function RegisterPage() {
                             {/* Ülke + Şehir */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">Ülke</label>
+                                    <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">{a('country')}</label>
                                     <select value={form.country} onChange={e => set('country', e.target.value)}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm">
-                                        <option value="">Ülke seçin</option>
+                                        <option value="">{a('selectCountry')}</option>
                                         {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">İl / Şehir</label>
-                                    <input type="text" value={form.city} onChange={e => set('city', e.target.value)}
-                                        className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm"
-                                        placeholder="İstanbul" />
+                                    <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">{a('city')}</label>
+                                    <CityAutocomplete value={form.city} onChange={v => set('city', v)} placeholder={a('selectCity')}
+                                        className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm" />
                                 </div>
                             </div>
 
                             {/* Şifre */}
                             <div>
-                                <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">Şifre *</label>
+                                <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block">{a('password')} *</label>
                                 <div className="flex">
                                     <input type={showPass ? 'text' : 'password'} value={form.password}
                                         onChange={e => set('password', e.target.value.slice(0, 16))} maxLength={16}
@@ -467,7 +470,7 @@ function RegisterPage() {
                                     <div className="mt-2 grid grid-cols-2 gap-1">
                                         {PASSWORD_RULES.map(r => (
                                             <p key={r.id} className={`text-xs font-semibold ${r.test(form.password) ? 'text-green-400' : 'text-red-400'}`}>
-                                                {r.test(form.password) ? '✓' : '✗'} {r.label}
+                                                {r.test(form.password) ? '✓' : '✗'} {a(r.key)}
                                             </p>
                                         ))}
                                     </div>
@@ -482,10 +485,10 @@ function RegisterPage() {
                                         {agreed.terms && <span className="text-white text-xs font-black">✓</span>}
                                     </div>
                                     <span className="text-gray-400 text-xs leading-5">
-                                        <button type="button" onClick={() => setLegalModal(LEGAL.terms)} className="text-purple-400 hover:text-purple-300 font-semibold">Kullanıcı Sözleşmesi</button>
-                                        {' '}ve{' '}
-                                        <button type="button" onClick={() => setLegalModal(LEGAL.privacy)} className="text-purple-400 hover:text-purple-300 font-semibold">Gizlilik Politikası</button>
-                                        {'\'nı okudum ve kabul ediyorum *'}
+                                        <button type="button" onClick={() => setLegalModal(LEGAL.terms)} className="text-purple-400 hover:text-purple-300 font-semibold">{a('termsLink')}</button>
+                                        {a('termsAgreeText')}
+                                        <button type="button" onClick={() => setLegalModal(LEGAL.privacy)} className="text-purple-400 hover:text-purple-300 font-semibold">{a('privacyLink')}</button>
+                                        {a('termsAgreeEnd')}
                                     </span>
                                 </label>
 
@@ -495,8 +498,8 @@ function RegisterPage() {
                                         {agreed.kvkk && <span className="text-white text-xs font-black">✓</span>}
                                     </div>
                                     <span className="text-gray-400 text-xs leading-5">
-                                        <button type="button" onClick={() => setLegalModal(LEGAL.kvkk)} className="text-purple-400 hover:text-purple-300 font-semibold">KVKK / Açık Rıza Beyanı</button>
-                                        {"'nı okudum ve onaylıyorum *"}
+                                        <button type="button" onClick={() => setLegalModal(LEGAL.kvkk)} className="text-purple-400 hover:text-purple-300 font-semibold">{a('kvkkLink')}</button>
+                                        {a('kvkkAgreeEnd')}
                                     </span>
                                 </label>
                             </div>
@@ -507,8 +510,8 @@ function RegisterPage() {
                                     <div className="flex items-center gap-3">
                                         <span className="text-3xl">✅</span>
                                         <div>
-                                            <p className="text-green-400 font-bold text-sm">Ben robot değilim</p>
-                                            <p className="text-green-300 font-semibold text-sm">Doğrulandı ✓</p>
+                                            <p className="text-green-400 font-bold text-sm">{a('iAmNotRobot')}</p>
+                                            <p className="text-green-300 font-semibold text-sm">{a('verifiedCaptcha')}</p>
                                         </div>
                                     </div>
                                 ) : (
@@ -516,9 +519,9 @@ function RegisterPage() {
                                         <div className="flex items-center gap-3 mb-3">
                                             <span className="text-3xl">🤖</span>
                                             <div>
-                                                <p className="text-white font-bold text-sm">Ben robot değilim</p>
+                                                <p className="text-white font-bold text-sm">{a('iAmNotRobot')}</p>
                                                 <p className={`font-black text-xl ${captchaErr ? 'text-red-400' : 'text-purple-400'}`}>{captcha.q} = ?</p>
-                                                {captchaErr && <p className="text-red-400 text-xs font-semibold">Yanlış! Yeni soru geldi</p>}
+                                                {captchaErr && <p className="text-red-400 text-xs font-semibold">{a('captchaWrong')}</p>}
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
@@ -531,7 +534,7 @@ function RegisterPage() {
                                             />
                                             <button type="button" onClick={verifyCaptcha} disabled={!captchaInput}
                                                 className="bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-bold px-4 rounded-xl transition text-sm">
-                                                Doğrula
+                                                {a('doVerify')}
                                             </button>
                                         </div>
                                     </>
@@ -543,7 +546,7 @@ function RegisterPage() {
                                 disabled={loading || otpSent}
                                 className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition disabled:opacity-40"
                             >
-                                {loading ? 'Gönderiliyor...' : otpSent ? '✓ Kod Gönderildi' : 'Doğrulama Kodu Gönder →'}
+                                {loading ? '…' : otpSent ? a('codeSent') : a('sendCode')}
                             </button>
 
                             {/* Inline OTP kutusu */}
@@ -552,10 +555,10 @@ function RegisterPage() {
                                     <p className="text-gray-300 text-sm text-center">
                                         {otpMethod === 'email' ? '📧' : '📱'}{' '}
                                         <span className="text-purple-400 font-bold">{contactValue}</span>
-                                        {' '}adresine kod gönderildi
+                                        {' '}{a('codeSentTo')}
                                     </p>
                                     <div>
-                                        <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1.5 block">Doğrulama Kodu *</label>
+                                        <label className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1.5 block">{a('verificationCodeLabel')}</label>
                                         <input
                                             type="text" inputMode="numeric" maxLength={6} autoFocus
                                             value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g,'').slice(0,6))}
@@ -565,20 +568,20 @@ function RegisterPage() {
                                     </div>
                                     <button onClick={handleVerify} disabled={loading}
                                         className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition disabled:opacity-50">
-                                        {loading ? 'Oluşturuluyor...' : 'Hesabı Oluştur ✓'}
+                                        {loading ? '…' : a('createAccountBtn')}
                                     </button>
                                     <button
                                         onClick={timer === 0 ? () => { setOtpSent(false); setTimeout(handleSendOtp, 50); } : undefined}
                                         disabled={timer > 0}
                                         className="w-full text-purple-400 text-xs font-bold disabled:opacity-40 py-1">
-                                        {timer > 0 ? `Tekrar gönder (${timer}s)` : 'Kodu tekrar gönder'}
+                                        {timer > 0 ? a('resendTimer', { s: timer }) : a('resendCode')}
                                     </button>
                                 </div>
                             )}
 
                             <p className="text-gray-400 text-center text-sm">
-                                Zaten hesabın var mı?{' '}
-                                <Link to="/login" className="text-purple-400 hover:text-purple-300 font-semibold">Giriş Yap</Link>
+                                {a('alreadyHaveAccount')}{' '}
+                                <Link to="/login" className="text-purple-400 hover:text-purple-300 font-semibold">{a('signIn')}</Link>
                             </p>
                         </div>
                     )}

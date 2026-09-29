@@ -25,6 +25,8 @@ import OkeyPage from './pages/games/OkeyPage';
 import BatakPage from './pages/games/BatakPage';
 import MyReservationsPage from './pages/MyReservationsPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import NotificationsPage from './pages/NotificationsPage';
+import UserPostsPage from './pages/UserPostsPage';
 import BusinessRegisterPage from './pages/BusinessRegisterPage';
 import TravelExplorePage from './pages/travel/TravelExplorePage';
 import TravelRouteCreatePage from './pages/travel/TravelRouteCreatePage';
@@ -53,6 +55,7 @@ function App() {
       <Route path="/category/:category/:sub" element={token ? <SubCategoryPage /> : <Navigate to="/login" />} />
       <Route path="/profile" element={token ? <ProfilePage /> : <Navigate to="/login" />} />
       <Route path="/profile/:userId" element={token ? <ProfilePage /> : <Navigate to="/login" />} />
+      <Route path="/profile/:userId/posts" element={token ? <UserPostsPage /> : <Navigate to="/login" />} />
       <Route path="/messages" element={token ? <MessagesPage /> : <Navigate to="/login" />} />
       <Route path="/messages/:userId" element={token ? <MessagesPage /> : <Navigate to="/login" />} />
       <Route path="/courts" element={token ? <CourtsPage /> : <Navigate to="/login" />} />
@@ -63,6 +66,7 @@ function App() {
       <Route path="/cinema" element={token ? <CinemaPage /> : <Navigate to="/login" />} />
       <Route path="/theater" element={token ? <TheaterPage /> : <Navigate to="/login" />} />
       <Route path="/activity" element={token ? <ActivityFeedPage /> : <Navigate to="/login" />} />
+      <Route path="/notifications" element={token ? <NotificationsPage /> : <Navigate to="/login" />} />
       <Route path="/business" element={token ? <BusinessHomePage /> : <Navigate to="/login" />} />
       <Route path="/friend-finding" element={token ? <FriendFindingPage /> : <Navigate to="/login" />} />
       <Route path="/games/chess" element={token ? <ChessPage /> : <Navigate to="/login" />} />
