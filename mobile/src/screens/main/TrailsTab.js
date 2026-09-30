@@ -4,6 +4,8 @@ import TrailCard from '../../components/TrailCard';
 import TrailDetailModal from './TrailDetailModal';
 import colors from '../../theme/colors';
 import { moderateScale } from '../../theme/scale';
+import useT from '../../hooks/useT';
+import { RUN_ACTIVITY_TYPES } from '../../constants/runActivityTypes';
 
 const DIFFICULTIES = [
     { id: null, label: 'Hepsi' },
@@ -16,8 +18,11 @@ export default function TrailsTab({ trails, loading, onRefresh, myId, myIsAdmin,
     const [difficulty, setDifficulty] = useState(null);
     const [cityQuery, setCityQuery] = useState('');
     const [openTrailId, setOpenTrailId] = useState(null);
+    const [runType, setRunType] = useState(null);
+    const tr = useT();
 
     const filtered = trails.filter(t => {
+        if (runType && t.subCategory !== runType) return false;
         if (difficulty && t.difficulty !== difficulty) return false;
         if (cityQuery.trim() && !(t.city || '').toLowerCase().includes(cityQuery.trim().toLowerCase())) return false;
         return true;
@@ -49,6 +54,24 @@ export default function TrailsTab({ trails, loading, onRefresh, myId, myIsAdmin,
                 value={cityQuery}
                 onChangeText={setCityQuery}
             />
+            {sub === 'running' && (
+                <View style={{ flexDirection: 'row', gap: 4, marginBottom: 8 }}>
+                    {[{ trailSub: null, key: 'runTypeAll', emoji: '' }, ...RUN_ACTIVITY_TYPES].map(rt => {
+                        const active = runType === rt.trailSub;
+                        return (
+                            <TouchableOpacity
+                                key={rt.trailSub || 'all'}
+                                onPress={() => setRunType(rt.trailSub)}
+                                style={{ flex: 1, paddingVertical: 5, borderRadius: 8, alignItems: 'center', backgroundColor: active ? '#65a30d' : colors.surface2, borderWidth: 1, borderColor: active ? '#65a30d' : colors.border }}
+                            >
+                                <Text style={{ color: active ? '#fff' : colors.textSecondary, fontSize: 11, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                    {rt.emoji ? `${rt.emoji} ` : ''}{tr[rt.key]}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            )}
             <View style={{ flexDirection: 'row', gap: 4, marginBottom: 12 }}>
                 {DIFFICULTIES.map(d => (
                     <TouchableOpacity

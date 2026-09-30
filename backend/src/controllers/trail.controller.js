@@ -6,8 +6,11 @@ const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 export const getTrails = async (req, res, next) => {
     try {
         const { subCategory = 'hiking', city, difficulty, minDistance, maxDistance } = req.query;
+        // "Koşu & Yürüyüş" birleşik dalı koşu/yürüyüş/doğa yürüyüşü rotalarını birlikte
+        // listeler (subCategory=running,walking,hiking) — rotalar seçilen türün dalıyla kaydediliyor.
+        const subList = String(subCategory).split(',').map(s => s.trim()).filter(Boolean);
         const where = {
-            subCategory,
+            subCategory: subList.length > 1 ? { in: subList } : subList[0],
             ...(city && { city: { contains: city, mode: 'insensitive' } }),
             ...(difficulty && { difficulty }),
             ...((minDistance || maxDistance) && {
@@ -20,7 +23,7 @@ export const getTrails = async (req, res, next) => {
         const trails = await prisma.trail.findMany({
             where,
             select: {
-                id: true, title: true, description: true, city: true, district: true,
+                id: true, subCategory: true, title: true, description: true, city: true, district: true,
                 distanceKm: true, elevationGain: true, durationMin: true, difficulty: true,
                 images: true, source: true, verified: true, createdAt: true, startLat: true, startLng: true,
                 creator: { select: USER_SELECT },

@@ -14,7 +14,8 @@ export const SUBCATEGORIES = {
         { id: 'pickleball', name: 'Pickleball', emoji: '🏓' },
         { id: 'volleyball', name: 'Volleyball', emoji: '🏐' },
         { id: 'swimming', name: 'Swimming', emoji: '🏊' },
-        { id: 'running', name: 'Running', emoji: '🏃' },
+        // Yürüyüş ayrı dal değil — "Koşu & Yürüyüş" içinde tür seçeneği (bkz. mobil runActivityTypes)
+        { id: 'running', name: 'Running & Walking', emoji: '🏃' },
         { id: 'cycling', name: 'Cycling', emoji: '🚴' },
         { id: 'boxing', name: 'Boxing', emoji: '🥊' },
         { id: 'martial_arts', name: 'Martial Arts', emoji: '🥋' },
@@ -22,7 +23,6 @@ export const SUBCATEGORIES = {
         { id: 'table_tennis', name: 'Table Tennis', emoji: '🏓' },
         { id: 'climbing', name: 'Climbing', emoji: '🧗' },
         { id: 'archery', name: 'Archery', emoji: '🏹' },
-        { id: 'walking', name: 'Walking', emoji: '🚶' },
         { id: 'foot_tennis', name: 'Foot Tennis', emoji: '🦶' },
         { id: 'sup_kano', name: 'SUP & Canoe', emoji: '🛶' },
         { id: 'handball', name: 'Handball', emoji: '🤾' },

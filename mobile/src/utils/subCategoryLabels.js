@@ -9,7 +9,7 @@ const LABELS = {
     volleyball: { en: 'Volleyball', tr: 'Voleybol', ru: 'Волейбол', de: 'Volleyball' },
     football: { en: 'Football', tr: 'Futbol', ru: 'Футбол', de: 'Fußball' },
     basketball: { en: 'Basketball', tr: 'Basketbol', ru: 'Баскетбол', de: 'Basketball' },
-    running: { en: 'Running', tr: 'Koşu', ru: 'Бег', de: 'Laufen' },
+    running: { en: 'Running & Walking', tr: 'Koşu & Yürüyüş', ru: 'Бег и ходьба', de: 'Laufen & Gehen' },
     wellness: { en: 'Yoga / Pilates / Reformer', tr: 'Yoga / Pilates / Reformer', ru: 'Йога / Пилатес / Реформер', de: 'Yoga / Pilates / Reformer' },
     table_tennis: { en: 'Table Tennis', tr: 'Masa Tenisi', ru: 'Настольный теннис', de: 'Tischtennis' },
     climbing: { en: 'Climbing', tr: 'Tırmanış', ru: 'Скалолазание', de: 'Klettern' },

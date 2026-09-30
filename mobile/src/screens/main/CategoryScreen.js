@@ -30,7 +30,7 @@ const SPORT_GROUPS = [
     // Sıra: tenis → padel → masa tenisi → badminton → pickleball (en sonda).
     { id: 'racket', key: 'sportGroupRacket', emoji: '🎾', ids: ['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball'] },
     { id: 'team', key: 'sportGroupTeam', emoji: '⚽', ids: ['volleyball', 'football', 'basketball', 'foot_tennis', 'handball'] },
-    { id: 'outdoor', key: 'sportGroupOutdoor', emoji: '🥾', ids: ['running', 'walking', 'hiking', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano'] },
+    { id: 'outdoor', key: 'sportGroupOutdoor', emoji: '🥾', ids: ['running', 'hiking', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano'] },
     { id: 'studio', key: 'sportGroupStudio', emoji: '🧘', ids: ['wellness', 'fitness_gym', 'ice_skating'] },
     { id: 'motor', key: 'sportGroupMotor', emoji: '🏍️', ids: ['motorcycle', 'skiing_snowboard', 'paintball', 'airsoft', 'extreme_sports', 'shooting_hunting'] },
 ];
@@ -55,12 +55,11 @@ const SUB_MAP = {
         { id: 'volleyball',  label: 'Volleyball',       labelTR: 'Voleybol',           labelRU: 'Волейбол',                  labelDE: 'Volleyball',                 emoji: '🏐' },
         { id: 'football',    label: 'Football',         labelTR: 'Futbol',             labelRU: 'Футбол',                    labelDE: 'Fußball',                    emoji: '⚽' },
         { id: 'basketball',  label: 'Basketball',       labelTR: 'Basketbol',          labelRU: 'Баскетбол',                 labelDE: 'Basketball',                 emoji: '🏀' },
-        { id: 'running',     label: 'Running',          labelTR: 'Koşu',               labelRU: 'Бег',                       labelDE: 'Laufen',                     emoji: '🏃' },
+        { id: 'running',     label: 'Running & Walking', labelTR: 'Koşu & Yürüyüş',    labelRU: 'Бег и ходьба',              labelDE: 'Laufen & Gehen',             emoji: '🏃' },
         { id: 'wellness',    label: 'Yoga / Pilates / Reformer', labelTR: 'Yoga / Pilates / Reformer', labelRU: 'Йога / Пилатес / Реформер', labelDE: 'Yoga / Pilates / Reformer', emoji: '🧘' },
         { id: 'table_tennis',     label: 'Table Tennis',        labelTR: 'Masa Tenisi',         labelRU: 'Настольный теннис',      labelDE: 'Tischtennis',           emoji: '🏓' },
         { id: 'climbing',         label: 'Climbing',            labelTR: 'Tırmanış',            labelRU: 'Скалолазание',           labelDE: 'Klettern',              emoji: '🧗' },
         { id: 'archery',          label: 'Archery',             labelTR: 'Okçuluk',             labelRU: 'Стрельба из лука',       labelDE: 'Bogenschießen',         emoji: '🏹' },
-        { id: 'walking',          label: 'Walking',             labelTR: 'Yürüyüş',             labelRU: 'Ходьба',                 labelDE: 'Spazieren',             emoji: '🚶' },
         { id: 'foot_tennis',      label: 'Foot Tennis',         labelTR: 'Ayak Tenisi',         labelRU: 'Футбольный теннис',      labelDE: 'Fußtennis',             emoji: '🦶' },
         { id: 'sup_kano',         label: 'SUP & Canoe',         labelTR: 'SUP & Kano',          labelRU: 'SUP и каноэ',            labelDE: 'SUP & Kanu',            emoji: '🛶' },
         { id: 'handball',         label: 'Handball',            labelTR: 'Hentbol',             labelRU: 'Гандбол',                labelDE: 'Handball',              emoji: '🤾' },

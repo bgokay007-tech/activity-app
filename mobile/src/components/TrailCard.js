@@ -1,6 +1,7 @@
 import { View, Text, Image, TouchableOpacity } from 'react-native';
 import colors from '../theme/colors';
 import { moderateScale } from '../theme/scale';
+import { trailEmoji } from '../constants/runActivityTypes';
 
 const DIFFICULTY_LABEL = { EASY: 'Kolay', MEDIUM: 'Orta', HARD: 'Zor' };
 const DIFFICULTY_COLOR = { EASY: '#22c55e', MEDIUM: '#f59e0b', HARD: '#ef4444' };
@@ -19,13 +20,13 @@ export default function TrailCard({ trail, onPress }) {
                 <Image source={{ uri: trail.images[0] }} style={{ width: '100%', height: 90 }} resizeMode="cover" />
             ) : (
                 <View style={{ width: '100%', height: 90, backgroundColor: '#65a30d30', alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontSize: 30 }}>🥾</Text>
+                    <Text style={{ fontSize: 30 }}>{trailEmoji(trail.subCategory)}</Text>
                 </View>
             )}
             <View style={{ padding: 8, flex: 1, justifyContent: 'space-between' }}>
                 <View>
                     <Text style={{ color: '#fff', fontSize: moderateScale(12), fontWeight: '800' }} numberOfLines={1}>
-                        {trail.verified ? '✓ ' : ''}{trail.title}
+                        {trail.verified ? '✓ ' : ''}{trail.images?.[0] && trail.subCategory ? `${trailEmoji(trail.subCategory)} ` : ''}{trail.title}
                     </Text>
                     <Text style={{ color: colors.textMuted, fontSize: moderateScale(10) }} numberOfLines={1}>
                         {trail.city || trail.district || ''}

@@ -45,6 +45,7 @@ import VolleyballRatingModal from '../../components/VolleyballRatingModal';
 import AssessmentModal from '../../components/AssessmentModal';
 import ExtraServicesEditor from '../../components/ExtraServicesEditor';
 import TrailsTab from './TrailsTab';
+import { RUN_ACTIVITY_TYPES, RUN_TRAIL_SUBS } from '../../constants/runActivityTypes';
 import { shareRival, shareTournament } from '../../utils/share';
 import { computeVarDurationPrice } from '../../utils/priceProration';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
@@ -8173,6 +8174,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 🏔️ {EXTREME_SPORT_TYPES.find(t2 => t2.id === match.surface)?.label || match.surface}
                             </Text>
                         )}
+                        {match.subCategory === 'running' && RUN_ACTIVITY_TYPES.some(x => x.id === match.surface) && (() => {
+                            const rt = RUN_ACTIVITY_TYPES.find(x => x.id === match.surface);
+                            return (
+                                <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4 }}>{rt.emoji} {t[rt.key]}</Text>
+                            );
+                        })()}
                         {match.feeIncludes && (
                             <Text style={{ color: colors.textMuted, fontSize:12, marginTop:4 }}>
                                 {t.feeIncludesLabel}: {match.feeIncludes}
@@ -14804,7 +14811,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 location:  f.courtMutual ? 'Ortaklaşa Kararlaştırılır' : (f.selectedCourt?.city || f.manualCity || undefined),
                 district:  f.manualDistrict || undefined,
                 courtAddress: f.selectedCourt?.address || f.manualAddress || undefined,
-                surface:   f.surface || (isPadel ? 'ARTIFICIAL' : undefined),
+                surface:   f.surface || (isPadel ? 'ARTIFICIAL' : sub === 'running' ? 'RUN' : undefined),
                 venueType: f.venueType || undefined,
                 isCourtReserved: f.courtReserved,
                 courtFeePerPerson: f.courtFeePerPerson !== '' ? parseInt(f.courtFeePerPerson, 10) : undefined,
@@ -15045,6 +15052,24 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         </Text>
                                                     </TouchableOpacity>
                                                 ))}
+                                            </View>
+                                        </>
+                                    )}
+                                    {sub === 'running' && (
+                                        <>
+                                            <Text style={[s.fieldLabel, { marginBottom:4, marginTop:8 }]}>{t.runTypeLabel}</Text>
+                                            <View style={{ flexDirection:'row', gap:4 }}>
+                                                {RUN_ACTIVITY_TYPES.map(type => {
+                                                    const active = (f.surface || 'RUN') === type.id;
+                                                    return (
+                                                        <TouchableOpacity key={type.id} onPress={() => set('surface', type.id)}
+                                                            style={[s.chipBtn, { flex:1 }, active && s.chipBtnActive]}>
+                                                            <Text style={[s.chipBtnText, active && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                                {type.emoji} {t[type.key]}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
                                             </View>
                                         </>
                                     )}
@@ -25271,7 +25296,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const loadTrails = useCallback(async () => {
         setLoadingTrails(true);
         try {
-            const { data } = await api.get('/trails', { params: { subCategory: sub } });
+            const { data } = await api.get('/trails', { params: { subCategory: sub === 'running' ? RUN_TRAIL_SUBS.join(',') : sub } });
             setTrails(Array.isArray(data) ? data : []);
         } catch { setTrails([]); }
         finally { setLoadingTrails(false); setTrailsLoaded(true); }

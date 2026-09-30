@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import { moderateScale } from '../../theme/scale';
+import useT from '../../hooks/useT';
+import { RUN_ACTIVITY_TYPES } from '../../constants/runActivityTypes';
 import {
     requestTrailLocationPermissions, startRecording, stopRecording,
     getLivePoints, pathDistanceKm,
@@ -19,7 +21,10 @@ const DIFFICULTIES = [
 
 export default function RecordTrailScreen({ navigation, route }) {
     const sub = route.params?.sub || 'hiking';
+    const t = useT();
     const insets = useSafeAreaInsets();
+    // Koşu & Yürüyüş dalında rota, seçilen türün dalıyla kaydedilir (running/walking/hiking)
+    const [trailSub, setTrailSub] = useState(sub);
     const [recording, setRecording] = useState(false);
     const [points, setPoints] = useState([]);
     const [startedAt, setStartedAt] = useState(null);
@@ -87,7 +92,7 @@ export default function RecordTrailScreen({ navigation, route }) {
             }
             const durationMin = startedAt ? Math.round((Date.now() - startedAt) / 60000) : undefined;
             await api.post('/trails', {
-                subCategory: sub,
+                subCategory: sub === 'running' ? trailSub : sub,
                 title: title.trim(),
                 description: description.trim() || undefined,
                 difficulty,
@@ -153,6 +158,24 @@ export default function RecordTrailScreen({ navigation, route }) {
                         <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 10 }}>
                             📏 {pathDistanceKm(points).toFixed(2)} km · ⏱️ {elapsedMin} dk · 📍 {points.length} nokta
                         </Text>
+                        {sub === 'running' && (
+                            <>
+                                <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 4 }}>{t.runTypeLabel}</Text>
+                                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+                                    {RUN_ACTIVITY_TYPES.map(rt => {
+                                        const active = trailSub === rt.trailSub;
+                                        return (
+                                            <TouchableOpacity key={rt.id} onPress={() => setTrailSub(rt.trailSub)}
+                                                style={{ flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center', backgroundColor: active ? '#65a30d' : colors.surface2, borderWidth: 1, borderColor: active ? '#65a30d' : colors.border }}>
+                                                <Text style={{ color: active ? '#fff' : colors.textSecondary, fontSize: 12, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                    {rt.emoji} {t[rt.key]}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                            </>
+                        )}
                         <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 4 }}>Başlık</Text>
                         <TextInput style={{ backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 12 }}
                             value={title} onChangeText={setTitle} placeholder="Örn. Belgrad Ormanı Turu" placeholderTextColor={colors.textMuted} />
