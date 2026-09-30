@@ -123,7 +123,7 @@ function CinemaPage() {
         <div className="min-h-screen bg-gray-950">
             <Navbar onBack={() => navigate(-1)} />
 
-            <div className="max-w-5xl mx-auto px-4 py-6">
+            <div className="w-full px-[5px] py-6">
                 <h1 className={`text-2xl font-black bg-gradient-to-r ${GRADIENT} bg-clip-text text-transparent mb-4`}>🎬 {t('cinema.title')}</h1>
 
                 <div className="flex gap-2 bg-gray-900 p-1 rounded-xl border border-gray-800 mb-4">

@@ -4511,7 +4511,7 @@ function SubCategoryPage() {
             />
 
             {/* Hikayeler */}
-            <div className="bg-gray-900 border-b border-gray-800 px-4 py-4">
+            <div className="bg-gray-900 border-b border-gray-800 px-[5px] py-4">
                 <div className="w-full">
                     <div className="flex gap-4 overflow-x-auto pb-1">
                         <div onClick={() => navigate('/profile')} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer">
@@ -4542,7 +4542,7 @@ function SubCategoryPage() {
             </div>
 
             {/* Ana İçerik */}
-            <div className="w-full px-4 py-6 flex flex-col lg:flex-row gap-4">
+            <div className="w-full px-[5px] py-6 flex flex-col lg:flex-row gap-4">
 
                 {/* SOL SIDEBAR - %18 */}
                 <div className="hidden lg:block lg:w-[18%] shrink-0 space-y-4">

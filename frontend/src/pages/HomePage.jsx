@@ -155,7 +155,7 @@ function HomePage() {
     return (
         <div className="min-h-screen bg-[#0B0C10]">
             <Navbar />
-            <div className="max-w-5xl mx-auto px-5 py-8">
+            <div className="w-full px-[5px] py-8">
                 <h1 className="text-[#F4F1EA] text-3xl md:text-4xl font-bold tracking-tight">
                     {t('home.hello', { name: firstNameOf(user) || '…' })}
                 </h1>

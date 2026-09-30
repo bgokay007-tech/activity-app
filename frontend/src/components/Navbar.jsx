@@ -181,7 +181,7 @@ export default function Navbar({ onBack, backLabel, title }) {
     };
 
     return (
-        <nav className="bg-gray-900 border-b border-gray-800 px-4 py-3 sticky top-0 z-20">
+        <nav className="bg-gray-900 border-b border-gray-800 px-[5px] py-3 sticky top-0 z-20">
             <div className="w-full flex items-center">
 
                 {/* LEFT — 3-dot menu */}

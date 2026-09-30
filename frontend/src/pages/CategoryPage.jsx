@@ -164,7 +164,7 @@ function CategoryPage() {
         return (
             <div className="min-h-screen bg-[#0B0C10]">
                 <Navbar onBack={() => navigate(-1)} />
-                <div className="max-w-5xl mx-auto px-5 py-8">
+                <div className="w-full px-[5px] py-8">
                     {header}
                     {isLoading ? (
                         <p className="text-[#A8A29A] text-center py-12">{t('category.loading')}</p>
@@ -204,7 +204,7 @@ function CategoryPage() {
     return (
         <div className="min-h-screen bg-[#0B0C10]">
             <Navbar onBack={() => navigate(-1)} />
-            <div className="max-w-6xl mx-auto px-5 py-8">
+            <div className="w-full px-[5px] py-8">
                 {header}
 
                 {!searching && (

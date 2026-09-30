@@ -367,7 +367,7 @@ export default function VenuesPage() {
         <div className="min-h-screen bg-gray-950">
             <Navbar onBack={() => navigate(-1)} title="Tesis / Kort Ara" />
 
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+            <div className="w-full px-[5px] py-6">
                 <div className="flex flex-wrap gap-2 mb-6">
                     <input value={city} onChange={e => setCity(e.target.value)} placeholder="Şehir"
                         onKeyDown={e => e.key === 'Enter' && search()}
