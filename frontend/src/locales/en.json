@@ -712,7 +712,8 @@
     "page_crashed": "This page crashed",
     "page_crashed_hint": "Please send a screenshot of this screen to support.",
     "reload": "Reload",
-    "go_home": "Home"
+    "go_home": "Home",
+    "action_failed": "Action failed"
   },
   "subscriptions": {
     "tab_label": "💳 Subscription Requests",
@@ -1533,5 +1534,13 @@
     "tournSchedJoker": "Joker / extend",
     "tournSchedExtendReq": "Extra time request",
     "scheduleBtn": "📅 Place / Time"
+  },
+  "cityAlert": {
+    "title": "New listing alerts",
+    "desc": "Get notified when a new listing is posted in these cities.",
+    "none": "No cities yet — add one below.",
+    "remove": "Remove",
+    "add_profile_city": "Add {{city}} (profile city)",
+    "add_city_ph": "Add another city…"
   }
 }

@@ -712,7 +712,8 @@
     "page_crashed": "Diese Seite ist abgestürzt",
     "page_crashed_hint": "Bitte sende einen Screenshot dieses Bildschirms an den Support.",
     "reload": "Neu laden",
-    "go_home": "Startseite"
+    "go_home": "Startseite",
+    "action_failed": "Aktion fehlgeschlagen"
   },
   "subscriptions": {
     "tab_label": "💳 Abo-Anfragen",
@@ -1534,5 +1535,13 @@
     "tournSchedJoker": "Joker / Verlängerung",
     "tournSchedExtendReq": "Zusatzzeit anfragen",
     "scheduleBtn": "📅 Ort / Zeit"
+  },
+  "cityAlert": {
+    "title": "Benachrichtigungen für neue Anzeigen",
+    "desc": "Werde benachrichtigt, wenn in diesen Städten eine neue Anzeige erscheint.",
+    "none": "Noch keine Städte — unten hinzufügen.",
+    "remove": "Entfernen",
+    "add_profile_city": "{{city}} hinzufügen (Profilstadt)",
+    "add_city_ph": "Weitere Stadt hinzufügen…"
   }
 }

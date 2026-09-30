@@ -712,7 +712,8 @@
     "page_crashed": "Bu sayfa çöktü",
     "page_crashed_hint": "Lütfen bu ekranın görüntüsünü destek ekibine gönder.",
     "reload": "Yenile",
-    "go_home": "Ana Sayfa"
+    "go_home": "Ana Sayfa",
+    "action_failed": "İşlem başarısız"
   },
   "subscriptions": {
     "tab_label": "💳 Abonelik Talepleri",
@@ -1534,5 +1535,13 @@
     "tournSchedJoker": "Joker / gün uzatma",
     "tournSchedExtendReq": "Ek süre talebi",
     "scheduleBtn": "📅 Yer / Zaman"
+  },
+  "cityAlert": {
+    "title": "Yeni ilan bildirimleri",
+    "desc": "Bu illerde yeni ilan açılınca bildirim al.",
+    "none": "Henüz il yok — aşağıdan ekle.",
+    "remove": "Kaldır",
+    "add_profile_city": "{{city}} ekle (profil ilin)",
+    "add_city_ph": "Başka il ekle…"
   }
 }
