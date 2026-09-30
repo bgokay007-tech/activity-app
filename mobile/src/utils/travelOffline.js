@@ -63,11 +63,13 @@ function projectOnEdge(p, a, b) {
 // Kullanıcının rotaya en yakın noktası: sapma (m), ilerleme (m), kalan (m).
 export function navProgress(model, pos) {
     if (!model?.edges?.length || !pos) return null;
-    let best = { d: Infinity, along: 0 };
-    for (const e of model.edges) {
+    let best = { d: Infinity, along: 0, idx: 0, t: 0 };
+    model.edges.forEach((e, idx) => {
         const { t: tt, d } = projectOnEdge(pos, e.a, e.b);
-        if (d < best.d) best = { d, along: e.start + tt * e.len };
-    }
+        if (d < best.d) best = { d, along: e.start + tt * e.len, idx, t: tt };
+    });
+    const be = model.edges[best.idx];
+    const nearest = { lat: be.a.lat + (be.b.lat - be.a.lat) * best.t, lng: be.a.lng + (be.b.lng - be.a.lng) * best.t };
     const remainingM = Math.max(0, model.totalM - best.along);
     const toEndM = model.end ? haversineM(pos, model.end) : Infinity;
     return {
@@ -77,6 +79,45 @@ export function navProgress(model, pos) {
         pct: model.totalM ? Math.min(100, Math.round((best.along / model.totalM) * 100)) : 0,
         toStartM: model.start ? haversineM(pos, model.start) : null,
         arrived: toEndM < 60 || (remainingM < 60 && best.d < 80),
+        edgeIdx: best.idx,
+        nearest,
+    };
+}
+
+// Rotanın geçilen kısmı (başlangıçtan en yakın noktaya) — parça kopukluklarında ayrı çizgi.
+export function donePolylines(model, prog) {
+    if (!model?.edges?.length || !prog) return [];
+    const lines = [];
+    let cur = [];
+    for (let i = 0; i < prog.edgeIdx; i++) {
+        const e = model.edges[i];
+        const prev = model.edges[i - 1];
+        if (prev && (prev.b.lat !== e.a.lat || prev.b.lng !== e.a.lng)) { if (cur.length > 1) lines.push(cur); cur = []; }
+        if (!cur.length) cur.push(e.a);
+        cur.push(e.b);
+    }
+    const last = model.edges[prog.edgeIdx];
+    if (!cur.length) cur.push(last.a);
+    cur.push(prog.nearest);
+    if (cur.length > 1) lines.push(cur);
+    return lines;
+}
+
+// OSM tabanlı yönlendirme (FOSSGIS OSRM) — Google Haritalar'a çıkmadan rotaya/başlangıca yol.
+export async function fetchDirections(from, to, mode = 'car') {
+    const profile = mode === 'foot' ? 'routed-foot' : 'routed-car';
+    const url = `https://routing.openstreetmap.de/${profile}/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+    const res = await fetch(url, { headers: { 'User-Agent': UA } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const j = await res.json();
+    const r = j.routes?.[0];
+    if (!r) throw new Error('NO_ROUTE');
+    return {
+        coords: r.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })),
+        distanceM: r.distance,
+        durationS: r.duration,
+        mode,
+        target: to,
     };
 }
 

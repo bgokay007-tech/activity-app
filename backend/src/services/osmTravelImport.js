@@ -75,57 +75,169 @@ async function fetchRelationWays(id, depth = 0) {
         else if (e.type === 'way') ways.set(e.id, e);
         else if (e.type === 'relation' && e.id === id) rel = e;
     }
-    if (!rel) return { rel: null, members: [] };
-    const members = [];
+    if (!rel) return { rel: null, ways: [] };
+    const out = [];
     for (const m of rel.members || []) {
         if (SKIP_ROLES.has(m.role)) continue;
         if (m.type === 'way' && ways.has(m.ref)) {
-            const geometry = ways.get(m.ref).nodes.map(n => nodes.get(n)).filter(Boolean).map(n => ({ lat: n.lat, lon: n.lon }));
-            members.push({ type: 'way', role: m.role, geometry });
+            const w = ways.get(m.ref);
+            const pts = w.nodes.map(n => nodes.get(n)).filter(Boolean);
+            if (pts.length >= 2) out.push({ id: w.id, nodes: pts.map(n => ({ id: n.id, lat: n.lat, lng: n.lon })) });
         } else if (m.type === 'relation' && depth < 1 && m.ref !== id) {
             await sleep(500);
             try {
                 const child = await fetchRelationWays(m.ref, depth + 1);
-                members.push(...child.members);
+                out.push(...child.ways);
             } catch { /* eksik etap rotayı düşürmesin */ }
         }
     }
-    return { rel, members };
+    return { rel, ways: out };
 }
 
-// Relation üyesi way'leri, uç uca en yakın gelecek şekilde (gerekirse ters çevirerek)
-// sıralı parçalara dizer; 1 km'den büyük boşlukta yeni parça açılır.
-function chainWays(members) {
-    const ways = members
-        .filter(m => m.type === 'way' && Array.isArray(m.geometry) && m.geometry.length >= 2)
-        .filter(m => !SKIP_ROLES.has(m.role));
+// Way'leri sadece gerçekten ortak düğümde birleştirir (üye sırası güvenilmez — Likya'da 1108
+// way karışık sırada ve kollu). Mesafeyle "yakın" birleştirme sahte düz çizgiler çiziyordu.
+function mergeWaysByNodes(ways) {
+    const byId = [...new Map(ways.map(w => [w.id, w])).values()];
+    // T-kavşak: bir way diğerinin ortasına bağlanıyorsa orada böl — yoksa graf kopuk kalır.
+    const usage = new Map();
+    for (const w of byId) for (const nd of new Set(w.nodes.map(x => x.id))) usage.set(nd, (usage.get(nd) || 0) + 1);
+    const uniq = [];
+    for (const w of byId) {
+        let start = 0;
+        for (let k = 1; k < w.nodes.length; k++) {
+            if (k === w.nodes.length - 1 || usage.get(w.nodes[k].id) > 1) {
+                uniq.push({ id: `${w.id}:${start}`, nodes: w.nodes.slice(start, k + 1) });
+                start = k;
+            }
+        }
+    }
+    const ends = new Map();
+    const addEnd = (nid, i) => { if (!ends.has(nid)) ends.set(nid, []); ends.get(nid).push(i); };
+    uniq.forEach((w, i) => { addEnd(w.nodes[0].id, i); addEnd(w.nodes[w.nodes.length - 1].id, i); });
+    const used = new Uint8Array(uniq.length);
+    const chains = [];
+    const extend = (chain) => {
+        for (;;) {
+            const tail = chain[chain.length - 1].id;
+            const at = (ends.get(tail) || []).filter(i => !used[i]);
+            // Kavşakta (3+ uç) durulur ki kol ana hatta karışmasın.
+            if (at.length !== 1 || (ends.get(tail) || []).length !== 2) return chain;
+            const i = at[0];
+            used[i] = 1;
+            const nodes = uniq[i].nodes[0].id === tail ? uniq[i].nodes : [...uniq[i].nodes].reverse();
+            chain.push(...nodes.slice(1));
+        }
+    };
+    uniq.forEach((w, i) => {
+        if (used[i]) return;
+        used[i] = 1;
+        let chain = extend([...w.nodes]);
+        chain = extend(chain.reverse());
+        chains.push({
+            a: chain[0].id, b: chain[chain.length - 1].id,
+            pts: chain.map(n => ({ lat: n.lat, lng: n.lng })),
+        });
+    });
+    return chains;
+}
+
+// Parçalar graf olur (uç düğümler = köşe). Kopuk bileşenler en yakın uçlarından sanal kenarla
+// bağlanır (çizilmez, sadece sıralama için). Grafın en uzak iki ucu arasındaki en kısa yol
+// ana hattır; alternatif kollar ve yan sapaklar dışarıda kalır. Batıdaki uç başlangıç.
+function mainLine(chains) {
+    const ch = chains.filter(c => c.a !== c.b && c.pts.length >= 2);
+    if (!ch.length) return [];
+    const vid = new Map();
+    const vpt = [];
+    const v = (nid, p) => { if (!vid.has(nid)) { vid.set(nid, vpt.length); vpt.push(p); } return vid.get(nid); };
+    const adj = [];
+    const addEdge = (x, y, w, chainIdx) => {
+        (adj[x] ||= []).push({ to: y, w, chainIdx, fwd: true });
+        (adj[y] ||= []).push({ to: x, w, chainIdx, fwd: false });
+    };
+    ch.forEach((c, i) => {
+        const x = v(c.a, c.pts[0]);
+        const y = v(c.b, c.pts[c.pts.length - 1]);
+        addEdge(x, y, pathLengthKm([c.pts]) * 1000 || 1, i);
+    });
+    const n = vpt.length;
+    for (let i = 0; i < n; i++) adj[i] ||= [];
+
+    // Bileşenler
+    const comp = new Int32Array(n).fill(-1);
+    let nc = 0;
+    for (let i = 0; i < n; i++) {
+        if (comp[i] >= 0) continue;
+        const st = [i]; comp[i] = nc;
+        while (st.length) { const u = st.pop(); for (const e of adj[u]) if (comp[e.to] < 0) { comp[e.to] = nc; st.push(e.to); } }
+        nc++;
+    }
+    // Kruskal: bileşenleri en yakın köşe çiftleriyle bağla.
+    if (nc > 1) {
+        const best = new Map();
+        for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+            if (comp[i] === comp[j]) continue;
+            const key = comp[i] < comp[j] ? `${comp[i]}:${comp[j]}` : `${comp[j]}:${comp[i]}`;
+            const d = haversineM(vpt[i], vpt[j]);
+            const b = best.get(key);
+            if (!b || d < b.d) best.set(key, { d, i, j });
+        }
+        const parent = [...Array(nc).keys()];
+        const find = (x) => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+        for (const { d, i, j } of [...best.values()].sort((p, q) => p.d - q.d)) {
+            const ra = find(comp[i]), rb = find(comp[j]);
+            if (ra === rb) continue;
+            parent[ra] = rb;
+            addEdge(i, j, d, -1);
+        }
+    }
+
+    const dijkstra = (src) => {
+        const dist = new Float64Array(n).fill(Infinity);
+        const prev = new Array(n).fill(null);
+        const done = new Uint8Array(n);
+        dist[src] = 0;
+        for (let k = 0; k < n; k++) {
+            let u = -1;
+            for (let i = 0; i < n; i++) if (!done[i] && (u < 0 || dist[i] < dist[u])) u = i;
+            if (u < 0 || dist[u] === Infinity) break;
+            done[u] = 1;
+            for (const e of adj[u]) {
+                const nd = dist[u] + e.w;
+                if (nd < dist[e.to]) { dist[e.to] = nd; prev[e.to] = { from: u, e }; }
+            }
+        }
+        return { dist, prev };
+    };
+    const far = (dist) => { let m = 0; for (let i = 1; i < n; i++) if (dist[i] > dist[m]) m = i; return m; };
+    const A = far(dijkstra(0).dist);
+    const { dist, prev } = dijkstra(A);
+    const B = far(dist);
+
+    const steps = [];
+    for (let u = B; prev[u]; u = prev[u].from) steps.push(prev[u]);
+    steps.reverse();
     const segs = [];
     let cur = null;
-    let curIsSingleWay = false;
-    for (const w of ways) {
-        let pts = w.geometry.map(g => ({ lat: g.lat, lng: g.lon }));
-        if (!cur) { cur = pts; curIsSingleWay = true; continue; }
-        // Parçanın ilk way'inin yönü henüz belli değil — ikinci way'e en yakın ucu sona gelsin.
-        if (curIsSingleWay) {
-            const a = cur[0], b = cur[cur.length - 1], c = pts[0], d = pts[pts.length - 1];
-            if (Math.min(haversineM(a, c), haversineM(a, d)) < Math.min(haversineM(b, c), haversineM(b, d))) cur = cur.reverse();
-        }
-        const end = cur[cur.length - 1];
-        const dStart = haversineM(end, pts[0]);
-        const dEnd = haversineM(end, pts[pts.length - 1]);
-        if (dEnd < dStart) pts = pts.reverse();
-        if (Math.min(dStart, dEnd) > 1000) { segs.push(cur); cur = pts; curIsSingleWay = true; }
-        else { cur = cur.concat(pts.slice(1)); curIsSingleWay = false; }
+    for (const { e } of steps) {
+        if (e.chainIdx < 0) { if (cur) segs.push(cur); cur = null; continue; }
+        const pts = e.fwd ? ch[e.chainIdx].pts : [...ch[e.chainIdx].pts].reverse();
+        cur = cur ? cur.concat(pts.slice(1)) : [...pts];
     }
     if (cur) segs.push(cur);
-    // Tek way'lik kırıntılar (kopuk birkaç yüz metre) haritada gürültü — 300 m altını at.
-    return segs.filter(s => s.length >= 2 && pathLengthKm([s]) >= 0.3);
+    if (!segs.length) return [];
+    if (vpt[B].lng < vpt[A].lng) return segs.reverse().map(s => s.reverse());
+    return segs;
+}
+
+export function assembleRoute(ways) {
+    return mainLine(mergeWaysByNodes(ways));
 }
 
 export async function buildOsmRoute(id) {
-    const { rel, members } = await fetchRelationWays(id);
+    const { rel, ways } = await fetchRelationWays(id);
     if (!rel?.tags?.name) return null;
-    const segs = simplifyPath(chainWays(members));
+    const segs = simplifyPath(assembleRoute(ways), 6000);
     if (!segs.length) return null;
     const tags = rel.tags;
     const first = segs[0][0];
@@ -186,11 +298,15 @@ export async function runOsmImportOnce(opts) {
     try { return await importOsmTravelRoutes(opts); } finally { running = false; }
 }
 
-// Sunucu açılışında bir kez: hiç OSM rotası yoksa arka planda doldurur.
+// Birleştirme algoritması değiştiğinde bu tarihi ileri al — eski geometriler açılışta yenilenir.
+const ASSEMBLY_VERSION_AT = new Date('2026-09-30T12:15:00Z');
+
+// Sunucu açılışında: OSM rotası yoksa ya da eski algoritmayla içe aktarıldıysa arka planda doldurur.
 export async function seedOsmTravelRoutesIfEmpty() {
     try {
         const count = await prisma.travelRoute.count({ where: { source: 'OSM' } });
-        if (count > 0) return;
+        const stale = await prisma.travelRoute.count({ where: { source: 'OSM', updatedAt: { lt: ASSEMBLY_VERSION_AT } } });
+        if (count > 0 && stale === 0) return;
         const r = await runOsmImportOnce();
         console.log(`[osmTravel] ilk içe aktarma bitti: ${r.imported}/${r.found}`);
     } catch (e) {

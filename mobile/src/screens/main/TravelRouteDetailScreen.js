@@ -95,11 +95,7 @@ export default function TravelRouteDetailScreen({ navigation, route: navRoute })
         ]);
     };
 
-    const directionsToStart = () => {
-        const p = segs[0]?.[0];
-        const dest = p ? `${p.lat},${p.lng}` : encodeURIComponent(data.startPlace);
-        Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${dest}`);
-    };
+    const directionsToStart = () => navigation.navigate('TravelNavigate', { routeId, approach: 'car' });
 
     const sendToWatch = () => {
         Alert.alert(t.tvSendToWatch, t.tvSendToWatchInfo, [
