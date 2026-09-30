@@ -425,7 +425,19 @@
     "flexible_schedule": "Гибкое расписание",
     "flexible_schedule_desc": "Вы можете связаться, чтобы договориться\nо дне, времени и корте, удобных обеим сторонам.",
     "send_message": "💬 Написать сообщение",
-    "expires_24h": "Объявление истекает через 24 часа"
+    "expires_24h": "Объявление истекает через 24 часа",
+    "spots_filled": "занято",
+    "duration_min": "{{n}} мин",
+    "court_reserved_badge": "Корт забронирован",
+    "joined_label": "Участники:",
+    "request_sent_waiting": "Запрос отправлен — ждём подтверждения",
+    "build_team_challenge": "Собрать команду и бросить вызов",
+    "join_match": "Присоединиться",
+    "join_requests_title": "Заявки ({{n}})",
+    "level_BEGINNER": "Начинающий",
+    "level_INTERMEDIATE": "Средний",
+    "level_ADVANCED": "Продвинутый",
+    "level_PRO": "Профи"
   },
   "tournament": {
     "title": "Турниры",

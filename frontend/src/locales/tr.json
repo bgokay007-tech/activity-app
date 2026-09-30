@@ -425,7 +425,19 @@
     "flexible_schedule": "Esnek Program",
     "flexible_schedule_desc": "Karşılıklı anlaşılarak ortak bir gün ve saat diliminde\nseçilecek kortta oynamak koşuluyla iletişime geçebilirsiniz.",
     "send_message": "💬 Mesaj At",
-    "expires_24h": "24 saat sonra silinecek ilan"
+    "expires_24h": "24 saat sonra silinecek ilan",
+    "spots_filled": "dolu",
+    "duration_min": "{{n}} dk",
+    "court_reserved_badge": "Kort rezerve",
+    "joined_label": "Katılanlar:",
+    "request_sent_waiting": "İstek gönderildi — onay bekleniyor",
+    "build_team_challenge": "Takım Kur & Meydan Oku",
+    "join_match": "Maça Katıl",
+    "join_requests_title": "Katılım istekleri ({{n}})",
+    "level_BEGINNER": "Başlangıç",
+    "level_INTERMEDIATE": "Orta",
+    "level_ADVANCED": "İleri",
+    "level_PRO": "Profesyonel"
   },
   "tournament": {
     "title": "Turnuvalar",

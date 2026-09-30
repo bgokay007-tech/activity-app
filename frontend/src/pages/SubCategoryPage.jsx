@@ -4809,146 +4809,137 @@ function SubCategoryPage() {
                                     const required = rival.matchType === 'DOUBLE' ? (senderTeamArr.length > 0 ? 2 : 3) : 1;
                                     const filled = participants.length;
                                     return (
-                                        <div key={rival.id} className={`${config.bg} border ${config.border} rounded-2xl px-4 pt-3 pb-1`}>
-                                            <div className="flex items-start gap-3 mb-2">
-                                                {/* Sol: avatar + isim */}
-                                                <div className={`w-10 h-10 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white font-bold flex-shrink-0`}>
-                                                    {rival.sender?.username?.[0]?.toUpperCase()}
-                                                </div>
-                                                <div className="flex-shrink-0">
-                                                    <p className="text-white font-bold">{rival.sender?.fullName}</p>
-                                                    <p className="text-gray-400 text-xs">@{rival.sender?.username}</p>
-                                                    {rival.senderId === myId && myInterest?.assessmentCompleted && (
-                                                        <span className={`font-black text-xs bg-gradient-to-r ${config.color} bg-clip-text text-transparent mt-1 block`}>
-                                                            {Number(myInterest.skillRating).toFixed(2)} ★
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                {/* Orta: esnek program bilgisi */}
-                                                {rival.flexibleSchedule && (
-                                                    <div className="px-3">
-                                                        <p className="text-yellow-400 text-[11px] font-bold">📅 {t('rival.flexible_schedule')} · {t('rival.expires_24h')}</p>
-                                                        <p className="text-yellow-300/75 text-[10px] leading-relaxed mt-0.5 whitespace-pre-line">{t('rival.flexible_schedule_desc')}</p>
-                                                    </div>
-                                                )}
-
-                                                {/* Sağ üst: maç türü + katılım */}
-                                                <div className="flex flex-col items-start gap-1 flex-shrink-0 mr-auto">
-                                                    {rival.matchMode === 'BOTH' ? (
-                                                        <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                                            🏃⚔️ {t('rival.both_modes')}
-                                                        </span>
-                                                    ) : rival.matchMode === 'COMPETITIVE' ? (
-                                                        <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-red-500/20 text-red-400 border border-red-500/30">
-                                                            ⚔️ Ranked
-                                                        </span>
+                                        <div key={rival.id} className="bg-[#16181F] border border-[#2A2D36] hover:border-[#3A3E48] rounded-3xl p-4 sm:p-5 transition shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
+                                            {/* Üst: kurucu + doluluk */}
+                                            <div className="flex items-start gap-3">
+                                                <button onClick={() => navigate(`/profile/${rival.senderId}`)} className="flex-shrink-0">
+                                                    {rival.sender?.avatar ? (
+                                                        <img src={rival.sender.avatar} alt="" className="w-12 h-12 rounded-full object-cover ring-2 ring-[#2A2D36]" />
                                                     ) : (
-                                                        <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                                                            🏃 Practice
-                                                        </span>
-                                                    )}
-                                                    {TEAM_SPORTS.has(sub) && rival.surface ? (
-                                                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold bg-gradient-to-r ${config.color} text-white`}>
-                                                            {rival.teamSize}v{rival.teamSize} ·{' '}
-                                                            {(() => {
-                                                                const all = [...VOLLEYBALL_SURFACES, ...FOOTBALL_SURFACES];
-                                                                const s = all.find(x => x.id === rival.surface);
-                                                                return s ? `${s.emoji} ${t(s.tKey)}` : rival.surface;
-                                                            })()}
-                                                        </span>
-                                                    ) : (
-                                                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold bg-gradient-to-r ${config.color} text-white`}>
-                                                            {rival.matchType === 'DOUBLE' ? '2v2' : '1v1'}
-                                                        </span>
-                                                    )}
-                                                    <span className="text-gray-400 text-xs">{filled}/{required} joined</span>
-                                                    {(rival.minRating != null || rival.maxRating != null) && (
-                                                        <span className="text-purple-300 text-[10px] font-bold">⭐ {rival.minRating ?? '0'}–{rival.maxRating ?? '10'}</span>
-                                                    )}
-                                                </div>
-
-                                                {/* Sağ üst: aksiyon butonları (sadece ilanı açan için) */}
-                                                {rival.senderId === myId && (
-                                                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                                        <div className="bg-gray-800 border border-gray-700 text-gray-400 font-bold py-1.5 px-3 rounded-xl text-xs text-center">
-                                                            📋 {filled}/{required} joined
+                                                        <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${config.color} flex items-center justify-center text-white text-lg font-bold ring-2 ring-[#2A2D36]`}>
+                                                            {rival.sender?.username?.[0]?.toUpperCase()}
                                                         </div>
+                                                    )}
+                                                </button>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[#F4F1EA] font-bold text-[15px] truncate">{rival.sender?.fullName || rival.sender?.username}</p>
+                                                    <div className="flex items-center gap-2 text-xs">
+                                                        <span className="text-[#78716C] truncate">@{rival.sender?.username}</span>
+                                                        {rival.senderId === myId && myInterest?.assessmentCompleted && (
+                                                            <span className="text-[#C8F54A] font-bold">{Number(myInterest.skillRating).toFixed(2)}★</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="flex-shrink-0 text-right">
+                                                    <p className="text-[#F4F1EA] text-sm font-bold">
+                                                        {filled}/{required} <span className="text-[#78716C] font-medium text-xs">{t('rival.spots_filled')}</span>
+                                                    </p>
+                                                    <div className="mt-1.5 w-24 h-1.5 bg-[#2A2D36] rounded-full overflow-hidden ml-auto">
+                                                        <div className="h-full bg-[#C8F54A] rounded-full transition-all" style={{ width: `${Math.min(100, (filled / Math.max(1, required)) * 100)}%` }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Etiketler: mod, format, seviye, derece aralığı */}
+                                            <div className="flex flex-wrap gap-1.5 mt-3">
+                                                {rival.matchMode === 'BOTH' ? (
+                                                    <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-purple-500/15 text-purple-300">🏃⚔️ {t('rival.both_modes')}</span>
+                                                ) : rival.matchMode === 'COMPETITIVE' ? (
+                                                    <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-red-500/15 text-red-300">⚔️ {t('rival.competitive')}</span>
+                                                ) : (
+                                                    <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-sky-500/15 text-sky-300">🏃 {t('rival.practice')}</span>
+                                                )}
+                                                <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-[#C8F54A]/15 text-[#C8F54A]">
+                                                    {TEAM_SPORTS.has(sub) && rival.surface
+                                                        ? `${rival.teamSize}v${rival.teamSize} · ${(() => {
+                                                            const s = [...VOLLEYBALL_SURFACES, ...FOOTBALL_SURFACES].find(x => x.id === rival.surface);
+                                                            return s ? `${s.emoji} ${t(s.tKey)}` : rival.surface;
+                                                        })()}`
+                                                        : (rival.matchType === 'DOUBLE' ? `2v2 · ${t('rival.double')}` : `1v1 · ${t('rival.single')}`)}
+                                                </span>
+                                                {rival.level && (
+                                                    <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-[#1C1F28] text-[#F4F1EA] border border-[#2A2D36]">
+                                                        {rival.level === 'BEGINNER' ? '🟢' : rival.level === 'INTERMEDIATE' ? '🟡' : rival.level === 'ADVANCED' ? '🟠' : '🔴'} {t(`rival.level_${rival.level}`, { defaultValue: rival.level })}
+                                                    </span>
+                                                )}
+                                                {rival.levelDetail && (
+                                                    <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-[#1C1F28] text-purple-300 border border-[#2A2D36]">{rival.levelDetail}</span>
+                                                )}
+                                                {(rival.minRating != null || rival.maxRating != null) && (
+                                                    <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-[#1C1F28] text-amber-300 border border-[#2A2D36]">⭐ {rival.minRating ?? '0'}–{rival.maxRating ?? '10'}</span>
+                                                )}
+                                            </div>
+
+                                            {rival.message && (
+                                                <p className="mt-3 text-[#E7E2D8] text-sm leading-relaxed border-l-2 border-[#C8F54A]/60 pl-3">{rival.message}</p>
+                                            )}
+
+                                            {rival.flexibleSchedule ? (
+                                                <div className="mt-3 bg-amber-400/10 border border-amber-400/25 rounded-2xl px-3 py-2">
+                                                    <p className="text-amber-300 text-xs font-bold">📅 {t('rival.flexible_schedule')} · {t('rival.expires_24h')}</p>
+                                                </div>
+                                            ) : (rival.matchDate || rival.matchTime || rival.duration) && (
+                                                <div className="grid grid-cols-3 gap-2 mt-3">
+                                                    {[
+                                                        { k: 'date', icon: '📅', label: t('rival.date'), value: rival.matchDate ? new Date(rival.matchDate).toLocaleDateString(({ tr: 'tr-TR', ru: 'ru-RU', de: 'de-DE' })[lang] || 'en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '—' },
+                                                        { k: 'time', icon: '🕐', label: t('rival.time'), value: rival.matchTime || '—' },
+                                                        { k: 'dur', icon: '⏱️', label: t('rival.duration'), value: rival.duration ? t('rival.duration_min', { n: rival.duration }) : '—' },
+                                                    ].map(x => (
+                                                        <div key={x.k} className="bg-[#1C1F28] rounded-2xl px-3 py-2">
+                                                            <p className="text-[#78716C] text-[10px] font-bold uppercase tracking-wide">{x.icon} {x.label}</p>
+                                                            <p className="text-[#F4F1EA] text-sm font-bold mt-0.5 truncate">{x.value}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {(rival.location || rival.courtName || rival.courtAddress) && (
+                                                <div className="mt-2 flex items-start gap-3 bg-[#1C1F28] rounded-2xl px-3 py-2.5">
+                                                    <span className="text-lg leading-none mt-0.5">📍</span>
+                                                    <div className="flex-1 min-w-0">
+                                                        {rival.courtName && <p className="text-[#F4F1EA] text-sm font-bold truncate">{rival.courtName}</p>}
+                                                        {rival.location && <p className={`${rival.courtName ? 'text-[#A8A29A] text-xs' : 'text-[#F4F1EA] text-sm font-bold'} truncate`}>{rival.location}</p>}
+                                                        {rival.courtAddress && <p className="text-[#78716C] text-xs truncate">{rival.courtAddress}</p>}
+                                                    </div>
+                                                    {rival.isCourtReserved && (
+                                                        <span className="flex-shrink-0 text-[10px] font-bold text-[#C8F54A] bg-[#C8F54A]/10 px-2 py-1 rounded-full">✓ {t('rival.court_reserved_badge')}</span>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Alt araç çubuğu: paylaş + (sahibi için) düzenle / mesaj / iptal */}
+                                            <div className="flex flex-wrap items-center gap-2 mt-3 mb-3">
+                                                <button
+                                                    onClick={() => shareRival(rival)}
+                                                    className="bg-[#1C1F28] hover:bg-[#23262F] border border-[#2A2D36] text-[#A8A29A] hover:text-white font-bold px-3 py-1.5 rounded-xl text-xs transition"
+                                                >
+                                                    📤 {t('shareBtn')}
+                                                </button>
+                                                {rival.senderId === myId && (
+                                                    <>
                                                         {(!rival.status || rival.status === 'OPEN') && (
                                                             <button
                                                                 onClick={() => { setEditingRival(rival); setShowRivalForm(true); }}
-                                                                className="bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-300 font-bold px-3 py-1.5 rounded-xl text-xs transition"
+                                                                className="bg-[#1C1F28] hover:bg-[#23262F] border border-[#2A2D36] text-[#F4F1EA] font-bold px-3 py-1.5 rounded-xl text-xs transition"
                                                             >
                                                                 ✏️ {t('rival.edit_listing')}
                                                             </button>
                                                         )}
                                                         <button
                                                             onClick={() => navigate(`/messages?userId=${rival.senderId}`)}
-                                                            className="bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/40 text-blue-400 font-bold px-3 py-1.5 rounded-xl text-xs transition"
+                                                            className="bg-[#1C1F28] hover:bg-[#23262F] border border-[#2A2D36] text-sky-300 font-bold px-3 py-1.5 rounded-xl text-xs transition"
                                                         >
                                                             {t('rival.send_message')}
                                                         </button>
                                                         <button
                                                             onClick={() => handleCancel(rival.id)}
-                                                            className="bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold px-3 py-1.5 rounded-xl text-xs transition"
+                                                            className="ml-auto bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 font-bold px-3 py-1.5 rounded-xl text-xs transition"
                                                         >
                                                             {t('rival.cancel')}
                                                         </button>
-                                                    </div>
+                                                    </>
                                                 )}
                                             </div>
-
-                                            {/* Level badges */}
-                                            <div className="flex flex-wrap gap-2 mb-1">
-                                                {rival.level && (
-                                                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">
-                                                        {rival.level === 'BEGINNER' ? '🟢' : rival.level === 'INTERMEDIATE' ? '🟡' : rival.level === 'ADVANCED' ? '🟠' : '🔴'} {rival.level}
-                                                    </span>
-                                                )}
-                                                {rival.levelDetail && (
-                                                    <span className="bg-gray-800 text-purple-300 text-xs px-3 py-1 rounded-full">{rival.levelDetail}</span>
-                                                )}
-                                            </div>
-
-                                            {rival.message && <p className="text-gray-200 mb-1 text-sm">{rival.message}</p>}
-
-                                            {/* Date / Time / Duration */}
-                                            <div className="flex flex-wrap gap-3 mb-1 text-sm">
-                                                {rival.matchDate && <span className="text-gray-400">📅 {new Date(rival.matchDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'})}</span>}
-                                                {rival.matchTime && <span className="text-gray-400">🕐 {rival.matchTime}</span>}
-                                                {rival.duration && <span className="text-gray-400">⏱️ {DURATION_OPTIONS.find(d=>d.value===String(rival.duration))?.label || rival.duration+' min'}</span>}
-                                            </div>
-
-                                            {/* Location block — city + court + address */}
-                                            {(rival.location || rival.courtName || rival.courtAddress) && (
-                                                <div className="bg-gray-800/60 border border-gray-700 rounded-xl px-4 py-3 mb-3 space-y-1">
-                                                    {rival.location && (
-                                                        <p className="text-gray-300 text-sm font-bold">
-                                                            📍 {rival.location}
-                                                        </p>
-                                                    )}
-                                                    {rival.courtName && (
-                                                        <p className="text-white text-sm font-bold">
-                                                            🏟️ {rival.courtName}
-                                                        </p>
-                                                    )}
-                                                    {rival.courtAddress && (
-                                                        <p className="text-gray-400 text-xs">
-                                                            {rival.courtAddress}
-                                                        </p>
-                                                    )}
-                                                    {rival.isCourtReserved && (
-                                                        <span className="inline-block text-green-400 text-xs bg-green-500/10 px-2 py-0.5 rounded-full">✓ Court Reserved</span>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            <button
-                                                onClick={() => shareRival(rival)}
-                                                className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 font-bold px-3 py-1.5 rounded-xl text-xs transition mb-3"
-                                            >
-                                                📤 {t('shareBtn')}
-                                            </button>
 
                                             {/* Creator's team (football with senderTeam) */}
                                             {(() => {
@@ -4983,9 +4974,9 @@ function SubCategoryPage() {
                                             {/* Accepted participants — owner can remove a wrongly-accepted one */}
                                             {participants.length > 0 && (
                                                 <div className="flex flex-wrap items-center gap-2 mb-3">
-                                                    <span className="text-gray-500 text-xs flex-shrink-0">Joined:</span>
+                                                    <span className="text-[#78716C] text-xs font-bold flex-shrink-0">{t('rival.joined_label')}</span>
                                                     {participants.filter(Boolean).map(p => (
-                                                        <div key={p.id} className="flex items-center gap-1.5 bg-gray-800 rounded-full pl-1 pr-2 py-1">
+                                                        <div key={p.id} className="flex items-center gap-1.5 bg-[#1C1F28] border border-[#2A2D36] rounded-full pl-1 pr-2.5 py-1">
                                                             <div className={`w-6 h-6 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0`}>
                                                                 {p.username?.[0]?.toUpperCase()}
                                                             </div>
@@ -5011,9 +5002,9 @@ function SubCategoryPage() {
                                                 const { pairs, solos, byUserId } = groupDoublesPairs(rival.joinRequests);
                                                 const isOwnerView = rival.senderId === myId;
                                                 return (
-                                                    <div className="bg-gray-800 rounded-xl p-3 space-y-2 mb-2">
+                                                    <div className="bg-[#1C1F28] border border-[#2A2D36] rounded-2xl p-3 space-y-2 mb-3">
                                                         <p className="text-gray-400 text-xs font-bold">
-                                                            📬 Requests ({rival.joinRequests.length})
+                                                            📬 {t('rival.join_requests_title', { n: rival.joinRequests.length })}
                                                         </p>
                                                         <div className="grid grid-cols-2 gap-2">
                                                             {pairs.map(([a, b]) => renderRivalDuoCard(rival, a, b, solos, byUserId, isOwnerView))}
@@ -5027,9 +5018,9 @@ function SubCategoryPage() {
                                                 <div className="space-y-2">
                                                     {/* Pending join requests (non-doubles: football team challenge, single matches) */}
                                                     {rival.matchType !== 'DOUBLE' && (rival.joinRequests || []).length > 0 && (
-                                                        <div className="bg-gray-800 rounded-xl p-3 space-y-2">
-                                                            <p className="text-gray-400 text-xs font-bold">
-                                                                📬 Join Requests ({rival.joinRequests.length})
+                                                        <div className="bg-[#1C1F28] border border-[#2A2D36] rounded-2xl p-3 space-y-2">
+                                                            <p className="text-[#A8A29A] text-xs font-bold">
+                                                                📬 {t('rival.join_requests_title', { n: rival.joinRequests.length })}
                                                             </p>
                                                             {rival.joinRequests.map(jr => {
                                                                 const jTeam = Array.isArray(jr.joiningTeam) ? jr.joiningTeam.filter(Boolean) : [];
@@ -5070,9 +5061,9 @@ function SubCategoryPage() {
                                                                         </div>
                                                                         <button
                                                                             onClick={() => handleRespondJoin(jr.id, 'accept', rival.id)}
-                                                                            className="bg-green-600/80 hover:bg-green-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition"
+                                                                            className="bg-[#C8F54A] hover:bg-[#D4F86A] text-[#0B0C10] text-xs font-bold px-3 py-1.5 rounded-lg transition"
                                                                         >
-                                                                            ✓ Accept
+                                                                            ✓ {t('rival.accept')}
                                                                         </button>
                                                                         <button
                                                                             onClick={() => handleRespondJoin(jr.id, 'reject', rival.id)}
@@ -5106,17 +5097,17 @@ function SubCategoryPage() {
                                                     )}
                                                 </div>
                                             ) : rival._mySentRequest ? (
-                                                <div className="w-full bg-gray-800 border border-gray-700 text-gray-400 font-bold py-2.5 rounded-xl text-sm text-center">
-                                                    ⏳ Request sent — waiting for approval
+                                                <div className="w-full bg-[#1C1F28] border border-[#2A2D36] text-[#A8A29A] font-bold py-3 rounded-2xl text-sm text-center">
+                                                    ⏳ {t('rival.request_sent_waiting')}
                                                 </div>
                                             ) : rival.flexibleSchedule ? (
                                                 <div className="space-y-2">
-                                                    <p className="text-blue-400 text-[11px] leading-relaxed bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-2">
+                                                    <p className="text-[#A8A29A] text-[11px] leading-relaxed bg-[#1C1F28] border border-[#2A2D36] rounded-2xl px-3 py-2">
                                                         📅 {t('rival.flexible_schedule_desc')}
                                                     </p>
                                                     <button
                                                         onClick={() => navigate(`/messages?userId=${rival.senderId}`)}
-                                                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl text-sm transition"
+                                                        className="w-full bg-[#C8F54A] hover:bg-[#D4F86A] text-[#0B0C10] font-extrabold py-3 rounded-2xl text-sm transition"
                                                     >
                                                         {t('rival.send_message')}
                                                     </button>
@@ -5131,11 +5122,11 @@ function SubCategoryPage() {
                                                             handleChallenge(rival.id);
                                                         }
                                                     }}
-                                                    className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition`}
+                                                    className="w-full bg-[#C8F54A] hover:bg-[#D4F86A] text-[#0B0C10] font-extrabold py-3 rounded-2xl text-sm transition shadow-[0_6px_20px_rgba(200,245,74,0.18)]"
                                                 >
                                                     {rival.matchMode === 'COMPETITIVE' && rival.teamSize > 1 && sub === 'football'
-                                                        ? `⚔️ Build Team & Challenge`
-                                                        : '⚔️ Join Match'}
+                                                        ? `⚔️ ${t('rival.build_team_challenge')}`
+                                                        : `⚔️ ${t('rival.join_match')}`}
                                                 </button>
                                             )}
                                         </div>

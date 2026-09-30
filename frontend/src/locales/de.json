@@ -425,7 +425,19 @@
     "flexible_schedule": "Flexibler Zeitplan",
     "flexible_schedule_desc": "Ihr könnt euch absprechen und an einem\ngemeinsam vereinbarten Tag, zu einer Zeit und auf einem Platz spielen.",
     "send_message": "💬 Nachricht senden",
-    "expires_24h": "Angebot läuft in 24 Std. ab"
+    "expires_24h": "Angebot läuft in 24 Std. ab",
+    "spots_filled": "belegt",
+    "duration_min": "{{n}} Min.",
+    "court_reserved_badge": "Platz reserviert",
+    "joined_label": "Dabei:",
+    "request_sent_waiting": "Anfrage gesendet — wartet auf Bestätigung",
+    "build_team_challenge": "Team bilden & herausfordern",
+    "join_match": "Spiel beitreten",
+    "join_requests_title": "Beitrittsanfragen ({{n}})",
+    "level_BEGINNER": "Anfänger",
+    "level_INTERMEDIATE": "Mittel",
+    "level_ADVANCED": "Fortgeschritten",
+    "level_PRO": "Profi"
   },
   "tournament": {
     "title": "Turniere",

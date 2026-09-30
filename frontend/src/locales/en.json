@@ -425,7 +425,19 @@
     "flexible_schedule": "Flexible Schedule",
     "flexible_schedule_desc": "You can get in touch to play on\na mutually agreed day, time and court.",
     "send_message": "💬 Send Message",
-    "expires_24h": "Listing expires in 24h"
+    "expires_24h": "Listing expires in 24h",
+    "spots_filled": "filled",
+    "duration_min": "{{n}} min",
+    "court_reserved_badge": "Court reserved",
+    "joined_label": "Joined:",
+    "request_sent_waiting": "Request sent — waiting for approval",
+    "build_team_challenge": "Build Team & Challenge",
+    "join_match": "Join Match",
+    "join_requests_title": "Join requests ({{n}})",
+    "level_BEGINNER": "Beginner",
+    "level_INTERMEDIATE": "Intermediate",
+    "level_ADVANCED": "Advanced",
+    "level_PRO": "Pro"
   },
   "tournament": {
     "title": "Tournaments",
