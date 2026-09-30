@@ -497,9 +497,14 @@ export default function CategoryScreen({ route, navigation }) {
                         ) : visibleGroups.map(g => {
                             const items = (SUB_MAP.SPORTS || []).filter(sub => g.ids.includes(sub.id)).filter(passesIntent).sort((a, b) => sortSport(a, b, g.ids));
                             if (items.length === 0) return null;
+                            // Grubun tek emojisi (ör. sadece 🎾) diğer dalları görünmez kılıyordu — gruptaki
+                            // her dalın emojisi; padel/pickleball/masa tenisi gibi aynı emojiyi paylaşanlar bir kez.
+                            const groupEmojis = [...new Set(g.ids
+                                .map(id => (SUB_MAP.SPORTS || []).find(sub => sub.id === id)?.emoji)
+                                .filter(Boolean))].join(' ');
                             return (
                                 <View key={g.id} style={sp.groupBlock}>
-                                    <Text style={sp.groupTitle}>{g.emoji}  {t[g.key]}</Text>
+                                    <Text style={sp.groupTitle}>{t[g.key]}  {groupEmojis}</Text>
                                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sp.row} keyboardShouldPersistTaps="handled">
                                         {items.map(sub => renderTile(sub, 'row'))}
                                     </ScrollView>
