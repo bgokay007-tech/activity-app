@@ -1882,7 +1882,7 @@ function TeamChallengeModal({ config, sub, categoryUpper, rival, myId, myInteres
         }
     };
 
-    const senderTeam = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+    const senderTeam = Array.isArray(rival.senderTeam) ? rival.senderTeam.filter(Boolean) : [];
     const senderAvg = senderTeam.length > 0
         ? ((rival.sender?.interests?.[0]?.skillRating || 0) + senderTeam.reduce((s, t) => s + (t.skillRating || 0), 0)) / (senderTeam.length + 1)
         : (rival.sender?.interests?.[0]?.skillRating || 0);
@@ -2786,7 +2786,7 @@ function ScoreDisplay({ score, match, participants, config }) {
         const rightWin = !isDraw && !isWinnerSender;
 
         // Build full team rosters
-        const senderExtraTeam = Array.isArray(match.senderTeam) ? match.senderTeam : [];
+        const senderExtraTeam = Array.isArray(match.senderTeam) ? match.senderTeam.filter(Boolean) : [];
         const leftTeam  = [{ id: match.senderId, username: senderName }, ...senderExtraTeam];
         const rightTeam = participants.length > 0 ? participants : [{ username: opponentName }];
         const isTeamMatch = senderExtraTeam.length > 0 || participants.length > 1;
@@ -2877,7 +2877,7 @@ function ScoreDisplay({ score, match, participants, config }) {
 
 // Score entry modal — football: single scoreline; others: set-based
 function ScoreModal({ match, config, myId, onClose, onSave }) {
-    const participants  = Array.isArray(match.participants) ? match.participants : [];
+    const participants  = Array.isArray(match.participants) ? match.participants.filter(Boolean) : [];
     const isFootball    = match.subCategory === 'football' || match.subCategory === 'basketball';
     const isCompetitive = match.matchMode === 'COMPETITIVE';
 
@@ -4802,10 +4802,10 @@ function SubCategoryPage() {
                                 </div>
                             ) : (
                                 filteredRivals.map(rival => {
-                                    const participants = Array.isArray(rival.participants) ? rival.participants : [];
+                                    const participants = Array.isArray(rival.participants) ? rival.participants.filter(Boolean) : [];
                                     // Partner sistemi öncesi oluşturulmuş eski ilanlarda kurucunun senderTeam'i
                                     // boştur — onlar hâlâ eski modele göre (3 bireysel katılımcı) tamamlanır.
-                                    const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+                                    const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam.filter(Boolean) : [];
                                     const required = rival.matchType === 'DOUBLE' ? (senderTeamArr.length > 0 ? 2 : 3) : 1;
                                     const filled = participants.length;
                                     return (
@@ -4952,7 +4952,8 @@ function SubCategoryPage() {
 
                                             {/* Creator's team (football with senderTeam) */}
                                             {(() => {
-                                                const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam : [];
+                                                // Backend boş slotları null bırakıyor (setAtSlot) — null.skillRating tüm dal sayfasını beyaz ekrana düşürüyordu.
+                                                const senderTeamArr = Array.isArray(rival.senderTeam) ? rival.senderTeam.filter(Boolean) : [];
                                                 if (senderTeamArr.length === 0) return null;
                                                 const senderRating = (rival.sender?.interests?.[0]?.skillRating || 0);
                                                 const senderAssessed = !!rival.sender?.interests?.[0]?.assessmentCompleted;
@@ -5031,7 +5032,7 @@ function SubCategoryPage() {
                                                                 📬 Join Requests ({rival.joinRequests.length})
                                                             </p>
                                                             {rival.joinRequests.map(jr => {
-                                                                const jTeam = Array.isArray(jr.joiningTeam) ? jr.joiningTeam : [];
+                                                                const jTeam = Array.isArray(jr.joiningTeam) ? jr.joiningTeam.filter(Boolean) : [];
                                                                 const isTeamChallenge = rival.matchMode === 'COMPETITIVE' && jTeam.length > 0;
                                                                 const teamAvg = isTeamChallenge
                                                                     ? (jTeam.reduce((s, t) => s + (t.skillRating || 0), 0) / jTeam.length).toFixed(2)
@@ -5189,8 +5190,8 @@ function SubCategoryPage() {
 
                                     const noShowCandidates = [
                                         ...(match.senderId !== myId ? [{ id: match.senderId, username: match.sender?.username }] : []),
-                                        ...(Array.isArray(match.participants) ? match.participants : []).filter(p => p?.id && p.id !== myId),
-                                        ...(Array.isArray(match.senderTeam) ? match.senderTeam : []).filter(p => p?.id && p.id !== myId),
+                                        ...(Array.isArray(match.participants) ? match.participants.filter(Boolean) : []).filter(p => p?.id && p.id !== myId),
+                                        ...(Array.isArray(match.senderTeam) ? match.senderTeam.filter(Boolean) : []).filter(p => p?.id && p.id !== myId),
                                     ];
 
                                     const submitNoShow = async () => {
@@ -5360,8 +5361,8 @@ function SubCategoryPage() {
 
                                 const SwapPositionsRow = ({ match, onSwapped }) => {
                                     const [swapping, setSwapping] = useState(null); // 'partner-opp1' | ...
-                                    const sTeam = Array.isArray(match.senderTeam) ? match.senderTeam : [];
-                                    const parts = Array.isArray(match.participants) ? match.participants : [];
+                                    const sTeam = Array.isArray(match.senderTeam) ? match.senderTeam.filter(Boolean) : [];
+                                    const parts = Array.isArray(match.participants) ? match.participants.filter(Boolean) : [];
                                     const slots = {
                                         partner: sTeam[0] || null,
                                         opp1: parts[0] || null,
@@ -5427,8 +5428,8 @@ function SubCategoryPage() {
                                         } catch (e) { alert(e?.response?.data?.message || 'Error'); }
                                     };
 
-                                    const parts = Array.isArray(m.participants) ? m.participants : [];
-                                    const sTeam = Array.isArray(m.senderTeam) ? m.senderTeam : [];
+                                    const parts = Array.isArray(m.participants) ? m.participants.filter(Boolean) : [];
+                                    const sTeam = Array.isArray(m.senderTeam) ? m.senderTeam.filter(Boolean) : [];
                                     const isTeamMatch = (m.matchMode === 'COMPETITIVE' && sTeam.length > 0 && sub === 'football') || m.matchType === 'DOUBLE';
 
                                     const creatorTeam = isTeamMatch
@@ -5595,8 +5596,8 @@ function SubCategoryPage() {
                                         {completedMatches.length > 0 && (
                                             <div className="mt-4 space-y-3">
                                                 {completedMatches.map(match => {
-                                                    const participants = Array.isArray(match.participants) ? match.participants : [];
-                                                    const senderTeamArr = Array.isArray(match.senderTeam) ? match.senderTeam : [];
+                                                    const participants = Array.isArray(match.participants) ? match.participants.filter(Boolean) : [];
+                                                    const senderTeamArr = Array.isArray(match.senderTeam) ? match.senderTeam.filter(Boolean) : [];
                                                     const score = match.score;
                                                     const iAmTeamA = match.senderId === myId || senderTeamArr.some(m => m.id === myId);
                                                     const iAmTeamB = participants.some(p => p.id === myId);
@@ -8463,7 +8464,7 @@ function SubCategoryPage() {
                                         <p className="text-gray-400 text-xs font-bold uppercase tracking-wide mb-2">🟨 Upcoming Referee Assignments ({myRefereeJobs.length})</p>
                                         <div className="space-y-3">
                                             {myRefereeJobs.map(m => {
-                                                const isReferee = Array.isArray(m.participants) && m.participants.some(p => p.id === myId);
+                                                const isReferee = Array.isArray(m.participants) && m.participants.some(p => p?.id === myId);
                                                 return (
                                                     <div key={m.id} className="bg-gray-900 border border-yellow-500/40 rounded-2xl p-4">
                                                         <div className="flex items-center justify-between mb-2">
@@ -9002,7 +9003,7 @@ function SubCategoryPage() {
                                     ? <div className="text-center py-12 bg-gray-900 rounded-2xl border border-gray-800"><p className="text-gray-500 text-sm">{t('archive.no_rival_archive')}</p></div>
                                     : <div className="space-y-3">{filteredRivals.map(match => {
                                     const kind = match._kind;
-                                    const participants = Array.isArray(match.participants) ? match.participants : [];
+                                    const participants = Array.isArray(match.participants) ? match.participants.filter(Boolean) : [];
                                     const score = match.score;
                                     const dateStr = (match.matchDate || match.completedAt)
                                         ? new Date(match.matchDate || match.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -9023,7 +9024,7 @@ function SubCategoryPage() {
 
                                     if (kind === 'pending') {
                                         const other = match.senderId === myId ? match.receiver : match.sender;
-                                        const senderTeamArr = Array.isArray(match.senderTeam) ? match.senderTeam : [];
+                                        const senderTeamArr = Array.isArray(match.senderTeam) ? match.senderTeam.filter(Boolean) : [];
                                         const iAmTeamA = match.senderId === myId || senderTeamArr.some(m => m.id === myId);
                                         const iAmTeamB = participants.some(p => p.id === myId);
                                         const isInvolved = iAmTeamA || iAmTeamB;
@@ -9076,7 +9077,7 @@ function SubCategoryPage() {
                                         const isDraw = score.winner === 'draw';
                                         const ratingSnapshot = score.ratingSnapshot || {};
                                         const ratingEntries = Object.entries(ratingSnapshot);
-                                        const senderTeamArr = Array.isArray(match.senderTeam) ? match.senderTeam : [];
+                                        const senderTeamArr = Array.isArray(match.senderTeam) ? match.senderTeam.filter(Boolean) : [];
                                         const rosterIds = [match.senderId, ...participants.map(p => p.id), ...senderTeamArr.map(m => m.id)];
                                         const eligibleForPeerReview = match.subCategory === 'volleyball' && match.matchMode === 'COMPETITIVE' && rosterIds.includes(myId);
                                         return (
