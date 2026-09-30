@@ -437,7 +437,10 @@
     "level_BEGINNER": "Anfänger",
     "level_INTERMEDIATE": "Mittel",
     "level_ADVANCED": "Fortgeschritten",
-    "level_PRO": "Profi"
+    "level_PRO": "Profi",
+    "roster_title": "Kader",
+    "no_players_yet": "Noch keine Spieler",
+    "flip_card": "Karte umdrehen"
   },
   "tournament": {
     "title": "Turniere",

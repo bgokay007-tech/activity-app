@@ -437,7 +437,10 @@
     "level_BEGINNER": "Başlangıç",
     "level_INTERMEDIATE": "Orta",
     "level_ADVANCED": "İleri",
-    "level_PRO": "Profesyonel"
+    "level_PRO": "Profesyonel",
+    "roster_title": "Kadro",
+    "no_players_yet": "Henüz katılan yok",
+    "flip_card": "Kartı çevir"
   },
   "tournament": {
     "title": "Turnuvalar",

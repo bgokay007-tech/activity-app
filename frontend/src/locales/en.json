@@ -437,7 +437,10 @@
     "level_BEGINNER": "Beginner",
     "level_INTERMEDIATE": "Intermediate",
     "level_ADVANCED": "Advanced",
-    "level_PRO": "Pro"
+    "level_PRO": "Pro",
+    "roster_title": "Roster",
+    "no_players_yet": "No players yet",
+    "flip_card": "Flip card"
   },
   "tournament": {
     "title": "Tournaments",

@@ -437,7 +437,10 @@
     "level_BEGINNER": "Начинающий",
     "level_INTERMEDIATE": "Средний",
     "level_ADVANCED": "Продвинутый",
-    "level_PRO": "Профи"
+    "level_PRO": "Профи",
+    "roster_title": "Состав",
+    "no_players_yet": "Пока никто не присоединился",
+    "flip_card": "Перевернуть карту"
   },
   "tournament": {
     "title": "Турниры",
