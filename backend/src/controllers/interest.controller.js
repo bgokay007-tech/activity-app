@@ -34,7 +34,6 @@ export const SUBCATEGORIES = {
         { id: 'skiing_snowboard', name: 'Skiing & Snowboard', emoji: '⛷️' },
         { id: 'ice_skating', name: 'Ice Skating', emoji: '⛸️' },
         { id: 'ice_hockey', name: 'Ice Hockey', emoji: '🏒' },
-        { id: 'hiking', name: 'Hiking', emoji: '🥾' },
         { id: 'camping', name: 'Camping', emoji: '🏕️' },
         { id: 'motorcycle', name: 'Motorcycle Riding', emoji: '🏍️' },
         { id: 'extreme_sports', name: 'Extreme Sports', emoji: '🪂' },

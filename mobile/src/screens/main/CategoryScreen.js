@@ -16,6 +16,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const SPECIAL_SCREENS = { music: 'MusicHome', cinema: 'CinemaHome', theater: 'TheaterHome', batak: 'BatakHome', okey: 'OkeyHome', chess: 'ChessHome', tavla: 'TavlaHome', friend_finding: 'FriendFindingHome', travel_explore: 'TravelExploreHome' };
 const SPECIAL_BADGE_EMOJI = { music: '🎵', cinema: '🎬', theater: '🎭', batak: '🃏', okey: '🀄', chess: '♞', tavla: '🎲', friend_finding: '🎉', travel_explore: '✈️' };
 
+// Padel/pickleball'un Unicode emojisi yok (ikisi de masa tenisi 🏓'una düşüyordu) —
+// grup başlığında kendi simgeleri görünsün.
+const GROUP_ICON_IMAGES = {
+    padel: require('../../../assets/padel-icon.png'),
+    pickleball: require('../../../assets/pickleball-icon.png'),
+};
+
 const FAV_KEY = 'activity_fav_subs_SPORTS';
 const RECENT_KEY = 'activity_recent_subs_SPORTS';
 
@@ -30,7 +37,7 @@ const SPORT_GROUPS = [
     // Sıra: tenis → padel → masa tenisi → badminton → pickleball (en sonda).
     { id: 'racket', key: 'sportGroupRacket', emoji: '🎾', ids: ['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball'] },
     { id: 'team', key: 'sportGroupTeam', emoji: '⚽', ids: ['volleyball', 'football', 'basketball', 'foot_tennis', 'handball'] },
-    { id: 'outdoor', key: 'sportGroupOutdoor', emoji: '🥾', ids: ['running', 'hiking', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano'] },
+    { id: 'outdoor', key: 'sportGroupOutdoor', emoji: '🥾', ids: ['running', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano'] },
     { id: 'studio', key: 'sportGroupStudio', emoji: '🧘', ids: ['wellness', 'fitness_gym', 'ice_skating'] },
     { id: 'motor', key: 'sportGroupMotor', emoji: '🏍️', ids: ['motorcycle', 'skiing_snowboard', 'paintball', 'airsoft', 'extreme_sports', 'shooting_hunting'] },
 ];
@@ -70,7 +77,6 @@ const SUB_MAP = {
         { id: 'fitness_gym',      label: 'Fitness & Gym',       labelTR: 'Fitness & Spor Salonu', labelRU: 'Фитнес и тренажёрный зал', labelDE: 'Fitness & Fitnessstudio', emoji: '🏋️' },
         { id: 'skiing_snowboard', label: 'Skiing & Snowboard',  labelTR: 'Kayak & Snowboard',   labelRU: 'Лыжи и сноуборд',        labelDE: 'Skifahren & Snowboard', emoji: '⛷️' },
         { id: 'ice_skating',      label: 'Ice Skating',         labelTR: 'Buz Pateni',          labelRU: 'Катание на коньках',     labelDE: 'Eislaufen',             emoji: '⛸️' },
-        { id: 'hiking',           label: 'Hiking',              labelTR: 'Doğa Yürüyüşü',       labelRU: 'Пеший туризм',           labelDE: 'Wandern',               emoji: '🥾' },
         { id: 'camping',          label: 'Camping',             labelTR: 'Kamp',                labelRU: 'Кемпинг',                labelDE: 'Camping',               emoji: '🏕️' },
         { id: 'motorcycle',       label: 'Motorcycle Riding',   labelTR: 'Motosiklet',          labelRU: 'Мотоцикл',               labelDE: 'Motorradfahren',        emoji: '🏍️' },
         { id: 'extreme_sports',   label: 'Extreme Sports',      labelTR: 'Ekstrem Sporlar',     labelRU: 'Экстремальные виды спорта', labelDE: 'Extremsport',        emoji: '🪂' },
@@ -497,13 +503,23 @@ export default function CategoryScreen({ route, navigation }) {
                             const items = (SUB_MAP.SPORTS || []).filter(sub => g.ids.includes(sub.id)).filter(passesIntent).sort((a, b) => sortSport(a, b, g.ids));
                             if (items.length === 0) return null;
                             // Grubun tek emojisi (ör. sadece 🎾) diğer dalları görünmez kılıyordu — gruptaki
-                            // her dalın emojisi; padel/pickleball/masa tenisi gibi aynı emojiyi paylaşanlar bir kez.
-                            const groupEmojis = [...new Set(g.ids
-                                .map(id => (SUB_MAP.SPORTS || []).find(sub => sub.id === id)?.emoji)
-                                .filter(Boolean))].join(' ');
+                            // her dalın simgesi; aynı emojiyi paylaşan dallar (paintball/atıcılık 🔫) bir kez.
+                            const seenEmoji = new Set();
+                            const groupIcons = g.ids.map(id => {
+                                if (GROUP_ICON_IMAGES[id]) return { id, image: GROUP_ICON_IMAGES[id] };
+                                const emoji = (SUB_MAP.SPORTS || []).find(sub => sub.id === id)?.emoji;
+                                if (!emoji || seenEmoji.has(emoji)) return null;
+                                seenEmoji.add(emoji);
+                                return { id, emoji };
+                            }).filter(Boolean);
                             return (
                                 <View key={g.id} style={sp.groupBlock}>
-                                    <Text style={sp.groupTitle}>{t[g.key]}  {groupEmojis}</Text>
+                                    <View style={sp.groupTitleRow}>
+                                        <Text style={[sp.groupTitle, { marginBottom: 0 }]}>{t[g.key]}</Text>
+                                        {groupIcons.map(ic => ic.image
+                                            ? <Image key={ic.id} source={ic.image} style={sp.groupIconImg} resizeMode="contain" />
+                                            : <Text key={ic.id} style={sp.groupIconEmoji}>{ic.emoji}</Text>)}
+                                    </View>
                                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sp.row} keyboardShouldPersistTaps="handled">
                                         {items.map(sub => renderTile(sub, 'row'))}
                                     </ScrollView>
@@ -639,6 +655,9 @@ const sp = StyleSheet.create({
     groupChipTextOn: { color: colors.purple },
     groupBlock: { marginBottom: 22 },
     groupTitle: { color: colors.text, fontSize: 17, fontWeight: '700', marginBottom: 12 },
+    groupTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+    groupIconEmoji: { fontSize: 17 },
+    groupIconImg: { width: 20, height: 20 },
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
     tile: { width: '47.5%', height: 168, borderRadius: 22, overflow: 'hidden' },
     tileRow: { width: 168, height: 176, borderRadius: 22, overflow: 'hidden' },

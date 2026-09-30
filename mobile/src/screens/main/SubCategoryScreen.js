@@ -14937,6 +14937,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         finally { setSubmitting(false); }
     };
 
+    // Paintball/airsoft maç/savaş mantığında; diğer sade dallar (koşu, kamp, golf...) etkinlik
+    const isEventStyleSub = SIMPLIFIED_FEE_SUBS.has(sub) && sub !== 'airsoft' && sub !== 'paintball';
     const courtSurfaces = isFootball ? FOOTBALL_SURFACES : isVolleyball ? VOLLEYBALL_SURFACES : isPadel ? PADEL_SURFACES : TENNIS_SURFACES;
 
     // Sunucudan gelen sonuçları, kullanıcı fazladan harf yazdıkça (bir sonraki debounce'lı
@@ -14960,7 +14962,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
                         <View style={[s.modalHeader, { marginBottom:3 }]}>
-                            <Text style={s.modalTitle}>{isMatchedEdit ? `✏️ ${(isVolleyball && VOLLEYBALL_VENUE_SHORT[f.surface]) || 'Kort'}/Saat Değiştir` : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : t.createTitle)}</Text>
+                            <Text style={s.modalTitle}>{isMatchedEdit ? `✏️ ${(isVolleyball && VOLLEYBALL_VENUE_SHORT[f.surface]) || 'Kort'}/Saat Değiştir` : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : isEventStyleSub ? t.createEventBtn : t.createTitle)}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always"
@@ -17019,7 +17021,7 @@ function CreatePlayerWantedModal({ visible, onClose, category, sub, onCreated })
                                 </>
                             )}
                             <TouchableOpacity style={[s.submitBtn, submitting&&{opacity:0.6}]} onPress={submit} disabled={submitting}>
-                                <Text style={s.submitBtnText}>{submitting ? t.submittingBtn : t.publishAdBtn}</Text>
+                                <Text style={s.submitBtnText}>{submitting ? t.submittingBtn : (isEventStyleSub && !editItem) ? t.createEventBtn : t.publishAdBtn}</Text>
                             </TouchableOpacity>
                         </ScrollView>
                     </View>
