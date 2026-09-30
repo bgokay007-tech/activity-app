@@ -1,5 +1,7 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
+import { normalizePath, simplifyPath, pathLengthKm, toGpx } from '../utils/geoPath.js';
+import { runOsmImportOnce } from '../services/osmTravelImport.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 const USER_WITH_BADGE = { ...USER_SELECT, travelVerification: { select: { status: true } } };
@@ -32,11 +34,23 @@ async function recalcRouteRating(routeId) {
 
 // ─── Rotalar ────────────────────────────────────────────────────────────────
 
+// Liste ekranında binlerce noktalık path taşınmasın — detayda gelir.
+const ROUTE_LIST_SELECT = {
+    id: true, userId: true, title: true, startPlace: true, endPlace: true, stops: true,
+    distanceKm: true, durationText: true, difficulty: true, media: true,
+    ratingAvg: true, ratingCount: true, createdAt: true,
+    startLat: true, startLng: true, source: true, sourceUrl: true,
+    user: { select: USER_SELECT },
+};
+
+const hasPath = (p) => Array.isArray(p) && p.some(s => Array.isArray(s) && s.length >= 2);
+
 export const getRoutes = async (req, res, next) => {
     try {
-        const { q, sort, mine } = req.query;
+        const { q, sort, mine, source } = req.query;
         const where = {};
         if (mine === 'true') where.userId = req.userId;
+        if (source === 'OSM' || source === 'USER') where.source = source;
         if (q && String(q).trim().length >= 2) {
             const term = String(q).trim();
             where.OR = [
@@ -50,9 +64,9 @@ export const getRoutes = async (req, res, next) => {
             : [{ createdAt: 'desc' }];
         const routes = await prisma.travelRoute.findMany({
             where, orderBy, take: 100,
-            include: { user: { select: USER_SELECT } },
+            select: ROUTE_LIST_SELECT,
         });
-        res.json(routes);
+        res.json(routes.map(r => ({ ...r, hasGps: r.startLat != null })));
     } catch (err) { next(err); }
 };
 
@@ -75,7 +89,12 @@ export const createRoute = async (req, res, next) => {
         const { title, startPlace, endPlace, stops, distanceKm, durationText, difficulty, experience, media } = req.body;
         if (!String(title || '').trim() || !String(startPlace || '').trim())
             return res.status(400).json({ message: 'Rota adı ve başlangıç noktası zorunludur' });
-        const dist = distanceKm != null && distanceKm !== '' ? parseFloat(distanceKm) : null;
+        let dist = distanceKm != null && distanceKm !== '' ? parseFloat(distanceKm) : null;
+        const segs = simplifyPath(normalizePath(req.body.path));
+        const gps = hasPath(segs)
+            ? { path: segs, startLat: segs[0][0].lat, startLng: segs[0][0].lng }
+            : {};
+        if (!(Number.isFinite(dist) && dist > 0) && gps.path) dist = pathLengthKm(segs);
         const route = await prisma.travelRoute.create({
             data: {
                 userId: req.userId,
@@ -88,10 +107,32 @@ export const createRoute = async (req, res, next) => {
                 difficulty: ['EASY', 'MEDIUM', 'HARD'].includes(difficulty) ? difficulty : null,
                 experience: experience ? String(experience).trim() : null,
                 media: toMediaList(media),
+                ...gps,
             },
             include: { user: { select: USER_SELECT } },
         });
         res.status(201).json(route);
+    } catch (err) { next(err); }
+};
+
+// Herkese açık: saat uygulamaları (Huawei Health, Garmin, Komoot) GPX'i URL'den içe aktarır.
+export const getRouteGpx = async (req, res, next) => {
+    try {
+        const route = await prisma.travelRoute.findUnique({
+            where: { id: req.params.id }, select: { title: true, path: true },
+        });
+        if (!route || !hasPath(route.path)) return res.status(404).json({ message: 'Rota GPS verisi yok' });
+        const safe = route.title.replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '_').slice(0, 60) || 'route';
+        res.setHeader('Content-Type', 'application/gpx+xml; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safe)}.gpx"; filename*=UTF-8''${encodeURIComponent(safe)}.gpx`);
+        res.send(toGpx(route.title, route.path));
+    } catch (err) { next(err); }
+};
+
+export const adminImportOsmRoutes = async (req, res, next) => {
+    try {
+        runOsmImportOnce().then(r => console.log('[osmTravel] admin içe aktarma:', r)).catch(e => console.error('[osmTravel]', e.message));
+        res.json({ ok: true, started: true });
     } catch (err) { next(err); }
 };
 

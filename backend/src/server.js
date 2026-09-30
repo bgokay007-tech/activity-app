@@ -25,6 +25,7 @@ import { startDemoBotResponderJob } from './jobs/demoBotResponder.js';
 import { startCancelPenaltyWarningJob } from './jobs/cancelPenaltyWarning.js';
 import { startCoachApprovalExpiryJob } from './jobs/coachApprovalExpiry.js';
 import prisma from './config/prisma.js';
+import { seedOsmTravelRoutesIfEmpty } from './services/osmTravelImport.js';
 import { ensureTournamentChatTables } from './utils/ensureTournamentChatTables.js';
 
 const PROVINCES = [
@@ -183,5 +184,7 @@ Promise.all([ensureTables(), seedCitiesIfEmpty()]).then(() => {
         startDemoBotResponderJob();
         startCancelPenaltyWarningJob();
         startCoachApprovalExpiryJob();
+        // Açılışı bekletmesin — OSM'den hazır rotalar arka planda dolar.
+        setTimeout(() => { seedOsmTravelRoutesIfEmpty(); }, 15000);
     });
 });

@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import {
-    getRoutes, getRoute, createRoute, addRouteMedia, deleteRoute, reviewRoute,
+    getRoutes, getRoute, createRoute, addRouteMedia, deleteRoute, reviewRoute, getRouteGpx,
     getMyVerification, submitVerification,
     getTrips, getTrip, createTrip, cancelTrip, requestJoin, cancelMyRequest, respondRequest,
 } from '../controllers/travel.controller.js';
 
 const router = Router();
+// Saat/harita uygulaması GPX'i tokensız açar — authenticate'ten önce.
+router.get('/routes/:id/gpx',       getRouteGpx);
 router.use(authenticate);
 
 router.get('/routes',               getRoutes);

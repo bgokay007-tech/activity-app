@@ -2238,6 +2238,14 @@ model TravelRoute {
   difficulty  String?  // EASY | MEDIUM | HARD
   experience  String?
   media       Json     @default("[]") // [{ url, type: 'image' | 'video' }]
+  // GPS izi — parçalı: [[{lat,lng}, ...], ...]. OSM rotaları kopuk way'lerden oluştuğu için
+  // tek çizgi yapılırsa boşluklar düz çizgiyle birleşip yanlış güzergah çiziyordu.
+  path        Json     @default("[]")
+  startLat    Float?
+  startLng    Float?
+  source      String   @default("USER") // USER | OSM
+  externalId  String?  @unique           // osm:relation/<id>
+  sourceUrl   String?
   ratingAvg   Float    @default(0)
   ratingCount Int      @default(0)
   createdAt   DateTime @default(now())

@@ -17,7 +17,7 @@ import {
     getSupportTickets, getSupportTicketMessagesAdmin, replySupportTicket, closeSupportTicket,
 } from '../controllers/admin.controller.js';
 import { getClubApprovals, setClubApproval } from '../controllers/club.controller.js';
-import { adminGetVerifications, adminSetVerification } from '../controllers/travel.controller.js';
+import { adminGetVerifications, adminSetVerification, adminImportOsmRoutes } from '../controllers/travel.controller.js';
 import { getNoShowReports, approveNoShow, rejectNoShow } from '../controllers/noshow.controller.js';
 import { adminGetCities, adminUpdateCity } from '../controllers/city.controller.js';
 import { getReviewAppeals, resolveReviewAppeal, getPendingVenueReviews, resolveVenueReview } from '../controllers/venueReview.controller.js';
@@ -51,6 +51,7 @@ router.get('/coach-listing-approvals',       getCoachListingApprovals);
 router.patch('/coach-listing-approvals/:id', setCoachListingApproval);
 router.get('/travel-verifications',          adminGetVerifications);
 router.patch('/travel-verifications/:id',    adminSetVerification);
+router.post('/travel/import-osm',            adminImportOsmRoutes);
 router.get('/referee-approvals',             getRefereeApprovals);
 router.patch('/referee-approvals/:id',       setRefereeApproval);
 router.get('/team-name-approvals',           getTeamNameApprovals);
