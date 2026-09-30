@@ -58,7 +58,9 @@ function navigateFromNotif(data, isBusiness) {
             },
         });
     } else if (typeof type === 'string' && type.startsWith('TRAVEL_')) {
-        if (data.routeId) {
+        if (type === 'TRAVEL_NAV' && data.routeId) {
+            goToAppScreen(isBusiness, 'HomeTab', { screen: 'TravelNavigate', params: { routeId: data.routeId } });
+        } else if (data.routeId) {
             goToAppScreen(isBusiness, 'HomeTab', { screen: 'TravelRouteDetail', params: { routeId: data.routeId } });
         } else if (data.tripId) {
             goToAppScreen(isBusiness, 'HomeTab', { screen: 'TravelTripDetail', params: { tripId: data.tripId } });
@@ -256,6 +258,7 @@ import FriendFindingLiveScreen from '../screens/main/FriendFindingLiveScreen';
 import TravelExploreHomeScreen from '../screens/main/TravelExploreHomeScreen';
 import TravelRouteCreateScreen from '../screens/main/TravelRouteCreateScreen';
 import TravelRouteDetailScreen from '../screens/main/TravelRouteDetailScreen';
+import TravelNavigateScreen from '../screens/main/TravelNavigateScreen';
 import TravelTripCreateScreen from '../screens/main/TravelTripCreateScreen';
 import TravelTripDetailScreen from '../screens/main/TravelTripDetailScreen';
 import TravelVerificationScreen from '../screens/main/TravelVerificationScreen';
@@ -307,6 +310,7 @@ function HomeStackNav() {
             <HomeStack.Screen name="TravelExploreHome" component={TravelExploreHomeScreen} />
             <HomeStack.Screen name="TravelRouteCreate" component={TravelRouteCreateScreen} />
             <HomeStack.Screen name="TravelRouteDetail" component={TravelRouteDetailScreen} />
+            <HomeStack.Screen name="TravelNavigate" component={TravelNavigateScreen} />
             <HomeStack.Screen name="TravelTripCreate" component={TravelTripCreateScreen} />
             <HomeStack.Screen name="TravelTripDetail" component={TravelTripDetailScreen} />
             <HomeStack.Screen name="TravelVerification" component={TravelVerificationScreen} />

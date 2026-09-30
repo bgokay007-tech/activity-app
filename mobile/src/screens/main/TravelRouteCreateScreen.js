@@ -8,7 +8,10 @@ import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import CityAutocomplete from '../../components/CityAutocomplete';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { pickAndUploadMedia } from '../../utils/travelMedia';
+import { parseGpxSegments, segmentsLengthKm } from '../../utils/travelOffline';
 import { travelStyles as ts } from './TravelExploreHomeScreen';
 
 export function MediaStrip({ media, onRemove }) {
@@ -45,6 +48,22 @@ export default function TravelRouteCreateScreen({ navigation }) {
     const [media, setMedia] = useState([]);
     const [uploading, setUploading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [gpsPath, setGpsPath] = useState(null);
+    const [parsingGpx, setParsingGpx] = useState(false);
+
+    const importGpx = async () => {
+        const result = await DocumentPicker.getDocumentAsync({ type: ['application/gpx+xml', 'application/xml', 'text/xml', '*/*'], copyToCacheDirectory: true });
+        if (result.canceled || !result.assets?.[0]) return;
+        setParsingGpx(true);
+        try {
+            const segs = parseGpxSegments(await FileSystem.readAsStringAsync(result.assets[0].uri));
+            if (!segs.length) { Alert.alert('', t.tvGpxInvalid); return; }
+            setGpsPath(segs);
+            if (!distanceKm) setDistanceKm(String(segmentsLengthKm(segs)));
+        } catch {
+            Alert.alert('', t.tvGpxInvalid);
+        } finally { setParsingGpx(false); }
+    };
 
     const addMedia = async () => {
         if (uploading) return;
@@ -64,6 +83,7 @@ export default function TravelRouteCreateScreen({ navigation }) {
             const { data } = await api.post('/travel/routes', {
                 title, startPlace, endPlace, stops: stops.filter(x => x.trim()),
                 distanceKm: distanceKm.replace(',', '.'), durationText, difficulty, experience, media,
+                path: gpsPath || undefined,
             });
             Alert.alert('', t.tvRouteCreated);
             navigation.replace('TravelRouteDetail', { routeId: data.id });
@@ -105,6 +125,14 @@ export default function TravelRouteCreateScreen({ navigation }) {
                     </View>
                 ))}
                 <TouchableOpacity onPress={() => setStops(prev => [...prev, ''])}><Text style={s.link}>{t.tvAddStop}</Text></TouchableOpacity>
+
+                <TouchableOpacity style={s.gpxBtn} onPress={importGpx} disabled={parsingGpx}>
+                    {parsingGpx ? <ActivityIndicator color="#0ea5e9" />
+                        : <Text style={s.link}>{gpsPath ? t.tvGpxLoaded(gpsPath.reduce((n, sg) => n + sg.length, 0), segmentsLengthKm(gpsPath)) : t.tvImportGpx}</Text>}
+                </TouchableOpacity>
+                {gpsPath ? (
+                    <TouchableOpacity onPress={() => setGpsPath(null)}><Text style={[s.link, { color: colors.red, marginTop: 4 }]}>✕ {t.tvRemoveGpx}</Text></TouchableOpacity>
+                ) : null}
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                     <View style={{ flex: 1 }}>
@@ -154,6 +182,7 @@ const s = StyleSheet.create({
     stopRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
     stopDel:   { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },
     link:      { color: '#0ea5e9', fontWeight: '800', fontSize: 14, paddingVertical: 4 },
+    gpxBtn:    { borderWidth: 1, borderStyle: 'dashed', borderColor: '#0ea5e9', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 14 },
     mediaBtn:  { borderWidth: 1, borderStyle: 'dashed', borderColor: '#0ea5e9', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
     thumbWrap: { marginRight: 8 },
     thumb:     { width: 84, height: 84, borderRadius: 10 },

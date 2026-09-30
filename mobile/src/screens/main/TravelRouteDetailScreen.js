@@ -1,16 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Image,
-    Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Dimensions,
+    Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Dimensions, Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import MapView, { Polyline, Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import { pickAndUploadMedia } from '../../utils/travelMedia';
+import {
+    normalizeSegments, regionForSegments, getOfflineEntry, loadOfflineRoute,
+    downloadOfflineRoute, deleteOfflineRoute,
+} from '../../utils/travelOffline';
 import { travelStyles as ts } from './TravelExploreHomeScreen';
 import { MediaStrip } from './TravelRouteCreateScreen';
 
@@ -53,14 +58,55 @@ export default function TravelRouteDetailScreen({ navigation, route: navRoute })
     const [myComment, setMyComment] = useState('');
     const [sending, setSending] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [offlineEntry, setOfflineEntry] = useState(null);
+    const [dlProgress, setDlProgress] = useState(null);
 
     const load = useCallback(async () => {
+        const entry = await getOfflineEntry(routeId);
+        setOfflineEntry(entry);
         try {
-            const { data: r } = await api.get(`/travel/routes/${routeId}`);
-            setData(r);
-        } catch { setData(null); }
-        finally { setLoading(false); }
+            const { data: r, status } = await api.get(`/travel/routes/${routeId}`);
+            setData(status < 300 ? r : null);
+        } catch {
+            // İnternet yoksa indirilmiş kopyayı aç.
+            setData(entry ? await loadOfflineRoute(routeId) : null);
+        } finally { setLoading(false); }
     }, [routeId]);
+
+    const segs = useMemo(() => normalizeSegments(data?.path), [data]);
+    const previewRegion = useMemo(() => (segs.length ? regionForSegments(segs) : null), [segs]);
+
+    const downloadOffline = async () => {
+        if (dlProgress != null) return;
+        setDlProgress(0);
+        try {
+            const entry = await downloadOfflineRoute(data, p => setDlProgress(p));
+            setOfflineEntry(entry);
+            Alert.alert('', t.tvOfflineReady);
+        } catch {
+            Alert.alert(t.error, t.actionFailed);
+        } finally { setDlProgress(null); }
+    };
+
+    const removeOffline = () => {
+        Alert.alert('', t.tvDeleteOfflineQ, [
+            { text: t.no, style: 'cancel' },
+            { text: t.yes, style: 'destructive', onPress: async () => { await deleteOfflineRoute(routeId); setOfflineEntry(null); } },
+        ]);
+    };
+
+    const directionsToStart = () => {
+        const p = segs[0]?.[0];
+        const dest = p ? `${p.lat},${p.lng}` : encodeURIComponent(data.startPlace);
+        Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${dest}`);
+    };
+
+    const sendToWatch = () => {
+        Alert.alert(t.tvSendToWatch, t.tvSendToWatchInfo, [
+            { text: t.tvCancel, style: 'cancel' },
+            { text: t.tvDownloadGpx, onPress: () => Linking.openURL(`${api.defaults.baseURL}/travel/routes/${routeId}/gpx`) },
+        ]);
+    };
 
     useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -148,7 +194,58 @@ export default function TravelRouteDetailScreen({ navigation, route: navRoute })
                         {data.distanceKm ? <Text style={s.badge}>{data.distanceKm} km</Text> : null}
                         {data.durationText ? <Text style={s.badge}>⏱ {data.durationText}</Text> : null}
                     </View>
-                    <Text style={s.by}>{t.tvByUser(data.user?.fullName || data.user?.username || '')}</Text>
+                    {data.source === 'OSM' ? (
+                        <TouchableOpacity onPress={() => data.sourceUrl && Linking.openURL(data.sourceUrl)} disabled={!data.sourceUrl}>
+                            <Text style={s.by}>🗺️ {t.tvOsmSource}</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <Text style={s.by}>{t.tvByUser(data.user?.fullName || data.user?.username || '')}</Text>
+                    )}
+
+                    {previewRegion ? (
+                        <>
+                            <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('TravelNavigate', { routeId })} style={s.mapBox}>
+                                <MapView
+                                    provider={PROVIDER_DEFAULT}
+                                    style={StyleSheet.absoluteFill}
+                                    initialRegion={previewRegion}
+                                    liteMode
+                                    scrollEnabled={false}
+                                    zoomEnabled={false}
+                                    rotateEnabled={false}
+                                    pitchEnabled={false}
+                                    pointerEvents="none"
+                                >
+                                    {segs.map((seg, i) => (
+                                        <Polyline key={i} coordinates={seg.map(p => ({ latitude: p.lat, longitude: p.lng }))} strokeColor={ACCENT} strokeWidth={4} />
+                                    ))}
+                                    <Marker coordinate={{ latitude: segs[0][0].lat, longitude: segs[0][0].lng }} pinColor="green" />
+                                </MapView>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={ts.primaryBtn} onPress={() => navigation.navigate('TravelNavigate', { routeId })}>
+                                <Text style={ts.primaryBtnText}>🧭 {t.tvStartNav}</Text>
+                            </TouchableOpacity>
+                            <View style={s.gpsRow}>
+                                {offlineEntry ? (
+                                    <TouchableOpacity style={[s.gpsBtn, { borderColor: '#22c55e' }]} onPress={removeOffline}>
+                                        <Text style={[s.gpsBtnText, { color: '#22c55e' }]}>✓ {t.tvOfflineSaved}</Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <TouchableOpacity style={s.gpsBtn} onPress={downloadOffline} disabled={dlProgress != null}>
+                                        <Text style={s.gpsBtnText}>
+                                            {dlProgress != null ? t.tvDownloading(Math.round(dlProgress * 100)) : `⬇️ ${t.tvDownloadOffline}`}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity style={s.gpsBtn} onPress={sendToWatch}>
+                                    <Text style={s.gpsBtnText}>⌚ {t.tvSendToWatch}</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <TouchableOpacity style={[s.gpsBtn, { marginTop: 8 }]} onPress={directionsToStart}>
+                                <Text style={s.gpsBtnText}>🚗 {t.tvDirectionsToStart}</Text>
+                            </TouchableOpacity>
+                        </>
+                    ) : null}
 
                     {data.stops?.length ? (
                         <>
@@ -215,6 +312,10 @@ const s = StyleSheet.create({
     rating:     { color: '#facc15', fontWeight: '800', fontSize: 13 },
     badge:      { color: ACCENT, borderColor: `${ACCENT}88`, borderWidth: 1, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2, fontSize: 11, fontWeight: '800' },
     by:         { color: colors.textMuted, fontSize: 12, marginTop: 8 },
+    mapBox:     { height: 190, borderRadius: 14, overflow: 'hidden', marginTop: 14, borderWidth: 1, borderColor: colors.border },
+    gpsRow:     { flexDirection: 'row', gap: 8, marginTop: 8 },
+    gpsBtn:     { flex: 1, borderWidth: 1, borderColor: ACCENT, borderRadius: 12, paddingVertical: 11, alignItems: 'center', paddingHorizontal: 6 },
+    gpsBtnText: { color: ACCENT, fontWeight: '800', fontSize: 13, textAlign: 'center' },
     stop:       { color: colors.textSecondary, fontSize: 14, marginBottom: 3 },
     body:       { color: colors.textSecondary, fontSize: 14, lineHeight: 20, marginTop: 4 },
     mediaBtn:   { borderWidth: 1, borderStyle: 'dashed', borderColor: ACCENT, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 18 },

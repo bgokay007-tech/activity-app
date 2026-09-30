@@ -9,6 +9,7 @@ import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import { formatTripDate } from '../../utils/travelMedia';
+import { listOfflineRoutes } from '../../utils/travelOffline';
 
 const ACCENT = '#0ea5e9';
 
@@ -33,10 +34,21 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
 
     const loadRoutes = useCallback(async (sort = routeSort, q = routeQuery) => {
         try {
-            const params = sort === 'mine' ? { mine: 'true' } : { sort, q: q.trim() || undefined };
+            if (sort === 'offline') {
+                const list = await listOfflineRoutes();
+                const term = q.trim().toLocaleLowerCase();
+                setRoutes(term ? list.filter(r => `${r.title} ${r.startPlace}`.toLocaleLowerCase().includes(term)) : list);
+                return;
+            }
+            const params = sort === 'mine' ? { mine: 'true' }
+                : sort === 'osm' ? { source: 'OSM', sort: 'top', q: q.trim() || undefined }
+                : { sort, q: q.trim() || undefined };
             const { data } = await api.get('/travel/routes', { params });
             setRoutes(Array.isArray(data) ? data : []);
-        } catch { setRoutes([]); }
+        } catch {
+            // İnternet yoksa en azından indirilen rotalar görünsün.
+            setRoutes(await listOfflineRoutes());
+        }
         finally { setLoadingRoutes(false); }
     }, [routeSort, routeQuery]);
 
@@ -89,9 +101,16 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
                     <Text style={s.cardMeta} numberOfLines={1}>📍 {r.startPlace}{r.endPlace ? ` → ${r.endPlace}` : ''}</Text>
                     <View style={s.rowBetween}>
                         <Text style={s.rating}>★ {r.ratingCount ? r.ratingAvg.toFixed(1) : '—'} <Text style={s.cardMeta}>({t.tvRatingCount(r.ratingCount || 0)})</Text></Text>
-                        {r.difficulty ? <Text style={s.chipSmall}>{t[`tvDiff${r.difficulty}`]}</Text> : null}
+                        <View style={{ flexDirection: 'row', gap: 4 }}>
+                            {r.hasGps || r.savedAt ? <Text style={s.chipSmall}>{t.tvGpsBadge}</Text> : null}
+                            {r.difficulty ? <Text style={s.chipSmall}>{t[`tvDiff${r.difficulty}`]}</Text> : null}
+                        </View>
                     </View>
-                    <Text style={s.cardMeta} numberOfLines={1}>{t.tvByUser(r.user?.fullName || r.user?.username || '')}</Text>
+                    <Text style={s.cardMeta} numberOfLines={1}>
+                        {r.savedAt ? `✓ ${t.tvOfflineSaved}${r.distanceKm ? ` · ${r.distanceKm} km` : ''}`
+                            : r.source === 'OSM' ? `🗺️ OpenStreetMap${r.distanceKm ? ` · ${r.distanceKm} km` : ''}`
+                            : t.tvByUser(r.user?.fullName || r.user?.username || '')}
+                    </Text>
                 </View>
             </TouchableOpacity>
         );
@@ -165,7 +184,7 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
                             placeholderTextColor={colors.textMuted}
                         />
                         <View style={s.chipRow}>
-                            {[['new', t.tvSortNew], ['top', t.tvSortTop], ['mine', t.tvMine]].map(([k, label]) => (
+                            {[['osm', t.tvReadyRoutes], ['new', t.tvSortNew], ['top', t.tvSortTop], ['mine', t.tvMine], ['offline', t.tvDownloaded]].map(([k, label]) => (
                                 <TouchableOpacity key={k} style={[s.chip, routeSort === k && s.chipActive]} onPress={() => { setRouteSort(k); setLoadingRoutes(true); loadRoutes(k, routeQuery); }}>
                                     <Text style={[s.chipText, routeSort === k && s.chipTextActive]}>{label}</Text>
                                 </TouchableOpacity>
@@ -173,7 +192,7 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
                         </View>
                         <Text style={s.section}>{t.tvRoutesHeader}</Text>
                         {loadingRoutes ? <ActivityIndicator color={ACCENT} style={{ marginTop: 30 }} />
-                            : routes.length === 0 ? <Text style={s.empty}>{t.tvNoRoutes}</Text>
+                            : routes.length === 0 ? <Text style={s.empty}>{routeSort === 'offline' ? t.tvNoDownloads : routeSort === 'osm' ? t.tvReadyRoutesEmpty : t.tvNoRoutes}</Text>
                             : routes.map(renderRouteCard)}
                     </>
                 ) : (
