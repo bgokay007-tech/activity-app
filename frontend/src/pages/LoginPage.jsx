@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { setCredentials } from '../store/slices/authSlice';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 
 function LoginPage() {
     const { t } = useTranslation();
@@ -39,6 +40,7 @@ function LoginPage() {
                         ))}
                     </h1>
                     <p className="text-gray-400 mt-2">{t('auth.findYourMatch')}</p>
+                    <div className="mt-4"><LanguageSwitcher inline /></div>
                 </div>
 
                 <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">

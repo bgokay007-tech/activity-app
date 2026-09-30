@@ -228,11 +228,12 @@
     "admin": "Admin",
     "back_to_app": "Uygulamaya Dön",
     "logout": "Çıkış",
-    "back": "Geri"
+    "back": "Geri",
+    "language": "Dil"
   },
   "shareBtn": "Paylaş",
   "home": {
-    "title": "Bugün ne yapmak istiyorsun?",
+    "title": "Ne yapmak istersin?",
     "subtitle": "Aktivite keşfetmek, insanlarla tanışmak ve etkinliklere katılmak için bir kategori seç",
     "sports_desc": "Sporcu bul, turnuvalara katıl, rakip meydan oku",
     "social_desc": "İnsanlarla tanış, etkinliklere katıl, yeni aktiviteler keşfet",
@@ -240,14 +241,41 @@
     "games_desc": "Takım arkadaşı bul, turnuvalara katıl, online rekabet et",
     "explore": "{{name}} Keşfet",
     "coming_soon": "Yakında",
-    "soon": "Yakında"
+    "soon": "Yakında",
+    "hello": "Merhaba {{name}}",
+    "cat_sports": "Spor",
+    "cat_social": "Sosyal",
+    "cat_arts": "Sanat",
+    "cat_games": "Oyunlar",
+    "featured_upcoming": "Yaklaşan",
+    "featured_now_playing": "Şu an oynadığın maç",
+    "see_listing": "İlana git",
+    "see_your_match": "Maçına git",
+    "open_listings": "Aktivitelerindeki Açık İlanlar",
+    "change_city": "Değiştir",
+    "city_placeholder": "İl yaz",
+    "open_listing": "Açık ilan",
+    "your_listing": "Senin ilanın",
+    "no_listings_city": "Bulunduğun ilde, eklediğin dallarda henüz açık ilan yok.",
+    "add_sports_profile": "Profilinden dal ekle →",
+    "flexible": "Esnek zamanlı"
   },
   "category": {
     "select_branch": "Keşfetmek için bir dal seç",
     "active_listings": "{{count}} aktif ilan",
     "active_listings_plural": "{{count}} aktif ilan",
     "no_listings": "Henüz ilan yok",
-    "loading": "Yükleniyor..."
+    "loading": "Yükleniyor...",
+    "search_sport": "Dal ara",
+    "sport_group_racket": "Raket",
+    "sport_group_team": "Takım",
+    "sport_group_outdoor": "Doğa",
+    "sport_group_studio": "Salon",
+    "sport_group_motor": "Motor & ekstrem",
+    "intent_play_today": "Bugün oynayayım",
+    "intent_find_rival": "Rakip / takım arıyorum",
+    "intent_book_venue": "Yer ayırtayım",
+    "no_sport_match": "Bu aramaya uyan dal yok"
   },
   "tabs": {
     "rivals": "Rakip Bul",

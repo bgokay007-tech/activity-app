@@ -228,11 +228,12 @@
     "admin": "Admin",
     "back_to_app": "Back to App",
     "logout": "Logout",
-    "back": "Back"
+    "back": "Back",
+    "language": "Language"
   },
   "shareBtn": "Share",
   "home": {
-    "title": "What do you want to do today?",
+    "title": "What do you want to do?",
     "subtitle": "Choose a category to explore activities, find people and join events",
     "sports_desc": "Find athletes, join tournaments, challenge rivals",
     "social_desc": "Meet people, join events, explore new activities",
@@ -240,14 +241,41 @@
     "games_desc": "Find teammates, join tournaments, compete online",
     "explore": "Explore {{name}}",
     "coming_soon": "Coming Soon",
-    "soon": "Soon"
+    "soon": "Soon",
+    "hello": "Hi {{name}}",
+    "cat_sports": "Sports",
+    "cat_social": "Social",
+    "cat_arts": "Arts",
+    "cat_games": "Games",
+    "featured_upcoming": "Upcoming",
+    "featured_now_playing": "Your match right now",
+    "see_listing": "See listing",
+    "see_your_match": "See your match",
+    "open_listings": "Open listings in your activities",
+    "change_city": "Change",
+    "city_placeholder": "Type a city",
+    "open_listing": "Open listing",
+    "your_listing": "Your listing",
+    "no_listings_city": "No open listings in your city for the activities you added yet.",
+    "add_sports_profile": "Add sports in your profile →",
+    "flexible": "Flexible schedule"
   },
   "category": {
     "select_branch": "Select a branch to explore",
     "active_listings": "{{count}} active listing",
     "active_listings_plural": "{{count}} active listings",
     "no_listings": "No listings yet",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "search_sport": "Search a sport",
+    "sport_group_racket": "Racket",
+    "sport_group_team": "Team",
+    "sport_group_outdoor": "Outdoors",
+    "sport_group_studio": "Studio",
+    "sport_group_motor": "Motor & extreme",
+    "intent_play_today": "Play today",
+    "intent_find_rival": "Find a rival",
+    "intent_book_venue": "Book a venue",
+    "no_sport_match": "No sport matches that search"
   },
   "tabs": {
     "rivals": "Find Rival",

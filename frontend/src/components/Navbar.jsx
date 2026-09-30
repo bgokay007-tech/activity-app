@@ -2,11 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/slices/authSlice';
-import { setLang } from '../store/slices/langSlice';
 import { io } from 'socket.io-client';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { TYPE_ICON, resolveNotificationPath } from '../utils/notifNav';
+import LanguageSwitcher from './LanguageSwitcher';
 
 const CYCLE_DURATION = 2.4; // seconds for full color cycle
 const LETTER_STEP    = CYCLE_DURATION / 8; // offset between each letter
@@ -111,8 +111,7 @@ export default function Navbar({ onBack, backLabel, title }) {
     const location  = useLocation();
     const dispatch  = useDispatch();
     const user      = useSelector(state => state.auth.user);
-    const lang      = useSelector(state => state.lang.lang);
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
 
     const [unread, setUnread]             = useState(0);
     const [notifications, setNotifications] = useState([]);
@@ -285,20 +284,6 @@ export default function Navbar({ onBack, backLabel, title }) {
                                 <div className="border-t border-gray-800" />
 
                                 <button
-                                    onClick={() => {
-                                        const cycle = ['en', 'tr', 'ru', 'de'];
-                                        const nl = cycle[(cycle.indexOf(lang) + 1) % cycle.length];
-                                        dispatch(setLang(nl)); i18n.changeLanguage(nl); setMenuOpen(false);
-                                    }}
-                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition text-left"
-                                >
-                                    <span className="text-lg">{lang === 'en' ? '🇬🇧' : lang === 'tr' ? '🇹🇷' : lang === 'ru' ? '🇷🇺' : '🇩🇪'}</span>
-                                    <span className="text-gray-300 text-sm font-bold">{lang === 'en' ? 'EN → TR' : lang === 'tr' ? 'TR → RU' : lang === 'ru' ? 'RU → DE' : 'DE → EN'}</span>
-                                </button>
-
-                                <div className="border-t border-gray-800" />
-
-                                <button
                                     onClick={() => { setMenuOpen(false); dispatch(logout()); }}
                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition text-left"
                                 >
@@ -316,8 +301,9 @@ export default function Navbar({ onBack, backLabel, title }) {
                     {title && <span className="text-gray-500 text-[10px] font-bold -mt-0.5">{title}</span>}
                 </div>
 
-                {/* RIGHT — Notifications bell */}
+                {/* RIGHT — Language + notifications bell */}
                 <div className="flex items-center gap-2 flex-1 justify-end">
+                    <LanguageSwitcher />
                     <div className="relative" ref={bellRef}>
                         <button onClick={handleBellClick} className={`${NAV_BTN} relative`}>
                             <span>🔔</span>

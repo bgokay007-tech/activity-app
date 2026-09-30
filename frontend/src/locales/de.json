@@ -228,11 +228,12 @@
     "admin": "Admin",
     "back_to_app": "Zurück zur App",
     "logout": "Abmelden",
-    "back": "Zurück"
+    "back": "Zurück",
+    "language": "Sprache"
   },
   "shareBtn": "Teilen",
   "home": {
-    "title": "Was möchtest du heute tun?",
+    "title": "Was möchtest du tun?",
     "subtitle": "Wähle eine Kategorie, um Aktivitäten zu entdecken, Leute zu finden und an Events teilzunehmen",
     "sports_desc": "Finde Sportler, nimm an Turnieren teil, fordere Rivalen heraus",
     "social_desc": "Lerne Leute kennen, nimm an Events teil, entdecke neue Aktivitäten",
@@ -240,14 +241,41 @@
     "games_desc": "Finde Teamkollegen, nimm an Turnieren teil, tritt online gegeneinander an",
     "explore": "{{name}} entdecken",
     "coming_soon": "Demnächst",
-    "soon": "Bald"
+    "soon": "Bald",
+    "hello": "Hallo {{name}}",
+    "cat_sports": "Sport",
+    "cat_social": "Soziales",
+    "cat_arts": "Kunst",
+    "cat_games": "Spiele",
+    "featured_upcoming": "Demnächst",
+    "featured_now_playing": "Dein Spiel gerade",
+    "see_listing": "Zur Anzeige",
+    "see_your_match": "Zu deinem Spiel",
+    "open_listings": "Offene Anzeigen deiner Aktivitäten",
+    "change_city": "Ändern",
+    "city_placeholder": "Stadt eingeben",
+    "open_listing": "Offene Anzeige",
+    "your_listing": "Dein Inserat",
+    "no_listings_city": "In deiner Stadt gibt es noch keine offenen Anzeigen für deine Aktivitäten.",
+    "add_sports_profile": "Sportarten im Profil hinzufügen →",
+    "flexible": "Flexible Zeit"
   },
   "category": {
     "select_branch": "Wähle einen Bereich zum Entdecken",
     "active_listings": "{{count}} aktives Angebot",
     "active_listings_plural": "{{count}} aktive Angebote",
     "no_listings": "Noch keine Angebote",
-    "loading": "Lädt..."
+    "loading": "Lädt...",
+    "search_sport": "Sportart suchen",
+    "sport_group_racket": "Schläger",
+    "sport_group_team": "Team",
+    "sport_group_outdoor": "Outdoor",
+    "sport_group_studio": "Studio",
+    "sport_group_motor": "Motor & Extrem",
+    "intent_play_today": "Heute spielen",
+    "intent_find_rival": "Gegner finden",
+    "intent_book_venue": "Platz buchen",
+    "no_sport_match": "Keine Sportart passt zur Suche"
   },
   "tabs": {
     "rivals": "Rivalen finden",
