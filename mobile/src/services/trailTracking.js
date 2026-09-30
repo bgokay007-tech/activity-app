@@ -36,18 +36,18 @@ export async function requestTrailLocationPermissions() {
     return { granted: true, background: bg.granted };
 }
 
-export async function startRecording() {
+export async function startRecording(opts = {}) {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([]));
     const already = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
     if (already) await Location.stopLocationUpdatesAsync(TASK_NAME).catch(() => {});
     await Location.startLocationUpdatesAsync(TASK_NAME, {
-        accuracy: Location.Accuracy.Balanced,
+        accuracy: opts.accuracy ?? Location.Accuracy.Balanced,
         timeInterval: 5000,
         distanceInterval: 10,
         showsBackgroundLocationIndicator: true,
         foregroundService: {
-            notificationTitle: 'Rota kaydediliyor',
-            notificationBody: 'Doğa yürüyüşü güzergahın arka planda kaydediliyor.',
+            notificationTitle: opts.notificationTitle || 'Rota kaydediliyor',
+            notificationBody: opts.notificationBody || 'Doğa yürüyüşü güzergahın arka planda kaydediliyor.',
         },
     });
 }
