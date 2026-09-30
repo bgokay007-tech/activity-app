@@ -693,7 +693,11 @@
     "loss": "Loss",
     "draw": "Draw",
     "vs": "vs",
-    "no_score": "No score"
+    "no_score": "No score",
+    "page_crashed": "This page crashed",
+    "page_crashed_hint": "Please send a screenshot of this screen to support.",
+    "reload": "Reload",
+    "go_home": "Home"
   },
   "subscriptions": {
     "tab_label": "💳 Subscription Requests",

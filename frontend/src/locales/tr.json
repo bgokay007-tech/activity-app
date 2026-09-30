@@ -693,7 +693,11 @@
     "loss": "Mağlubiyet",
     "draw": "Beraberlik",
     "vs": "vs",
-    "no_score": "No score"
+    "no_score": "No score",
+    "page_crashed": "Bu sayfa çöktü",
+    "page_crashed_hint": "Lütfen bu ekranın görüntüsünü destek ekibine gönder.",
+    "reload": "Yenile",
+    "go_home": "Ana Sayfa"
   },
   "subscriptions": {
     "tab_label": "💳 Abonelik Talepleri",

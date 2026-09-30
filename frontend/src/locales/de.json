@@ -693,7 +693,11 @@
     "loss": "Niederlage",
     "draw": "Unentschieden",
     "vs": "gegen",
-    "no_score": "Kein Ergebnis"
+    "no_score": "Kein Ergebnis",
+    "page_crashed": "Diese Seite ist abgestürzt",
+    "page_crashed_hint": "Bitte sende einen Screenshot dieses Bildschirms an den Support.",
+    "reload": "Neu laden",
+    "go_home": "Startseite"
   },
   "subscriptions": {
     "tab_label": "💳 Abo-Anfragen",

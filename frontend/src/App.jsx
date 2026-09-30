@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary';
 import { useSelector } from 'react-redux';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -39,12 +40,14 @@ function App() {
   const token = useSelector(state => state.auth.token);
   const lang  = useSelector(state => state.lang.lang);
   const { i18n } = useTranslation();
+  const location = useLocation();
 
   useEffect(() => {
     i18n.changeLanguage(lang);
   }, [lang]);
 
   return (
+    <ErrorBoundary resetKey={location.pathname}>
     <Routes>
       <Route path="/login" element={!token ? <LoginPage /> : <Navigate to="/home" />} />
       <Route path="/register" element={!token ? <RegisterPage /> : <Navigate to="/home" />} />
@@ -82,6 +85,7 @@ function App() {
       <Route path="/travel/verify" element={token ? <TravelVerificationPage /> : <Navigate to="/login" />} />
       <Route path="*" element={<Navigate to={token ? "/home" : "/login"} />} />
     </Routes>
+    </ErrorBoundary>
   );
 }
 
