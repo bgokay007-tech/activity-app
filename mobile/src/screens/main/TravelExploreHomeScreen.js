@@ -1,26 +1,101 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView,
-    TextInput, Image, RefreshControl,
+    TextInput, RefreshControl, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
+import * as Location from 'expo-location';
 import { formatTripDate } from '../../utils/travelMedia';
 import { listOfflineRoutes } from '../../utils/travelOffline';
+import KeyboardSafeModal from '../../components/KeyboardSafeModal';
+import TravelRouteCard from '../../components/TravelRouteCard';
+import { travelListName, travelListIcon } from '../../components/TravelSaveToListModal';
 
 const ACCENT = '#0ea5e9';
+const DEFAULT_FILTERS = { q: '', sort: 'new', difficulty: null, minRating: 0 };
+
+async function getHere() {
+    try {
+        const { granted } = await Location.requestForegroundPermissionsAsync();
+        if (!granted) return null;
+        const last = await Location.getLastKnownPositionAsync({ maxAge: 10 * 60 * 1000 });
+        const loc = last || await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        return { lat: loc.coords.latitude, lng: loc.coords.longitude };
+    } catch { return null; }
+}
+
+function FilterModal({ visible, value, sorts, onApply, onClose }) {
+    const t = useT();
+    const [f, setF] = useState(value);
+    useEffect(() => { if (visible) setF(value); }, [visible, value]);
+    const set = (patch) => setF(prev => ({ ...prev, ...patch }));
+    const Chip = ({ active, label, onPress }) => (
+        <TouchableOpacity style={[s.chip, active && s.chipActive]} onPress={onPress}>
+            <Text style={[s.chipText, active && s.chipTextActive]}>{label}</Text>
+        </TouchableOpacity>
+    );
+    return (
+        <KeyboardSafeModal visible={visible} onClose={onClose}>
+            <View style={s.modalHead}>
+                <Text style={s.modalTitle}>🔎 {t.tvFilterSearch}</Text>
+                <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 460 }} keyboardShouldPersistTaps="handled">
+                <Text style={s.fLabel}>{t.tvSearchWord}</Text>
+                <TextInput
+                    style={[s.search, { marginTop: 0 }]}
+                    value={f.q}
+                    onChangeText={(q) => set({ q })}
+                    placeholder={t.tvSearchRoutes}
+                    placeholderTextColor={colors.textMuted}
+                    returnKeyType="search"
+                    onSubmitEditing={() => onApply(f)}
+                />
+                <Text style={s.fLabel}>{t.tvSortBy}</Text>
+                <View style={s.chipRow}>
+                    {sorts.map(([k, label]) => <Chip key={k} active={f.sort === k} label={label} onPress={() => set({ sort: k })} />)}
+                </View>
+                <Text style={s.fLabel}>{t.tvDifficulty}</Text>
+                <View style={s.chipRow}>
+                    <Chip active={!f.difficulty} label={t.tvAny} onPress={() => set({ difficulty: null })} />
+                    {['EASY', 'MEDIUM', 'HARD'].map(d => <Chip key={d} active={f.difficulty === d} label={t[`tvDiff${d}`]} onPress={() => set({ difficulty: d })} />)}
+                </View>
+                <Text style={s.fLabel}>{t.tvMinRating}</Text>
+                <View style={s.chipRow}>
+                    {[0, 3, 4, 4.5].map(r => <Chip key={r} active={f.minRating === r} label={r ? `★ ${r}+` : t.tvAny} onPress={() => set({ minRating: r })} />)}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 18 }}>
+                    <TouchableOpacity style={[s.resetBtn]} onPress={() => onApply(DEFAULT_FILTERS)}>
+                        <Text style={s.resetText}>{t.tvReset}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[s.primaryBtn, { flex: 2, marginTop: 0 }]} onPress={() => onApply(f)}>
+                        <Text style={s.primaryBtnText}>{t.tvApplyFilters}</Text>
+                    </TouchableOpacity>
+                </View>
+            </ScrollView>
+        </KeyboardSafeModal>
+    );
+}
 
 export default function TravelExploreHomeScreen({ navigation, route }) {
     const t = useT();
     const insets = useSafeAreaInsets();
     const [tab, setTab] = useState(route?.params?.initialTab === 'travel' ? 'travel' : 'explore');
+    const SORTS = [
+        ['near', `📍 ${t.tvSortNear}`], ['top', `★ ${t.tvSortTop}`], ['popular', `👣 ${t.tvSortPopular}`],
+        ['comments', `💬 ${t.tvSortComments}`], ['new', `🆕 ${t.tvSortNew}`],
+    ];
 
     const [routes, setRoutes] = useState([]);
-    const [routeSort, setRouteSort] = useState('new');
-    const [routeQuery, setRouteQuery] = useState('');
+    const [scope, setScope] = useState('all');
+    const [filters, setFilters] = useState(DEFAULT_FILTERS);
+    const [filterOpen, setFilterOpen] = useState(false);
+    const [myLists, setMyLists] = useState([]);
+    const [newListName, setNewListName] = useState('');
     const [loadingRoutes, setLoadingRoutes] = useState(true);
 
     const [trips, setTrips] = useState([]);
@@ -32,17 +107,32 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
     const [refreshing, setRefreshing] = useState(false);
     const searchTimer = useRef(null);
 
-    const loadRoutes = useCallback(async (sort = routeSort, q = routeQuery) => {
+    const loadRoutes = useCallback(async (sc = scope, f = filters) => {
         try {
-            if (sort === 'offline') {
+            if (sc === 'lists') {
+                const { data } = await api.get('/travel/lists');
+                setMyLists(Array.isArray(data) ? data : []);
+                return;
+            }
+            if (sc === 'offline') {
                 const list = await listOfflineRoutes();
-                const term = q.trim().toLocaleLowerCase();
+                const term = f.q.trim().toLocaleLowerCase();
                 setRoutes(term ? list.filter(r => `${r.title} ${r.startPlace}`.toLocaleLowerCase().includes(term)) : list);
                 return;
             }
-            const params = sort === 'mine' ? { mine: 'true' }
-                : sort === 'osm' ? { source: 'OSM', sort: 'top', q: q.trim() || undefined }
-                : { sort, q: q.trim() || undefined };
+            const params = {
+                q: f.q.trim() || undefined,
+                sort: f.sort,
+                difficulty: f.difficulty || undefined,
+                minRating: f.minRating || undefined,
+                mine: sc === 'mine' ? 'true' : undefined,
+                source: sc === 'osm' ? 'OSM' : undefined,
+            };
+            if (f.sort === 'near') {
+                const here = await getHere();
+                if (!here) { Alert.alert('', t.tvNavLocationDenied); params.sort = 'new'; }
+                else { params.lat = here.lat; params.lng = here.lng; }
+            }
             const { data } = await api.get('/travel/routes', { params });
             setRoutes(Array.isArray(data) ? data : []);
         } catch {
@@ -50,7 +140,35 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
             setRoutes(await listOfflineRoutes());
         }
         finally { setLoadingRoutes(false); }
-    }, [routeSort, routeQuery]);
+    }, [scope, filters, t]);
+
+    const changeScope = (sc) => {
+        setScope(sc);
+        setLoadingRoutes(true);
+        loadRoutes(sc, filters);
+    };
+
+    const applyFilters = (f) => {
+        setFilters(f);
+        setFilterOpen(false);
+        setLoadingRoutes(true);
+        loadRoutes(scope, f);
+    };
+
+    const createList = async () => {
+        const name = newListName.trim();
+        if (!name) return;
+        try {
+            await api.post('/travel/lists', { name });
+            setNewListName('');
+            loadRoutes('lists', filters);
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        }
+    };
+
+    const activeFilterCount = (filters.q.trim() ? 1 : 0) + (filters.sort !== 'new' ? 1 : 0)
+        + (filters.difficulty ? 1 : 0) + (filters.minRating ? 1 : 0);
 
     const loadTrips = useCallback(async (scope = tripScope, from = fromQ, to = toQ) => {
         try {
@@ -86,35 +204,11 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
         else navigation.navigate('TravelVerification');
     };
 
-    const renderRouteCard = (r) => {
-        const cover = (r.media || []).find(m => m.type === 'image');
-        const hasVideo = (r.media || []).some(m => m.type === 'video');
-        return (
-            <TouchableOpacity key={r.id} style={s.card} activeOpacity={0.85} onPress={() => navigation.navigate('TravelRouteDetail', { routeId: r.id })}>
-                {cover ? (
-                    <Image source={{ uri: cover.url }} style={s.cover} />
-                ) : (
-                    <View style={[s.cover, s.coverEmpty]}><Text style={{ fontSize: 34 }}>{hasVideo ? '🎬' : '🗺️'}</Text></View>
-                )}
-                <View style={s.cardBody}>
-                    <Text style={s.cardTitle} numberOfLines={1}>{r.title}</Text>
-                    <Text style={s.cardMeta} numberOfLines={1}>📍 {r.startPlace}{r.endPlace ? ` → ${r.endPlace}` : ''}</Text>
-                    <View style={s.rowBetween}>
-                        <Text style={s.rating}>★ {r.ratingCount ? r.ratingAvg.toFixed(1) : '—'} <Text style={s.cardMeta}>({t.tvRatingCount(r.ratingCount || 0)})</Text></Text>
-                        <View style={{ flexDirection: 'row', gap: 4 }}>
-                            {r.hasGps || r.savedAt ? <Text style={s.chipSmall}>{t.tvGpsBadge}</Text> : null}
-                            {r.difficulty ? <Text style={s.chipSmall}>{t[`tvDiff${r.difficulty}`]}</Text> : null}
-                        </View>
-                    </View>
-                    <Text style={s.cardMeta} numberOfLines={1}>
-                        {r.savedAt ? `✓ ${t.tvOfflineSaved}${r.distanceKm ? ` · ${r.distanceKm} km` : ''}`
-                            : r.source === 'OSM' ? `🗺️ OpenStreetMap${r.distanceKm ? ` · ${r.distanceKm} km` : ''}`
-                            : t.tvByUser(r.user?.fullName || r.user?.username || '')}
-                    </Text>
-                </View>
-            </TouchableOpacity>
-        );
-    };
+    const renderRouteCard = (r) => (
+        <TravelRouteCard key={r.id} route={r} onPress={() => navigation.navigate('TravelRouteDetail', { routeId: r.id })} />
+    );
+
+    const sortLabel = SORTS.find(([k]) => k === filters.sort)?.[1];
 
     const renderTripCard = (tr) => (
         <TouchableOpacity key={tr.id} style={s.tripCard} activeOpacity={0.85} onPress={() => navigation.navigate('TravelTripDetail', { tripId: tr.id })}>
@@ -176,24 +270,61 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
                         <TouchableOpacity style={s.primaryBtn} onPress={() => navigation.navigate('TravelRouteCreate')}>
                             <Text style={s.primaryBtnText}>{t.tvCreateRoute}</Text>
                         </TouchableOpacity>
-                        <TextInput
-                            style={s.search}
-                            value={routeQuery}
-                            onChangeText={(v) => { setRouteQuery(v); debounced(() => loadRoutes(routeSort === 'mine' ? 'new' : routeSort, v)); }}
-                            placeholder={t.tvSearchRoutes}
-                            placeholderTextColor={colors.textMuted}
-                        />
-                        <View style={s.chipRow}>
-                            {[['osm', t.tvReadyRoutes], ['new', t.tvSortNew], ['top', t.tvSortTop], ['mine', t.tvMine], ['offline', t.tvDownloaded]].map(([k, label]) => (
-                                <TouchableOpacity key={k} style={[s.chip, routeSort === k && s.chipActive]} onPress={() => { setRouteSort(k); setLoadingRoutes(true); loadRoutes(k, routeQuery); }}>
-                                    <Text style={[s.chipText, routeSort === k && s.chipTextActive]}>{label}</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.scopeRow}>
+                            {[['all', t.tvScopeAll], ['osm', t.tvReadyRoutes], ['mine', t.tvMine], ['lists', t.tvMyLists], ['offline', t.tvDownloaded]].map(([k, label]) => (
+                                <TouchableOpacity key={k} style={[s.chip, scope === k && s.chipActive]} onPress={() => changeScope(k)}>
+                                    <Text style={[s.chipText, scope === k && s.chipTextActive]}>{label}</Text>
                                 </TouchableOpacity>
                             ))}
-                        </View>
-                        <Text style={s.section}>{t.tvRoutesHeader}</Text>
-                        {loadingRoutes ? <ActivityIndicator color={ACCENT} style={{ marginTop: 30 }} />
-                            : routes.length === 0 ? <Text style={s.empty}>{routeSort === 'offline' ? t.tvNoDownloads : routeSort === 'osm' ? t.tvReadyRoutesEmpty : t.tvNoRoutes}</Text>
-                            : routes.map(renderRouteCard)}
+                        </ScrollView>
+
+                        {scope !== 'lists' ? (
+                            <TouchableOpacity style={s.filterBtn} onPress={() => setFilterOpen(true)} activeOpacity={0.85}>
+                                <Text style={s.filterBtnText}>🔎 {t.tvFilterSearch}{activeFilterCount ? ` (${activeFilterCount})` : ''}</Text>
+                                <Text style={s.filterSummary} numberOfLines={1}>
+                                    {filters.q.trim() ? `“${filters.q.trim()}” · ` : ''}{sortLabel}
+                                </Text>
+                            </TouchableOpacity>
+                        ) : null}
+
+                        {scope === 'lists' ? (
+                            <>
+                                <Text style={s.section}>{t.tvMyLists}</Text>
+                                {loadingRoutes ? <ActivityIndicator color={ACCENT} style={{ marginTop: 30 }} /> : myLists.map(l => (
+                                    <TouchableOpacity key={l.id} style={s.listCard} onPress={() => navigation.navigate('TravelList', { listId: l.id })} activeOpacity={0.85}>
+                                        <Text style={{ fontSize: 26 }}>{travelListIcon(l)}</Text>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={s.listName} numberOfLines={1}>{travelListName(l, t)}</Text>
+                                            <Text style={s.cardMeta}>{t.tvListCount(l.itemCount)}</Text>
+                                        </View>
+                                        <Text style={s.chevron}>›</Text>
+                                    </TouchableOpacity>
+                                ))}
+                                <Text style={[s.section, { fontSize: 14 }]}>{t.tvNewList}</Text>
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <TextInput
+                                        style={[s.search, { flex: 1, marginTop: 0 }]}
+                                        value={newListName}
+                                        onChangeText={setNewListName}
+                                        placeholder={t.tvNewListPh}
+                                        placeholderTextColor={colors.textMuted}
+                                        maxLength={60}
+                                        onSubmitEditing={createList}
+                                        returnKeyType="done"
+                                    />
+                                    <TouchableOpacity style={[s.addBtn, { opacity: newListName.trim() ? 1 : 0.5 }]} onPress={createList} disabled={!newListName.trim()}>
+                                        <Text style={s.addText}>+</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={s.section}>{t.tvRoutesHeader}</Text>
+                                {loadingRoutes ? <ActivityIndicator color={ACCENT} style={{ marginTop: 30 }} />
+                                    : routes.length === 0 ? <Text style={s.empty}>{scope === 'offline' ? t.tvNoDownloads : scope === 'osm' && !activeFilterCount ? t.tvReadyRoutesEmpty : t.tvNoRoutes}</Text>
+                                    : routes.map(renderRouteCard)}
+                            </>
+                        )}
                     </>
                 ) : (
                     <>
@@ -232,6 +363,7 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
                     </>
                 )}
             </ScrollView>
+            <FilterModal visible={filterOpen} value={filters} sorts={SORTS} onApply={applyFilters} onClose={() => setFilterOpen(false)} />
         </View>
     );
 }
@@ -269,6 +401,21 @@ const s = StyleSheet.create({
     chipText:  travelStyles.chipText,
     chipTextActive: travelStyles.chipTextActive,
     section:   { color: colors.text, fontSize: 16, fontWeight: '900', marginTop: 18, marginBottom: 8 },
+    scopeRow:  { gap: 8, paddingVertical: 2, marginTop: 12 },
+    filterBtn: { backgroundColor: colors.surface, borderColor: `${ACCENT}88`, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11, marginTop: 12 },
+    filterBtnText: { color: ACCENT, fontWeight: '900', fontSize: 14 },
+    filterSummary: { color: colors.textMuted, fontSize: 12, marginTop: 3 },
+    listCard:  { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 8 },
+    listName:  { color: colors.text, fontSize: 15, fontWeight: '900' },
+    chevron:   { color: colors.textMuted, fontSize: 24, fontWeight: '700' },
+    addBtn:    { width: 48, borderRadius: 12, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center' },
+    addText:   { color: '#fff', fontSize: 22, fontWeight: '900' },
+    modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+    modalTitle:{ color: colors.text, fontSize: 17, fontWeight: '900' },
+    modalClose:{ color: colors.textMuted, fontSize: 20, fontWeight: '800', padding: 4 },
+    fLabel:    { color: colors.textSecondary, fontSize: 13, fontWeight: '800', marginTop: 14, marginBottom: 6 },
+    resetBtn:  { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+    resetText: { color: colors.textSecondary, fontWeight: '800', fontSize: 14 },
     empty:     { color: colors.textMuted, textAlign: 'center', marginTop: 30, fontSize: 14 },
     card:      { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 10, overflow: 'hidden' },
     cover:     { width: 104, height: 110 },

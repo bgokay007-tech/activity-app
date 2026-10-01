@@ -11,7 +11,8 @@ import MapView, { Polyline, Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
-import { pickAndUploadMedia } from '../../utils/travelMedia';
+import { pickAndUploadMedia, formatTripDate } from '../../utils/travelMedia';
+import TravelSaveToListModal from '../../components/TravelSaveToListModal';
 import {
     normalizeSegments, regionForSegments, getOfflineEntry, loadOfflineRoute,
     downloadOfflineRoute, deleteOfflineRoute,
@@ -55,8 +56,11 @@ export default function TravelRouteDetailScreen({ navigation, route: navRoute })
     const [loading, setLoading] = useState(true);
     const [videoUrl, setVideoUrl] = useState(null);
     const [myRating, setMyRating] = useState(0);
-    const [myComment, setMyComment] = useState('');
+    const [ratingBusy, setRatingBusy] = useState(false);
+    const [commentText, setCommentText] = useState('');
     const [sending, setSending] = useState(false);
+    const [saveOpen, setSaveOpen] = useState(false);
+    const [completedBusy, setCompletedBusy] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [offlineEntry, setOfflineEntry] = useState(null);
     const [dlProgress, setDlProgress] = useState(null);
@@ -108,21 +112,91 @@ export default function TravelRouteDetailScreen({ navigation, route: navRoute })
 
     useEffect(() => {
         const mine = data?.reviews?.find(r => r.userId === myId);
-        if (mine) { setMyRating(mine.rating); setMyComment(mine.comment || ''); }
+        setMyRating(mine?.rating || 0);
     }, [data, myId]);
 
     const isOwner = data && data.userId === myId;
 
-    const sendReview = async () => {
-        if (!myRating) { Alert.alert('', t.tvPickRating); return; }
+    // Yıldıza dokununca hemen kaydedilir — ayrı "gönder" adımı puanı unutturuyordu.
+    const rate = async (n) => {
+        if (ratingBusy) return;
+        const prev = myRating;
+        setMyRating(n);
+        setRatingBusy(true);
+        try {
+            const { data: rv } = await api.post(`/travel/routes/${routeId}/reviews`, { rating: n });
+            setData(d => {
+                const reviews = [rv, ...(d.reviews || []).filter(r => r.userId !== myId)];
+                const avg = reviews.reduce((a, r) => a + r.rating, 0) / reviews.length;
+                return { ...d, reviews, ratingAvg: avg, ratingCount: reviews.length };
+            });
+        } catch (e) {
+            setMyRating(prev);
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        } finally { setRatingBusy(false); }
+    };
+
+    const sendComment = async () => {
+        const text = commentText.trim();
+        if (!text || sending) return;
         setSending(true);
         try {
-            await api.post(`/travel/routes/${routeId}/reviews`, { rating: myRating, comment: myComment });
-            Alert.alert('', t.tvReviewSaved);
-            load();
+            const { data: c } = await api.post(`/travel/routes/${routeId}/comments`, { text });
+            setData(d => ({ ...d, comments: [c, ...(d.comments || [])] }));
+            setCommentText('');
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
         } finally { setSending(false); }
+    };
+
+    const deleteComment = (c) => {
+        Alert.alert('', t.tvDeleteCommentQ, [
+            { text: t.tvCancel, style: 'cancel' },
+            {
+                text: t.yes, style: 'destructive', onPress: async () => {
+                    try {
+                        await api.delete(`/travel/comments/${c.id}`);
+                        setData(d => ({ ...d, comments: (d.comments || []).filter(x => x.id !== c.id) }));
+                    } catch (e) { Alert.alert(t.error, e?.response?.data?.message || t.actionFailed); }
+                },
+            },
+        ]);
+    };
+
+    const toggleCompleted = async () => {
+        if (completedBusy) return;
+        setCompletedBusy(true);
+        try {
+            const { data: lists } = await api.get('/travel/lists');
+            const done = (lists || []).find(l => l.kind === 'COMPLETED');
+            if (!done) return;
+            if (data.completedByMe) await api.delete(`/travel/lists/${done.id}/items/${routeId}`);
+            else await api.post(`/travel/lists/${done.id}/items`, { routeId });
+            const nowDone = !data.completedByMe;
+            setData(d => ({
+                ...d,
+                completedByMe: nowDone,
+                completedCount: Math.max(0, (d.completedCount || 0) + (nowDone ? 1 : -1)),
+                myListIds: nowDone ? [...(d.myListIds || []), done.id] : (d.myListIds || []).filter(id => id !== done.id),
+            }));
+            if (nowDone) Alert.alert('', t.tvMarkedCompleted);
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        } finally { setCompletedBusy(false); }
+    };
+
+    const onListsChanged = (lists) => {
+        const done = lists.find(l => l.kind === 'COMPLETED');
+        setData(d => {
+            const completedByMe = !!done?.hasRoute;
+            const delta = completedByMe === !!d.completedByMe ? 0 : completedByMe ? 1 : -1;
+            return {
+                ...d,
+                myListIds: lists.filter(l => l.hasRoute).map(l => l.id),
+                completedByMe,
+                completedCount: Math.max(0, (d.completedCount || 0) + delta),
+            };
+        });
     };
 
     const addMedia = async () => {
@@ -160,13 +234,21 @@ export default function TravelRouteDetailScreen({ navigation, route: navRoute })
     );
 
     const media = Array.isArray(data.media) ? data.media : [];
+    // Eski sürümde yorum puanla birlikte yazılıyordu — o yorumlar da listede kalsın.
+    const comments = [
+        ...(data.comments || []),
+        ...(data.reviews || []).filter(r => r.comment).map(r => ({
+            id: `r-${r.id}`, userId: r.userId, user: r.user, text: r.comment, rating: r.rating,
+            media: r.media, createdAt: r.createdAt, legacy: true,
+        })),
+    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     return (
         <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={[ts.header, { paddingTop: Math.max(insets.top, 12) + 6 }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()}><Text style={ts.backText}>{t.back}</Text></TouchableOpacity>
                 <Text style={ts.title} numberOfLines={1}>{data.title}</Text>
-                {isOwner ? <TouchableOpacity onPress={deleteRoute}><Text style={{ color: colors.red, fontSize: 18 }}>🗑</Text></TouchableOpacity> : <View style={{ width: 30 }} />}
+                {data.canDelete ? <TouchableOpacity onPress={deleteRoute}><Text style={{ color: colors.red, fontSize: 18 }}>🗑</Text></TouchableOpacity> : <View style={{ width: 30 }} />}
             </View>
 
             <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 60 }} keyboardShouldPersistTaps="handled">
@@ -197,6 +279,24 @@ export default function TravelRouteDetailScreen({ navigation, route: navRoute })
                     ) : (
                         <Text style={s.by}>{t.tvByUser(data.user?.fullName || data.user?.username || '')}</Text>
                     )}
+                    {data.completedCount ? <Text style={s.by}>👣 {t.tvCompletedBy(data.completedCount)}</Text> : null}
+
+                    {data.myListIds ? (
+                        <View style={s.gpsRow}>
+                            <TouchableOpacity style={[s.gpsBtn, data.myListIds.length > 0 && s.actionOn]} onPress={() => setSaveOpen(true)}>
+                                <Text style={[s.gpsBtnText, data.myListIds.length > 0 && { color: '#fff' }]}>
+                                    🔖 {data.myListIds.length ? t.tvSavedInLists(data.myListIds.length) : t.tvSave}
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[s.gpsBtn, { borderColor: '#22c55e' }, data.completedByMe && { backgroundColor: '#22c55e' }]} onPress={toggleCompleted} disabled={completedBusy}>
+                                {completedBusy ? <ActivityIndicator color="#22c55e" /> : (
+                                    <Text style={[s.gpsBtnText, { color: data.completedByMe ? '#fff' : '#22c55e' }]}>
+                                        {data.completedByMe ? `✅ ${t.tvCompletedDone}` : `✓ ${t.tvMarkCompleted}`}
+                                    </Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    ) : null}
 
                     {previewRegion ? (
                         <>
@@ -261,40 +361,62 @@ export default function TravelRouteDetailScreen({ navigation, route: navRoute })
                         <TouchableOpacity style={s.mediaBtn} onPress={addMedia} disabled={uploading}>
                             {uploading ? <ActivityIndicator color={ACCENT} /> : <Text style={s.link}>{t.tvAddMedia}</Text>}
                         </TouchableOpacity>
-                    ) : (
-                        <View style={s.reviewBox}>
-                            <Text style={s.reviewTitle}>{t.tvRateThis}</Text>
-                            <Stars value={myRating} onChange={setMyRating} />
+                    ) : null}
+
+                    <View style={s.reviewBox}>
+                        <Text style={s.reviewTitle}>⭐ {t.tvRatingsTitle}</Text>
+                        <View style={s.ratingSummary}>
+                            <Text style={s.bigRating}>{data.ratingCount ? data.ratingAvg.toFixed(1) : '—'}</Text>
+                            <View>
+                                <Stars value={Math.round(data.ratingAvg || 0)} size={16} />
+                                <Text style={s.muted}>{t.tvRatingCount(data.ratingCount || 0)}</Text>
+                            </View>
+                        </View>
+                        {data.myListIds && !isOwner ? (
+                            <>
+                                <Text style={[s.muted, { marginTop: 12, marginBottom: 6 }]}>{myRating ? t.tvYourRating : t.tvRateThis}</Text>
+                                <Stars value={myRating} onChange={rate} size={32} />
+                            </>
+                        ) : null}
+                    </View>
+
+                    <Text style={[ts.label, { fontSize: 15, color: colors.text }]}>💬 {t.tvCommentsTitle} ({comments.length})</Text>
+                    {data.myListIds ? (
+                        <View style={s.commentInputRow}>
                             <TextInput
-                                style={[ts.input, { minHeight: 70, textAlignVertical: 'top', marginTop: 10 }]}
-                                value={myComment}
-                                onChangeText={setMyComment}
-                                placeholder={t.tvYourComment}
+                                style={[ts.input, { flex: 1, minHeight: 44, maxHeight: 120, textAlignVertical: 'top' }]}
+                                value={commentText}
+                                onChangeText={setCommentText}
+                                placeholder={t.tvWriteComment}
                                 placeholderTextColor={colors.textMuted}
                                 multiline
+                                maxLength={2000}
                             />
-                            <TouchableOpacity style={[ts.primaryBtn, { opacity: sending ? 0.6 : 1 }]} onPress={sendReview} disabled={sending}>
-                                {sending ? <ActivityIndicator color="#fff" /> : <Text style={ts.primaryBtnText}>{t.tvSendReview}</Text>}
+                            <TouchableOpacity style={[s.sendBtn, { opacity: commentText.trim() ? 1 : 0.5 }]} onPress={sendComment} disabled={!commentText.trim() || sending}>
+                                {sending ? <ActivityIndicator color="#fff" /> : <Text style={s.sendText}>➤</Text>}
                             </TouchableOpacity>
                         </View>
-                    )}
-
-                    <Text style={[ts.label, { fontSize: 15, color: colors.text }]}>{t.tvReviews}</Text>
-                    {(data.reviews || []).length === 0 ? <Text style={{ color: colors.textMuted }}>{t.tvNoReviews}</Text> : null}
-                    {(data.reviews || []).map(rv => (
-                        <View key={rv.id} style={s.reviewCard}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Text style={s.reviewer}>{rv.user?.fullName || rv.user?.username}</Text>
-                                <Stars value={rv.rating} size={14} />
+                    ) : null}
+                    {comments.length === 0 ? <Text style={{ color: colors.textMuted, marginTop: 8 }}>{t.tvNoComments}</Text> : null}
+                    {comments.map(c => (
+                        <View key={c.id} style={s.reviewCard}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                <Text style={[s.reviewer, { flex: 1 }]} numberOfLines={1}>{c.user?.fullName || c.user?.username}</Text>
+                                {c.rating ? <Stars value={c.rating} size={12} /> : null}
+                                <Text style={s.muted}>{formatTripDate(c.createdAt)}</Text>
+                                {!c.legacy && c.userId === myId ? (
+                                    <TouchableOpacity onPress={() => deleteComment(c)} hitSlop={8}><Text style={{ color: colors.textMuted }}>🗑</Text></TouchableOpacity>
+                                ) : null}
                             </View>
-                            {rv.comment ? <Text style={s.body}>{rv.comment}</Text> : null}
-                            <MediaStrip media={rv.media} />
+                            <Text style={s.body}>{c.text}</Text>
+                            {c.media ? <MediaStrip media={c.media} /> : null}
                         </View>
                     ))}
                 </View>
             </ScrollView>
 
             {videoUrl ? <VideoModal url={videoUrl} onClose={() => setVideoUrl(null)} /> : null}
+            <TravelSaveToListModal visible={saveOpen} routeId={routeId} onClose={() => setSaveOpen(false)} onChanged={onListsChanged} />
         </KeyboardAvoidingView>
     );
 }
@@ -317,6 +439,13 @@ const s = StyleSheet.create({
     mediaBtn:   { borderWidth: 1, borderStyle: 'dashed', borderColor: ACCENT, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 18 },
     link:       { color: ACCENT, fontWeight: '800', fontSize: 14 },
     reviewBox:  { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 18 },
+    actionOn:   { backgroundColor: ACCENT },
+    ratingSummary: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    bigRating:  { color: '#facc15', fontSize: 34, fontWeight: '900' },
+    muted:      { color: colors.textMuted, fontSize: 12 },
+    commentInputRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end', marginBottom: 6 },
+    sendBtn:    { width: 46, height: 44, borderRadius: 12, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center' },
+    sendText:   { color: '#fff', fontSize: 18, fontWeight: '900' },
     reviewTitle:{ color: colors.text, fontWeight: '900', fontSize: 15, marginBottom: 8 },
     reviewCard: { backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 12, marginTop: 8 },
     reviewer:   { color: colors.text, fontWeight: '800', fontSize: 13 },

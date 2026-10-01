@@ -260,6 +260,7 @@ import TravelRouteCreateScreen from '../screens/main/TravelRouteCreateScreen';
 import TravelRouteDetailScreen from '../screens/main/TravelRouteDetailScreen';
 import TravelNavigateScreen from '../screens/main/TravelNavigateScreen';
 import TravelRouteRecordScreen from '../screens/main/TravelRouteRecordScreen';
+import TravelListScreen from '../screens/main/TravelListScreen';
 import TravelTripCreateScreen from '../screens/main/TravelTripCreateScreen';
 import TravelTripDetailScreen from '../screens/main/TravelTripDetailScreen';
 import TravelVerificationScreen from '../screens/main/TravelVerificationScreen';
@@ -313,6 +314,7 @@ function HomeStackNav() {
             <HomeStack.Screen name="TravelRouteDetail" component={TravelRouteDetailScreen} />
             <HomeStack.Screen name="TravelNavigate" component={TravelNavigateScreen} />
             <HomeStack.Screen name="TravelRouteRecord" component={TravelRouteRecordScreen} />
+            <HomeStack.Screen name="TravelList" component={TravelListScreen} />
             <HomeStack.Screen name="TravelTripCreate" component={TravelTripCreateScreen} />
             <HomeStack.Screen name="TravelTripDetail" component={TravelTripDetailScreen} />
             <HomeStack.Screen name="TravelVerification" component={TravelVerificationScreen} />
