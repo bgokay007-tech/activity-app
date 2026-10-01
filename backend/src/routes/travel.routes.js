@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import {
     getRoutes, getRoute, createRoute, addRouteMedia, deleteRoute, reviewRoute, getRouteGpx,
+    addComment, deleteComment,
+    getLists, createList, renameList, deleteList, getList, addListItem, removeListItem,
     getMyVerification, submitVerification,
     getTrips, getTrip, createTrip, cancelTrip, requestJoin, cancelMyRequest, respondRequest,
 } from '../controllers/travel.controller.js';
@@ -15,6 +17,16 @@ router.get('/routes',               getRoutes);
 router.post('/routes',              createRoute);
 router.post('/routes/:id/media',    addRouteMedia);
 router.post('/routes/:id/reviews',  reviewRoute);
+router.post('/routes/:id/comments', addComment);
+router.delete('/comments/:id',      deleteComment);
+
+router.get('/lists',                         getLists);
+router.post('/lists',                        createList);
+router.patch('/lists/:id',                   renameList);
+router.delete('/lists/:id',                  deleteList);
+router.get('/lists/:id',                     getList);
+router.post('/lists/:id/items',              addListItem);
+router.delete('/lists/:id/items/:routeId',   removeListItem);
 router.delete('/routes/:id',        deleteRoute);
 router.get('/routes/:id',           getRoute);
 

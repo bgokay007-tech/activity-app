@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
-import { normalizePath, simplifyPath, pathLengthKm, toGpx } from '../utils/geoPath.js';
+import { normalizePath, simplifyPath, pathLengthKm, toGpx, haversineM } from '../utils/geoPath.js';
 import { runOsmImportOnce } from '../services/osmTravelImport.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
@@ -38,35 +38,58 @@ async function recalcRouteRating(routeId) {
 const ROUTE_LIST_SELECT = {
     id: true, userId: true, title: true, startPlace: true, endPlace: true, stops: true,
     distanceKm: true, durationText: true, difficulty: true, media: true,
-    ratingAvg: true, ratingCount: true, createdAt: true,
+    ratingAvg: true, ratingCount: true, completedCount: true, createdAt: true,
     startLat: true, startLng: true, source: true, sourceUrl: true,
     user: { select: USER_SELECT },
+    _count: { select: { comments: true } },
 };
 
 const hasPath = (p) => Array.isArray(p) && p.some(s => Array.isArray(s) && s.length >= 2);
 
+const shapeListRoute = (r, from) => {
+    const { _count, ...rest } = r;
+    const out = { ...rest, hasGps: r.startLat != null, commentCount: _count?.comments || 0 };
+    if (from && r.startLat != null) out.distanceFromMeKm = Math.round(haversineM(from, { lat: r.startLat, lng: r.startLng }) / 100) / 10;
+    return out;
+};
+
 export const getRoutes = async (req, res, next) => {
     try {
-        const { q, sort, mine, source } = req.query;
+        const { q, sort, mine, source, difficulty } = req.query;
+        const minRating = parseFloat(req.query.minRating);
+        const lat = parseFloat(req.query.lat), lng = parseFloat(req.query.lng);
+        const from = Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
         const where = {};
         if (mine === 'true') where.userId = req.userId;
         if (source === 'OSM' || source === 'USER') where.source = source;
+        if (['EASY', 'MEDIUM', 'HARD'].includes(difficulty)) where.difficulty = difficulty;
+        if (Number.isFinite(minRating) && minRating > 0) where.ratingAvg = { gte: minRating };
         if (q && String(q).trim().length >= 2) {
             const term = String(q).trim();
             where.OR = [
                 { title: { contains: term, mode: 'insensitive' } },
                 { startPlace: { contains: term, mode: 'insensitive' } },
                 { endPlace: { contains: term, mode: 'insensitive' } },
+                { experience: { contains: term, mode: 'insensitive' } },
             ];
         }
-        const orderBy = sort === 'top'
-            ? [{ ratingAvg: 'desc' }, { ratingCount: 'desc' }]
+
+        // Yakınlık DB'de hesaplanmıyor — rota sayısı az, başlangıç noktası olanlar JS'te sıralanır.
+        if (sort === 'near') {
+            if (!from) return res.status(400).json({ message: 'Konum gerekli' });
+            const rows = await prisma.travelRoute.findMany({
+                where: { ...where, startLat: { not: null } }, take: 1000, select: ROUTE_LIST_SELECT,
+            });
+            const shaped = rows.map(r => shapeListRoute(r, from)).sort((a, b) => a.distanceFromMeKm - b.distanceFromMeKm);
+            return res.json(shaped.slice(0, 100));
+        }
+
+        const orderBy = sort === 'top' ? [{ ratingAvg: 'desc' }, { ratingCount: 'desc' }]
+            : sort === 'popular' ? [{ completedCount: 'desc' }, { ratingCount: 'desc' }]
+            : sort === 'comments' ? [{ comments: { _count: 'desc' } }]
             : [{ createdAt: 'desc' }];
-        const routes = await prisma.travelRoute.findMany({
-            where, orderBy, take: 100,
-            select: ROUTE_LIST_SELECT,
-        });
-        res.json(routes.map(r => ({ ...r, hasGps: r.startLat != null })));
+        const routes = await prisma.travelRoute.findMany({ where, orderBy, take: 100, select: ROUTE_LIST_SELECT });
+        res.json(routes.map(r => shapeListRoute(r, from)));
     } catch (err) { next(err); }
 };
 
@@ -77,10 +100,21 @@ export const getRoute = async (req, res, next) => {
             include: {
                 user: { select: USER_SELECT },
                 reviews: { include: { user: { select: USER_SELECT } }, orderBy: { createdAt: 'desc' } },
+                comments: { include: { user: { select: USER_SELECT } }, orderBy: { createdAt: 'desc' }, take: 200 },
             },
         });
         if (!route) return res.status(404).json({ message: 'Rota bulunamadı' });
-        res.json(route);
+        const myLists = await prisma.travelRouteListItem.findMany({
+            where: { routeId: route.id, list: { userId: req.userId } },
+            select: { listId: true, list: { select: { kind: true } } },
+        });
+        res.json({
+            ...route,
+            myRating: route.reviews.find(r => r.userId === req.userId)?.rating || 0,
+            myListIds: myLists.map(i => i.listId),
+            completedByMe: myLists.some(i => i.list.kind === 'COMPLETED'),
+            canDelete: route.userId === req.userId && route.source !== 'OSM',
+        });
     } catch (err) { next(err); }
 };
 
@@ -152,8 +186,147 @@ export const deleteRoute = async (req, res, next) => {
     try {
         const route = await prisma.travelRoute.findUnique({ where: { id: req.params.id } });
         if (!route) return res.status(404).json({ message: 'Rota bulunamadı' });
-        if (route.userId !== req.userId) return res.status(403).json({ message: 'Bu rota size ait değil' });
+        // Hazır rotalar admin hesabına bağlı — kimse (admin dahil) uygulamadan silemesin.
+        if (route.source === 'OSM') return res.status(403).json({ message: 'Hazır rotalar silinemez' });
+        if (route.userId !== req.userId) return res.status(403).json({ message: 'Sadece kendi rotanızı silebilirsiniz' });
         await prisma.travelRoute.delete({ where: { id: route.id } });
+        res.json({ ok: true });
+    } catch (err) { next(err); }
+};
+
+// ─── Yorumlar (puandan ayrı) ────────────────────────────────────────────────
+
+export const addComment = async (req, res, next) => {
+    try {
+        const text = String(req.body.text || '').trim().slice(0, 2000);
+        if (!text) return res.status(400).json({ message: 'Yorum boş olamaz' });
+        const route = await prisma.travelRoute.findUnique({ where: { id: req.params.id }, select: { id: true, userId: true, title: true } });
+        if (!route) return res.status(404).json({ message: 'Rota bulunamadı' });
+        const comment = await prisma.travelRouteComment.create({
+            data: { routeId: route.id, userId: req.userId, text },
+            include: { user: { select: USER_SELECT } },
+        });
+        if (route.userId !== req.userId) {
+            createNotification(route.userId, 'TRAVEL_ROUTE_COMMENT', '💬 Rotanıza yorum geldi',
+                `"${route.title}": ${text.slice(0, 80)}`, { ...NOTIF_DATA, routeId: route.id }).catch(() => {});
+        }
+        res.status(201).json(comment);
+    } catch (err) { next(err); }
+};
+
+export const deleteComment = async (req, res, next) => {
+    try {
+        const c = await prisma.travelRouteComment.findUnique({ where: { id: req.params.id } });
+        if (!c) return res.status(404).json({ message: 'Yorum bulunamadı' });
+        if (c.userId !== req.userId) return res.status(403).json({ message: 'Sadece kendi yorumunuzu silebilirsiniz' });
+        await prisma.travelRouteComment.delete({ where: { id: c.id } });
+        res.json({ ok: true });
+    } catch (err) { next(err); }
+};
+
+// ─── Rota listeleri ─────────────────────────────────────────────────────────
+
+const DEFAULT_LIST_KINDS = ['COMPLETED', 'WISHLIST', 'FAVORITES'];
+const LIST_KIND_ORDER = { COMPLETED: 0, WISHLIST: 1, FAVORITES: 2, CUSTOM: 3 };
+
+async function ensureDefaultLists(userId) {
+    const have = await prisma.travelRouteList.findMany({ where: { userId, kind: { in: DEFAULT_LIST_KINDS } }, select: { kind: true } });
+    const missing = DEFAULT_LIST_KINDS.filter(k => !have.some(h => h.kind === k));
+    if (missing.length) await prisma.travelRouteList.createMany({ data: missing.map(kind => ({ userId, kind })) });
+}
+
+async function ownList(id, userId) {
+    const list = await prisma.travelRouteList.findUnique({ where: { id } });
+    return list && list.userId === userId ? list : null;
+}
+
+export const getLists = async (req, res, next) => {
+    try {
+        await ensureDefaultLists(req.userId);
+        const routeId = req.query.routeId ? String(req.query.routeId) : null;
+        const lists = await prisma.travelRouteList.findMany({
+            where: { userId: req.userId },
+            include: {
+                _count: { select: { items: true } },
+                ...(routeId ? { items: { where: { routeId }, select: { id: true } } } : {}),
+            },
+            orderBy: { createdAt: 'asc' },
+        });
+        res.json(lists
+            .map(({ _count, items, ...l }) => ({ ...l, itemCount: _count.items, ...(routeId ? { hasRoute: items.length > 0 } : {}) }))
+            .sort((a, b) => LIST_KIND_ORDER[a.kind] - LIST_KIND_ORDER[b.kind]));
+    } catch (err) { next(err); }
+};
+
+export const createList = async (req, res, next) => {
+    try {
+        const name = String(req.body.name || '').trim().slice(0, 60);
+        if (!name) return res.status(400).json({ message: 'Liste adı zorunludur' });
+        const count = await prisma.travelRouteList.count({ where: { userId: req.userId } });
+        if (count >= 50) return res.status(400).json({ message: 'En fazla 50 liste oluşturabilirsiniz' });
+        const list = await prisma.travelRouteList.create({ data: { userId: req.userId, kind: 'CUSTOM', name } });
+        res.status(201).json({ ...list, itemCount: 0 });
+    } catch (err) { next(err); }
+};
+
+export const renameList = async (req, res, next) => {
+    try {
+        const list = await ownList(req.params.id, req.userId);
+        if (!list) return res.status(404).json({ message: 'Liste bulunamadı' });
+        if (list.kind !== 'CUSTOM') return res.status(400).json({ message: 'Varsayılan listelerin adı değiştirilemez' });
+        const name = String(req.body.name || '').trim().slice(0, 60);
+        if (!name) return res.status(400).json({ message: 'Liste adı zorunludur' });
+        res.json(await prisma.travelRouteList.update({ where: { id: list.id }, data: { name } }));
+    } catch (err) { next(err); }
+};
+
+export const deleteList = async (req, res, next) => {
+    try {
+        const list = await ownList(req.params.id, req.userId);
+        if (!list) return res.status(404).json({ message: 'Liste bulunamadı' });
+        if (list.kind !== 'CUSTOM') return res.status(400).json({ message: 'Varsayılan listeler silinemez' });
+        await prisma.travelRouteList.delete({ where: { id: list.id } });
+        res.json({ ok: true });
+    } catch (err) { next(err); }
+};
+
+export const getList = async (req, res, next) => {
+    try {
+        const list = await ownList(req.params.id, req.userId);
+        if (!list) return res.status(404).json({ message: 'Liste bulunamadı' });
+        const items = await prisma.travelRouteListItem.findMany({
+            where: { listId: list.id },
+            orderBy: { createdAt: 'desc' },
+            include: { route: { select: ROUTE_LIST_SELECT } },
+        });
+        res.json({ ...list, routes: items.map(i => ({ ...shapeListRoute(i.route), addedAt: i.createdAt })) });
+    } catch (err) { next(err); }
+};
+
+export const addListItem = async (req, res, next) => {
+    try {
+        const list = await ownList(req.params.id, req.userId);
+        if (!list) return res.status(404).json({ message: 'Liste bulunamadı' });
+        const routeId = String(req.body.routeId || '');
+        const route = await prisma.travelRoute.findUnique({ where: { id: routeId }, select: { id: true } });
+        if (!route) return res.status(404).json({ message: 'Rota bulunamadı' });
+        const exists = await prisma.travelRouteListItem.findUnique({ where: { listId_routeId: { listId: list.id, routeId } } });
+        if (!exists) {
+            await prisma.travelRouteListItem.create({ data: { listId: list.id, routeId } });
+            if (list.kind === 'COMPLETED') await prisma.travelRoute.update({ where: { id: routeId }, data: { completedCount: { increment: 1 } } });
+        }
+        res.json({ ok: true });
+    } catch (err) { next(err); }
+};
+
+export const removeListItem = async (req, res, next) => {
+    try {
+        const list = await ownList(req.params.id, req.userId);
+        if (!list) return res.status(404).json({ message: 'Liste bulunamadı' });
+        const { count } = await prisma.travelRouteListItem.deleteMany({ where: { listId: list.id, routeId: req.params.routeId } });
+        if (count && list.kind === 'COMPLETED') {
+            await prisma.travelRoute.updateMany({ where: { id: req.params.routeId, completedCount: { gt: 0 } }, data: { completedCount: { decrement: 1 } } });
+        }
         res.json({ ok: true });
     } catch (err) { next(err); }
 };
@@ -174,9 +347,12 @@ export const reviewRoute = async (req, res, next) => {
             include: { user: { select: USER_SELECT } },
         });
         await recalcRouteRating(route.id);
-        createNotification(route.userId, 'TRAVEL_ROUTE_REVIEW', '⭐ Rotanıza yorum geldi',
-            `"${route.title}" rotanıza ${rating} yıldız verildi${comment ? `: ${comment.slice(0, 80)}` : ''}`,
-            { ...NOTIF_DATA, routeId: route.id }).catch(() => {});
+        // Hazır rotaların sahibi admin — her puan için admin'e bildirim gitmesin.
+        if (route.source !== 'OSM') {
+            createNotification(route.userId, 'TRAVEL_ROUTE_REVIEW', '⭐ Rotanız değerlendirildi',
+                `"${route.title}" rotanıza ${rating} yıldız verildi${comment ? `: ${comment.slice(0, 80)}` : ''}`,
+                { ...NOTIF_DATA, routeId: route.id }).catch(() => {});
+        }
         res.json(review);
     } catch (err) { next(err); }
 };
