@@ -1,4 +1,6 @@
 import prisma from '../config/prisma.js';
+import { UTR_SUBCATEGORIES, getDisplayRating, computeGamesRatio } from '../utils/utrRating.js';
+import { computeRatingAccuracy } from '../utils/ratingAccuracy.js';
 
 const HOUR_BUCKETS = [
     { key: 'morning',   from: 6,  to: 12 },
@@ -185,8 +187,62 @@ export const getSportAnalysis = async (req, res, next) => {
             }
         }
 
+        // ELO doğruluk oranı — UTR dallarında RatingMatchRecord turnuva maçlarını da içerir ve
+        // rakip puanını maç anında dondurur; diğer dallarda sadece ilan maçlarının ratingSnapshot'ı var.
+        const interest = await prisma.userInterest.findFirst({ where: { userId, subCategory } });
+        let accuracy = null;
+        if (UTR_SUBCATEGORIES.includes(subCategory)) {
+            const recs = await prisma.ratingMatchRecord.findMany({
+                where: { userId, subCategory },
+                orderBy: { matchDate: 'asc' },
+                take: 500,
+            });
+            const toRows = (type) => recs.filter(r => r.matchType === type).map(r => ({
+                date: r.matchDate,
+                result: r.didWin ? 'win' : 'loss',
+                perf: r.performanceScore,
+                ratingBefore: r.ratingBefore,
+                oppRating: r.opponentRatingSnapshot,
+                reliability: r.opponentReliabilitySnapshot,
+                formatWeight: r.formatWeight,
+            }));
+            // Disiplinin anketi yoksa getDisplayRating 0 döner — "mevcut puan 0.00" yerine son maç sonrası puan.
+            const currentOf = (type) => {
+                const done = type === 'DOUBLE' ? interest?.doublesAssessmentCompleted : interest?.assessmentCompleted;
+                if (interest && done) return getDisplayRating(interest, subCategory, type === 'DOUBLE');
+                const last = [...recs].reverse().find(r => r.matchType === type);
+                return last ? last.ratingAfter : null;
+            };
+            const singles = computeRatingAccuracy(toRows('SINGLE'), currentOf('SINGLE'));
+            const doubles = computeRatingAccuracy(toRows('DOUBLE'), currentOf('DOUBLE'));
+            if (singles || doubles) accuracy = { singles, doubles };
+        } else {
+            const rowsAcc = [];
+            for (const f of finished) {
+                const snap = f.r.score?.ratingSnapshot;
+                if (!snap?.[userId]) continue;
+                const oppIds = f.side === 'sender'
+                    ? [f.r.receiverId, ...ids(f.r.participants)]
+                    : [f.r.senderId, ...ids(f.r.senderTeam)];
+                const oppRatings = [...new Set(oppIds.filter(Boolean))]
+                    .map(id => snap[id]?.skillRating_before)
+                    .filter(v => v != null);
+                if (!oppRatings.length) continue;
+                rowsAcc.push({
+                    date: f.r.completedAt || f.r.matchDate,
+                    result: f.result,
+                    perf: computeGamesRatio(f.r.score, f.side),
+                    ratingBefore: snap[userId].skillRating_before,
+                    oppRating: oppRatings.reduce((a, b) => a + b, 0) / oppRatings.length,
+                });
+            }
+            const overall = computeRatingAccuracy(rowsAcc, interest?.skillRating ?? null);
+            if (overall) accuracy = { overall };
+        }
+
         res.json({
             subCategory,
+            accuracy,
             totals,
             byType,
             byMode,

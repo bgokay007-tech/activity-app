@@ -99,6 +99,57 @@ function Bar({ label, value, max, color, suffix }) {
     );
 }
 
+const GRADE_COLOR = { very_high: WIN, high: '#a3e635', medium: DRAW, low: LOSS };
+
+function AccuracyBlock({ a, title, t }) {
+    const gc = GRADE_COLOR[a.grade] || MUTED;
+    const verdictTxt = a.verdict === 'underrated' ? t.sportAccUnderrated : a.verdict === 'overrated' ? t.sportAccOverrated : t.sportAccAccurate;
+    const verdictCol = a.verdict === 'accurate' ? WIN : DRAW;
+    return (
+        <View style={{ marginBottom: 6 }}>
+            {title ? <Text style={{ color: '#d1d5db', fontSize: 12, fontWeight: '800', marginBottom: 8 }}>{title}</Text> : null}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+                <View style={{ width: 84, height: 84, borderRadius: 42, borderWidth: 6, borderColor: gc, alignItems: 'center', justifyContent: 'center', backgroundColor: gc + '14' }}>
+                    <Text style={{ color: '#fff', fontSize: 22, fontWeight: '900' }}>%{a.accuracy}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                    <Text style={{ color: gc, fontSize: 15, fontWeight: '900' }}>{t[`sportAccGrade_${a.grade}`]}</Text>
+                    <Text style={{ color: verdictCol, fontSize: 12, fontWeight: '700', marginTop: 2 }}>{verdictTxt}</Text>
+                    {a.estimatedRating != null && (
+                        <Text style={{ color: MUTED, fontSize: 12, marginTop: 4 }}>
+                            {t.sportAccEstimated}: <Text style={{ color: '#fff', fontWeight: '800' }}>{a.estimatedRating.toFixed(2)} ± {a.ci95.toFixed(2)}</Text>
+                        </Text>
+                    )}
+                    {a.currentRating != null && (
+                        <Text style={{ color: MUTED, fontSize: 11 }}>{t.sportAccCurrent}: {a.currentRating.toFixed(2)}</Text>
+                    )}
+                </View>
+            </View>
+            <Bar label={t.sportAccCompCalibration} value={a.components.calibration} max={100} color={WIN} suffix={`%${a.components.calibration}`} />
+            <Bar label={t.sportAccCompWinFit} value={a.components.winFit} max={100} color={WIN} suffix={`%${a.components.winFit}`} />
+            <Bar label={t.sportAccCompPrecision} value={a.components.precision} max={100} color={WIN} suffix={`%${a.components.precision}`} />
+            <Bar label={t.sportAccCompSample} value={a.components.sample} max={100} color={WIN} suffix={`%${a.components.sample}`} />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                <View style={{ backgroundColor: '#ffffff0d', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                    <Text style={{ color: '#d1d5db', fontSize: 11, fontWeight: '700' }}>
+                        {t.sportAccExpectedWins.replace('{exp}', a.expectedWins.toFixed(1)).replace('{act}', String(a.actualWins))}
+                    </Text>
+                </View>
+                {a.hitRate != null && (
+                    <View style={{ backgroundColor: '#ffffff0d', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                        <Text style={{ color: '#d1d5db', fontSize: 11, fontWeight: '700' }}>
+                            {t.sportAccHitRate.replace('{p}', String(a.hitRate)).replace('{n}', String(a.hitSample))}
+                        </Text>
+                    </View>
+                )}
+                <View style={{ backgroundColor: '#ffffff0d', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                    <Text style={{ color: '#d1d5db', fontSize: 11, fontWeight: '700' }}>Brier {a.brier.toFixed(3)} · {a.matches} {t.sportAnMatchesShort}</Text>
+                </View>
+            </View>
+        </View>
+    );
+}
+
 function Stat({ value, label, color = '#fff' }) {
     return (
         <View style={{ flex: 1, alignItems: 'center', backgroundColor: '#ffffff08', borderRadius: 12, paddingVertical: 10 }}>
@@ -115,6 +166,7 @@ export default function SportAnalysisModal({ visible, onClose, userId, subCatego
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(false);
+    const [showAccHelp, setShowAccHelp] = useState(false);
 
     useEffect(() => {
         if (!visible || !userId || !subCategory) return;
@@ -164,6 +216,26 @@ export default function SportAnalysisModal({ visible, onClose, userId, subCatego
                     <Stat value={d.totals.draws} label={t.sportAnDraws} color={DRAW} />
                     <Stat value={d.totals.winRate != null ? `%${d.totals.winRate}` : '—'} label={t.sportAnWinRate} color={color} />
                 </View>
+
+                <Section
+                    title={`🎯 ${t.sportAccTitle}`}
+                    right={
+                        <TouchableOpacity onPress={() => setShowAccHelp(v => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Text style={{ color, fontSize: 12, fontWeight: '800' }}>ⓘ {t.sportAccHowBtn}</Text>
+                        </TouchableOpacity>
+                    }>
+                    {showAccHelp && (
+                        <Text style={{ color: '#9ca3af', fontSize: 12, lineHeight: 18, marginBottom: 12, backgroundColor: '#ffffff08', borderRadius: 10, padding: 10 }}>{t.sportAccHowText}</Text>
+                    )}
+                    {d.accuracy ? (
+                        <>
+                            {d.accuracy.overall && <AccuracyBlock a={d.accuracy.overall} t={t} />}
+                            {d.accuracy.singles && <AccuracyBlock a={d.accuracy.singles} title={t.sportAnSingles} t={t} />}
+                            {d.accuracy.singles && d.accuracy.doubles && <View style={{ height: 1, backgroundColor: BORDER, marginVertical: 10 }} />}
+                            {d.accuracy.doubles && <AccuracyBlock a={d.accuracy.doubles} title={t.sportAnDoubles} t={t} />}
+                        </>
+                    ) : <Text style={{ color: MUTED, fontSize: 12 }}>{t.sportAccNone}</Text>}
+                </Section>
 
                 <Section title={`📈 ${t.sportAnRatingTitle}`}>
                     {chartable.length > 0
