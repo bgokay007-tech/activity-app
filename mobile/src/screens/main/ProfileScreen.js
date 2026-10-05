@@ -27,6 +27,7 @@ import KeyboardSafeModal from '../../components/KeyboardSafeModal';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
 import SharePostToFriendModal from '../../components/SharePostToFriendModal';
 import StoryMessageBar from '../../components/StoryMessageBar';
+import SportAnalysisModal from '../../components/SportAnalysisModal';
 import { sharePost } from '../../utils/share';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -420,6 +421,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     const [isBack, setIsBack] = useState(false);
     const [matchListType, setMatchListType] = useState(null);
     const [showEloModal, setShowEloModal] = useState(false);
+    const [showAnalysis, setShowAnalysis] = useState(false);
     const [anketScores, setAnketScores] = useState({ stres: 0, fairplay: 0, beden: 0 });
     const [canRate, setCanRate] = useState(false);
     const [anketAverages, setAnketAverages] = useState(null);
@@ -440,7 +442,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     useEffect(() => {
         if (!visible) {
             flipAnim.setValue(0); setIsBack(false); setMatchListType(null);
-            setShowEloModal(false); setShowAnketModal(false);
+            setShowEloModal(false); setShowAnketModal(false); setShowAnalysis(false);
             setAnketScores({ stres: 0, fairplay: 0, beden: 0 });
             setCanRate(false); setAnketAverages(null); setSurveyLoaded(false);
             setShowAchievements(false); setShowGoals(false); setShowVolleyballRating(false); setShowRacquetFeedback(false);
@@ -616,6 +618,12 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                         <Text style={fc.miniStatLbl}>{label}</Text>
                                     </TouchableOpacity>
                                 ))}
+                                {(!item.category || item.category === 'SPORTS') && (
+                                    <TouchableOpacity onPress={() => setShowAnalysis(true)} style={[fc.miniStatBtn, { borderWidth: 1, borderColor: cfg.color + '80', borderRadius: moderateScale(10), backgroundColor: cfg.color + '18' }]}>
+                                        <Text style={{ fontSize: moderateScale(16) }}>📊</Text>
+                                        <Text style={[fc.miniStatLbl, { color: cfg.color, fontWeight: '800' }]}>{t.sportAnBtn}</Text>
+                                    </TouchableOpacity>
+                                )}
                                 {isOwnProfile && (item.reservationCount > 0) && (
                                     <TouchableOpacity onPress={onReservations} style={fc.miniStatBtn}>
                                         <Text style={{ color: '#60a5fa', fontSize: moderateScale(16), fontWeight: '900' }}>{item.reservationCount}</Text>
@@ -804,6 +812,15 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 </View>
                             </View>
                         </Modal>
+
+                        <SportAnalysisModal
+                            visible={showAnalysis}
+                            onClose={() => setShowAnalysis(false)}
+                            userId={profileUserId}
+                            subCategory={item.subCategory}
+                            lang={lang}
+                            color={cfg.color}
+                        />
 
                         {/* ELO Grafik Modali */}
                         <Modal visible={showEloModal} transparent animationType="slide" onRequestClose={() => setShowEloModal(false)}>
