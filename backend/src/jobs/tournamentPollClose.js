@@ -120,7 +120,7 @@ async function closeDuePolls() {
         for (const tournament of due) {
             try {
                 const winner = await pickPollWinner(tournament);
-                const resolved = resolveFormatOnCreate({ type: winner, matchmakingType: tournament.matchmakingType });
+                const resolved = resolveFormatOnCreate({ type: winner, matchmakingType: tournament.matchmakingType, subCategory: tournament.subCategory });
 
                 await prisma.tournament.update({
                     where: { id: tournament.id },

@@ -1,7 +1,26 @@
 // Turnuva formatı: kullanıcıya anlamlı paketler; motor tarafında type '1'..'7'.
 // formatConfig JSON olarak Tournament.formatConfig'e yazılır.
 
-export const ACTIVE_ENGINE_TYPES = ['1', '2', '3', '4', '5', '6', '7'];
+export const ACTIVE_ENGINE_TYPES = ['1', '2', '3', '4', '5', '6', '7', '9'];
+
+// Defi ligi (meydan okuma merdiveni) — kurallar backend/src/utils/defiLadder.js ile aynı.
+export const DEFI_SUBS = ['tennis', 'padel', 'volleyball', 'basketball', 'football'];
+export const DEFI_TEAM_SUBS = ['volleyball', 'basketball', 'football'];
+export const DEFI_DEFAULTS = {
+    maxUp: null, responseHours: 48, playDays: 10, declinesPerSeason: 1,
+    protectionDays: 2, rematchDays: 7, inactivityDays: 14, initialOrder: 'ELO',
+};
+export function defiEntryFor(sub, wanted) {
+    if (DEFI_TEAM_SUBS.includes(sub)) return 'TEAM';
+    if (wanted === 'SINGLES' || wanted === 'PAIR') return wanted;
+    return sub === 'padel' ? 'PAIR' : 'SINGLES';
+}
+export function isDefiTourn(tourn) {
+    return String(tourn?.type) === '9';
+}
+export function defiEntryOf(tourn) {
+    return defiEntryFor(tourn?.subCategory, tourn?.formatConfig?.defi?.entry);
+}
 
 /** Sabit/tur takım id'leri maç tarafı — 2/4 sabit çift, 7 Americano tur takımı. */
 export const TEAM_ENGINE_TYPES = ['2', '4', '7'];
@@ -94,6 +113,17 @@ export const TOURNAMENT_PRESETS = [
         seeding: 'RANDOM',
         accent: '#2dd4bf',
     },
+    {
+        id: 'defi_ladder',
+        engineType: '9',
+        entry: 'LADDER',
+        intensity: 'COMPETITIVE',
+        phase1: 'DEFI_LADDER',
+        phase2: 'NONE',
+        seeding: 'ELO',
+        accent: '#f97316',
+        subs: DEFI_SUBS,
+    },
 ];
 
 export function getPresetById(id) {
@@ -104,13 +134,14 @@ export function getPresetByEngineType(type) {
     return TOURNAMENT_PRESETS.find(p => !p.comingSoon && p.engineType === String(type)) || null;
 }
 
-export function activePresets() {
-    return TOURNAMENT_PRESETS.filter(p => !p.comingSoon);
+export function activePresets(sub) {
+    return TOURNAMENT_PRESETS.filter(p => !p.comingSoon && (!p.subs || !sub || p.subs.includes(sub)));
 }
 
 export function buildFormatConfig(preset, extras = {}) {
     if (!preset || preset.comingSoon || !preset.engineType) return null;
     return {
+        ...(preset.id === 'defi_ladder' ? { defi: extras.defi || {} } : {}),
         presetId: preset.id,
         entry: preset.entry,
         intensity: preset.intensity,
@@ -135,6 +166,7 @@ export function tournFormatLabel(tourn, t) {
         '5': t.tournPreset_swiss || t.tournType5,
         '6': t.tournPreset_double_elim || t.tournType6,
         '7': t.tournPreset_americano || t.tournType7,
+        '9': t.tournPreset_defi_ladder,
     };
     return legacy[type] || type || '—';
 }

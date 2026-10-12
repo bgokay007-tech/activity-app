@@ -1437,6 +1437,7 @@ model TournamentParticipant {
   userId          String?
   manualName      String?  // set when userId is null (manual participant added by creator)
   partnerId       String?  // Çiftler Rekabetçi (type '2'): requested partner's userId. Mutual when both name each other; otherwise solo → auto-paired by ELO at tournament start.
+  teamName        String?  // Defi ligi (type '9') takım girişi (voleybol/basketbol/futbol): başvuran kaptan, merdivende bu adla görünür
   status          String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
   note            String?
   cancelRequested Boolean   @default(false)

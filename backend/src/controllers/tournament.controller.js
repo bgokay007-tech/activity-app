@@ -9,6 +9,8 @@ import { UTR_SUBCATEGORIES, applyUtrRatingForTournamentMatch, revertUtrMatchReco
 import { computeTournamentPlacement } from './achievement.controller.js';
 import { sanitizeExtraServices } from '../utils/extraServices.js';
 import { ACTIVE_ENGINE_TYPES, resolveFormatOnCreate, isTeamEngineType } from '../utils/tournamentFormats.js';
+import { startDefiLadder, isDefi, defiSettingsOf } from './defiLeague.controller.js';
+import { DEFI_SUBS } from '../utils/defiLadder.js';
 import { ensureTournamentChatTables, isMissingChatTable } from '../utils/ensureTournamentChatTables.js';
 import {
     swissRoundCount,
@@ -43,7 +45,11 @@ function hasGeneralAssessment(interest, subCategory) {
 
 // Motor türleri '1'..'4'. Eski anketlerde '5'..'8' oyları varsa kabul edilmeye devam eder
 // (geriye dönük); yeni oluşturmada sadece aktif motorlar + formatConfig kullanılır.
-export const VALID_TOURN_TYPES = ['1', '2', '3', '4', '5', '6', '7', '8'];
+export const VALID_TOURN_TYPES = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+// Defi ligi çift girişi (padel/tenis çiftler merdiveni) çiftler puanı + partner akışı kullanır.
+const tIsDoubles = (t) => isDoublesFormat({ tournamentType: t.type }) || (isDefi(t) && defiSettingsOf(t).entry === 'PAIR');
+const tAllowsPartner = (t) => t.type === '2' || t.type === '4' || (isDefi(t) && defiSettingsOf(t).entry === 'PAIR');
 export { ACTIVE_ENGINE_TYPES };
 
 // Turnuva başlangıç tarihini Turkey local time (UTC+3) olarak döner
@@ -935,7 +941,10 @@ export const createTournament = async (req, res, next) => {
         }
         const resolved = pollEnabled === true
             ? { type: null, formatConfig: null }
-            : resolveFormatOnCreate({ type, formatConfig: rawFormatConfig, matchmakingType });
+            : resolveFormatOnCreate({ type, formatConfig: rawFormatConfig, matchmakingType, subCategory });
+        if (resolved.type === '9' && !DEFI_SUBS.includes(subCategory)) {
+            return res.status(400).json({ message: 'Defi ligi bu dalda kullanılamıyor' });
+        }
         const tournament = await prisma.tournament.create({
             data: {
                 name,
@@ -1173,13 +1182,13 @@ export async function checkPollAutoJoinEligibility(tournament, userId) {
 export const joinTournament = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { note, partnerId } = req.body;
+        const { note, partnerId, teamName } = req.body;
 
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
 
         if (partnerId) {
-            if (tournament.type !== '2' && tournament.type !== '4') return res.status(400).json({ message: 'Partner seçimi sadece Çiftler Rekabetçi ve Çiftler Antrenman turnuvalarda mümkün' });
+            if (!tAllowsPartner(tournament)) return res.status(400).json({ message: 'Partner seçimi sadece Çiftler Rekabetçi ve Çiftler Antrenman turnuvalarda mümkün' });
             if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
             const partnerInterest = await prisma.userInterest.findUnique({
                 where: { userId_category_subCategory: { userId: partnerId, category: tournament.category, subCategory: tournament.subCategory } },
@@ -1204,11 +1213,11 @@ export const joinTournament = async (req, res, next) => {
         if (!hasGeneralAssessment(myInterest, tournament.subCategory)) {
             return res.status(403).json({ message: 'Bu spor dalında maçlara katılabilmek için önce derecelendirme anketini tamamlamanız gerekiyor.' });
         }
-        if (UTR_SUBCATEGORIES.includes(tournament.subCategory) && isDoublesFormat({ tournamentType: tournament.type }) && !myInterest.doublesAssessmentCompleted) {
+        if (UTR_SUBCATEGORIES.includes(tournament.subCategory) && tIsDoubles(tournament) && !myInterest.doublesAssessmentCompleted) {
             return res.status(403).json({ message: 'Bu turnuvaya katılabilmek için önce çiftler derecelendirme anketini tamamlamanız gerekiyor.' });
         }
         // UTR tekli turnuva: çiftler anketi tekliyi karşılamaz (bağımsız Elo).
-        if (UTR_SUBCATEGORIES.includes(tournament.subCategory) && !isDoublesFormat({ tournamentType: tournament.type }) && !myInterest.assessmentCompleted) {
+        if (UTR_SUBCATEGORIES.includes(tournament.subCategory) && !tIsDoubles(tournament) && !myInterest.assessmentCompleted) {
             return res.status(403).json({ message: 'Bu turnuvaya katılabilmek için önce tekli derecelendirme anketini tamamlamanız gerekiyor.' });
         }
         if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) &&
@@ -1230,7 +1239,8 @@ export const joinTournament = async (req, res, next) => {
                 return res.status(400).json({ message: 'Son başvuru tarihi ve saati geçtiği için bu turnuvaya katılım isteği gönderilemez' });
             }
         }
-        if (tournament.status === 'IN_PROGRESS') {
+        // Defi ligi sezon boyunca açık: yeni gelen son sıradan girer (bkz. defiLadder.js syncLadder).
+        if (tournament.status === 'IN_PROGRESS' && !isDefi(tournament)) {
             // Allow join only until the event actually starts
             const eventStart = tournament.eventDate ? new Date(tournament.eventDate) : null;
             if (eventStart && tournament.eventTime) {
@@ -1258,7 +1268,12 @@ export const joinTournament = async (req, res, next) => {
         // Check rating limits — cinsiyete göre ayrı aralık seçiliyse (ör. erkek 3-4, kadın 4-5)
         // katılımcının cinsiyetine göre uygun aralık kullanılır; cinsiyeti belirtilmemiş/OTHER
         // olan kullanıcılar için derece kısıtlaması uygulanmaz.
-        const userRating = getDisplayRating(userInterest, tournament.subCategory, isDoublesFormat({ tournamentType: tournament.type }));
+        const userRating = getDisplayRating(userInterest, tournament.subCategory, tIsDoubles(tournament));
+        const cleanTeamName = isDefi(tournament) && defiSettingsOf(tournament).entry === 'TEAM'
+            ? String(teamName || '').trim().slice(0, 40) : '';
+        if (isDefi(tournament) && defiSettingsOf(tournament).entry === 'TEAM' && !cleanTeamName) {
+            return res.status(400).json({ message: 'Takım adı zorunlu' });
+        }
         let effMinRating = tournament.minRating, effMaxRating = tournament.maxRating;
         if (tournament.ratingGenderSplit) {
             if (userBan?.gender === 'MALE') { effMinRating = tournament.minRatingMale; effMaxRating = tournament.maxRatingMale; }
@@ -1278,7 +1293,7 @@ export const joinTournament = async (req, res, next) => {
         if (existing) return res.status(400).json({ message: 'You already sent a join request' });
 
         const participant = await prisma.tournamentParticipant.create({
-            data: { tournamentId: id, userId: req.userId, partnerId: partnerId || null, note, status: "PENDING", acceptedAt: null },
+            data: { tournamentId: id, userId: req.userId, partnerId: partnerId || null, teamName: cleanTeamName || null, note, status: "PENDING", acceptedAt: null },
             include: {
                 user: {
                     select: {
@@ -1334,7 +1349,7 @@ export const setTournamentPartner = async (req, res, next) => {
 
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
-        if (tournament.type !== '2' && tournament.type !== '4') return res.status(400).json({ message: 'Partner seçimi sadece Çiftler Rekabetçi ve Çiftler Antrenman turnuvalarda mümkün' });
+        if (!tAllowsPartner(tournament)) return res.status(400).json({ message: 'Partner seçimi sadece Çiftler Rekabetçi ve Çiftler Antrenman turnuvalarda mümkün' });
 
         if (tournament.endDate) {
             const regEnd = new Date(tournament.endDate);
@@ -1432,7 +1447,7 @@ export const getJoinRequests = async (req, res, next) => {
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
         // Çiftler Rekabetçi / Çiftler Antrenman: katılımcılar da başvuru listesini ve eşleşen takımları görebilsin
-        if (tournament.creatorId !== req.userId && tournament.type !== '2' && tournament.type !== '4') {
+        if (tournament.creatorId !== req.userId && !tAllowsPartner(tournament)) {
             return res.status(403).json({ message: 'Not your tournament' });
         }
 
@@ -1966,6 +1981,7 @@ export const completeTournament = async (req, res, next) => {
 // pass null for the auto-start job so every accepted participant — creator included — gets notified.
 // Throws an Error with a `.status` for expected validation failures (caller decides how to surface it).
 export async function runStartTournament(tournament, { actorUserId = null } = {}) {
+    if (isDefi(tournament)) return startDefiLadder(tournament, { actorUserId });
     const { id } = tournament;
 
     const rawParticipants = await prisma.tournamentParticipant.findMany({
@@ -2263,6 +2279,7 @@ export const rematchTournament = async (req, res, next) => {
         if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Yetkiniz yok' });
         if (tournament.status !== 'IN_PROGRESS') return res.status(400).json({ message: 'Turnuva devam etmekte değil' });
         if (tournament.type === '2' || tournament.type === '3' || tournament.type === '4' || tournament.type === '5' || tournament.type === '6' || tournament.type === '7') return res.status(400).json({ message: 'Eleme turnuvaları yeniden eşleştirilemez' });
+        if (isDefi(tournament)) return res.status(400).json({ message: 'Defi liginde eşleşmeyi oyuncular teklifle kurar' });
 
         // Fetch participants with correct interest filter
         const rawParticipants = await prisma.tournamentParticipant.findMany({

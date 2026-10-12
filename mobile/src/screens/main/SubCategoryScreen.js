@@ -57,7 +57,8 @@ import {
     createBasketballMatch, basketballRecordPoints, basketballEndQuarter, basketballFinishMatch,
     deriveStats, recordLineCall, LINE_CALL_SPORTS, engineToWearScore,
 } from '../../utils/liveMatchEngine';
-import { TOURNAMENT_PRESETS, getPresetById, buildFormatConfig, tournFormatLabel, ACTIVE_ENGINE_TYPES } from '../../utils/tournamentFormats';
+import { TOURNAMENT_PRESETS, getPresetById, buildFormatConfig, tournFormatLabel, ACTIVE_ENGINE_TYPES, activePresets, DEFI_DEFAULTS, defiEntryFor, isDefiTourn, defiEntryOf } from '../../utils/tournamentFormats';
+import DefiLadderModal, { DefiTeamNameModal, DefiSettingsForm } from '../../components/DefiLadderModal';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -17124,6 +17125,7 @@ const TOURN_TYPE_LABELS = (t) => ({
     '5': t.tournPreset_swiss || t.tournType5,
     '6': t.tournPreset_double_elim || t.tournType6,
     '7': t.tournPreset_americano || t.tournType7,
+    '9': t.tournPreset_defi_ladder,
 });
 const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' };
 const getSurface = (t, id) => t['surface' + (id?.toUpperCase())] || id || '';
@@ -17252,7 +17254,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [partnerResults, setPartnerResults] = useState([]);
     const [partnerSearching, setPartnerSearching] = useState(false);
 
+    const [showDefi, setShowDefi] = useState(false);
+    const [showDefiTeamName, setShowDefiTeamName] = useState(false);
     const handleJoinPress = () => {
+        if (isDefiTourn(item)) {
+            const entry = defiEntryOf(item);
+            if (entry === 'TEAM') { setShowDefiTeamName(true); return; }
+            if (entry === 'PAIR') { setShowPartnerSearch(true); return; }
+            onJoin(item);
+            return;
+        }
         if (item.type !== '2' && item.type !== '4') { onJoin(item); return; }
         Alert.alert(
             t.tournPartnerTitle || 'Çiftler Rekabetçi',
@@ -18295,6 +18306,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     };
 
     const isEventStarted = () => {
+        if (isDefiTourn(item)) return false;
         if (!item.eventDate) return false;
         const eventStart = new Date(item.eventDate);
         if (item.eventTime) {
@@ -18699,12 +18711,21 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         {/* IN_PROGRESS / COMPLETED: matches modal open button */}
         {(item.status === 'IN_PROGRESS' || item.status === 'COMPLETED') && (
             <View style={{ marginTop:8, gap:6 }}>
+                {isDefiTourn(item) ? (
+                <TouchableOpacity
+                    style={{ backgroundColor:'#f9731615', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#f9731650', flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
+                    onPress={() => setShowDefi(true)}>
+                    <Text style={{ color:'#fb923c', fontSize:12, fontWeight:'700' }}>{t.defiLadderBtn}</Text>
+                    <Text style={{ color:'#fb923c', fontSize:12 }}>›</Text>
+                </TouchableOpacity>
+                ) : (
                 <TouchableOpacity
                     style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#16a34a40', flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
                     onPress={() => { fetchMatches(); if (!isCreator && participants.length === 0) fetchParticipants(); setShowMatchesModal(true); }}>
                     <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>📋 Maçlar & Puan Tablosu</Text>
                     <Text style={{ color:'#4ade80', fontSize:12 }}>›</Text>
                 </TouchableOpacity>
+                )}
                 {(isCreator || myStatus === 'ACCEPTED') && (
                     <TouchableOpacity
                         style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#16a34a40', flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
@@ -20910,6 +20931,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     >
                         <Text style={{ color: infoColor, fontSize:11, fontWeight:'800' }}>{t.shareBtn || '📤 Paylaş'}</Text>
                     </TouchableOpacity>
+                    {isDefiTourn(item) && (<>
+                        <DefiLadderModal visible={showDefi} onClose={() => setShowDefi(false)} tournament={item} myId={myId} onChanged={onUpdated} />
+                        <DefiTeamNameModal visible={showDefiTeamName} onClose={() => setShowDefiTeamName(false)}
+                            onSubmit={(name) => { setShowDefiTeamName(false); onJoin(item, null, name); }} />
+                    </>)}
 
                     {item.status !== 'POLL' && isCreator && (<>
                         {myStatus === null && !isEventStarted() && (
@@ -20938,7 +20964,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </Text>
                             </TouchableOpacity>
                         )}
-                        {item.status === 'IN_PROGRESS' && item.type !== '2' && item.type !== '3' && item.type !== '4' && (
+                        {item.status === 'IN_PROGRESS' && item.type !== '2' && item.type !== '3' && item.type !== '4' && !isDefiTourn(item) && (
                             <TouchableOpacity
                                 style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#f59e0b50' }}
                                 onPress={handleRematch}>
@@ -21220,7 +21246,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     // birkaç noktada özelleştiriliyor (mekan sözcüğü, sayı sistemi, playoff, takım
     // cinsiyet dağılımı, mekan ücreti kim öder, turnuva türü kaldırıldı — şimdilik sadece airsoft).
     const isAirsoft = sub === 'airsoft';
-    const presets = TOURNAMENT_PRESETS;
+    const presets = activePresets(sub);
 
     const INIT = {
         name: '', scope: '', scopeCity: '', scopeDistrict: '', scopeCountry: '',
@@ -21248,6 +21274,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         matchesBeforePlayoff: '', playoffQualifiers: '',
         rules: [],
         extraServices: [],
+        defi: { ...DEFI_DEFAULTS, entry: defiEntryFor(sub) },
         // Airsoft: Min/Max Oyuncu yerine tek takım büyüklüğü + o büyüklüğün cinsiyet dağılımı
         teamSize: '', teamRequiredMaleCount: null,
     };
@@ -21445,14 +21472,14 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 prize3: f.prize3.trim() || undefined,
                 surpriseGifts: f.surpriseGifts.trim() || undefined,
                 contactPhone: f.contactPhone.trim() || undefined,
-                ...((f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4') && {
+                ...((f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4' || f.type === '9') && {
                     setsPerMatch: f.setsPerMatch ? parseInt(f.setsPerMatch) : undefined,
                     advantageScoring: f.advantageScoring,
                     matchesBeforePlayoff: f.matchesBeforePlayoff ? parseInt(f.matchesBeforePlayoff) : undefined,
                     playoffQualifiers: f.playoffQualifiers ? parseInt(f.playoffQualifiers) : undefined,
                 }),
                 ...(!f.pollEnabled && f.presetId ? {
-                    formatConfig: buildFormatConfig(getPresetById(f.presetId), { matchmakingType: f.matchmakingType }),
+                    formatConfig: buildFormatConfig(getPresetById(f.presetId), { matchmakingType: f.matchmakingType, defi: f.defi }),
                 } : {}),
                 ...(isAirsoft && {
                     teamSize: f.teamSize ? parseInt(f.teamSize) : undefined,
@@ -22168,7 +22195,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         const title = t[`tournPreset_${p.id}`] || p.id;
                                         const desc = t[`tournPresetDesc_${p.id}`] || '';
                                         const badge = p.comingSoon ? t.tournComingSoon
-                                            : (p.entry === 'DOUBLES' ? t.tournEntryDoubles : t.tournEntrySingles);
+                                            : (p.entry === 'LADDER' ? t.tournEntryLadder : p.entry === 'DOUBLES' ? t.tournEntryDoubles : t.tournEntrySingles);
                                         return (
                                             <TouchableOpacity
                                                 key={p.id}
@@ -22391,6 +22418,11 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         </View>
                                     ))}
                                 </View>
+                            )}
+
+                            {/* Defi ligi: ayarlar + seçilen ayarlarla kurallar */}
+                            {!f.pollEnabled && f.type === '9' && (
+                                <DefiSettingsForm value={f.defi} onChange={(v) => set('defi', v)} sub={sub} color={cfg.color} />
                             )}
 
                             {/* Americano / sosyal çiftler kuralları */}
@@ -25818,9 +25850,10 @@ export default function SubCategoryScreen({ route, navigation }) {
         } finally { setReportingListingId(null); }
     };
 
-    const handleJoinTournament = useCallback(async (item, partnerId) => {
+    const handleJoinTournament = useCallback(async (item, partnerId, teamName) => {
         try {
-            await api.post(`/tournaments/${item.id}/join`, partnerId ? { partnerId } : undefined);
+            const body = partnerId || teamName ? { ...(partnerId ? { partnerId } : {}), ...(teamName ? { teamName } : {}) } : undefined;
+            await api.post(`/tournaments/${item.id}/join`, body);
             Alert.alert('', t.tournJoinSent);
             loadTournaments();
         } catch (e) {
