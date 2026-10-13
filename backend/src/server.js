@@ -18,6 +18,7 @@ import { startHolidayReminderJob } from './jobs/holidayReminder.js';
 import { startAutoApproveReservationsJob } from './jobs/autoApproveReservations.js';
 import { startTournamentDeadlineReminderJob } from './jobs/tournamentDeadlineReminder.js';
 import { startDefiLeagueJob } from './jobs/defiLeague.js';
+import { startMatchVideoJob } from './jobs/matchVideoJob.js';
 import { startReservationPaymentConfirmJob } from './jobs/reservationPaymentConfirm.js';
 import { startPeerReviewBlendJob } from './jobs/peerReviewBlend.js';
 import { startExternalEventAlertsJob } from './jobs/externalEventAlerts.js';
@@ -179,6 +180,7 @@ Promise.all([ensureTables(), seedCitiesIfEmpty()]).then(() => {
         startAutoApproveReservationsJob();
         startTournamentDeadlineReminderJob();
         startDefiLeagueJob();
+        startMatchVideoJob();
         startReservationPaymentConfirmJob();
         startPeerReviewBlendJob();
         startExternalEventAlertsJob();

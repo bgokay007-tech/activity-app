@@ -2381,3 +2381,29 @@ model TravelVerification {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+// Maç videosu yapay zekâ analizi. Video R2'de (storageKey); sunucu CPU'da sırayla işlenir.
+model MatchVideo {
+  id                String    @id @default(uuid())
+  userId            String
+  activityRequestId String?
+  subCategory       String    @default("tennis")
+  status            String    @default("UPLOADING") // UPLOADING | QUEUED | PROCESSING | DONE | FAILED
+  storageKey        String
+  sizeBytes         Int?
+  durationSec       Float?
+  doubles           Boolean   @default(false)
+  calibration       Json? // { corners: [{x,y} x4] } 0..1 — uzak sol, uzak sağ, yakın sağ, yakın sol
+  players           Json? // [{ name, userId?, team, tag: { t, x, y } }]
+  result            Json?
+  error             String?
+  progress          Int       @default(0)
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@index([activityRequestId])
+}

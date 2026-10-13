@@ -59,6 +59,7 @@ import {
 } from '../../utils/liveMatchEngine';
 import { TOURNAMENT_PRESETS, getPresetById, buildFormatConfig, tournFormatLabel, ACTIVE_ENGINE_TYPES, activePresets, DEFI_DEFAULTS, defiEntryFor, isDefiTourn, defiEntryOf } from '../../utils/tournamentFormats';
 import DefiLadderModal, { DefiTeamNameModal, DefiSettingsForm } from '../../components/DefiLadderModal';
+import MatchVideoAnalysisModal from '../../components/MatchVideoAnalysisModal';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -6757,6 +6758,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     }, [orderedUserIds.length]);
     // Maçı Başlat — kamera kaydı ve/ya da saatten canlı skor takibi.
     const [showMatchStart, setShowMatchStart] = useState(false);
+    const [showVideoAnalysis, setShowVideoAnalysis] = useState(false);
     const [showMatchLive, setShowMatchLive] = useState(false);
     const [matchLiveOptions, setMatchLiveOptions] = useState({
         wantCamera: false, wantWatch: false, wantPhone: false,
@@ -9329,6 +9331,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <Text style={{ color: cfg.color, fontSize:13, fontWeight:'700' }}>{t.matchStartBtn}</Text>
                             </TouchableOpacity>
                         )}
+                        {/* Yapay zekâ video analizi (MVP: tenis) — maç öncesi kayıt da sonrası galeri de olur */}
+                        {isParticipant && match.subCategory === 'tennis' && (
+                            <TouchableOpacity
+                                style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#22d3ee60', backgroundColor:'#22d3ee18', alignItems:'center' }}
+                                onPress={() => { setShowDetail(false); setTimeout(() => setShowVideoAnalysis(true), 350); }}>
+                                <Text style={{ color:'#22d3ee', fontSize:13, fontWeight:'700' }}>{t.mvaBtn}</Text>
+                            </TouchableOpacity>
+                        )}
                         {!hasScore && scoreUnlocked && (
                             <>
                                 {/* Kullanıcı isteği: "Skor Gir" ve "Skor Gir ve Medya Paylaş" diye İKİ
@@ -9635,6 +9645,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
         {/* Kamera/canlı takip detay modalının İÇİNDE olursa Android native kamera yüzeyi
             çöküp uygulamayı anasayfaya atıyordu — kardeş modal; detay kapanınca açılır. */}
+        {showVideoAnalysis && (
+            <MatchVideoAnalysisModal
+                visible={showVideoAnalysis}
+                onClose={() => { setShowVideoAnalysis(false); setTimeout(() => setShowDetail(true), 350); }}
+                match={match}
+                teamA={[match.sender, ...senderTeamArr].filter(p => p?.id).map(p => ({ id: p.id, name: playerDisplayName(p, match.subCategory) }))}
+                teamB={(participantsArr.length ? participantsArr : [match.receiver].filter(p => p?.id)).map(p => ({ id: p.id, name: playerDisplayName(p, match.subCategory) }))}
+                t={t}
+            />
+        )}
         <MatchStartModal
             visible={showMatchStart}
             onClose={() => setShowMatchStart(false)}
