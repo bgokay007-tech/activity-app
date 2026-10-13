@@ -24,7 +24,7 @@ const SUB_PHOTO_FILE = {
     painting: 'sub-painting', music: 'sub-music', theater: 'sub-theater', cinema: 'sub-cinema',
     literature: 'sub-literature', sculpture: 'sub-sculpture', architecture: 'sub-architecture',
     opera: 'sub-opera', ceramics: 'sub-ceramics', poetry: 'sub-poetry', photography: 'sub-photography',
-    travel_explore: 'sub-travel-explore',
+    travel_explore: 'sub-travel-explore', friend_finding: 'sub-friend-finding',
     batak: 'sub-batak', okey: 'sub-okey', chess: 'sub-chess', tavla: 'sub-tavla', fps: 'sub-fps',
     moba: 'sub-moba', strategy: 'sub-strategy', sports_games: 'sub-sports-games', boardgames: 'sub-boardgames',
 };

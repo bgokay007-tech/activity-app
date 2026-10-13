@@ -50,6 +50,7 @@ export const SUB_PHOTOS = {
     photography:      require('../../assets/visual/sub-photography.jpg'),
     // Sosyal
     travel_explore:   require('../../assets/visual/sub-travel-explore.jpg'),
+    friend_finding:   require('../../assets/visual/sub-friend-finding.jpg'),
     // Oyunlar — her dalın kendi görseli (genel cat-games fallback yerine)
     batak:            require('../../assets/visual/sub-batak.jpg'),
     okey:             require('../../assets/visual/sub-okey.jpg'),
