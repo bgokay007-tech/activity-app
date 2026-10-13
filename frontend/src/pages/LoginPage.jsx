@@ -13,6 +13,7 @@ function LoginPage() {
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [expiredFrom] = useState(() => sessionStorage.getItem('activity_session_expired'));
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -20,8 +21,9 @@ function LoginPage() {
         setError('');
         try {
             const { data } = await api.post('/auth/login', formData);
+            sessionStorage.removeItem('activity_session_expired');
             dispatch(setCredentials(data));
-            navigate('/home');
+            navigate(expiredFrom && expiredFrom !== '/login' ? expiredFrom : '/home');
         } catch (err) {
             setError(err.response?.data?.message || t('auth.loginFailed'));
         } finally {
@@ -45,6 +47,12 @@ function LoginPage() {
 
                 <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">
                     <h2 className="text-2xl font-bold text-white mb-6">{t('auth.signIn')}</h2>
+
+                    {expiredFrom && !error && (
+                        <div className="bg-amber-500/10 border border-amber-500 text-amber-300 rounded-lg p-3 mb-4">
+                            {t('auth.sessionExpired')}
+                        </div>
+                    )}
 
                     {error && (
                         <div className="bg-red-500/10 border border-red-500 text-red-400 rounded-lg p-3 mb-4">

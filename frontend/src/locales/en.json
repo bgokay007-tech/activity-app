@@ -1321,6 +1321,7 @@
     "noAccount": "Don't have an account?",
     "signUp": "Sign Up",
     "loginFailed": "Login Failed",
+    "sessionExpired": "Your session has expired. Please sign in again.",
     "rememberMe": "Remember me",
     "createAccount": "Create Account",
     "fullName": "Full Name",

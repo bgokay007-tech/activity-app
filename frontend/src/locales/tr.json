@@ -1322,6 +1322,7 @@
     "noAccount": "Hesabın yok mu?",
     "signUp": "Kayıt Ol",
     "loginFailed": "Giriş Başarısız",
+    "sessionExpired": "Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.",
     "rememberMe": "Beni hatırla",
     "createAccount": "Hesabını oluştur",
     "fullName": "Ad Soyad",

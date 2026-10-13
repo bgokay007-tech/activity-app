@@ -1322,6 +1322,7 @@
     "noAccount": "Kein Konto?",
     "signUp": "Registrieren",
     "loginFailed": "Anmeldung fehlgeschlagen",
+    "sessionExpired": "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
     "rememberMe": "Angemeldet bleiben",
     "createAccount": "Konto erstellen",
     "fullName": "Vollständiger Name",
