@@ -1,0 +1,16 @@
+diff --git a/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/modal/ModalAttachedWatcher.kt b/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/modal/ModalAttachedWatcher.kt
+index 1550974..4fd65dc 100644
+--- a/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/modal/ModalAttachedWatcher.kt
++++ b/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/modal/ModalAttachedWatcher.kt
+@@ -97,8 +97,9 @@ class ModalAttachedWatcher(
+         }
+       }
+ 
+-      // imitating edge-to-edge mode behavior
+-      window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
++      // AcTiViTy: Modal'ın klavye modunu zorla adjustNothing yapmıyoruz — RN varsayılanı
++      // (adjustResize) veya Modal'daki android_keyboardInputMode geçerli kalsın; aksi halde
++      // KAV'sız / Android'de behavior=undefined olan onlarca formda klavye alanları örtüyordu.
+     }
+   }
+ 

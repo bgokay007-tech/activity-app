@@ -161,7 +161,7 @@ function ArtistFormModal({ visible, listing, onClose, onSaved }) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={s.overlay}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
                     <View style={s.sheet}>
                         <View style={s.header}>
                             <Text style={s.title}>{listing ? 'Sanatçı Profilimi Düzenle' : 'Sanatçı Profili Oluştur'}</Text>

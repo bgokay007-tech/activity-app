@@ -8,6 +8,7 @@ import {
     Clipboard,
 } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import KeyboardAwareForm from '../../components/KeyboardAwareForm';
 import { useSelector, useDispatch } from 'react-redux';
 import { setUser } from '../../store/slices/authSlice';
 import { setUnreadCount } from '../../store/slices/notificationSlice';
@@ -14987,7 +14988,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             <Text style={s.modalTitle}>{isMatchedEdit ? `✏️ ${(isVolleyball && VOLLEYBALL_VENUE_SHORT[f.surface]) || 'Kort'}/Saat Değiştir` : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : isEventStyleSub ? t.createEventBtn : t.createTitle)}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
-                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always"
+                        <KeyboardAwareForm adjustWindow={false} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always"
                             contentContainerStyle={{ paddingBottom: Math.max(20, insets.bottom + 16) }}>
 
                             {/* Konum — kort kavramı olmayan dallarda (SIMPLIFIED_FEE_SUBS) formun en
@@ -16637,7 +16638,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 onPress={submit} disabled={submitting}>
                                 <Text style={s.submitBtnText}>{editItem ? (submitting ? t.savingText : t.saveBtn) : (submitting ? t.submittingBtn : t.createListingBtn)}</Text>
                             </TouchableOpacity>
-                        </ScrollView>
+                        </KeyboardAwareForm>
                     </View>
                 </KeyboardAvoidingView>
 
@@ -21551,7 +21552,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <Text style={s.modalTitle}>{t.createTournamentTitle}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
-                        <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
+                        <KeyboardAwareForm adjustWindow={false} ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
 
                             {/* Ad | Kapsam | İl | İlçe (Yerel ise) / Ülke (Ulusal ise) — tek satır, tek buton/modal */}
                             <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
@@ -22492,7 +22493,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 Android'in ScrollView'ın gerçek kaydırma sınırını (contentSize)
                                 yeniden ölçmesini tetikliyor — bir input'a dokunmadan da. */}
                             <View style={{ height: scrollNudge }} />
-                        </ScrollView>
+                        </KeyboardAwareForm>
                     </View>
                 </KeyboardAvoidingView>
             </View>

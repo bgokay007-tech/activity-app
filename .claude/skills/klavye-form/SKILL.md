@@ -37,7 +37,16 @@ translucent/preserve kaldırılırsa status/nav bar boşluğu iki kez eklenir.
 - `KeyboardAvoidingView` **her zaman** `react-native-keyboard-controller`'dan import edilir (API aynı;
   Modal penceresindeki klavyeyi de izler).
 - Sabit alt buton gerekiyorsa `KeyboardStickyView` (aynı paket) — klavyeyle birlikte kalkar.
-- Geçirilen ekranlar: Login, Register, BusinessRegister, ForgotPassword. Diğerleri dokunuldukça.
+- Geçirilen ekranlar: Login, Register, BusinessRegister, ForgotPassword (tam ekran);
+  CreateRivalModal, CreateTournamentModal (`adjustWindow={false}`). Diğerleri dokunuldukça.
+- Modal içinde `KeyboardAwareForm adjustWindow={false}`; sadece KAV `flex:1` + sheet
+  `maxHeight`/`height`'a dayanan **uzun** formlarda. Kısa / içeriğe göre boyutlanan sheet'te
+  (KAV `width:'100%'` veya içerik maxHeight'a ulaşmıyor) çift kaydırır — düz ScrollView kalsın.
+- **RN 0.81 Modal'da `android_keyboardInputMode` prop'u YOK** — Android'de Modal her zaman
+  `adjustResize`. Kütüphane Modal'ı zorla `adjustNothing` yapıyordu; `patches/react-native-keyboard-controller+*.patch`
+  bunu kaldırır (KAV'sız ~70 modal örtülmesin). Paketi güncellersen yamayı yeniden üret.
+- Android'de KAV `behavior="height"` YASAK: kütüphane height modunda çerçeveyi sadece klavye
+  kapalıyken ölçer, adjustResize ile çift küçülür.
 - Native modül ekledin mi → `app.json` `version` artır + yeni APK (`eas build --profile preview`).
   `runtimeVersion: appVersion`; artırmazsan OTA eski APK'ya gider, modül yok diye çöker.
 

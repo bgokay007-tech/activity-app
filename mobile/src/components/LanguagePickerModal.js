@@ -32,7 +32,7 @@ export default function LanguagePickerModal({ visible, onClose, onSelect, curren
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <View style={s.overlay}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
                     <Animated.View style={[s.sheet, { marginTop: insets.top, transform: [{ translateY }] }]}>
                         <View style={s.header}>
                             <Text style={s.title}>Dil Seç</Text>

@@ -18,4 +18,5 @@ Kullanıcı: forma yazınca klavye **formu kapatmasın**; yazarken form görüns
 7. Öneri yönü: üst → `top:'100%'`; alt/klavye yanı → `bottom:'100%'`. `zIndex`/`elevation` yeterli.
 8. Seçimde `Keyboard.dismiss()` yok.
 9. Sabit alt buton + klavye: buton form içinde ya da `KeyboardStickyView` (paketten) ile klavyeyle kalksın.
-10. Native modül eklemek = yeni APK + `app.json` `version` artır (runtimeVersion appVersion); yoksa OTA eski APK'yı çökertir.
+10. Modal'da uzun form (KAV `flex:1` + sheet maxHeight) → `KeyboardAwareForm adjustWindow={false}`; kısa sheet'te düz ScrollView. RN 0.81 Modal Android'de hep `adjustResize` (`android_keyboardInputMode` prop'u yok); kütüphanenin zorla adjustNothing'i `mobile/patches/` ile kapalı.
+11. Native modül eklemek = yeni APK + `app.json` `version` artır (runtimeVersion appVersion); yoksa OTA eski APK'yı çökertir.
