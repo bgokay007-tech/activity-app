@@ -34,14 +34,19 @@ function useResizeWhileFocused(adjustWindow) {
     }, [navigation, adjustWindow]);
 }
 
+// Tam ekranda varsayılan mode="layout": klavye boşluğu içeriğin sonuna gerçek bir View
+// olarak eklenir, flexGrow + justifyContent:'center' içerik klavyenin üstünde yeniden
+// ortalanır. "insets" modunda sadece odaklanan input görünür tutuluyordu — Giriş'te şifre
+// alanı ekran ortasında olduğundan hiç kaydırmıyor, altındaki "Giriş Yap" klavyede kalıyordu.
 const KeyboardAwareForm = forwardRef(function KeyboardAwareForm(
-    { children, bottomOffset = 24, keyboardShouldPersistTaps = 'handled', adjustWindow = true, ...rest },
+    { children, bottomOffset = 24, keyboardShouldPersistTaps = 'handled', adjustWindow = true, mode, ...rest },
     ref,
 ) {
     useResizeWhileFocused(adjustWindow);
     return (
         <KeyboardAwareScrollView
             ref={ref}
+            mode={mode || (adjustWindow ? 'layout' : 'insets')}
             bottomOffset={bottomOffset}
             keyboardShouldPersistTaps={keyboardShouldPersistTaps}
             {...rest}

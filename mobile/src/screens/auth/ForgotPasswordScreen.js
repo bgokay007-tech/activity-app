@@ -53,7 +53,7 @@ export default function ForgotPasswordScreen({ navigation }) {
     };
 
     return (
-        <KeyboardAwareForm style={s.container} contentContainerStyle={{ flexGrow: 1 }}>
+        <KeyboardAwareForm style={s.container} contentContainerStyle={{ flexGrow: 1 }} bottomOffset={80}>
             <View style={s.inner}>
                 <RainbowLogo style={{ fontSize: 36, marginBottom: 4 }} />
                 <Text style={s.sub}>{t.fpTitle}</Text>

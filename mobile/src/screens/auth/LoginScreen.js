@@ -60,7 +60,7 @@ export default function LoginScreen({ navigation }) {
     };
 
     return (
-        <KeyboardAwareForm style={s.container} contentContainerStyle={{ flexGrow: 1 }}>
+        <KeyboardAwareForm style={s.container} contentContainerStyle={{ flexGrow: 1 }} bottomOffset={110}>
             {/* Language selector — sabit sağ üst köşe */}
             <TouchableOpacity
                 onPress={() => setShowLangPicker(true)}

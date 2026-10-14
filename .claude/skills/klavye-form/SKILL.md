@@ -34,6 +34,9 @@ translucent/preserve kaldırılırsa status/nav bar boşluğu iki kez eklenir.
   birebir yerine geçer, odaklanan input'u klavyenin üstüne kendisi kaydırır, `ref.scrollToEnd`
   çalışır. Ekran odaktayken Android'i `adjustResize`'a alır, çıkınca varsayılan `pan`'e döner
   (pan + aware scroll = çift kaydırma). İçine KAV koyma.
+  Tam ekranda varsayılan `mode="layout"` (ortalanmış içerik klavyenin üstünde yeniden ortalanır).
+  Odaklanan input'un **altında** buton varsa `bottomOffset`'i o kadar büyüt (Login 110) —
+  kütüphane sadece input'u görünür tutar, alttaki butonu bilmez.
 - `KeyboardAvoidingView` **her zaman** `react-native-keyboard-controller`'dan import edilir (API aynı;
   Modal penceresindeki klavyeyi de izler).
 - Sabit alt buton gerekiyorsa `KeyboardStickyView` (aynı paket) — klavyeyle birlikte kalkar.
