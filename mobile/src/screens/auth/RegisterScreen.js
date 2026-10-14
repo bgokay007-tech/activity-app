@@ -2,7 +2,7 @@
 import RainbowLogo from '../../components/RainbowLogo';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet,
-    KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
+    Platform, ScrollView, ActivityIndicator,
     Alert, Modal, FlatList,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
@@ -12,6 +12,7 @@ import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
+import KeyboardAwareForm from '../../components/KeyboardAwareForm';
 
 const PASSWORD_TESTS = [
     { id: 'len',     key: 'passRuleLen',     test: p => p.length >= 8 && p.length <= 16 },
@@ -342,7 +343,7 @@ export default function RegisterScreen({ navigation }) {
 
     // ── KAYIT FORMU ───────────────────────────────────────────────────────────
     return (
-        <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={s.container}>
 
             {/* Yasal Metin Modal */}
             <Modal visible={!!legalModal} transparent animationType="slide" onRequestClose={() => setLegalModal(null)}>
@@ -433,7 +434,7 @@ export default function RegisterScreen({ navigation }) {
                 currentValue={form.city}
             />
 
-            <ScrollView ref={scrollRef} contentContainerStyle={s.inner} keyboardShouldPersistTaps="handled">
+            <KeyboardAwareForm ref={scrollRef} contentContainerStyle={s.inner}>
                 {/* Language selector */}
                 <View style={{ flexDirection: 'row', gap: 3, alignSelf: 'flex-end', marginBottom: 16 }}>
                     {['tr', 'en'].map(l => (
@@ -700,8 +701,8 @@ export default function RegisterScreen({ navigation }) {
                         <Text style={s.linkText}>{t.alreadyHaveAccount} <Text style={s.link}>{t.signIn}</Text></Text>
                     </TouchableOpacity>
                 </View>
-            </ScrollView>
-        </KeyboardAvoidingView>
+            </KeyboardAwareForm>
+        </View>
     );
 }
 

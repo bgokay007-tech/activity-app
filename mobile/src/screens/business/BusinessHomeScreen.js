@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     StatusBar, Platform, Alert, ActivityIndicator, Modal, Image,
-    TextInput, Switch, FlatList, BackHandler, KeyboardAvoidingView, Animated, Linking,
+    TextInput, Switch, FlatList, BackHandler, Animated, Linking,
     useWindowDimensions,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';

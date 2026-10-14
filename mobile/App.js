@@ -15,6 +15,7 @@ LogBox.ignoreLogs(['expo-notifications']);
 import { StatusBar } from 'expo-status-bar';
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { store } from './src/store';
 import Navigation from './src/navigation';
 let addMatchUpdateListener = () => ({ remove() {} });
@@ -97,10 +98,15 @@ export default function App() {
     return (
         <ErrorBoundary>
             <SafeAreaProvider>
-                <Provider store={store}>
-                    <StatusBar style="light" />
-                    <Navigation />
-                </Provider>
+                {/* Expo 54 Android zaten edge-to-edge çiziyor ve ekranlar boşluğu
+                    useSafeAreaInsets ile kendisi veriyor — translucent/preserve olmadan
+                    provider status/nav bar boşluğunu ikinci kez ekliyor. */}
+                <KeyboardProvider statusBarTranslucent navigationBarTranslucent preserveEdgeToEdge>
+                    <Provider store={store}>
+                        <StatusBar style="light" />
+                        <Navigation />
+                    </Provider>
+                </KeyboardProvider>
             </SafeAreaProvider>
         </ErrorBoundary>
     );

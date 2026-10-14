@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Modal, View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { Modal, View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, Platform } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import MapView, { Polyline, Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import api from '../../services/api';
 import colors from '../../theme/colors';

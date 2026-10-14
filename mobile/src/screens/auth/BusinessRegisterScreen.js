@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import RainbowLogo from '../../components/RainbowLogo';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet,
-    KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
+    Platform, ScrollView, ActivityIndicator,
     Alert, Modal, FlatList,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
@@ -12,6 +12,7 @@ import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
+import KeyboardAwareForm from '../../components/KeyboardAwareForm';
 
 const PASSWORD_TESTS = [
     { id: 'len',     key: 'passRuleLen',     test: p => p.length >= 8 && p.length <= 16 },
@@ -185,7 +186,7 @@ export default function BusinessRegisterScreen({ navigation }) {
     };
 
     return (
-        <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={s.container}>
 
             {/* Ülke Kodu Seçici Modal */}
             <Modal visible={!!dialPickerTarget} transparent animationType="slide" onRequestClose={() => setDialPickerTarget(null)}>
@@ -225,7 +226,7 @@ export default function BusinessRegisterScreen({ navigation }) {
                 currentValue={form.city}
             />
 
-            <ScrollView ref={scrollRef} contentContainerStyle={s.inner} keyboardShouldPersistTaps="handled">
+            <KeyboardAwareForm ref={scrollRef} contentContainerStyle={s.inner}>
 
                 {/* Dil Seçici */}
                 <View style={{ flexDirection: 'row', gap: 3, alignSelf: 'flex-end', marginBottom: 16 }}>
@@ -473,8 +474,8 @@ export default function BusinessRegisterScreen({ navigation }) {
                         </Text>
                     </TouchableOpacity>
                 </View>
-            </ScrollView>
-        </KeyboardAvoidingView>
+            </KeyboardAwareForm>
+        </View>
     );
 }
 

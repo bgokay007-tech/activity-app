@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
-    ActivityIndicator, Alert, TextInput, Modal, Platform, Image, Pressable, KeyboardAvoidingView,
+    ActivityIndicator, Alert, TextInput, Modal, Platform, Image, Pressable,
     Dimensions, Animated, Linking,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSelector, useDispatch } from 'react-redux';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';

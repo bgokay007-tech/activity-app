@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Image,
-    Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Dimensions, Linking,
+    Alert, ActivityIndicator, Platform, Modal, Dimensions, Linking,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';

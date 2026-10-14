@@ -1,8 +1,9 @@
 ﻿import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import RainbowLogo from '../../components/RainbowLogo';
+import KeyboardAwareForm from '../../components/KeyboardAwareForm';
 import useT from '../../hooks/useT';
 
 export default function ForgotPasswordScreen({ navigation }) {
@@ -52,7 +53,7 @@ export default function ForgotPasswordScreen({ navigation }) {
     };
 
     return (
-        <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAwareForm style={s.container} contentContainerStyle={{ flexGrow: 1 }}>
             <View style={s.inner}>
                 <RainbowLogo style={{ fontSize: 36, marginBottom: 4 }} />
                 <Text style={s.sub}>{t.fpTitle}</Text>
@@ -149,7 +150,7 @@ export default function ForgotPasswordScreen({ navigation }) {
                     </TouchableOpacity>
                 </View>
             </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareForm>
     );
 }
 

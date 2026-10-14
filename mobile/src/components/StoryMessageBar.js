@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, ActivityIndicator,
-    StyleSheet, KeyboardAvoidingView, Platform, Alert,
+    StyleSheet, Platform, Alert,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../theme/colors';
 import useT from '../hooks/useT';

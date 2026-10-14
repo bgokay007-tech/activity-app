@@ -23,16 +23,35 @@ Detaylı kalıp + güvenli alan:
 Otomatik tamamlama bileşenleri:  
 [otomatik-tamamlama.md](../activity-app/references/otomatik-tamamlama.md)
 
+## Kütüphane: react-native-keyboard-controller
+
+Alan alan elle yama yapmak yerine `react-native-keyboard-controller` (+ `react-native-reanimated` 3.x —
+4.x yeni mimari ister, uygulama `newArchEnabled: false`). `App.js`'te
+`<KeyboardProvider statusBarTranslucent navigationBarTranslucent preserveEdgeToEdge>` var;
+translucent/preserve kaldırılırsa status/nav bar boşluğu iki kez eklenir.
+
+- **Form = `KeyboardAwareForm`** (`mobile/src/components/KeyboardAwareForm.js`): ScrollView'un
+  birebir yerine geçer, odaklanan input'u klavyenin üstüne kendisi kaydırır, `ref.scrollToEnd`
+  çalışır. Ekran odaktayken Android'i `adjustResize`'a alır, çıkınca varsayılan `pan`'e döner
+  (pan + aware scroll = çift kaydırma). İçine KAV koyma.
+- `KeyboardAvoidingView` **her zaman** `react-native-keyboard-controller`'dan import edilir (API aynı;
+  Modal penceresindeki klavyeyi de izler).
+- Sabit alt buton gerekiyorsa `KeyboardStickyView` (aynı paket) — klavyeyle birlikte kalkar.
+- Geçirilen ekranlar: Login, Register, BusinessRegister, ForgotPassword. Diğerleri dokunuldukça.
+- Native modül ekledin mi → `app.json` `version` artır + yeni APK (`eas build --profile preview`).
+  `runtimeVersion: appVersion`; artırmazsan OTA eski APK'ya gider, modül yok diye çöker.
+
 ## Yasak / zorunlu
 
 | | |
 |---|---|
-| YASAK | `KeyboardAvoidingView behavior="height"` |
-| Modal | `android_keyboardInputMode="adjustNothing"` + `behavior="padding"` (iOS+Android) |
-| Tam ekran | iOS `padding`, Android `undefined` (`app.json` pan) |
+| YASAK | `KeyboardAvoidingView behavior="height"`, `react-native`'den KAV import'u |
+| Yeni/dokunulan form | `KeyboardAwareForm` |
+| Modal | `KeyboardSafeModal` veya `android_keyboardInputMode="adjustNothing"` + `behavior="padding"` |
+| Eski tam ekran | iOS `padding`, Android `undefined` (`app.json` pan) — dokunursan `KeyboardAwareForm`'a geçir |
 | Her ScrollView/FlatList | `keyboardShouldPersistTaps` — form `"handled"`, **öneri listesi `"always"`** |
-| Sabit alt buton + klavye | YASAK — butonu ScrollView içine al |
-| Hazır sarmalayıcı | `mobile/src/components/KeyboardSafeModal.js` |
+| Sabit alt buton + klavye | Form içine al veya `KeyboardStickyView` |
+| Hazır sarmalayıcılar | `KeyboardAwareForm.js` (form), `KeyboardSafeModal.js` (alttan sheet) |
 
 ## Öneri listesi (autocomplete / @mention / şehir / kişi)
 
@@ -54,12 +73,13 @@ Otomatik tamamlama bileşenleri:
 
 ## Form görünür kalsın
 
-- Yeterli `paddingBottom` + gerekirse `onFocus` ile `scrollTo` / `scrollToEnd` (klavye animasyonu ~300ms sonra).
+- `KeyboardAwareForm` kullan; elle `onFocus` + `scrollTo` gerekmez.
 - Modal’da `KeyboardSafeModal` veya aynı Modal kalıbı.
 
 ## Kontrol listesi (forma dokundun mu?)
 
-- [ ] `behavior="height"` yok
+- [ ] `behavior="height"` yok; KAV `react-native-keyboard-controller`'dan
+- [ ] Form kapsayıcısı `KeyboardAwareForm`
 - [ ] Modal ise `adjustNothing` + padding KAV
 - [ ] Kayan kapsayıcıda `keyboardShouldPersistTaps`
 - [ ] Üst alanda öneri aşağı, alt/klavye yanında yukarı

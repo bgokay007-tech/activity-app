@@ -10,10 +10,12 @@ Kullanıcı: forma yazınca klavye **formu kapatmasın**; yazarken form görüns
 Öneriye basınca klavye kapanmasın, **ilk tıklamada** seçilsin.
 
 1. Skill oku: `.claude/skills/klavye-form/SKILL.md` (+ `ekran-guvenli-alan.md`, `otomatik-tamamlama.md`). Uydurma.
-2. Modal: `android_keyboardInputMode="adjustNothing"` + `KeyboardAvoidingView behavior="padding"` (her iki platform). `behavior="height"` YASAK.
-3. Tam ekran: iOS `padding`, Android `undefined` (app.json pan).
-4. Form ScrollView/FlatList: `keyboardShouldPersistTaps="handled"`. **Öneri listesi: `"always"`**.
-5. Öneri yönü: üst → `top:'100%'`; alt/klavye yanı → `bottom:'100%'`. `zIndex`/`elevation` yeterli.
-6. Seçimde `Keyboard.dismiss()` yok.
-7. Alt input: `paddingBottom` veya odaklanınca kaydır. Sabit alt buton + klavye yok — buton ScrollView içinde.
-8. Hazır sarmalayıcı: `mobile/src/components/KeyboardSafeModal.js`.
+2. Kütüphane: `react-native-keyboard-controller` (root'ta `KeyboardProvider`). `KeyboardAvoidingView` **her zaman bu paketten** import edilir, `react-native`'den değil.
+3. **Yeni/dokunulan form = `KeyboardAwareForm`** (`mobile/src/components/KeyboardAwareForm.js`) — ScrollView yerine birebir; odaklanan alanı kendisi kaydırır. Alan başına `onFocus`/`scrollTo` yazma. İçine ayrıca KAV koyma.
+4. Modal: `KeyboardSafeModal` veya `android_keyboardInputMode="adjustNothing"` + `KeyboardAvoidingView behavior="padding"`. `behavior="height"` YASAK.
+5. Eski tam ekran (henüz geçirilmemiş): iOS `padding`, Android `undefined` (app.json pan). Dokunursan `KeyboardAwareForm`'a geçir.
+6. Form ScrollView/FlatList: `keyboardShouldPersistTaps="handled"` (`KeyboardAwareForm`'da varsayılan). **Öneri listesi: `"always"`**.
+7. Öneri yönü: üst → `top:'100%'`; alt/klavye yanı → `bottom:'100%'`. `zIndex`/`elevation` yeterli.
+8. Seçimde `Keyboard.dismiss()` yok.
+9. Sabit alt buton + klavye: buton form içinde ya da `KeyboardStickyView` (paketten) ile klavyeyle kalksın.
+10. Native modül eklemek = yeni APK + `app.json` `version` artır (runtimeVersion appVersion); yoksa OTA eski APK'yı çökertir.

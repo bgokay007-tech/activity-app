@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Modal, View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator,
-    KeyboardAvoidingView, Alert, RefreshControl,
+    Alert, RefreshControl,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import api from '../services/api';

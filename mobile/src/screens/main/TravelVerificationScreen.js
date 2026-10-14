@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
-    Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard,
+    Alert, ActivityIndicator, Platform, Keyboard,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../services/api';

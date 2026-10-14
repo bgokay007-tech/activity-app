@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet,
-    Modal, ScrollView, ActivityIndicator, Alert, Linking, KeyboardAvoidingView, Platform,
+    Modal, ScrollView, ActivityIndicator, Alert, Linking, Platform,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../theme/colors';
 import api from '../services/api';

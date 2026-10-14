@@ -1,10 +1,13 @@
-import { Modal, View, KeyboardAvoidingView, StyleSheet } from 'react-native';
+import { Modal, View, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../theme/colors';
 
 // Kullanıcı isteği (defalarca): klavye formu kapatmasın — hangi form olursa olsun.
 // Proje kalıbı: Modal'da android_keyboardInputMode="adjustNothing" + her iki
 // platformda behavior="padding". behavior="height" YASAK (kaydırmayı bozar).
+// KeyboardAvoidingView react-native-keyboard-controller'dan: RN'inkinin aksine
+// Modal penceresindeki klavyeyi de kare kare izliyor, sheet klavyeyle birlikte kalkıyor.
 // İçindeki ScrollView'a keyboardShouldPersistTaps="handled" koymak çağıranın işi.
 export default function KeyboardSafeModal({
     visible, onClose, children, animationType = 'slide',

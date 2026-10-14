@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Modal, View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert,
-    KeyboardAvoidingView, Pressable, useWindowDimensions,
+    Pressable, useWindowDimensions,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useVideoPlayer, VideoView } from 'expo-video';

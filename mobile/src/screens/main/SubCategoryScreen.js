@@ -3,10 +3,11 @@ import { useFocusEffect, useNavigation, useIsFocused } from '@react-navigation/n
 import {
     View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
-    Alert, KeyboardAvoidingView, Platform, Switch, Linking, Image,
+    Alert, Platform, Switch, Linking, Image,
     InteractionManager, PanResponder, Animated, BackHandler, useWindowDimensions, Keyboard,
     Clipboard,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSelector, useDispatch } from 'react-redux';
 import { setUser } from '../../store/slices/authSlice';
 import { setUnreadCount } from '../../store/slices/notificationSlice';

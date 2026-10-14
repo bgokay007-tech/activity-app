@@ -1,5 +1,6 @@
 ﻿import { useState, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Image, ScrollView, TouchableOpacity, Pressable, StyleSheet, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, Pressable, StyleSheet, ActivityIndicator, TextInput, Platform } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';

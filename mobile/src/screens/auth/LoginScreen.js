@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import api from '../../services/api';
 import colors from '../../theme/colors';
 import RainbowLogo from '../../components/RainbowLogo';
 import LanguagePickerModal from '../../components/LanguagePickerModal';
+import KeyboardAwareForm from '../../components/KeyboardAwareForm';
 import { getLanguageLabel } from '../../utils/languages';
 import useT from '../../hooks/useT';
 
@@ -58,11 +59,8 @@ export default function LoginScreen({ navigation }) {
         }
     };
 
-    // Android'de app.json'daki softwareKeyboardLayoutMode:"pan" klavye açılışını zaten native
-    // seviyede kaydırıyor — üstüne KeyboardAvoidingView behavior="height" eklemek çift kaydırmaya
-    // yol açıp klavye kapanınca ekranın altında beyaz boşluk bırakıyordu.
     return (
-        <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAwareForm style={s.container} contentContainerStyle={{ flexGrow: 1 }}>
             {/* Language selector — sabit sağ üst köşe */}
             <TouchableOpacity
                 onPress={() => setShowLangPicker(true)}
@@ -154,7 +152,7 @@ export default function LoginScreen({ navigation }) {
                     </TouchableOpacity>
                 </View>
             </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareForm>
     );
 }
 

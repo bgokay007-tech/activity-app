@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
     Modal, View, Text, TextInput, TouchableOpacity, FlatList, Image,
-    ActivityIndicator, StyleSheet, Alert, KeyboardAvoidingView, Platform,
+    ActivityIndicator, StyleSheet, Alert, Platform,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
 import colors from '../theme/colors';
