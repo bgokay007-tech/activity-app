@@ -59,7 +59,7 @@ import {
     createBasketballMatch, basketballRecordPoints, basketballEndQuarter, basketballFinishMatch,
     deriveStats, recordLineCall, LINE_CALL_SPORTS, engineToWearScore,
 } from '../../utils/liveMatchEngine';
-import { TOURNAMENT_PRESETS, getPresetById, buildFormatConfig, tournFormatLabel, ACTIVE_ENGINE_TYPES, activePresets, DEFI_DEFAULTS, defiEntryFor, isDefiTourn, defiEntryOf } from '../../utils/tournamentFormats';
+import { TOURNAMENT_PRESETS, getPresetById, buildFormatConfig, tournFormatLabel, ACTIVE_ENGINE_TYPES, activePresets, DEFI_DEFAULTS, DEFI_TEAM_SUBS, defiEntryFor, isDefiTourn, defiEntryOf } from '../../utils/tournamentFormats';
 import DefiLadderModal, { DefiTeamNameModal, DefiSettingsForm } from '../../components/DefiLadderModal';
 import MatchVideoAnalysisModal from '../../components/MatchVideoAnalysisModal';
 
@@ -21272,7 +21272,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
     const INIT = {
         name: '', scope: '', scopeCity: '', scopeDistrict: '', scopeCountry: '',
-        type: '1', presetId: 'singles_elo_playoff',
+        ...(sub === 'padel'
+            ? { type: '2', presetId: 'doubles_rr_playoff', entry: 'DOUBLES' }
+            : { type: '1', presetId: 'singles_elo_playoff', entry: 'SINGLES' }),
         minPlayers: '', maxPlayers: '', minRating: '', maxRating: '',
         ratingGenderSplit: false,
         minRatingMale: '', maxRatingMale: '',
@@ -22210,9 +22212,46 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             </View>
                             <Text style={{ color: colors.textMuted, fontSize:11, lineHeight:15, marginBottom:10 }}>{t.tournFormatHint}</Text>
 
+                            {!f.pollEnabled && !DEFI_TEAM_SUBS.includes(sub) && (
+                                <>
+                                <Text style={s.fieldLabelRed}>{t.tournEntryPick}</Text>
+                                <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
+                                    {['SINGLES', 'DOUBLES'].map(en => {
+                                        const on = f.entry === en;
+                                        return (
+                                            <TouchableOpacity key={en}
+                                                onPress={() => {
+                                                    if (on) return;
+                                                    // Seçili kart yeni giriş türünde yoksa o türün ilk kartına geç — yoksa
+                                                    // filtre "Çiftler" gösterip arka planda tekler formatı gönderiliyordu.
+                                                    const cur = getPresetById(f.presetId);
+                                                    const keep = cur && (cur.entry === en || cur.entry === 'LADDER');
+                                                    const next = keep ? cur : presets.find(p => !p.comingSoon && p.entry === en);
+                                                    setF(prev => ({
+                                                        ...prev,
+                                                        entry: en,
+                                                        ...(next ? {
+                                                            presetId: next.id,
+                                                            type: next.engineType,
+                                                            matchmakingType: next.seeding === 'RANDOM' ? 'RANDOM' : (prev.matchmakingType === 'RANDOM' ? 'ELO' : prev.matchmakingType || 'ELO'),
+                                                        } : {}),
+                                                        defi: { ...prev.defi, entry: en === 'DOUBLES' ? 'PAIR' : 'SINGLES' },
+                                                    }));
+                                                }}
+                                                style={[s.chip, { flex:1, alignItems:'center', paddingVertical:8 }, on && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
+                                                <Text style={[s.chipText, on && { color: cfg.color, fontWeight:'800' }]}>
+                                                    {on ? '✓ ' : ''}{en === 'DOUBLES' ? t.tournEntryDoubles : t.tournEntrySingles}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                                </>
+                            )}
+
                             {!f.pollEnabled && (
                                 <View style={{ gap:8, marginBottom:12 }}>
-                                    {presets.map(p => {
+                                    {presets.filter(p => DEFI_TEAM_SUBS.includes(sub) || p.entry === 'LADDER' || p.entry === f.entry).map(p => {
                                         const selected = !p.comingSoon && f.presetId === p.id;
                                         const title = t[`tournPreset_${p.id}`] || p.id;
                                         const desc = t[`tournPresetDesc_${p.id}`] || '';
