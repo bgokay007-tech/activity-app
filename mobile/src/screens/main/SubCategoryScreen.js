@@ -21629,6 +21629,325 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             )}
 
+                            {/* Turnuva formatı — preset kartları. İzinli kullanıcılar (admin /
+                                onaylı turnuva izni) bu modalı zaten dışarıdan açabiliyor.
+                                Airsoft'ta format seçimi yok (varsayılan type='1'). */}
+                            {!isAirsoft && (
+                            <>
+                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8, gap:6, flexWrap:'wrap' }}>
+                                <Text style={s.fieldLabelRed}>{t.tournFormatLabel}</Text>
+                                <View style={{ flexDirection:'row', gap:4, flexWrap:'wrap' }}>
+                                    <TouchableOpacity
+                                        onPress={() => set('pollEnabled', !f.pollEnabled)}
+                                        style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
+                                        <Text style={[s.chipText, f.pollEnabled && { color: cfg.color, fontWeight:'800' }]}>{f.pollEnabled ? '✅ ' : ''}{t.tournTypePollToggle}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => set('dayTrip', !f.dayTrip)}
+                                        style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.dayTrip && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
+                                        <Text style={[s.chipText, f.dayTrip && { color: cfg.color, fontWeight:'800' }]}>{f.dayTrip ? '✅ ' : ''}{t.tournDayTrip}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                            <Text style={{ color: colors.textMuted, fontSize:11, lineHeight:15, marginBottom:10 }}>{t.tournFormatHint}</Text>
+
+                            {!f.pollEnabled && !DEFI_TEAM_SUBS.includes(sub) && (
+                                <>
+                                <Text style={s.fieldLabelRed}>{t.tournEntryPick}</Text>
+                                <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
+                                    {['SINGLES', 'DOUBLES'].map(en => {
+                                        const on = f.entry === en;
+                                        return (
+                                            <TouchableOpacity key={en}
+                                                onPress={() => {
+                                                    if (on) return;
+                                                    // Seçili kart yeni giriş türünde yoksa o türün ilk kartına geç — yoksa
+                                                    // filtre "Çiftler" gösterip arka planda tekler formatı gönderiliyordu.
+                                                    const cur = getPresetById(f.presetId);
+                                                    const keep = cur && (cur.entry === en || cur.entry === 'LADDER');
+                                                    const next = keep ? cur : presets.find(p => !p.comingSoon && p.entry === en);
+                                                    setF(prev => ({
+                                                        ...prev,
+                                                        entry: en,
+                                                        ...(next ? {
+                                                            presetId: next.id,
+                                                            type: next.engineType,
+                                                            matchmakingType: next.seeding === 'RANDOM' ? 'RANDOM' : (prev.matchmakingType === 'RANDOM' ? 'ELO' : prev.matchmakingType || 'ELO'),
+                                                        } : {}),
+                                                        defi: { ...prev.defi, entry: en === 'DOUBLES' ? 'PAIR' : 'SINGLES' },
+                                                    }));
+                                                }}
+                                                style={[s.chip, { flex:1, alignItems:'center', paddingVertical:8 }, on && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
+                                                <Text style={[s.chipText, on && { color: cfg.color, fontWeight:'800' }]}>
+                                                    {on ? '✓ ' : ''}{en === 'DOUBLES' ? t.tournEntryDoubles : t.tournEntrySingles}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                                </>
+                            )}
+
+                            {!f.pollEnabled && (
+                                <View style={{ gap:8, marginBottom:12 }}>
+                                    {presets.filter(p => DEFI_TEAM_SUBS.includes(sub) || p.entry === 'LADDER' || p.entry === f.entry).map(p => {
+                                        const selected = !p.comingSoon && f.presetId === p.id;
+                                        const title = t[`tournPreset_${p.id}`] || p.id;
+                                        const desc = t[`tournPresetDesc_${p.id}`] || '';
+                                        const badge = p.comingSoon ? t.tournComingSoon
+                                            : (p.entry === 'LADDER' ? t.tournEntryLadder : p.entry === 'DOUBLES' ? t.tournEntryDoubles : t.tournEntrySingles);
+                                        return (
+                                            <TouchableOpacity
+                                                key={p.id}
+                                                disabled={!!p.comingSoon}
+                                                activeOpacity={0.85}
+                                                onPress={() => {
+                                                    if (p.comingSoon) return;
+                                                    setF(prev => ({
+                                                        ...prev,
+                                                        presetId: p.id,
+                                                        type: p.engineType,
+                                                        matchmakingType: p.seeding === 'RANDOM' ? 'RANDOM' : (prev.matchmakingType === 'RANDOM' ? 'ELO' : prev.matchmakingType || 'ELO'),
+                                                    }));
+                                                }}
+                                                style={{
+                                                    borderRadius:14, padding:12,
+                                                    backgroundColor: selected ? p.accent + '18' : '#0f172a',
+                                                    borderWidth:1.5,
+                                                    borderColor: selected ? p.accent : '#334155',
+                                                    opacity: p.comingSoon ? 0.55 : 1,
+                                                }}>
+                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:4 }}>
+                                                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', flex:1 }} numberOfLines={1}>{title}</Text>
+                                                    <View style={{ backgroundColor: (p.comingSoon ? '#64748b' : p.accent) + '33', borderRadius:999, paddingHorizontal:8, paddingVertical:3 }}>
+                                                        <Text style={{ color: p.comingSoon ? '#94a3b8' : p.accent, fontSize:10, fontWeight:'800' }}>{badge}</Text>
+                                                    </View>
+                                                </View>
+                                                <Text style={{ color:'#94a3b8', fontSize:11, lineHeight:15 }}>{desc}</Text>
+                                                {selected ? (
+                                                    <Text style={{ color: p.accent, fontSize:11, fontWeight:'800', marginTop:6 }}>✓ {t.tournFormatSelected}</Text>
+                                                ) : null}
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                            )}
+
+                            {f.pollEnabled && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:12, padding:12, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:16, marginBottom:10 }}>{t.tournPollInfoText}</Text>
+                                    <Text style={s.fieldLabelRed}>{t.tournPollTypesLabel} *</Text>
+                                    <View style={{ gap:8, marginBottom:10 }}>
+                                        {presets.filter(p => !p.comingSoon).map(p => {
+                                            const selected = f.pollTypes.includes(p.engineType);
+                                            return (
+                                                <TouchableOpacity key={p.id}
+                                                    onPress={() => set('pollTypes', selected
+                                                        ? f.pollTypes.filter(x => x !== p.engineType)
+                                                        : [...f.pollTypes, p.engineType])}
+                                                    style={{
+                                                        borderRadius:12, padding:10,
+                                                        backgroundColor: selected ? p.accent + '18' : '#0f172a',
+                                                        borderWidth:1, borderColor: selected ? p.accent : '#334155',
+                                                    }}>
+                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>
+                                                        {selected ? '✓ ' : ''}{t[`tournPreset_${p.id}`]}
+                                                    </Text>
+                                                    <Text style={{ color:'#94a3b8', fontSize:11, marginTop:2 }} numberOfLines={2}>{t[`tournPresetDesc_${p.id}`]}</Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+
+                                    <Text style={s.fieldLabelRed}>{t.tournPollEndLabel} *</Text>
+                                    <View style={{ flexDirection:'row', gap:3 }}>
+                                        <TouchableOpacity
+                                            style={[s.triBtn, f.pollEndDate && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
+                                            onPress={() => { setTimeField(null); setDpField('pollEnd'); }}>
+                                            <Text style={[s.triLabel, { fontSize:8 }]}>{t.dateLabel}</Text>
+                                            <Text style={[s.triValue, !f.pollEndDate && s.triPlaceholder, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                                {f.pollEndDate ? `${String(f.pollEndDate.getDate()).padStart(2,'0')}/${String(f.pollEndDate.getMonth()+1).padStart(2,'0')}` : '—'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[s.triBtn, f.pollEndTime && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:2 }]}
+                                            onPress={() => { setDpField(null); setTimeField('pollEnd'); }}>
+                                            <Text style={[s.triLabel, { fontSize:8 }]}>{t.timeLabel}</Text>
+                                            <Text style={[s.triValue, !f.pollEndTime && s.triPlaceholder, { fontSize:10 }]}>{f.pollEndTime || '—'}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <CalendarPickerModal
+                                        visible={dpField === 'pollEnd'}
+                                        value={f.pollEndDate}
+                                        onSelect={(date) => { set('pollEndDate', date); setDpField(null); }}
+                                        onClose={() => setDpField(null)}
+                                    />
+                                    <TimePickerModal
+                                        visible={timeField === 'pollEnd'}
+                                        title={t.tournPollEndLabel}
+                                        value={f.pollEndTime}
+                                        onSelect={(v) => { set('pollEndTime', v); setTimeField(null); }}
+                                        onClose={() => setTimeField(null)}
+                                    />
+                                </View>
+                            )}
+
+                            {/* Bireysel Rekabetçi kuralları */}
+                            {!f.pollEnabled && f.type === '1' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_singles_elo_playoff}</Text>
+                                    {[
+                                        'Oyuncular bireysel katılır. Play-off öncesi her tur bittikten sonra güncel ELO\'ya göre en yakın, daha önce eşleşmemiş rakiplerle yeni tur oluşturulur.',
+                                        'Play-off\'larda da ELO puanı en yakın oyuncular eşleşir.',
+                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
+                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; sadece iki taraf da karşılıklı yaptığı için joker hakları tükenmez.',
+                                        'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
+                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan oyuncular varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan oyuncular henüz oynamadıkları, puanı en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
+                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* Çiftler Rekabetçi kuralları */}
+                            {!f.pollEnabled && f.type === '2' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Çiftler Rekabetçi Kuralları</Text>
+                                    {[
+                                        'Oyuncular turnuvaya çift olarak (takım halinde) katılabilir ya da bireysel başvurabilir — bireysel başvuranlar turnuva başlarken ELO puanı birbirine en yakın olanlarla eşleştirilerek takım yapılır. Tek kalan en düşük ELO puanlı oyuncu turnuvaya katılım sağlayamaz.',
+                                        'Karışık (mix) turnuvalarda bireysel katılımcılardan sistem aynı takımda iki kadın oluşturacak şekilde eşleşme yapmaz.',
+                                        'Her takımın 1 kez joker hakkı vardır. Haftada bir maç zorunluluğu olup joker hakkı kullanılırsa takıma +7 gün ek süre tanınır. Joker kullanan takım bu sürede maçı bitirmek için gerekli tavizi vermekle yükümlüdür; bitiremezse joker kullanan takım hükmen yenilir.',
+                                        'Jokeri kullanan takımın rakibi de aynı maç için karşılıklı joker yaparsa joker hakkı tükenmez, sadece 7 günlük süre bir kez eklenmiş olur (hava şartları, kort temin edilememesi vb. durumlar için).',
+                                        'Takımların ELO puan ortalaması alınır ve play-off\'lara kadar kaç maç seçildiyse, her takım diğer her takımla en fazla bir kez eşleşecek şekilde, ortalama puanı en yakın olandan başlanarak her turda rakip eşleşmesi sağlanır.',
+                                        'Play-off öncesi lig tablosunda puanı eşit olan takımlar varsa averaj (oynanan oyun oranı) dikkate alınır.',
+                                        'Bir takım kazandığında/kaybettiğinde iki oyuncu da bireysel olarak ELO puanı kazanır/kaybeder — miktar, diğer rekabetçi maçlarla aynı puan tablosu kullanılarak iki takımın ortalama ELO farkına göre belirlenir.',
+                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan takımlar varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan takımlar henüz oynamadıkları, ortalama ELO\'su en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
+                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* Bireysel Antrenman kuralları */}
+                            {!f.pollEnabled && f.type === '3' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Bireysel Antrenman Kuralları</Text>
+                                    {[
+                                        'Oyuncular bireysel katılır.',
+                                        'Kura çekildiğinde her tur rastgele oyuncular eşleşilir ve play-off\'lara kadar kimin kiminle maç yapacağı bellidir.',
+                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
+                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; sadece iki taraf da karşılıklı yaptığı için joker hakları tükenmez.',
+                                        'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
+                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan oyuncular varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan oyuncular henüz oynamadıkları, puanı en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
+                                        'Oyuncular isterlerse iki taraf içinde müsaitlik durumu söz konusu ise yapacakları maçlar için iletişime geçerek daha erken maçlarını tamamlamak isterlerse tamamlayabilirler.',
+                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* Çiftler Antrenman kuralları */}
+                            {!f.pollEnabled && f.type === '4' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Çiftler Antrenman Kuralları</Text>
+                                    {[
+                                        'Oyuncular turnuvaya çift olarak (takım halinde) katılabilir ya da bireysel başvurabilir — bireysel başvuranlar turnuva başlarken rastgele eşleştirilerek takım yapılır. Eşi bulunamayan oyuncu turnuvaya katılım sağlayamaz.',
+                                        'Karışık (mix) turnuvalarda bireysel katılımcılardan sistem aynı takımda iki kadın oluşturacak şekilde eşleşme yapmaz.',
+                                        'Her takımın 1 joker hakkı vardır. Haftada bir maç zorunluluğu olup joker hakkı kullanılırsa takıma +7 gün ek süre tanınır. Joker kullanan takım bu sürede maçı bitirmek için gerekli tavizi vermekle yükümlüdür; bitiremezse joker kullanan takım hükmen yenilir.',
+                                        'Jokeri kullanan takımın rakibi de aynı maç için karşılıklı joker yaparsa joker hakkı tükenmez, sadece 7 günlük süre bir kez eklenmiş olur (hava şartları, kort temin edilememesi vb. durumlar için).',
+                                        'Kura çekildiğinde her tur rastgele takımlar eşleşilir ve play-off\'lara kadar hangi takımın hangi takımla maç yapacağı bellidir.',
+                                        'Aynı puanlı takımlar play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
+                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan takımlar varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan takımlar henüz oynamadıkları, ortalama ELO\'su en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
+                                        'Bir takım kazandığında/kaybettiğinde iki oyuncu da bireysel olarak ELO puanı kazanır/kaybeder — miktar, diğer rekabetçi maçlarla aynı puan tablosu kullanılarak iki takımın ortalama ELO farkına göre belirlenir.',
+                                        'Takımlar isterlerse iki taraf içinde müsaitlik durumu söz konusu ise yapacakları maçlar için iletişime geçerek daha erken maçlarını tamamlamak isterlerse tamamlayabilirler.',
+                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* İsviçre sistemi kuralları */}
+                            {!f.pollEnabled && f.type === '5' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_swiss}</Text>
+                                    {[
+                                        'Oyuncular bireysel katılır. İlk tur ELO\'ya yakınlığa göre, sonraki turlar güncel puana (ve averaja) göre eşleştirilir — benzer sıralamadakiler karşılaşır.',
+                                        'Aynı iki oyuncu mümkün olduğunca birden fazla kez eşleşmez. Tek sayı oyuncu varsa en düşük sıralı (henüz bye almamış tercih) bye alır; bye +3 puan / +1 galibiyet sayılır.',
+                                        'Tur sayısı organizatörün seçtiği değerdir; boş bırakılırsa yaklaşık log₂(oyuncu sayısı) tur oynanır. Play-off yoktur — sıralama final tablosuna göre belirlenir.',
+                                        'Sıralama: puan → averaj (kazanılan oyun / toplam oyun) → set oranı → oyun oranı → sabit kura.',
+                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
+                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; karşılıklı olduğu için joker hakları tükenmez.',
+                                        'Maçlar rekabetçidir; galibiyet/mağlubiyet ELO puanını etkiler. Anlaşma için maç kartındaki yorum bölümü kullanılır; skor karşılıklı onaylanır.',
+                                    ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5)).map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* Çift eleme kuralları */}
+                            {!f.pollEnabled && f.type === '6' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_double_elim}</Text>
+                                    {[
+                                        'Oyuncular bireysel katılır. En az 4 oyuncu gerekir. Kura ELO sıralamasına göre çekilir; eksik kontenjan bye ile tamamlanır.',
+                                        'Kazananlar kurası (üst bracket) ve kaybedenler kurası (alt bracket) vardır. Bir yenilgide alt kuraya düşersin; iki yenilgide elenirsin.',
+                                        'Üst kura şampiyonu ile alt kura şampiyonu Büyük Final\'de karşılaşır. Alt kura şampiyonu kazanırsa bir reset (ikinci) büyük final maçı oynanır.',
+                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
+                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; karşılıklı olduğu için joker hakları tükenmez.',
+                                        'Maçlar rekabetçidir; galibiyet/mağlubiyet ELO puanını etkiler. Skor karşılıklı onaylanır.',
+                                        'Play-off öncesi lig turu yoktur — tüm turnuva eleme formatındadır.',
+                                    ].filter((_, i) => !f.dayTrip || (i !== 3 && i !== 4)).map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* Defi ligi: ayarlar + seçilen ayarlarla kurallar */}
+                            {!f.pollEnabled && f.type === '9' && (
+                                <DefiSettingsForm value={f.defi} onChange={(v) => set('defi', v)} sub={sub} color={cfg.color} />
+                            )}
+
+                            {/* Americano / sosyal çiftler kuralları */}
+                            {!f.pollEnabled && f.type === '7' && (
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_americano}</Text>
+                                    {[
+                                        'Oyuncular bireysel katılır (sabit partner yok). En az 4 oyuncu gerekir. Her tur geçici 2v2 çiftler oluşturulur; partner her tur değişir.',
+                                        'Mümkün olduğunca aynı kişiyle tekrar partner olunmaz ve aynı rakiplerle tekrar karşılaşılmaz. Oyuncu sayısı 4\'ün katı değilse oturanlar turlar arasında dönüşümlü seçilir.',
+                                        'Sıralama bireyseldir: her oyuncu, o turda takımının kazandığı oyun (game) sayısını puan olarak biriktirir. Play-off yoktur — en yüksek puanlılar önde biter.',
+                                        'Tur sayısı organizatörün seçtiği değerdir; boş bırakılırsa oyuncu sayısına göre (üst sınır 7) otomatik belirlenir.',
+                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan taraf hükmen yenilir.',
+                                        'Karşılıklı joker yapılırsa süre bir kez +7 uzar; joker hakları tükenmez.',
+                                        'Tenis/padel\'de çiftler puanı (Ç ELO) kullanılır. Skor karşılıklı onaylanır.',
+                                    ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5)).map((kural, i) => (
+                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+                            </>
+                            )}
+
                             {/* Court — airsoft'ta "kort" yerine "mekan" kavramı kullanılır */}
                             <Text style={s.fieldLabelRed}>{isAirsoft ? (lang==='tr' ? 'Mekan' : lang === 'ru' ? 'Место' : lang === 'de' ? 'Ort' : 'Venue') : t.tournCourtLabel}</Text>
                             <View style={[s.chipRow, { marginBottom:8 }]}>
@@ -22190,324 +22509,6 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             </View>
 
-                            {/* Turnuva formatı — preset kartları. İzinli kullanıcılar (admin /
-                                onaylı turnuva izni) bu modalı zaten dışarıdan açabiliyor.
-                                Airsoft'ta format seçimi yok (varsayılan type='1'). */}
-                            {!isAirsoft && (
-                            <>
-                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8, gap:6, flexWrap:'wrap' }}>
-                                <Text style={s.fieldLabelRed}>{t.tournFormatLabel}</Text>
-                                <View style={{ flexDirection:'row', gap:4, flexWrap:'wrap' }}>
-                                    <TouchableOpacity
-                                        onPress={() => set('pollEnabled', !f.pollEnabled)}
-                                        style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
-                                        <Text style={[s.chipText, f.pollEnabled && { color: cfg.color, fontWeight:'800' }]}>{f.pollEnabled ? '✅ ' : ''}{t.tournTypePollToggle}</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        onPress={() => set('dayTrip', !f.dayTrip)}
-                                        style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.dayTrip && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
-                                        <Text style={[s.chipText, f.dayTrip && { color: cfg.color, fontWeight:'800' }]}>{f.dayTrip ? '✅ ' : ''}{t.tournDayTrip}</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                            <Text style={{ color: colors.textMuted, fontSize:11, lineHeight:15, marginBottom:10 }}>{t.tournFormatHint}</Text>
-
-                            {!f.pollEnabled && !DEFI_TEAM_SUBS.includes(sub) && (
-                                <>
-                                <Text style={s.fieldLabelRed}>{t.tournEntryPick}</Text>
-                                <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
-                                    {['SINGLES', 'DOUBLES'].map(en => {
-                                        const on = f.entry === en;
-                                        return (
-                                            <TouchableOpacity key={en}
-                                                onPress={() => {
-                                                    if (on) return;
-                                                    // Seçili kart yeni giriş türünde yoksa o türün ilk kartına geç — yoksa
-                                                    // filtre "Çiftler" gösterip arka planda tekler formatı gönderiliyordu.
-                                                    const cur = getPresetById(f.presetId);
-                                                    const keep = cur && (cur.entry === en || cur.entry === 'LADDER');
-                                                    const next = keep ? cur : presets.find(p => !p.comingSoon && p.entry === en);
-                                                    setF(prev => ({
-                                                        ...prev,
-                                                        entry: en,
-                                                        ...(next ? {
-                                                            presetId: next.id,
-                                                            type: next.engineType,
-                                                            matchmakingType: next.seeding === 'RANDOM' ? 'RANDOM' : (prev.matchmakingType === 'RANDOM' ? 'ELO' : prev.matchmakingType || 'ELO'),
-                                                        } : {}),
-                                                        defi: { ...prev.defi, entry: en === 'DOUBLES' ? 'PAIR' : 'SINGLES' },
-                                                    }));
-                                                }}
-                                                style={[s.chip, { flex:1, alignItems:'center', paddingVertical:8 }, on && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
-                                                <Text style={[s.chipText, on && { color: cfg.color, fontWeight:'800' }]}>
-                                                    {on ? '✓ ' : ''}{en === 'DOUBLES' ? t.tournEntryDoubles : t.tournEntrySingles}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </View>
-                                </>
-                            )}
-
-                            {!f.pollEnabled && (
-                                <View style={{ gap:8, marginBottom:12 }}>
-                                    {presets.filter(p => DEFI_TEAM_SUBS.includes(sub) || p.entry === 'LADDER' || p.entry === f.entry).map(p => {
-                                        const selected = !p.comingSoon && f.presetId === p.id;
-                                        const title = t[`tournPreset_${p.id}`] || p.id;
-                                        const desc = t[`tournPresetDesc_${p.id}`] || '';
-                                        const badge = p.comingSoon ? t.tournComingSoon
-                                            : (p.entry === 'LADDER' ? t.tournEntryLadder : p.entry === 'DOUBLES' ? t.tournEntryDoubles : t.tournEntrySingles);
-                                        return (
-                                            <TouchableOpacity
-                                                key={p.id}
-                                                disabled={!!p.comingSoon}
-                                                activeOpacity={0.85}
-                                                onPress={() => {
-                                                    if (p.comingSoon) return;
-                                                    setF(prev => ({
-                                                        ...prev,
-                                                        presetId: p.id,
-                                                        type: p.engineType,
-                                                        matchmakingType: p.seeding === 'RANDOM' ? 'RANDOM' : (prev.matchmakingType === 'RANDOM' ? 'ELO' : prev.matchmakingType || 'ELO'),
-                                                    }));
-                                                }}
-                                                style={{
-                                                    borderRadius:14, padding:12,
-                                                    backgroundColor: selected ? p.accent + '18' : '#0f172a',
-                                                    borderWidth:1.5,
-                                                    borderColor: selected ? p.accent : '#334155',
-                                                    opacity: p.comingSoon ? 0.55 : 1,
-                                                }}>
-                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:4 }}>
-                                                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', flex:1 }} numberOfLines={1}>{title}</Text>
-                                                    <View style={{ backgroundColor: (p.comingSoon ? '#64748b' : p.accent) + '33', borderRadius:999, paddingHorizontal:8, paddingVertical:3 }}>
-                                                        <Text style={{ color: p.comingSoon ? '#94a3b8' : p.accent, fontSize:10, fontWeight:'800' }}>{badge}</Text>
-                                                    </View>
-                                                </View>
-                                                <Text style={{ color:'#94a3b8', fontSize:11, lineHeight:15 }}>{desc}</Text>
-                                                {selected ? (
-                                                    <Text style={{ color: p.accent, fontSize:11, fontWeight:'800', marginTop:6 }}>✓ {t.tournFormatSelected}</Text>
-                                                ) : null}
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </View>
-                            )}
-
-                            {f.pollEnabled && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:12, padding:12, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
-                                    <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:16, marginBottom:10 }}>{t.tournPollInfoText}</Text>
-                                    <Text style={s.fieldLabelRed}>{t.tournPollTypesLabel} *</Text>
-                                    <View style={{ gap:8, marginBottom:10 }}>
-                                        {presets.filter(p => !p.comingSoon).map(p => {
-                                            const selected = f.pollTypes.includes(p.engineType);
-                                            return (
-                                                <TouchableOpacity key={p.id}
-                                                    onPress={() => set('pollTypes', selected
-                                                        ? f.pollTypes.filter(x => x !== p.engineType)
-                                                        : [...f.pollTypes, p.engineType])}
-                                                    style={{
-                                                        borderRadius:12, padding:10,
-                                                        backgroundColor: selected ? p.accent + '18' : '#0f172a',
-                                                        borderWidth:1, borderColor: selected ? p.accent : '#334155',
-                                                    }}>
-                                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>
-                                                        {selected ? '✓ ' : ''}{t[`tournPreset_${p.id}`]}
-                                                    </Text>
-                                                    <Text style={{ color:'#94a3b8', fontSize:11, marginTop:2 }} numberOfLines={2}>{t[`tournPresetDesc_${p.id}`]}</Text>
-                                                </TouchableOpacity>
-                                            );
-                                        })}
-                                    </View>
-
-                                    <Text style={s.fieldLabelRed}>{t.tournPollEndLabel} *</Text>
-                                    <View style={{ flexDirection:'row', gap:3 }}>
-                                        <TouchableOpacity
-                                            style={[s.triBtn, f.pollEndDate && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
-                                            onPress={() => { setTimeField(null); setDpField('pollEnd'); }}>
-                                            <Text style={[s.triLabel, { fontSize:8 }]}>{t.dateLabel}</Text>
-                                            <Text style={[s.triValue, !f.pollEndDate && s.triPlaceholder, { fontSize:10 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                {f.pollEndDate ? `${String(f.pollEndDate.getDate()).padStart(2,'0')}/${String(f.pollEndDate.getMonth()+1).padStart(2,'0')}` : '—'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[s.triBtn, f.pollEndTime && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:2 }]}
-                                            onPress={() => { setDpField(null); setTimeField('pollEnd'); }}>
-                                            <Text style={[s.triLabel, { fontSize:8 }]}>{t.timeLabel}</Text>
-                                            <Text style={[s.triValue, !f.pollEndTime && s.triPlaceholder, { fontSize:10 }]}>{f.pollEndTime || '—'}</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                    <CalendarPickerModal
-                                        visible={dpField === 'pollEnd'}
-                                        value={f.pollEndDate}
-                                        onSelect={(date) => { set('pollEndDate', date); setDpField(null); }}
-                                        onClose={() => setDpField(null)}
-                                    />
-                                    <TimePickerModal
-                                        visible={timeField === 'pollEnd'}
-                                        title={t.tournPollEndLabel}
-                                        value={f.pollEndTime}
-                                        onSelect={(v) => { set('pollEndTime', v); setTimeField(null); }}
-                                        onClose={() => setTimeField(null)}
-                                    />
-                                </View>
-                            )}
-
-                            {/* Bireysel Rekabetçi kuralları */}
-                            {!f.pollEnabled && f.type === '1' && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_singles_elo_playoff}</Text>
-                                    {[
-                                        'Oyuncular bireysel katılır. Play-off öncesi her tur bittikten sonra güncel ELO\'ya göre en yakın, daha önce eşleşmemiş rakiplerle yeni tur oluşturulur.',
-                                        'Play-off\'larda da ELO puanı en yakın oyuncular eşleşir.',
-                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
-                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; sadece iki taraf da karşılıklı yaptığı için joker hakları tükenmez.',
-                                        'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
-                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan oyuncular varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan oyuncular henüz oynamadıkları, puanı en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
-                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            )}
-
-                            {/* Çiftler Rekabetçi kuralları */}
-                            {!f.pollEnabled && f.type === '2' && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Çiftler Rekabetçi Kuralları</Text>
-                                    {[
-                                        'Oyuncular turnuvaya çift olarak (takım halinde) katılabilir ya da bireysel başvurabilir — bireysel başvuranlar turnuva başlarken ELO puanı birbirine en yakın olanlarla eşleştirilerek takım yapılır. Tek kalan en düşük ELO puanlı oyuncu turnuvaya katılım sağlayamaz.',
-                                        'Karışık (mix) turnuvalarda bireysel katılımcılardan sistem aynı takımda iki kadın oluşturacak şekilde eşleşme yapmaz.',
-                                        'Her takımın 1 kez joker hakkı vardır. Haftada bir maç zorunluluğu olup joker hakkı kullanılırsa takıma +7 gün ek süre tanınır. Joker kullanan takım bu sürede maçı bitirmek için gerekli tavizi vermekle yükümlüdür; bitiremezse joker kullanan takım hükmen yenilir.',
-                                        'Jokeri kullanan takımın rakibi de aynı maç için karşılıklı joker yaparsa joker hakkı tükenmez, sadece 7 günlük süre bir kez eklenmiş olur (hava şartları, kort temin edilememesi vb. durumlar için).',
-                                        'Takımların ELO puan ortalaması alınır ve play-off\'lara kadar kaç maç seçildiyse, her takım diğer her takımla en fazla bir kez eşleşecek şekilde, ortalama puanı en yakın olandan başlanarak her turda rakip eşleşmesi sağlanır.',
-                                        'Play-off öncesi lig tablosunda puanı eşit olan takımlar varsa averaj (oynanan oyun oranı) dikkate alınır.',
-                                        'Bir takım kazandığında/kaybettiğinde iki oyuncu da bireysel olarak ELO puanı kazanır/kaybeder — miktar, diğer rekabetçi maçlarla aynı puan tablosu kullanılarak iki takımın ortalama ELO farkına göre belirlenir.',
-                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan takımlar varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan takımlar henüz oynamadıkları, ortalama ELO\'su en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
-                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            )}
-
-                            {/* Bireysel Antrenman kuralları */}
-                            {!f.pollEnabled && f.type === '3' && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Bireysel Antrenman Kuralları</Text>
-                                    {[
-                                        'Oyuncular bireysel katılır.',
-                                        'Kura çekildiğinde her tur rastgele oyuncular eşleşilir ve play-off\'lara kadar kimin kiminle maç yapacağı bellidir.',
-                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
-                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; sadece iki taraf da karşılıklı yaptığı için joker hakları tükenmez.',
-                                        'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
-                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan oyuncular varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan oyuncular henüz oynamadıkları, puanı en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
-                                        'Oyuncular isterlerse iki taraf içinde müsaitlik durumu söz konusu ise yapacakları maçlar için iletişime geçerek daha erken maçlarını tamamlamak isterlerse tamamlayabilirler.',
-                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            )}
-
-                            {/* Çiftler Antrenman kuralları */}
-                            {!f.pollEnabled && f.type === '4' && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Çiftler Antrenman Kuralları</Text>
-                                    {[
-                                        'Oyuncular turnuvaya çift olarak (takım halinde) katılabilir ya da bireysel başvurabilir — bireysel başvuranlar turnuva başlarken rastgele eşleştirilerek takım yapılır. Eşi bulunamayan oyuncu turnuvaya katılım sağlayamaz.',
-                                        'Karışık (mix) turnuvalarda bireysel katılımcılardan sistem aynı takımda iki kadın oluşturacak şekilde eşleşme yapmaz.',
-                                        'Her takımın 1 joker hakkı vardır. Haftada bir maç zorunluluğu olup joker hakkı kullanılırsa takıma +7 gün ek süre tanınır. Joker kullanan takım bu sürede maçı bitirmek için gerekli tavizi vermekle yükümlüdür; bitiremezse joker kullanan takım hükmen yenilir.',
-                                        'Jokeri kullanan takımın rakibi de aynı maç için karşılıklı joker yaparsa joker hakkı tükenmez, sadece 7 günlük süre bir kez eklenmiş olur (hava şartları, kort temin edilememesi vb. durumlar için).',
-                                        'Kura çekildiğinde her tur rastgele takımlar eşleşilir ve play-off\'lara kadar hangi takımın hangi takımla maç yapacağı bellidir.',
-                                        'Aynı puanlı takımlar play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
-                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan takımlar varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan takımlar henüz oynamadıkları, ortalama ELO\'su en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
-                                        'Bir takım kazandığında/kaybettiğinde iki oyuncu da bireysel olarak ELO puanı kazanır/kaybeder — miktar, diğer rekabetçi maçlarla aynı puan tablosu kullanılarak iki takımın ortalama ELO farkına göre belirlenir.',
-                                        'Takımlar isterlerse iki taraf içinde müsaitlik durumu söz konusu ise yapacakları maçlar için iletişime geçerek daha erken maçlarını tamamlamak isterlerse tamamlayabilirler.',
-                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            )}
-
-                            {/* İsviçre sistemi kuralları */}
-                            {!f.pollEnabled && f.type === '5' && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_swiss}</Text>
-                                    {[
-                                        'Oyuncular bireysel katılır. İlk tur ELO\'ya yakınlığa göre, sonraki turlar güncel puana (ve averaja) göre eşleştirilir — benzer sıralamadakiler karşılaşır.',
-                                        'Aynı iki oyuncu mümkün olduğunca birden fazla kez eşleşmez. Tek sayı oyuncu varsa en düşük sıralı (henüz bye almamış tercih) bye alır; bye +3 puan / +1 galibiyet sayılır.',
-                                        'Tur sayısı organizatörün seçtiği değerdir; boş bırakılırsa yaklaşık log₂(oyuncu sayısı) tur oynanır. Play-off yoktur — sıralama final tablosuna göre belirlenir.',
-                                        'Sıralama: puan → averaj (kazanılan oyun / toplam oyun) → set oranı → oyun oranı → sabit kura.',
-                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
-                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; karşılıklı olduğu için joker hakları tükenmez.',
-                                        'Maçlar rekabetçidir; galibiyet/mağlubiyet ELO puanını etkiler. Anlaşma için maç kartındaki yorum bölümü kullanılır; skor karşılıklı onaylanır.',
-                                    ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5)).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            )}
-
-                            {/* Çift eleme kuralları */}
-                            {!f.pollEnabled && f.type === '6' && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_double_elim}</Text>
-                                    {[
-                                        'Oyuncular bireysel katılır. En az 4 oyuncu gerekir. Kura ELO sıralamasına göre çekilir; eksik kontenjan bye ile tamamlanır.',
-                                        'Kazananlar kurası (üst bracket) ve kaybedenler kurası (alt bracket) vardır. Bir yenilgide alt kuraya düşersin; iki yenilgide elenirsin.',
-                                        'Üst kura şampiyonu ile alt kura şampiyonu Büyük Final\'de karşılaşır. Alt kura şampiyonu kazanırsa bir reset (ikinci) büyük final maçı oynanır.',
-                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
-                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; karşılıklı olduğu için joker hakları tükenmez.',
-                                        'Maçlar rekabetçidir; galibiyet/mağlubiyet ELO puanını etkiler. Skor karşılıklı onaylanır.',
-                                        'Play-off öncesi lig turu yoktur — tüm turnuva eleme formatındadır.',
-                                    ].filter((_, i) => !f.dayTrip || (i !== 3 && i !== 4)).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            )}
-
-                            {/* Defi ligi: ayarlar + seçilen ayarlarla kurallar */}
-                            {!f.pollEnabled && f.type === '9' && (
-                                <DefiSettingsForm value={f.defi} onChange={(v) => set('defi', v)} sub={sub} color={cfg.color} />
-                            )}
-
-                            {/* Americano / sosyal çiftler kuralları */}
-                            {!f.pollEnabled && f.type === '7' && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_americano}</Text>
-                                    {[
-                                        'Oyuncular bireysel katılır (sabit partner yok). En az 4 oyuncu gerekir. Her tur geçici 2v2 çiftler oluşturulur; partner her tur değişir.',
-                                        'Mümkün olduğunca aynı kişiyle tekrar partner olunmaz ve aynı rakiplerle tekrar karşılaşılmaz. Oyuncu sayısı 4\'ün katı değilse oturanlar turlar arasında dönüşümlü seçilir.',
-                                        'Sıralama bireyseldir: her oyuncu, o turda takımının kazandığı oyun (game) sayısını puan olarak biriktirir. Play-off yoktur — en yüksek puanlılar önde biter.',
-                                        'Tur sayısı organizatörün seçtiği değerdir; boş bırakılırsa oyuncu sayısına göre (üst sınır 7) otomatik belirlenir.',
-                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan taraf hükmen yenilir.',
-                                        'Karşılıklı joker yapılırsa süre bir kez +7 uzar; joker hakları tükenmez.',
-                                        'Tenis/padel\'de çiftler puanı (Ç ELO) kullanılır. Skor karşılıklı onaylanır.',
-                                    ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5)).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            )}
-                            </>
-                            )}
 
                             {/* Contact phone */}
                             <Text style={s.fieldLabelRed}>{t.tournContactPhoneLabel}</Text>
