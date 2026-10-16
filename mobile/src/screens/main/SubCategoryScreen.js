@@ -21634,26 +21634,10 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 Airsoft'ta format seçimi yok (varsayılan type='1'). */}
                             {!isAirsoft && (
                             <>
-                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8, gap:6, flexWrap:'wrap' }}>
-                                <Text style={s.fieldLabelRed}>{t.tournFormatLabel}</Text>
-                                <View style={{ flexDirection:'row', gap:4, flexWrap:'wrap' }}>
-                                    <TouchableOpacity
-                                        onPress={() => set('pollEnabled', !f.pollEnabled)}
-                                        style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
-                                        <Text style={[s.chipText, f.pollEnabled && { color: cfg.color, fontWeight:'800' }]}>{f.pollEnabled ? '✅ ' : ''}{t.tournTypePollToggle}</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        onPress={() => set('dayTrip', !f.dayTrip)}
-                                        style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.dayTrip && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
-                                        <Text style={[s.chipText, f.dayTrip && { color: cfg.color, fontWeight:'800' }]}>{f.dayTrip ? '✅ ' : ''}{t.tournDayTrip}</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                            <Text style={{ color: colors.textMuted, fontSize:11, lineHeight:15, marginBottom:10 }}>{t.tournFormatHint}</Text>
+                            <Text style={s.fieldLabelRed}>{t.tournFormatLabel}</Text>
 
                             {!f.pollEnabled && !DEFI_TEAM_SUBS.includes(sub) && (
                                 <>
-                                <Text style={s.fieldLabelRed}>{t.tournEntryPick}</Text>
                                 <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
                                     {['SINGLES', 'DOUBLES'].map(en => {
                                         const on = f.entry === en;
@@ -21948,8 +21932,25 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             </>
                             )}
 
-                            {/* Court — airsoft'ta "kort" yerine "mekan" kavramı kullanılır */}
-                            <Text style={s.fieldLabelRed}>{isAirsoft ? (lang==='tr' ? 'Mekan' : lang === 'ru' ? 'Место' : lang === 'de' ? 'Ort' : 'Venue') : t.tournCourtLabel}</Text>
+                            {/* Court — airsoft'ta "kort" yerine "mekan" kavramı kullanılır.
+                                Kullanıcılar oylasın / günübirlik formatın yanında değil, bu başlıkla aynı satırda. */}
+                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8, gap:6, flexWrap:'wrap' }}>
+                                <Text style={[s.fieldLabelRed, { marginBottom:0 }]}>{isAirsoft ? (lang==='tr' ? 'Mekan' : lang === 'ru' ? 'Место' : lang === 'de' ? 'Ort' : 'Venue') : t.tournCourtLabel}</Text>
+                                {!isAirsoft && (
+                                    <View style={{ flexDirection:'row', gap:4, flexWrap:'wrap' }}>
+                                        <TouchableOpacity
+                                            onPress={() => set('pollEnabled', !f.pollEnabled)}
+                                            style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
+                                            <Text style={[s.chipText, f.pollEnabled && { color: cfg.color, fontWeight:'800' }]}>{f.pollEnabled ? '✅ ' : ''}{t.tournTypePollToggle}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => set('dayTrip', !f.dayTrip)}
+                                            style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.dayTrip && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
+                                            <Text style={[s.chipText, f.dayTrip && { color: cfg.color, fontWeight:'800' }]}>{f.dayTrip ? '✅ ' : ''}{t.tournDayTrip}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </View>
                             <View style={[s.chipRow, { marginBottom:8 }]}>
                                 <TouchableOpacity
                                     style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
