@@ -3384,7 +3384,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         <Text style={[s.fieldLabel, { fontSize:11, marginBottom:0, flex:1 }]}>{t.subsLabel}</Text>
                                                         {isOwner && (
                                                             <>
-                                                                <TouchableOpacity onPress={() => setShowSubCountPicker(v => !v)} style={{ backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:8, paddingVertical:3 }}>
+                                                                <TouchableOpacity onPress={() => setShowSubCountPicker(!showSubCountPicker)} style={{ backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:8, paddingVertical:3 }}>
                                                                     <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>{t.subCountLabel}: {item.substituteCount || 0}</Text>
                                                                 </TouchableOpacity>
                                                                 <MiniDropdown
@@ -10141,33 +10141,101 @@ function SlotActionSheet({ visible, title, actions, onClose }) {
 
 // Tam ekran alttan açılan OptionPickerModal yerine, alanın hemen altına doğru açılan
 // küçük dropdown — Takım Büyüklüğü/Yedek Sayısı gibi dar sütunlarda tam ekran modal
-// gereksiz büyük duruyordu (kullanıcı isteği). Konumlandırma için Modal/measure
-// gerekmiyor: çağıran taraf zaten `position:'relative'` bir sütun içine koyuyor,
-// bu da o sütunun altına `position:'absolute'` ile yaslanıyor (roster/hakem öneri
-// kutularıyla aynı desen).
+// gereksiz büyük duruyordu (kullanıcı isteği).
+// Liste eskiden tetikleyicinin içinde `position:absolute` duruyordu. Android, ebeveynin
+// kutusunun DIŞINA taşan çocuğa dokunuşu iletmiyor — bu yüzden "liste dışında bir yere
+// basınca kapansın" için konan görünmez bantlar çiziliyor ama basılmıyordu ve kullanıcı
+// seçim yapmak zorunda kalıyordu. Liste artık saydam bir pencerede: dışarıya ya da
+// tetikleyiciye (liste kutusunun dışında kaldığı için) tekrar basınca kapanır, seçenek
+// seçmek zorunda bırakmaz. Her açılışta yeni key — iç içe Modal Android'de aynı host'u
+// yeniden açınca boş yarı saydam ekran bırakıyordu (bkz. genderCountModalKey).
+function AnchoredMenu({ visible, onClose, minWidth, children }) {
+    const markerRef = useRef(null);
+    const openedAt = useRef(0);
+    const sessionRef = useRef(0);
+    const wasVisible = useRef(false);
+    if (visible && !wasVisible.current) {
+        sessionRef.current += 1;
+        // Efektten önce: açılış parmağı yeni pencereye değip listeyi hemen kapatmasın.
+        openedAt.current = Date.now();
+    }
+    wasVisible.current = !!visible;
+    const { width: screenW, height: screenH } = useWindowDimensions();
+    const [box, setBox] = useState(null);
+
+    useEffect(() => {
+        if (!visible) { setBox(null); return; }
+        let cancelled = false;
+        let tries = 0;
+        const measure = () => {
+            if (cancelled) return;
+            const node = markerRef.current;
+            if (!node?.measureInWindow) {
+                if (tries++ < 8) requestAnimationFrame(measure);
+                return;
+            }
+            node.measureInWindow((x, y, width) => {
+                if (cancelled) return;
+                if (!width && tries++ < 8) { requestAnimationFrame(measure); return; }
+                setBox({ x, y, width });
+            });
+        };
+        measure();
+        const retry = setTimeout(measure, 60);
+        return () => { cancelled = true; clearTimeout(retry); };
+    }, [visible]);
+
+    // Açılış dokunuşu yeni pencereye sızıp listeyi anında kapatmasın diye kısa süre
+    // yok sayılır; sonraki dışarı/tetikleyici dokunuşu kapatır.
+    const requestClose = () => {
+        if (Date.now() - openedAt.current < 220) return;
+        onClose();
+    };
+
+    const menuW = box ? Math.max(minWidth || 0, box.width || 0) : 0;
+    let left = box ? box.x : 0;
+    if (box && left + menuW > screenW - 8) left = Math.max(8, screenW - 8 - menuW);
+    const spaceBelow = box ? Math.max(96, screenH - box.y - 12) : 340;
+    const maxH = Math.min(340, spaceBelow);
+
+    return (
+        <>
+            <View ref={markerRef} collapsable={false} pointerEvents="none" style={{ position:'absolute', top:'100%', left:0, width:'100%', height:1, opacity:0 }} />
+            {visible && (
+                <Modal key={sessionRef.current} transparent animationType="none" visible statusBarTranslucent onRequestClose={requestClose}>
+                    <View style={{ flex:1 }}>
+                        {/* Saydam View Android'de dokunuşu yutuyor; 0.01 opaklık gözle görünmez, dokunuşu alır. */}
+                        <TouchableOpacity activeOpacity={1} onPress={requestClose} style={{ position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.01)' }} />
+                        {box && (
+                            <View style={{ position:'absolute', top: box.y + 3, left, minWidth: menuW, maxHeight: maxH, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, overflow:'hidden', elevation:16, zIndex:2 }}>
+                                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" bounces={false} style={{ maxHeight: maxH, flexGrow:0 }}>
+                                    {children}
+                                </ScrollView>
+                            </View>
+                        )}
+                    </View>
+                </Modal>
+            )}
+        </>
+    );
+}
+
 function MiniDropdown({ visible, options, value, onSelect, onClose, minWidth }) {
-    if (!visible) return null;
     // Satır ~48px: 32px'de (padding 7 + font 12) Antrenman/Rekabetçi/1v1/6v6 seçeneklerine
     // parmak değmiyordu. maxHeight de 6-7 satır (voleybol 1v1–6v6) kaydırmasız sığsın diye
     // 220'den yükseltildi — iç içe ScrollView bazı cihazlarda kaydırmayı almıyordu.
-    const rowH = 48;
-    const fullH = options.length * rowH + 2;
-    const maxH = Math.min(fullH, 340);
-    // minWidth verilirse right:0 KULLANILMAZ — tetikleyici kutu dar (ör. "Mod Seç" placeholder'ı
-    // kısa) olsa bile liste kendi metnine (ör. "Rekabetçi") göre genişleyebilsin diye; aksi halde
-    // dar tetikleyicinin genişliğine sıkışıp metin alt satıra kayıyordu.
+    // minWidth: tetikleyici kutu dar (ör. "Mod Seç") olsa bile liste kendi metnine
+    // (ör. "Rekabetçi") göre genişleyebilsin; aksi halde metin alt satıra kayıyordu.
     return (
-        <View style={{ position:'absolute', top:'100%', left:0, ...(minWidth ? { minWidth } : { right:0 }), marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, maxHeight:maxH, overflow:'hidden' }}>
-            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} scrollEnabled={fullH > maxH}>
-                {options.map(o => (
-                    <TouchableOpacity key={o.value} onPress={() => { onSelect(o.value); onClose(); }}
-                        style={{ minHeight:48, paddingVertical:12, paddingHorizontal:14, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth:1, borderBottomColor: colors.border }}>
-                        <Text style={{ color: value === o.value ? '#fff' : colors.textSecondary, fontSize:15, fontWeight: value === o.value ? '800' : '600' }} numberOfLines={1}>{o.label}</Text>
-                        {value === o.value && <Text style={{ color: colors.purple, fontSize:15, marginLeft:8 }}>✓</Text>}
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
-        </View>
+        <AnchoredMenu visible={visible} onClose={onClose} minWidth={minWidth}>
+            {options.map(o => (
+                <TouchableOpacity key={String(o.value)} onPress={() => { onSelect(o.value); onClose(); }}
+                    style={{ minHeight:48, paddingVertical:12, paddingHorizontal:14, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth:1, borderBottomColor: colors.border }}>
+                    <Text style={{ color: value === o.value ? '#fff' : colors.textSecondary, fontSize:15, fontWeight: value === o.value ? '800' : '600' }} numberOfLines={1}>{o.label}</Text>
+                    {value === o.value && <Text style={{ color: colors.purple, fontSize:15, marginLeft:8 }}>✓</Text>}
+                </TouchableOpacity>
+            ))}
+        </AnchoredMenu>
     );
 }
 
@@ -14241,7 +14309,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // (yeni bir popup açıldığında) öncekinin arkada açık kalmaması için, hepsi aynı anda
     // sadece biri "aktif" olabiliyor.
     const [activePopup, setActivePopup] = useState(null);
-    const toggleActivePopup = (key) => setActivePopup(p => p === key ? null : key);
+    // Fonksiyonel güncelleme değil: liste açıkken hem buton hem dışarı-dokunuşu aynı
+    // anda state yazarsa (biri "tersine çevir", biri "kapat") liste yeniden açılıyordu.
+    const toggleActivePopup = (key) => setActivePopup(activePopup === key ? null : key);
     const [showGenderCountPicker, setShowGenderCountPicker] = useState(false);
     // Android'de aynı ekranda birden fazla <Modal> iç içeyken (bu form zaten CreateRivalModal'ın
     // KENDİSİ bir Modal), bir alt-Modal kapatılıp TEKRAR açılınca native modal host'u bazen
@@ -15125,8 +15195,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             {/* Voleybolün MiniDropdown'ıyla aynı görünüm — dikey liste, her seçenek kendi
                                                 satırında. Eski chip mantığı (tenis/padelde ikinciye dokununca BOTH'a
                                                 birleşme) hiç değişmeden, sadece her satır artık alt alta. */}
-                                            {activePopup === 'mode' && (
-                                                <View style={{ position:'absolute', top:'100%', left:0, minWidth:168, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, overflow:'hidden' }}>
+                                            <AnchoredMenu visible={activePopup === 'mode'} onClose={() => setActivePopup(null)} minWidth={168}>
                                                     {((sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map((mode, mi, arr) => {
                                                         const isActive = (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball')
                                                             ? (f.matchMode === mode || f.matchMode === 'BOTH')
@@ -15157,8 +15226,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             </TouchableOpacity>
                                                         );
                                                     })}
-                                                </View>
-                                            )}
+                                            </AnchoredMenu>
                                         </View>
                                         <View style={[s.triBtn, { flex:1, height:36, justifyContent:'center', position:'relative', zIndex: activePopup === 'format' ? 51 : 1 }, f.matchType && s.triBtnFilled]}>
                                             <TouchableOpacity onPress={() => toggleActivePopup('format')}>
@@ -15166,8 +15234,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     {f.matchType ? (f.matchType === 'DOUBLE' ? t.doubleFormat : t.singleFormat) : `${t.formatLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                 </Text>
                                             </TouchableOpacity>
-                                            {activePopup === 'format' && (
-                                                <View style={{ position:'absolute', top:'100%', left:0, minWidth:168, marginTop:3, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, zIndex:50, elevation:14, overflow:'hidden' }}>
+                                            <AnchoredMenu visible={activePopup === 'format'} onClose={() => setActivePopup(null)} minWidth={168}>
                                                     {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map((fmt, fi, arr) => (
                                                         <TouchableOpacity key={fmt.id} onPress={() => {
                                                             setActivePopup(null);
@@ -15213,8 +15280,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             {f.matchType===fmt.id && <Text style={{ color: colors.purple, fontSize:15, marginLeft:8 }}>✓</Text>}
                                                         </TouchableOpacity>
                                                     ))}
-                                                </View>
-                                            )}
+                                            </AnchoredMenu>
                                         </View>
                                         {(() => {
                                             // DOUBLE'da Partner/Rakip1/Rakip2 cinsiyetlerinin üçü de aynıysa (ör. 4 kişi
@@ -15486,22 +15552,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     ownRating={myOwnRating}
                                                     ownGender={myUser?.gender}
                                                 />
-                                                {/* Mod/Takım Büyüklüğü/Yedek Sayısı açılır kutuları (MiniDropdown) tıklanan
-                                                    seçenek dışında hiçbir şeyle kapanmıyordu — kullanıcı boş bir alana
-                                                    dokunup vazgeçmek istediğinde kutu açık kalıyordu. Bu iki görünmez
-                                                    bant, satırın hemen üstünü/altını kaplayıp (satırın kendisiyle
-                                                    ÇAKIŞMADAN, böylece diğer kutulara dokunma hâlâ normal çalışıyor)
-                                                    başka bir yere dokununca popup'ı kapatıyor — zIndex'i satırdaki
-                                                    kutulardan (1) yüksek ama aktif kutudan (51) düşük tutulduğu için
-                                                    açık olan popup'ın kendisi hâlâ tıklanabilir kalıyor. */}
-                                                {!!activePopup && (
-                                                    <>
-                                                        <TouchableOpacity activeOpacity={1} onPress={() => setActivePopup(null)}
-                                                            style={{ position:'absolute', top:'100%', left:0, right:0, height:3000, zIndex:2 }} />
-                                                        <TouchableOpacity activeOpacity={1} onPress={() => setActivePopup(null)}
-                                                            style={{ position:'absolute', bottom:'100%', left:0, right:0, height:1000, zIndex:2 }} />
-                                                    </>
-                                                )}
                                             </View>
                                         );
                                     })()}
@@ -16216,7 +16266,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     </TouchableOpacity>
                                     <View style={{ position:'relative', zIndex: showWinsNeededPicker ? 51 : 1 }}>
                                         <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.winsNeeded && s.triBtnFilled]}
-                                            onPress={() => setShowWinsNeededPicker(v => !v)}>
+                                            onPress={() => setShowWinsNeededPicker(!showWinsNeededPicker)}>
                                             <Text style={s.triLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.winsNeededLabel}</Text>
                                             <Text style={[s.triValue, !f.winsNeeded && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                                                 {f.winsNeeded ? String(f.winsNeeded) : t.courtSurfaceSelectPlaceholder}
