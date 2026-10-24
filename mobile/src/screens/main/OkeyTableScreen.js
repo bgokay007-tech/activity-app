@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, Animated, ScrollView, ActivityIndicator, PanResponder } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
@@ -373,9 +374,9 @@ export default function OkeyTableScreen({ route, navigation }) {
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 20 }]}>
-                <TouchableOpacity onPress={goBack} style={s.backBtn}>
+                <ScreenBackButton onPress={goBack} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={s.roundText}>
                     {t.okeyRound || 'El'} {state.roundNumber}/{state.totalRounds}
                     {isSpectator ? ` · 👁️ ${t.okeySpectating || 'İzliyorsun'}` : ''}

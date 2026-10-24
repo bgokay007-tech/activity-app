@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, Image, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert } from 'react-native';
 import colors from '../../theme/colors';
 import api from '../../services/api';
@@ -30,9 +31,9 @@ export default function NowPlayingScreen({ navigation }) {
         return (
             <View style={[s.root, { alignItems: 'center', justifyContent: 'center' }]}>
                 <Text style={{ color: colors.textMuted }}>{t.musicNothingPlaying || 'Şu an çalan bir şarkı yok.'}</Text>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
                     <Text style={{ color: colors.purple, fontWeight: '700' }}>{t.back || 'Geri'}</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
             </View>
         );
     }
@@ -63,9 +64,9 @@ export default function NowPlayingScreen({ navigation }) {
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 20 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.closeBtn}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.closeBtn}>
                     <Text style={s.closeBtnText}>▾</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
             </View>
 
             <View style={s.artWrap}>

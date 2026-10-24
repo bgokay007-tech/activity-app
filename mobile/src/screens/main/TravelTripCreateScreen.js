@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
     Alert, ActivityIndicator, Platform,
@@ -66,9 +67,9 @@ export default function TravelTripCreateScreen({ navigation }) {
     return (
         <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={[ts.header, { paddingTop: Math.max(insets.top, 12) + 6 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()}><Text style={ts.backText}>{t.back}</Text></TouchableOpacity>
+                <ScreenBackButton onPress={() => navigation.goBack()}><Text style={ts.backText}>{t.back}</Text></ScreenBackButton>
                 <Text style={ts.title} numberOfLines={1}>{t.tvCreateTrip.replace('+ ', '')}</Text>
-                <View style={{ width: 50 }} />
+                {Platform.OS === 'ios' ? <View style={{ width: 50 }} /> : null}
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 60 }} keyboardShouldPersistTaps="always">
                 <Text style={ts.label}>{t.tvFrom} *</Text>

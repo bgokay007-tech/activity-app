@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, TextInput, TouchableOpacity, FlatList,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Modal, ScrollView,
@@ -259,9 +260,9 @@ export default function OkeyHomeScreen({ navigation }) {
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={s.title}>{t.okeyTitle || '🀄 Okey'}</Text>
             </View>
 

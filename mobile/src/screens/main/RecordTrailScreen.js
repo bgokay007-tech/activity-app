@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Image, Alert, ActivityIndicator, Platform } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
@@ -115,9 +116,9 @@ export default function RecordTrailScreen({ navigation, route }) {
     return (
         <View style={{ flex: 1, backgroundColor: colors.bg }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: insets.top + 8, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginRight: 10 }}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={{ marginRight: 10 }}>
                     <Text style={{ color: colors.textMuted, fontSize: 22 }}>‹</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>🥾 Rota Kaydet</Text>
             </View>
 

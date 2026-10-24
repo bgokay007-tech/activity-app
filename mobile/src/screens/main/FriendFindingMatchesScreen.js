@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
@@ -35,9 +36,9 @@ export default function FriendFindingMatchesScreen({ navigation }) {
     return (
         <View style={s.container}>
             <View style={s.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.back}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.back}>
                     <Text style={s.backText}>{t.back}</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={s.title}>{t.ffMatchesTab}</Text>
             </View>
 

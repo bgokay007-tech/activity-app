@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     ActivityIndicator, Alert, TextInput, Modal, Platform, Image, Pressable,
@@ -523,9 +524,9 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
 
     const BottomBtns = () => (
         <View style={[fc.btnRow, { bottom: moderateScale(28) + insets.bottom }]}>
-            <TouchableOpacity style={fc.backBtn} onPress={onClose}>
+            <ScreenBackButton style={fc.backBtn} onPress={onClose}>
                 <Text style={fc.backBtnText}>← {lang === 'tr' ? 'Geri' : lang === 'ru' ? 'Назад' : lang === 'de' ? 'Zurück' : 'Back'}</Text>
-            </TouchableOpacity>
+            </ScreenBackButton>
             <TouchableOpacity style={fc.flipBtn} onPress={handleFlip}>
                 <Text style={fc.flipBtnText}>🔄</Text>
             </TouchableOpacity>
@@ -2686,9 +2687,9 @@ export default function ProfileScreen({ route, navigation }) {
             <View style={s.topBar}>
                 {/* Left */}
                 {!isOwnProfile ? (
-                    <TouchableOpacity onPress={() => navigation.goBack()}>
+                    <ScreenBackButton onPress={() => navigation.goBack()}>
                         <Text style={s.backBtn}>{t.back}</Text>
-                    </TouchableOpacity>
+                    </ScreenBackButton>
                 ) : (
                     <View style={{ minWidth: 60 }} />
                 )}

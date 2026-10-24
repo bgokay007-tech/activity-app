@@ -5,6 +5,7 @@ import {
     TextInput, ScrollView, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { useSelector } from 'react-redux';
 import * as Location from 'expo-location';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
@@ -977,9 +978,9 @@ export default function ActivityFeedScreen({ navigation }) {
                     <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9,
                         paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom: 11,
                         borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                        <TouchableOpacity onPress={() => setShowActivityMap(false)} style={{ marginRight: 14, padding: 1 }}>
+                        <ScreenBackButton onPress={() => setShowActivityMap(false)} style={{ marginRight: 14, padding: 1 }}>
                             <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
-                        </TouchableOpacity>
+                        </ScreenBackButton>
                         <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', flex: 1 }}>🗺️ Yakındaki Aktiviteler</Text>
                         <TouchableOpacity onPress={() => setShowMapDateModal(true)}
                             style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 9, borderWidth: 1, borderColor: colors.border }}>

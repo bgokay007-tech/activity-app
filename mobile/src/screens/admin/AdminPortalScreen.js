@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, ScrollView, FlatList, TouchableOpacity,
     TextInput, ActivityIndicator, Alert, StyleSheet,
@@ -1992,9 +1993,9 @@ export default function AdminPortalScreen({ navigation, route }) {
         <View style={[s.root, { paddingTop: insets.top }]}>
             {/* Header */}
             <View style={s.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={s.headerTitle}>🛡️ Admin Paneli</Text>
             </View>
 

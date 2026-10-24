@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, TextInput, TouchableOpacity, FlatList, Image,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Linking, Modal, ScrollView,
@@ -346,9 +347,9 @@ export default function TheaterHomeScreen({ navigation }) {
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={s.title}>{t.theaterTitle || '🎭 Tiyatro'}</Text>
             </View>
 

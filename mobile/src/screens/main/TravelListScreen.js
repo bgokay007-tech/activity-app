@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, TextInput, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -71,7 +72,7 @@ export default function TravelListScreen({ navigation, route }) {
     if (!list) return (
         <View style={s.center}>
             <Text style={{ color: colors.textMuted }}>{t.actionFailed}</Text>
-            <TouchableOpacity onPress={() => navigation.goBack()}><Text style={[ts.backText, { marginTop: 12 }]}>{t.back}</Text></TouchableOpacity>
+            <ScreenBackButton onPress={() => navigation.goBack()}><Text style={[ts.backText, { marginTop: 12 }]}>{t.back}</Text></ScreenBackButton>
         </View>
     );
 
@@ -80,7 +81,7 @@ export default function TravelListScreen({ navigation, route }) {
     return (
         <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: Math.max(insets.top, 12) + 6 }}>
             <View style={ts.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()}><Text style={ts.backText}>{t.back}</Text></TouchableOpacity>
+                <ScreenBackButton onPress={() => navigation.goBack()}><Text style={ts.backText}>{t.back}</Text></ScreenBackButton>
                 <Text style={ts.title} numberOfLines={1}>{travelListIcon(list)} {travelListName(list, t)}</Text>
                 {custom ? (
                     <TouchableOpacity onPress={deleteList}><Text style={{ color: colors.red, fontSize: 18 }}>🗑</Text></TouchableOpacity>

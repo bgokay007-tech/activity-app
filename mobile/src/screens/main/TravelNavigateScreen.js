@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import MapView, { Polyline, Marker, LocalTile, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -147,7 +148,7 @@ export default function TravelNavigateScreen({ navigation, route: navRoute }) {
     if (!route || !model?.segs?.length) return (
         <View style={s.center}>
             <Text style={{ color: colors.textMuted }}>{t.tvNoGpsData}</Text>
-            <TouchableOpacity onPress={() => navigation.goBack()}><Text style={s.back}>{t.back}</Text></TouchableOpacity>
+            <ScreenBackButton onPress={() => navigation.goBack()}><Text style={s.back}>{t.back}</Text></ScreenBackButton>
         </View>
     );
 
@@ -186,7 +187,7 @@ export default function TravelNavigateScreen({ navigation, route: navRoute }) {
             </MapView>
 
             <View style={[s.topBar, { paddingTop: Math.max(insets.top, 12) + 4 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.roundBtn}><Text style={s.roundText}>‹</Text></TouchableOpacity>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.roundBtn}><Text style={s.roundText}>‹</Text></ScreenBackButton>
                 <View style={{ flex: 1, marginHorizontal: 10 }}>
                     <Text style={s.title} numberOfLines={1}>{route.title}</Text>
                     {offline ? <Text style={s.offlineTag}>{t.tvOfflineMode}</Text> : null}

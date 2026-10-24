@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { Modal, View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, Platform } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import MapView, { Polyline, Marker, PROVIDER_DEFAULT } from 'react-native-maps';
@@ -73,9 +74,9 @@ export default function TrailDetailModal({ visible, trailId, myId, onClose, navi
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
             <View style={{ flex: 1, backgroundColor: colors.bg }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 50, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                    <TouchableOpacity onPress={onClose} style={{ marginRight: 10 }}>
+                    <ScreenBackButton onPress={onClose} style={{ marginRight: 10 }}>
                         <Text style={{ color: colors.textMuted, fontSize: 22 }}>‹</Text>
-                    </TouchableOpacity>
+                    </ScreenBackButton>
                     <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', flex: 1 }} numberOfLines={1}>{trail?.title || 'Rota'}</Text>
                 </View>
 

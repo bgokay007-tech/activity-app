@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Animated, PanResponder, Dimensions } from 'react-native';
 import { mediaDevices, RTCPeerConnection, RTCView, RTCIceCandidate, RTCSessionDescription } from 'react-native-webrtc';
 import * as Location from 'expo-location';
@@ -170,9 +171,9 @@ export default function FriendFindingLiveScreen({ navigation }) {
         return (
             <View style={s.centerBox}>
                 <Text style={s.errorText}>{errorMsg}</Text>
-                <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
+                <ScreenBackButton style={s.backBtn} onPress={() => navigation.goBack()}>
                     <Text style={s.backBtnText}>{t.back}</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
             </View>
         );
     }

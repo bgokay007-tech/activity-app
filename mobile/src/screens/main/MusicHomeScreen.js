@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, TextInput, TouchableOpacity, FlatList, Image, ScrollView,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Modal, Linking,
@@ -480,9 +481,9 @@ export default function MusicHomeScreen({ navigation }) {
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={s.title}>{t.musicTitle || '🎵 Müzik'}</Text>
             </View>
 

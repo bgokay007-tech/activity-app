@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, TouchableOpacity, FlatList, Image, StyleSheet, StatusBar, Platform, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
@@ -54,9 +55,9 @@ export default function MusicPlaylistDetailScreen({ route, navigation }) {
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <View style={{ flex: 1 }}>
                     <Text style={s.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playlist.name}</Text>
                     <Text style={s.subtitle}>{tracks.length} şarkı</Text>

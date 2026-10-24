@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, TouchableOpacity, ScrollView, TextInput,
     StyleSheet, StatusBar, Platform, Linking, Modal,
@@ -209,9 +210,9 @@ export default function VenueDetailScreen({ route, navigation }) {
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={s.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{venue.name}</Text>
             </View>
 

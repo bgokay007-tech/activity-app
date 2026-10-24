@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, TouchableOpacity, FlatList,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert,
@@ -443,9 +444,9 @@ export default function MyReservationsScreen({ navigation, route }) {
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
             <View style={[s.header, { paddingTop: insets.top + (Platform.OS === 'ios' ? 8 : 14) }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={s.title}>{section === 'matches' ? t.resMyMatchesTitle : t.resTitle}</Text>
             </View>
 

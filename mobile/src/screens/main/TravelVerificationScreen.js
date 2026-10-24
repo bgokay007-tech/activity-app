@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
     Alert, ActivityIndicator, Platform, Keyboard,
@@ -126,9 +127,9 @@ export default function TravelVerificationScreen({ navigation }) {
     return (
         <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={[ts.header, { paddingTop: Math.max(insets.top, 12) + 6 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()}><Text style={ts.backText}>{t.back}</Text></TouchableOpacity>
+                <ScreenBackButton onPress={() => navigation.goBack()}><Text style={ts.backText}>{t.back}</Text></ScreenBackButton>
                 <Text style={ts.title} numberOfLines={1}>{t.tvVerifyTitle}</Text>
-                <View style={{ width: 50 }} />
+                {Platform.OS === 'ios' ? <View style={{ width: 50 }} /> : null}
             </View>
             <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 16, paddingBottom: Math.max(60, insets.bottom + 60) + kbHeight }} keyboardShouldPersistTaps="handled">
                 {statusText ? (

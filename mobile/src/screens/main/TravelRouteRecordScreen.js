@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import MapView, { Polyline, Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -174,7 +175,7 @@ export default function TravelRouteRecordScreen({ navigation }) {
             </MapView>
 
             <View style={[s.topBar, { paddingTop: Math.max(insets.top, 12) + 4 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.roundBtn}><Text style={s.roundText}>‹</Text></TouchableOpacity>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.roundBtn}><Text style={s.roundText}>‹</Text></ScreenBackButton>
                 <Text style={s.title} numberOfLines={1}>{t.tvRecTitle}</Text>
                 {recording ? <View style={s.recDot}><Text style={s.recText}>● REC</Text></View> : <View style={{ width: 38 }} />}
             </View>

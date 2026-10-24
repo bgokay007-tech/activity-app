@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import FriendFindingFilterModal from '../../components/FriendFindingFilterModal';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -95,9 +96,9 @@ export default function FriendFindingHomeScreen({ navigation }) {
     return (
         <View style={s.container}>
             <View style={s.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.back}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.back}>
                     <Text style={s.backText}>{t.back}</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={s.title}>{t.ffHomeTitle}</Text>
                 <TouchableOpacity onPress={() => navigation.navigate('FriendFindingLive')} style={s.filterBtn}>
                     <Text style={s.filterBtnText}>🎥 {t.ffLiveBtn || 'Canlı'}</Text>

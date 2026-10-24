@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useRef, useCallback } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, FlatList, TouchableOpacity, TouchableWithoutFeedback,
     StyleSheet, ActivityIndicator, Image, Platform, Dimensions,
@@ -363,9 +364,9 @@ export default function UserPostsScreen({ route, navigation }) {
     return (
         <View style={s.container}>
             <View style={s.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backText}>‹</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={s.headerTitle}>@{username}</Text>
                 <View style={{ width: 40 }} />
             </View>

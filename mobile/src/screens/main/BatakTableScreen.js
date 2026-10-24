@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal, ScrollView, Animated, ActivityIndicator, PanResponder, Vibration } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { useSelector } from 'react-redux';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -614,9 +615,9 @@ export default function BatakTableScreen({ route, navigation }) {
                 </View>
             )}
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 20 }]}>
-                <TouchableOpacity onPress={confirmLeave} style={s.backBtn}>
+                <ScreenBackButton onPress={confirmLeave} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={s.roundText}>
                     {t.batakRound || 'El'} {state.roundNumber}/{state.totalRounds}
                     {isSpectator ? ` · 👁️ ${t.batakSpectating || 'İzliyorsun'}` : ''}

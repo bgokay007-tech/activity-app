@@ -121,7 +121,7 @@ function decodeXml(value) {
         .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
 }
 
-function parseEntries(xml, channelName) {
+function parseEntries(xml, channelName, channelId) {
     const out = [];
     const re = /<entry>([\s\S]*?)<\/entry>/g;
     let m;
@@ -138,6 +138,7 @@ function parseEntries(xml, channelName) {
         const author = (block.match(/<author>[\s\S]*?<name>([^<]*)<\/name>/) || [])[1] || channelName;
         out.push({
             videoId,
+            channelId: channelId || '',
             title: decodeXml(grab('title')),
             author: decodeXml(author),
             published: grab('published'),
@@ -155,7 +156,7 @@ async function fetchChannel(channel) {
         signal: AbortSignal.timeout(8000),
     });
     if (!r.ok) return [];
-    return parseEntries(await r.text(), channel.name);
+    return parseEntries(await r.text(), channel.name, channel.id);
 }
 
 async function loadSport(sport) {

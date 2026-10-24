@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, ActivityIndicator, Alert } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import colors from '../../theme/colors';
@@ -126,9 +127,9 @@ export default function ClassicFilmPlayerScreen({ route, navigation }) {
             )}
 
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 20 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.closeBtn}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.closeBtn}>
                     <Text style={s.closeBtnText}>✕</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={s.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{filmTitle}</Text>
                 <TouchableOpacity onPress={() => setFillScreen((v) => !v)} style={s.hdrBtn}>
                     <Text style={s.hdrBtnText}>{fillScreen ? (t.cinemaFitScreen || 'Sığdır') : (t.cinemaFillScreen || 'Doldur')}</Text>

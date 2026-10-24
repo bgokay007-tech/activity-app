@@ -1,4 +1,5 @@
 ﻿import { useState, useCallback, useEffect, useMemo } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, Image, ScrollView, TouchableOpacity, Pressable, StyleSheet, ActivityIndicator, TextInput, Platform } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useFocusEffect } from '@react-navigation/native';
@@ -366,9 +367,9 @@ export default function CategoryScreen({ route, navigation }) {
         return (
             <View style={s.container}>
                 <View style={s.header}>
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={s.back}>
+                    <ScreenBackButton onPress={() => navigation.goBack()} style={s.back}>
                         <Text style={s.backText}>{t.back}</Text>
-                    </TouchableOpacity>
+                    </ScreenBackButton>
                     <Text style={s.title}>{categoryLabel}</Text>
                 </View>
 
@@ -449,9 +450,9 @@ export default function CategoryScreen({ route, navigation }) {
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
                 <View style={sp.topBar}>
-                    <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <ScreenBackButton onPress={() => navigation.goBack()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                         <Text style={sp.topBack}>{t.back}</Text>
-                    </TouchableOpacity>
+                    </ScreenBackButton>
                     <Text style={sp.topTitle} numberOfLines={1}>{categoryLabel}</Text>
                     <TextInput
                         value={query}
@@ -536,9 +537,9 @@ export default function CategoryScreen({ route, navigation }) {
     return (
         <View style={[s.container, { paddingTop: Math.max(insets.top, 12) + 8 }]}>
             <View style={nv.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <ScreenBackButton onPress={() => navigation.goBack()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     <Text style={nv.back}>{t.back}</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={nv.title}>{categoryLabel}</Text>
             </View>
 

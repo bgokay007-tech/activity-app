@@ -64,6 +64,12 @@ export async function togglePlayPause(isPlaying) {
     notify();
 }
 
+export function pausePlayback() {
+    if (!state.isPlaying) return;
+    state.isPlaying = false;
+    notify();
+}
+
 export async function skipNext() {
     if (state.index < 0 || state.index >= state.queue.length - 1) return;
     state.index += 1;

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Image,
     Alert, ActivityIndicator, Platform, Modal, Dimensions, Linking,
@@ -230,7 +231,7 @@ export default function TravelRouteDetailScreen({ navigation, route: navRoute })
     if (!data) return (
         <View style={s.center}>
             <Text style={{ color: colors.textMuted }}>{t.actionFailed}</Text>
-            <TouchableOpacity onPress={() => navigation.goBack()}><Text style={[ts.backText, { marginTop: 12 }]}>{t.back}</Text></TouchableOpacity>
+            <ScreenBackButton onPress={() => navigation.goBack()}><Text style={[ts.backText, { marginTop: 12 }]}>{t.back}</Text></ScreenBackButton>
         </View>
     );
 
@@ -247,7 +248,7 @@ export default function TravelRouteDetailScreen({ navigation, route: navRoute })
     return (
         <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={[ts.header, { paddingTop: Math.max(insets.top, 12) + 6 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()}><Text style={ts.backText}>{t.back}</Text></TouchableOpacity>
+                <ScreenBackButton onPress={() => navigation.goBack()}><Text style={ts.backText}>{t.back}</Text></ScreenBackButton>
                 <Text style={ts.title} numberOfLines={1}>{data.title}</Text>
                 {data.canDelete ? <TouchableOpacity onPress={deleteRoute}><Text style={{ color: colors.red, fontSize: 18 }}>🗑</Text></TouchableOpacity> : <View style={{ width: 30 }} />}
             </View>

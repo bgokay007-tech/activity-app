@@ -1,4 +1,5 @@
 ﻿import { Component, useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { useFocusEffect, useNavigation, useIsFocused } from '@react-navigation/native';
 import {
     View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
@@ -9,6 +10,8 @@ import {
 } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import KeyboardAwareForm from '../../components/KeyboardAwareForm';
+import YoutubePlayer from 'react-native-youtube-iframe';
+import { pausePlayback } from '../../services/musicPlayer';
 import { useSelector, useDispatch } from 'react-redux';
 import { setUser } from '../../store/slices/authSlice';
 import { setUnreadCount } from '../../store/slices/notificationSlice';
@@ -2431,9 +2434,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             <View style={{ flex:1, backgroundColor: colors.bg }}>
                 {/* Header: geri + ilan sahibi fotosu + 2 kolon bilgi. */}
                 <View style={{ flexDirection:'row', alignItems:'flex-start', paddingHorizontal:5, paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(10), borderBottomWidth:1, borderBottomColor: colors.border, gap: moderateScale(8) }}>
-                    <TouchableOpacity onPress={onClose} style={{ padding:1, marginTop: moderateScale(4) }}>
+                    <ScreenBackButton onPress={onClose} style={{ padding:1, marginTop: moderateScale(4) }}>
                         <Text style={{ color:'#fff', fontSize:moderateScale(22), fontWeight:'300' }}>←</Text>
-                    </TouchableOpacity>
+                    </ScreenBackButton>
                     <Avatar
                         name={item.sender?.username}
                         avatar={item.sender?.avatar}
@@ -8081,9 +8084,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:5,
                     paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(14),
                     borderBottomWidth:1, borderBottomColor: colors.border }}>
-                    <TouchableOpacity onPress={() => (showScore ? setShowScore(false) : setShowDetail(false))} style={{ marginRight:14, padding:1 }}>
+                    <ScreenBackButton onPress={() => (showScore ? setShowScore(false) : setShowDetail(false))} style={{ marginRight:14, padding:1 }}>
                         <Text style={{ color:'#fff', fontSize:moderateScale(22), fontWeight:'300' }}>←</Text>
-                    </TouchableOpacity>
+                    </ScreenBackButton>
                     <View style={{ flex:1 }}>
                         {/* Kullanıcı isteği: en tepede sadece dal adı ("Tenis") yeterli — altında
                             oyuncu/takım isimleri ayrıca yazmasın, bu bilgi zaten aşağıdaki kadro
@@ -23588,6 +23591,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [mediaBrowse, setMediaBrowse] = useState(null);
     const [sportMedia, setSportMedia] = useState(null);
     const [sportMediaLoading, setSportMediaLoading] = useState(false);
+    const [sportPlayer, setSportPlayer] = useState(null);
     const tabs = getTabs(sub, category);
     const openSportMedia = (kind) => {
         setMediaBrowse(prev => prev === kind ? null : kind);
@@ -23610,8 +23614,32 @@ export default function SubCategoryScreen({ route, navigation }) {
                 if (sportMediaSubRef.current === requested) setSportMediaLoading(false);
             });
     };
+    const startSportPlayback = (item, queue) => {
+        const ids = (queue || []).map(v => v.videoId).filter(Boolean);
+        const videoId = item?.videoId || ids[0];
+        if (!videoId) {
+            if (item?.url) Linking.openURL(item.url).catch(() => {});
+            return;
+        }
+        pausePlayback();
+        const ordered = ids.includes(videoId) ? ids : [videoId, ...ids];
+        const start = Math.max(0, ordered.indexOf(videoId));
+        setSportPlayer({ videoId, queue: ordered.slice(start) });
+    };
+    const onSportPlayerState = (playerState) => {
+        if (playerState !== 'ended') return;
+        setSportPlayer(prev => {
+            if (!prev) return null;
+            const next = prev.queue[prev.queue.indexOf(prev.videoId) + 1];
+            return next ? { ...prev, videoId: next } : null;
+        });
+    };
+    useEffect(() => {
+        if (!mediaBrowse) setSportPlayer(null);
+    }, [mediaBrowse]);
     useEffect(() => {
         setMediaBrowse(null);
+        setSportPlayer(null);
         setSportMedia(sportMediaCacheRef.current[sub] || null);
     }, [sub]);
     const tabLabel = (tab) => {
@@ -27281,9 +27309,9 @@ export default function SubCategoryScreen({ route, navigation }) {
 
             {/* Header */}
             <View style={s.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <ScreenBackButton onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                     <Text style={[s.back, { color: cfg.color }]}>{t.back}</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 {(sub === 'padel' || sub === 'pickleball') ? (
                     <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap: moderateScale(6) }}>
                         <Image
@@ -30401,24 +30429,46 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     onClose={() => setShowMediaDateRange(false)}
                                 />
                                 <Modal visible={!!mediaBrowse} animationType="slide" transparent onRequestClose={() => setMediaBrowse(null)}>
-                                    <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setMediaBrowse(null)}>
-                                        <TouchableOpacity activeOpacity={1} onPress={() => {}}
-                                            style={[s.modalBox, { paddingHorizontal: moderateScale(16), paddingBottom: insets.bottom + moderateScale(16) }]}>
+                                    <View style={s.modalOverlay}>
+                                        <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} activeOpacity={1} onPress={() => setMediaBrowse(null)} />
+                                        <View style={[s.modalBox, { paddingHorizontal: moderateScale(16), paddingBottom: insets.bottom + moderateScale(16) }]}>
                                             <View style={s.modalHeader}>
                                                 <Text style={[s.modalTitle, { flex: 1, marginRight: 8 }]} numberOfLines={1}>
                                                     {mediaBrowse === 'channels' ? t.mediaChannelsBtn(sportDisplayName) : t.mediaVideosBtn(sportDisplayName)}
                                                 </Text>
                                                 <TouchableOpacity onPress={() => setMediaBrowse(null)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                                             </View>
+                                            {!!sportPlayer?.videoId && (
+                                                <View style={{ borderRadius: 10, overflow: 'hidden', marginBottom: 10, backgroundColor: '#000' }}>
+                                                    <YoutubePlayer
+                                                        key={sportPlayer.videoId}
+                                                        height={Math.round((winW - moderateScale(32)) * 9 / 16)}
+                                                        width={winW - moderateScale(32)}
+                                                        play
+                                                        videoId={sportPlayer.videoId}
+                                                        onChangeState={onSportPlayerState}
+                                                        onError={() => Linking.openURL(`https://www.youtube.com/watch?v=${sportPlayer.videoId}`).catch(() => {})}
+                                                        webViewProps={{ allowsInlineMediaPlayback: true, mediaPlaybackRequiresUserAction: false, androidLayerType: 'hardware' }}
+                                                        initialPlayerParams={{ rel: false, modestbranding: true }}
+                                                    />
+                                                </View>
+                                            )}
                                             {sportMediaLoading && !sportMedia ? (
                                                 <ActivityIndicator color={cfg.color} style={{ marginVertical: 24 }} />
                                             ) : (
-                                                <ScrollView style={{ maxHeight: winH * 0.62 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                                <ScrollView style={{ maxHeight: sportPlayer ? winH * 0.34 : winH * 0.62 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                                                     {((mediaBrowse === 'channels' ? sportMedia?.channels : sportMedia?.videos) || []).length === 0
                                                         ? <EmptyState emoji="▶️" text={mediaBrowse === 'channels' ? t.mediaChannelsEmpty : t.mediaVideosEmpty} />
-                                                        : (mediaBrowse === 'channels' ? sportMedia.channels : sportMedia.videos).map(item => (
-                                                            <TouchableOpacity key={item.id || item.videoId} onPress={() => Linking.openURL(item.url).catch(() => {})}
-                                                                style={{ flexDirection: 'row', gap: 8, backgroundColor: colors.surface2, borderRadius: 10, padding: 6, alignItems: 'center', marginBottom: 6 }}>
+                                                        : (mediaBrowse === 'channels' ? sportMedia.channels : sportMedia.videos).map(item => {
+                                                            const playing = mediaBrowse === 'videos'
+                                                                ? item.videoId === sportPlayer?.videoId
+                                                                : (sportMedia?.videos || []).some(v => v.channelId === item.id && v.videoId === sportPlayer?.videoId);
+                                                            const queue = mediaBrowse === 'channels'
+                                                                ? (sportMedia?.videos || []).filter(v => v.channelId ? v.channelId === item.id : v.author === item.name)
+                                                                : (sportMedia?.videos || []);
+                                                            return (
+                                                            <TouchableOpacity key={item.id || item.videoId} onPress={() => startSportPlayback(mediaBrowse === 'channels' ? (queue[0] || item) : item, queue)}
+                                                                style={{ flexDirection: 'row', gap: 8, backgroundColor: colors.surface2, borderRadius: 10, padding: 6, alignItems: 'center', marginBottom: 6, borderWidth: 1, borderColor: playing ? cfg.color : 'transparent' }}>
                                                                 {!!item.thumb && (
                                                                     <Image source={{ uri: item.thumb }} style={{ width: 96, height: 54, borderRadius: 6, backgroundColor: colors.surface }} />
                                                                 )}
@@ -30427,11 +30477,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                     {!!item.author && <Text numberOfLines={1} style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>{item.author}</Text>}
                                                                 </View>
                                                             </TouchableOpacity>
-                                                        ))}
+                                                            );
+                                                        })}
                                                 </ScrollView>
                                             )}
-                                        </TouchableOpacity>
-                                    </TouchableOpacity>
+                                        </View>
+                                    </View>
                                 </Modal>
                                 {/* Oyuncu paylaşımları kanal penceresinden bağımsız durur. */}
                                 {filtered.length === 0
@@ -31289,9 +31340,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                     <View style={{ flex:1, backgroundColor: colors.bg }}>
                         {/* Header */}
                         <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingTop:52, paddingBottom:12, backgroundColor: colors.surface, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                            <TouchableOpacity onPress={() => setShowVenuesSheet(false)} style={{ paddingRight:12 }}>
+                            <ScreenBackButton onPress={() => setShowVenuesSheet(false)} style={{ paddingRight:12 }}>
                                 <Text style={{ color: cfg.color, fontSize:15, fontWeight:'700' }}>← {lang === 'tr' ? 'Geri' : lang === 'ru' ? 'Назад' : lang === 'de' ? 'Zurück' : 'Back'}</Text>
-                            </TouchableOpacity>
+                            </ScreenBackButton>
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>
                                 🏟️ {lang === 'tr' ? 'Kayıtlı Kortlar' : lang === 'ru' ? 'Зарегистрированные корты' : lang === 'de' ? 'Registrierte Plätze' : 'Registered Courts'}
                             </Text>
@@ -31619,9 +31670,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <View style={{ flex:1, backgroundColor: colors.bg }}>
                             {/* Header */}
                             <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:5, paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom:11, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                                <TouchableOpacity onPress={() => { setCommentMatch(null); setCommentSwapSlot(null); }} style={{ marginRight:14, padding:1 }}>
+                                <ScreenBackButton onPress={() => { setCommentMatch(null); setCommentSwapSlot(null); }} style={{ marginRight:14, padding:1 }}>
                                     <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
-                                </TouchableOpacity>
+                                </ScreenBackButton>
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color:'#fff', fontSize:16, fontWeight:'800' }}>{getSubCategoryLabel(commentMatch.subCategory, t.lang)}</Text>
                                     <Text style={{ color: colors.textMuted, fontSize:12, marginTop:1 }}>

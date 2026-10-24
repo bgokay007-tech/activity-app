@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Alert, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
@@ -126,9 +127,9 @@ export default function TavlaTableScreen({ route, navigation }) {
         <View style={s.root}>
             <StatusBar barStyle="light-content" />
             <View style={[s.header, { paddingTop: Platform.OS === 'ios' ? 54 : 20 }]}>
-                <TouchableOpacity onPress={goBack} style={s.backBtn}>
+                <ScreenBackButton onPress={goBack} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Text style={s.title}>{t.tavlaTitle || '🎲 Tavla'}</Text>
                 <View style={{ width: 36 }} />
             </View>

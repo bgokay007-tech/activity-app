@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView,
     TextInput, RefreshControl, Alert,
@@ -247,9 +248,9 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
     return (
         <View style={[s.container, { paddingTop: Math.max(insets.top, 12) + 6 }]}>
             <View style={s.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()}><Text style={s.backText}>{t.back}</Text></TouchableOpacity>
+                <ScreenBackButton onPress={() => navigation.goBack()}><Text style={s.backText}>{t.back}</Text></ScreenBackButton>
                 <Text style={s.title} numberOfLines={1}>{t.tvTitle}</Text>
-                <View style={{ width: 50 }} />
+                {Platform.OS === 'ios' ? <View style={{ width: 50 }} /> : null}
             </View>
 
             <View style={s.tabs}>

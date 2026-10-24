@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     StatusBar, Platform, Alert, ActivityIndicator, Modal, Image,
@@ -848,9 +849,9 @@ function VenueAnalyticsModal({ visible, venue, onClose }) {
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
                     paddingTop: Platform.OS === 'ios' ? 54 : 28, paddingBottom: 14,
                     borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}>
-                    <TouchableOpacity onPress={onClose} style={{ marginRight: 14, padding: 4 }}>
+                    <ScreenBackButton onPress={onClose} style={{ marginRight: 14, padding: 4 }}>
                         <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
-                    </TouchableOpacity>
+                    </ScreenBackButton>
                     <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', flex: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         {venue?.name} — Doluluk Raporu
                     </Text>
@@ -1313,9 +1314,9 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
                     paddingTop: Platform.OS === 'ios' ? 54 : 28, paddingBottom: 6,
                     borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}>
-                    <TouchableOpacity onPress={onClose} style={{ marginRight: 14, padding: 4 }}>
+                    <ScreenBackButton onPress={onClose} style={{ marginRight: 14, padding: 4 }}>
                         <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
-                    </TouchableOpacity>
+                    </ScreenBackButton>
                     <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', flex: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         {venue?.name} — Rezervasyon Takvimi
                     </Text>
@@ -1695,9 +1696,9 @@ function MaintenancePickerModal({ visible, venue, courts, localOpenSlots, courtM
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
                     paddingTop: Platform.OS === 'ios' ? 54 : 28, paddingBottom: 12,
                     borderBottomWidth: 1, borderBottomColor: '#ffffff12' }}>
-                    <TouchableOpacity onPress={onClose} style={{ marginRight: 14, padding: 4 }}>
+                    <ScreenBackButton onPress={onClose} style={{ marginRight: 14, padding: 4 }}>
                         <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
-                    </TouchableOpacity>
+                    </ScreenBackButton>
                     <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', flex: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         🔧 Bakım / Etkinlik Dönemi
                     </Text>
@@ -5239,9 +5240,9 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                         <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16,
                             paddingTop: Platform.OS === 'ios' ? 54 : 28, paddingBottom:14,
                             borderBottomWidth:1, borderBottomColor:'#ffffff12' }}>
-                            <TouchableOpacity onPress={closeBillModal} style={{ marginRight:14, padding:4 }}>
+                            <ScreenBackButton onPress={closeBillModal} style={{ marginRight:14, padding:4 }}>
                                 <Text style={{ color:'#fff', fontSize:22, fontWeight:'300' }}>←</Text>
-                            </TouchableOpacity>
+                            </ScreenBackButton>
                             <View style={{ flex:1 }}>
                                 <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                     @{billModalRes.user?.username || billModalRes.manualName || '—'}

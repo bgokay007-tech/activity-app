@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, TouchableOpacity, ScrollView, FlatList,
     StyleSheet, StatusBar, Platform, ActivityIndicator, Alert, Modal, Linking,
@@ -314,9 +315,9 @@ export default function CourtSlotsScreen({ route, navigation }) {
                 </View>
             )}
             <View style={[s.header, !rescheduleMode && { paddingTop: Platform.OS === 'ios' ? 54 : 36 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={s.backBtn}>
                     <Text style={s.backBtnText}>‹</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <View style={{ flex: 1 }}>
                     <Text style={s.title}>{court.name}</Text>
                     <Text style={s.subtitle}>{venue.name}</Text>

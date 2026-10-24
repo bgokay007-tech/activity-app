@@ -1,4 +1,5 @@
 ﻿import { useEffect, useState, useRef, useCallback } from 'react';
+import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Image, Modal } from 'react-native';
 import { useSelector } from 'react-redux';
 import * as ImagePicker from 'expo-image-picker';
@@ -744,9 +745,9 @@ export default function ChatScreen({ route, navigation }) {
         <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                <ScreenBackButton onPress={() => navigation.goBack()} style={styles.backBtn}>
                     <Text style={styles.backText}>←</Text>
-                </TouchableOpacity>
+                </ScreenBackButton>
                 <Avatar user={other} size={36} />
                 <View style={styles.headerInfo}>
                     <Text style={styles.headerName}>{other?.fullName || other?.username}</Text>
