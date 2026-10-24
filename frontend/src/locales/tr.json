@@ -120,6 +120,13 @@
     "description_required": "Açıklama en az 5 karakter olmalıdır",
     "active_tab": "Aktif",
     "sold_tab": "Satılanlar",
+    "sport_tab": {
+      "tennis": "Tenis Ekipmanları",
+      "padel": "Padel Ekipmanları",
+      "basketball": "Basketbol Ekipmanları",
+      "volleyball": "Voleybol Ekipmanları",
+      "pickleball": "Pickleball Ekipmanları"
+    },
     "condition_all": "Tümü",
     "chat_btn": "Sohbet Aç",
     "send_offer_btn": "Teklif Gönder",

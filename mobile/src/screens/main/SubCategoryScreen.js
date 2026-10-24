@@ -398,7 +398,7 @@ const ROUTE_ENABLED_SUBS = new Set(['hiking', 'camping', 'running', 'motorcycle'
 // genel varsayılana düşen dallar — bkz. sportsTicket.controller.js SPORT_CLASSIFICATION.
 // golf/equestrian/ice_skating zaten SIMPLE_TAB_SUBS üzerinden "tickets" sekmesine sahip,
 // football/volleyball kendi özel satırlarında — bu sete eklenmelerine gerek yok.
-const TICKET_ENABLED_EXTRA_SUBS = new Set(['basketball', 'boxing', 'martial_arts', 'ice_hockey', 'cycling', 'handball']);
+const TICKET_ENABLED_EXTRA_SUBS = new Set(['boxing', 'martial_arts', 'ice_hockey', 'cycling', 'handball']);
 
 // Bu dallarda gerçek bir "kort" kavramı yok (rezerve edilecek tesis/saat dilimi
 // söz konusu değil) — Etkinlik Oluştur formunda Mod/Format ve kort/il/ilçe/adres
@@ -459,6 +459,8 @@ function getTabs(sub, category) {
         return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'archive', 'referee', 'media', 'tickets'];
     if (sub === 'volleyball')
         return ['rivals', 'player_wanted', 'tournaments', 'coaches', 'equipment', 'media', 'tickets', 'archive'];
+    if (sub === 'basketball')
+        return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'tickets', 'archive'];
     // Kullanıcı isteği: badminton ve masa tenisi, padel ile aynı sekme setini kullanıyor.
     if (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball')
         return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
@@ -27651,31 +27653,23 @@ export default function SubCategoryScreen({ route, navigation }) {
                         const equipFilterActive = !!(equipmentSearch || filterCity || equipmentMinPrice || equipmentMaxPrice || equipmentCondition !== 'ALL');
                         return (
                         <View>
-                            {/* Aktif / Satılanlar sekmesi */}
-                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
-                                {['ACTIVE','SOLD'].map(v => (
-                                    <TouchableOpacity key={v} onPress={() => setEquipmentViewStatus(v)}
-                                        style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center', backgroundColor: equipmentViewStatus===v ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentViewStatus===v ? cfg.color : colors.border }}>
-                                        <Text style={{ color: equipmentViewStatus===v ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
-                                            {v==='ACTIVE' ? t.equipActiveTab : t.equipSoldTab}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                            {/* İlan ver + Filtrele + bildirim butonu yan yana */}
+                            {/* İlan ver, filtre, bildirim ve satılanlar tek satır. Aktif sekmesi yok:
+                                liste varsayılan olarak satıştaki ilanlar; Satılanlar aç/kapa. */}
                             <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:10 }}>
-                                {equipmentViewStatus === 'ACTIVE' && (
-                                    <TouchableOpacity onPress={() => setShowEquipmentForm(true)}
-                                        style={{ flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, backgroundColor: cfg.color+'20', borderRadius:10, paddingVertical:6, borderWidth:1, borderColor: cfg.color+'50' }}>
-                                        <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.postListingBtn}</Text>
-                                    </TouchableOpacity>
-                                )}
+                                <TouchableOpacity onPress={() => setShowEquipmentForm(true)}
+                                    style={{ flex:1, minWidth:0, flexDirection:'row', alignItems:'center', justifyContent:'center', backgroundColor: cfg.color+'20', borderRadius:10, paddingVertical:6, paddingHorizontal:4, borderWidth:1, borderColor: cfg.color+'50' }}>
+                                    <Text style={{ color: cfg.color, fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{t.postListingBtn}</Text>
+                                </TouchableOpacity>
                                 <TouchableOpacity onPress={() => setShowEquipmentFilter(true)}
-                                    style={{ flex: equipmentViewStatus === 'ACTIVE' ? undefined : 1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, backgroundColor: equipFilterActive ? cfg.color+'20' : colors.surface2, borderRadius:10, paddingVertical:6, paddingHorizontal:13, borderWidth:1, borderColor: equipFilterActive ? cfg.color+'60' : colors.border }}>
-                                    <Text style={{ color: equipFilterActive ? cfg.color : colors.textSecondary, fontSize:13, fontWeight:'800' }} numberOfLines={1}>{t.filterBtn}</Text>
+                                    style={{ flex:1, minWidth:0, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, backgroundColor: equipFilterActive ? cfg.color+'20' : colors.surface2, borderRadius:10, paddingVertical:6, paddingHorizontal:4, borderWidth:1, borderColor: equipFilterActive ? cfg.color+'60' : colors.border }}>
+                                    <Text style={{ color: equipFilterActive ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{t.filterBtn}</Text>
                                     {equipFilterActive && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
                                 </TouchableOpacity>
-                                <CityAlertBtn tab="equipment" style={{ paddingVertical:6, paddingHorizontal:5 }} />
+                                <CityAlertBtn tab="equipment" style={{ paddingVertical:6, paddingHorizontal:4, flexShrink:0 }} />
+                                <TouchableOpacity onPress={() => setEquipmentViewStatus(v => v === 'SOLD' ? 'ACTIVE' : 'SOLD')}
+                                    style={{ flex:1, minWidth:0, alignItems:'center', justifyContent:'center', backgroundColor: equipmentViewStatus==='SOLD' ? cfg.color : colors.surface2, borderRadius:10, paddingVertical:6, paddingHorizontal:4, borderWidth:1, borderColor: equipmentViewStatus==='SOLD' ? cfg.color : colors.border }}>
+                                    <Text style={{ color: equipmentViewStatus==='SOLD' ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{t.equipSoldTab}</Text>
+                                </TouchableOpacity>
                             </View>
                             {/* Filtre modalı */}
                             <Modal visible={showEquipmentFilter} animationType="slide" transparent onRequestClose={() => setShowEquipmentFilter(false)}>

@@ -120,6 +120,13 @@
     "description_required": "Description must be at least 5 characters",
     "active_tab": "Active",
     "sold_tab": "Sold",
+    "sport_tab": {
+      "tennis": "Tennis Equipment",
+      "padel": "Padel Equipment",
+      "basketball": "Basketball Equipment",
+      "volleyball": "Volleyball Equipment",
+      "pickleball": "Pickleball Equipment"
+    },
     "condition_all": "All",
     "chat_btn": "Open Chat",
     "send_offer_btn": "Send Offer",

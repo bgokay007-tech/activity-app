@@ -58,7 +58,7 @@ const WELLNESS_BRANCHES = new Set(['wellness']);
 const TEAM_SPORTS = new Set(['volleyball', 'football']);
 const TICKET_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'volleyball']);
 const COACH_EXPANDED_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'volleyball']);
-const EQUIPMENT_SPORTS = new Set(['tennis', 'padel', 'pickleball']);
+const EQUIPMENT_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'basketball', 'volleyball']);
 
 // 15-minute interval time select (06:00 – 23:45)
 const TIME_OPTIONS = (() => {
@@ -4626,7 +4626,7 @@ function SubCategoryPage() {
                         {(isWellness
                             ? ['events', 'media']
                             : TEAM_SPORTS.has(sub)
-                                ? ['player_wanted', 'rivals', 'tournaments', ...(COACH_EXPANDED_SPORTS.has(sub) ? ['coaches'] : []), 'media', 'archive', ...(TICKET_SPORTS.has(sub) ? ['tickets'] : [])]
+                                ? ['player_wanted', 'rivals', 'tournaments', ...(COACH_EXPANDED_SPORTS.has(sub) ? ['coaches'] : []), ...(EQUIPMENT_SPORTS.has(sub) ? ['equipment'] : []), 'media', 'archive', ...(TICKET_SPORTS.has(sub) ? ['tickets'] : [])]
                                 : [
                                     ...LEFT_TABS.slice(0, 3),
                                     ...(EQUIPMENT_SPORTS.has(sub) ? ['equipment'] : []),
@@ -4647,7 +4647,7 @@ function SubCategoryPage() {
                                  tab === 'events'        ? `📅 ${t('tabs.events')}` :
                                  tab === 'tournaments'   ? `🏆 ${t('tabs.tournaments')}` :
                                  tab === 'coaches'       ? `🎓 ${COACH_EXPANDED_SPORTS.has(sub) ? t('tabs.support') : t('tabs.coaches')}` :
-                                 tab === 'equipment'     ? `🎾 ${t('tabs.equipment')}` :
+                                 tab === 'equipment'     ? `🎾 ${t(`equipment.sport_tab.${sub}`, { defaultValue: t('tabs.equipment') })}` :
                                  tab === 'tickets'       ? `🎟️ ${t('tabs.tickets')}` :
                                  tab === 'archive'       ? `🗃️ ${t('tabs.archive')}` : `📷 ${t('tabs.media')}`}
                             </button>
@@ -8460,26 +8460,21 @@ function SubCategoryPage() {
                     {/* EQUIPMENT TAB — tennis/padel ikinci el / sıfır ekipman ilanları */}
                     {activeTab === 'equipment' && EQUIPMENT_SPORTS.has(sub) && (
                         <div className="space-y-3">
-                            <div className="flex justify-end">
-                                <CityAlertControl sub={sub} config={config} align="right" tab="equipment" desc="Şehrinde yeni ekipman ilanı açılınca bildirim al" />
-                            </div>
-                            <div className="flex gap-2">
-                                {['ACTIVE', 'SOLD'].map(v => (
-                                    <button key={v} onClick={() => setEquipmentViewStatus(v)}
-                                        className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${equipmentViewStatus === v ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-900 border-gray-700 text-gray-400'}`}>
-                                        {v === 'ACTIVE' ? (t('equipment.active_tab') || 'Aktif') : (t('equipment.sold_tab') || 'Satılanlar')}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {equipmentViewStatus === 'ACTIVE' && (
+                            <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => setShowEquipmentForm(true)}
-                                    className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition`}
+                                    className={`flex-1 min-w-0 bg-gradient-to-r ${config.color} text-white font-bold py-2 rounded-xl text-xs hover:opacity-90 transition truncate`}
                                 >
                                     + {t('equipment.new_listing') || 'Yeni İlan Ver'}
                                 </button>
-                            )}
+                                <CityAlertControl sub={sub} config={config} align="right" tab="equipment" />
+                                <button
+                                    onClick={() => setEquipmentViewStatus(v => v === 'SOLD' ? 'ACTIVE' : 'SOLD')}
+                                    className={`flex-1 min-w-0 py-2 rounded-xl text-xs font-bold border transition truncate ${equipmentViewStatus === 'SOLD' ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-900 border-gray-700 text-gray-400'}`}
+                                >
+                                    {t('equipment.sold_tab') || 'Satılanlar'}
+                                </button>
+                            </div>
 
                             {loadingEquipment ? (
                                 <p className="text-gray-500 text-sm text-center py-8">{t('common.loading')}</p>
