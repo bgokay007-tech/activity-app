@@ -30428,22 +30428,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     }}
                                     onClose={() => setShowMediaDateRange(false)}
                                 />
-                                <Modal visible={!!mediaBrowse} animationType="slide" transparent onRequestClose={() => setMediaBrowse(null)}>
-                                    <View style={s.modalOverlay}>
-                                        <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} activeOpacity={1} onPress={() => setMediaBrowse(null)} />
-                                        <View style={[s.modalBox, { paddingHorizontal: moderateScale(16), paddingBottom: insets.bottom + moderateScale(16) }]}>
-                                            <View style={s.modalHeader}>
+                                <Modal visible={!!mediaBrowse} animationType="slide" presentationStyle="fullScreen" statusBarTranslucent onRequestClose={() => setMediaBrowse(null)}>
+                                    <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
+                                            <View style={[s.modalHeader, { paddingHorizontal: moderateScale(16) }]}>
                                                 <Text style={[s.modalTitle, { flex: 1, marginRight: 8 }]} numberOfLines={1}>
                                                     {mediaBrowse === 'channels' ? t.mediaChannelsBtn(sportDisplayName) : t.mediaVideosBtn(sportDisplayName)}
                                                 </Text>
                                                 <TouchableOpacity onPress={() => setMediaBrowse(null)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                                             </View>
                                             {!!sportPlayer?.videoId && (
-                                                <View style={{ borderRadius: 10, overflow: 'hidden', marginBottom: 10, backgroundColor: '#000' }}>
+                                                <View style={{ overflow: 'hidden', marginBottom: 10, backgroundColor: '#000' }}>
                                                     <YoutubePlayer
                                                         key={sportPlayer.videoId}
-                                                        height={Math.round((winW - moderateScale(32)) * 9 / 16)}
-                                                        width={winW - moderateScale(32)}
+                                                        height={Math.round(winW * 9 / 16)}
+                                                        width={winW}
                                                         play
                                                         videoId={sportPlayer.videoId}
                                                         onChangeState={onSportPlayerState}
@@ -30456,7 +30454,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {sportMediaLoading && !sportMedia ? (
                                                 <ActivityIndicator color={cfg.color} style={{ marginVertical: 24 }} />
                                             ) : (
-                                                <ScrollView style={{ maxHeight: sportPlayer ? winH * 0.34 : winH * 0.62 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: moderateScale(16), paddingBottom: insets.bottom + moderateScale(16) }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                                                     {((mediaBrowse === 'channels' ? sportMedia?.channels : sportMedia?.videos) || []).length === 0
                                                         ? <EmptyState emoji="▶️" text={mediaBrowse === 'channels' ? t.mediaChannelsEmpty : t.mediaVideosEmpty} />
                                                         : (mediaBrowse === 'channels' ? sportMedia.channels : sportMedia.videos).map(item => {
@@ -30481,7 +30479,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         })}
                                                 </ScrollView>
                                             )}
-                                        </View>
                                     </View>
                                 </Modal>
                                 {/* Oyuncu paylaşımları kanal penceresinden bağımsız durur. */}
