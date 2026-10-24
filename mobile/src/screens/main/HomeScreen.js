@@ -169,7 +169,6 @@ export default function HomeScreen({ navigation }) {
     const lang = useSelector(s => s.lang?.lang || 'en');
     const t = useT();
     const insets = useSafeAreaInsets();
-    const [loading, setLoading] = useState(true);
     const [city, setCity] = useState(null);
     const [hasInterests, setHasInterests] = useState(true);
     const [myMatches, setMyMatches] = useState([]);
@@ -215,8 +214,6 @@ export default function HomeScreen({ navigation }) {
                 await loadOpenListingsForCity(resolvedCity, myId, mySubs);
             } catch (e) {
                 console.warn('HomeScreen load error:', e?.message);
-            } finally {
-                if (alive) setLoading(false);
             }
         };
         load();
@@ -253,14 +250,6 @@ export default function HomeScreen({ navigation }) {
             highlightRivalId: item.id,
         });
     };
-
-    if (loading) {
-        return (
-            <View style={[s.container, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={colors.purple} />
-            </View>
-        );
-    }
 
     if (!NEW_VISUAL) {
         return (

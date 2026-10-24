@@ -281,8 +281,8 @@ function HomeStackNav() {
     return (
         <HomeStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
             <HomeStack.Screen name="Home" component={HomeScreen} />
-            <HomeStack.Screen name="Category" component={CategoryScreen} />
-            <HomeStack.Screen name="SubCategory" component={SubCategoryScreen} />
+            <HomeStack.Screen name="Category" component={CategoryScreen} options={{ animation: 'none' }} />
+            <HomeStack.Screen name="SubCategory" component={SubCategoryScreen} options={{ animation: 'none' }} />
             <HomeStack.Screen name="RecordTrail" component={RecordTrailScreen} />
             <HomeStack.Screen name="AddTrailAdmin" component={AddTrailAdminScreen} />
             <HomeStack.Screen name="Profile" component={ProfileScreen} />
@@ -335,7 +335,7 @@ function ProfileStackNav() {
     return (
         <ProfileStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
             <ProfileStack.Screen name="MyProfile" component={ProfileScreen} />
-            <ProfileStack.Screen name="SubCategory" component={SubCategoryScreen} />
+            <ProfileStack.Screen name="SubCategory" component={SubCategoryScreen} options={{ animation: 'none' }} />
             <ProfileStack.Screen name="RecordTrail" component={RecordTrailScreen} />
             <ProfileStack.Screen name="AddTrailAdmin" component={AddTrailAdminScreen} />
             <ProfileStack.Screen name="Profile" component={ProfileScreen} />
@@ -355,7 +355,7 @@ function ActivityStackNav() {
     return (
         <ActivityStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
             <ActivityStack.Screen name="ActivityFeed" component={ActivityFeedScreen} />
-            <ActivityStack.Screen name="SubCategory" component={SubCategoryScreen} />
+            <ActivityStack.Screen name="SubCategory" component={SubCategoryScreen} options={{ animation: 'none' }} />
             <ActivityStack.Screen name="RecordTrail" component={RecordTrailScreen} />
             <ActivityStack.Screen name="AddTrailAdmin" component={AddTrailAdminScreen} />
             <ActivityStack.Screen name="Profile" component={ProfileScreen} />
@@ -367,7 +367,7 @@ function NotificationsStackNav() {
     return (
         <NotificationsStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
             <NotificationsStack.Screen name="NotificationsList" component={NotificationsScreen} />
-            <NotificationsStack.Screen name="SubCategory" component={SubCategoryScreen} />
+            <NotificationsStack.Screen name="SubCategory" component={SubCategoryScreen} options={{ animation: 'none' }} />
             <NotificationsStack.Screen name="RecordTrail" component={RecordTrailScreen} />
             <NotificationsStack.Screen name="AddTrailAdmin" component={AddTrailAdminScreen} />
             <NotificationsStack.Screen name="Profile" component={ProfileScreen} />

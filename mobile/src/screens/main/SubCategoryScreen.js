@@ -25854,14 +25854,35 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (!uri || isVideo || detectingRef.current) return;
         detectingRef.current = true;
         setDetectingImage(true);
-        if (!musicQueryRef.current.trim()) setMusicResults([]);
         const fallback = [
             `${String(sub || 'sports').replace(/_/g, ' ')} music`,
             'energetic workout',
             'champion mindset',
             'summer sports',
         ];
+        const collect = async (keywords) => {
+            const lists = await Promise.all(keywords.slice(0, 4).map(async (kw) => {
+                try {
+                    const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(kw)}&limit=8&output=json`);
+                    const json = await res.json();
+                    return json.data || [];
+                } catch { return []; }
+            }));
+            const seen = new Set();
+            const merged = [];
+            for (const list of lists) {
+                for (const track of list) {
+                    if (track?.id && !seen.has(track.id)) { seen.add(track.id); merged.push(track); }
+                }
+            }
+            return merged;
+        };
         try {
+            const quick = await collect(fallback);
+            if (!musicQueryRef.current.trim() && quick.length) {
+                suggestedMusicRef.current = quick;
+                setMusicResults(quick);
+            }
             let keywords = fallback;
             try {
                 const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
@@ -25874,22 +25895,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                     if (Array.isArray(data?.keywords) && data.keywords.length) keywords = data.keywords;
                 }
             } catch { /* fotoğraf okunamazsa dal adına göre ara */ }
-            const lists = await Promise.all(keywords.slice(0, 4).map(async (kw) => {
-                try {
-                    const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(kw)}&limit=8&output=json`);
-                    const json = await res.json();
-                    return json.data || [];
-                } catch { return []; }
-            }));
-            const seen = new Set();
-            const merged = [];
-            for (const list of lists) {
-                for (const track of list) {
-                    if (!seen.has(track.id)) { seen.add(track.id); merged.push(track); }
-                }
-            }
+            const merged = await collect(keywords);
             suggestedMusicRef.current = merged;
-            if (!musicQueryRef.current.trim()) setMusicResults(merged);
+            if (!musicQueryRef.current.trim() && merged.length) setMusicResults(merged);
             if (!merged.length && !silent) Alert.alert('', t.musicSuggestEmpty);
         } catch {
             if (!silent) Alert.alert('', t.musicSuggestEmpty);
@@ -30477,16 +30485,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <Text style={{ color: mediaFilterActive ? cfg.color : colors.textMuted, fontWeight: '800', fontSize: 12 }}>{t.filterBtn}</Text>
                                     </TouchableOpacity>
                                     {isSportsCategory && (
-                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', gap: 4, paddingRight: 6 }}>
+                                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0 }}>
                                             <TouchableOpacity onPress={() => openSportMedia('channels')}
-                                                style={{ backgroundColor: mediaBrowse === 'channels' ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: mediaBrowse === 'channels' ? cfg.color + '50' : colors.border }}>
-                                                <Text style={{ color: mediaBrowse === 'channels' ? cfg.color : colors.textSecondary, fontWeight: '800', fontSize: 12 }} numberOfLines={1}>{t.mediaChannelsBtn(sportDisplayName)}</Text>
+                                                style={{ flex: 1, minWidth: 0, backgroundColor: mediaBrowse === 'channels' ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: mediaBrowse === 'channels' ? cfg.color + '50' : colors.border }}>
+                                                <Text style={{ color: mediaBrowse === 'channels' ? cfg.color : colors.textSecondary, fontWeight: '800', fontSize: 12 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.mediaChannelsBtn(sportDisplayName)}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity onPress={() => openSportMedia('videos')}
-                                                style={{ backgroundColor: mediaBrowse === 'videos' ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: mediaBrowse === 'videos' ? cfg.color + '50' : colors.border }}>
-                                                <Text style={{ color: mediaBrowse === 'videos' ? cfg.color : colors.textSecondary, fontWeight: '800', fontSize: 12 }} numberOfLines={1}>{t.mediaVideosBtn(sportDisplayName)}</Text>
+                                                style={{ flex: 1, minWidth: 0, backgroundColor: mediaBrowse === 'videos' ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: mediaBrowse === 'videos' ? cfg.color + '50' : colors.border }}>
+                                                <Text style={{ color: mediaBrowse === 'videos' ? cfg.color : colors.textSecondary, fontWeight: '800', fontSize: 12 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.mediaVideosBtn(sportDisplayName)}</Text>
                                             </TouchableOpacity>
-                                        </ScrollView>
+                                        </View>
                                     )}
                                 </View>
                                 <Modal visible={showMediaFilter} animationType="slide" transparent onRequestClose={() => setShowMediaFilter(false)}>
