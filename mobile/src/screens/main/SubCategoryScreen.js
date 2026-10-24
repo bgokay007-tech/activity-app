@@ -25,6 +25,7 @@ import { addMatchUpdateListener, addWatchPointListener, isWatchConnected, hasWea
 import * as Notifications from 'expo-notifications';
 import { isHealthAvailable, requestHealthPermissions, getWorkoutSummary } from '../../../modules/health-bridge';
 import { estimateCalories } from '../../utils/calorieEstimate';
+import { isRacketSetSport, isSevenSix, normalizeRacketSets, syncSplitThirdSet, formatSetScore, racketAlertText } from '../../utils/racketScore';
 import api from '../../services/api';
 import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
@@ -153,7 +154,7 @@ function compareHeadToHead(aId, bId, matches) {
         const sc = m.score || {};
         let p1s = 0, p2s = 0, p1g = 0, p2g = 0;
         for (const set of (sc.sets || [])) {
-            p1g += set.p1 || 0; p2g += set.p2 || 0;
+            if (!set.matchTiebreak) { p1g += set.p1 || 0; p2g += set.p2 || 0; }
             if ((set.p1 || 0) > (set.p2 || 0)) p1s++; else if ((set.p2 || 0) > (set.p1 || 0)) p2s++;
         }
         aSetsW += aIsP1 ? p1s : p2s;
@@ -6177,7 +6178,10 @@ function MatchLiveScreen({
         const stats = deriveStats(engine);
         let apiSets = [];
         if (engine.profile === 'racket') {
-            apiSets = engine.currentSetGames.map(([ga, gb]) => ({ my: String(ga), opp: String(gb) }));
+            apiSets = engine.currentSetGames.map(([ga, gb, tbA, tbB]) => ({
+                my: String(ga), opp: String(gb),
+                ...((tbA || tbB) ? { tbMy: String(tbA), tbOpp: String(tbB) } : {}),
+            }));
             if (engine.gamesA > 0 || engine.gamesB > 0) apiSets.push({ my: String(engine.gamesA), opp: String(engine.gamesB) });
         } else if (engine.profile === 'volleyball') {
             apiSets = engine.currentSetPoints.map(([pa, pb]) => ({ my: String(pa), opp: String(pb) }));
@@ -6879,6 +6883,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // BAŞINA alınıyor.
     const [doubleInviteFromSlot, setDoubleInviteFromSlot] = useState(null);
     const [sets, setSets] = useState([{ my: '', opp: '' }]);
+    const [decidingTiebreak, setDecidingTiebreak] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [showCantScore, setShowCantScore] = useState(false);
     const [abandonReason, setAbandonReason] = useState(null);
@@ -7229,9 +7234,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         }
     };
 
-    const addSet    = () => setSets(p => [...p, { my: '', opp: '' }]);
-    const removeSet = (i) => { if (sets.length > 1) setSets(p => p.filter((_, idx) => idx !== i)); };
-    const updateSet = (i, field, val) => setSets(p => p.map((r, idx) => idx === i ? { ...r, [field]: val } : r));
+    const racketScore = isRacketSetSport(match.subCategory);
+    const addSet    = () => setSets(p => (racketScore && decidingTiebreak)
+        ? syncSplitThirdSet(p, { deciding: true, aKey: 'my', bKey: 'opp' })
+        : [...p, { my: '', opp: '' }]);
+    const removeSet = (i) => { if (sets.length > 1 && !(racketScore && decidingTiebreak)) setSets(p => p.filter((_, idx) => idx !== i)); };
+    const updateSet = (i, field, val) => setSets(p => {
+        const clean = String(val || '').replace(/[^0-9]/g, '');
+        const next = p.map((r, idx) => idx === i ? { ...r, [field]: clean } : r);
+        if (racketScore && decidingTiebreak) return syncSplitThirdSet(next, { deciding: true, aKey: 'my', bKey: 'opp' });
+        return next;
+    });
 
     const totalMy  = sets.reduce((s, r) => s + (parseInt(r.my)  || 0), 0);
     const totalOpp = sets.reduce((s, r) => s + (parseInt(r.opp) || 0), 0);
@@ -7247,17 +7260,26 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
     const submitScore = async () => {
         if (!hasAnyInput) { Alert.alert('', t.missingScore); return; }
-        if (match.subCategory === 'tennis' || match.subCategory === 'padel' || match.subCategory === 'pickleball') {
-            for (const r of sets) {
-                const p1 = parseInt(r.my) || 0, p2 = parseInt(r.opp) || 0;
-                if (p1 === 0 && p2 === 0) continue;
-                const hi = Math.max(p1, p2), lo = Math.min(p1, p2);
-                const valid = (hi === 6 && lo <= 4) || (hi === 7 && (lo === 5 || lo === 6));
-                if (!valid) {
-                    Alert.alert('Geçersiz Set Skoru', `${p1}-${p2} geçersiz. Tenis/Padel setinde kazanan 6 (max 6-4) veya 7-5/7-6 ile bitmelidir.`);
-                    return;
-                }
-            }
+        let racketPayload = null;
+        if (racketScore) {
+            const checked = normalizeRacketSets(sets, { decidingTiebreak, a: 'my', b: 'opp', tbA: 'tbMy', tbB: 'tbOpp' });
+            if (!checked.ok) { Alert.alert('', racketAlertText(t, checked)); return; }
+            const iWinSets = checked.winner === 'a';
+            racketPayload = {
+                sets: checked.sets.map(r => {
+                    const row = {
+                        sender: iAmFounderSide ? r.my : r.opp,
+                        opponent: iAmFounderSide ? r.opp : r.my,
+                    };
+                    if (r.matchTiebreak) row.matchTiebreak = true;
+                    else if (r.tbMy != null) {
+                        row.tbSender = iAmFounderSide ? r.tbMy : r.tbOpp;
+                        row.tbOpponent = iAmFounderSide ? r.tbOpp : r.tbMy;
+                    }
+                    return row;
+                }),
+                winner: (iWinSets === iAmFounderSide) ? 'sender' : 'opponent',
+            };
         }
         // Kullanıcı isteği: voleybolde de gerçek set kuralları uygulansın — ilk 4 set 25 sayıya
         // (2 fark şartıyla, 24-24 olursa 26-24'e, 25-25 olursa 27-25'e... şeklinde uzar), 5.
@@ -7278,15 +7300,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         }
         setSubmitting(true);
         try {
-            const apiSets = sets.map(r => ({
+            const apiSets = racketPayload ? racketPayload.sets : sets.map(r => ({
                 sender:   iAmFounderSide ? (parseInt(r.my) || 0) : (parseInt(r.opp) || 0),
                 opponent: iAmFounderSide ? (parseInt(r.opp) || 0) : (parseInt(r.my) || 0),
             }));
+            const scoreWinner = racketPayload ? racketPayload.winner : autoWinner;
             // stats içindeki A/B etiketleri her zaman "canlı takibi başlatan taraf = A" anlamına
             // gelir (bkz. liveMatchEngine.js) — sender/opponent'a hangisinin karşılık geldiğini
             // arşiv gösteriminin çözebilmesi için perspective alanı eklenir.
             const statsToSend = pendingLiveStats ? { ...pendingLiveStats, perspective: iAmFounderSide ? 'sender' : 'opponent' } : null;
-            const doRequest = () => api.patch(`/rivals/${match.id}/score`, { sets: apiSets, winner: autoWinner, ...(statsToSend && { stats: statsToSend }) });
+            const doRequest = () => api.patch(`/rivals/${match.id}/score`, { sets: apiSets, winner: scoreWinner, ...(statsToSend && { stats: statsToSend }) });
             try {
                 await doRequest();
             } catch (firstErr) {
@@ -7303,6 +7326,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             } catch { /* non-critical */ }
             setShowScore(false);
             setSets([{ my: '', opp: '' }]);
+            setDecidingTiebreak(false);
             setPendingLiveStats(null);
             // Kullanıcı raporu: skor girince maç kartı, liste yenilenene kadar (~1sn) eski
             // konumunda (yedek arayan maçlar "Açık İlanlar" başlığı altında göründüğü için
@@ -9097,11 +9121,19 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             {existingSets.map((row, i) => {
                                 const mySc  = iAmFounderSide ? row.sender : row.opponent;
                                 const oppSc = iAmFounderSide ? row.opponent : row.sender;
+                                const myTb = iAmFounderSide ? row.tbSender : row.tbOpponent;
+                                const oppTb = iAmFounderSide ? row.tbOpponent : row.tbSender;
+                                const showTb = !row.matchTiebreak && myTb != null && oppTb != null;
                                 return (
-                                    <View key={i} style={sc.setRow}>
-                                        <Text style={[sc.setScore, { color: mySc > oppSc ? '#4ade80' : mySc < oppSc ? '#f87171' : '#fff' }]}>{mySc}</Text>
-                                        <Text style={sc.colLabel}>Set {i + 1}</Text>
-                                        <Text style={[sc.setScore, { color: oppSc > mySc ? '#4ade80' : oppSc < mySc ? '#f87171' : '#fff' }]}>{oppSc}</Text>
+                                    <View key={i}>
+                                        <View style={sc.setRow}>
+                                            <Text style={[sc.setScore, { color: mySc > oppSc ? '#4ade80' : mySc < oppSc ? '#f87171' : '#fff' }]}>{mySc}</Text>
+                                            <Text style={[sc.colLabel, row.matchTiebreak && { color: '#facc15' }]}>{row.matchTiebreak ? t.racketMatchTbLabel : `Set ${i + 1}`}</Text>
+                                            <Text style={[sc.setScore, { color: oppSc > mySc ? '#4ade80' : oppSc < mySc ? '#f87171' : '#fff' }]}>{oppSc}</Text>
+                                        </View>
+                                        {showTb ? (
+                                            <Text style={{ color: '#facc15', fontSize: 12, fontWeight: '800', textAlign: 'center', marginTop: -2, marginBottom: 4 }}>({myTb}-{oppTb})</Text>
+                                        ) : null}
                                     </View>
                                 );
                             })}
@@ -9200,37 +9232,79 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     ))}
                                 </View>
                             </View>
-                            {sets.map((row, i) => (
-                                <View key={i} style={sc.setInputRow}>
-                                    <TextInput
-                                        style={sc.setInput}
-                                        value={row.my}
-                                        onChangeText={v => updateSet(i, 'my', v)}
-                                        keyboardType="numeric"
-                                        placeholder="0"
-                                        placeholderTextColor={colors.textMuted}
-                                        maxLength={2}
-                                    />
-                                    <Text style={sc.colLabel}>Set {i + 1}</Text>
-                                    <TextInput
-                                        style={sc.setInput}
-                                        value={row.opp}
-                                        onChangeText={v => updateSet(i, 'opp', v)}
-                                        keyboardType="numeric"
-                                        placeholder="0"
-                                        placeholderTextColor={colors.textMuted}
-                                        maxLength={2}
-                                    />
-                                    {sets.length > 1 && (
-                                        <TouchableOpacity style={sc.removeBtn} onPress={() => removeSet(i)}>
-                                            <Text style={sc.removeTxt}>✕</Text>
-                                        </TouchableOpacity>
-                                    )}
+                            {racketScore ? (
+                                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                                    <TouchableOpacity onPress={() => { setDecidingTiebreak(false); setSets(p => p.filter(r => !r.matchTiebreak).map(r => ({ ...r, matchTiebreak: false }))); }}
+                                        style={{ flex: 1, borderRadius: 8, paddingVertical: 6, alignItems: 'center', borderWidth: 1, borderColor: decidingTiebreak ? colors.border : '#facc15', backgroundColor: decidingTiebreak ? 'transparent' : '#facc1520' }}>
+                                        <Text style={{ color: decidingTiebreak ? colors.textMuted : '#facc15', fontSize: 11, fontWeight: '800' }}>{t.rivalFormatNormal}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => { setDecidingTiebreak(true); setSets(p => syncSplitThirdSet(p.length ? p : [{ my: '', opp: '' }], { deciding: true, aKey: 'my', bKey: 'opp' })); }}
+                                        style={{ flex: 1, borderRadius: 8, paddingVertical: 6, alignItems: 'center', borderWidth: 1, borderColor: decidingTiebreak ? '#facc15' : colors.border, backgroundColor: decidingTiebreak ? '#facc1520' : 'transparent' }}>
+                                        <Text style={{ color: decidingTiebreak ? '#facc15' : colors.textMuted, fontSize: 11, fontWeight: '800' }}>{t.rivalFormatTb}</Text>
+                                    </TouchableOpacity>
                                 </View>
-                            ))}
-                            <TouchableOpacity style={sc.addBtn} onPress={addSet}>
-                                <Text style={sc.addBtnTxt}>+ {t.addSet}</Text>
-                            </TouchableOpacity>
+                            ) : null}
+                            {sets.map((row, i) => {
+                                const showTb = racketScore && !row.matchTiebreak && isSevenSix(parseInt(row.my, 10) || 0, parseInt(row.opp, 10) || 0);
+                                return (
+                                    <View key={i} style={{ marginBottom: 4 }}>
+                                        <View style={sc.setInputRow}>
+                                            <TextInput
+                                                style={sc.setInput}
+                                                value={row.my}
+                                                onChangeText={v => updateSet(i, 'my', v)}
+                                                keyboardType="numeric"
+                                                placeholder="0"
+                                                placeholderTextColor={colors.textMuted}
+                                                maxLength={2}
+                                            />
+                                            <Text style={[sc.colLabel, row.matchTiebreak && { color: '#facc15' }]}>{row.matchTiebreak ? t.racketMatchTbLabel : `Set ${i + 1}`}</Text>
+                                            <TextInput
+                                                style={sc.setInput}
+                                                value={row.opp}
+                                                onChangeText={v => updateSet(i, 'opp', v)}
+                                                keyboardType="numeric"
+                                                placeholder="0"
+                                                placeholderTextColor={colors.textMuted}
+                                                maxLength={2}
+                                            />
+                                            {sets.length > 1 && !(racketScore && decidingTiebreak) && (
+                                                <TouchableOpacity style={sc.removeBtn} onPress={() => removeSet(i)}>
+                                                    <Text style={sc.removeTxt}>✕</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                        {showTb ? (
+                                            <View style={sc.setInputRow}>
+                                                <TextInput
+                                                    style={[sc.setInput, { fontSize: 16, paddingVertical: 4 }]}
+                                                    value={row.tbMy || ''}
+                                                    onChangeText={v => updateSet(i, 'tbMy', v)}
+                                                    keyboardType="numeric"
+                                                    placeholder="0"
+                                                    placeholderTextColor={colors.textMuted}
+                                                    maxLength={2}
+                                                />
+                                                <Text style={[sc.colLabel, { color: '#facc15' }]}>( )</Text>
+                                                <TextInput
+                                                    style={[sc.setInput, { fontSize: 16, paddingVertical: 4 }]}
+                                                    value={row.tbOpp || ''}
+                                                    onChangeText={v => updateSet(i, 'tbOpp', v)}
+                                                    keyboardType="numeric"
+                                                    placeholder="0"
+                                                    placeholderTextColor={colors.textMuted}
+                                                    maxLength={2}
+                                                />
+                                            </View>
+                                        ) : null}
+                                    </View>
+                                );
+                            })}
+                            {!(racketScore && decidingTiebreak) ? (
+                                <TouchableOpacity style={sc.addBtn} onPress={addSet}>
+                                    <Text style={sc.addBtnTxt}>+ {t.addSet}</Text>
+                                </TouchableOpacity>
+                            ) : null}
                             {sets.some(r => r.my !== '') && (
                                 <TouchableOpacity style={sc.drawBtn} onPress={() => setSets(prev => prev.map(row => ({ ...row, opp: row.my })))}>
                                     <Text style={sc.drawBtnTxt}>🤝 Beraberlik</Text>
@@ -12508,7 +12582,14 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
         me: iAmFounderSide ? Number(s2.sender) || 0 : Number(s2.opponent) || 0,
         them: iAmFounderSide ? Number(s2.opponent) || 0 : Number(s2.sender) || 0,
     })) : [];
-    const scoreLine = viewerSets.length ? viewerSets.map(s2 => `${s2.me}-${s2.them}`).join('  ') : null;
+    const scoreLine = sets && sets.length ? sets.map(s2 => {
+        const oriented = iAmFounderSide ? s2 : {
+            ...s2,
+            sender: s2.opponent, opponent: s2.sender,
+            tbSender: s2.tbOpponent, tbOpponent: s2.tbSender,
+        };
+        return formatSetScore(oriented, 'sender', 'opponent', 'tbSender', 'tbOpponent');
+    }).join('  ') : null;
     const mySetWins = viewerSets.filter(s2 => s2.me > s2.them).length;
     const theirSetWins = viewerSets.filter(s2 => s2.them > s2.me).length;
     const myGames = viewerSets.reduce((n, s2) => n + s2.me, 0);
@@ -17216,6 +17297,52 @@ const hasTournExplicitSurface = (item) => {
 };
 
 /** Turnuva maç kartı: set skorları rakiplerin ORTASINDA (isim yanına değil). */
+function TournSetScoreFields({ scoreSets, onChange, p1Name, p2Name, t }) {
+    const box = { flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: colors.border, fontSize: 13, textAlign: 'center' };
+    return (
+        <>
+            <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+                <Text style={{ color: colors.textMuted, fontSize: 10, width: 62 }}>Set</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 10, flex: 1, textAlign: 'center' }} numberOfLines={1}>{p1Name}</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 10, flex: 1, textAlign: 'center' }} numberOfLines={1}>{p2Name}</Text>
+            </View>
+            {scoreSets.map((set, si) => {
+                const showTb = !set.matchTiebreak && isSevenSix(parseInt(set.p1, 10) || 0, parseInt(set.p2, 10) || 0);
+                return (
+                    <View key={si} style={{ marginBottom: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Text style={{ color: set.matchTiebreak ? '#facc15' : colors.textMuted, fontSize: 11, width: 62 }} numberOfLines={1}>
+                                {set.matchTiebreak ? t.racketMatchTbLabel : (si === 2 ? '🔥 3. Set' : `${si + 1}. Set`)}
+                            </Text>
+                            <TextInput
+                                style={[box, { marginRight: 6 }]}
+                                value={set.p1} onChangeText={v => onChange(si, 'p1', v)}
+                                keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
+                            <TextInput
+                                style={box}
+                                value={set.p2} onChangeText={v => onChange(si, 'p2', v)}
+                                keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
+                        </View>
+                        {showTb ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+                                <Text style={{ color: '#facc15', fontSize: 10, width: 62 }}>( )</Text>
+                                <TextInput
+                                    style={[box, { marginRight: 6, fontSize: 12 }]}
+                                    value={set.tb1 || ''} onChangeText={v => onChange(si, 'tb1', v)}
+                                    keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
+                                <TextInput
+                                    style={[box, { fontSize: 12 }]}
+                                    value={set.tb2 || ''} onChangeText={v => onChange(si, 'tb2', v)}
+                                    keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
+                            </View>
+                        ) : null}
+                    </View>
+                );
+            })}
+        </>
+    );
+}
+
 function TournMatchCenterScore({ sets, compact = false }) {
     if (!Array.isArray(sets) || sets.length === 0) return null;
     const p1SW = sets.filter(s => (s.p1 || 0) > (s.p2 || 0)).length;
@@ -17223,13 +17350,18 @@ function TournMatchCenterScore({ sets, compact = false }) {
     return (
         <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: compact ? 2 : 4, width: '100%' }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: compact ? 4 : 6 }}>
-                {sets.map((s, i) => (
-                    <Text key={i} style={{ fontSize: compact ? 11 : 12, fontWeight: '900' }}>
-                        <Text style={{ color: (s.p1 || 0) > (s.p2 || 0) ? '#4ade80' : '#94a3b8' }}>{s.p1 ?? 0}</Text>
-                        <Text style={{ color: '#64748b' }}>-</Text>
-                        <Text style={{ color: (s.p2 || 0) > (s.p1 || 0) ? '#4ade80' : '#94a3b8' }}>{s.p2 ?? 0}</Text>
-                    </Text>
-                ))}
+                {sets.map((s, i) => {
+                    const tb = !s.matchTiebreak && s.tb1 != null && s.tb2 != null && isSevenSix(s.p1 || 0, s.p2 || 0);
+                    return (
+                        <Text key={i} style={{ fontSize: compact ? 11 : 12, fontWeight: '900' }}>
+                            {s.matchTiebreak ? <Text style={{ color: '#facc15' }}>TB </Text> : null}
+                            <Text style={{ color: (s.p1 || 0) > (s.p2 || 0) ? '#4ade80' : '#94a3b8' }}>{s.p1 ?? 0}</Text>
+                            <Text style={{ color: '#64748b' }}>-</Text>
+                            <Text style={{ color: (s.p2 || 0) > (s.p1 || 0) ? '#4ade80' : '#94a3b8' }}>{s.p2 ?? 0}</Text>
+                            {tb ? <Text style={{ color: '#facc15' }}>{` (${s.tb1}-${s.tb2})`}</Text> : null}
+                        </Text>
+                    );
+                })}
             </View>
             <Text style={{ color: '#fbbf24', fontSize: compact ? 10 : 11, fontWeight: '800', marginTop: 2 }}>
                 {p1SW} – {p2SW}
@@ -17384,6 +17516,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [editQualifiers, setEditQualifiers] = useState(String(item.playoffQualifiers || ''));
     const [editSetsPerMatch, setEditSetsPerMatch] = useState(String(item.setsPerMatch || 3));
     const [editAdvantageScoring, setEditAdvantageScoring] = useState(item.advantageScoring !== undefined ? item.advantageScoring : null);
+    const [editDecidingTiebreak, setEditDecidingTiebreak] = useState(!!item.decidingTiebreak);
     const [editLocation, setEditLocation] = useState(item.location || '');
     const [editSurface, setEditSurface] = useState(item.surface || '');
     const [editIsIndoor, setEditIsIndoor] = useState(!!item.isIndoor);
@@ -18233,44 +18366,48 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     };
 
     const updateTournSet = (si, field, val) => {
+        const clean = String(val || '').replace(/[^0-9]/g, '');
+        const racketBestOf3 = isRacketSetSport(item.subCategory) && numSets === 3;
         setScoreSets(prev => {
             if (numSets < 3) {
-                return prev.map((s, i) => i === si ? { ...s, [field]: val.replace(/[^0-9]/, '') } : s);
+                return prev.map((s, i) => i === si ? { ...s, [field]: clean } : s);
             }
             if (si < 2) {
-                const updated = prev.slice(0, 2).map((s, i) => i === si ? { ...s, [field]: val.replace(/[^0-9]/, '') } : s);
+                const updated = prev.slice(0, 2).map((s, i) => i === si ? { ...s, [field]: clean } : s);
+                if (racketBestOf3) {
+                    return syncSplitThirdSet(updated, { deciding: !!item.decidingTiebreak, aKey: 'p1', bKey: 'p2' });
+                }
                 let p1W = 0, p2W = 0;
                 updated.forEach(s => {
                     const p1 = parseInt(s.p1) || 0, p2 = parseInt(s.p2) || 0;
                     if (p1 > p2) p1W++; else if (p2 > p1) p2W++;
                 });
-                if (p1W === 1 && p2W === 1) return [...updated, { p1: '', p2: '' }];
+                if (p1W === 1 && p2W === 1) return [...updated, prev[2] && !prev[2].matchTiebreak ? { ...prev[2] } : { p1: '', p2: '' }];
                 return updated;
             }
-            return prev.map((s, i) => i === si ? { ...s, [field]: val.replace(/[^0-9]/, '') } : s);
+            return prev.map((s, i) => i === si ? { ...s, [field]: clean } : s);
         });
     };
 
     const submitScore = async () => {
         if (!scoreEntry) return;
-        const sets = scoreSets.map(s => ({ p1: parseInt(s.p1) || 0, p2: parseInt(s.p2) || 0 }));
-        if (item.subCategory === 'tennis' || item.subCategory === 'padel' || item.subCategory === 'pickleball') {
+        let sets;
+        let winner;
+        if (isRacketSetSport(item.subCategory)) {
+            const deciding = !!item.decidingTiebreak && numSets === 3;
+            const checked = normalizeRacketSets(scoreSets, { decidingTiebreak: deciding, a: 'p1', b: 'p2', tbA: 'tb1', tbB: 'tb2' });
+            if (!checked.ok) { Alert.alert('', racketAlertText(t, checked)); return; }
+            sets = checked.sets;
+            winner = checked.winner === 'a' ? 'p1' : 'p2';
+        } else {
+            sets = scoreSets.map(s => ({ p1: parseInt(s.p1) || 0, p2: parseInt(s.p2) || 0 }));
+            let p1Wins = 0, p2Wins = 0;
             for (const s of sets) {
-                if (s.p1 === 0 && s.p2 === 0) continue;
-                const hi = Math.max(s.p1, s.p2), lo = Math.min(s.p1, s.p2);
-                const valid = (hi === 6 && lo <= 4) || (hi === 7 && (lo === 5 || lo === 6));
-                if (!valid) {
-                    Alert.alert('Geçersiz Set Skoru', `${s.p1}-${s.p2} geçersiz. Tenis/Padel setinde kazanan 6 (max 6-4) veya 7-5/7-6 ile bitmelidir.`);
-                    return;
-                }
+                if (s.p1 > s.p2) p1Wins++; else if (s.p2 > s.p1) p2Wins++;
             }
+            if (p1Wins === p2Wins) { Alert.alert('', t.racketDraw); return; }
+            winner = p1Wins > p2Wins ? 'p1' : 'p2';
         }
-        let p1Wins = 0, p2Wins = 0;
-        for (const s of sets) {
-            if (s.p1 > s.p2) p1Wins++; else if (s.p2 > s.p1) p2Wins++;
-        }
-        if (p1Wins === p2Wins) { Alert.alert('', 'Geçersiz sonuç: eşitlik kabul edilmiyor.'); return; }
-        const winner = p1Wins > p2Wins ? 'p1' : 'p2';
         setSubmittingScore(true);
         try {
             const { data } = await api.patch(`/tournaments/${item.id}/matches/${scoreEntry.matchId}/score`, { sets, winner });
@@ -18336,6 +18473,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 maxPlayers: parseInt(editMax) || item.maxPlayers,
                 setsPerMatch: editSetsPerMatch ? parseInt(editSetsPerMatch) : null,
                 advantageScoring: editAdvantageScoring,
+                decidingTiebreak: isRacketSetSport(item.subCategory) && String(editSetsPerMatch) === '3' && editDecidingTiebreak,
                 matchesBeforePlayoff: editMatches ? parseInt(editMatches) : null,
                 playoffQualifiers: editQualifiers ? parseInt(editQualifiers) : null,
                 location: editLocation || null,
@@ -18484,7 +18622,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 if (!t1 || !t2) continue;
                 let p1s = 0, p2s = 0, p1g = 0, p2g = 0;
                 for (const set of (m.score.sets || [])) {
-                    p1g += set.p1 || 0; p2g += set.p2 || 0;
+                    if (!set.matchTiebreak) { p1g += set.p1 || 0; p2g += set.p2 || 0; }
                     if ((set.p1 || 0) > (set.p2 || 0)) p1s++; else if ((set.p2 || 0) > (set.p1 || 0)) p2s++;
                 }
                 for (const [side, t, sg, ss, og, os] of [
@@ -18618,7 +18756,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 ) : null}
                 {item.setsPerMatch ? (
                     <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Set: {item.setsPerMatch}</Text>
+                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Set: {item.setsPerMatch}{item.decidingTiebreak ? ` · ${t.tournThirdSetTb}` : ''}</Text>
                     </View>
                 ) : null}
                 {item.advantageScoring !== undefined ? (
@@ -19012,24 +19150,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 )}
                                 {isEntering && (
                                     <View style={{ marginTop:8, borderTopWidth:1, borderTopColor: colors.border, paddingTop:5 }}>
-                                        <View style={{ flexDirection:'row', marginBottom:4 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:10, width:54 }}>Set</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'center' }}>{match.p1Name}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'center' }}>{match.p2Name}</Text>
-                                        </View>
-                                        {scoreSets.map((set, si) => (
-                                            <View key={si} style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
-                                                <Text style={{ color: si === 2 ? '#f59e0b' : colors.textMuted, fontSize:11, width:54 }}>{si === 2 ? '🔥 3.' : `${si+1}.`} Set</Text>
-                                                <TextInput
-                                                    style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center', marginRight:6 }}
-                                                    value={set.p1} onChangeText={v => updateTournSet(si, 'p1', v)}
-                                                    keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
-                                                <TextInput
-                                                    style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center' }}
-                                                    value={set.p2} onChangeText={v => updateTournSet(si, 'p2', v)}
-                                                    keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
-                                            </View>
-                                        ))}
+                                        <TournSetScoreFields scoreSets={scoreSets} onChange={updateTournSet} p1Name={match.p1Name} p2Name={match.p2Name} t={t} />
                                         <View style={{ flexDirection:'row', gap:3, marginTop:6 }}>
                                             <TouchableOpacity onPress={submitScore} disabled={submittingScore}
                                                 style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:5, borderWidth:1, borderColor:'#16a34a60' }}>
@@ -19666,26 +19787,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         </View>
                                                     {isEntering && (
                                                         <View style={{ marginTop:8, borderTopWidth:1, borderTopColor: colors.border, paddingTop:5 }}>
-                                                            <View style={{ flexDirection:'row', marginBottom:4 }}>
-                                                                <Text style={{ color: colors.textMuted, fontSize:10, width:54 }}>Set</Text>
-                                                                <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'center' }}>{match.p1Name}</Text>
-                                                                <Text style={{ color: colors.textMuted, fontSize:10, flex:1, textAlign:'center' }}>{match.p2Name}</Text>
-                                                            </View>
-                                                            {scoreSets.map((set, si) => (
-                                                                <View key={si} style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
-                                                                    <Text style={{ color: si === 2 ? '#f59e0b' : colors.textMuted, fontSize:11, width:54 }}>{si === 2 ? '🔥 3.' : `${si+1}.`} Set</Text>
-                                                                    <TextInput
-                                                                        style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center', marginRight:6 }}
-                                                                        value={set.p1}
-                                                                        onChangeText={v => updateTournSet(si, 'p1', v)}
-                                                                        keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
-                                                                    <TextInput
-                                                                        style={{ flex:1, backgroundColor:'#1e293b', color:'#fff', borderRadius:6, paddingHorizontal:5, paddingVertical:1, borderWidth:1, borderColor: colors.border, fontSize:13, textAlign:'center' }}
-                                                                        value={set.p2}
-                                                                        onChangeText={v => updateTournSet(si, 'p2', v)}
-                                                                        keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
-                                                                </View>
-                                                            ))}
+                                                            <TournSetScoreFields scoreSets={scoreSets} onChange={updateTournSet} p1Name={match.p1Name} p2Name={match.p2Name} t={t} />
                                                             <View style={{ flexDirection:'row', gap:3, marginTop:6 }}>
                                                                 <TouchableOpacity onPress={submitScore} disabled={submittingScore}
                                                                     style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:2, borderWidth:1, borderColor:'#16a34a60' }}>
@@ -19961,6 +20063,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             </TouchableOpacity>
                                         ))}
                                     </View>
+                                    {isRacketSetSport(item.subCategory) && String(editSetsPerMatch) === '3' ? (
+                                        <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
+                                            {[{ v: false, l: t.tournThirdSetNormal }, { v: true, l: t.tournThirdSetTb }].map(({ v, l }) => (
+                                                <TouchableOpacity key={String(v)} onPress={() => setEditDecidingTiebreak(v)}
+                                                    style={{ flex:1, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, backgroundColor: editDecidingTiebreak === v ? '#facc1530' : colors.surface2, borderColor: editDecidingTiebreak === v ? '#facc15' : colors.border }}>
+                                                    <Text style={{ color: editDecidingTiebreak === v ? '#facc15' : colors.textMuted, fontSize:10, fontWeight:'800' }}>{l}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    ) : null}
                                     <Text style={{ color: colors.textMuted, fontSize:13, marginBottom:6 }}>Sayı Sistemi</Text>
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
                                         {[{v:true,l:'⚡ Avantajlı'},{v:false,l:'🎯 Karar Puanı'},{v:null,l:'🔓 Serbest'}].map(({v,l}) => (
@@ -20824,7 +20936,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 ) : null}
                                 {item.setsPerMatch ? (
                                     <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Set: {item.setsPerMatch}</Text>
+                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Set: {item.setsPerMatch}{item.decidingTiebreak ? ` · ${t.tournThirdSetTb}` : ''}</Text>
                                     </View>
                                 ) : null}
                                 {item.advantageScoring !== undefined ? (
@@ -21344,7 +21456,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         surface: 'PLAYERS_DECIDE', isPaid: false,
         feeType: 'SHARED', playerFee: '', paymentMethod: '', ibanNumber: '', ibanHolder: '',
         prize1: '', prize2: '', prize3: '', surpriseGifts: '', contactPhone: '', description: '',
-        setsPerMatch: '', advantageScoring: undefined,
+        setsPerMatch: '', advantageScoring: undefined, decidingTiebreak: false,
         matchesBeforePlayoff: '', playoffQualifiers: '',
         rules: [],
         extraServices: [],
@@ -21549,6 +21661,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 ...((f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4' || f.type === '9') && {
                     setsPerMatch: f.setsPerMatch ? parseInt(f.setsPerMatch) : undefined,
                     advantageScoring: f.advantageScoring,
+                    decidingTiebreak: isRacketSetSport(sub) && String(f.setsPerMatch) === '3' && !!f.decidingTiebreak,
                     matchesBeforePlayoff: f.matchesBeforePlayoff ? parseInt(f.matchesBeforePlayoff) : undefined,
                     playoffQualifiers: f.playoffQualifiers ? parseInt(f.playoffQualifiers) : undefined,
                 }),
@@ -22337,6 +22450,22 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                 </TouchableOpacity>
                             </View>
+                            {isRacketSetSport(sub) && String(f.setsPerMatch) === '3' ? (
+                                <View style={{ marginTop: 8 }}>
+                                    <Text style={{ color: '#ef4444', fontSize: 9, fontWeight: '700', marginBottom: 4 }}>{t.tournThirdSetLabel}</Text>
+                                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                                        <TouchableOpacity onPress={() => set('decidingTiebreak', false)}
+                                            style={{ flex: 1, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: f.decidingTiebreak ? colors.border : '#facc15', backgroundColor: f.decidingTiebreak ? colors.surface2 : '#facc1520' }}>
+                                            <Text style={{ color: f.decidingTiebreak ? colors.textMuted : '#facc15', fontSize: 11, fontWeight: '800' }}>{t.tournThirdSetNormal}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={() => set('decidingTiebreak', true)}
+                                            style={{ flex: 1, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: f.decidingTiebreak ? '#facc15' : colors.border, backgroundColor: f.decidingTiebreak ? '#facc1520' : colors.surface2 }}>
+                                            <Text style={{ color: f.decidingTiebreak ? '#facc15' : colors.textMuted, fontSize: 11, fontWeight: '800' }}>{t.tournThirdSetTb}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    {f.decidingTiebreak ? <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 4 }}>{t.tournThirdSetTbHint}</Text> : null}
+                                </View>
+                            ) : null}
                             <OptionPickerModal
                                 visible={showTeamSizePicker}
                                 title={lang==='tr' ? 'Takım Büyüklüğü' : lang === 'ru' ? 'Размер команды' : lang === 'de' ? 'Teamgröße' : 'Team Size'}
@@ -22370,7 +22499,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 title={t.tournSetsLabel}
                                 options={['1','2','3','4','5'].map(n => ({ value: n, label: n }))}
                                 value={f.setsPerMatch}
-                                onSelect={(v) => set('setsPerMatch', v)}
+                                onSelect={(v) => { set('setsPerMatch', v); if (v !== '3') set('decidingTiebreak', false); }}
                                 onClose={() => setShowSetsPicker(false)}
                             />
 
@@ -31903,7 +32032,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         ? `${rv.founderTeamName || t.myTeamLabel || 'Kurucu'} — ${rv.opponentTeamName || t.oppTeamLabel || 'Rakip'}`
                                         : `${playerDisplayName(rv.sender)} — ${rv.participants?.[0] ? playerDisplayName(rv.participants[0]) : (t.opponentLabel || 'Rakip')}`;
                                     const scoreText = Array.isArray(rv.score?.sets) && rv.score.sets.length > 0
-                                        ? rv.score.sets.map(st => `${st.sender}-${st.opponent}`).join(', ')
+                                        ? rv.score.sets.map(st => formatSetScore(st, 'sender', 'opponent', 'tbSender', 'tbOpponent')).join(', ')
                                         : null;
                                     return (
                                         <View style={{ marginTop: 10, backgroundColor: '#ffffff10', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9, alignItems: 'center', maxWidth: '85%' }}>

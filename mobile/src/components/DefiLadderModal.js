@@ -10,6 +10,7 @@ import api from '../services/api';
 import useT from '../hooks/useT';
 import { onSocket } from '../services/socket';
 import { defiRules, defiVenueWord } from '../utils/defiRules';
+import { isRacketSetSport, isSevenSix, syncSplitThirdSet, formatSetScore } from '../utils/racketScore';
 import { DEFI_TEAM_SUBS as DEFI_TEAM_SUBS_UI } from '../utils/tournamentFormats';
 
 const ORANGE = '#f97316';
@@ -52,15 +53,25 @@ function Btn({ label, color = ORANGE, onPress, disabled, filled }) {
 }
 
 // Kabul (gün/saat/yer önerisi) ve skor girişi aynı kartın içinde açılır — iç içe Modal yok.
-function ChallengeCard({ c, data, myId, isCreator, sub, t, lang, busy, act, setsDefault }) {
+function ChallengeCard({ c, data, myId, isCreator, sub, t, lang, busy, act, setsDefault, decidingTiebreak }) {
     const iAmChallenger = c.challengerMembers?.includes(myId);
     const iAmDefender = c.defenderMembers?.includes(myId);
     const [mode, setMode] = useState(null); // null | 'accept' | 'score'
     const [agreed, setAgreed] = useState({ date: '', time: '', venue: '' });
     const goal = GOAL_SUBS.includes(sub);
-    const initialSets = () => (Array.isArray(c.score?.sets) && c.score.sets.length
-        ? c.score.sets.map(s => ({ p1: String(s.p1), p2: String(s.p2) }))
-        : Array.from({ length: goal ? 1 : Math.max(1, setsDefault) }, () => ({ p1: '', p2: '' })));
+    const racket = isRacketSetSport(sub);
+    const deciding = racket && !!decidingTiebreak && setsDefault === 3;
+    const initialSets = () => {
+        if (Array.isArray(c.score?.sets) && c.score.sets.length) {
+            return c.score.sets.map(s => ({
+                p1: String(s.p1 ?? ''), p2: String(s.p2 ?? ''),
+                tb1: s.tb1 != null ? String(s.tb1) : '', tb2: s.tb2 != null ? String(s.tb2) : '',
+                matchTiebreak: !!s.matchTiebreak,
+            }));
+        }
+        const n = goal ? 1 : (deciding ? 2 : Math.max(1, setsDefault));
+        return Array.from({ length: n }, () => ({ p1: '', p2: '' }));
+    };
     const [sets, setSets] = useState(initialSets);
     const mySide = iAmChallenger ? 'p1' : iAmDefender ? 'p2' : null;
     const iConfirmed = mySide === 'p1' ? c.challengerConfirmed : mySide === 'p2' ? c.defenderConfirmed : false;
@@ -68,8 +79,14 @@ function ChallengeCard({ c, data, myId, isCreator, sub, t, lang, busy, act, sets
     const v = defiVenueWord(sub, lang);
 
     const submitScore = () => {
-        const clean = sets.map(s => ({ p1: parseInt(s.p1, 10), p2: parseInt(s.p2, 10) }))
-            .filter(s => Number.isFinite(s.p1) && Number.isFinite(s.p2));
+        const clean = sets.map(s => {
+            const row = { p1: parseInt(s.p1, 10), p2: parseInt(s.p2, 10) };
+            if (!Number.isFinite(row.p1) || !Number.isFinite(row.p2)) return null;
+            if (s.matchTiebreak) row.matchTiebreak = true;
+            const tb1 = parseInt(s.tb1, 10), tb2 = parseInt(s.tb2, 10);
+            if (Number.isFinite(tb1) && Number.isFinite(tb2)) { row.tb1 = tb1; row.tb2 = tb2; }
+            return row;
+        }).filter(Boolean);
         if (!clean.length) { Alert.alert('', t.defiScoreInvalid); return; }
         act(`/challenges/${c.id}/score`, { sets: clean }, () => setMode(null));
     };
@@ -90,7 +107,7 @@ function ChallengeCard({ c, data, myId, isCreator, sub, t, lang, busy, act, sets
             ) : null}
             {c.status === 'DEFI_SCORED' && Array.isArray(c.score?.sets) ? (
                 <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '700' }}>
-                    📝 {c.score.sets.map(s => `${s.p1}-${s.p2}`).join(', ')}
+                    📝 {c.score.sets.map(s => formatSetScore(s, 'p1', 'p2', 'tb1', 'tb2')).join(', ')}
                     {iConfirmed ? `  · ${t.defiWaitingOther}` : ''}
                 </Text>
             ) : null}
@@ -146,19 +163,42 @@ function ChallengeCard({ c, data, myId, isCreator, sub, t, lang, busy, act, sets
                         <Text style={{ color: '#cbd5e1', fontSize: 11, flex: 1 }} numberOfLines={1}>{c.challengerName}</Text>
                         <Text style={{ color: '#cbd5e1', fontSize: 11, flex: 1, textAlign: 'right' }} numberOfLines={1}>{c.defenderName}</Text>
                     </View>
-                    {sets.map((s, i) => (
-                        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <Text style={{ color: '#64748b', fontSize: 11, width: 52 }}>{goal ? t.defiScoreLabel : `${t.defiSetLabel} ${i + 1}`}</Text>
-                            <TextInput value={s.p1} keyboardType="number-pad" maxLength={3}
-                                onChangeText={x => setSets(p => p.map((y, j) => (j === i ? { ...y, p1: x.replace(/\D/g, '') } : y)))}
-                                style={{ flex: 1, color: '#fff', textAlign: 'center', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingVertical: 6, fontSize: 14, fontWeight: '800' }} />
-                            <Text style={{ color: '#64748b' }}>–</Text>
-                            <TextInput value={s.p2} keyboardType="number-pad" maxLength={3}
-                                onChangeText={x => setSets(p => p.map((y, j) => (j === i ? { ...y, p2: x.replace(/\D/g, '') } : y)))}
-                                style={{ flex: 1, color: '#fff', textAlign: 'center', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingVertical: 6, fontSize: 14, fontWeight: '800' }} />
-                        </View>
-                    ))}
-                    {!goal && (
+                    {sets.map((s, i) => {
+                        const showTb = racket && !s.matchTiebreak && isSevenSix(parseInt(s.p1, 10) || 0, parseInt(s.p2, 10) || 0);
+                        const onSet = (field, raw) => setSets(p => {
+                            const next = p.map((y, j) => (j === i ? { ...y, [field]: String(raw || '').replace(/\D/g, '') } : y));
+                            return deciding ? syncSplitThirdSet(next, { deciding: true, aKey: 'p1', bKey: 'p2' }) : next;
+                        });
+                        return (
+                            <View key={i} style={{ gap: 4 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    <Text style={{ color: s.matchTiebreak ? '#facc15' : '#64748b', fontSize: 11, width: 64 }} numberOfLines={1}>
+                                        {s.matchTiebreak ? t.racketMatchTbLabel : (goal ? t.defiScoreLabel : `${t.defiSetLabel} ${i + 1}`)}
+                                    </Text>
+                                    <TextInput value={s.p1} keyboardType="number-pad" maxLength={goal ? 3 : 2}
+                                        onChangeText={x => onSet('p1', x)}
+                                        style={{ flex: 1, color: '#fff', textAlign: 'center', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingVertical: 6, fontSize: 14, fontWeight: '800' }} />
+                                    <Text style={{ color: '#64748b' }}>–</Text>
+                                    <TextInput value={s.p2} keyboardType="number-pad" maxLength={goal ? 3 : 2}
+                                        onChangeText={x => onSet('p2', x)}
+                                        style={{ flex: 1, color: '#fff', textAlign: 'center', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingVertical: 6, fontSize: 14, fontWeight: '800' }} />
+                                </View>
+                                {showTb ? (
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                        <Text style={{ color: '#facc15', fontSize: 11, width: 64 }}>( )</Text>
+                                        <TextInput value={s.tb1 || ''} keyboardType="number-pad" maxLength={2}
+                                            onChangeText={x => onSet('tb1', x)}
+                                            style={{ flex: 1, color: '#fff', textAlign: 'center', borderWidth: 1, borderColor: '#facc1580', borderRadius: 8, paddingVertical: 4, fontSize: 13, fontWeight: '800' }} />
+                                        <Text style={{ color: '#facc15' }}>–</Text>
+                                        <TextInput value={s.tb2 || ''} keyboardType="number-pad" maxLength={2}
+                                            onChangeText={x => onSet('tb2', x)}
+                                            style={{ flex: 1, color: '#fff', textAlign: 'center', borderWidth: 1, borderColor: '#facc1580', borderRadius: 8, paddingVertical: 4, fontSize: 13, fontWeight: '800' }} />
+                                    </View>
+                                ) : null}
+                            </View>
+                        );
+                    })}
+                    {!goal && !deciding && (
                         <View style={{ flexDirection: 'row', gap: 6 }}>
                             {sets.length < 5 && <Btn label={`+ ${t.defiSetLabel}`} color="#38bdf8" onPress={() => setSets(p => [...p, { p1: '', p2: '' }])} />}
                             {sets.length > 1 && <Btn label={`− ${t.defiSetLabel}`} color="#94a3b8" onPress={() => setSets(p => p.slice(0, -1))} />}
@@ -361,7 +401,7 @@ export default function DefiLadderModal({ visible, onClose, tournament, myId, on
                             ) : null}
                             {(data?.active || []).map(c => (
                                 <ChallengeCard key={c.id} c={c} data={data} myId={myId} isCreator={isCreator} sub={sub} t={t} lang={lang}
-                                    busy={busy} act={act} setsDefault={setsDefault} />
+                                    busy={busy} act={act} setsDefault={setsDefault} decidingTiebreak={!!tournament?.decidingTiebreak} />
                             ))}
                         </>)}
 
@@ -376,7 +416,7 @@ export default function DefiLadderModal({ visible, onClose, tournament, myId, on
                                     </Text>
                                     <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>
                                         {doneLabel(c)}
-                                        {Array.isArray(c.score?.sets) && c.score.sets.length ? ` · ${c.score.sets.map(s => `${s.p1}-${s.p2}`).join(', ')}` : ''}
+                                        {Array.isArray(c.score?.sets) && c.score.sets.length ? ` · ${c.score.sets.map(s => formatSetScore(s, 'p1', 'p2', 'tb1', 'tb2')).join(', ')}` : ''}
                                         {c.completedAt ? ` · ${fmtDT(c.completedAt, lang)}` : ''}
                                     </Text>
                                 </View>

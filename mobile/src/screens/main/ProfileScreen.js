@@ -20,6 +20,7 @@ import ManageActivitiesModal from '../../components/ManageActivitiesModal';
 import AssessmentModal from '../../components/AssessmentModal';
 import SupportModal from '../../components/SupportModal';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
+import { formatSetScore } from '../../utils/racketScore';
 import RainbowLogo from '../../components/RainbowLogo';
 import CityPickerModal from '../../components/CityPickerModal';
 import VolleyballRatingModal from '../../components/VolleyballRatingModal';
@@ -3413,7 +3414,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                                                         {isBye && <Text style={{ color:colors.textMuted, fontSize:10 }}>BYE</Text>}
                                                                                         {isDone && match.score && (
                                                                                             <Text style={{ color:'#94a3b8', fontSize:12, fontWeight:'700' }}>
-                                                                                                {(match.score.sets||[]).map(s=>`${s.p1}-${s.p2}`).join(', ')}
+                                                                                                {(match.score.sets||[]).map(s => formatSetScore(s, 'p1', 'p2', 'tb1', 'tb2')).join(', ')}
                                                                                             </Text>
                                                                                         )}
                                                                                     </View>

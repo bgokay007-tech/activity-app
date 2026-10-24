@@ -11,6 +11,7 @@ import { sanitizeExtraServices } from '../utils/extraServices.js';
 import { ACTIVE_ENGINE_TYPES, resolveFormatOnCreate, isTeamEngineType } from '../utils/tournamentFormats.js';
 import { startDefiLadder, isDefi, defiSettingsOf } from './defiLeague.controller.js';
 import { DEFI_SUBS } from '../utils/defiLadder.js';
+import { isRacketSetSport, normalizeRacketSets } from '../utils/racketScore.js';
 import { ensureTournamentChatTables, isMissingChatTable } from '../utils/ensureTournamentChatTables.js';
 import {
     swissRoundCount,
@@ -279,7 +280,11 @@ export async function resolveThirdPlaceByAveraj(match) {
         if (!semi?.score?.sets) return null;
         const side = semi.p1Id === playerId ? 'p1' : 'p2';
         let mine = 0, total = 0;
-        for (const s of semi.score.sets) { mine += (side === 'p1' ? s.p1 : s.p2) || 0; total += (s.p1 || 0) + (s.p2 || 0); }
+        for (const s of semi.score.sets) {
+            // Maç tiebreak sayıları (10-8) oyun averajına girmez.
+            if (s.matchTiebreak) continue;
+            mine += (side === 'p1' ? s.p1 : s.p2) || 0; total += (s.p1 || 0) + (s.p2 || 0);
+        }
         return total === 0 ? 0 : mine / total;
     };
     const av1 = averajOf(match.p1Id), av2 = averajOf(match.p2Id);
@@ -306,7 +311,7 @@ function compareHeadToHead(aId, bId, matches) {
         const sc = m.score || {};
         let p1s = 0, p2s = 0, p1g = 0, p2g = 0;
         for (const set of (sc.sets || [])) {
-            p1g += set.p1 || 0; p2g += set.p2 || 0;
+            if (!set.matchTiebreak) { p1g += set.p1 || 0; p2g += set.p2 || 0; }
             if ((set.p1 || 0) > (set.p2 || 0)) p1s++; else if ((set.p2 || 0) > (set.p1 || 0)) p2s++;
         }
         const mySetsW = aIsP1 ? p1s : p2s;
@@ -390,7 +395,7 @@ function computeStandings(players, matches, tournamentType, tournamentId) {
         }
         let p1s = 0, p2s = 0, p1g = 0, p2g = 0;
         for (const set of (sc.sets || [])) {
-            p1g += set.p1 || 0; p2g += set.p2 || 0;
+            if (!set.matchTiebreak) { p1g += set.p1 || 0; p2g += set.p2 || 0; }
             if ((set.p1 || 0) > (set.p2 || 0)) p1s++; else if ((set.p2 || 0) > (set.p1 || 0)) p2s++;
         }
         s1.setsWon += p1s; s1.setsLost += p2s; s1.gamesWon += p1g; s1.gamesLost += p2g;
@@ -887,7 +892,7 @@ export const createTournament = async (req, res, next) => {
             minPlayers, maxPlayers, minRating, maxRating,
             ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
             matchmakingType, matchFrequency, matchTimeStart, matchTimeEnd, dayTrip,
-            setsPerMatch, advantageScoring, matchesBeforePlayoff, playoffQualifiers,
+            setsPerMatch, advantageScoring, decidingTiebreak, matchesBeforePlayoff, playoffQualifiers,
             teamSize, teamRequiredMaleCount,
             rules, extraServices,
             location, city,
@@ -987,6 +992,7 @@ export const createTournament = async (req, res, next) => {
                 // true/false/null (serbest) istemciden geldiği gibi kaydedilir — sadece hiç
                 // gönderilmediyse (undefined) şema varsayılanı (true) devreye girsin diye dokunulmaz.
                 ...(advantageScoring !== undefined && { advantageScoring }),
+                decidingTiebreak: !!decidingTiebreak && isRacketSetSport(subCategory) && parseInt(setsPerMatch) === 3,
                 matchesBeforePlayoff: matchesBeforePlayoff ? parseInt(matchesBeforePlayoff) : null,
                 playoffQualifiers: playoffQualifiers ? parseInt(playoffQualifiers) : null,
                 // Airsoft vb. takım tabanlı dallarda Min/Max Oyuncu yerine kullanılıyor — teamSize
@@ -1891,6 +1897,9 @@ export const updateTournament = async (req, res, next) => {
                 ...(b.maxPlayers          !== undefined && { maxPlayers: parseInt(b.maxPlayers) }),
                 ...(b.setsPerMatch        !== undefined && { setsPerMatch: b.setsPerMatch ? parseInt(b.setsPerMatch) : null }),
                 ...(b.advantageScoring    !== undefined && { advantageScoring: b.advantageScoring }),
+                ...(b.setsPerMatch !== undefined && parseInt(b.setsPerMatch) !== 3 ? { decidingTiebreak: false } : {}),
+                ...(b.decidingTiebreak !== undefined && isRacketSetSport(tournament.subCategory) && parseInt(b.setsPerMatch ?? tournament.setsPerMatch) === 3
+                    ? { decidingTiebreak: !!b.decidingTiebreak } : {}),
                 ...(b.matchesBeforePlayoff !== undefined && { matchesBeforePlayoff: b.matchesBeforePlayoff ? parseInt(b.matchesBeforePlayoff) : null }),
                 ...(b.playoffQualifiers   !== undefined && { playoffQualifiers: b.playoffQualifiers ? parseInt(b.playoffQualifiers) : null }),
                 ...(b.eventDate    !== undefined && { eventDate:    b.eventDate ? new Date(b.eventDate) : null }),
@@ -2834,7 +2843,7 @@ async function assertTrainingEarlyPlayAllowed(tournament, match, { isCreatorOrAd
 export const enterTournamentMatchScore = async (req, res, next) => {
     try {
         const { id, matchId } = req.params;
-        const { sets, winner } = req.body; // sets=[{p1:6,p2:3},...], winner='p1'|'p2'
+        let { sets, winner } = req.body; // sets=[{p1:6,p2:3,tb1?,tb2?,matchTiebreak?},...], winner='p1'|'p2'
 
         const tournament = await prisma.tournament.findUnique({
             where: { id },
@@ -2885,9 +2894,17 @@ export const enterTournamentMatchScore = async (req, res, next) => {
             throw gateErr;
         }
 
+        if (isRacketSetSport(tournament.subCategory)) {
+            const deciding = !!tournament.decidingTiebreak && (tournament.setsPerMatch || 3) === 3;
+            const checked = normalizeRacketSets(sets, { decidingTiebreak: deciding, a: 'p1', b: 'p2', tbA: 'tb1', tbB: 'tb2' });
+            if (!checked.ok) return res.status(400).json({ message: checked.message });
+            sets = checked.sets;
+            winner = checked.winner === 'a' ? 'p1' : 'p2';
+        }
+
         let p1Sets = 0, p2Sets = 0, p1Games = 0, p2Games = 0;
         for (const s of sets) {
-            p1Games += s.p1 || 0; p2Games += s.p2 || 0;
+            if (!s.matchTiebreak) { p1Games += s.p1 || 0; p2Games += s.p2 || 0; }
             if ((s.p1 || 0) > (s.p2 || 0)) p1Sets++; else if ((s.p2 || 0) > (s.p1 || 0)) p2Sets++;
         }
         const winnerId = winner === 'p1' ? match.p1Id : match.p2Id;
@@ -3036,8 +3053,9 @@ export const enterTournamentMatchScore = async (req, res, next) => {
                 for (const s of sets) {
                     const wg = winner === 'p1' ? (s.p1||0) : (s.p2||0);
                     const lg = winner === 'p1' ? (s.p2||0) : (s.p1||0);
-                    winnerGames += wg; totalGames += (s.p1||0) + (s.p2||0);
                     if (lg > wg) loserSets++;
+                    if (s.matchTiebreak) continue;
+                    winnerGames += wg; totalGames += (s.p1||0) + (s.p2||0);
                 }
 
                 let wStep, lStep, transferWin, transferLose;

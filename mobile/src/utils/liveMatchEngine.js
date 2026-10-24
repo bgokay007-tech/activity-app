@@ -162,11 +162,12 @@ function racketRecordTiebreakPoint(state, side) {
     // Standart tiebreak: 7 sayı, en az 2 fark.
     if (hi >= 7 && hi - lo >= 2) {
         const winner = a > b ? 'A' : 'B';
-        pushEvent(state, 'GAME', { side: winner, tiebreak: true, server: state.currentGameServer });
+        const tbA = state.pointsA, tbB = state.pointsB;
+        pushEvent(state, 'GAME', { side: winner, tiebreak: true, server: state.currentGameServer, pointsA: tbA, pointsB: tbB });
         if (winner === 'A') state.gamesA += 1; else state.gamesB += 1;
         state.inTiebreak = false;
         state.pointsA = 0; state.pointsB = 0;
-        racketCompleteSet(state, winner);
+        racketCompleteSet(state, winner, [tbA, tbB]);
     }
 }
 
@@ -217,11 +218,13 @@ function racketCheckSetOver(state) {
     }
 }
 
-function racketCompleteSet(state, winnerSide) {
+function racketCompleteSet(state, winnerSide, tiebreakPoints) {
     // Rally modunda (masa tenisi/badminton/padel-simple) "set" doğrudan bu fonksiyonla,
     // deuce modunda (tenis/klasik padel) racketCheckSetOver üzerinden çağrılır.
+    // tiebreakPoints: [A, B] tiebreak sayısı. Set kapanmadan önce alınır; yoksa 0,0.
     pushEvent(state, 'SET', { side: winnerSide });
-    state.currentSetGames.push([state.gamesA, state.gamesB, state.pointsA, state.pointsB]);
+    const tb = Array.isArray(tiebreakPoints) ? tiebreakPoints : [0, 0];
+    state.currentSetGames.push([state.gamesA, state.gamesB, tb[0], tb[1]]);
     if (winnerSide === 'A') state.setsA += 1; else state.setsB += 1;
     state.pointsA = 0; state.pointsB = 0; state.gamesA = 0; state.gamesB = 0;
     state.inTiebreak = false;

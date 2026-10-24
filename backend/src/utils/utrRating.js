@@ -102,6 +102,7 @@ export function computeGamesRatio(score, side) {
     if (!score || !Array.isArray(score.sets) || score.sets.length === 0) return null;
     let mine = 0, total = 0;
     for (const set of score.sets) {
+        if (set.matchTiebreak) continue;
         const s = Number(set.sender) || 0;
         const o = Number(set.opponent) || 0;
         mine += side === 'sender' ? s : o;
@@ -116,7 +117,8 @@ export function computeGamesRatio(score, side) {
 // güvenle 0.4.
 export function computeFormatWeight(score) {
     if (!score || !Array.isArray(score.sets) || score.sets.length === 0) return 0.4;
-    return Math.min(1.0, 0.5 + 0.25 * (score.sets.length - 1));
+    const n = score.sets.filter(s => !s.matchTiebreak).length || score.sets.length;
+    return Math.min(1.0, 0.5 + 0.25 * (n - 1));
 }
 
 export function computeGapWeight(ratingDiff) {
@@ -516,6 +518,7 @@ export function computeGamesRatioFromSets(sets, winnerSide) {
     if (!Array.isArray(sets) || sets.length === 0) return null;
     let mine = 0, total = 0;
     for (const s of sets) {
+        if (s.matchTiebreak) continue;
         const p1 = Number(s.p1) || 0, p2 = Number(s.p2) || 0;
         mine += winnerSide === 'p1' ? p1 : p2;
         total += p1 + p2;
@@ -525,5 +528,6 @@ export function computeGamesRatioFromSets(sets, winnerSide) {
 
 export function computeFormatWeightFromSets(sets) {
     if (!Array.isArray(sets) || sets.length === 0) return 0.4;
-    return Math.min(1.0, 0.5 + 0.25 * (sets.length - 1));
+    const n = sets.filter(s => !s.matchTiebreak).length || sets.length;
+    return Math.min(1.0, 0.5 + 0.25 * (n - 1));
 }

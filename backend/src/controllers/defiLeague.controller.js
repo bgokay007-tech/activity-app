@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
 import { UTR_SUBCATEGORIES, getDisplayRating, applyUtrRatingForTournamentMatch } from '../utils/utrRating.js';
+import { isRacketSetSport, normalizeRacketSets } from '../utils/racketScore.js';
 import {
     DEFI_ENGINE_TYPE, DEFI_ACTIVE_STATUSES, sanitizeDefiSettings, buildUnits, initialOrder,
     syncLadder, emptyState, checkChallenge, applyResult, applyInactivity, ladderView, maxUpFor,
@@ -382,8 +383,16 @@ export const submitDefiScore = async (req, res, next) => {
         const { t, state, match, mySide } = ctx;
         if (!mySide) return fail(res, 403, 'Bu maçta değilsin');
         if (!['DEFI_ACCEPTED', 'DEFI_SCORED'].includes(match.status)) return fail(res, 400, 'Bu maç için skor girilemez');
-        const sets = cleanSets(req.body?.sets);
-        if (!sets) return fail(res, 400, 'Geçerli bir skor gir');
+        let sets;
+        if (isRacketSetSport(t.subCategory)) {
+            const deciding = !!t.decidingTiebreak && (parseInt(t.setsPerMatch, 10) || 3) === 3;
+            const checked = normalizeRacketSets(req.body?.sets, { decidingTiebreak: deciding });
+            if (!checked.ok) return fail(res, 400, checked.message);
+            sets = checked.sets;
+        } else {
+            sets = cleanSets(req.body?.sets);
+            if (!sets) return fail(res, 400, 'Geçerli bir skor gir');
+        }
         const winner = winnerFromSets(sets, ['football', 'basketball'].includes(t.subCategory));
         if (winner === 'draw' && !['football'].includes(t.subCategory)) return fail(res, 400, 'Defi maçında kazanan belli olmalı');
         const updated = await prisma.tournamentMatch.update({
@@ -399,7 +408,7 @@ export const submitDefiScore = async (req, res, next) => {
         });
         const otherKey = mySide === 'p1' ? match.p2Id : match.p1Id;
         notifyKeys(t, state, [otherKey], '📝 Defi Skoru Girildi',
-            `${nameOf(state, mySide === 'p1' ? match.p1Id : match.p2Id)} skoru girdi: ${sets.map(s => `${s.p1}-${s.p2}`).join(', ')}. Onayla ya da düzelt — 12 saat içinde otomatik onaylanır.`,
+            `${nameOf(state, mySide === 'p1' ? match.p1Id : match.p2Id)} skoru girdi: ${sets.map(s => s.matchTiebreak ? `TB ${s.p1}-${s.p2}` : (s.tb1 != null ? `${s.p1}-${s.p2} (${s.tb1}-${s.tb2})` : `${s.p1}-${s.p2}`)).join(', ')}. Onayla ya da düzelt — 12 saat içinde otomatik onaylanır.`,
             { defiMatchId: match.id });
         res.json(normalize(updated));
     } catch (e) { next(e); }

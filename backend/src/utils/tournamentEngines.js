@@ -368,7 +368,7 @@ export function computeAmericanoPlayerStats(players, matches, teamsById) {
         const p2ids = [t2.player1Id, t2.player2Id].filter(Boolean);
         let p1s = 0, p2s = 0, p1g = 0, p2g = 0;
         for (const set of (m.score.sets || [])) {
-            p1g += set.p1 || 0; p2g += set.p2 || 0;
+            if (!set.matchTiebreak) { p1g += set.p1 || 0; p2g += set.p2 || 0; }
             if ((set.p1 || 0) > (set.p2 || 0)) p1s++;
             else if ((set.p2 || 0) > (set.p1 || 0)) p2s++;
         }

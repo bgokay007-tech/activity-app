@@ -18,6 +18,7 @@ import { sanitizeExtraServices } from '../utils/extraServices.js';
 import { subCategoryTR } from '../utils/subCategoryLabels.js';
 import { removeSpectatorOnPromotion } from './spectator.controller.js';
 import { turkeyDateTimeToUtc } from '../utils/tzTime.js';
+import { isRacketSetSport, normalizeRacketSets } from '../utils/racketScore.js';
 
 // İlan açma/katılma öncesi ortak aktivite kontrolü: kullanıcı bu dalı "Aktivitelerim"e
 // eklememişse veya gizlemişse (hidden=true, gizliyken hiçbir şey yapamaz) reddedilir.
@@ -88,9 +89,10 @@ function calcTransfer(winnerPts, loserPts, score) {
             const o = Number(set.opponent) || 0;
             const wg = side === 'sender' ? s : o;
             const lg = side === 'sender' ? o : s;
+            if (lg > wg) loserSets++;
+            if (set.matchTiebreak) continue;
             winnerGames += wg;
             totalGames  += s + o;
-            if (lg > wg) loserSets++;
         }
         // Kaybeden taraf en az 1 set aldıysa (set skoru 2-1 vb.) → rekabetçi
         dominant = loserSets === 0 && (totalGames === 0 || (winnerGames / totalGames) > 0.65);
@@ -191,9 +193,10 @@ async function applyCompetitivePoints(request, winnerUserId) {
                     const o = Number(set.opponent) || 0;
                     const wg = score.winner === 'sender' ? s : o;
                     const lg = score.winner === 'sender' ? o : s;
+                    if (lg > wg) loserSets++;
+                    if (set.matchTiebreak) continue;
                     winnerGames += wg;
                     totalGames  += s + o;
-                    if (lg > wg) loserSets++;
                 }
                 dominant = loserSets === 0 && (totalGames === 0 || (winnerGames / totalGames) > TENNIS_PADEL_DOMINANT_THRESHOLD);
             }
@@ -5363,7 +5366,7 @@ export const getMyPendingScoreCount = async (req, res, next) => {
 export const enterScore = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { sets, winner, stats } = req.body; // sets: [{sender, opponent}], winner: "sender"|"opponent"
+        let { sets, winner, stats } = req.body; // sets: [{sender, opponent, tbSender?, tbOpponent?, matchTiebreak?}]
         // stats: mobile'daki liveMatchEngine.js'in canlı takipten (saat veya telefon-içi manuel)
         // türettiği ÖZET bir obje (bkz. schema.prisma'daki score alanı yorumu) — opsiyonel, canlı
         // takip kullanılmayan maçlarda undefined kalır. Ham nokta-nokta log asla buraya gelmez,
@@ -5394,6 +5397,16 @@ export const enterScore = async (req, res, next) => {
             if (bill && bill.status !== 'PAID') {
                 return res.status(403).json({ message: 'Adisyon ödemeniz gerçekleşmedi, skor giremezsiniz.', code: 'BILL_NOT_PAID' });
             }
+        }
+
+        if (isRacketSetSport(request.subCategory) && Array.isArray(sets)) {
+            const deciding = sets.some(s => s?.matchTiebreak);
+            const checked = normalizeRacketSets(sets, {
+                decidingTiebreak: deciding, a: 'sender', b: 'opponent', tbA: 'tbSender', tbB: 'tbOpponent',
+            });
+            if (!checked.ok) return res.status(400).json({ message: checked.message });
+            sets = checked.sets;
+            winner = checked.winner === 'a' ? 'sender' : 'opponent';
         }
 
         // Kullanıcı isteği: voleybolde gerçek set kuralları sunucu tarafında da uygulanır —
