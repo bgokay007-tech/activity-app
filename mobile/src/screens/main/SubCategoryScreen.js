@@ -31,7 +31,7 @@ import { isHealthAvailable, requestHealthPermissions, getWorkoutSummary } from '
 import { estimateCalories } from '../../utils/calorieEstimate';
 import { isRacketSetSport, isSevenSix, normalizeRacketSets, syncSplitThirdSet, formatSetScore, racketAlertText } from '../../utils/racketScore';
 import api from '../../services/api';
-import { prefetchBranchLists, recallBranch, rememberBranch } from '../../services/branchCache';
+import { prefetchBranchLists, recallBranch, rememberBranch, dropBranchListCache } from '../../services/branchCache';
 import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
@@ -969,7 +969,49 @@ async function pickAndUploadMatchMedia(onProgress, t) {
 // Ayrı bir component olmak zorunda: useVideoPlayer bir hook, bir .map() callback'inin
 // İÇİNDE (koşullu/döngüsel çağrı) kullanılamaz (Rules of Hooks) — her karo kendi player'ını
 // kendi bileşen örneğinde tutar.
-function MediaTile({ post, dataSaverMode, onOpenFullscreen }) {
+let stopFeedPostMusic = null;
+let postMusicGen = 0;
+
+function stopActivePostMusic() {
+    const stop = stopFeedPostMusic;
+    stopFeedPostMusic = null;
+    if (stop) stop();
+}
+
+// Seçilen aralık dosyanın içinde döner. Akıştaki ilk gönderi ve tam ekran aynı
+// çaları kullanır; ikisi birden ses bindirmez.
+async function startPostMusic(post) {
+    const gen = ++postMusicGen;
+    stopActivePostMusic();
+    if (!post?.musicUrl) return null;
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+    const startSec = Math.max(0, Number(post.musicStartTime) || 0);
+    const endRaw = Number(post.musicEndTime);
+    const endSec = endRaw > startSec ? endRaw : startSec + 30;
+    const startMs = Math.floor(startSec * 1000);
+    const endMs = Math.floor(endSec * 1000);
+    const { sound } = await Audio.Sound.createAsync(
+        { uri: post.musicUrl },
+        { shouldPlay: true, positionMillis: startMs },
+    );
+    if (gen !== postMusicGen) {
+        sound.unloadAsync().catch(() => {});
+        return null;
+    }
+    let looping = false;
+    sound.setOnPlaybackStatusUpdate(st => {
+        if (!st.isLoaded || looping) return;
+        if (st.didJustFinish || st.positionMillis >= endMs - 120) {
+            looping = true;
+            sound.setPositionAsync(startMs).then(() => sound.playAsync()).catch(() => {}).finally(() => { looping = false; });
+        }
+    });
+    const stop = () => { sound.unloadAsync().catch(() => {}); };
+    stopFeedPostMusic = stop;
+    return stop;
+}
+
+function MediaTile({ post, dataSaverMode, onOpenFullscreen, playMusic }) {
         const t = useT();
 const [inlineUnlocked, setInlineUnlocked] = useState(false);
     const isVideo = !post.imageUrl && !!post.videoUrl;
@@ -984,6 +1026,23 @@ const [inlineUnlocked, setInlineUnlocked] = useState(false);
             player.pause();
         }
     }, [shouldPlayInline, post.videoUrl]);
+
+    useEffect(() => {
+        if (!playMusic || !post?.musicUrl || dataSaverMode) return undefined;
+        let dead = false;
+        let localStop = null;
+        startPostMusic(post).then(stop => {
+            if (dead) stop?.();
+            else localStop = stop;
+        }).catch(() => {});
+        return () => {
+            dead = true;
+            if (localStop) {
+                if (stopFeedPostMusic === localStop) stopFeedPostMusic = null;
+                localStop();
+            }
+        };
+    }, [playMusic, post?.id, post?.musicUrl, post?.musicStartTime, post?.musicEndTime, dataSaverMode]);
 
     const handlePress = () => {
         if (!isVideo) { onOpenFullscreen(); return; }
@@ -23805,6 +23864,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [textPosts, setTextPosts] = useState(cachedBranch?.textPosts || []);
     const [mediaPosts, setMediaPosts] = useState(cachedBranch?.mediaPosts || []);
     const [mediaStories, setMediaStories] = useState(cachedBranch?.mediaStories || []);
+    // Paylaşım anında listeyi çizen gönderi. Geç gelen eski liste yanıtı bunu silmesin.
+    const pendingMediaRef = useRef([]);
+    const pendingStoryRef = useRef([]);
     const [storyViewer, setStoryViewer] = useState({ visible: false, userIdx: 0, storyIdx: 0 });
     const [mediaViewIdx, setMediaViewIdx] = useState(null);
     // Kullanıcı isteği: "tenis medyadan oynatmıyor" — tam ekran medya görüntüleyicisi video
@@ -23829,6 +23891,28 @@ export default function SubCategoryScreen({ route, navigation }) {
             mediaViewPlayer.pause();
         }
     }, [mediaViewVideoUrl]);
+    const viewedMusic = mediaViewIdx !== null ? mediaPosts[mediaViewIdx] : null;
+    const viewedMusicKey = viewedMusic?.musicUrl
+        ? `${viewedMusic.id}|${viewedMusic.musicUrl}|${viewedMusic.musicStartTime}|${viewedMusic.musicEndTime}`
+        : '';
+    useEffect(() => {
+        if (!viewedMusic?.musicUrl) return undefined;
+        try { mediaViewPlayer.muted = true; } catch { /* fotoğrafta oynatıcı boş */ }
+        let dead = false;
+        let localStop = null;
+        startPostMusic(viewedMusic).then(stop => {
+            if (dead) stop?.();
+            else localStop = stop;
+        }).catch(() => {});
+        return () => {
+            dead = true;
+            if (localStop) {
+                if (stopFeedPostMusic === localStop) stopFeedPostMusic = null;
+                localStop();
+            }
+            try { mediaViewPlayer.muted = false; } catch { /* */ }
+        };
+    }, [viewedMusicKey]);
     // Kullanıcı isteği: skor girişinden bir maça bağlı (rivalId) paylaşılan medyaya tam ekranda
     // dokununca altında o maçın detayı (skor/takımlar) gösterilsin — postId bazında cache'lenir,
     // aynı maça bağlı birden fazla medyada tekrar tekrar istek atılmasın.
@@ -24854,15 +24938,24 @@ export default function SubCategoryScreen({ route, navigation }) {
 
             const allPosts = Array.isArray(postsRes.data) ? postsRes.data : [];
             setTextPosts(allPosts.filter(p => p.type === 'POST' && !p.imageUrl && !p.videoUrl));
-            setMediaPosts((Array.isArray(mediaRes.data) ? mediaRes.data : []).filter(p => p.type !== 'STORY'));
+            const serverMedia = (Array.isArray(mediaRes.data) ? mediaRes.data : []).filter(p => p.type !== 'STORY');
+            const serverMediaIds = new Set(serverMedia.map(p => p.id));
+            const nowMs = Date.now();
+            pendingMediaRef.current = pendingMediaRef.current.filter(p => p?.id && !serverMediaIds.has(p.id) && nowMs - (p._keptAt || nowMs) < 120000);
+            const mediaList = [...pendingMediaRef.current, ...serverMedia];
+            setMediaPosts(mediaList);
 
+            const serverStories = Array.isArray(storiesRes.data) ? storiesRes.data : [];
+            const serverStoryIds = new Set(serverStories.map(s => s.id));
+            pendingStoryRef.current = pendingStoryRef.current.filter(p => p?.id && !serverStoryIds.has(p.id) && nowMs - (p._keptAt || nowMs) < 120000);
             const storyMap = {};
-            (Array.isArray(storiesRes.data) ? storiesRes.data : []).forEach(s => {
+            [...pendingStoryRef.current, ...serverStories].forEach(s => {
                 if (!storyMap[s.userId]) storyMap[s.userId] = { user: s.user, stories: [] };
                 storyMap[s.userId].stories.push(s);
             });
-            setMediaStories(Object.values(storyMap));
             const storyGroups = Object.values(storyMap);
+            setMediaStories(storyGroups);
+            if (pendingMediaRef.current.length || pendingStoryRef.current.length) dropBranchListCache(category, sub);
             rememberBranch(category, sub, {
                 rivals: openRivals,
                 playerWanted: pwRes.data.filter(p => !isRefereeAd(p)),
@@ -24870,7 +24963,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 matchedUpcoming: upcomingList,
                 pendingScore: Array.isArray(pendingRes.data) ? pendingRes.data : [],
                 textPosts: allPosts.filter(p => p.type === 'POST' && !p.imageUrl && !p.videoUrl),
-                mediaPosts: (Array.isArray(mediaRes.data) ? mediaRes.data : []).filter(p => p.type !== 'STORY'),
+                mediaPosts: mediaList,
                 mediaStories: storyGroups,
             });
 
@@ -25863,6 +25956,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showMediaTypeSheet, setShowMediaTypeSheet] = useState(false);
     const [shareMusic, setShareMusic] = useState(null);
     const [musicBlockH, setMusicBlockH] = useState(0);
+    const [trimDragging, setTrimDragging] = useState(false);
+    const trimDragRef = useRef(() => {});
+    trimDragRef.current = setTrimDragging;
     const [musicSheetOpen, setMusicSheetOpen] = useState(false);
     const [musicTrimOpen, setMusicTrimOpen] = useState(false);
     const [musicQuery, setMusicQuery] = useState('');
@@ -25891,6 +25987,11 @@ export default function SubCategoryScreen({ route, navigation }) {
     const shareFormRef = useRef(null);
     const [shareLocation, setShareLocation] = useState('');
     const [gettingLocation, setGettingLocation] = useState(false);
+    const [showLocSheet, setShowLocSheet] = useState(false);
+    const [locQuery, setLocQuery] = useState('');
+    const [locHits, setLocHits] = useState([]);
+    const [locSearching, setLocSearching] = useState(false);
+    const locTimer = useRef(null);
 
     const applyMusicWindow = (startSec, lenSec) => {
         const total = Math.max(1, Math.round(musicDurationRef.current || 1));
@@ -25970,7 +26071,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     const windowPan = useRef(PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
         onPanResponderGrant: () => {
+            trimDragRef.current(true);
             trimStartCapturedRef.current = trimStartRef.current;
             trimEndCapturedRef.current = trimEndRef.current;
         },
@@ -25987,12 +26091,17 @@ export default function SubCategoryScreen({ route, navigation }) {
             setTrimStart(String(rounded));
             setTrimEnd(String(rounded + len));
         },
+        onPanResponderRelease: () => trimDragRef.current(false),
+        onPanResponderTerminate: () => trimDragRef.current(false),
     })).current;
 
     const startHandlePan = useRef(PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
         onPanResponderGrant: () => {
+            trimDragRef.current(true);
             trimStartCapturedRef.current = trimStartRef.current;
             trimEndCapturedRef.current = trimEndRef.current;
         },
@@ -26000,21 +26109,27 @@ export default function SubCategoryScreen({ route, navigation }) {
             const w = trimBarWidthRef.current;
             if (!w) return;
             const totalDur = musicDurationRef.current || 30;
-            const len = Math.max(1, trimEndCapturedRef.current - trimStartCapturedRef.current);
+            const maxLen = musicClipMaxRef.current;
+            const end = trimEndCapturedRef.current;
             const pxPerSec = w / totalDur;
             const newS = trimStartCapturedRef.current + dx / pxPerSec;
-            const rounded = Math.max(0, Math.min(totalDur - len, Math.round(newS)));
+            const rounded = Math.round(Math.max(Math.max(0, end - maxLen), Math.min(end - 1, newS)));
             trimStartRef.current = rounded;
-            trimEndRef.current = rounded + len;
             setTrimStart(String(rounded));
-            setTrimEnd(String(rounded + len));
         },
+        onPanResponderRelease: () => trimDragRef.current(false),
+        onPanResponderTerminate: () => trimDragRef.current(false),
     })).current;
 
     const endHandlePan = useRef(PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: () => { trimEndCapturedRef.current = trimEndRef.current; },
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
+        onPanResponderGrant: () => {
+            trimDragRef.current(true);
+            trimEndCapturedRef.current = trimEndRef.current;
+        },
         onPanResponderMove: (_, { dx }) => {
             const w = trimBarWidthRef.current;
             if (!w) return;
@@ -26029,6 +26144,8 @@ export default function SubCategoryScreen({ route, navigation }) {
             trimEndRef.current = rounded;
             setTrimEnd(String(rounded));
         },
+        onPanResponderRelease: () => trimDragRef.current(false),
+        onPanResponderTerminate: () => trimDragRef.current(false),
     })).current;
 
     const stopMusicPreview = async () => {
@@ -26046,15 +26163,15 @@ export default function SubCategoryScreen({ route, navigation }) {
     const openTrimFor = async (music) => {
         await stopMusicPreview();
         setShareMusic(music);
-        let dur = Number(music.duration) || 0;
-        if (!dur && music.previewUrl) {
+        let dur = 0;
+        if (music.previewUrl) {
             try {
                 const { sound, status } = await Audio.Sound.createAsync({ uri: music.previewUrl }, { shouldPlay: false });
                 if (status?.durationMillis) dur = Math.max(1, Math.round(status.durationMillis / 1000));
                 await sound.unloadAsync();
-            } catch { /* süre okunamazsa üst sınıra düş */ }
+            } catch { /* süre okunamazsa parça süresine düş */ }
         }
-        if (!dur) dur = musicClipMaxRef.current;
+        if (!dur) dur = Number(music.duration) || musicClipMaxRef.current;
         setMusicDuration(dur);
         musicDurationRef.current = dur;
         // Video varsa seçili aralık videonun süresi kadar başlar; fotoğrafta kısa bir kesit.
@@ -26161,13 +26278,44 @@ export default function SubCategoryScreen({ route, navigation }) {
         setGettingLocation(true);
         try {
             const perm = await Location.requestForegroundPermissionsAsync();
-            if (!perm.granted) { Alert.alert('', t.sc_0870); return; }
+            if (!perm.granted) { Alert.alert('', t.sc_0870); return false; }
             const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
             const [geo] = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
             const parts = [geo.district || geo.subregion, geo.city || geo.region, geo.country].filter(Boolean);
             setShareLocation(parts.join(', '));
-        } catch { Alert.alert('', t.sc_0871); }
+            return true;
+        } catch { Alert.alert('', t.sc_0871); return false; }
         finally { setGettingLocation(false); }
+    };
+
+    const searchPlaces = (q) => {
+        setLocQuery(q);
+        clearTimeout(locTimer.current);
+        if (q.trim().length < 2) { setLocHits([]); setLocSearching(false); return; }
+        setLocSearching(true);
+        locTimer.current = setTimeout(async () => {
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&q=${encodeURIComponent(q.trim())}`, {
+                    headers: { Accept: 'application/json', 'Accept-Language': lang || 'en' },
+                });
+                const json = await res.json();
+                const hits = (Array.isArray(json) ? json : []).map(item => {
+                    const label = String(item.display_name || '').split(',').slice(0, 3).map(s => s.trim()).filter(Boolean).join(', ');
+                    return label ? { id: String(item.place_id), label } : null;
+                }).filter(Boolean);
+                if (!hits.length) {
+                    const geos = await Location.geocodeAsync(q.trim());
+                    const top = geos?.[0];
+                    if (top) {
+                        const [rev] = await Location.reverseGeocodeAsync(top);
+                        const label = [rev?.name, rev?.district || rev?.subregion, rev?.city || rev?.region, rev?.country].filter(Boolean).join(', ');
+                        if (label) hits.push({ id: 'geo-0', label });
+                    }
+                }
+                setLocHits(hits);
+            } catch { setLocHits([]); }
+            finally { setLocSearching(false); }
+        }, 400);
     };
 
     const pickMediaShare = async (type) => {
@@ -26204,35 +26352,53 @@ export default function SubCategoryScreen({ route, navigation }) {
             const isVideo = mediaShareUri.includes('.mp4') || mediaShareUri.includes('.mov') || mediaShareUri.includes('video');
             form.append('file', { uri: mediaShareUri, name: isVideo ? 'media.mp4' : 'media.jpg', type: isVideo ? 'video/mp4' : 'image/jpeg' });
             const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+            let musicPayload = null;
+            if (shareMusic) {
+                let musicUrl = shareMusic.uploadedUrl || shareMusic.previewUrl;
+                if (shareMusic.isLocal && shareMusic.localUri) {
+                    try {
+                        const audioForm = new FormData();
+                        const audioName = (shareMusic.title || 'music').replace(/[^\w.\-]+/g, '_') || 'music';
+                        audioForm.append('file', { uri: shareMusic.localUri, name: `${audioName}.m4a`, type: 'audio/mp4' });
+                        const { data: audioUp } = await api.post('/upload', audioForm, { headers: { 'Content-Type': 'multipart/form-data' } });
+                        if (audioUp?.url) musicUrl = audioUp.url;
+                    } catch { /* dosya yüklenemezse önizleme adresi kalsın */ }
+                }
+                musicPayload = {
+                    musicName: shareMusic.title,
+                    musicArtist: shareMusic.artist,
+                    musicCoverUrl: shareMusic.coverUrl || undefined,
+                    musicUrl,
+                    musicStartTime: trimStartRef.current,
+                    musicEndTime: trimEndRef.current,
+                };
+            }
             const { data: newPost } = await api.post('/posts', {
                 category, subCategory: sub,
                 type: mediaShareType === 'STORY' ? 'STORY' : mediaShareType === 'REEL' ? 'REEL' : 'POST',
                 content: mediaShareCaption || '',
                 ...(isVideo ? { videoUrl: uploadData.url } : { imageUrl: uploadData.url }),
-                ...(shareMusic && {
-                    musicName: shareMusic.title,
-                    musicArtist: shareMusic.artist,
-                    musicCoverUrl: shareMusic.coverUrl || undefined,
-                    musicUrl: shareMusic.uploadedUrl || shareMusic.previewUrl,
-                    musicStartTime: trimStartRef.current,
-                    musicEndTime: trimEndRef.current,
-                }),
+                ...(musicPayload || {}),
                 ...(shareLocation && { location: shareLocation }),
             });
+            const kept = { ...newPost, _keptAt: Date.now() };
             if (mediaShareType === 'STORY') {
+                pendingStoryRef.current = [kept, ...pendingStoryRef.current.filter(p => p.id !== kept.id)];
                 const storyUserId = newPost.userId;
                 setMediaStories(prev => {
                     const idx = prev.findIndex(g => g.user?.id === storyUserId);
                     if (idx >= 0) {
                         const updated = [...prev];
-                        updated[idx] = { ...updated[idx], stories: [newPost, ...updated[idx].stories] };
+                        updated[idx] = { ...updated[idx], stories: [kept, ...updated[idx].stories.filter(s => s.id !== kept.id)] };
                         return updated;
                     }
-                    return [{ user: newPost.user, stories: [newPost] }, ...prev];
+                    return [{ user: newPost.user, stories: [kept] }, ...prev];
                 });
             } else {
-                setMediaPosts(prev => [newPost, ...prev]);
+                pendingMediaRef.current = [kept, ...pendingMediaRef.current.filter(p => p.id !== kept.id)];
+                setMediaPosts(prev => [kept, ...prev.filter(p => p.id !== kept.id)]);
             }
+            dropBranchListCache(category, sub);
             setShowMediaShare(false);
             setMediaShareUri(null);
             setMediaShareSec(0);
@@ -30684,7 +30850,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         };
                                         return (
                                             <View style={{ gap: 3 }}>
-                                                {filtered.map((post) => {
+                                                {filtered.map((post, i) => {
                                                     const actualIdx = mediaPosts.findIndex(p => p.id === post.id);
                                                     const isLiked = mediaLiked[post.id] ?? (Array.isArray(post.likes) && post.likes.length > 0);
                                                     const likeCount = mediaLikeCounts[post.id] ?? (post._count?.likes || 0);
@@ -30713,7 +30879,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             {/* Görsel/Video — kullanıcı isteği: video Instagram gibi akışta otomatik
                                                                 oynasın (Veri Tasarrufu kapalıyken), açıksa dokununca küçük oynasın,
                                                                 basılı tutunca tam ekran açılsın (bkz. MediaTile). */}
-                                                            <MediaTile post={post} dataSaverMode={dataSaverMode} onOpenFullscreen={() => setMediaViewIdx(actualIdx)} />
+                                                            <MediaTile post={post} dataSaverMode={dataSaverMode} playMusic={i === 0} onOpenFullscreen={() => setMediaViewIdx(actualIdx)} />
+                                                            {!!post.musicName && (
+                                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingTop: 6 }}>
+                                                                    <Text style={{ fontSize: 12 }}>🎵</Text>
+                                                                    <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '700', flex: 1 }} numberOfLines={1}>{post.musicName}{post.musicArtist ? ` – ${post.musicArtist}` : ''}</Text>
+                                                                </View>
+                                                            )}
                                                             {/* Aksiyon satırı */}
                                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 9, paddingTop: 7, paddingBottom: 3 }}>
                                                                 <TouchableOpacity onPress={toggleLike} onLongPress={() => openLikersModal(post.id)} delayLongPress={350} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
@@ -30867,7 +31039,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 {/* Medya paylaş modal */}
                                 <Modal visible={showMediaShare} animationType="slide" transparent={!shareMusic} statusBarTranslucent={!!shareMusic} onRequestClose={() => setShowMediaShare(false)}>
                                     <View style={shareMusic ? { flex: 1, backgroundColor: colors.bg, paddingTop: insets.top } : { flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
-                                        <KeyboardAwareForm ref={shareFormRef} adjustWindow={false} scrollEnabled={!!shareMusic} style={shareMusic ? { flex: 1, backgroundColor: colors.bg } : { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20 }} contentContainerStyle={{ padding: 17, paddingBottom: shareMusic ? (insets.bottom || 0) + 28 : 33 }}>
+                                        <KeyboardAwareForm ref={shareFormRef} adjustWindow={false} scrollEnabled={!!shareMusic && !trimDragging} style={shareMusic ? { flex: 1, backgroundColor: colors.bg } : { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20 }} contentContainerStyle={{ padding: 17, paddingBottom: shareMusic ? (insets.bottom || 0) + 28 : 33 }}>
                                             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', marginBottom: 12 }}>
                                                 {mediaShareType === 'STORY' ? t.sc_1131 : mediaShareType === 'REEL' ? t.sc_1132(lang === 'tr' ? 'Film Rulosu' : lang === 'ru' ? 'Ролики' : lang === 'de' ? 'Reels' : 'Reels') : t.sc_1133}
                                             </Text>
@@ -30906,21 +31078,27 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>{t.musicFitVideo(videoFit)}</Text>
                                                         )}
                                                         <View
-                                                            {...windowPan.panHandlers}
                                                             onLayout={ev => { trimBarWidthRef.current = ev.nativeEvent.layout.width; }}
-                                                            style={{ height: 48, justifyContent: 'center' }}
+                                                            style={{ height: 56, justifyContent: 'center' }}
                                                         >
                                                             <View style={{ height: 28, borderRadius: 8, backgroundColor: '#1f2937', overflow: 'hidden' }}>
-                                                                <View style={{ position: 'absolute', left: `${leftPct}%`, width: `${widthPct}%`, top: 0, bottom: 0, backgroundColor: '#7c3aed' }} />
+                                                                <View
+                                                                    {...windowPan.panHandlers}
+                                                                    style={{ position: 'absolute', left: `${leftPct}%`, width: `${widthPct}%`, top: 0, bottom: 0, backgroundColor: '#7c3aed' }}
+                                                                />
                                                             </View>
                                                             <View
                                                                 {...startHandlePan.panHandlers}
-                                                                style={{ position: 'absolute', left: `${leftPct}%`, width: 16, height: 36, borderRadius: 6, backgroundColor: '#fff', marginLeft: -8 }}
-                                                            />
+                                                                style={{ position: 'absolute', left: `${leftPct}%`, width: 36, height: 52, marginLeft: -18, alignItems: 'center', justifyContent: 'center' }}
+                                                            >
+                                                                <View style={{ width: 14, height: 40, borderRadius: 6, backgroundColor: '#fff' }} />
+                                                            </View>
                                                             <View
                                                                 {...endHandlePan.panHandlers}
-                                                                style={{ position: 'absolute', left: `${(e / totalDur) * 100}%`, width: 16, height: 36, borderRadius: 6, backgroundColor: '#fff', marginLeft: -8 }}
-                                                            />
+                                                                style={{ position: 'absolute', left: `${(e / totalDur) * 100}%`, width: 36, height: 52, marginLeft: -18, alignItems: 'center', justifyContent: 'center' }}
+                                                            >
+                                                                <View style={{ width: 14, height: 40, borderRadius: 6, backgroundColor: '#fff' }} />
+                                                            </View>
                                                         </View>
                                                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, marginBottom: 10 }}>
                                                             <Text style={{ color: '#6b7280', fontSize: 10 }}>{t.sc_1137}</Text>
@@ -30997,7 +31175,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <Text style={{ color: colors.textMuted, fontSize: 12 }}>✕</Text>
                                                     </TouchableOpacity>}
                                                 </TouchableOpacity>
-                                                <TouchableOpacity onPress={getGpsLocation} disabled={gettingLocation}
+                                                <TouchableOpacity onPress={() => { setLocQuery(''); setLocHits([]); setShowLocSheet(true); }}
                                                     style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 6, paddingHorizontal: 7, borderRadius: 10, backgroundColor: shareLocation ? '#16a34a20' : colors.surface2, borderWidth: 1, borderColor: shareLocation ? '#16a34a60' : colors.border }}>
                                                     <Text style={{ fontSize: 14 }}>📍</Text>
                                                     <Text style={{ color: shareLocation ? '#4ade80' : colors.textMuted, fontSize: 11, fontWeight: '700', flex: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
@@ -31018,6 +31196,49 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <Text style={{ color: '#fff', fontWeight: '900' }}>{submittingMediaShare ? t.sc_0100 : t.sc_1144}</Text>
                                                 </TouchableOpacity>
                                             </View>
+
+                                            {/* Konum: GPS ya da yazarak öneriden seç */}
+                                            <Modal visible={showLocSheet} animationType="slide" statusBarTranslucent onRequestClose={() => setShowLocSheet(false)}>
+                                                <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 13, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                                                        <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16, flex: 1 }}>{t.sc_loc_title}</Text>
+                                                        <TouchableOpacity onPress={() => setShowLocSheet(false)}>
+                                                            <Text style={{ color: colors.textMuted, fontSize: 22 }}>✕</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                    <KeyboardAwareForm adjustWindow={false} keyboardShouldPersistTaps="always" style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: (insets.bottom || 0) + 24 }}>
+                                                        <TouchableOpacity
+                                                            disabled={gettingLocation}
+                                                            onPress={async () => { const ok = await getGpsLocation(); if (ok) setShowLocSheet(false); }}
+                                                            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 10 }}
+                                                        >
+                                                            <Text style={{ fontSize: 18 }}>📍</Text>
+                                                            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14, flex: 1 }}>{gettingLocation ? t.sc_1142 : t.sc_loc_gps}</Text>
+                                                            {gettingLocation && <ActivityIndicator size="small" color={cfg.color} />}
+                                                        </TouchableOpacity>
+                                                        <View style={{ backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+                                                            <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
+                                                            <TextInput
+                                                                style={{ flex: 1, color: '#fff', fontSize: 14, paddingVertical: 8 }}
+                                                                placeholder={t.sc_loc_ph}
+                                                                placeholderTextColor={colors.textMuted}
+                                                                value={locQuery}
+                                                                onChangeText={searchPlaces}
+                                                            />
+                                                            {locSearching && <ActivityIndicator size="small" color={cfg.color} />}
+                                                        </View>
+                                                        {locHits.map(hit => (
+                                                            <TouchableOpacity key={hit.id} onPress={() => { setShareLocation(hit.label); setShowLocSheet(false); }}
+                                                                style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                                                                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{hit.label}</Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                        {!locSearching && locQuery.trim().length >= 2 && locHits.length === 0 && (
+                                                            <Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 24 }}>{t.sc_loc_empty}</Text>
+                                                        )}
+                                                    </KeyboardAwareForm>
+                                                </View>
+                                            </Modal>
 
                                             {/* Müzik seçici sheet */}
                                             <Modal visible={musicSheetOpen} animationType="slide" statusBarTranslucent onRequestClose={() => setMusicSheetOpen(false)}>

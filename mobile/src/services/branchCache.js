@@ -16,6 +16,12 @@ export function rememberBranch(category, sub, view) {
     viewCache.set(keyOf(category, sub), view);
 }
 
+// Paylaşım hemen ardından gelen eski liste yanıtı yeni gönderiyi ezmesin diye
+// bir sonraki yükleme ağı yeniden sorsun.
+export function dropBranchListCache(category, sub) {
+    rawCache.delete(keyOf(category, sub));
+}
+
 export function prefetchBranchLists(category, sub, { fresh = false } = {}) {
     const key = keyOf(category, sub);
     if (!fresh && rawCache.has(key)) return Promise.resolve(rawCache.get(key));
