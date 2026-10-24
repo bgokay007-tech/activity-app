@@ -24,6 +24,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import * as DocumentPicker from 'expo-document-picker';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system/legacy';
 import { addMatchUpdateListener, addWatchPointListener, isWatchConnected, hasWearOsWatch, hasHuaweiWatch, startHuaweiScoreSession, updateHuaweiScoreSession, stopHuaweiScoreSession } from '../../../modules/wear-bridge';
 import * as Notifications from 'expo-notifications';
 import { isHealthAvailable, requestHealthPermissions, getWorkoutSummary } from '../../../modules/health-bridge';
@@ -25798,6 +25799,11 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [trimEnd, setTrimEnd] = useState('30');
     const [musicDuration, setMusicDuration] = useState(null);
     const [detectingImage, setDetectingImage] = useState(false);
+    const suggestedMusicRef = useRef([]);
+    const musicQueryRef = useRef('');
+    // Gönderi ve hikaye en fazla 60 sn, reels 90 sn. Çizgi parçanın tamamıdır.
+    const musicClipMaxRef = useRef(60);
+    musicClipMaxRef.current = mediaShareType === 'REEL' ? 90 : 60;
     // Trim bar drag refs
     const trimBarWidthRef = useRef(0);
     const trimStartCapturedRef = useRef(0);
@@ -25810,29 +25816,32 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [shareLocation, setShareLocation] = useState('');
     const [gettingLocation, setGettingLocation] = useState(false);
 
-    const detectImageMusic = async () => {
-        if (!mediaShareUri) return;
+    const applyMusicWindow = (startSec, lenSec) => {
+        const total = Math.max(1, Math.round(musicDurationRef.current || 1));
+        const max = musicClipMaxRef.current;
+        let len = Math.max(1, Math.min(max, total, Math.round(lenSec)));
+        let start = Math.round(startSec);
+        if (start < 0) start = 0;
+        if (start + len > total) start = Math.max(0, total - len);
+        len = Math.min(len, total - start);
+        trimStartRef.current = start;
+        trimEndRef.current = start + len;
+        setTrimStart(String(start));
+        setTrimEnd(String(start + len));
+    };
+
+    const detectImageMusic = async ({ silent } = {}) => {
+        if (!mediaShareUri || detectingImage) return;
         setDetectingImage(true);
         setMusicResults([]);
         try {
-            const resp = await fetch(mediaShareUri);
-            const blob = await resp.blob();
-            const base64 = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result.split(',')[1]);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
+            const base64 = await FileSystem.readAsStringAsync(mediaShareUri, { encoding: FileSystem.EncodingType.Base64 });
             const { data } = await api.post('/posts/suggest-music', {
                 imageBase64: base64,
                 mimeType: 'image/jpeg',
                 subCategory: sub,
             });
             const keywords = data.keywords || [];
-            setMusicQuery('');
-            // Önerilen anahtar kelimeleri arka planda Deezer'da arayıp tek bir
-            // parça listesinde birleştiriyoruz — kullanıcıya "aramalar" değil
-            // doğrudan seçilebilir şarkılar gösteriliyor.
             const lists = await Promise.all(keywords.slice(0, 4).map(async (kw) => {
                 try {
                     const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(kw)}&limit=8&output=json`);
@@ -25847,26 +25856,56 @@ export default function SubCategoryScreen({ route, navigation }) {
                     if (!seen.has(track.id)) { seen.add(track.id); merged.push(track); }
                 }
             }
-            setMusicResults(merged);
-            if (merged.length === 0) Alert.alert('', 'Görsele uygun müzik bulunamadı');
-        } catch { Alert.alert('', 'Görsel analiz edilemedi'); }
+            suggestedMusicRef.current = merged;
+            if (!musicQueryRef.current.trim()) setMusicResults(merged);
+        } catch {
+            if (!silent) Alert.alert('', t.musicSuggestEmpty);
+        }
         finally { setDetectingImage(false); }
     };
 
-    // Trim bar PanResponders — refs kullanarak closure sorununu önle
-    const startHandlePan = useRef(PanResponder.create({
+    // Çizgiyi kaydırmak seçili aralığı olduğu gibi taşır. Bitiş tutacağı süreyi değiştirir.
+    const windowPan = useRef(PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: () => { trimStartCapturedRef.current = trimStartRef.current; },
+        onPanResponderGrant: () => {
+            trimStartCapturedRef.current = trimStartRef.current;
+            trimEndCapturedRef.current = trimEndRef.current;
+        },
         onPanResponderMove: (_, { dx }) => {
             const w = trimBarWidthRef.current;
             if (!w) return;
             const totalDur = musicDurationRef.current || 30;
+            const len = Math.max(1, trimEndCapturedRef.current - trimStartCapturedRef.current);
             const pxPerSec = w / totalDur;
-            const newS = Math.max(0, Math.min(trimEndRef.current - 1, trimStartCapturedRef.current + dx / pxPerSec));
-            const rounded = Math.round(newS);
+            const newS = trimStartCapturedRef.current + dx / pxPerSec;
+            const rounded = Math.max(0, Math.min(totalDur - len, Math.round(newS)));
             trimStartRef.current = rounded;
+            trimEndRef.current = rounded + len;
             setTrimStart(String(rounded));
+            setTrimEnd(String(rounded + len));
+        },
+    })).current;
+
+    const startHandlePan = useRef(PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => {
+            trimStartCapturedRef.current = trimStartRef.current;
+            trimEndCapturedRef.current = trimEndRef.current;
+        },
+        onPanResponderMove: (_, { dx }) => {
+            const w = trimBarWidthRef.current;
+            if (!w) return;
+            const totalDur = musicDurationRef.current || 30;
+            const len = Math.max(1, trimEndCapturedRef.current - trimStartCapturedRef.current);
+            const pxPerSec = w / totalDur;
+            const newS = trimStartCapturedRef.current + dx / pxPerSec;
+            const rounded = Math.max(0, Math.min(totalDur - len, Math.round(newS)));
+            trimStartRef.current = rounded;
+            trimEndRef.current = rounded + len;
+            setTrimStart(String(rounded));
+            setTrimEnd(String(rounded + len));
         },
     })).current;
 
@@ -25878,8 +25917,12 @@ export default function SubCategoryScreen({ route, navigation }) {
             const w = trimBarWidthRef.current;
             if (!w) return;
             const totalDur = musicDurationRef.current || 30;
+            const maxLen = musicClipMaxRef.current;
             const pxPerSec = w / totalDur;
-            const newE = Math.max(trimStartRef.current + 1, Math.min(totalDur, trimEndCapturedRef.current + dx / pxPerSec));
+            const newE = Math.max(
+                trimStartRef.current + 1,
+                Math.min(totalDur, trimStartRef.current + maxLen, trimEndCapturedRef.current + dx / pxPerSec),
+            );
             const rounded = Math.round(newE);
             trimEndRef.current = rounded;
             setTrimEnd(String(rounded));
@@ -25900,14 +25943,18 @@ export default function SubCategoryScreen({ route, navigation }) {
     const openTrimFor = async (music) => {
         await stopMusicPreview();
         setShareMusic(music);
-        const endSec = music.duration ? Math.min(30, Math.floor(music.duration)) : 30;
-        const dur = music.duration || 30;
-        setTrimStart('0');
-        setTrimEnd(String(endSec));
+        let dur = Number(music.duration) || 0;
+        if (!dur && music.previewUrl) {
+            try {
+                const { sound, status } = await Audio.Sound.createAsync({ uri: music.previewUrl }, { shouldPlay: false });
+                if (status?.durationMillis) dur = Math.max(1, Math.round(status.durationMillis / 1000));
+                await sound.unloadAsync();
+            } catch { /* süre okunamazsa üst sınıra düş */ }
+        }
+        if (!dur) dur = musicClipMaxRef.current;
         setMusicDuration(dur);
-        trimStartRef.current = 0;
-        trimEndRef.current = endSec;
         musicDurationRef.current = dur;
+        applyMusicWindow(0, Math.min(15, musicClipMaxRef.current, dur));
         setMusicTrimOpen(true);
         setMusicSheetOpen(false);
     };
@@ -25953,8 +26000,9 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const searchDeezer = (q) => {
         setMusicQuery(q);
+        musicQueryRef.current = q;
         clearTimeout(musicTimer.current);
-        if (!q.trim()) { setMusicResults([]); return; }
+        if (!q.trim()) { setMusicResults(suggestedMusicRef.current); return; }
         musicTimer.current = setTimeout(async () => {
             setSearchingMusic(true);
             try {
@@ -25967,11 +26015,35 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const selectTrack = (track) => {
-        const music = { title: track.title, artist: track.artist.name, coverUrl: track.album.cover_small, previewUrl: track.preview, duration: 30 };
+        const music = {
+            title: track.title,
+            artist: track.artist.name,
+            coverUrl: track.album?.cover_small,
+            previewUrl: track.preview,
+            duration: Math.max(1, Number(track.duration) || 30),
+        };
         setMusicQuery('');
-        setMusicResults([]);
+        musicQueryRef.current = '';
+        setMusicResults(suggestedMusicRef.current);
         openTrimFor(music);
     };
+
+    useEffect(() => {
+        if (!musicSheetOpen) return;
+        if (musicQueryRef.current.trim()) return;
+        const uri = mediaShareUri || '';
+        const isVideo = mediaShareType === 'REEL' || /\.(mp4|mov|m4v|webm)(\?|$)/i.test(uri);
+        if (!uri || isVideo) return;
+        if (suggestedMusicRef.current.length) {
+            setMusicResults(suggestedMusicRef.current);
+            return;
+        }
+        detectImageMusic({ silent: true });
+    }, [musicSheetOpen]);
+
+    useEffect(() => {
+        suggestedMusicRef.current = [];
+    }, [mediaShareUri]);
 
     const getGpsLocation = async () => {
         setGettingLocation(true);
@@ -26025,8 +26097,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                     musicArtist: shareMusic.artist,
                     musicCoverUrl: shareMusic.coverUrl || undefined,
                     musicUrl: shareMusic.uploadedUrl || shareMusic.previewUrl,
-                    musicStartTime: parseFloat(trimStart) || 0,
-                    musicEndTime: parseFloat(trimEnd) || 30,
+                    musicStartTime: trimStartRef.current,
+                    musicEndTime: trimEndRef.current,
                 }),
                 ...(shareLocation && { location: shareLocation }),
             });
@@ -30712,8 +30784,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         </View>
                                                         {/* Trim bar */}
                                                         <View
+                                                            {...windowPan.panHandlers}
                                                             onLayout={ev => { trimBarWidthRef.current = ev.nativeEvent.layout.width; }}
-                                                            style={{ height: 36, justifyContent: 'center' }}
+                                                            style={{ height: 44, justifyContent: 'center' }}
                                                         >
                                                             {/* Arka plan izi */}
                                                             <View style={{ height: 5, backgroundColor: '#1f2937', borderRadius: 3 }}>
@@ -30806,35 +30879,44 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         </View>
 
                                                         <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 10 }}>
-                                                            ✂️ Kullanılacak aralık {musicDuration ? `(toplam ${Math.floor(musicDuration)}sn)` : ''}
+                                                            {t.musicTrackLine(Math.floor(musicDuration || 0))} · {t.musicClipMax(mediaShareType === 'REEL' ? 90 : 60)}
                                                         </Text>
-
-                                                        <View style={{ flexDirection: 'row', gap: 3, marginBottom: 16 }}>
-                                                            <View style={{ flex: 1 }}>
-                                                                <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 4 }}>Başlangıç (sn)</Text>
-                                                                <TextInput
-                                                                    style={{ backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', fontSize: 16, fontWeight: '800', borderWidth: 1, borderColor: colors.border, textAlign: 'center' }}
-                                                                    value={trimStart}
-                                                                    onChangeText={v => setTrimStart(v.replace(/[^0-9.]/g, ''))}
-                                                                    keyboardType="numeric"
-                                                                    placeholder="0"
-                                                                    placeholderTextColor={colors.textMuted}
-                                                                />
+                                                        <View
+                                                            {...windowPan.panHandlers}
+                                                            onLayout={ev => { trimBarWidthRef.current = ev.nativeEvent.layout.width; }}
+                                                            style={{ height: 44, justifyContent: 'center', marginBottom: 6 }}
+                                                        >
+                                                            <View style={{ height: 4, backgroundColor: '#374151', borderRadius: 2 }}>
+                                                                <View style={{
+                                                                    position: 'absolute',
+                                                                    left: `${((parseFloat(trimStart) || 0) / (musicDuration || 1)) * 100}%`,
+                                                                    width: `${Math.max(0, ((parseFloat(trimEnd) || 0) - (parseFloat(trimStart) || 0)) / (musicDuration || 1)) * 100}%`,
+                                                                    height: 4, backgroundColor: '#7c3aed', borderRadius: 2,
+                                                                }} />
                                                             </View>
-                                                            <View style={{ justifyContent: 'flex-end', paddingBottom: 7 }}>
-                                                                <Text style={{ color: colors.textMuted, fontSize: 18 }}>→</Text>
-                                                            </View>
-                                                            <View style={{ flex: 1 }}>
-                                                                <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 4 }}>Bitiş (sn)</Text>
-                                                                <TextInput
-                                                                    style={{ backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', fontSize: 16, fontWeight: '800', borderWidth: 1, borderColor: colors.border, textAlign: 'center' }}
-                                                                    value={trimEnd}
-                                                                    onChangeText={v => setTrimEnd(v.replace(/[^0-9.]/g, ''))}
-                                                                    keyboardType="numeric"
-                                                                    placeholder="30"
-                                                                    placeholderTextColor={colors.textMuted}
-                                                                />
-                                                            </View>
+                                                        </View>
+                                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
+                                                            <Text style={{ color: colors.textMuted, fontSize: 10 }}>0s</Text>
+                                                            <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '800' }}>{trimStart}s – {trimEnd}s</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize: 10 }}>{Math.floor(musicDuration || 0)}s</Text>
+                                                        </View>
+                                                        <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 4 }}>{t.musicClipLen}</Text>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                                                            <TouchableOpacity onPress={() => applyMusicWindow(parseFloat(trimStart) || 0, (parseFloat(trimEnd) || 0) - (parseFloat(trimStart) || 0) - 1)}
+                                                                style={{ width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
+                                                                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800' }}>−</Text>
+                                                            </TouchableOpacity>
+                                                            <TextInput
+                                                                style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', fontSize: 16, fontWeight: '800', borderWidth: 1, borderColor: colors.border, textAlign: 'center' }}
+                                                                value={String(Math.max(0, (parseFloat(trimEnd) || 0) - (parseFloat(trimStart) || 0)))}
+                                                                onChangeText={v => applyMusicWindow(parseFloat(trimStart) || 0, parseInt(v.replace(/[^0-9]/g, ''), 10) || 1)}
+                                                                keyboardType="number-pad"
+                                                                placeholderTextColor={colors.textMuted}
+                                                            />
+                                                            <TouchableOpacity onPress={() => applyMusicWindow(parseFloat(trimStart) || 0, (parseFloat(trimEnd) || 0) - (parseFloat(trimStart) || 0) + 1)}
+                                                                style={{ width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
+                                                                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800' }}>+</Text>
+                                                            </TouchableOpacity>
                                                         </View>
 
                                                         <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', marginBottom: 14 }}>
@@ -30861,7 +30943,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <Modal visible={musicSheetOpen} animationType="slide" onRequestClose={() => setMusicSheetOpen(false)}>
                                                 <View style={{ flex: 1, backgroundColor: colors.bg }}>
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', padding: 13, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                                                        <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16, flex: 1 }}>🎵 Müzik Seç</Text>
+                                                        <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16, flex: 1 }}>{t.musicPickTitle}</Text>
                                                         <TouchableOpacity onPress={() => setMusicSheetOpen(false)}>
                                                             <Text style={{ color: colors.textMuted, fontSize: 22 }}>✕</Text>
                                                         </TouchableOpacity>
@@ -30882,30 +30964,22 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             placeholderTextColor={colors.textMuted}
                                                             value={musicQuery}
                                                             onChangeText={searchDeezer}
-                                                            autoFocus
                                                         />
                                                         {searchingMusic && <ActivityIndicator size="small" color={cfg.color} />}
                                                     </View>
-                                                    {/* Resmi Algıla butonu */}
-                                                    {mediaShareUri && (
-                                                        <TouchableOpacity
-                                                            onPress={detectImageMusic}
-                                                            disabled={detectingImage}
-                                                            style={{ marginHorizontal: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#7c3aed20', borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1, borderColor: '#7c3aed50', opacity: detectingImage ? 0.6 : 1 }}
-                                                        >
-                                                            <Text style={{ fontSize: 18 }}>🎨</Text>
-                                                            <View style={{ flex: 1 }}>
-                                                                <Text style={{ color: '#a78bfa', fontWeight: '800', fontSize: 13 }}>Resmi Algıla</Text>
-                                                                <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 1 }}>Görsele göre müzik önerileri al</Text>
+                                                    <ScrollView contentContainerStyle={{ padding: 9 }} keyboardShouldPersistTaps="handled">
+                                                        {detectingImage && (
+                                                            <View style={{ alignItems: 'center', paddingVertical: 18 }}>
+                                                                <ActivityIndicator color={cfg.color} />
+                                                                <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 8 }}>{t.musicSuggesting}</Text>
                                                             </View>
-                                                            {detectingImage && <ActivityIndicator size="small" color="#a78bfa" />}
-                                                        </TouchableOpacity>
-                                                    )}
-                                                    <ScrollView contentContainerStyle={{ padding: 9 }}>
+                                                        )}
                                                         {musicResults.map(track => (
                                                             <TouchableOpacity key={track.id} onPress={() => selectTrack(track)}
                                                                 style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                                                                <Image source={{ uri: track.album.cover_small }} style={{ width: 44, height: 44, borderRadius: 6 }} />
+                                                                {!!track.album?.cover_small && (
+                                                                    <Image source={{ uri: track.album.cover_small }} style={{ width: 44, height: 44, borderRadius: 6 }} />
+                                                                )}
                                                                 <View style={{ flex: 1 }}>
                                                                     <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{track.title}</Text>
                                                                     <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>{track.artist.name}</Text>
@@ -30913,6 +30987,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>Seç</Text>
                                                             </TouchableOpacity>
                                                         ))}
+                                                        {!searchingMusic && !detectingImage && !musicQuery && musicResults.length === 0 && (
+                                                            <Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 30 }}>{t.musicSuggestEmpty}</Text>
+                                                        )}
                                                         {!searchingMusic && musicQuery && musicResults.length === 0 && (
                                                             <Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 30 }}>Sonuç bulunamadı</Text>
                                                         )}
