@@ -1,8 +1,8 @@
-// Videolar uygulamaya inmez. YouTube'un herkese açık kanal akışından (anahtar
-// gerektirmeyen RSS) yalnız başlık, küçük kapak ve link alınır. Arama akışı
-// YouTube tarafında 400 döndüğü için her dalın kendi resmi kanalları duruyor —
-// padel listesine tenis düşmesin diye bilinmeyen dal tenis'e düşürülmez.
-// Aynı istek 30 dk bellekte tutulur; sekme açılmadan hiç çekilmez.
+// Videolar uygulamaya inmez. Önce YouTube'un herkese açık kanal akışı (anahtarsız
+// RSS). Bu adres zaman zaman 404 döndürüyor; o zaman kanalın videos sayfasından
+// yalnız başlık ve video kimliği okunur. Bilinmeyen dal tenis'e düşürülmez.
+// Dolu cevap 30 dk bellekte tutulur. Boş cevap kısa tutulur ki bir sonraki
+// açılış yeniden denesin. Sekme açılmadan hiç çekilmez.
 
 const SPORT_CHANNELS = {
     tennis: [
@@ -108,8 +108,13 @@ const SPORT_CHANNELS = {
 };
 
 const CACHE_MS = 30 * 60 * 1000;
+const EMPTY_CACHE_MS = 60 * 1000;
 const cache = new Map();
 const inflight = new Map();
+const PAGE_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Accept-Language': 'en',
+};
 
 function decodeXml(value) {
     return String(value || '')
@@ -149,14 +154,55 @@ function parseEntries(xml, channelName, channelId) {
     return out;
 }
 
+async function fetchText(url) {
+    const r = await fetch(url, { headers: PAGE_HEADERS, signal: AbortSignal.timeout(12000) });
+    if (!r.ok) return '';
+    return r.text();
+}
+
+function parseChannelPage(html, channelName, channelId) {
+    const out = [];
+    const re = /"lockupMetadataViewModel":\{"title":\{"content":"((?:\\.|[^"\\])*)"/g;
+    let m;
+    while ((m = re.exec(html)) && out.length < 3) {
+        const back = html.slice(Math.max(0, m.index - 8000), m.index);
+        const ids = [...back.matchAll(/\/vi\/([a-zA-Z0-9_-]{11})\//g)];
+        const videoId = ids.length ? ids[ids.length - 1][1] : '';
+        if (!videoId || out.some(v => v.videoId === videoId)) continue;
+        let title = m[1];
+        try { title = JSON.parse(`"${m[1]}"`); } catch { /* kaçış çözülemezse ham metin */ }
+        out.push({
+            videoId,
+            channelId: channelId || '',
+            title,
+            author: channelName,
+            published: '',
+            thumb: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+            url: `https://www.youtube.com/watch?v=${videoId}`,
+        });
+    }
+    return out;
+}
+
 async function fetchChannel(channel) {
-    const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.id}`;
-    const r = await fetch(url, {
-        headers: { 'User-Agent': 'AcTiViTy-App/1.0' },
-        signal: AbortSignal.timeout(8000),
-    });
-    if (!r.ok) return [];
-    return parseEntries(await r.text(), channel.name, channel.id);
+    const rssUrls = [
+        `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.id}`,
+        `https://www.youtube.com/feeds/videos.xml?playlist_id=UULF${channel.id.slice(2)}`,
+    ];
+    for (const url of rssUrls) {
+        try {
+            const xml = await fetchText(url);
+            if (!xml.includes('<entry>')) continue;
+            const videos = parseEntries(xml, channel.name, channel.id);
+            if (videos.length) return videos;
+        } catch { /* sıradaki kaynak */ }
+    }
+    try {
+        const html = await fetchText(`https://www.youtube.com/channel/${channel.id}/videos`);
+        const videos = parseChannelPage(html, channel.name, channel.id);
+        if (videos.length) return videos;
+    } catch { /* kanal sayfası da gelmedi */ }
+    return [];
 }
 
 async function loadSport(sport) {
@@ -181,14 +227,16 @@ export const getSportMedia = async (req, res, next) => {
     try {
         const sport = String(req.params.sport || '');
         const hit = cache.get(sport);
-        if (hit && Date.now() - hit.at < CACHE_MS) return res.json(hit.data);
+        if (hit && Date.now() - hit.at < hit.ttl) return res.json(hit.data);
         let pending = inflight.get(sport);
         if (!pending) {
             pending = loadSport(sport).finally(() => inflight.delete(sport));
             inflight.set(sport, pending);
         }
         const data = await pending;
-        cache.set(sport, { at: Date.now(), data });
+        const prev = cache.get(sport);
+        if (!data.videos.length && prev?.data?.videos?.length) return res.json(prev.data);
+        cache.set(sport, { at: Date.now(), data, ttl: data.videos.length ? CACHE_MS : EMPTY_CACHE_MS });
         res.json(data);
     } catch (error) {
         next(error);

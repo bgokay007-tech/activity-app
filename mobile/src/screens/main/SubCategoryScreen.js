@@ -23595,7 +23595,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const tabs = getTabs(sub, category);
     const openSportMedia = (kind) => {
         setMediaBrowse(prev => prev === kind ? null : kind);
-        if (sportMediaCacheRef.current[sub]) {
+        if (sportMediaCacheRef.current[sub]?.videos?.length) {
             setSportMedia(sportMediaCacheRef.current[sub]);
             return;
         }
@@ -23604,7 +23604,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         api.get(`/sport-media/${encodeURIComponent(requested)}`)
             .then(res => {
                 const data = res.data && typeof res.data === 'object' ? res.data : { channels: [], videos: [] };
-                sportMediaCacheRef.current[requested] = data;
+                if ((data.videos || []).length) sportMediaCacheRef.current[requested] = data;
                 if (sportMediaSubRef.current === requested) setSportMedia(data);
             })
             .catch(() => {
@@ -23640,7 +23640,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     useEffect(() => {
         setMediaBrowse(null);
         setSportPlayer(null);
-        setSportMedia(sportMediaCacheRef.current[sub] || null);
+        setSportMedia(sportMediaCacheRef.current[sub]?.videos?.length ? sportMediaCacheRef.current[sub] : null);
     }, [sub]);
     const tabLabel = (tab) => {
         if (category === 'ARTS') {
