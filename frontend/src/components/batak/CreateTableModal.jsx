@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+function lzDiffLabel(trFn, k) {
+    const map = { easy: 'lz_diffEasy', medium: 'lz_diffMedium', hard: 'lz_diffHard', expert: 'lz_diffExpert' };
+    return trFn('leisure.' + map[k]);
+}
 import { getSocket } from '../../services/socket';
 
 const VARIANTS = ['ihaleli', 'esli_ihaleli', 'koz_maca', 'gomme'];
-const DIFFICULTIES = [['easy', 'Kolay'], ['medium', 'Orta'], ['hard', 'Zor']];
 
 // Adım adım (geri dönülebilir) masa kurma sihirbazı: varyant -> online/bot ->
 // (bot ise zorluk, online ise derece aralığı -> puan bahsi -> ekstra derece
@@ -36,13 +39,13 @@ export default function CreateTableModal({ interest, defaultVariant, onClose }) 
 
     const startVsBots = () => {
         const socket = getSocket();
-        if (!socket) return setError('Bağlantı kurulamadı, tekrar deneyin.');
+        if (!socket) return setError(t('leisure.lz_noConnection'));
         socket.emit('batak:playVsBots', { difficulty, variant });
     };
 
     const createTable = () => {
         const socket = getSocket();
-        if (!socket) return setError('Bağlantı kurulamadı, tekrar deneyin.');
+        if (!socket) return setError(t('leisure.lz_noConnection'));
         socket.emit('batak:createPrivateTable', {
             betAmount: parsedBet, ratingAmount: parsedRating,
             ratingRangeMin: parsedRangeMin, ratingRangeMax: parsedRangeMax,
@@ -96,15 +99,15 @@ export default function CreateTableModal({ interest, defaultVariant, onClose }) 
                             {difficultyConfirmed ? (
                                 <button onClick={() => setDifficultyConfirmed(false)}
                                     className="w-full flex items-center justify-between bg-purple-600/20 border border-purple-500 text-white font-bold px-4 py-2.5 rounded-xl text-sm">
-                                    <span>{t('batak.step.difficultySelected', { level: DIFFICULTIES.find(([k]) => k === difficulty)?.[1] })} ✓</span>
+                                    <span>{t('batak.step.difficultySelected', { level: lzDiffLabel(t, difficulty) })} ✓</span>
                                     <span className="text-purple-300 text-xs">{t('batak.step.change')}</span>
                                 </button>
                             ) : (
                                 <div className="flex gap-2">
-                                    {DIFFICULTIES.map(([k, label]) => (
+                                    {['easy', 'medium', 'hard'].map((k) => (
                                         <button key={k} onClick={() => { setDifficulty(k); setDifficultyConfirmed(true); }}
                                             className={`flex-1 py-2.5 rounded-lg text-xs font-bold border transition ${difficulty === k ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400'}`}>
-                                            {label}
+                                            {lzDiffLabel(t, k)}
                                         </button>
                                     ))}
                                 </div>
@@ -122,9 +125,9 @@ export default function CreateTableModal({ interest, defaultVariant, onClose }) 
                             <p className="text-gray-500 text-[11px] mb-1">{t('batak.step.ratingRangeHint')}</p>
                             <div className="flex gap-2 mb-2">
                                 <input type="number" min="0" max="5" step="0.01" value={ratingRangeMin} onChange={e => setRatingRangeMin(e.target.value)}
-                                    placeholder="Min" className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-2" />
+                                    placeholder={t('leisure.lz_min')} className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-2" />
                                 <input type="number" min="0" max="5" step="0.01" value={ratingRangeMax} onChange={e => setRatingRangeMax(e.target.value)}
-                                    placeholder="Max" className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-2" />
+                                    placeholder={t('leisure.lz_max')} className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-2" />
                             </div>
                             <button onClick={() => setStep('stake')} className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl text-sm">
                                 → {t('batak.step.stake')}
@@ -137,9 +140,9 @@ export default function CreateTableModal({ interest, defaultVariant, onClose }) 
                             <label className="block text-gray-400 text-xs font-bold mb-1">{t('batak.step.stake')}</label>
                             <p className="text-gray-500 text-[11px] mb-1">{t('batak.step.stakeHint')}</p>
                             <input type="number" min="1" value={betAmount} onChange={e => setBetAmount(e.target.value)}
-                                placeholder="Örn. 250" className="w-full bg-gray-800 border border-gray-700 text-white text-sm font-bold rounded-lg px-3 py-2 mb-1" />
+                                placeholder={t('leisure.lz_phExamplePoints')} className="w-full bg-gray-800 border border-gray-700 text-white text-sm font-bold rounded-lg px-3 py-2 mb-1" />
                             {interest && parsedBet > interest.walletPoints && (
-                                <p className="text-red-400 text-[11px] mb-1">Bakiyende bu kadar puan yok ({interest.walletPoints} puanın var).</p>
+                                <p className="text-red-400 text-[11px] mb-1">{t('leisure.lz_notEnoughPoints', { n: interest.walletPoints })}</p>
                             )}
                             <button onClick={() => setStep('rating')} disabled={parsedBet <= 0}
                                 className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-40">
@@ -157,9 +160,9 @@ export default function CreateTableModal({ interest, defaultVariant, onClose }) 
                             {wagerRating && (
                                 <>
                                     <input type="number" min="0" max="5" step="0.01" value={ratingAmount} onChange={e => setRatingAmount(e.target.value)}
-                                        placeholder="Örn. 0.25" className="w-full bg-gray-800 border border-gray-700 text-white text-sm font-bold rounded-lg px-3 py-2 mb-1" />
+                                        placeholder={t('leisure.lz_phExampleRating')} className="w-full bg-gray-800 border border-gray-700 text-white text-sm font-bold rounded-lg px-3 py-2 mb-1" />
                                     {interest && parsedRating > interest.skillRating && (
-                                        <p className="text-red-400 text-[11px] mb-1">Bu kadar dereceye sahip değilsin ({interest.skillRating?.toFixed(2)}).</p>
+                                        <p className="text-red-400 text-[11px] mb-1">{t('leisure.lz_notEnoughRating', { n: interest.skillRating?.toFixed(2) })}</p>
                                     )}
                                 </>
                             )}
@@ -177,11 +180,11 @@ export default function CreateTableModal({ interest, defaultVariant, onClose }) 
                             </label>
                             <p className="text-gray-500 text-[11px]">{t('batak.step.spectatorOpenHint')}</p>
                             <p className="text-amber-300/90 text-[11px] bg-amber-500/10 rounded-lg px-3 py-2">
-                                {isTeam ? t('batak.payout.team') : (variant === 'gomme' ? t('batak.payout.gomme', '1. potun tamamını alır.') : t('batak.payout.solo'))}
+                                {isTeam ? t('batak.payout.team') : (variant === 'gomme' ? t('batak.payout.gomme', t('leisure.lz_payoutGomme')) : t('batak.payout.solo'))}
                             </p>
                             <button onClick={createTable} disabled={!canAfford}
                                 className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-3 rounded-xl disabled:opacity-40">
-                                {t('batak.step.create')} ({parsedBet} puan{parsedRating > 0 ? ` + ${parsedRating.toFixed(2)} derece` : ''})
+                                {t('batak.step.create')} ({parsedBet} {t('leisure.lz_pointsWord')}{parsedRating > 0 ? t('leisure.lz_plusRating', { r: parsedRating.toFixed(2) }) : ''})
                             </button>
                         </div>
                     )}

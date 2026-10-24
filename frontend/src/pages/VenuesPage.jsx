@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
@@ -21,11 +22,17 @@ function dateLabel(str) {
 // backend verisine güvenilmez.
 function isPastSlot(date, timeStr) { return new Date(`${date}T${timeStr}:00`).getTime() < Date.now(); }
 
-const SLOT_TYPE_LABEL = { FULL_HOUR: 'Tam Saat', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90 Dakika', VAR_DURATION: 'Esnek Saat', FLEXIBLE: 'Esnek Saat' };
-const PAY_LABEL = { CASH: '💵 Nakit (Kortta)', EFT: '🏦 EFT / Havale', ONLINE: '🌐 Online', CREDIT_CARD: '💳 Kortta Kredi Kartı' };
+function SLOT_TYPE_LABEL(t) {
+    return { FULL_HOUR: t('shell.sh_0606'), HALF_HOUR: t('shell.sh_0051'), NINETY_MIN: t('shell.sh_0607'), VAR_DURATION: t('shell.sh_0610'), FLEXIBLE: t('shell.sh_0610') };
+}
+function PAY_LABEL(t) {
+    return { CASH: t('shell.sh_0121'), EFT: '🏦 EFT / Havale', ONLINE: '🌐 Online', CREDIT_CARD: t('shell.sh_0120') };
+}
 
 // ── Kart Sepeti (üst seviyede, iç içe modal sorunu olmasın) ──────────────────
 function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }) {
+    const { t } = useTranslation();
+
     const [payment, setPayment] = useState('CASH');
     if (!visible) return null;
     const priceOf = (item) => item.slot?.priceByMethod?.[payment] ?? item.slot?.price ?? 0;
@@ -41,7 +48,7 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
                 </div>
 
                 {cart.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-10">Sepetiniz boş.</p>
+                    <p className="text-gray-500 text-sm text-center py-10">{t('shell.sh_0568')}</p>
                 ) : (
                     <>
                         <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
@@ -51,23 +58,23 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
                                         <p className="text-white text-sm font-bold truncate">{item.venue.name} — {item.court.name}</p>
                                         <p className="text-gray-500 text-xs">{dateLabel(item.date)} · {item.slot.start}–{item.slot.end}</p>
                                     </div>
-                                    <span className="text-purple-300 text-sm font-bold shrink-0">{priceOf(item) > 0 ? `${priceOf(item)}₺` : 'Ücretsiz'}</span>
+                                    <span className="text-purple-300 text-sm font-bold shrink-0">{priceOf(item) > 0 ? `${priceOf(item)}₺` : t('shell.sh_0003')}</span>
                                     <button onClick={() => onRemove(item.key)} className="text-red-400 hover:text-red-300 text-lg shrink-0">✕</button>
                                 </div>
                             ))}
                         </div>
 
                         <div className="flex justify-between items-center border-t border-gray-800 pt-3 mb-4">
-                            <span className="text-gray-400 text-sm font-bold">Toplam</span>
-                            <span className="text-white text-lg font-black">{total > 0 ? `${total}₺` : 'Ücretsiz'}</span>
+                            <span className="text-gray-400 text-sm font-bold">{t('shell.sh_0569')}</span>
+                            <span className="text-white text-lg font-black">{total > 0 ? `${total}₺` : t('shell.sh_0003')}</span>
                         </div>
 
-                        <p className="text-gray-400 text-xs font-bold mb-2">Ödeme Yöntemi</p>
+                        <p className="text-gray-400 text-xs font-bold mb-2">{t('shell.sh_0448')}</p>
                         <div className="space-y-1.5 mb-4">
                             {['CASH', 'EFT', 'CREDIT_CARD'].filter(m => m === 'CASH' || cartAccepts(m)).map(m => (
                                 <button key={m} onClick={() => setPayment(m)}
                                     className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-bold border transition ${payment === m ? 'bg-purple-600/30 border-purple-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'}`}>
-                                    {PAY_LABEL[m]}
+                                    {PAY_LABEL(t)[m]}
                                     {payment === m && <span>✓</span>}
                                 </button>
                             ))}
@@ -76,7 +83,7 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
                 )}
 
                 <div className="flex gap-3">
-                    <button onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 hover:bg-gray-700 transition">Kapat</button>
+                    <button onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 hover:bg-gray-700 transition">{t('shell.sh_0491')}</button>
                     {cart.length > 0 && (
                         <button onClick={() => onCheckout(payment)} disabled={checkingOut}
                             className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2.5 rounded-xl disabled:opacity-50 transition hover:opacity-90">
@@ -91,13 +98,15 @@ function CartModal({ visible, cart, onRemove, onCheckout, onClose, checkingOut }
 
 // ── Kort sütunu: bir kortun secili tarihteki slotlari ────────────────────────
 function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
+    const { t } = useTranslation();
+
     const [varStart, setVarStart] = useState(null);
 
     if (!data || data.loading) {
         return (
             <div className="w-44 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
                 <p className="text-white font-bold text-sm mb-2">{court.name}</p>
-                <p className="text-gray-500 text-xs text-center py-6">Yükleniyor...</p>
+                <p className="text-gray-500 text-xs text-center py-6">{t('shell.sh_0379')}</p>
             </div>
         );
     }
@@ -105,7 +114,7 @@ function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
         return (
             <div className="w-44 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
                 <p className="text-white font-bold text-sm mb-2">{court.name}</p>
-                <p className="text-red-400 text-xs text-center py-6">Yüklenemedi</p>
+                <p className="text-red-400 text-xs text-center py-6">{t('shell.sh_0570')}</p>
             </div>
         );
     }
@@ -113,7 +122,7 @@ function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
         return (
             <div className="w-44 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
                 <p className="text-white font-bold text-sm mb-2">{court.name}</p>
-                <p className="text-yellow-400 text-xs text-center py-6">⏳ {data.message || 'Henüz açılmadı'}</p>
+                <p className="text-yellow-400 text-xs text-center py-6">⏳ {data.message || t('shell.sh_0237')}</p>
             </div>
         );
     }
@@ -121,7 +130,7 @@ function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
         return (
             <div className="w-44 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
                 <p className="text-white font-bold text-sm mb-2">{court.name}</p>
-                <p className="text-orange-400 text-xs text-center py-6">🔧 Bakımda</p>
+                <p className="text-orange-400 text-xs text-center py-6">{t('shell.sh_0571')}</p>
             </div>
         );
     }
@@ -133,14 +142,14 @@ function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
             <div className="w-52 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
                 <p className="text-white font-bold text-sm mb-2">{court.name}</p>
                 <div className="space-y-2 max-h-80 overflow-y-auto">
-                    {windows.length === 0 && <p className="text-gray-500 text-xs text-center py-6">Boş pencere yok</p>}
+                    {windows.length === 0 && <p className="text-gray-500 text-xs text-center py-6">{t('shell.sh_0572')}</p>}
                     {windows.map((w, i) => {
                         const isSel = varStart?.start === w.start;
                         return (
                             <div key={i} className={`rounded-lg border p-2 ${isSel ? 'border-purple-500 bg-purple-600/10' : 'border-gray-700'}`}>
                                 <button onClick={() => setVarStart(isSel ? null : w)} className="w-full text-left">
                                     <p className="text-gray-300 text-xs font-bold">{w.start}–{w.end}</p>
-                                    <p className="text-gray-500 text-[10px]">{w.pricePerHour > 0 ? `${w.pricePerHour}₺/saat` : 'Ücretsiz'}</p>
+                                    <p className="text-gray-500 text-[10px]">{w.pricePerHour > 0 ? `${w.pricePerHour}₺/saat` : t('shell.sh_0003')}</p>
                                 </button>
                                 {isSel && (
                                     <div className="flex flex-wrap gap-1 mt-2">
@@ -172,9 +181,9 @@ function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
     return (
         <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
             <p className="text-white font-bold text-sm mb-1">{court.name}</p>
-            <p className="text-gray-600 text-[10px] mb-2">{SLOT_TYPE_LABEL[data.type] || data.type}</p>
+            <p className="text-gray-600 text-[10px] mb-2">{SLOT_TYPE_LABEL(t)[data.type] || data.type}</p>
             <div className="space-y-1.5 max-h-80 overflow-y-auto">
-                {slots.length === 0 && <p className="text-gray-500 text-xs text-center py-6">Slot yok</p>}
+                {slots.length === 0 && <p className="text-gray-500 text-xs text-center py-6">{t('shell.sh_0573')}</p>}
                 {slots.map(s => {
                     const key = `${court.id}_${s.start}`;
                     const inCart = cartKeys.has(key);
@@ -192,7 +201,7 @@ function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
                             }`}>
                             <span className="block">{s.start}–{s.end}</span>
                             <span className="block text-[10px] font-normal opacity-80">
-                                {inCart ? '✓ Sepette' : !s.free ? (s.status === 'PENDING' ? '⏳ Onay Bekliyor' : 'Dolu') : s.maintenance ? '🔧 Bakım' : isPast ? 'Geçmiş' : (s.price > 0 ? `${s.price}₺` : 'Ücretsiz')}
+                                {inCart ? '✓ Sepette' : !s.free ? (s.status === 'PENDING' ? '⏳ Onay Bekliyor' : t('shell.sh_0457')) : s.maintenance ? '🔧 Bakım' : isPast ? 'Geçmiş' : (s.price > 0 ? `${s.price}₺` : t('shell.sh_0003'))}
                             </span>
                         </button>
                     );
@@ -207,6 +216,7 @@ function toTime(m) { return `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`; }
 
 // ── Tesis rezervasyon paneli (arama sonucundaki bir tesise tiklaninca acilir) ──
 function VenueBookingPanel({ venue, onClose, cart, onAddToCart, onOpenCart }) {
+    const { t } = useTranslation();
     const [date, setDate] = useState(DATE_OPTIONS[0]);
     const [slotsByCourt, setSlotsByCourt] = useState({});
 
@@ -230,7 +240,7 @@ function VenueBookingPanel({ venue, onClose, cart, onAddToCart, onOpenCart }) {
     const contactLinks = venue.contactLinks && typeof venue.contactLinks === 'object' ? venue.contactLinks : {};
     const links = [
         { key: 'whatsapp', icon: '💬', label: 'WhatsApp', url: v => { const d = v.replace(/\D/g, ''); return `https://wa.me/${d.startsWith('0') ? '90' + d.slice(1) : d}`; }, value: contactLinks.whatsapp || venue.phone },
-        { key: 'phone', icon: '📞', label: 'Ara', url: v => `tel:${v}`, value: contactLinks.phone || venue.phone },
+        { key: 'phone', icon: '📞', label: t('shell.sh_0048'), url: v => `tel:${v}`, value: contactLinks.phone || venue.phone },
         { key: 'instagram', icon: '📸', label: 'Instagram', url: v => `https://instagram.com/${v.replace('@', '')}`, value: contactLinks.instagram },
     ].filter(l => l.value);
 
@@ -288,6 +298,8 @@ function VenueBookingPanel({ venue, onClose, cart, onAddToCart, onOpenCart }) {
 }
 
 function VenueCard({ venue, onClick }) {
+    const { t } = useTranslation();
+
     return (
         <div onClick={onClick}
             className="bg-gray-900 border border-gray-800 hover:border-purple-500/50 rounded-2xl p-4 cursor-pointer transition">
@@ -306,6 +318,8 @@ function VenueCard({ venue, onClick }) {
 }
 
 export default function VenuesPage() {
+    const { t } = useTranslation();
+
     const navigate = useNavigate();
     const [city, setCity] = useState('');
     const [name, setName] = useState('');
@@ -331,7 +345,7 @@ export default function VenuesPage() {
 
     const handleAddToCart = (venue, court, slot, date) => {
         if (isPastSlot(date, slot.start)) {
-            alert('Geçmiş bir saate rezervasyon yapamazsınız. Lütfen farklı bir saat seçin.');
+            alert(t('shell.sh_0218'));
             return;
         }
         const key = `${venue.id}_${court.id}_${date}_${slot.start}`;
@@ -350,16 +364,16 @@ export default function VenuesPage() {
                 });
                 succeeded.push(item.key);
             } catch (err) {
-                failed.push({ key: item.key, message: err?.response?.data?.message || 'Hata' });
+                failed.push({ key: item.key, message: err?.response?.data?.message || t('shell.sh_0380') });
             }
         }
         setCart(prev => prev.filter(i => !succeeded.includes(i.key)));
         setCheckingOut(false);
         if (failed.length === 0) {
-            alert('✅ Rezervasyon(lar) oluşturuldu!');
+            alert(t('shell.sh_0092'));
             setCartOpen(false);
         } else {
-            alert(`${succeeded.length} rezervasyon başarılı, ${failed.length} başarısız:\n` + failed.map(f => f.message).join('\n'));
+            alert(t('shell.sh_0646', { p0: succeeded.length, p1: failed.length }) + failed.map(f => f.message).join('\n'));
         }
     };
 
@@ -369,20 +383,20 @@ export default function VenuesPage() {
 
             <div className="w-full px-[5px] py-6">
                 <div className="flex flex-wrap gap-2 mb-6">
-                    <input value={city} onChange={e => setCity(e.target.value)} placeholder="Şehir"
+                    <input value={city} onChange={e => setCity(e.target.value)} placeholder={t('shell.sh_0024')}
                         onKeyDown={e => e.key === 'Enter' && search()}
                         className="flex-1 min-w-[140px] bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500" />
-                    <input value={name} onChange={e => setName(e.target.value)} placeholder="Tesis adı"
+                    <input value={name} onChange={e => setName(e.target.value)} placeholder={t('shell.sh_0360')}
                         onKeyDown={e => e.key === 'Enter' && search()}
                         className="flex-1 min-w-[140px] bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500" />
                     <button onClick={search} disabled={loading}
                         className="bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold px-5 py-2.5 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50">
-                        {loading ? 'Aranıyor...' : '🔍 Ara'}
+                        {loading ? t('shell.sh_0159') : t('shell.sh_0671')}
                     </button>
                 </div>
 
                 {searched && !loading && venues.length === 0 && (
-                    <p className="text-gray-500 text-center py-16">Sonuç bulunamadı.</p>
+                    <p className="text-gray-500 text-center py-16">{t('shell.sh_0574')}</p>
                 )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

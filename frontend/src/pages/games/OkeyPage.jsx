@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import Navbar from '../../components/Navbar';
@@ -88,6 +89,8 @@ function TileBack({ small }) {
 // Özel masa bekleme odası — kurucu 3. koltuğu bir arkadaşıyla doldurana kadar burada
 // bekler: masa kodunu paylaşabilir veya doğrudan arkadaş listesinden davet gönderebilir.
 function WaitingRoom({ state, myId, tableId, onExit }) {
+    const { t } = useTranslation();
+
     const [friends, setFriends] = useState([]);
     const [loadingFriends, setLoadingFriends] = useState(true);
     const [onlineIds, setOnlineIds] = useState(new Set());
@@ -117,12 +120,12 @@ function WaitingRoom({ state, myId, tableId, onExit }) {
     return (
         <div className="max-w-md mx-auto">
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center mb-4">
-                <p className="text-gray-400 text-xs font-bold mb-2">Masa Kodu</p>
+                <p className="text-gray-400 text-xs font-bold mb-2">{t('leisure.lz_tableCode')}</p>
                 <p className="text-white text-3xl font-black tracking-[0.3em] mb-3">{state.code}</p>
                 <button onClick={copyCode} className="bg-gray-800 border border-gray-700 text-gray-300 font-bold px-4 py-2 rounded-xl text-xs">
-                    {copied ? '✓ Kopyalandı' : 'Kodu Kopyala'}
+                    {copied ? t('leisure.lz_copied') : t('leisure.lz_copyCode')}
                 </button>
-                <p className="text-gray-500 text-[11px] mt-3">Bu kodu paylaşarak arkadaşların masaya katılabilir.</p>
+                <p className="text-gray-500 text-[11px] mt-3">{t('leisure.lz_shareCodeHint')}</p>
             </div>
 
             <div className="flex gap-1.5 mb-4">
@@ -131,12 +134,12 @@ function WaitingRoom({ state, myId, tableId, onExit }) {
                         {seat.open ? (
                             <>
                                 <div className="w-7 h-7 rounded-full border-2 border-dashed border-gray-700" />
-                                <p className="text-[10px] text-gray-600 font-bold">Boş</p>
+                                <p className="text-[10px] text-gray-600 font-bold">{t('leisure.lz_emptySeat')}</p>
                             </>
                         ) : (
                             <>
                                 <Avatar user={seat} size="xs" />
-                                <p className="text-[10px] font-bold text-white truncate w-full">{seat.userId === myId ? 'Sen' : seat.username}</p>
+                                <p className="text-[10px] font-bold text-white truncate w-full">{seat.userId === myId ? t('leisure.lz_you') : seat.username}</p>
                             </>
                         )}
                     </div>
@@ -144,11 +147,11 @@ function WaitingRoom({ state, myId, tableId, onExit }) {
             </div>
 
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
-                <p className="text-gray-400 text-xs font-bold mb-2">Arkadaşlarını Davet Et</p>
+                <p className="text-gray-400 text-xs font-bold mb-2">{t('leisure.lz_inviteFriends')}</p>
                 {loadingFriends ? (
-                    <p className="text-gray-600 text-xs text-center py-3">Yükleniyor...</p>
+                    <p className="text-gray-600 text-xs text-center py-3">{t('leisure.lz_loading')}</p>
                 ) : friends.length === 0 ? (
-                    <p className="text-gray-600 text-xs text-center py-3">Henüz arkadaşın yok.</p>
+                    <p className="text-gray-600 text-xs text-center py-3">{t('leisure.lz_noFriendsYet')}</p>
                 ) : (
                     <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
                         {friends.map(f => {
@@ -159,11 +162,11 @@ function WaitingRoom({ state, myId, tableId, onExit }) {
                                     <Avatar user={f} size="xs" />
                                     <div className="flex-1 min-w-0">
                                         <p className="text-white text-xs font-bold truncate">{f.fullName || f.username}</p>
-                                        <p className="text-[10px]" style={{ color: onlineIds.has(f.id) ? '#4ade80' : '#6b7280' }}>{onlineIds.has(f.id) ? '● Çevrimiçi' : '○ Çevrimdışı'}</p>
+                                        <p className="text-[10px]" style={{ color: onlineIds.has(f.id) ? '#4ade80' : '#6b7280' }}>{onlineIds.has(f.id) ? t('leisure.lz_online') : t('leisure.lz_offline')}</p>
                                     </div>
                                     <button onClick={() => inviteFriend(f.id)} disabled={alreadySeated || isInvited}
                                         className={`text-[11px] font-bold px-3 py-1.5 rounded-lg flex-shrink-0 ${alreadySeated || isInvited ? 'bg-gray-800 text-gray-600' : 'bg-purple-600 text-white'}`}>
-                                        {alreadySeated ? 'Masada' : isInvited ? 'Gönderildi' : 'Davet Et'}
+                                        {alreadySeated ? t('leisure.lz_atTable') : isInvited ? t('leisure.lz_sent') : t('leisure.lz_invite')}
                                     </button>
                                 </div>
                             );
@@ -172,12 +175,14 @@ function WaitingRoom({ state, myId, tableId, onExit }) {
                 )}
             </div>
 
-            <button onClick={onExit} className="w-full bg-gray-800 border border-gray-700 text-gray-300 font-bold py-2.5 rounded-xl text-sm">Masadan Ayrıl</button>
+            <button onClick={onExit} className="w-full bg-gray-800 border border-gray-700 text-gray-300 font-bold py-2.5 rounded-xl text-sm">{t('leisure.lz_leaveTable')}</button>
         </div>
     );
 }
 
 function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
+    const { t } = useTranslation();
+
     const [state, setState] = useState(null);
     const [hand, setHand] = useState([]);
     const [roundEnd, setRoundEnd] = useState(null);
@@ -233,7 +238,7 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
         const offHand = onSocket('okey:hand', (data) => setHand(data.hand || []));
         const offRoundEnd = onSocket('okey:roundEnd', (data) => setRoundEnd(data));
         const offGameEnd = onSocket('okey:gameEnd', (data) => setGameEnd(data));
-        const offErr = onSocket('okey:error', (data) => alert(data?.message || 'Bir hata oluştu.'));
+        const offErr = onSocket('okey:error', (data) => alert(data?.message || t('leisure.lz_genericError')));
         return () => { offState(); offHand(); offRoundEnd(); offGameEnd(); offErr(); };
     }, [tableId]);
 
@@ -262,7 +267,7 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
     const dragHand = useDragOrTap((tile) => onTileClickRef.current(tile), discardZoneRef);
     const dragDraw = useDragOrTap((payload) => onDrawRef.current(payload), handZoneRef);
 
-    if (!state) return <p className="text-gray-500 text-sm text-center py-16">Masaya bağlanılıyor...</p>;
+    if (!state) return <p className="text-gray-500 text-sm text-center py-16">{t('leisure.lz_connectingTable')}</p>;
 
     if (state.phase === 'waiting') {
         return <WaitingRoom state={state} myId={myId} tableId={tableId} onExit={() => { getSocket()?.emit('okey:leaveTable', { tableId }); onExit(); }} />;
@@ -278,20 +283,20 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
     const canAct = state.phase === 'playing' && isMyTurn && state.awaitingDiscard;
     const isHighlighted = (tile) => isJokerTile(tile) || (tileColorCode(tile) === state.okeyColor && Number(tileNumLabel(tile)) === state.okeyNumber);
 
-    const notYourTurnMsg = () => (!isMyTurn ? 'Sıra sende değil' : (state.awaitingDiscard ? 'Önce taşını atmalısın' : 'Önce taş çekmelisin'));
+    const notYourTurnMsg = () => (!isMyTurn ? t('leisure.lz_okeyNotYourTurn') : (state.awaitingDiscard ? t('leisure.lz_okeyDiscardFirstHint') : t('leisure.lz_okeyDrawFirstHint')));
     const drawFromDeck = () => {
         if (!canDraw) return showHint(notYourTurnMsg());
         getSocket()?.emit('okey:drawTile', { tableId, source: 'deck' });
     };
     const drawFromDiscard = () => {
         if (!canDraw) return showHint(notYourTurnMsg());
-        if (!state.discardTop) return showHint('Atım yığını boş');
+        if (!state.discardTop) return showHint(t('leisure.lz_discardEmpty'));
         getSocket()?.emit('okey:drawTile', { tableId, source: 'discard' });
     };
     const onTileClick = (tile) => {
         if (!canAct) { flashRejected(tile); return showHint(notYourTurnMsg()); }
         if (declareMode) {
-            if (confirm('Bu taşı atarak elini açmak istediğine emin misin?')) getSocket()?.emit('okey:declareWin', { tableId, tile });
+            if (confirm(t('leisure.lz_okeyDeclareWinConfirmMsg'))) getSocket()?.emit('okey:declareWin', { tableId, tile });
             setDeclareMode(false);
         } else {
             getSocket()?.emit('okey:discardTile', { tableId, tile });
@@ -299,7 +304,7 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
     };
     const goBack = () => {
         const isActiveWager = (state.betAmount > 0 || state.ratingAmount > 0) && state.phase !== 'finished';
-        if (isActiveWager && !confirm(LEAVE_WARNING)) return;
+        if (isActiveWager && !confirm(t('leisure.lz_leaveWarning'))) return;
         getSocket()?.emit('okey:leaveTable', { tableId });
         onExit();
     };
@@ -332,11 +337,11 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
                 @keyframes tilePopIn { 0% { transform: scale(0.4); opacity: 0; } 65% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
             `}</style>
             <div className="flex items-center justify-between mb-2">
-                <button onClick={goBack} className="text-white text-sm">‹ Ayrıl</button>
+                <button onClick={goBack} className="text-white text-sm">{t('leisure.lz_leaveBack')}</button>
                 <p className="text-white text-sm font-bold">El {state.roundNumber}/{state.totalRounds}</p>
                 {state.indicator ? (
                     <div className="bg-white/90 rounded-lg px-2 py-1 flex flex-col items-center gap-0.5">
-                        <span className="text-[9px] font-black text-gray-900">Gösterge</span>
+                        <span className="text-[9px] font-black text-gray-900">{t('leisure.lz_indicator')}</span>
                         <OkeyTile tile={state.indicator} small />
                     </div>
                 ) : <div className="w-16" />}
@@ -348,7 +353,7 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
                         style={seat.seat === state.turn ? { backgroundColor: '#fbbf2433', borderColor: '#fbbf24' } : { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'transparent' }}>
                         <Avatar user={seat} size="xs" ring={seat.seat === state.turn} />
                         <p className="text-[10px] font-bold truncate w-full" style={{ color: seat.seat === state.turn ? '#fde047' : '#fff' }}>
-                            {seat.userId === myId ? 'Sen' : seat.username}{seat.seat === state.dealerIndex ? ' 🎯' : ''}{!seat.connected ? ' 🤖' : ''}
+                            {seat.userId === myId ? t('leisure.lz_you') : seat.username}{seat.seat === state.dealerIndex ? ' 🎯' : ''}{!seat.connected ? ' 🤖' : ''}
                         </p>
                         <p className="text-sm font-black" style={{ color: state.scores[seat.seat] < 0 ? '#f87171' : '#4ade80' }}>{state.scores[seat.seat]}</p>
                     </div>
@@ -391,7 +396,7 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
                                 background: 'repeating-linear-gradient(45deg, #7a1730, #7a1730 4px, #5c1024 4px, #5c1024 8px)',
                                 border: '1px solid #d4af37', boxShadow: 'inset 0 0 0 2px rgba(0,0,0,.25), 0 3px 6px rgba(0,0,0,.5)',
                             }} />
-                            <span className="text-white text-[11px] font-bold mt-1">{state.deckCount} taş</span>
+                            <span className="text-white text-[11px] font-bold mt-1">{state.deckCount} {t('leisure.lz_tiles')}</span>
                         </button>
                     </div>
                     <div className="flex flex-col items-center gap-1 w-24">
@@ -409,7 +414,7 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
 
             <div className={`text-center mt-2 rounded-xl py-2 transition ${isMyTurn ? 'bg-amber-500/20' : ''}`}>
                 <p className={isMyTurn ? 'text-amber-300 font-black' : 'text-amber-300/80 text-xs font-bold'} style={isMyTurn ? { fontSize: '1rem' } : undefined}>
-                    {isMyTurn ? (canDraw ? 'Sıra sende — bir taş çek' : 'Sıra sende — bir taş at ya da elini aç') : `${seatByIdx(state.turn).username || ''} oynuyor...`}
+                    {isMyTurn ? (canDraw ? t('leisure.lz_okeyYourDraw') : t('leisure.lz_okeyDiscardOrOpen')) : `${seatByIdx(state.turn).username || ''} ${t('leisure.lz_playing')}`}
                 </p>
                 {hint && <p className="text-red-400 text-sm font-black mt-1 bg-red-500/10 rounded-lg py-1 mx-3">⚠️ {hint}</p>}
             </div>
@@ -432,17 +437,17 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
                         ))}
                     </div>
                     <div ref={discardZoneRef} className="flex flex-col items-center gap-1 pb-2">
-                        <span className="text-white/40 text-[9px] font-bold">SEN</span>
+                        <span className="text-white/40 text-[9px] font-bold">{t('leisure.lz_youCaps')}</span>
                         {renderDiscardSlot(mySeat)}
                     </div>
                 </div>
                 {canAct && (
                     <button onClick={() => setDeclareMode(v => !v)}
                         className={`mt-2 text-xs font-bold px-3 py-1.5 rounded-lg border transition ${declareMode ? 'bg-amber-500 border-amber-400 text-black' : 'bg-white/10 border-white/20 text-amber-300'}`}>
-                        {declareMode ? '✓ Elini aç modu — bir taş seç' : '🏆 Elini Aç'}
+                        {declareMode ? t('leisure.lz_okeyDeclareMode') : t('leisure.lz_okeyDeclareBtn')}
                     </button>
                 )}
-                <p className="text-white/50 text-[10px] mt-1">Basılı tut + sürükle (veya tıkla): at · Uzun basılı tutup elini aç modunda seç</p>
+                <p className="text-white/50 text-[10px] mt-1">{t('leisure.lz_okeyDragHintWeb')}</p>
             </div>
 
             {dragHand.ghost && (
@@ -461,20 +466,20 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
             {roundEnd && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
                     <div className="bg-gray-900 rounded-2xl p-6 w-80">
-                        <p className="text-white font-black text-lg text-center mb-3">{roundEnd.draw ? 'El Yandı' : 'El Bitti'}</p>
+                        <p className="text-white font-black text-lg text-center mb-3">{roundEnd.draw ? t('leisure.lz_handBurned') : t('leisure.lz_handOver')}</p>
                         {roundEnd.draw ? (
-                            <p className="text-gray-400 text-sm text-center">Deste bitti, kimse açamadı.</p>
+                            <p className="text-gray-400 text-sm text-center">{t('leisure.lz_deckEmpty')}</p>
                         ) : (
                             <>
-                                <p className="text-gray-300 text-sm text-center mb-2">{seatByIdx(roundEnd.winner).username} {roundEnd.ciftOkey ? '(Çift Okey!) ' : ''}kazandı</p>
+                                <p className="text-gray-300 text-sm text-center mb-2">{seatByIdx(roundEnd.winner).username} {roundEnd.ciftOkey ? t('leisure.lz_ciftOkeyParenSp') : ''}{t('leisure.lz_won')}</p>
                                 {state.seats.map(seat => (
                                     <p key={seat.seat} className="text-gray-400 text-xs text-center">
-                                        {seat.userId === myId ? 'Sen' : seat.username}: {roundEnd.delta[seat.seat] >= 0 ? '+' : ''}{roundEnd.delta[seat.seat]} → {roundEnd.scores[seat.seat]}
+                                        {seat.userId === myId ? t('leisure.lz_you') : seat.username}: {roundEnd.delta[seat.seat] >= 0 ? '+' : ''}{roundEnd.delta[seat.seat]} → {roundEnd.scores[seat.seat]}
                                     </p>
                                 ))}
                             </>
                         )}
-                        <p className="text-gray-500 text-[11px] text-center mt-3">Yeni el birazdan başlıyor...</p>
+                        <p className="text-gray-500 text-[11px] text-center mt-3">{t('leisure.lz_okeyNextRoundSoon')}</p>
                     </div>
                 </div>
             )}
@@ -482,20 +487,20 @@ function OkeyBoard({ tableId, myId, onExit, onActiveWagerChange }) {
             {gameEnd && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
                     <div className="bg-gray-900 rounded-2xl p-6 w-80">
-                        <p className="text-white font-black text-lg text-center mb-3">🏆 Oyun Bitti</p>
+                        <p className="text-white font-black text-lg text-center mb-3">{t('leisure.lz_gameOver')}</p>
                         {state.seats.map(seat => ({ seat, score: gameEnd.scores[seat.seat] }))
                             .sort((a, b) => b.score - a.score)
                             .map(({ seat, score }, i) => (
                                 <p key={seat.seat} className="text-gray-300 text-sm text-center">
-                                    {i === 0 ? '🥇 ' : `${i + 1}. `}{seat.userId === myId ? 'Sen' : seat.username}: {score}
-                                    {gameEnd.payouts?.points?.[seat.seat] > 0 && <span className="text-emerald-400 font-bold"> (+{gameEnd.payouts.points[seat.seat]} puan)</span>}
-                                    {gameEnd.payouts?.rating?.[seat.seat] > 0 && <span className="text-sky-400 font-bold"> (+{gameEnd.payouts.rating[seat.seat].toFixed(2)} derece)</span>}
+                                    {i === 0 ? '🥇 ' : `${i + 1}. `}{seat.userId === myId ? t('leisure.lz_you') : seat.username}: {score}
+                                    {gameEnd.payouts?.points?.[seat.seat] > 0 && <span className="text-emerald-400 font-bold">{t('leisure.lz_plusPointsParen', { n: gameEnd.payouts.points[seat.seat] })}</span>}
+                                    {gameEnd.payouts?.rating?.[seat.seat] > 0 && <span className="text-sky-400 font-bold">{t('leisure.lz_plusRatingParen', { n: gameEnd.payouts.rating[seat.seat].toFixed(2) })}</span>}
                                 </p>
                             ))}
                         {gameEnd.payouts && gameEnd.payouts.points[mySeat] === 0 && gameEnd.payouts.rating[mySeat] === 0 && (state.betAmount > 0 || state.ratingAmount > 0) && (
-                            <p className="text-red-400 text-xs text-center mt-2">Bahis puanını/dereceni kaybettin.</p>
+                            <p className="text-red-400 text-xs text-center mt-2">{t('leisure.lz_lostStake')}</p>
                         )}
-                        <button onClick={goBack} className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl mt-4">Geri Dön</button>
+                        <button onClick={goBack} className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl mt-4">{t('leisure.lz_backHome')}</button>
                     </div>
                 </div>
             )}
@@ -507,6 +512,8 @@ const BET_TIERS = [50, 100, 250, 500];
 const RATING_TIERS = [0, 0.10, 0.25, 0.50];
 
 function OkeyLobby({ myName, onMatched }) {
+    const { t } = useTranslation();
+
     const [searching, setSearching] = useState(false);
     const [queuePos, setQueuePos] = useState(null);
     const [difficulty, setDifficulty] = useState('medium');
@@ -536,7 +543,7 @@ function OkeyLobby({ myName, onMatched }) {
         setAddingActivity(true);
         api.post('/interests/add', { category: 'GAMES', subCategory: 'okey' })
             .then(loadInterest)
-            .catch(() => alert('Aktivite eklenemedi, tekrar deneyin.'))
+            .catch(() => alert(t('leisure.lz_activityAddFailed')))
             .finally(() => setAddingActivity(false));
     };
 
@@ -554,21 +561,21 @@ function OkeyLobby({ myName, onMatched }) {
             setSearching(false);
             if (data?.code === 'ACTIVITY_REQUIRED') { setInterest(null); return; }
             if (data?.code === 'INSUFFICIENT_POINTS' || data?.code === 'INSUFFICIENT_RATING') { loadInterest(); }
-            alert(data?.message || 'Bir hata oluştu.');
+            alert(data?.message || t('leisure.lz_genericError'));
         });
         return () => { offQueued(); offMatched(); offErr(); };
     }, [onMatched]);
 
     const startSearch = () => {
         const socket = getSocket();
-        if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
+        if (!socket) return alert(t('leisure.lz_noConnection'));
         setSearching(true); setQueuePos(null);
         socket.emit('okey:findMatch', { betAmount, ratingAmount });
     };
     const cancelSearch = () => { getSocket()?.emit('okey:cancelFindMatch'); setSearching(false); setQueuePos(null); };
     const startVsBots = () => {
         const socket = getSocket();
-        if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
+        if (!socket) return alert(t('leisure.lz_noConnection'));
         socket.emit('okey:playVsBots', { difficulty });
     };
     const parsedPrivateBet = Math.max(0, Math.floor(Number(privateBetAmount) || 0));
@@ -579,7 +586,7 @@ function OkeyLobby({ myName, onMatched }) {
 
     const createPrivateTable = () => {
         const socket = getSocket();
-        if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
+        if (!socket) return alert(t('leisure.lz_noConnection'));
         socket.emit('okey:createPrivateTable', {
             betAmount: parsedPrivateBet, ratingAmount: parsedPrivateRating,
             ratingRangeMin: parsedRangeMin, ratingRangeMax: parsedRangeMax,
@@ -587,13 +594,13 @@ function OkeyLobby({ myName, onMatched }) {
     };
     const joinByCode = () => {
         const socket = getSocket();
-        if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
+        if (!socket) return alert(t('leisure.lz_noConnection'));
         if (!joinCode.trim()) return;
         socket.emit('okey:joinByCode', { code: joinCode.trim() });
     };
 
     if (interest === undefined) {
-        return <p className="text-gray-500 text-sm text-center py-16">Yükleniyor...</p>;
+        return <p className="text-gray-500 text-sm text-center py-16">{t('leisure.lz_loading')}</p>;
     }
 
     if (interest === null) {
@@ -601,10 +608,10 @@ function OkeyLobby({ myName, onMatched }) {
             <div className="max-w-md mx-auto">
                 <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center">
                     <p className="text-5xl mb-3">🀄</p>
-                    <p className="text-white font-bold mb-2">Okey oynamak için önce bu oyunu aktivite olarak ekle</p>
-                    <p className="text-gray-400 text-xs mb-4">Eklediğinde 2000 puanla başlarsın. Bu aktiviteyi daha sonra silemezsin, sadece gizleyebilirsin.</p>
+                    <p className="text-white font-bold mb-2">{t('leisure.lz_okeyAddActivity')}</p>
+                    <p className="text-gray-400 text-xs mb-4">{t('leisure.lz_okeyAddActivityDesc')}</p>
                     <button onClick={addActivity} disabled={addingActivity} className="w-full bg-purple-600 text-white font-bold py-3 rounded-xl disabled:opacity-50">
-                        {addingActivity ? '...' : 'Aktivitelerime Ekle ve Başla (2000 puan)'}
+                        {addingActivity ? '...' : t('leisure.lz_addActivityStart')}
                     </button>
                 </div>
             </div>
@@ -612,92 +619,92 @@ function OkeyLobby({ myName, onMatched }) {
     }
 
     const canAfford = interest.walletPoints >= betAmount && interest.skillRating >= ratingAmount && (betAmount > 0 || ratingAmount > 0);
-    const stakeLabel = `${betAmount} puan${ratingAmount > 0 ? ` + ${ratingAmount.toFixed(2)} derece` : ''}`;
+    const stakeLabel = `${betAmount} ${t('leisure.lz_pointsWord')}${ratingAmount > 0 ? t('leisure.lz_plusRating', { r: ratingAmount.toFixed(2) }) : ''}`;
 
     return (
         <div className="max-w-md mx-auto">
             <div className="flex items-center justify-center gap-3 mb-4">
-                <span className="text-amber-400 font-black text-lg">🪙 {interest.walletPoints} <span className="text-gray-500 text-xs font-normal">puan</span></span>
-                <span className="text-sky-400 font-black text-lg">⭐ {interest.skillRating?.toFixed(2)} <span className="text-gray-500 text-xs font-normal">derece</span></span>
+                <span className="text-amber-400 font-black text-lg">🪙 {interest.walletPoints} <span className="text-gray-500 text-xs font-normal">{t('leisure.lz_pointsWord')}</span></span>
+                <span className="text-sky-400 font-black text-lg">⭐ {interest.skillRating?.toFixed(2)} <span className="text-gray-500 text-xs font-normal">{t('leisure.lz_ratingWord')}</span></span>
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center mb-4">
                 <p className="text-5xl mb-3">🀄</p>
-                <p className="text-gray-400 text-xs font-bold mb-2">Puan Bahsi</p>
+                <p className="text-gray-400 text-xs font-bold mb-2">{t('leisure.lz_pointStake')}</p>
                 <div className="flex gap-2 justify-center mb-3">
                     {[0, ...BET_TIERS].map(amount => (
                         <button key={amount} onClick={() => setBetAmount(amount)} disabled={interest.walletPoints < amount}
                             className={`px-3 py-2 rounded-lg text-xs font-bold border transition disabled:opacity-30 ${betAmount === amount ? 'bg-amber-500 border-amber-400 text-black' : 'bg-gray-800 border-gray-700 text-gray-400'}`}>
-                            {amount === 0 ? 'Yok' : amount}
+                            {amount === 0 ? t('leisure.lz_none') : amount}
                         </button>
                     ))}
                 </div>
-                <p className="text-gray-400 text-xs font-bold mb-2">Derece Bahsi</p>
+                <p className="text-gray-400 text-xs font-bold mb-2">{t('leisure.lz_ratingStake')}</p>
                 <div className="flex gap-2 justify-center mb-4">
                     {RATING_TIERS.map(amount => (
                         <button key={amount} onClick={() => setRatingAmount(amount)} disabled={interest.skillRating < amount}
                             className={`px-3 py-2 rounded-lg text-xs font-bold border transition disabled:opacity-30 ${ratingAmount === amount ? 'bg-sky-500 border-sky-400 text-black' : 'bg-gray-800 border-gray-700 text-gray-400'}`}>
-                            {amount === 0 ? 'Yok' : amount.toFixed(2)}
+                            {amount === 0 ? t('leisure.lz_none') : amount.toFixed(2)}
                         </button>
                     ))}
                 </div>
                 {searching ? (
                     <>
-                        <p className="text-white font-bold mb-3">Rakip aranıyor{queuePos ? ` (${queuePos}/4)` : ''}...</p>
-                        <button onClick={cancelSearch} className="bg-gray-800 border border-gray-700 text-gray-300 font-bold px-4 py-2 rounded-xl text-sm">Vazgeç</button>
+                        <p className="text-white font-bold mb-3">{t('leisure.lz_searching')}{queuePos ? ` (${queuePos}/4)` : ''}...</p>
+                        <button onClick={cancelSearch} className="bg-gray-800 border border-gray-700 text-gray-300 font-bold px-4 py-2 rounded-xl text-sm">{t('leisure.lz_cancel')}</button>
                     </>
                 ) : (
                     <button onClick={startSearch} disabled={!canAfford} className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-3 rounded-xl disabled:opacity-40">
-                        🎯 Rakip Bul (4 kişilik, {stakeLabel} bahis)
+                        {t('leisure.lz_findMatchStake', { stake: stakeLabel })}
                     </button>
                 )}
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
-                <p className="text-gray-400 text-xs font-bold mb-2">👥 Masa Kur (Arkadaşlarınla)</p>
+                <p className="text-gray-400 text-xs font-bold mb-2">{t('leisure.lz_createWithFriends')}</p>
 
-                <label className="block text-gray-500 text-[11px] font-bold mb-1">Puan Bahsi (1'den istediğin kadar)</label>
+                <label className="block text-gray-500 text-[11px] font-bold mb-1">{t('leisure.lz_pointStakeAny')}</label>
                 <input type="number" min="0" value={privateBetAmount} onChange={e => setPrivateBetAmount(e.target.value)}
-                    placeholder="Örn. 250" className="w-full bg-gray-800 border border-gray-700 text-white text-sm font-bold rounded-lg px-3 py-2 mb-1" />
+                    placeholder={t('leisure.lz_phExamplePoints')} className="w-full bg-gray-800 border border-gray-700 text-white text-sm font-bold rounded-lg px-3 py-2 mb-1" />
                 {interest && parsedPrivateBet > interest.walletPoints && (
-                    <p className="text-red-400 text-[11px] mb-2">Bakiyende bu kadar puan yok ({interest.walletPoints} puanın var).</p>
+                    <p className="text-red-400 text-[11px] mb-2">{t('leisure.lz_notEnoughPoints', { n: interest.walletPoints })}</p>
                 )}
 
                 <label className="flex items-center gap-2 text-gray-400 text-xs font-bold mt-2 mb-2">
                     <input type="checkbox" checked={wagerRating} onChange={e => setWagerRating(e.target.checked)} />
-                    Ayrıca derece de bahse girsin
+                    {t('leisure.lz_alsoRating')}
                 </label>
                 {wagerRating && (
                     <>
                         <input type="number" min="0" max="5" step="0.01" value={privateRatingAmount} onChange={e => setPrivateRatingAmount(e.target.value)}
-                            placeholder="Örn. 0.25" className="w-full bg-gray-800 border border-gray-700 text-white text-sm font-bold rounded-lg px-3 py-2 mb-1" />
+                            placeholder={t('leisure.lz_phExampleRating')} className="w-full bg-gray-800 border border-gray-700 text-white text-sm font-bold rounded-lg px-3 py-2 mb-1" />
                         {interest && parsedPrivateRating > interest.skillRating && (
-                            <p className="text-red-400 text-[11px] mb-2">Bu kadar dereceye sahip değilsin ({interest.skillRating?.toFixed(2)}).</p>
+                            <p className="text-red-400 text-[11px] mb-2">{t('leisure.lz_notEnoughRating', { n: interest.skillRating?.toFixed(2) })}</p>
                         )}
                     </>
                 )}
 
-                <label className="block text-gray-500 text-[11px] font-bold mt-2 mb-1">Rakip Derece Aralığı (isteğe bağlı — sadece bu aralıktaki oyuncular katılabilir)</label>
+                <label className="block text-gray-500 text-[11px] font-bold mt-2 mb-1">{t('leisure.lz_ratingRangeOptional')}</label>
                 <div className="flex gap-2 mb-3">
                     <input type="number" min="0" max="5" step="0.01" value={ratingRangeMin} onChange={e => setRatingRangeMin(e.target.value)}
-                        placeholder="Min (örn. 1.50)" className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-2" />
+                        placeholder={t('leisure.lz_phMinRating')} className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-2" />
                     <input type="number" min="0" max="5" step="0.01" value={ratingRangeMax} onChange={e => setRatingRangeMax(e.target.value)}
-                        placeholder="Max (örn. 2.50)" className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-2" />
+                        placeholder={t('leisure.lz_phMaxRating')} className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-2" />
                 </div>
 
                 <button onClick={createPrivateTable} disabled={!canAffordPrivate} className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl text-sm mb-3 disabled:opacity-40">
-                    Masa Kur ({parsedPrivateBet} puan{parsedPrivateRating > 0 ? ` + ${parsedPrivateRating.toFixed(2)} derece` : ''} bahis)
+                    {t('leisure.lz_tableStakeBtn', { points: parsedPrivateBet, extra: parsedPrivateRating > 0 ? t('leisure.lz_plusRating', { r: parsedPrivateRating.toFixed(2) }) : '' })}
                 </button>
                 <div className="flex gap-2">
-                    <input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} placeholder="Masa Kodu"
+                    <input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} placeholder={t('leisure.lz_tableCode')}
                         maxLength={5} className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm font-bold tracking-widest text-center rounded-lg px-2 py-2 placeholder:text-gray-600 placeholder:tracking-normal placeholder:font-normal" />
                     <button onClick={joinByCode} className="bg-gray-800 border border-gray-700 text-white font-bold px-4 py-2 rounded-lg text-sm hover:bg-gray-700 transition">
-                        Katıl
+                        {t('leisure.lz_join')}
                     </button>
                 </div>
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-                <p className="text-gray-400 text-xs font-bold mb-2">🤖 Botlara Karşı Oyna (puansız)</p>
+                <p className="text-gray-400 text-xs font-bold mb-2">{t('leisure.lz_playVsBotsFree')}</p>
                 <div className="flex gap-2 mb-3">
-                    {[['easy', 'Kolay'], ['medium', 'Orta'], ['hard', 'Zor'], ['expert', 'Çok Zor']].map(([k, l]) => (
+                    {[['easy', t('leisure.lz_diffEasy')], ['medium', t('leisure.lz_diffMedium')], ['hard', t('leisure.lz_diffHard')], ['expert', t('leisure.lz_diffExpert')]].map(([k, l]) => (
                         <button key={k} onClick={() => setDifficulty(k)}
                             className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${difficulty === k ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400'}`}>
                             {l}
@@ -705,16 +712,17 @@ function OkeyLobby({ myName, onMatched }) {
                     ))}
                 </div>
                 <button onClick={startVsBots} className="w-full bg-gray-800 border border-gray-700 text-white font-bold py-2.5 rounded-xl text-sm hover:bg-gray-700 transition">
-                    Botlara Karşı Başla
+                    {t('leisure.lz_startVsBots')}
                 </button>
             </div>
         </div>
     );
 }
 
-const LEAVE_WARNING = 'Oyundan çıkarsan otomatik kaybetmiş sayılacaksın, puanın iade edilmeyecek. Emin misin?';
 
 function OkeyPage() {
+    const { t } = useTranslation();
+
     const navigate = useNavigate();
     const user = useSelector(s => s.auth.user);
     // Sayfa yenilenince redux'taki user null kalıyor (login akışı dışında hiçbir yer
@@ -742,17 +750,17 @@ function OkeyPage() {
     }, [activeWager]);
 
     const handleBack = () => {
-        if (activeWager && !confirm(LEAVE_WARNING)) return;
+        if (activeWager && !confirm(t('leisure.lz_leaveWarning'))) return;
         navigate(-1);
     };
 
     return (
         <div className="min-h-screen bg-gray-950">
-            <Navbar onBack={handleBack} title="Okey" />
+            <Navbar onBack={handleBack} title={t('leisure.lz_okeyName')} />
             <div className="px-4 py-6">
                 {tableId
                     ? <OkeyBoard tableId={tableId} myId={myId} onExit={() => setTableId(null)} onActiveWagerChange={setActiveWager} />
-                    : <OkeyLobby myName={user?.fullName || user?.username || 'Oyuncu'} onMatched={setTableId} />}
+                    : <OkeyLobby myName={user?.fullName || user?.username || t('leisure.lz_player')} onMatched={setTableId} />}
             </div>
         </div>
     );

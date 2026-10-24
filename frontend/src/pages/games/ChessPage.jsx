@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { Chess } from 'chess.js';
@@ -16,6 +17,8 @@ const DARK_SQ = '#a97756';
 function squareName(file, rank) { return `${FILES[file]}${rank + 1}`; }
 
 function ChessBoard({ tableId, myId, onExit }) {
+    const { t } = useTranslation();
+
     const [state, setState] = useState(null);
     const [gameEnd, setGameEnd] = useState(null);
     const [selected, setSelected] = useState(null);
@@ -25,7 +28,7 @@ function ChessBoard({ tableId, myId, onExit }) {
         getSocket()?.emit('chess:getState', { tableId });
         const offState = onSocket('chess:state', (data) => { if (data.tableId === tableId) { setState(data); setSelected(null); } });
         const offEnd = onSocket('chess:gameEnd', (data) => setGameEnd(data));
-        const offErr = onSocket('chess:error', (data) => alert(data?.message || 'Bir hata oluştu.'));
+        const offErr = onSocket('chess:error', (data) => alert(data?.message || t('leisure.lz_genericError')));
         return () => { offState(); offEnd(); offErr(); };
     }, [tableId]);
 
@@ -43,7 +46,7 @@ function ChessBoard({ tableId, myId, onExit }) {
     }, [chess, selected]);
 
     if (!state || !board) {
-        return <p className="text-gray-500 text-sm text-center py-16">Masaya bağlanılıyor...</p>;
+        return <p className="text-gray-500 text-sm text-center py-16">{t('leisure.lz_connectingTable')}</p>;
     }
 
     const myPlayerIdx = state.players.findIndex(p => p.userId === myId);
@@ -77,7 +80,7 @@ function ChessBoard({ tableId, myId, onExit }) {
     };
 
     const resign = () => {
-        if (confirm('Bu oyunu kaybetmiş sayılacaksın. Emin misin?')) getSocket()?.emit('chess:resign', { tableId });
+        if (confirm(t('leisure.lz_chessResignConfirmMsg'))) getSocket()?.emit('chess:resign', { tableId });
     };
 
     const ranks = flipped ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
@@ -95,15 +98,15 @@ function ChessBoard({ tableId, myId, onExit }) {
 
     const winnerLabel = (g) => {
         if (!g) return '';
-        if (g.winner === 'draw') return 'Berabere';
-        return g.winner === myPlayerIdx ? 'Kazandın! 🏆' : 'Kaybettin';
+        if (g.winner === 'draw') return t('leisure.lz_draw');
+        return g.winner === myPlayerIdx ? t('leisure.lz_youWonBang') : t('leisure.lz_youLost');
     };
-    const REASON_LABEL = { checkmate: 'Şah mat', resign: 'Rakip oyunu terk etti', stalemate: 'Pat', repetition: 'Üç tekrar', insufficient_material: 'Yetersiz materyal', fifty_move: '50 hamle kuralı' };
+    const REASON_LABEL = { checkmate: t('leisure.lz_checkmate'), resign: t('leisure.lz_oppResigned'), stalemate: t('leisure.lz_stalemate'), repetition: t('leisure.lz_repetition'), insufficient_material: t('leisure.lz_insufficient'), fifty_move: t('leisure.lz_fiftyMove') };
 
     return (
         <div className="max-w-md mx-auto">
             <div className="flex items-center justify-between mb-3">
-                <h2 className="text-white font-bold">♞ Satranç</h2>
+                <h2 className="text-white font-bold">{t('leisure.lz_chessHeading')}</h2>
                 <button onClick={resign} className="bg-white/10 text-red-300 text-xs font-bold px-3 py-1.5 rounded-lg">🏳️ Terk Et</button>
             </div>
 
@@ -138,16 +141,16 @@ function ChessBoard({ tableId, myId, onExit }) {
             </div>
 
             <p className="text-center text-amber-300 text-sm font-bold mt-3">
-                {state.phase !== 'playing' ? 'Oyun bitti'
-                    : isMyTurn ? (state.inCheck ? 'Sıra sende — şahsın!' : 'Sıra sende')
-                    : `${oppPlayer?.username || ''} oynuyor...`}
+                {state.phase !== 'playing' ? t('leisure.lz_gameOverPlain')
+                    : isMyTurn ? (state.inCheck ? t('leisure.lz_yourTurnCheck') : t('leisure.lz_chessYourTurn'))
+                    : `${oppPlayer?.username || ''} ${t('leisure.lz_playing')}`}
             </p>
-            <p className="text-white text-sm font-bold text-center mt-2">Sen · {myColor === 'w' ? '⚪' : '⚫'}</p>
+            <p className="text-white text-sm font-bold text-center mt-2">{t('leisure.lz_you')} · {myColor === 'w' ? '⚪' : '⚫'}</p>
 
             {pendingPromotion && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setPendingPromotion(null)}>
                     <div className="bg-gray-900 rounded-2xl p-5" onClick={e => e.stopPropagation()}>
-                        <p className="text-white font-black text-center mb-3">Terfi</p>
+                        <p className="text-white font-black text-center mb-3">{t('leisure.lz_promotion')}</p>
                         <div className="flex gap-2.5">
                             {['q', 'r', 'b', 'n'].map(p => (
                                 <button key={p} onClick={() => confirmPromotion(p)} className="w-12 h-12 rounded-lg bg-gray-800 border border-gray-700 text-2xl">
@@ -164,7 +167,7 @@ function ChessBoard({ tableId, myId, onExit }) {
                     <div className="bg-gray-900 rounded-2xl p-6 w-80 text-center">
                         <p className="text-white font-black text-lg mb-2">{winnerLabel(gameEnd)}</p>
                         <p className="text-gray-400 text-sm mb-4">{REASON_LABEL[gameEnd.reason] || ''}</p>
-                        <button onClick={onExit} className="w-full bg-purple-600 text-white font-bold py-3 rounded-xl">Geri Dön</button>
+                        <button onClick={onExit} className="w-full bg-purple-600 text-white font-bold py-3 rounded-xl">{t('leisure.lz_backHome')}</button>
                     </div>
                 </div>
             )}
@@ -173,6 +176,8 @@ function ChessBoard({ tableId, myId, onExit }) {
 }
 
 function ChessLobby({ myName, onMatched }) {
+    const { t } = useTranslation();
+
     const [searching, setSearching] = useState(false);
     const [queuePos, setQueuePos] = useState(null);
     const [difficulty, setDifficulty] = useState('medium');
@@ -188,20 +193,20 @@ function ChessLobby({ myName, onMatched }) {
             setSearching(false);
             onMatched(data.tableId);
         });
-        const offErr = onSocket('chess:error', (data) => { setSearching(false); alert(data?.message || 'Bir hata oluştu.'); });
+        const offErr = onSocket('chess:error', (data) => { setSearching(false); alert(data?.message || t('leisure.lz_genericError')); });
         return () => { offQueued(); offMatched(); offErr(); };
     }, [onMatched]);
 
     const startSearch = () => {
         const socket = getSocket();
-        if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
+        if (!socket) return alert(t('leisure.lz_noConnection'));
         setSearching(true); setQueuePos(null);
         socket.emit('chess:findMatch');
     };
     const cancelSearch = () => { getSocket()?.emit('chess:cancelFindMatch'); setSearching(false); setQueuePos(null); };
     const startVsBots = () => {
         const socket = getSocket();
-        if (!socket) return alert('Bağlantı kurulamadı, tekrar deneyin.');
+        if (!socket) return alert(t('leisure.lz_noConnection'));
         socket.emit('chess:playVsBots', { difficulty });
     };
 
@@ -211,8 +216,8 @@ function ChessLobby({ myName, onMatched }) {
                 <p className="text-5xl mb-3">♞</p>
                 {searching ? (
                     <>
-                        <p className="text-white font-bold mb-3">Rakip aranıyor{queuePos ? ` (${queuePos})` : ''}...</p>
-                        <button onClick={cancelSearch} className="bg-gray-800 border border-gray-700 text-gray-300 font-bold px-4 py-2 rounded-xl text-sm">Vazgeç</button>
+                        <p className="text-white font-bold mb-3">{t('leisure.lz_searching')}{queuePos ? ` (${queuePos})` : ''}...</p>
+                        <button onClick={cancelSearch} className="bg-gray-800 border border-gray-700 text-gray-300 font-bold px-4 py-2 rounded-xl text-sm">{t('leisure.lz_cancel')}</button>
                     </>
                 ) : (
                     <button onClick={startSearch} className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-3 rounded-xl">
@@ -222,9 +227,9 @@ function ChessLobby({ myName, onMatched }) {
             </div>
 
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-                <p className="text-gray-400 text-xs font-bold mb-2">🤖 Bota Karşı Oyna</p>
+                <p className="text-gray-400 text-xs font-bold mb-2">{t('leisure.lz_playVsBot')}</p>
                 <div className="flex gap-2 mb-3">
-                    {[['easy', 'Kolay'], ['medium', 'Orta'], ['hard', 'Zor']].map(([k, l]) => (
+                    {[['easy', t('leisure.lz_diffEasy')], ['medium', t('leisure.lz_diffMedium')], ['hard', t('leisure.lz_diffHard')]].map(([k, l]) => (
                         <button key={k} onClick={() => setDifficulty(k)}
                             className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${difficulty === k ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400'}`}>
                             {l}
@@ -232,7 +237,7 @@ function ChessLobby({ myName, onMatched }) {
                     ))}
                 </div>
                 <button onClick={startVsBots} className="w-full bg-gray-800 border border-gray-700 text-white font-bold py-2.5 rounded-xl text-sm hover:bg-gray-700 transition">
-                    Bota Karşı Başla
+                    {t('leisure.lz_startVsBot')}
                 </button>
             </div>
         </div>
@@ -240,6 +245,8 @@ function ChessLobby({ myName, onMatched }) {
 }
 
 function ChessPage() {
+    const { t } = useTranslation();
+
     const navigate = useNavigate();
     const user = useSelector(s => s.auth.user);
     // Sayfa yenilenince redux'taki user null kalıyor (login akışı dışında hiçbir yer
@@ -257,11 +264,11 @@ function ChessPage() {
 
     return (
         <div className="min-h-screen bg-gray-950">
-            <Navbar onBack={() => navigate(-1)} title="Satranç" />
+            <Navbar onBack={() => navigate(-1)} title={t('leisure.lz_chessName')} />
             <div className="px-4 py-6">
                 {tableId
                     ? <ChessBoard tableId={tableId} myId={myId} onExit={() => setTableId(null)} />
-                    : <ChessLobby myName={user?.fullName || user?.username || 'Oyuncu'} onMatched={setTableId} />}
+                    : <ChessLobby myName={user?.fullName || user?.username || t('leisure.lz_player')} onMatched={setTableId} />}
             </div>
         </div>
     );

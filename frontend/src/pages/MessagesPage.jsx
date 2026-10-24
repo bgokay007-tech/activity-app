@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
 
 function Avatar({ user, size = 'md', color = 'from-purple-500 to-blue-500' }) {
+    const { t } = useTranslation();
+
     const sizes = { sm: 'w-8 h-8 text-sm', md: 'w-10 h-10 text-base', lg: 'w-12 h-12 text-lg' };
     if (user?.avatar) {
         return <img src={user.avatar} alt={user.username} className={`${sizes[size]} rounded-full object-cover flex-shrink-0`} />;
@@ -17,14 +20,16 @@ function Avatar({ user, size = 'md', color = 'from-purple-500 to-blue-500' }) {
 }
 
 function ConversationList({ conversations, activeId, onSelect, myId }) {
+    const { t } = useTranslation();
+
     return (
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto">
                 {conversations.length === 0 ? (
                     <div className="text-center py-12 px-4">
                         <p className="text-4xl mb-3">💬</p>
-                        <p className="text-gray-500 text-sm">No conversations yet.</p>
-                        <p className="text-gray-600 text-xs mt-1">Add friends and start chatting!</p>
+                        <p className="text-gray-500 text-sm">{t('shell.sh_0558')}</p>
+                        <p className="text-gray-600 text-xs mt-1">{t('shell.sh_0559')}</p>
                     </div>
                 ) : (
                     conversations.map(conv => {
@@ -61,6 +66,8 @@ function ConversationList({ conversations, activeId, onSelect, myId }) {
 }
 
 function ChatView({ conversation, myId, onBack, onBlocked, isBlocked = false }) {
+    const { t } = useTranslation();
+
     const navigate = useNavigate();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
@@ -136,12 +143,12 @@ function ChatView({ conversation, myId, onBack, onBlocked, isBlocked = false }) 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
                 {isLoading ? (
-                    <p className="text-gray-500 text-center text-sm py-8">Loading...</p>
+                    <p className="text-gray-500 text-center text-sm py-8">{t('shell.sh_0543')}</p>
                 ) : messages.length === 0 ? (
                     <div className="text-center py-12">
                         <Avatar user={other} size="lg" />
                         <p className="text-gray-400 font-bold mt-3">{other?.fullName || other?.username}</p>
-                        <p className="text-gray-600 text-sm mt-1">Say hello! 👋</p>
+                        <p className="text-gray-600 text-sm mt-1">{t('shell.sh_0560')}</p>
                     </div>
                 ) : (
                     messages.map(msg => {
@@ -214,6 +221,8 @@ function ChatView({ conversation, myId, onBack, onBlocked, isBlocked = false }) 
 }
 
 function MessagesPage() {
+    const { t } = useTranslation();
+
     const { userId } = useParams();
     const navigate = useNavigate();
     const myId = useSelector(state => state.auth.user?.id);
@@ -279,7 +288,7 @@ function MessagesPage() {
             setTicketMessages(msgs);
             setSupportView('thread');
         } catch (err) {
-            alert(err?.response?.data?.message || 'Konu oluşturulamadı');
+            alert(err?.response?.data?.message || t('shell.sh_0276'));
         } finally {
             setCreatingTicket(false);
         }
@@ -298,7 +307,7 @@ function MessagesPage() {
             if (added.length) setTicketMessages(prev => [...prev, ...added]);
             setSupportText('');
         } catch (err) {
-            alert(err?.response?.data?.message || 'Mesaj gönderilemedi');
+            alert(err?.response?.data?.message || t('shell.sh_0292'));
         } finally {
             setSupportSending(false);
         }
@@ -416,7 +425,7 @@ function MessagesPage() {
                     {/* Messages list */}
                     {!showBlocked && (
                         isLoading ? (
-                            <p className="text-gray-500 text-center py-16 text-sm">Loading...</p>
+                            <p className="text-gray-500 text-center py-16 text-sm">{t('shell.sh_0543')}</p>
                         ) : (
                             <ConversationList
                                 conversations={conversations}
@@ -433,7 +442,7 @@ function MessagesPage() {
                             {blockedUsers.length === 0 ? (
                                 <div className="text-center py-12 px-4">
                                     <p className="text-3xl mb-2">🚫</p>
-                                    <p className="text-gray-500 text-sm">No blocked users.</p>
+                                    <p className="text-gray-500 text-sm">{t('shell.sh_0561')}</p>
                                 </div>
                             ) : (
                                 blockedUsers.map(u => (
@@ -479,8 +488,8 @@ function MessagesPage() {
                         <div className="flex-1 flex items-center justify-center bg-gray-950">
                             <div className="text-center">
                                 <p className="text-6xl mb-4">💬</p>
-                                <p className="text-gray-400 font-bold text-lg">Select a conversation</p>
-                                <p className="text-gray-600 text-sm mt-1">Choose someone from the list to start chatting</p>
+                                <p className="text-gray-400 font-bold text-lg">{t('shell.sh_0562')}</p>
+                                <p className="text-gray-600 text-sm mt-1">{t('shell.sh_0563')}</p>
                             </div>
                         </div>
                     )}
@@ -497,7 +506,7 @@ function MessagesPage() {
                                     <span className="truncate">{activeTicket?.subject}</span>
                                 </button>
                             ) : (
-                                <h3 className="text-white font-bold text-lg">💬 Admine Destek</h3>
+                                <h3 className="text-white font-bold text-lg">{t('shell.sh_0564')}</h3>
                             )}
                             <button onClick={() => setSupportOpen(false)} className="text-gray-400 hover:text-white text-xl shrink-0">✕</button>
                         </div>
@@ -507,17 +516,17 @@ function MessagesPage() {
                                 {/* Kullanıcı isteği: yeni bir sohbet başlatırken konu + mesaj birlikte
                                     girilsin, gönderince o konunun adıyla bir sohbet kutusu oluşsun. */}
                                 <div className="bg-gray-800 rounded-xl p-3 border border-gray-700 mb-3 shrink-0">
-                                    <p className="text-gray-400 text-xs font-bold mb-2">+ Yeni Konu</p>
+                                    <p className="text-gray-400 text-xs font-bold mb-2">{t('shell.sh_0565')}</p>
                                     <input
                                         value={newSubject}
                                         onChange={e => setNewSubject(e.target.value)}
-                                        placeholder="Konu (örn. Ödeme sorunu)"
+                                        placeholder={t('shell.sh_0275')}
                                         className="w-full bg-gray-900 text-white rounded-lg px-3 py-2 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm mb-2"
                                     />
                                     <textarea
                                         value={newMessage}
                                         onChange={e => setNewMessage(e.target.value)}
-                                        placeholder="Mesajınızı yazın..."
+                                        placeholder={t('shell.sh_0296')}
                                         rows={2}
                                         className="w-full bg-gray-900 text-white rounded-lg px-3 py-2 border border-gray-700 focus:outline-none focus:border-purple-500 resize-none text-sm mb-2"
                                     />
@@ -526,15 +535,15 @@ function MessagesPage() {
                                         disabled={!newSubject.trim() || !newMessage.trim() || creatingTicket}
                                         className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2 rounded-lg disabled:opacity-40 transition hover:opacity-90 text-sm"
                                     >
-                                        {creatingTicket ? 'Gönderiliyor...' : 'Gönder'}
+                                        {creatingTicket ? t('shell.sh_0056') : t('shell.sh_0015')}
                                     </button>
                                 </div>
 
                                 <div className="overflow-y-auto space-y-2" style={{ maxHeight: '18rem' }}>
                                     {supportLoading ? (
-                                        <p className="text-gray-500 text-sm text-center py-6">Yükleniyor...</p>
+                                        <p className="text-gray-500 text-sm text-center py-6">{t('shell.sh_0379')}</p>
                                     ) : supportTickets.length === 0 ? (
-                                        <p className="text-gray-500 text-sm text-center py-6">Henüz bir destek konunuz yok.</p>
+                                        <p className="text-gray-500 text-sm text-center py-6">{t('shell.sh_0566')}</p>
                                     ) : (
                                         supportTickets.map(t => (
                                             <button key={t.id} onClick={() => openTicket(t)}
@@ -546,7 +555,7 @@ function MessagesPage() {
                                                 {t.lastMessage && (
                                                     <p className="text-gray-400 text-xs mt-1 truncate">{t.lastMessage.isFromAdmin ? (t.lastMessage.isAutoReply ? 'AcTiViTy Destek: ' : 'Admin: ') : ''}{t.lastMessage.message}</p>
                                                 )}
-                                                {t.status === 'CLOSED' && <p className="text-gray-600 text-[10px] mt-1">Kapatıldı</p>}
+                                                {t.status === 'CLOSED' && <p className="text-gray-600 text-[10px] mt-1">{t('shell.sh_0567')}</p>}
                                             </button>
                                         ))
                                     )}
@@ -556,7 +565,7 @@ function MessagesPage() {
                             <>
                                 <div className="overflow-y-auto mb-3 space-y-2 flex-1" style={{ maxHeight: '20rem' }}>
                                     {loadingTicketMessages ? (
-                                        <p className="text-gray-500 text-sm text-center py-6">Yükleniyor...</p>
+                                        <p className="text-gray-500 text-sm text-center py-6">{t('shell.sh_0379')}</p>
                                     ) : (
                                         ticketMessages.map(m => (
                                             <div key={m.id} className={`rounded-xl p-3 border max-w-[85%] ${m.isFromAdmin ? 'bg-gray-800 border-gray-700 ml-0' : 'bg-purple-600/20 border-purple-500/40 ml-auto'}`}>
@@ -571,7 +580,7 @@ function MessagesPage() {
                                         <textarea
                                             value={supportText}
                                             onChange={e => setSupportText(e.target.value)}
-                                            placeholder="Yanıt yaz..."
+                                            placeholder={t('shell.sh_0070')}
                                             rows={2}
                                             className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 resize-none text-sm shrink-0"
                                         />
@@ -580,7 +589,7 @@ function MessagesPage() {
                                             disabled={!supportText.trim() || supportSending}
                                             className="mt-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2.5 rounded-xl disabled:opacity-40 transition hover:opacity-90 shrink-0"
                                         >
-                                            {supportSending ? 'Gönderiliyor...' : 'Gönder'}
+                                            {supportSending ? t('shell.sh_0056') : t('shell.sh_0015')}
                                         </button>
                                     </>
                                 )}

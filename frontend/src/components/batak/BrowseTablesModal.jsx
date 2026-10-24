@@ -15,7 +15,7 @@ export default function BrowseTablesModal({ variant, onClose, onJoined, onSpecta
         const socket = getSocket();
         socket?.emit('batak:listTables', { variant });
         const offList = onSocket('batak:tableList', (data) => { if (data.variant === variant) setTables(data.tables || []); });
-        const offErr = onSocket('batak:error', (data) => setError(data?.message || 'Bir hata oluştu.'));
+        const offErr = onSocket('batak:error', (data) => setError(data?.message || t('leisure.lz_genericError')));
         return () => {
             offList(); offErr();
             getSocket()?.emit('batak:unsubscribeLobby', { variant });
@@ -25,14 +25,14 @@ export default function BrowseTablesModal({ variant, onClose, onJoined, onSpecta
     const join = (tableId) => {
         setError('');
         const socket = getSocket();
-        if (!socket) return setError('Bağlantı kurulamadı, tekrar deneyin.');
+        if (!socket) return setError(t('leisure.lz_noConnection'));
         socket.emit('batak:joinTable', { tableId });
         onJoined?.(tableId);
     };
     const spectate = (tableId) => {
         setError('');
         const socket = getSocket();
-        if (!socket) return setError('Bağlantı kurulamadı, tekrar deneyin.');
+        if (!socket) return setError(t('leisure.lz_noConnection'));
         socket.emit('batak:spectateTable', { tableId });
         onSpectate?.(tableId);
     };

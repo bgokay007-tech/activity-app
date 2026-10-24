@@ -1244,7 +1244,7 @@ function SubscriptionsPanel() {
     };
 
     const reject = async (id) => {
-        const note = window.prompt(t('subscriptions.reject_reason_prompt', { defaultValue: 'Red nedeni (isteğe bağlı):' }));
+        const note = window.prompt(t('subscriptions.reject_reason_prompt', { defaultValue: t('shell.sh_0325') }));
         if (note === null) return;
         setActionId(id);
         try { await api.patch(`/subscriptions/requests/${id}/reject`, { adminNote: note || null }); load(); }
@@ -1252,7 +1252,7 @@ function SubscriptionsPanel() {
         finally { setActionId(null); }
     };
 
-    if (loading) return <p className="text-gray-500 text-center py-16">{t('subscriptions.loading', { defaultValue: 'Yükleniyor...' })}</p>;
+    if (loading) return <p className="text-gray-500 text-center py-16">{t('subscriptions.loading', { defaultValue: t('shell.sh_0379') })}</p>;
     if (!requests.length) return <p className="text-gray-500 text-center py-16">{t('subscriptions.no_requests', { defaultValue: 'Bekleyen abonelik talebi yok.' })}</p>;
 
     return (
@@ -1291,14 +1291,14 @@ function SubscriptionsPanel() {
                             </a>
                         ) : isExpired ? (
                             <div className="bg-red-950/20 border border-red-900/40 rounded-xl p-4 text-center text-red-400 text-sm font-semibold">
-                                {t('subscriptions.receipt_expired', { defaultValue: '⚠️ 24 saatlik dekont yükleme süresi doldu! (Dekont Yüklenmedi)' })}
+                                {t('subscriptions.receipt_expired', { defaultValue: t('shell.sh_0083') })}
                             </div>
                         ) : (
                             <div className="bg-gray-800/40 border border-gray-800 rounded-xl p-4 text-center text-gray-400 text-sm">
                                 {t('subscriptions.receipt_not_uploaded', {
                                     hours: hoursLeft,
                                     minutes: minsLeft,
-                                    defaultValue: `📎 Dekont henüz yüklenmedi (Kalan süre: ${hoursLeft} saat ${minsLeft} dakika)`
+                                    defaultValue: t('shell.sh_0636', { p0: hoursLeft, p1: minsLeft })
                                 })}
                             </div>
                         )}
@@ -1308,7 +1308,7 @@ function SubscriptionsPanel() {
                                 onClick={() => approve(req.id)}
                                 disabled={actionId === req.id}
                                 className="flex-1 py-2.5 rounded-xl bg-green-900/40 hover:bg-green-900/60 border border-green-700/50 text-green-400 font-black text-sm transition disabled:opacity-50">
-                                {t('subscriptions.approve', { defaultValue: '✅ Onayla — Aboneliği Başlat' })}
+                                {t('subscriptions.approve', { defaultValue: t('shell.sh_0089') })}
                             </button>
                             <button
                                 onClick={() => reject(req.id)}
@@ -1377,7 +1377,7 @@ function BusinessVenuesPanel() {
     };
 
     const SLOT_LABELS = { FULL_HOUR: t('admin.bizVenues.slot_full_hour'), HALF_HOUR: t('admin.bizVenues.slot_half_hour'), FLEXIBLE: t('admin.bizVenues.slot_flexible') };
-    const DAY_NAMES = ['', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+    const DAY_NAMES = ['', t('shell.sh_0007'), t('shell.sh_0008'), t('shell.sh_0005'), t('shell.sh_0009'), t('shell.sh_0010'), t('shell.sh_0011'), t('shell.sh_0006')];
 
     const STATUS_LABEL = { PENDING: t('admin.bizVenues.status_pending'), APPROVED: t('admin.bizVenues.status_approved'), REJECTED: t('admin.bizVenues.status_rejected'), ALL: t('admin.bizVenues.status_all') };
     const statusBadge = (status) => ({
@@ -1726,7 +1726,7 @@ function ClubApprovalPanel() {
             </div>
             {loading && <p className="text-gray-500 text-center py-16">{t('admin.common.loading')}</p>}
             {!loading && items.length === 0 && (
-                <p className="text-gray-500 text-center py-16">{t('admin.approvalQueue.club_empty', { defaultValue: 'Kayıt yok' })}</p>
+                <p className="text-gray-500 text-center py-16">{t('admin.approvalQueue.club_empty', { defaultValue: t('shell.sh_0272') })}</p>
             )}
             {items.map(c => (
                 <div key={c.id} className="bg-gray-900 border border-purple-700/30 rounded-2xl p-5">
@@ -1778,7 +1778,7 @@ function ClubApprovalPanel() {
                                 </button>
                                 <button onClick={() => setApproval(c.id, 'REJECT')}
                                     className="px-3 py-1.5 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-400 font-black text-xs">
-                                    {t('admin.approvalQueue.reject', { defaultValue: 'Reddet' })}
+                                    {t('admin.approvalQueue.reject', { defaultValue: t('shell.sh_0423') })}
                                 </button>
                             </div>
                         )}

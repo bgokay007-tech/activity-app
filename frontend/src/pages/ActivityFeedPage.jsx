@@ -26,6 +26,8 @@ function fmtDate(dt) {
 }
 
 function EventCard({ item, navigate, onJoin, joining, myId }) {
+    const { t } = useTranslation();
+
     const c = CAT_COLOR[item.category] || CAT_COLOR.SPORTS;
     const spots = (item.teamSize * 2) - 1 - (item.participants?.length || 0);
     return (
@@ -46,11 +48,11 @@ function EventCard({ item, navigate, onJoin, joining, myId }) {
                     {item.duration && <span className="text-gray-400 text-[11px] bg-gray-800 rounded px-1.5 py-0.5">⏱ {item.duration}dk</span>}
                 </div>
                 <div className="flex items-center justify-between mt-2">
-                    <span className="text-gray-500 text-xs">{spots > 0 ? `${spots} kişi aranıyor` : 'Dolu'}</span>
+                    <span className="text-gray-500 text-xs">{spots > 0 ? `${spots} kişi aranıyor` : t('shell.sh_0457')}</span>
                     {item._myJoinStatus === 'PENDING' ? (
-                        <span className="text-yellow-400 text-xs font-bold">⏳ Bekliyor</span>
+                        <span className="text-yellow-400 text-xs font-bold">{t('shell.sh_0575')}</span>
                     ) : item._myJoinStatus === 'ACCEPTED' ? (
-                        <span className="text-green-400 text-xs font-bold">✓ Katıldın</span>
+                        <span className="text-green-400 text-xs font-bold">{t('shell.sh_0576')}</span>
                     ) : spots > 0 && item.senderId !== myId ? (
                         <button onClick={(e) => { e.stopPropagation(); onJoin(item); }} disabled={joining}
                             className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-3 py-1 rounded-lg transition disabled:opacity-50">

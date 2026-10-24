@@ -13,16 +13,19 @@ const PASSWORD_RULES = [
     { id: 'special', key: 'passRuleSpecial', test: p => /[^a-zA-Z0-9]/.test(p) },
 ];
 
-const COUNTRIES = [
+function COUNTRIES(t) {
+    return [
     'Türkiye','Almanya','Amerika Birleşik Devletleri','Avustralya','Avusturya',
     'Belçika','Fransa','Hollanda','İngiltere','İspanya','İsveç','İsviçre',
     'İtalya','Japonya','Kanada','Norveç','Polonya','Portekiz','Rusya',
-    'Suudi Arabistan','Yunanistan','Diğer',
+    'Suudi Arabistan','Yunanistan',t('shell.sh_0014'),
 ];
+}
 
-const LEGAL = {
+function LEGAL(t) {
+    return {
     terms: {
-        title: 'Kullanıcı Sözleşmesi',
+        title: t('shell.sh_0061'),
         content: `AcTiViTy KULLANICI SÖZLEŞMESİ
 Son güncelleme: Haziran 2026
 
@@ -73,7 +76,7 @@ Bu sözleşme Türkiye Cumhuriyeti hukukuna tabidir. Uyuşmazlıklarda İstanbul
 Sorularınız için: b.gokay007@gmail.com`,
     },
     privacy: {
-        title: 'Gizlilik Politikası',
+        title: t('shell.sh_0053'),
         content: `AcTiViTy GİZLİLİK POLİTİKASI
 Son güncelleme: Haziran 2026
 
@@ -128,7 +131,7 @@ Platform; oturum yönetimi, güvenlik ve kullanıcı deneyimi geliştirme amacı
 Bu politika güncellendiğinde kullanıcılar uygulama veya e-posta yoluyla bilgilendirilir.`,
     },
     kvkk: {
-        title: 'KVKK / Açık Rıza Beyanı',
+        title: t('shell.sh_0062'),
         content: `KVKK KAPSAMINDA AÇIK RIZA BEYANI
 
 6698 sayılı Kişisel Verilerin Korunması Kanunu'nun 3. ve 5. maddeleri uyarınca, AcTiViTy sosyal spor platformu ("Platform") tarafından aşağıda belirtilen kapsamda kişisel verilerimin işlenmesine özgür iradem ile açık rıza gösteriyorum.
@@ -172,6 +175,7 @@ haklarına sahibim. Talepler için: b.gokay007@gmail.com
 Bu formu onaylayarak, yukarıda açıklanan amaçlar doğrultusunda kişisel verilerimin işlenmesine, saklanmasına ve belirtilen taraflarla paylaşılmasına özgür irademle ve bilinçli şekilde açık rıza gösterdiğimi kabul ve beyan ediyorum.`,
     },
 };
+}
 
 function genCaptcha() {
     const a = Math.floor(Math.random() * 9) + 1;
@@ -443,7 +447,7 @@ function RegisterPage() {
                                     <select value={form.country} onChange={e => set('country', e.target.value)}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm">
                                         <option value="">{a('selectCountry')}</option>
-                                        {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                        {COUNTRIES(t).map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                 </div>
                                 <div>
@@ -485,9 +489,9 @@ function RegisterPage() {
                                         {agreed.terms && <span className="text-white text-xs font-black">✓</span>}
                                     </div>
                                     <span className="text-gray-400 text-xs leading-5">
-                                        <button type="button" onClick={() => setLegalModal(LEGAL.terms)} className="text-purple-400 hover:text-purple-300 font-semibold">{a('termsLink')}</button>
+                                        <button type="button" onClick={() => setLegalModal(LEGAL(t).terms)} className="text-purple-400 hover:text-purple-300 font-semibold">{a('termsLink')}</button>
                                         {a('termsAgreeText')}
-                                        <button type="button" onClick={() => setLegalModal(LEGAL.privacy)} className="text-purple-400 hover:text-purple-300 font-semibold">{a('privacyLink')}</button>
+                                        <button type="button" onClick={() => setLegalModal(LEGAL(t).privacy)} className="text-purple-400 hover:text-purple-300 font-semibold">{a('privacyLink')}</button>
                                         {a('termsAgreeEnd')}
                                     </span>
                                 </label>
@@ -498,7 +502,7 @@ function RegisterPage() {
                                         {agreed.kvkk && <span className="text-white text-xs font-black">✓</span>}
                                     </div>
                                     <span className="text-gray-400 text-xs leading-5">
-                                        <button type="button" onClick={() => setLegalModal(LEGAL.kvkk)} className="text-purple-400 hover:text-purple-300 font-semibold">{a('kvkkLink')}</button>
+                                        <button type="button" onClick={() => setLegalModal(LEGAL(t).kvkk)} className="text-purple-400 hover:text-purple-300 font-semibold">{a('kvkkLink')}</button>
                                         {a('kvkkAgreeEnd')}
                                     </span>
                                 </label>

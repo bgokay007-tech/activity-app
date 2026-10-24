@@ -29,4 +29,6 @@ export const ENABLED_SUBS = {
 export const MAINTENANCE_MESSAGE = {
     tr: 'Bu alan yakında açılacak. Bizi takipte kalın! 🚀',
     en: 'This section is coming soon. Stay tuned! 🚀',
+    ru: 'Этот раздел скоро откроется. Следите за новостями! 🚀',
+    de: 'Dieser Bereich öffnet bald. Bleibt dran! 🚀',
 };

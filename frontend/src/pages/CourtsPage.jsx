@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../services/api';
@@ -42,6 +43,8 @@ const SURFACE_LABEL = {
 };
 
 function CourtCard({ court, myId, onEdit, onDelete }) {
+    const { t } = useTranslation();
+
     const isOwn = court.addedBy === myId || court.user?.id === myId;
     return (
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 hover:border-gray-700 transition">
@@ -53,7 +56,7 @@ function CourtCard({ court, myId, onEdit, onDelete }) {
                 </div>
                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
                     {court.verified && (
-                        <span className="text-green-400 text-[10px] font-bold bg-green-500/10 px-2 py-0.5 rounded-full">✓ Verified</span>
+                        <span className="text-green-400 text-[10px] font-bold bg-green-500/10 px-2 py-0.5 rounded-full">{t('shell.sh_0577')}</span>
                     )}
                     {isOwn && (
                         <div className="flex gap-1">
@@ -74,15 +77,15 @@ function CourtCard({ court, myId, onEdit, onDelete }) {
                         {SURFACE_LABEL[court.surface] || court.surface}
                     </span>
                 )}
-                {court.indoor && <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full">🏠 Indoor</span>}
-                {!court.indoor && court.surface && <span className="text-xs bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-full">🌤️ Outdoor</span>}
-                {court.lights && <span className="text-xs bg-yellow-500/10 text-yellow-400 px-2 py-0.5 rounded-full">💡 Lights</span>}
+                {court.indoor && <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full">{t('shell.sh_0578')}</span>}
+                {!court.indoor && court.surface && <span className="text-xs bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-full">{t('shell.sh_0579')}</span>}
+                {court.lights && <span className="text-xs bg-yellow-500/10 text-yellow-400 px-2 py-0.5 rounded-full">{t('shell.sh_0580')}</span>}
                 {court.fee ? (
                     <span className="text-xs bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded-full">
                         💰 {court.feeAmount || 'Fee'}
                     </span>
                 ) : (
-                    <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded-full">✅ Free</span>
+                    <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded-full">{t('shell.sh_0581')}</span>
                 )}
             </div>
 
@@ -107,6 +110,8 @@ function CourtCard({ court, myId, onEdit, onDelete }) {
 }
 
 function CourtForm({ court, onClose, onSave }) {
+    const { t } = useTranslation();
+
     const [form, setForm] = useState({
         name: court?.name || '',
         address: court?.address || '',
@@ -167,7 +172,7 @@ function CourtForm({ court, onClose, onSave }) {
 
                     {/* Sport */}
                     <div>
-                        <label className="text-gray-400 text-xs mb-1 block">Sport</label>
+                        <label className="text-gray-400 text-xs mb-1 block">{t('shell.sh_0582')}</label>
                         <select value={form.sport} onChange={e => setForm({...form, sport: e.target.value})}
                             className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none text-sm">
                             {SPORTS.filter(s => s.id).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
@@ -176,7 +181,7 @@ function CourtForm({ court, onClose, onSave }) {
 
                     {/* Surface */}
                     <div>
-                        <label className="text-gray-400 text-xs mb-2 block">Surface type</label>
+                        <label className="text-gray-400 text-xs mb-2 block">{t('shell.sh_0583')}</label>
                         <div className="grid grid-cols-3 gap-1.5">
                             {SURFACES.map(s => (
                                 <button key={s} type="button" onClick={() => setForm({...form, surface: form.surface === s ? '' : s})}
@@ -190,8 +195,8 @@ function CourtForm({ court, onClose, onSave }) {
                     {/* Toggles */}
                     <div className="grid grid-cols-3 gap-2">
                         {[
-                            { key: 'indoor', label: '🏠 Indoor' },
-                            { key: 'lights', label: '💡 Lights' },
+                            { key: 'indoor', label: t('shell.sh_0578') },
+                            { key: 'lights', label: t('shell.sh_0580') },
                             { key: 'fee',    label: '💰 Fee'    },
                         ].map(t => (
                             <button key={t.key} type="button"
@@ -222,7 +227,7 @@ function CourtForm({ court, onClose, onSave }) {
                         className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none resize-none text-sm" />
                 </form>
                 <div className="px-6 py-4 border-t border-gray-800 flex gap-3 flex-shrink-0">
-                    <button onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 text-sm">Cancel</button>
+                    <button onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 text-sm">{t('shell.sh_0535')}</button>
                     <button onClick={handleSubmit} disabled={isSaving}
                         className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2.5 rounded-xl disabled:opacity-50 text-sm">
                         {isSaving ? 'Saving...' : court?.id ? 'Update' : 'Add Court'}
@@ -234,6 +239,8 @@ function CourtForm({ court, onClose, onSave }) {
 }
 
 function ImportOSMModal({ onClose, onImported }) {
+    const { t } = useTranslation();
+
     const [city, setCity]     = useState('');
     const [sport, setSport]   = useState('tennis');
     const [loading, setLoading] = useState(false);
@@ -254,12 +261,12 @@ function ImportOSMModal({ onClose, onImported }) {
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-5">
-                    <h3 className="text-white font-bold">🗺️ Import from OpenStreetMap</h3>
+                    <h3 className="text-white font-bold">{t('shell.sh_0584')}</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
                 </div>
                 <div className="space-y-3">
                     <input value={city} onChange={e => setCity(e.target.value)}
-                        placeholder="City name (e.g. Antalya, İstanbul)"
+                        placeholder={t('shell.sh_0194')}
                         className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm" />
                     <select value={sport} onChange={e => setSport(e.target.value)}
                         className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none text-sm">
@@ -274,7 +281,7 @@ function ImportOSMModal({ onClose, onImported }) {
                         className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2.5 rounded-xl disabled:opacity-50 text-sm">
                         {loading ? '⏳ Importing...' : '🗺️ Import Courts'}
                     </button>
-                    <p className="text-gray-600 text-xs text-center">Data from OpenStreetMap — may take a few seconds</p>
+                    <p className="text-gray-600 text-xs text-center">{t('shell.sh_0585')}</p>
                 </div>
             </div>
         </div>
@@ -282,6 +289,8 @@ function ImportOSMModal({ onClose, onImported }) {
 }
 
 export default function CourtsPage() {
+    const { t } = useTranslation();
+
     const navigate = useNavigate();
     const myId     = useSelector(state => state.auth.user?.id) || (() => {
         try { const t = localStorage.getItem('activity_token'); return t ? JSON.parse(atob(t.split('.')[1])).userId : null; } catch { return null; }
@@ -391,11 +400,11 @@ export default function CourtsPage() {
 
                 {/* Court grid */}
                 {isLoading ? (
-                    <p className="text-gray-500 text-center py-16">Loading...</p>
+                    <p className="text-gray-500 text-center py-16">{t('shell.sh_0543')}</p>
                 ) : courts.length === 0 ? (
                     <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
                         <p className="text-4xl mb-3">🏟️</p>
-                        <p className="text-gray-400 mb-3">No courts found.</p>
+                        <p className="text-gray-400 mb-3">{t('shell.sh_0587')}</p>
                         <button onClick={() => setShowAdd(true)} className="text-purple-400 hover:text-purple-300 text-sm transition">
                             + Add the first court
                         </button>

@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/slices/authSlice';
 import { connectSocket, onSocket } from '../services/socket';
 import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
 import CityAlertControl from '../components/CityAlertControl';
@@ -94,12 +95,12 @@ const VOLLEYBALL_SIZES = [1, 2, 3, 4, 5, 6];
 const RATING_OPTIONS = ['0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0','4.5','5.0','5.5','6.0','6.5','7.0','7.5','8.0','8.5','9.0','9.5','10.0'];
 
 const DURATION_OPTIONS = [
-    { value: '30',  label: '30 min'  },
-    { value: '60',  label: '1 hour'  },
-    { value: '90',  label: '1.5 hrs' },
-    { value: '120', label: '2 hours' },
-    { value: '150', label: '2.5 hrs' },
-    { value: '180', label: '3 hours' },
+    { value: '30',  key: 'dur_30' },
+    { value: '60',  key: 'dur_60' },
+    { value: '90',  key: 'dur_90' },
+    { value: '120', key: 'dur_120' },
+    { value: '150', key: 'dur_150' },
+    { value: '180', key: 'dur_180' },
 ];
 
 const FOOTBALL_SURFACES = [
@@ -146,24 +147,33 @@ function vbDateStr(offset = 0) {
 const VB_DATE_OPTIONS = Array.from({ length: 14 }, (_, i) => vbDateStr(i));
 function vbDateLabel(str) {
     const [y, m, d] = str.split('-').map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', month: 'short' });
+    return new Date(y, m - 1, d).toLocaleDateString(uiLocale(), { weekday: 'short', day: 'numeric', month: 'short' });
 }
 function vbIsPastSlot(date, timeStr) { return new Date(`${date}T${timeStr}:00`).getTime() < Date.now(); }
-const VB_SLOT_TYPE_LABEL = { FULL_HOUR: 'Tam Saat', HALF_HOUR: 'Buçuklu', NINETY_MIN: '90 Dakika', VAR_DURATION: 'Esnek Saat', FLEXIBLE: 'Esnek Saat' };
+const VB_SLOT_TYPE_KEY = { FULL_HOUR: 'slot_full_hour', HALF_HOUR: 'slot_half', NINETY_MIN: 'slot_90', VAR_DURATION: 'slot_flex', FLEXIBLE: 'slot_flex' };
+function slotTypeLabel(t, type) {
+    const key = VB_SLOT_TYPE_KEY[type];
+    return key ? t('websc.' + key) : type;
+}
+function uiLocale() {
+    const lang = (i18n.language || 'en').slice(0, 2);
+    return ({ tr: 'tr-TR', ru: 'ru-RU', de: 'de-DE' })[lang] || 'en-GB';
+}
 
 function VenueCourtColumn({ court, data, date, selected, onPick }) {
+    const { t } = useTranslation();
     const [varStart, setVarStart] = useState(null);
     if (!data || data.loading) {
-        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-gray-500 text-xs text-center py-6">Yükleniyor...</p></div>;
+        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-gray-500 text-xs text-center py-6">{t('websc.loading')}</p></div>;
     }
     if (data.error || !data.type) {
-        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-red-400 text-xs text-center py-6">Yüklenemedi</p></div>;
+        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-red-400 text-xs text-center py-6">{t('websc.load_failed')}</p></div>;
     }
     if (data.type === 'NOT_YET_OPEN') {
-        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-yellow-400 text-xs text-center py-6">⏳ {data.message || 'Henüz açılmadı'}</p></div>;
+        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-yellow-400 text-xs text-center py-6">⏳ {data.message || t('websc.not_open')}</p></div>;
     }
     if (data.type === 'MAINTENANCE') {
-        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-orange-400 text-xs text-center py-6">🔧 Bakımda</p></div>;
+        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-orange-400 text-xs text-center py-6">{t('websc.maintenance_court')}</p></div>;
     }
 
     if (data.type === 'VAR_DURATION' || data.type === 'FLEXIBLE') {
@@ -171,16 +181,16 @@ function VenueCourtColumn({ court, data, date, selected, onPick }) {
         const DURATIONS = [60, 90, 120, 150, 180];
         return (
             <div className="w-52 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
-                <p className="text-white font-bold text-sm mb-2">{court.name} <span className="text-gray-500 font-normal text-xs">({VB_SLOT_TYPE_LABEL[data.type] || data.type})</span></p>
+                <p className="text-white font-bold text-sm mb-2">{court.name} <span className="text-gray-500 font-normal text-xs">({slotTypeLabel(t, data.type) || data.type})</span></p>
                 <div className="space-y-2 max-h-72 overflow-y-auto">
-                    {windows.length === 0 && <p className="text-gray-500 text-xs text-center py-6">Boş pencere yok</p>}
+                    {windows.length === 0 && <p className="text-gray-500 text-xs text-center py-6">{t('websc.no_window')}</p>}
                     {windows.map((w, i) => {
                         const isSel = varStart?.start === w.start;
                         return (
                             <div key={i} className={`rounded-lg border p-2 ${isSel ? 'border-purple-500 bg-purple-600/10' : 'border-gray-700'}`}>
                                 <button type="button" onClick={() => setVarStart(isSel ? null : w)} className="w-full text-left">
                                     <p className="text-gray-300 text-xs font-bold">{w.start}–{w.end}</p>
-                                    <p className="text-gray-500 text-[10px]">{w.pricePerHour > 0 ? `${w.pricePerHour}₺/saat` : 'Ücretsiz'}</p>
+                                    <p className="text-gray-500 text-[10px]">{w.pricePerHour > 0 ? t('websc.per_hour', { price: w.pricePerHour }) : t('websc.free')}</p>
                                 </button>
                                 {isSel && (
                                     <div className="flex flex-wrap gap-1 mt-2">
@@ -193,7 +203,7 @@ function VenueCourtColumn({ court, data, date, selected, onPick }) {
                                                 <button key={d} type="button"
                                                     onClick={() => onPick(court, { start: w.start, end, price, durationMins: d })}
                                                     className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition ${isPicked ? 'bg-green-600/20 border-green-600 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-purple-500'}`}>
-                                                    {isPicked ? '✓ ' : ''}{d < 60 ? `${d}dk` : `${d / 60}s`}
+                                                    {isPicked ? '✓ ' : ''}{d < 60 ? t('websc.mins_short', { n: d }) : t('websc.hours_short', { n: d / 60 })}
                                                 </button>
                                             );
                                         })}
@@ -211,9 +221,9 @@ function VenueCourtColumn({ court, data, date, selected, onPick }) {
     const slots = data.slots || [];
     return (
         <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
-            <p className="text-white font-bold text-sm mb-2">{court.name} <span className="text-gray-500 font-normal text-xs">({VB_SLOT_TYPE_LABEL[data.type] || data.type})</span></p>
+            <p className="text-white font-bold text-sm mb-2">{court.name} <span className="text-gray-500 font-normal text-xs">({slotTypeLabel(t, data.type) || data.type})</span></p>
             <div className="space-y-1.5 max-h-72 overflow-y-auto">
-                {slots.length === 0 && <p className="text-gray-500 text-xs text-center py-6">Slot yok</p>}
+                {slots.length === 0 && <p className="text-gray-500 text-xs text-center py-6">{t('websc.no_slot')}</p>}
                 {slots.map(s => {
                     const isPicked = selected?.courtId === court.id && selected?.startTime === s.start;
                     const isPast = s.free && !s.maintenance && vbIsPastSlot(date, s.start);
@@ -228,7 +238,7 @@ function VenueCourtColumn({ court, data, date, selected, onPick }) {
                             }`}>
                             <span className="block">{s.start}–{s.end}</span>
                             <span className="block text-[10px] font-normal opacity-80">
-                                {isPicked ? '✓ Seçildi' : !s.free ? (s.status === 'PENDING' ? '⏳ Onay Bekliyor' : 'Dolu') : s.maintenance ? '🔧 Bakım' : isPast ? 'Geçmiş' : (s.price > 0 ? `${s.price}₺` : 'Ücretsiz')}
+                                {isPicked ? t('websc.selected') : !s.free ? (s.status === 'PENDING' ? t('websc.pending_approval') : t('websc.slot_full')) : s.maintenance ? t('websc.slot_maint') : isPast ? t('websc.past') : (s.price > 0 ? `${s.price}₺` : t('websc.free'))}
                             </span>
                         </button>
                     );
@@ -239,6 +249,7 @@ function VenueCourtColumn({ court, data, date, selected, onPick }) {
 }
 
 function VenueSlotPanel({ venue, config, onClose, onConfirm, confirming }) {
+    const { t } = useTranslation();
     const [date, setDate] = useState(VB_DATE_OPTIONS[0]);
     const [slotsByCourt, setSlotsByCourt] = useState({});
     const [selected, setSelected] = useState(null); // { courtId, courtName, startTime, endTime, price, surface, indoor }
@@ -257,7 +268,7 @@ function VenueSlotPanel({ venue, config, onClose, onConfirm, confirming }) {
     useEffect(() => { setSelected(null); }, [date]);
 
     const pick = (court, slot) => {
-        if (vbIsPastSlot(date, slot.start)) { alert('Geçmiş bir saate rezervasyon yapamazsınız.'); return; }
+        if (vbIsPastSlot(date, slot.start)) { alert(t('websc.past_slot')); return; }
         setSelected({
             courtId: court.id, courtName: court.name, startTime: slot.start, endTime: slot.end,
             price: slot.price || 0, surface: court.surface || null, indoor: court.indoor ?? venue.courtIndoorDefault ?? false,
@@ -294,12 +305,12 @@ function VenueSlotPanel({ venue, config, onClose, onConfirm, confirming }) {
 
                 <div className="px-5 py-3 border-t border-gray-800 shrink-0 flex items-center justify-between gap-3">
                     <p className="text-gray-400 text-xs flex-1 min-w-0 truncate">
-                        {selected ? `${selected.courtName} · ${vbDateLabel(date)} · ${selected.startTime}–${selected.endTime}${selected.price > 0 ? ` · ${selected.price}₺` : ''}` : 'Bir saat seçin'}
+                        {selected ? `${selected.courtName} · ${vbDateLabel(date)} · ${selected.startTime}–${selected.endTime}${selected.price > 0 ? ` · ${selected.price}₺` : ''}` : t('websc.pick_time')}
                     </p>
                     <button type="button" disabled={!selected || confirming}
                         onClick={() => onConfirm(venue, date, selected)}
                         className={`bg-gradient-to-r ${config.color} text-white font-bold px-5 py-2 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50 shrink-0`}>
-                        {confirming ? '...' : 'Bu Saati Seç'}
+                        {confirming ? '...' : t('websc.pick_this_slot')}
                     </button>
                 </div>
             </div>
@@ -308,6 +319,7 @@ function VenueSlotPanel({ venue, config, onClose, onConfirm, confirming }) {
 }
 
 function VenueSearchModal({ sub, config, onClose, onBooked, initialName = '' }) {
+    const { t } = useTranslation();
     const [city, setCity] = useState('');
     const [name, setName] = useState(initialName);
     const [venues, setVenues] = useState([]);
@@ -343,7 +355,7 @@ function VenueSearchModal({ sub, config, onClose, onBooked, initialName = '' }) 
                 payMethod: (Array.isArray(venue.acceptedPayments) && venue.acceptedPayments.includes('CASH')) ? 'CASH' : (venue.acceptedPayments?.[0] || 'CASH'),
             });
         } catch (e) {
-            alert(e?.response?.data?.message || 'Bu saat seçilemiyor, lütfen başka bir saat seçin.');
+            alert(e?.response?.data?.message || t('websc.slot_unavailable'));
         } finally { setConfirming(false); }
     };
 
@@ -351,24 +363,24 @@ function VenueSearchModal({ sub, config, onClose, onBooked, initialName = '' }) 
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-gray-950 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-white font-black text-lg">🏟️ Tesis Ara</h3>
+                    <h3 className="text-white font-black text-lg">{t('websc.search_venue')}</h3>
                     <button type="button" onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
                 </div>
                 <div className="flex flex-wrap gap-2 mb-4">
-                    <input value={city} onChange={e => setCity(e.target.value)} placeholder="Şehir"
+                    <input value={city} onChange={e => setCity(e.target.value)} placeholder={t('websc.city_plain')}
                         onKeyDown={e => e.key === 'Enter' && search()}
                         className="flex-1 min-w-[120px] bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500" />
-                    <input value={name} onChange={e => setName(e.target.value)} placeholder="Tesis adı"
+                    <input value={name} onChange={e => setName(e.target.value)} placeholder={t('websc.venue_name_ph')}
                         onKeyDown={e => e.key === 'Enter' && search()}
                         className="flex-1 min-w-[120px] bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500" />
                     <button type="button" onClick={search} disabled={loading}
                         className={`bg-gradient-to-r ${config.color} text-white font-bold px-5 py-2.5 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50`}>
-                        {loading ? '...' : '🔍 Ara'}
+                        {loading ? '...' : t('websc.search')}
                     </button>
                 </div>
 
                 {searched && !loading && venues.length === 0 && (
-                    <p className="text-gray-500 text-center py-10 text-sm">Sonuç bulunamadı.</p>
+                    <p className="text-gray-500 text-center py-10 text-sm">{t('websc.no_results')}</p>
                 )}
                 <div className="space-y-2">
                     {venues.map(v => (
@@ -379,7 +391,7 @@ function VenueSearchModal({ sub, config, onClose, onBooked, initialName = '' }) 
                                 {v.avgRating ? <span className="text-yellow-400 text-xs font-bold shrink-0">⭐ {v.avgRating}</span> : null}
                             </div>
                             <p className="text-gray-500 text-xs mt-0.5">📍 {v.city}{v.district ? ` / ${v.district}` : ''}{v.address ? ` — ${v.address}` : ''}</p>
-                            <span className="inline-block mt-1.5 bg-gray-800 text-gray-400 text-[10px] font-bold px-2 py-0.5 rounded-full">🏟️ {(v.courts || []).length} kort</span>
+                            <span className="inline-block mt-1.5 bg-gray-800 text-gray-400 text-[10px] font-bold px-2 py-0.5 rounded-full">{t(sub === 'football' ? 'websc.count_field' : sub === 'volleyball' ? 'websc.count_hall' : 'websc.count_court', { n: (v.courts || []).length })}</span>
                         </button>
                     ))}
                 </div>
@@ -699,11 +711,11 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
             if (!form.matchType)        missing.push('Format');
             if (!form.matchMode)        missing.push('Mode');
             if (!form.matchDate)        missing.push('Date');
-            if (!form.matchTime)        missing.push('Start Time');
+            if (!form.matchTime)        missing.push(t('websc.start_time'));
             if (!form.duration)         missing.push('Duration');
-            if (!form.location?.trim()) missing.push('City');
+            if (!form.location?.trim()) missing.push(t('websc.city_plain'));
             if (missing.length > 0) {
-                setValidationError(`Please fill in: ${missing.join(', ')}`);
+                setValidationError(`{t('websc.fill_in', { list: missing.join(', ') })}`);
                 return;
             }
         }
@@ -784,12 +796,12 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                 };
                 const { data } = await api.patch(`/rivals/${editItem.id}`, payload);
                 if (data?.matchTypeLocked) {
-                    alert('Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemedi — önce katılımcıları çıkarabilirsin. Diğer değişiklikler kaydedildi.');
+                    alert(t('websc.format_locked_saved'));
                 }
                 onSubmit(data, true);
             } catch (err) {
                 console.error(err);
-                setValidationError(err?.response?.data?.message || err?.message || 'Sunucu hatası');
+                setValidationError(err?.response?.data?.message || err?.message || t('websc.server_error'));
             } finally {
                 setIsSubmitting(false);
             }
@@ -846,7 +858,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
             if (venueReservationId) {
                 api.delete(`/venues/reservations/${venueReservationId}`).catch(() => {});
             }
-            setValidationError(err?.response?.data?.message || err?.message || 'Sunucu hatası');
+            setValidationError(err?.response?.data?.message || err?.message || t('websc.server_error'));
         } finally {
             setIsSubmitting(false);
         }
@@ -904,7 +916,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     ].map(opt => (
                         <button key={opt.value} type="button" disabled={editHasParticipants}
                             onClick={() => {
-                                if (editHasParticipants) return alert('Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemez — önce katılımcıları çıkarabilirsin.');
+                                if (editHasParticipants) return alert(t('websc.format_locked'));
                                 setForm(f => ({ ...f, matchType: opt.value }));
                             }}
                             className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition ${form.matchType === opt.value ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'} ${editHasParticipants ? 'opacity-50 cursor-not-allowed' : ''}`}>
@@ -1212,10 +1224,10 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                         onChange={e => setForm({ ...form, level: e.target.value })}
                         className="w-full bg-gray-800 text-white rounded-xl px-4 py-2 border border-gray-700 focus:outline-none text-sm"
                     >
-                        <option value="BEGINNER">🟢 Beginner</option>
-                        <option value="INTERMEDIATE">🟡 Intermediate</option>
-                        <option value="ADVANCED">🟠 Advanced</option>
-                        <option value="PRO">🔴 Pro</option>
+                        <option value="BEGINNER">{t('websc.lvl_beginner')}</option>
+                        <option value="INTERMEDIATE">{t('websc.lvl_intermediate')}</option>
+                        <option value="ADVANCED">{t('websc.lvl_advanced')}</option>
+                        <option value="PRO">{t('websc.lvl_pro')}</option>
                     </select>
                 </div>
                 <div>
@@ -1223,7 +1235,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     <input
                         value={form.levelDetail}
                         onChange={e => setForm({ ...form, levelDetail: e.target.value })}
-                        placeholder="e.g. 3.5 NTRP, UTR 8"
+                        placeholder={t('websc.level_ph')}
                         className="w-full bg-gray-800 text-white rounded-xl px-4 py-2 border border-gray-700 focus:outline-none text-sm"
                     />
                 </div>
@@ -1254,7 +1266,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                         >
                             <option value="">—</option>
                             {DURATION_OPTIONS.map(d => (
-                                <option key={d.value} value={d.value}>{d.label}</option>
+                                <option key={d.value} value={d.value}>{t('websc.' + d.key)}</option>
                             ))}
                         </select>
                     </div>
@@ -1285,7 +1297,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                         <button key={d.value} type="button"
                             onClick={() => setForm(f => ({ ...f, duration: f.duration === d.value ? '' : d.value }))}
                             className={`py-2 rounded-xl border font-bold text-xs transition ${form.duration === d.value ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
-                            {d.label}
+                            {t('websc.' + d.key)}
                         </button>
                     ))}
                 </div>
@@ -1355,7 +1367,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                                 ))}
                             </div>
                             <button type="button" onClick={() => setShowCourts(false)}
-                                className="w-full py-2 text-gray-600 hover:text-gray-400 text-xs transition">✕ Close</button>
+                                className="w-full py-2 text-gray-600 hover:text-gray-400 text-xs transition">{t('websc.close')}</button>
                         </div>
                     )}
                     {/* Step 2: auto-filled banner OR manual city+address (only when search returned no results) */}
@@ -1464,7 +1476,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                                 <input
                                     value={form.courtName}
                                     onChange={e => setForm({ ...form, courtName: e.target.value })}
-                                    placeholder="e.g. Beach Park, City Sports Center..."
+                                    placeholder={t('websc.venue_example2')}
                                     className="flex-1 bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm"
                                 />
                                 <select
@@ -1657,12 +1669,12 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                         <input type="checkbox" checked={form.courtMutual}
                             onChange={e => setForm(f => ({ ...f, courtMutual: e.target.checked, ...(!e.target.checked && { courtFeePerPerson: '' }) }))}
                             className="w-4 h-4 accent-purple-500 cursor-pointer" />
-                        <span className="text-gray-300 text-sm select-none">Kort ücreti oyuncular arasında paylaşılsın</span>
+                        <span className="text-gray-300 text-sm select-none">{t('websc.fee_share_court')}</span>
                     </label>
                     {form.courtMutual && (
                         <input value={form.courtFeePerPerson}
                             onChange={e => setForm(f => ({ ...f, courtFeePerPerson: e.target.value.replace(/[^0-9]/g, '') }))}
-                            placeholder="Kişi başı ücret (₺)" inputMode="numeric"
+                            placeholder={t('websc.per_person_fee')} inputMode="numeric"
                             className="w-full bg-gray-800 text-white rounded-xl px-4 py-2 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm" />
                     )}
                 </div>
@@ -1673,7 +1685,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     <input type="checkbox" checked={form.teamFlexibility === 'STRICT'}
                         onChange={e => setForm(f => ({ ...f, teamFlexibility: e.target.checked ? 'STRICT' : 'FLEXIBLE' }))}
                         className="w-4 h-4 accent-purple-500 cursor-pointer" />
-                    <span className="text-gray-300 text-sm select-none">Oyuncu pozisyonları sabit kalsın (maç sonrası değiştirilemesin)</span>
+                    <span className="text-gray-300 text-sm select-none">{t('websc.positions_fixed')}</span>
                 </label>
             )}
 
@@ -1917,7 +1929,7 @@ function TeamChallengeModal({ config, sub, categoryUpper, rival, myId, myInteres
                     {/* Your team */}
                     <div>
                         <div className="flex items-center justify-between mb-2">
-                            <p className="text-white text-sm font-bold">Your Team</p>
+                            <p className="text-white text-sm font-bold">{t('websc.your_team')}</p>
                             <p className={`text-sm font-black bg-gradient-to-r ${config.color} bg-clip-text text-transparent`}>
                                 {teamAvgRating}★ avg · {joiningTeam.length + 1}/{rival.teamSize}
                             </p>
@@ -2051,7 +2063,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                 teamSize: form.teamSize,
                 message: [
                     form.message,
-                    form.positions.includes('ANY')        ? `⚽ ${form.positionCounts.ANY} regular player${form.positionCounts.ANY > 1 ? 's' : ''} wanted` : '',
+                    form.positions.includes('ANY')        ? t(form.positionCounts.ANY > 1 ? 'websc.players_many' : 'websc.players_one', { n: form.positionCounts.ANY }) : '',
                     form.positions.includes('GOALKEEPER') ? `🧤 ${form.positionCounts.GOALKEEPER} goalkeeper${form.positionCounts.GOALKEEPER > 1 ? 's' : ''} wanted · ${form.gkPayment === 'FREE' ? 'Plays free' : 'Paid by team'}` : '',
                     form.positions.includes('REFEREE')    ? `🟨 Referee wanted${form.refereePayment ? ` · Fee: ${form.refereePayment}` : ''}` : '',
                 ].filter(Boolean).join('\n'),
@@ -2093,9 +2105,9 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                 const updated = data.posts.find(u => u.id === p.id);
                 return updated ? { ...p, joinRequests: updated.joinRequests } : p;
             }));
-            alert(`${data.message} Sayfayı yenileyin veya istekleri görüntüleyin.`);
+            alert(`${data.message} ${t('websc.demo_refresh')}`);
         } catch (err) {
-            alert(err.response?.data?.message || 'Demo isteği gönderilemedi.');
+            alert(err.response?.data?.message || t('websc.demo_failed'));
         } finally {
             setIsDemoLoading(false);
         }
@@ -2106,7 +2118,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <h3 className="text-white font-bold">👤 Player Wanted</h3>
+                <h3 className="text-white font-bold">{t('websc.player_wanted')}</h3>
                 <div className="flex gap-2">
                     {sub === 'football' && myOpenPosts.length > 0 && (
                         <button onClick={handleDemoRequests} disabled={isDemoLoading}
@@ -2123,7 +2135,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
 
             {showForm && (
                 <form onSubmit={handlePost} className={`${config.bg} border ${config.border} rounded-2xl p-5 space-y-4`}>
-                    <h4 className="text-white font-bold">🏐 Looking for Players</h4>
+                    <h4 className="text-white font-bold">{t('websc.looking_players')}</h4>
 
                     {/* Surface */}
                     <div>
@@ -2145,7 +2157,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                     {/* Match format & players needed */}
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="text-gray-400 text-xs mb-2 block">Match Format</label>
+                            <label className="text-gray-400 text-xs mb-2 block">{t('websc.match_format')}</label>
                             <div className="grid grid-cols-3 gap-1">
                                 {(sub === 'football' ? FOOTBALL_SIZES : VOLLEYBALL_SIZES).map(n => (
                                     <button key={n} type="button"
@@ -2157,7 +2169,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                             </div>
                         </div>
                         <div>
-                            <label className="text-gray-400 text-xs mb-2 block">Players Needed</label>
+                            <label className="text-gray-400 text-xs mb-2 block">{t('websc.players_needed')}</label>
                             <div className="grid grid-cols-3 gap-1">
                                 {[1, 2, 3, 4, 5, 6].map(n => (
                                     <button key={n} type="button"
@@ -2177,25 +2189,25 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="text-gray-400 text-xs mb-1 block">📅 Date</label>
+                            <label className="text-gray-400 text-xs mb-1 block">{t('websc.date_label')}</label>
                             <input type="date" onClick={e => e.target.showPicker?.()} value={form.matchDate} onChange={e => setForm(f => ({...f, matchDate: e.target.value}))}
                                 className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 border border-gray-700 focus:outline-none text-sm" />
                         </div>
                         <div>
-                            <label className="text-gray-400 text-xs mb-1 block">🕐 Start Time</label>
+                            <label className="text-gray-400 text-xs mb-1 block">{t('websc.start_time')}</label>
                             <TimeSelect value={form.matchTime} onChange={v => setForm(f => ({...f, matchTime: v}))} className="w-full" />
                         </div>
                     </div>
 
                     {/* Duration */}
                     <div>
-                        <label className="text-gray-400 text-xs mb-2 block">⏱️ Duration</label>
+                        <label className="text-gray-400 text-xs mb-2 block">{t('websc.duration')}</label>
                         <div className="grid grid-cols-6 gap-1.5">
                             {DURATION_OPTIONS.map(d => (
                                 <button key={d.value} type="button"
                                     onClick={() => setForm(f => ({...f, duration: f.duration === d.value ? '' : d.value}))}
                                     className={`py-2 rounded-xl border font-bold text-xs transition ${form.duration === d.value ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
-                                    {d.label}
+                                    {t('websc.' + d.key)}
                                 </button>
                             ))}
                         </div>
@@ -2203,23 +2215,23 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
 
                     {/* Location — city first, then court name + address */}
                     <div>
-                        <label className="text-gray-400 text-xs mb-1 block">📍 City</label>
+                        <label className="text-gray-400 text-xs mb-1 block">{t('websc.city_label')}</label>
                         <input value={form.location} onChange={e => setForm(f => ({...f, location: e.target.value}))}
-                            placeholder="Enter city name"
+                            placeholder={t('websc.enter_city')}
                             className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm" />
                     </div>
                     {form.location && (
                         <>
                             <div>
-                                <label className="text-gray-400 text-xs mb-1 block">🏟️ Court / Field Name</label>
+                                <label className="text-gray-400 text-xs mb-1 block">{t('websc.court_field_name')}</label>
                                 <input value={form.courtName} onChange={e => setForm(f => ({...f, courtName: e.target.value}))}
-                                    placeholder="e.g. City Sports Center, Beach Court..."
+                                    placeholder={t('websc.venue_example')}
                                     className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm" />
                             </div>
                             <div>
-                                <label className="text-gray-400 text-xs mb-1 block">📌 Address</label>
+                                <label className="text-gray-400 text-xs mb-1 block">{t('websc.address_label')}</label>
                                 <input value={form.courtAddress} onChange={e => setForm(f => ({...f, courtAddress: e.target.value}))}
-                                    placeholder="Street, district or full address..."
+                                    placeholder={t('websc.address_ph')}
                                     className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm" />
                             </div>
                         </>
@@ -2229,15 +2241,15 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                     {sub === 'football' && (
                         <div>
                             <label className="text-gray-400 text-xs mb-2 block">
-                                {form.playersNeeded > 1 ? 'Special Positions Needed (optional, multi-select)' : 'Position Needed (optional)'}
+                                {form.playersNeeded > 1 ? t('websc.positions_opt') : t('websc.position_opt')}
                             </label>
 
                             {form.playersNeeded === 1 ? (
                                 // Single select
                                 <div className="grid grid-cols-2 gap-2">
                                     {[
-                                        { id: '',           label: 'Any Player', emoji: '⚽' },
-                                        { id: 'GOALKEEPER', label: 'Goalkeeper', emoji: '🧤' },
+                                        { id: '',           label: t('websc.any_player'), emoji: '⚽' },
+                                        { id: 'GOALKEEPER', label: t('websc.goalkeeper'), emoji: '🧤' },
                                     ].map(pos => (
                                         <button key={pos.id || 'any'} type="button"
                                             onClick={() => setForm(f => ({ ...f, positions: pos.id === '' ? [] : [pos.id] }))}
@@ -2262,8 +2274,8 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                                         {/* Player positions — capped at playersNeeded */}
                                         <div className="grid grid-cols-2 gap-2">
                                             {[
-                                                { id: 'ANY',        label: 'Any Player', emoji: '⚽' },
-                                                { id: 'GOALKEEPER', label: 'Goalkeeper', emoji: '🧤' },
+                                                { id: 'ANY',        label: t('websc.any_player'), emoji: '⚽' },
+                                                { id: 'GOALKEEPER', label: t('websc.goalkeeper'), emoji: '🧤' },
                                             ].map(pos => {
                                                 const isSelected = form.positions.includes(pos.id);
                                                 const count = form.positionCounts[pos.id] || 1;
@@ -2316,7 +2328,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                             {/* Goalkeeper payment options */}
                             {form.positions.includes('GOALKEEPER') && (
                                 <div className="mt-3 space-y-2">
-                                    <label className="text-gray-400 text-xs">🧤 Goalkeeper Payment</label>
+                                    <label className="text-gray-400 text-xs">{t('websc.gk_payment')}</label>
                                     <div className="grid grid-cols-2 gap-2">
                                         <button type="button"
                                             onClick={() => setForm(f => ({...f, gkPayment: 'FREE'}))}
@@ -2340,7 +2352,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                     )}
 
                     <textarea value={form.message} onChange={e => setForm(f => ({...f, message: e.target.value}))}
-                        placeholder="Extra details (position needed, level, etc.)" rows={2}
+                        placeholder={t('websc.extra_details')} rows={2}
                         className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none resize-none text-sm" />
 
                     {/* Optional: show team members on listing */}
@@ -2359,7 +2371,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                                         onKeyDown={e => {
                                             if (e.key === 'Enter') { e.preventDefault(); if (teamInput.trim()) { setTeamMembers(prev => [...prev, { username: teamInput.trim() }]); setTeamInput(''); } }
                                         }}
-                                        placeholder="Enter username and press Enter"
+                                        placeholder={t('websc.username_enter')}
                                         className="flex-1 bg-gray-700 text-white rounded-lg px-3 py-1.5 text-sm border border-gray-600 focus:outline-none focus:border-purple-500"
                                     />
                                     <button type="button"
@@ -2395,7 +2407,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
             {posts.length === 0 ? (
                 <div className="text-center py-12 bg-gray-900 rounded-2xl border border-gray-800">
                     <p className="text-4xl mb-3">🏐</p>
-                    <p className="text-gray-400">No player ads yet. Be the first!</p>
+                    <p className="text-gray-400">{t('websc.no_player_ads')}</p>
                 </div>
             ) : (
                 posts.map(post => {
@@ -2443,7 +2455,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                                         const total   = Number(post.levelDetail) || 0;
                                         const joined  = Array.isArray(post.participants) ? post.participants.length : 0;
                                         const remaining = Math.max(0, total - joined);
-                                        if (total === 0) return <span className="text-purple-400 text-xs font-bold">👤 Looking for players</span>;
+                                        if (total === 0) return <span className="text-purple-400 text-xs font-bold">{t('websc.looking_for_players')}</span>;
                                         if (remaining === 0) return <span className="text-green-400 text-xs font-bold">✅ Full ({total}/{total})</span>;
                                         return (
                                             <span className={`text-xs font-bold ${remaining > 0 ? 'text-yellow-400' : 'text-green-400'}`}>
@@ -2461,7 +2473,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                                 <div className="flex flex-wrap gap-2 mb-3">
                                     {post.matchDate && (
                                         <span className="flex items-center gap-1 bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white font-semibold">
-                                            📅 {new Date(post.matchDate).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
+                                            📅 {new Date(post.matchDate).toLocaleDateString(uiLocale(),{day:'numeric',month:'short',year:'numeric'})}
                                         </span>
                                     )}
                                     {post.matchTime && (
@@ -2471,7 +2483,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                                     )}
                                     {post.duration && (
                                         <span className="flex items-center gap-1 bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white font-semibold">
-                                            ⏱️ {DURATION_OPTIONS.find(d=>d.value===String(post.duration))?.label || post.duration+' min'}
+                                            ⏱️ {t('websc.' + (DURATION_OPTIONS.find(d=>d.value===String(post.duration))?.key || 'dur_min_fallback'), { n: post.duration })}
                                         </span>
                                     )}
                                 </div>
@@ -2480,7 +2492,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                             {/* Sender's existing team members (optional display) */}
                             {Array.isArray(post.senderTeam) && post.senderTeam.length > 0 && (
                                 <div className="mb-3">
-                                    <p className="text-gray-500 text-xs font-bold mb-1.5">👥 Our team so far:</p>
+                                    <p className="text-gray-500 text-xs font-bold mb-1.5">{t('websc.our_team')}</p>
                                     <div className="flex flex-wrap gap-1.5">
                                         {/* Creator first */}
                                         <div className={`flex items-center gap-1 bg-gray-800 border border-gray-700 rounded-full px-2.5 py-1`}>
@@ -2488,7 +2500,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                                                 {post.sender?.username?.[0]?.toUpperCase()}
                                             </div>
                                             <span className="text-gray-200 text-xs font-semibold">{post.sender?.username}</span>
-                                            <span className="text-gray-500 text-[10px]">captain</span>
+                                            <span className="text-gray-500 text-[10px]">{t('websc.captain')}</span>
                                         </div>
                                         {post.senderTeam.map((m, i) => (
                                             <div key={m.id || i} className={`flex items-center gap-1 bg-gray-800 border border-gray-700 rounded-full px-2.5 py-1`}>
@@ -2505,7 +2517,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                             {/* Accepted participants */}
                             {Array.isArray(post.participants) && post.participants.length > 0 && (
                                 <div className="flex items-center gap-2 mb-3 flex-wrap">
-                                    <span className="text-gray-500 text-xs font-bold">✅ Joined:</span>
+                                    <span className="text-gray-500 text-xs font-bold">{t('websc.joined')}</span>
                                     {post.participants.map(p => (
                                         <div key={p.id} className={`flex items-center gap-1 bg-green-900/30 border border-green-700/40 rounded-full px-2 py-0.5`}>
                                             <div className={`w-4 h-4 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-[9px] font-bold`}>
@@ -2627,6 +2639,7 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
 
 // Wellness Events Tab
 function WellnessEventsTab({ config, sub, categoryUpper }) {
+    const { t } = useTranslation();
     const [events, setEvents] = useState([]);
     const [showForm, setShowForm] = useState(false);
     const [form, setForm] = useState({ type: 'yoga', title: '', description: '', date: '', time: '', location: '', maxAttendees: '' });
@@ -2673,16 +2686,16 @@ function WellnessEventsTab({ config, sub, categoryUpper }) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <h3 className="text-white font-bold">📅 Events & Classes</h3>
+                <h3 className="text-white font-bold">{t('websc.events_classes')}</h3>
                 <button onClick={() => setShowForm(v => !v)}
                     className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm`}>
-                    {showForm ? '✕ Close' : '+ Create Event'}
+                    {showForm ? t('websc.close') : '+ Create Event'}
                 </button>
             </div>
 
             {showForm && (
                 <form onSubmit={handleCreate} className={`${config.bg} border ${config.border} rounded-2xl p-5 space-y-3`}>
-                    <h4 className="text-white font-bold">🌿 New Event / Class</h4>
+                    <h4 className="text-white font-bold">{t('websc.new_event')}</h4>
 
                     {/* Wellness type selector */}
                     <div className="grid grid-cols-3 gap-2">
@@ -2701,31 +2714,31 @@ function WellnessEventsTab({ config, sub, categoryUpper }) {
                     </div>
 
                     <input value={form.title} onChange={e => setForm({...form, title: e.target.value})}
-                        placeholder="Event title *" required
+                        placeholder={t('websc.event_title')} required
                         className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-teal-500 text-sm" />
                     <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})}
-                        placeholder="Description..." rows={2}
+                        placeholder={t('websc.desc_ph')} rows={2}
                         className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-teal-500 resize-none text-sm" />
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="text-gray-400 text-xs mb-1 block">📅 Date</label>
+                            <label className="text-gray-400 text-xs mb-1 block">{t('websc.date_label')}</label>
                             <input type="date" onClick={e => e.target.showPicker?.()} value={form.date} onChange={e => setForm({...form, date: e.target.value})}
                                 className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 border border-gray-700 focus:outline-none text-sm" />
                         </div>
                         <div>
-                            <label className="text-gray-400 text-xs mb-1 block">🕐 Start Time</label>
+                            <label className="text-gray-400 text-xs mb-1 block">{t('websc.start_time')}</label>
                             <TimeSelect value={form.time} onChange={v => setForm({...form, time: v})} className="w-full" />
                         </div>
                     </div>
                     <input value={form.location} onChange={e => setForm({...form, location: e.target.value})}
-                        placeholder="📍 Location / Studio"
+                        placeholder={t('websc.location_studio')}
                         className="w-full bg-gray-800 text-white rounded-xl px-4 py-2 border border-gray-700 focus:outline-none text-sm" />
                     <input type="number" value={form.maxAttendees} onChange={e => setForm({...form, maxAttendees: e.target.value})}
-                        placeholder="👥 Max attendees (optional)"
+                        placeholder={t('websc.max_attendees_opt')}
                         className="w-full bg-gray-800 text-white rounded-xl px-4 py-2 border border-gray-700 focus:outline-none text-sm" />
                     <button type="submit" disabled={isSubmitting || !form.title}
                         className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50`}>
-                        {isSubmitting ? 'Creating...' : '🌿 Create Event'}
+                        {isSubmitting ? 'Creating...' : t('websc.create_event')}
                     </button>
                 </form>
             )}
@@ -2733,7 +2746,7 @@ function WellnessEventsTab({ config, sub, categoryUpper }) {
             {events.length === 0 ? (
                 <div className="text-center py-12 bg-gray-900 rounded-2xl border border-gray-800">
                     <p className="text-4xl mb-3">🧘</p>
-                    <p className="text-gray-400">No events yet. Be the first to organize one!</p>
+                    <p className="text-gray-400">{t('websc.no_events')}</p>
                 </div>
             ) : (
                 events.map(ev => (
@@ -2744,7 +2757,7 @@ function WellnessEventsTab({ config, sub, categoryUpper }) {
                             </div>
                             <div>
                                 <p className="text-white text-sm font-bold">{ev.user?.fullName || ev.user?.username}</p>
-                                <p className="text-gray-500 text-xs">{new Date(ev.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
+                                <p className="text-gray-500 text-xs">{new Date(ev.createdAt).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' })}</p>
                             </div>
                         </div>
                         {/* Type badge from content prefix */}
@@ -2770,10 +2783,11 @@ function WellnessEventsTab({ config, sub, categoryUpper }) {
 
 // Reusable score display
 function ScoreDisplay({ score, match, participants, config }) {
+    const { t } = useTranslation();
     const sets = score.sets || [];
     const isFootball = match.subCategory === 'football' || match.subCategory === 'basketball';
-    const senderName   = match.sender?.username || 'Player 1';
-    const opponentName = participants[0]?.username || 'Player 2';
+    const senderName   = match.sender?.username || t('websc.player1');
+    const opponentName = participants[0]?.username || t('websc.player2');
     const isWinnerSender = score.winner === 'sender';
     const winnerName   = isWinnerSender ? senderName   : opponentName;
     const loserName    = isWinnerSender ? opponentName : senderName;
@@ -2805,7 +2819,7 @@ function ScoreDisplay({ score, match, participants, config }) {
                     </div>
                 ))}
                 <span className={`text-[9px] font-black tracking-widest uppercase mt-0.5 ${isWin ? 'text-green-400' : isDraw ? 'text-yellow-500' : 'text-gray-600'}`}>
-                    {isWin ? '🏆 WIN' : isDraw ? 'DRAW' : 'LOSS'}
+                    {isWin ? t('websc.win_badge') : isDraw ? 'DRAW' : 'LOSS'}
                 </span>
             </div>
         );
@@ -2825,7 +2839,7 @@ function ScoreDisplay({ score, match, participants, config }) {
                             <span className={`font-black text-4xl leading-none tabular-nums ${rightWin ? 'text-green-300' : 'text-gray-200'}`}>{opponentGoals}</span>
                         </div>
                         <span className="text-gray-600 text-[9px] font-bold tracking-widest uppercase">
-                            {isDraw ? 'Full Time' : 'Final'}
+                            {isDraw ? t('websc.full_time') : 'Final'}
                         </span>
                     </div>
                     {/* Right team */}
@@ -2860,7 +2874,7 @@ function ScoreDisplay({ score, match, participants, config }) {
                 {sets.map((_, i) => (
                     <span key={i} className="text-gray-600 text-[9px] font-bold w-6 text-center">S{i+1}</span>
                 ))}
-                <span className="text-gray-600 text-[9px] font-bold w-6 text-center">TOT</span>
+                <span className="text-gray-600 text-[9px] font-bold w-6 text-center">{t('websc.tot')}</span>
             </div>
             <div className="flex items-center gap-3 px-4 py-3 bg-gray-800/40">
                 <span className="text-gray-600 text-base flex-shrink-0">  </span>
@@ -2878,13 +2892,14 @@ function ScoreDisplay({ score, match, participants, config }) {
 
 // Score entry modal — football: single scoreline; others: set-based
 function ScoreModal({ match, config, myId, onClose, onSave }) {
+    const { t } = useTranslation();
     const participants  = Array.isArray(match.participants) ? match.participants.filter(Boolean) : [];
     const isFootball    = match.subCategory === 'football' || match.subCategory === 'basketball';
     const isCompetitive = match.matchMode === 'COMPETITIVE';
 
     // Team labels
-    const senderLabel   = match.sender?.username || 'Team A';
-    const opponentLabel = participants[0]?.username || 'Team B';
+    const senderLabel   = match.sender?.username || t('websc.team_a');
+    const opponentLabel = participants[0]?.username || t('websc.team_b');
 
     // ── Football / basketball: single score ──────────────────────────────────
     const [senderGoals,   setSenderGoals]   = useState(match.score?.sets?.[0]?.sender   ?? '');
@@ -2944,10 +2959,10 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
                 {/* Header */}
                 <div className="flex justify-between items-center px-6 py-4 border-b border-gray-800">
                     <div>
-                        <h3 className="text-white font-bold">📊 {isCompetitive ? 'Enter Match Score' : 'Log Score'}</h3>
+                        <h3 className="text-white font-bold">📊 {isCompetitive ? t('websc.enter_match_score') : t('websc.log_score')}</h3>
                         {isCompetitive
-                            ? <p className="text-red-400 text-xs mt-0.5">⚔️ Ranked — ELO points will update</p>
-                            : <p className="text-gray-500 text-xs mt-0.5">Practice — optional, no points at stake</p>
+                            ? <p className="text-red-400 text-xs mt-0.5">{t('websc.ranked_elo')}</p>
+                            : <p className="text-gray-500 text-xs mt-0.5">{t('websc.practice_opt')}</p>
                         }
                     </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
@@ -2993,7 +3008,7 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
                             {autoWinnerFb && (
                                 <div className="text-center">
                                     {autoWinnerFb === 'draw'
-                                        ? <p className="text-yellow-400 text-sm font-bold">🤝 Draw — select winner manually if needed</p>
+                                        ? <p className="text-yellow-400 text-sm font-bold">{t('websc.draw_pick')}</p>
                                         : <p className="text-green-400 text-sm font-bold">
                                             🏆 {autoWinnerFb === 'sender' ? senderLabel : opponentLabel} wins
                                           </p>
@@ -3004,7 +3019,7 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
                             {/* Manual winner override (needed for draws or correction) */}
                             {(autoWinnerFb === 'draw' || manualWinner) && (
                                 <div>
-                                    <p className="text-gray-400 text-xs mb-2">Select winner:</p>
+                                    <p className="text-gray-400 text-xs mb-2">{t('websc.select_winner')}</p>
                                     <div className="grid grid-cols-2 gap-2">
                                         {[{ val: 'sender', label: senderLabel }, { val: 'opponent', label: opponentLabel }].map(opt => (
                                             <button key={opt.val} onClick={() => setManualWinner(opt.val)}
@@ -3022,7 +3037,7 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
                             {sets.length > 1 && (
                                 <div className="text-center">
                                     <p className="text-white font-black text-2xl">{senderSetsWon} — {opponentSetsWon}</p>
-                                    <p className="text-gray-500 text-xs">sets</p>
+                                    <p className="text-gray-500 text-xs">{t('websc.sets')}</p>
                                 </div>
                             )}
 
@@ -3053,8 +3068,8 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
 
                             <div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="text-gray-400 text-xs">🏆 Winner</p>
-                                    {autoWinnerSet && !setWinner && <p className="text-green-400 text-xs">Auto-detected</p>}
+                                    <p className="text-gray-400 text-xs">{t('websc.winner')}</p>
+                                    {autoWinnerSet && !setWinner && <p className="text-green-400 text-xs">{t('websc.auto_detected')}</p>}
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     {[{ val: 'sender', label: senderLabel }, { val: 'opponent', label: opponentLabel }].map(opt => {
@@ -3078,7 +3093,7 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
                     </button>
                     <button onClick={handleSave} disabled={isSaving || !canSave}
                         className={`flex-1 bg-gradient-to-r ${config.color} text-white font-bold py-2.5 rounded-xl disabled:opacity-40 text-sm`}>
-                        {isSaving ? 'Saving...' : isCompetitive ? '⚔️ Submit Score' : '💾 Save Score'}
+                        {isSaving ? 'Saving...' : isCompetitive ? t('websc.submit_score') : t('websc.save_score')}
                     </button>
                 </div>
             </div>
@@ -3088,6 +3103,7 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
 
 // Full-screen Posts Overlay
 function PostsOverlay({ posts, config, onClose }) {
+    const { t } = useTranslation();
     const [expandedPostId, setExpandedPostId] = useState(null);
     const [comments, setComments] = useState({});
     const [newComment, setNewComment] = useState('');
@@ -3116,7 +3132,7 @@ function PostsOverlay({ posts, config, onClose }) {
         <div className="fixed inset-0 bg-gray-950 z-50 flex flex-col">
             <div className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center gap-4 flex-shrink-0">
                 <button onClick={onClose} className="text-gray-400 hover:text-white transition text-xl">←</button>
-                <h2 className="text-white font-bold text-lg">💬 All Posts</h2>
+                <h2 className="text-white font-bold text-lg">{t('websc.all_posts')}</h2>
                 <span className="text-gray-500 text-sm">{posts.length} posts</span>
             </div>
             <div className="flex-1 overflow-y-auto px-4 py-4 max-w-2xl mx-auto w-full space-y-3">
@@ -3129,7 +3145,7 @@ function PostsOverlay({ posts, config, onClose }) {
                                 </div>
                                 <div className="flex-1">
                                     <p className="text-white font-bold">{post.user?.fullName}</p>
-                                    <p className="text-gray-500 text-xs">@{post.user?.username} · {new Date(post.createdAt).toLocaleDateString()}</p>
+                                    <p className="text-gray-500 text-xs">@{post.user?.username} · {new Date(post.createdAt).toLocaleDateString(uiLocale())}</p>
                                 </div>
                             </div>
                             <p className="text-gray-200 mb-3">{post.content}</p>
@@ -3144,9 +3160,9 @@ function PostsOverlay({ posts, config, onClose }) {
                             <div className="border-t border-gray-800 bg-gray-950 p-4 space-y-3">
                                 <div className="space-y-2 max-h-64 overflow-y-auto">
                                     {!comments[post.id] ? (
-                                        <p className="text-gray-500 text-sm text-center py-3">Loading...</p>
+                                        <p className="text-gray-500 text-sm text-center py-3">{t('websc.loading')}</p>
                                     ) : comments[post.id].length === 0 ? (
-                                        <p className="text-gray-500 text-sm text-center py-3">No comments yet. Be the first!</p>
+                                        <p className="text-gray-500 text-sm text-center py-3">{t('websc.no_comments_first')}</p>
                                     ) : (
                                         comments[post.id].map(c => (
                                             <div key={c.id} className="flex gap-2">
@@ -3166,7 +3182,7 @@ function PostsOverlay({ posts, config, onClose }) {
                                         value={newComment}
                                         onChange={e => setNewComment(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && handleAddComment(post.id)}
-                                        placeholder="Write a comment..."
+                                        placeholder={t('websc.comment_ph')}
                                         className="flex-1 bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-purple-500"
                                     />
                                     <button
@@ -3187,6 +3203,7 @@ function PostsOverlay({ posts, config, onClose }) {
 
 // Court autocomplete for tournament creation
 function CourtAutocomplete({ location, onLocationChange, inputCls, labelCls }) {
+    const { t } = useTranslation();
     const [courtName, setCourtName]   = useState('');
     const [suggestions, setSuggestions] = useState([]);
     const [selected, setSelected]     = useState(null); // full court object
@@ -3234,12 +3251,12 @@ function CourtAutocomplete({ location, onLocationChange, inputCls, labelCls }) {
         <div className="space-y-2">
             {/* Court name input */}
             <div className="relative">
-                <label className={labelCls}>🏟️ Court / Venue Name</label>
+                <label className={labelCls}>{t('websc.court_venue_name')}</label>
                 <div className="relative">
                     <input
                         value={courtName}
                         onChange={e => { setSelected(null); setCourtName(e.target.value); }}
-                        placeholder="Search court name..."
+                        placeholder={t('websc.search_court')}
                         className={inputCls}
                     />
                     {selected && (
@@ -3273,14 +3290,14 @@ function CourtAutocomplete({ location, onLocationChange, inputCls, labelCls }) {
             {!selected && courtName.trim() && (
                 <div className="grid grid-cols-2 gap-2">
                     <div>
-                        <label className={labelCls}>🏙️ City</label>
+                        <label className={labelCls}>{t('websc.city_short')}</label>
                         <input value={city} onChange={e => { setCity(e.target.value); updateManual(e.target.value, address); }}
-                            placeholder="e.g. Istanbul" className={inputCls} />
+                            placeholder={t('websc.city_example')} className={inputCls} />
                     </div>
                     <div>
-                        <label className={labelCls}>📍 Address</label>
+                        <label className={labelCls}>{t('websc.address_short')}</label>
                         <input value={address} onChange={e => { setAddress(e.target.value); updateManual(city, e.target.value); }}
-                            placeholder="Street / district" className={inputCls} />
+                            placeholder={t('websc.street_district')} className={inputCls} />
                     </div>
                 </div>
             )}
@@ -3290,12 +3307,13 @@ function CourtAutocomplete({ location, onLocationChange, inputCls, labelCls }) {
 
 // Full-screen News Overlay
 function NewsOverlay({ news, config, onClose }) {
+    const { t } = useTranslation();
     return (
         <div className="fixed inset-0 bg-gray-950 z-50 flex flex-col">
             <div className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center gap-4 flex-shrink-0">
                 <button onClick={onClose} className="text-gray-400 hover:text-white transition text-xl">←</button>
-                <h2 className="text-white font-bold text-lg">📰 {config.name} News</h2>
-                <span className="text-gray-500 text-sm">{news.length} articles</span>
+                <h2 className="text-white font-bold text-lg">{t('websc.news_title', { name: config.name })}</h2>
+                <span className="text-gray-500 text-sm">{t('websc.articles', { n: news.length })}</span>
             </div>
             <div className="flex-1 overflow-y-auto px-4 py-4 max-w-2xl mx-auto w-full space-y-3">
                 {news.map((item, i) => (
@@ -3322,8 +3340,8 @@ function NewsOverlay({ news, config, onClose }) {
                                 />
                             )}
                             <p className="text-gray-600 text-xs">
-                                {new Date(item.pubDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                <span className="ml-2 text-purple-500">Read full article →</span>
+                                {new Date(item.pubDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'long', year: 'numeric' })}
+                                <span className="ml-2 text-purple-500">{t('websc.read_article')}</span>
                             </p>
                         </div>
                     </a>
@@ -3500,10 +3518,10 @@ function SubCategoryPage() {
     const isWellness = WELLNESS_BRANCHES.has(sub);
 
     const WELLNESS_CONFIG = {
-        wellness: { name: 'Yoga / Pilates / Reformer', emoji: '🧘', color: 'from-teal-500 to-cyan-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30' },
+        wellness: { name: t('websc.wellness_name'), emoji: '🧘', color: 'from-teal-500 to-cyan-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30' },
     };
 
-    const config = isWellness
+    const configBase = isWellness
         ? WELLNESS_CONFIG.wellness
         : (SUB_CONFIG[sub] || {
             name: sub,
@@ -3512,6 +3530,11 @@ function SubCategoryPage() {
             bg: 'bg-purple-500/10',
             border: 'border-purple-500/30',
         });
+    const sportKey = {
+        tennis: 'sport_tennis', padel: 'sport_padel', football: 'sport_football',
+        basketball: 'sport_basketball', music: 'sport_music', fps: 'sport_fps', wellness: 'sport_wellness',
+    }[isWellness ? 'wellness' : sub];
+    const config = { ...configBase, name: sportKey ? t('websc.' + sportKey) : configBase.name };
     const categoryUpper = category.toUpperCase();
 
     // Maintenance gate — block access to disabled sub-categories
@@ -3522,15 +3545,14 @@ function SubCategoryPage() {
                 <div className="flex flex-col items-center justify-center min-h-[80vh] px-6 text-center">
                     <div className="text-8xl mb-6">🔧</div>
                     <h2 className="text-3xl font-black text-white mb-3">
-                        {config?.name || sub} — Under Maintenance
+                        {t('websc.under_maint', { name: config?.name || sub })}
                     </h2>
-                    <p className="text-gray-400 text-lg max-w-md mb-2">{MAINTENANCE_MESSAGE.en}</p>
-                    <p className="text-gray-500 text-sm mb-8">{MAINTENANCE_MESSAGE.tr}</p>
+                    <p className="text-gray-400 text-lg max-w-md mb-8">{MAINTENANCE_MESSAGE[lang] || MAINTENANCE_MESSAGE.en}</p>
                     <button
                         onClick={() => navigate(`/category/${category}`)}
                         className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white font-bold px-6 py-3 rounded-2xl transition"
                     >
-                        ← Go Back
+                        {t('websc.go_back')}
                     </button>
                 </div>
             </div>
@@ -3804,8 +3826,8 @@ function SubCategoryPage() {
                 if (!alreadyReferenced) {
                     await api.post(`/messages/send/${otherId}`, {
                         content: isOwnerContactingBidder
-                            ? `🎾 "${listing.title}" ilanına verdiğiniz teklif hakkında yazıyorum.`
-                            : `🎾 "${listing.title}" ilanı hakkında mesajlaşmak istiyorum.`,
+                            ? t('websc.chat_bid', { title: listing.title })
+                            : t('websc.chat_ask', { title: listing.title }),
                         equipmentListingId: listing.id,
                     });
                 }
@@ -4136,7 +4158,7 @@ function SubCategoryPage() {
                         <p className="text-yellow-400 text-[10px] font-bold truncate">⏳ {nameOf(target) || '...'} (waiting)</p>
                         {isMine && (
                             <button onClick={() => setMyRivalJoinPartner(rival.id, null)} disabled={partnerActionLoading}
-                                className="text-red-400 text-[10px] font-bold mt-0.5">✕ Withdraw</button>
+                                className="text-red-400 text-[10px] font-bold mt-0.5">{t('websc.withdraw')}</button>
                         )}
                     </div>
                 );
@@ -4146,14 +4168,14 @@ function SubCategoryPage() {
                         <p className="text-green-400 text-[10px] font-bold truncate">{nameOf(invitedBy)} invited you</p>
                         {isMine && (
                             <button onClick={() => setMyRivalJoinPartner(rival.id, invitedBy.userId)} disabled={partnerActionLoading}
-                                className="bg-green-600/30 border border-green-500/50 text-green-400 text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-lg">✓ Accept</button>
+                                className="bg-green-600/30 border border-green-500/50 text-green-400 text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-lg">{t('websc.accept')}</button>
                         )}
                     </div>
                 );
             } else {
                 slot2 = (
                     <div className="min-w-0">
-                        <p className="text-gray-500 text-[10px]">Looking for partner</p>
+                        <p className="text-gray-500 text-[10px]">{t('websc.looking_partner')}</p>
                         {isMine && (
                             <button
                                 onClick={() => setJoinInvitePicker({ rivalId: rival.id, candidates: solos.filter(s => s.userId !== myId) })}
@@ -4178,9 +4200,9 @@ function SubCategoryPage() {
                 {isOwnerView && (
                     <div className="flex gap-1.5 mt-1.5">
                         <button onClick={() => handleRespondJoin(p1.id, 'accept', rival.id)}
-                            className="flex-1 bg-green-600/80 hover:bg-green-600 text-white text-[10px] font-bold py-1 rounded-lg transition">✓ Accept</button>
+                            className="flex-1 bg-green-600/80 hover:bg-green-600 text-white text-[10px] font-bold py-1 rounded-lg transition">{t('websc.accept')}</button>
                         <button onClick={() => handleRespondJoin(p1.id, 'reject', rival.id)}
-                            className="flex-1 bg-gray-700 hover:bg-red-600/40 text-gray-300 hover:text-red-400 text-[10px] font-bold py-1 rounded-lg transition">✕ Reject</button>
+                            className="flex-1 bg-gray-700 hover:bg-red-600/40 text-gray-300 hover:text-red-400 text-[10px] font-bold py-1 rounded-lg transition">{t('websc.reject')}</button>
                     </div>
                 )}
             </div>
@@ -4285,15 +4307,15 @@ function SubCategoryPage() {
                 </div>
                 {p2 && ratingOf(p1) != null && ratingOf(p2) != null && (
                     <p className="text-purple-300 text-[10px] font-bold text-center mt-1">
-                        Takım Ort: {((Number(ratingOf(p1)) + Number(ratingOf(p2))) / 2).toFixed(2)}★
+                        {t('websc.team_avg')} {((Number(ratingOf(p1)) + Number(ratingOf(p2))) / 2).toFixed(2)}★
                     </p>
                 )}
                 {isOwnerView && (
                     <div className="flex gap-1.5 mt-1.5">
                         <button onClick={() => handleRequestAction(tournamentId, p1.userId, 'ACCEPTED')}
-                            className="flex-1 bg-green-600/80 hover:bg-green-600 text-white text-[10px] font-bold py-1 rounded-lg transition">✓ Accept</button>
+                            className="flex-1 bg-green-600/80 hover:bg-green-600 text-white text-[10px] font-bold py-1 rounded-lg transition">{t('websc.accept')}</button>
                         <button onClick={() => handleRequestAction(tournamentId, p1.userId, 'REJECTED')}
-                            className="flex-1 bg-gray-700 hover:bg-red-600/40 text-gray-300 hover:text-red-400 text-[10px] font-bold py-1 rounded-lg transition">✕ Reject</button>
+                            className="flex-1 bg-gray-700 hover:bg-red-600/40 text-gray-300 hover:text-red-400 text-[10px] font-bold py-1 rounded-lg transition">{t('websc.reject')}</button>
                     </div>
                 )}
             </div>
@@ -4350,10 +4372,10 @@ function SubCategoryPage() {
         const sets = scoreSets
             .map(s => ({ p1: parseInt(s.p1), p2: parseInt(s.p2) }))
             .filter(s => !isNaN(s.p1) && !isNaN(s.p2));
-        if (sets.length === 0) { alert('Enter at least one set score'); return; }
+        if (sets.length === 0) { alert(t('websc.sets_required')); return; }
         let p1Sets = 0, p2Sets = 0;
         sets.forEach(s => { if (s.p1 > s.p2) p1Sets++; else if (s.p2 > s.p1) p2Sets++; });
-        if (p1Sets === p2Sets) { alert('Sets are tied — cannot determine a winner'); return; }
+        if (p1Sets === p2Sets) { alert(t('websc.sets_tied')); return; }
         const winner = p1Sets > p2Sets ? 'p1' : 'p2';
         setMatchActionLoading(true);
         try {
@@ -4365,7 +4387,7 @@ function SubCategoryPage() {
     };
 
     const submitJoker = async (tournamentId, matchId) => {
-        if (!confirm('Use your joker for this match? This grants +7 days but uses up your joker right (unless mutual).')) return;
+        if (!confirm(t('websc.joker_confirm'))) return;
         setMatchActionLoading(true);
         try {
             const { data } = await api.post(`/tournaments/${tournamentId}/matches/${matchId}/joker`);
@@ -4387,7 +4409,7 @@ function SubCategoryPage() {
     };
 
     const submitRegenRound = async (tournamentId) => {
-        if (!confirm('Regenerate the current pending round\'s matchups?')) return;
+        if (!confirm(t('websc.regen_round'))) return;
         setMatchActionLoading(true);
         try {
             await api.post(`/tournaments/${tournamentId}/regen-round`);
@@ -4590,7 +4612,7 @@ function SubCategoryPage() {
                     {/* News */}
                     <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4 space-y-2">
                         <div className="flex items-center justify-between mb-1">
-                            <h4 className="text-white font-bold text-xs">📰 {config.name} News</h4>
+                            <h4 className="text-white font-bold text-xs">{t('websc.news_title', { name: config.name })}</h4>
                             {news.length > 3 && (
                                 <button onClick={() => setShowNewsOverlay(true)} className="text-purple-400 hover:text-purple-300 text-[10px] transition">
                                     {t('stats.see_all')}
@@ -4609,7 +4631,7 @@ function SubCategoryPage() {
                                     )}
                                     <p className="text-gray-300 text-[11px] font-medium line-clamp-2 group-hover:text-white transition">{item.title}</p>
                                     <p className="text-gray-600 text-[10px] mt-0.5">
-                                        {new Date(item.pubDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                                        {new Date(item.pubDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' })}
                                     </p>
                                 </a>
                             ))
@@ -4671,7 +4693,7 @@ function SubCategoryPage() {
 
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                    <CityAlertControl sub={sub} config={config} tab="rivals" desc="Şehrinde yeni rakip ilanı açılınca bildirim al" />
+                                    <CityAlertControl sub={sub} config={config} tab="rivals" desc={t('websc.alert_city_rival')} />
                                     <div className="flex items-center bg-gray-900 border border-gray-700 rounded-lg px-2 py-1">
                                         <span className="text-gray-500 text-xs mr-1">📍</span>
                                         <input
@@ -4966,7 +4988,7 @@ function SubCategoryPage() {
                                             {rival.senderId === myId && filled < required && (sub === 'tennis' || sub === 'padel' || sub === 'pickleball') && (
                                                 <button onClick={() => sendRivalDemoJoin(rival.id)} disabled={seedingDemoRivalId === rival.id}
                                                     className="w-full bg-purple-600/10 border border-purple-500/30 text-purple-400 hover:bg-purple-600/20 font-bold text-xs px-3 py-1.5 rounded-xl transition mb-3 disabled:opacity-50">
-                                                    {seedingDemoRivalId === rival.id ? '...' : '🤖 Send Demo Join Request'}
+                                                    {seedingDemoRivalId === rival.id ? '...' : t('websc.demo_join')}
                                                 </button>
                                             )}
 
@@ -5050,7 +5072,7 @@ function SubCategoryPage() {
                                                                     {isTeamChallenge && (
                                                                         <div className="bg-gray-700/60 rounded-xl px-3 py-2">
                                                                             <div className="flex items-center justify-between mb-1">
-                                                                                <p className="text-gray-400 text-[10px] font-bold">Challenger's Team</p>
+                                                                                <p className="text-gray-400 text-[10px] font-bold">{t('websc.challenger_team')}</p>
                                                                                 <span className={`text-[10px] font-black bg-gradient-to-r ${config.color} bg-clip-text text-transparent`}>
                                                                                     Avg: {teamAvg}★
                                                                                 </span>
@@ -5134,7 +5156,7 @@ function SubCategoryPage() {
                                             setShowAbandon(false); setAbandonReason(null); setAbanDate(''); setAbanTime('');
                                             onChanged?.();
                                         } catch (err) {
-                                            alert(err.response?.data?.message || 'Hata');
+                                            alert(err.response?.data?.message || t('websc.error'));
                                         } finally { setAbandoning(false); }
                                     };
 
@@ -5149,10 +5171,10 @@ function SubCategoryPage() {
                                         setReportingNoShow(true);
                                         try {
                                             await api.post(`/rivals/${match.id}/no-show`, { absentUserIds: absentIds });
-                                            alert('✓ Bildirim gönderildi, admin inceleyecek.');
+                                            alert(t('websc.notify_sent'));
                                             setShowNoShow(false); setAbsentIds([]);
                                         } catch (err) {
-                                            alert(err.response?.data?.message || 'Hata');
+                                            alert(err.response?.data?.message || t('websc.error'));
                                         } finally { setReportingNoShow(false); }
                                     };
 
@@ -5161,23 +5183,23 @@ function SubCategoryPage() {
                                             <div className="flex gap-2">
                                                 <button onClick={onScore}
                                                     className={`flex-1 font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition ${match.matchMode === 'COMPETITIVE' ? `bg-gradient-to-r ${config.color} text-white` : 'bg-gray-700 border border-gray-600 text-gray-300'}`}>
-                                                    {match.matchMode === 'COMPETITIVE' ? '⚔️ Enter Score (Required)' : '📊 Log Score (Optional)'}
+                                                    {match.matchMode === 'COMPETITIVE' ? t('websc.enter_score_req') : t('websc.log_score_opt')}
                                                 </button>
                                                 <button
                                                     onClick={() => { setShowExtend(v => !v); setShowAbandon(false); setShowNoShow(false); }}
-                                                    title="Match postponed? Request more time"
+                                                    title={t('websc.postponed_title')}
                                                     className={`flex-shrink-0 px-3 py-2.5 rounded-xl border text-sm font-bold transition ${showExtend ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'}`}>
                                                     ⏱️
                                                 </button>
                                                 <button
                                                     onClick={() => { setShowAbandon(v => !v); setShowExtend(false); setShowNoShow(false); }}
-                                                    title="Maç oynanamadı / iptal"
+                                                    title={t('websc.match_failed_title')}
                                                     className={`flex-shrink-0 px-3 py-2.5 rounded-xl border text-sm font-bold transition ${showAbandon ? 'bg-red-500/20 border-red-500/50 text-red-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'}`}>
                                                     🚫
                                                 </button>
                                                 <button
                                                     onClick={() => { setShowNoShow(v => !v); setShowExtend(false); setShowAbandon(false); }}
-                                                    title="Rakip gelmedi"
+                                                    title={t('websc.rival_noshow')}
                                                     className={`flex-shrink-0 px-3 py-2.5 rounded-xl border text-sm font-bold transition ${showNoShow ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'}`}>
                                                     🙅
                                                 </button>
@@ -5185,7 +5207,7 @@ function SubCategoryPage() {
 
                                             {showExtend && (
                                                 <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3">
-                                                    <p className="text-gray-400 text-xs font-bold mb-2">⏱️ Match postponed or abandoned? Request extra time:</p>
+                                                    <p className="text-gray-400 text-xs font-bold mb-2">{t('websc.postponed_ask')}</p>
                                                     <div className="flex gap-1.5 flex-wrap">
                                                         {EXTEND_OPTIONS.map(h => (
                                                             <button key={h} onClick={() => handleExtend(h)} disabled={extending}
@@ -5194,7 +5216,7 @@ function SubCategoryPage() {
                                                             </button>
                                                         ))}
                                                     </div>
-                                                    <p className="text-gray-600 text-[10px] mt-2">Score window will be extended. All participants will be notified.</p>
+                                                    <p className="text-gray-600 text-[10px] mt-2">{t('websc.score_window_note')}</p>
                                                 </div>
                                             )}
 
@@ -5202,19 +5224,19 @@ function SubCategoryPage() {
                                                 <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3 space-y-2">
                                                     {!abandonReason ? (
                                                         <>
-                                                            <p className="text-gray-400 text-xs font-bold mb-1">🚫 Bu maç ne oldu?</p>
+                                                            <p className="text-gray-400 text-xs font-bold mb-1">{t('websc.what_happened')}</p>
                                                             <button onClick={() => setAbandonReason('abandoned')}
                                                                 className="w-full bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-200 font-bold py-2 rounded-xl text-xs transition text-left px-3">
-                                                                📅 Maç oynanamadı, tekrar planlanacak
+                                                                {t('websc.reschedule')}
                                                             </button>
                                                             <button onClick={() => setAbandonReason('other')}
                                                                 className="w-full bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-200 font-bold py-2 rounded-xl text-xs transition text-left px-3">
-                                                                🤝 Diğer — berabere say ve kapat
+                                                                {t('websc.other_draw')}
                                                             </button>
                                                         </>
                                                     ) : abandonReason === 'abandoned' ? (
                                                         <>
-                                                            <p className="text-gray-400 text-xs font-bold">📅 Yeni tarih/saat (opsiyonel)</p>
+                                                            <p className="text-gray-400 text-xs font-bold">{t('websc.new_datetime')}</p>
                                                             <div className="flex gap-2">
                                                                 <input type="date" value={abanDate} onChange={e => setAbanDate(e.target.value)}
                                                                     className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" />
@@ -5222,19 +5244,19 @@ function SubCategoryPage() {
                                                                     className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" />
                                                             </div>
                                                             <div className="flex gap-2">
-                                                                <button onClick={() => setAbandonReason(null)} className="flex-1 bg-gray-900 text-gray-400 text-xs font-bold py-2 rounded-lg">Geri</button>
+                                                                <button onClick={() => setAbandonReason(null)} className="flex-1 bg-gray-900 text-gray-400 text-xs font-bold py-2 rounded-lg">{t('websc.back')}</button>
                                                                 <button onClick={submitAbandon} disabled={abandoning}
                                                                     className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-2 rounded-lg disabled:opacity-50">
-                                                                    {abandoning ? '...' : 'Onayla'}
+                                                                    {abandoning ? '...' : t('websc.confirm')}
                                                                 </button>
                                                             </div>
                                                         </>
                                                     ) : (
                                                         <div className="flex gap-2">
-                                                            <button onClick={() => setAbandonReason(null)} className="flex-1 bg-gray-900 text-gray-400 text-xs font-bold py-2 rounded-lg">Geri</button>
+                                                            <button onClick={() => setAbandonReason(null)} className="flex-1 bg-gray-900 text-gray-400 text-xs font-bold py-2 rounded-lg">{t('websc.back')}</button>
                                                             <button onClick={submitAbandon} disabled={abandoning}
                                                                 className="flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-2 rounded-lg disabled:opacity-50">
-                                                                {abandoning ? '...' : 'Berabere Say ve Kapat'}
+                                                                {abandoning ? '...' : t('websc.draw_close')}
                                                             </button>
                                                         </div>
                                                     )}
@@ -5243,9 +5265,9 @@ function SubCategoryPage() {
 
                                             {showNoShow && (
                                                 <div className="bg-gray-800/80 border border-gray-700 rounded-xl p-3 space-y-2">
-                                                    <p className="text-gray-400 text-xs font-bold">🙅 Gelmeyen oyuncu(lar)ı seçin:</p>
+                                                    <p className="text-gray-400 text-xs font-bold">{t('websc.pick_noshow')}</p>
                                                     {noShowCandidates.length === 0 ? (
-                                                        <p className="text-gray-600 text-xs">Bildirebileceğiniz bir katılımcı yok.</p>
+                                                        <p className="text-gray-600 text-xs">{t('websc.no_one_to_report')}</p>
                                                     ) : (
                                                         <div className="space-y-1">
                                                             {noShowCandidates.map(p => (
@@ -5260,7 +5282,7 @@ function SubCategoryPage() {
                                                     )}
                                                     <button onClick={submitNoShow} disabled={reportingNoShow || absentIds.length === 0}
                                                         className="w-full bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-bold py-2 rounded-lg disabled:opacity-50">
-                                                        {reportingNoShow ? '...' : 'Bildir'}
+                                                        {reportingNoShow ? '...' : t('websc.report')}
                                                     </button>
                                                 </div>
                                             )}
@@ -5318,19 +5340,19 @@ function SubCategoryPage() {
                                         opp1: parts[0] || null,
                                         opp2: parts[1] || null,
                                     };
-                                    const label = { partner: 'Partner', opp1: 'Rakip 1', opp2: 'Rakip 2' };
+                                    const label = { partner: 'Partner', opp1: t('websc.rival1'), opp2: t('websc.rival2') };
                                     const doSwap = async (slot1, slot2) => {
                                         setSwapping(`${slot1}-${slot2}`);
                                         try {
                                             const { data } = await api.patch(`/rivals/${match.id}/swap-positions`, { slot1, slot2 });
                                             onSwapped(data);
-                                        } catch (e) { alert(e?.response?.data?.message || 'Hata'); }
+                                        } catch (e) { alert(e?.response?.data?.message || t('websc.error')); }
                                         finally { setSwapping(null); }
                                     };
                                     const pairs = [['partner', 'opp1'], ['opp1', 'opp2'], ['partner', 'opp2']];
                                     return (
                                         <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-2.5 mb-2">
-                                            <p className="text-gray-500 text-[10px] font-bold mb-1.5">🔀 Pozisyon Değiştir</p>
+                                            <p className="text-gray-500 text-[10px] font-bold mb-1.5">{t('websc.swap_positions')}</p>
                                             <div className="flex flex-wrap gap-1.5">
                                                 {pairs.map(([a, b]) => (
                                                     <button key={`${a}-${b}`} disabled={swapping === `${a}-${b}` || (!slots[a] && !slots[b])}
@@ -5398,19 +5420,19 @@ function SubCategoryPage() {
                                             <div className="flex items-start justify-between gap-2 mb-3">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     {isPastCard
-                                                        ? <span className="font-bold text-sm text-yellow-400">⏱️ Ended — enter score!</span>
+                                                        ? <span className="font-bold text-sm text-yellow-400">{t('websc.ended_enter_score')}</span>
                                                         : <span className={`font-bold text-sm bg-gradient-to-r ${config.color} bg-clip-text text-transparent`}>{typeLabel(m)}</span>
                                                     }
                                                     {m.matchMode === 'COMPETITIVE' && (
-                                                        <span className="text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full">⚔️ Ranked</span>
+                                                        <span className="text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full">{t('websc.ranked')}</span>
                                                     )}
                                                     {m.matchMode === 'PRACTICE' && (
-                                                        <span className="text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full">🏃 Practice</span>
+                                                        <span className="text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full">{t('websc.practice')}</span>
                                                     )}
                                                 </div>
                                                 <div className="text-right flex-shrink-0">
                                                     {m.matchDate && (
-                                                        <p className="text-gray-400 text-xs">📅 {new Date(m.matchDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</p>
+                                                        <p className="text-gray-400 text-xs">📅 {new Date(m.matchDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' })}</p>
                                                     )}
                                                     {m.matchTime && <p className="text-gray-400 text-xs">🕐 {m.matchTime}</p>}
                                                     {m.duration && <p className="text-gray-500 text-[10px]">⏳ {m.duration} min</p>}
@@ -5502,7 +5524,7 @@ function SubCategoryPage() {
                                             {showComments && (
                                                 <div className="mt-2 space-y-2">
                                                     {matchComments.length === 0 ? (
-                                                        <p className="text-gray-500 text-xs text-center py-2">No comments yet.</p>
+                                                        <p className="text-gray-500 text-xs text-center py-2">{t('websc.no_comments')}</p>
                                                     ) : matchComments.map(c => (
                                                         <div key={c.id} className="bg-gray-800/60 rounded-lg px-3 py-2">
                                                             <div className="flex items-start justify-between gap-2">
@@ -5519,7 +5541,7 @@ function SubCategoryPage() {
                                                     <div className="flex items-center gap-2">
                                                         <input value={commentInput} onChange={e => setCommentInput(e.target.value)}
                                                             onKeyDown={e => e.key === 'Enter' && sendMatchComment()}
-                                                            placeholder="Write a comment..."
+                                                            placeholder={t('websc.comment_ph')}
                                                             className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500" />
                                                         <button onClick={sendMatchComment} disabled={commentSending}
                                                             className={`bg-gradient-to-r ${config.color} text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-50`}>
@@ -5563,11 +5585,11 @@ function SubCategoryPage() {
                                                                 <span className="text-gray-400 text-xs font-bold">
                                                                     {match.matchType === 'DOUBLE' ? '2v2' : '1v1'}
                                                                     {match.matchMode === 'COMPETITIVE' && <span className="ml-1 text-red-400 font-bold"> ⚔️ Ranked</span>}
-                                                                    {match.completedAt && ` · ${new Date(match.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
+                                                                    {match.completedAt && ` · ${new Date(match.completedAt).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' })}`}
                                                                 </span>
                                                                 {isDisputed
-                                                                    ? <span className="text-red-400 text-xs font-bold bg-red-500/10 px-2 py-0.5 rounded-full">⚠️ Disputed</span>
-                                                                    : <span className="text-yellow-400 text-xs font-bold bg-yellow-500/10 px-2 py-0.5 rounded-full">⏳ Awaiting confirmation</span>
+                                                                    ? <span className="text-red-400 text-xs font-bold bg-red-500/10 px-2 py-0.5 rounded-full">{t('websc.disputed')}</span>
+                                                                    : <span className="text-yellow-400 text-xs font-bold bg-yellow-500/10 px-2 py-0.5 rounded-full">{t('websc.awaiting_confirm')}</span>
                                                                 }
                                                             </div>
                                                             {score && <ScoreDisplay score={score} match={match} participants={participants} config={config} />}
@@ -5611,8 +5633,8 @@ function SubCategoryPage() {
                                                                 )}
                                                                 {isDisputed && isInvolved && (
                                                                     <button onClick={async () => {
-                                                                        await api.post(`/rivals/${match.id}/report-dispute`, { reason: 'Score disagreement' });
-                                                                        alert('📋 Report filed. An admin will review.');
+                                                                        await api.post(`/rivals/${match.id}/report-dispute`, { reason: t('websc.score_disagreement') });
+                                                                        alert(t('websc.report_filed'));
                                                                     }} className="w-full bg-red-600/10 border border-red-500/30 text-red-400 font-bold py-2 rounded-xl text-sm hover:bg-red-600/20 transition">
                                                                         📋 Report to Admin
                                                                     </button>
@@ -5679,14 +5701,14 @@ function SubCategoryPage() {
                         ];
                         const POLL_TYPE_OPTIONS = ['1','2','3','4','5','6','7','8'].map(id => ({
                             id,
-                            label: TYPE_LABEL[id] || `🏅 ${t('tournament.type_generic', { n: id, defaultValue: `Type ${id}` })}`,
+                            label: TYPE_LABEL[id] || t('websc.type_n', { n: id }),
                         }));
                         const togglePollType = (id) => setPollTypes(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
                         const generateBracket = () => {
                             // Accept any player with at least one name field (covers single-word usernames → lastName = "")
                             let filled = mixPlayers.filter(p => (p.firstName + p.lastName).trim().length > 0);
-                            if (filled.length < 4) { alert('Need at least 4 players to start.'); return; }
+                            if (filled.length < 4) { alert(t('websc.need_4')); return; }
                             // Trim to even number so all players can be paired
                             if (filled.length % 2 !== 0) filled = filled.slice(0, filled.length - 1);
 
@@ -5734,11 +5756,11 @@ function SubCategoryPage() {
                         };
 
                         const handleCreateTournament = async () => {
-                            if (!newTournamentName.trim()) { alert('Enter a tournament name'); return; }
+                            if (!newTournamentName.trim()) { alert(t('websc.tourn_name_required')); return; }
                             if (!newTournamentRegDate) { alert(t('tournament.reg_deadline')); return; }
                             if (pollEnabled) {
-                                if (!pollEndDate) { alert(t('tournament.poll_end_label', { defaultValue: 'Anket Bitiş Tarihi' })); return; }
-                                if (pollTypes.length < 2) { alert(t('tournament.poll_types_min', { defaultValue: 'Anket için en az 2 tür seçmelisiniz.' })); return; }
+                                if (!pollEndDate) { alert(t('websc.poll_end_label')); return; }
+                                if (pollTypes.length < 2) { alert(t('websc.poll_types_min')); return; }
                             }
                             try {
                                 const { data } = await api.post('/tournaments', {
@@ -5802,7 +5824,7 @@ function SubCategoryPage() {
                         };
                         const handleVoteType = (tournamentId, type) => {
                             const label = TYPE_LABEL[type] || `🏅 Type ${type}`;
-                            if (!confirm(t('tournament.vote_confirm', { type: label, defaultValue: `${label} türüne oy veriyorsunuz. Bu tür kazanırsa turnuvaya oy sıranıza göre otomatik başvurmuş olacaksınız. Devam edilsin mi?` }))) return;
+                            if (!confirm(t('websc.vote_confirm', { type: label }))) return;
                             castVoteType(tournamentId, type);
                         };
 
@@ -5821,7 +5843,7 @@ function SubCategoryPage() {
                                 <div className="flex justify-between items-center">
                                     <div className="flex items-center gap-2">
                                         <h3 className="text-white font-bold">🏆 {t('tournament.title')}</h3>
-                                        <CityAlertControl sub={sub} config={config} tab="tournaments" desc="Şehrinde yeni turnuva açılınca bildirim al" />
+                                        <CityAlertControl sub={sub} config={config} tab="tournaments" desc={t('websc.alert_city_tourn')} />
                                     </div>
                                     <button onClick={() => setTournamentView('pick')}
                                         className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm hover:opacity-90 transition`}>
@@ -5847,10 +5869,10 @@ function SubCategoryPage() {
                                                                 <div className="flex items-center gap-2 flex-wrap mb-1">
                                                                     <span className="text-white font-bold text-sm">{t.name}</span>
                                                                     <span className="text-[10px] bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">
-                                                                        {t.status === 'POLL' ? '🗳️ Poll' : (TYPE_LABEL[t.type] || t.type)}
+                                                                        {t.status === 'POLL' ? t('websc.poll') : (TYPE_LABEL[t.type] || t.type)}
                                                                     </span>
                                                                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.status === 'OPEN' ? 'bg-green-500/20 text-green-400' : t.status === 'POLL' ? 'bg-purple-500/20 text-purple-300' : 'bg-gray-700 text-gray-500'}`}>
-                                                                        {t.status === 'OPEN' ? '🟢 Open' : t.status === 'POLL' ? '🗳️ Poll' : t.status}
+                                                                        {t.status === 'OPEN' ? t('websc.open') : t.status === 'POLL' ? t('websc.poll') : t.status}
                                                                     </span>
                                                                     {t.status !== 'POLL' && (
                                                                         <button onClick={() => setRulesOpen(t.type)}
@@ -5872,8 +5894,8 @@ function SubCategoryPage() {
                                                                 {/* Details row */}
                                                                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
                                                                     {t.location  && <span className="text-gray-400 text-[11px]">📍 {t.location}</span>}
-                                                                    {t.eventDate && <span className="text-gray-400 text-[11px]">📅 {new Date(t.eventDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}{t.startTime ? ` · ${t.startTime}` : ''}</span>}
-                                                                    {t.endDate   && <span className="text-gray-400 text-[11px]">🏁 {new Date(t.endDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}{t.endTime ? ` · ${t.endTime}` : ''}</span>}
+                                                                    {t.eventDate && <span className="text-gray-400 text-[11px]">📅 {new Date(t.eventDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'long', year: 'numeric' })}{t.startTime ? ` · ${t.startTime}` : ''}</span>}
+                                                                    {t.endDate   && <span className="text-gray-400 text-[11px]">🏁 {new Date(t.endDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'long', year: 'numeric' })}{t.endTime ? ` · ${t.endTime}` : ''}</span>}
                                                                 </div>
                                                             </div>
                                                             {/* Action buttons */}
@@ -5897,7 +5919,7 @@ function SubCategoryPage() {
                                                                         })}
                                                                         {t.pollEndDate && (
                                                                             <span className="text-gray-500 text-[10px]">
-                                                                                🗳️ {new Date(t.pollEndDate).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}{t.pollEndTime ? ` ${t.pollEndTime}` : ''}
+                                                                                🗳️ {new Date(t.pollEndDate).toLocaleDateString(uiLocale(), { day: '2-digit', month: '2-digit' })}{t.pollEndTime ? ` ${t.pollEndTime}` : ''}
                                                                             </span>
                                                                         )}
                                                                     </div>
@@ -5910,16 +5932,16 @@ function SubCategoryPage() {
                                                                     const hoursLeft = t.eventDate ? (new Date(t.eventDate) - Date.now()) / 3600000 : Infinity;
                                                                     const canSelfCancel = hoursLeft > 24;
                                                                     if (t._myRequest === 'REJECTED') {
-                                                                        return <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-red-500/10 text-red-400">✗ Rejected</span>;
+                                                                        return <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-red-500/10 text-red-400">{t('websc.rejected')}</span>;
                                                                     }
                                                                     return (
                                                                         <div className="flex items-center gap-1.5">
                                                                             <span className={`text-xs font-bold px-3 py-1.5 rounded-xl ${t._myRequest === 'ACCEPTED' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                                                                                {t._myRequest === 'ACCEPTED' ? '✓ Accepted' : '⏳ Pending'}
+                                                                                {t._myRequest === 'ACCEPTED' ? t('websc.accepted') : t('websc.pending')}
                                                                             </span>
                                                                             {canSelfCancel ? (
                                                                                 <button onClick={async () => {
-                                                                                    if (!confirm('Cancel your registration?')) return;
+                                                                                    if (!confirm(t('websc.cancel_reg'))) return;
                                                                                     try {
                                                                                         await api.delete(`/tournaments/${t.id}/join`);
                                                                                         setTournaments(prev => prev.map(x => x.id === t.id ? { ...x, _myRequest: null } : x));
@@ -5929,10 +5951,10 @@ function SubCategoryPage() {
                                                                                 </button>
                                                                             ) : (
                                                                                 <button onClick={async () => {
-                                                                                    if (!confirm('Less than 24h before tournament. Send cancellation request to creator?')) return;
+                                                                                    if (!confirm(t('websc.cancel_late'))) return;
                                                                                     try {
                                                                                         await api.post(`/tournaments/${t.id}/cancel-request`);
-                                                                                        alert('Cancellation request sent to creator/admin.');
+                                                                                        alert(t('websc.cancel_sent'));
                                                                                     } catch (e) { alert(e?.response?.data?.message || 'Error'); }
                                                                                 }} className="text-orange-400/70 hover:text-orange-400 text-[10px] font-bold border border-orange-500/20 hover:border-orange-500/40 px-2 py-1.5 rounded-xl transition">
                                                                                     ⚠️ Request
@@ -6027,7 +6049,7 @@ function SubCategoryPage() {
                                                                             {Array.from({ length: emptyCount }).map((_, i) => (
                                                                                 <div key={`empty-${i}`} className="flex items-center gap-2 bg-gray-900/30 rounded-xl px-3 py-2 border border-dashed border-gray-800">
                                                                                     <span className="text-gray-700 text-[10px] font-mono w-5">{main.length + i + 1}</span>
-                                                                                    <span className="text-gray-700 text-xs">Empty slot</span>
+                                                                                    <span className="text-gray-700 text-xs">{t('websc.empty_slot')}</span>
                                                                                 </div>
                                                                             ))}
                                                                         </div>
@@ -6097,7 +6119,7 @@ function SubCategoryPage() {
                                                                             <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-3 space-y-2">
                                                                                 <p className="text-yellow-400 font-bold text-xs text-center">🏆 Champion: {winName}</p>
                                                                                 <button onClick={async () => {
-                                                                                    if (!confirm('Archive this tournament? It will be saved permanently and removed from active view.')) return;
+                                                                                    if (!confirm(t('websc.archive_tourn'))) return;
                                                                                     try {
                                                                                         let bracketToSave = parsed;
                                                                                         if (bracketToSave.matches) {
@@ -6111,7 +6133,7 @@ function SubCategoryPage() {
                                                                                         setManagingTournament(null);
                                                                                         setExpandedTournament(null);
                                                                                         setTournaments(prev => prev.filter(tx => tx.id !== t.id));
-                                                                                    } catch (e) { alert(e?.response?.data?.message || 'Error archiving'); }
+                                                                                    } catch (e) { alert(e?.response?.data?.message || t('websc.archive_error')); }
                                                                                 }} className="w-full bg-green-600/80 hover:bg-green-600 text-white font-bold py-2 rounded-xl text-sm transition">
                                                                                     📦 Archive Tournament
                                                                                 </button>
@@ -6176,7 +6198,7 @@ function SubCategoryPage() {
                                                                             setTournamentView('mix_double');
                                                                         }}
                                                                         className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-3 rounded-2xl text-sm hover:opacity-90 transition mt-1`}>
-                                                                        {(bracket && bracketTournamentId === t.id) || localStorage.getItem(`bracket_${t.id}`) ? '▶ Resume Tournament' : `🏆 Start Tournament (${main.length} players ready)`}
+                                                                        {(bracket && bracketTournamentId === t.id) || localStorage.getItem(`bracket_${t.id}`) ? t('websc.resume_tourn') : `🏆 Start Tournament (${main.length} players ready)`}
                                                                     </button>
                                                                 )}
                                                             </div>
@@ -6195,23 +6217,23 @@ function SubCategoryPage() {
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3">
                                     <button onClick={() => setTournamentView(null)} className="text-gray-400 hover:text-white text-xl transition">←</button>
-                                    <h3 className="text-white font-bold">Create Tournament</h3>
+                                    <h3 className="text-white font-bold">{t('websc.create_tournament')}</h3>
                                 </div>
 
                                 <div className="flex gap-2">
                                     <button type="button" onClick={() => { setPollEnabled(false); setPollTypes([]); }}
                                         className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border transition ${!pollEnabled ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'}`}>
-                                        {t('tournament.poll_choose_myself', { defaultValue: '🎯 Türü ben seçeyim' })}
+                                        {t('websc.poll_choose')}
                                     </button>
                                     <button type="button" onClick={() => { setPollEnabled(true); setSelectedTournamentType(null); }}
                                         className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border transition ${pollEnabled ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'}`}>
-                                        {t('tournament.poll_let_vote', { defaultValue: '🗳️ Oylamaya bırakayım' })}
+                                        {t('websc.poll_let_vote')}
                                     </button>
                                 </div>
 
                                 {!pollEnabled ? (
                                     <>
-                                        <p className="text-gray-500 text-sm">Select a tournament type:</p>
+                                        <p className="text-gray-500 text-sm">{t('websc.select_tourn_type')}</p>
                                         <div className="space-y-3">
                                             {TOURNAMENT_TYPES.map(t => (
                                                 <button key={t.id} onClick={() => { setSelectedTournamentType(t.id); setTournamentView('name_entry'); }}
@@ -6227,7 +6249,7 @@ function SubCategoryPage() {
                                     </>
                                 ) : (
                                     <>
-                                        <p className="text-gray-500 text-sm">{t('tournament.poll_types_label', { defaultValue: 'Oylamaya sunulacak türleri seçin (en az 2):' })}</p>
+                                        <p className="text-gray-500 text-sm">{t('websc.poll_types_label')}</p>
                                         <div className="flex flex-wrap gap-2">
                                             {POLL_TYPE_OPTIONS.map(o => (
                                                 <button key={o.id} type="button" onClick={() => togglePollType(o.id)}
@@ -6240,7 +6262,7 @@ function SubCategoryPage() {
                                             disabled={pollTypes.length < 2}
                                             onClick={() => setTournamentView('name_entry')}
                                             className={`w-full font-bold py-3 rounded-xl text-sm transition ${pollTypes.length < 2 ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : `bg-gradient-to-r ${config.color} text-white hover:opacity-90`}`}>
-                                            {t('common.continue', { defaultValue: 'Devam Et' })}
+                                            {t('websc.continue')}
                                         </button>
                                     </>
                                 )}
@@ -6257,14 +6279,14 @@ function SubCategoryPage() {
                                     <div className="flex items-center gap-3">
                                         <button onClick={() => setTournamentView('pick')} className="text-gray-400 hover:text-white text-xl transition">←</button>
                                         <h3 className="text-white font-bold">
-                                            {pollEnabled ? t('tournament.poll_let_vote', { defaultValue: '🗳️ Oylamaya bırakayım' }) : <>{typeInfo?.emoji} {typeInfo?.label}</>}
+                                            {pollEnabled ? t('websc.poll_let_vote') : <>{typeInfo?.emoji} {typeInfo?.label}</>}
                                         </h3>
                                     </div>
 
                                     {/* Rules section */}
                                     {!pollEnabled && (
                                         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 max-h-48 overflow-y-auto">
-                                            <p className="text-white font-bold text-sm mb-3">📋 Rules</p>
+                                            <p className="text-white font-bold text-sm mb-3">{t('websc.rules')}</p>
                                             <div className="space-y-2">
                                                 {(TOURN_RULES[selectedTournamentType] || '').split('\n\n').filter(Boolean).map((para, i) => (
                                                     <p key={i} className="text-gray-400 text-xs leading-relaxed whitespace-pre-line">{para}</p>
@@ -6275,9 +6297,9 @@ function SubCategoryPage() {
 
                                     {/* Tournament name */}
                                     <div>
-                                        <label className={labelCls}>Tournament Name *</label>
+                                        <label className={labelCls}>{t('websc.tourn_name')}</label>
                                         <input value={newTournamentName} onChange={e => setNewTournamentName(e.target.value)}
-                                            placeholder="e.g. Summer Cup 2026" className={inputCls} autoFocus />
+                                            placeholder={t('websc.cup_ph')} className={inputCls} autoFocus />
                                     </div>
 
                                     {/* Court / venue with autocomplete */}
@@ -6301,7 +6323,7 @@ function SubCategoryPage() {
                                         const chipCls = (active) => `px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${active ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'}`;
                                         return (
                                             <div className="flex items-center gap-3 flex-wrap">
-                                                <label className="text-gray-400 text-xs w-24 shrink-0">🎾 Surface</label>
+                                                <label className="text-gray-400 text-xs w-24 shrink-0">{t('websc.surface')}</label>
                                                 <div className="flex flex-wrap gap-1.5">
                                                     {SURFACES.map(s => (
                                                         <button key={s.id} type="button"
@@ -6312,7 +6334,7 @@ function SubCategoryPage() {
                                                     ))}
                                                 </div>
                                                 <div className="flex items-center gap-1.5 ml-6">
-                                                    <label className="text-gray-400 text-xs shrink-0">Venue Type</label>
+                                                    <label className="text-gray-400 text-xs shrink-0">{t('websc.venue_type')}</label>
                                                     <button type="button" onClick={() => setNewTournamentIsIndoor(prev => prev === false ? null : false)}
                                                         className={chipCls(newTournamentIsIndoor === false)}>
                                                         ☀️ Outdoor
@@ -6362,17 +6384,17 @@ function SubCategoryPage() {
                                                 className={inputCls + " [color-scheme:dark] cursor-pointer"} />
                                         </div>
                                         <div>
-                                            <label className={labelCls}>🕐 Start Time</label>
+                                            <label className={labelCls}>{t('websc.start_time')}</label>
                                             <TimeSelect value={newTournamentTime} onChange={setNewTournamentTime} className="w-full" />
                                         </div>
                                         <div>
-                                            <label className={labelCls}>📅 Finish Date</label>
+                                            <label className={labelCls}>{t('websc.finish_date')}</label>
                                             <input type="date" value={newTournamentEndDate} onChange={e => setNewTournamentEndDate(e.target.value)}
                                                 onClick={e => e.target.showPicker?.()}
                                                 className={inputCls + " [color-scheme:dark] cursor-pointer"} />
                                         </div>
                                         <div>
-                                            <label className={labelCls}>🕐 Finish Time</label>
+                                            <label className={labelCls}>{t('websc.finish_time')}</label>
                                             <TimeSelect value={newTournamentEndTime} onChange={setNewTournamentEndTime} className="w-full" />
                                         </div>
                                     </div>
@@ -6381,7 +6403,7 @@ function SubCategoryPage() {
                                     {pollEnabled && (
                                         <div className="grid grid-cols-2 gap-2">
                                             <div>
-                                                <label className={labelCls}>🗳️ {t('tournament.poll_end_label', { defaultValue: 'Anket Bitiş Tarihi' })} *</label>
+                                                <label className={labelCls}>🗳️ {t('websc.poll_end_label')} *</label>
                                                 <input type="date" value={pollEndDate} onChange={e => setPollEndDate(e.target.value)}
                                                     onClick={e => e.target.showPicker?.()}
                                                     className={inputCls + " [color-scheme:dark] cursor-pointer"} />
@@ -6425,7 +6447,7 @@ function SubCategoryPage() {
                             const reserveList = acceptedAll.slice(MAX);
 
                             const handleCancel = async () => {
-                                if (!window.confirm('Are you sure you want to cancel this tournament? It will be permanently deleted.')) return;
+                                if (!window.confirm(t('websc.cancel_tourn'))) return;
                                 try {
                                     if (demoIntervalRef.current) { clearInterval(demoIntervalRef.current); demoIntervalRef.current = null; }
                                     setDemoProgress(null);
@@ -6493,7 +6515,7 @@ function SubCategoryPage() {
                                     {pendingReqs.length === 0 ? (
                                         <div className="text-center py-10 bg-gray-900 rounded-2xl border border-gray-800">
                                             <p className="text-3xl mb-2">📭</p>
-                                            <p className="text-gray-400 text-sm">No pending requests.</p>
+                                            <p className="text-gray-400 text-sm">{t('websc.no_pending')}</p>
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
@@ -6511,9 +6533,9 @@ function SubCategoryPage() {
                                                     </div>
                                                     <div className="flex gap-1.5 flex-shrink-0">
                                                         <button onClick={() => handleRequestAction(managingTournament.id, r.user.id, 'ACCEPTED')}
-                                                            className="bg-green-600/80 hover:bg-green-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition">✓ Accept</button>
+                                                            className="bg-green-600/80 hover:bg-green-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition">{t('websc.accept')}</button>
                                                         <button onClick={() => handleRequestAction(managingTournament.id, r.user.id, 'REJECTED')}
-                                                            className="bg-red-600/20 border border-red-600/40 text-red-400 font-bold text-xs px-3 py-1.5 rounded-xl transition">✗ Reject</button>
+                                                            className="bg-red-600/20 border border-red-600/40 text-red-400 font-bold text-xs px-3 py-1.5 rounded-xl transition">{t('websc.reject_x')}</button>
                                                     </div>
                                                 </div>
                                             ))}
@@ -6622,16 +6644,16 @@ function SubCategoryPage() {
                                     <div className="flex items-center gap-3">
                                         <button onClick={() => { setTournamentView(null); if (managingTournament?.id) setExpandedTournament(managingTournament.id); }} className="text-gray-400 hover:text-white text-xl transition">←</button>
                                         <div className="flex-1">
-                                            <h3 className="text-white font-bold">🎾 Mix Double Surprise Tournament</h3>
+                                            <h3 className="text-white font-bold">{t('websc.mix_surprise')}</h3>
                                             <p className="text-gray-500 text-xs">
                                                 {bracket
-                                                    ? (bracket.phase === 'league' ? `${bracket.matches.filter(m => m.played).length}/${bracket.matches.length} matches played` : bracket.phase === 'final' ? '🏆 Final' : '🏆 Finished')
-                                                    : 'Enter 32 players — pairs are drawn randomly'}
+                                                    ? (bracket.phase === 'league' ? `${bracket.matches.filter(m => m.played).length}/${bracket.matches.length} matches played` : bracket.phase === 'final' ? t('websc.final') : t('websc.finished'))
+                                                    : t('websc.enter_32')}
                                             </p>
                                         </div>
                                         {bracket && isCreator && (
                                             <button onClick={() => {
-                                                if (!confirm('Reset tournament? All scores will be lost.')) return;
+                                                if (!confirm(t('websc.reset_tourn'))) return;
                                                 if (bracketTournamentId) {
                                                     localStorage.removeItem(`bracket_${bracketTournamentId}`);
                                                     localStorage.removeItem(`bracket_players_${bracketTournamentId}`);
@@ -6647,7 +6669,7 @@ function SubCategoryPage() {
                                     {/* Player list */}
                                     <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
                                         <div className="grid grid-cols-[1.5rem_1fr_1fr_3.5rem_4.5rem] gap-0 px-4 py-2 bg-gray-800 text-gray-400 text-[10px] font-bold uppercase tracking-wide">
-                                            <span>#</span><span>First Name</span><span>Last Name</span><span className="text-center">Gender</span><span className="text-center">Paid</span>
+                                            <span>#</span><span>{t('websc.first_name')}</span><span>Last Name</span><span className="text-center">Gender</span><span className="text-center">Paid</span>
                                         </div>
                                         <div className={`${bracket ? 'max-h-40' : 'max-h-[60vh]'} overflow-y-auto divide-y divide-gray-800`}>
                                             {mixPlayers.map((p, idx) => (
@@ -6655,11 +6677,11 @@ function SubCategoryPage() {
                                                     <span className="text-gray-600 text-xs font-mono">{idx + 1}</span>
                                                     <input value={p.firstName}
                                                         onChange={e => setMixPlayers(prev => prev.map((pl, i) => i === idx ? { ...pl, firstName: e.target.value } : pl))}
-                                                        placeholder="First name" disabled={!!bracket}
+                                                        placeholder={t('websc.first_name')} disabled={!!bracket}
                                                         className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 w-full disabled:opacity-50" />
                                                     <input value={p.lastName}
                                                         onChange={e => setMixPlayers(prev => prev.map((pl, i) => i === idx ? { ...pl, lastName: e.target.value } : pl))}
-                                                        placeholder="Last name" disabled={!!bracket}
+                                                        placeholder={t('websc.last_name')} disabled={!!bracket}
                                                         className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 w-full disabled:opacity-50" />
                                                     <div className="flex justify-center">
                                                         <button disabled={!!bracket} onClick={() => setMixPlayers(prev => prev.map((pl, i) => i === idx ? { ...pl, gender: pl.gender === 'M' ? 'F' : pl.gender === 'F' ? 'O' : 'M' } : pl))}
@@ -6749,7 +6771,7 @@ function SubCategoryPage() {
                                                                             </div>
                                                                         ))}
                                                                         <div className="flex items-center gap-2 pt-0.5">
-                                                                            <button onClick={() => mdAddSet(m.id)} className="text-purple-400/70 hover:text-purple-400 text-[10px] font-bold transition">+ Set</button>
+                                                                            <button onClick={() => mdAddSet(m.id)} className="text-purple-400/70 hover:text-purple-400 text-[10px] font-bold transition">{t('websc.add_set')}</button>
                                                                             {(() => { const { t1w: cw, t2w: cl } = mdSetsWon(m); return cw === cl && cw > 0 ? (
                                                                                 <span className="text-gray-500 text-[10px]">Tie — pick winner:
                                                                                     <button onClick={() => mdSetWinner(m.id, m.t1)} className={`ml-1 text-[10px] font-bold ${m.winner === m.t1 ? 'text-green-400' : 'text-gray-400 hover:text-white'} transition`}>{mdTeamName(m.t1)}</button>
@@ -6769,21 +6791,21 @@ function SubCategoryPage() {
 
                                             {/* Overall Standings */}
                                             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-                                                <h4 className="text-white font-bold text-sm mb-3">📊 Overall Standings</h4>
+                                                <h4 className="text-white font-bold text-sm mb-3">{t('websc.overall_standings')}</h4>
                                                 <div className="overflow-x-auto">
                                                     <table className="w-full text-xs">
                                                         <thead>
                                                             <tr className="border-b border-gray-800 text-[10px] uppercase tracking-wide text-gray-500">
                                                                 <th className="text-left py-1 w-5">#</th>
-                                                                <th className="text-left py-1 pr-2">Team</th>
+                                                                <th className="text-left py-1 pr-2">{t('websc.team')}</th>
                                                                 <th className="text-center w-6">P</th>
                                                                 <th className="text-center w-6">W</th>
                                                                 <th className="text-center w-6">L</th>
-                                                                <th className="text-center w-8">GW</th>
-                                                                <th className="text-center w-8">GL</th>
-                                                                <th className="text-center w-8">GD</th>
-                                                                <th className="text-center w-10">Avg</th>
-                                                                <th className="text-center w-8 text-yellow-400">Pts</th>
+                                                                <th className="text-center w-8">{t('websc.gw')}</th>
+                                                                <th className="text-center w-8">{t('websc.gl')}</th>
+                                                                <th className="text-center w-8">{t('websc.gd')}</th>
+                                                                <th className="text-center w-10">{t('websc.avg')}</th>
+                                                                <th className="text-center w-8 text-yellow-400">{t('websc.pts')}</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
@@ -6817,7 +6839,7 @@ function SubCategoryPage() {
                                             {/* Final match */}
                                             {(bracket.phase === 'final' || bracket.phase === 'done') && bracket.final && (
                                                 <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 space-y-3">
-                                                    <h4 className="text-yellow-400 font-bold text-sm">🏆 Final</h4>
+                                                    <h4 className="text-yellow-400 font-bold text-sm">{t('websc.final')}</h4>
                                                     <div className={`rounded-xl px-3 py-2 space-y-1.5 ${bracket.final.played ? 'bg-gray-800/60' : 'bg-gray-800'}`}>
                                                         {/* Team names + played summary */}
                                                         <div className="flex items-center justify-between gap-2">
@@ -6845,7 +6867,7 @@ function SubCategoryPage() {
                                                                     </div>
                                                                 ))}
                                                                 <div className="flex items-center gap-2 pt-0.5">
-                                                                    <button onClick={mdAddFinalSet} className="text-purple-400/70 hover:text-purple-400 text-[10px] font-bold transition">+ Set</button>
+                                                                    <button onClick={mdAddFinalSet} className="text-purple-400/70 hover:text-purple-400 text-[10px] font-bold transition">{t('websc.add_set')}</button>
                                                                     {(() => { const sets = bracket.final.sets||[]; const t1w=sets.filter(s=>(parseInt(s.t1)||0)>(parseInt(s.t2)||0)).length; const t2w=sets.filter(s=>(parseInt(s.t2)||0)>(parseInt(s.t1)||0)).length; return t1w===t2w && t1w>0 ? (
                                                                         <span className="text-gray-500 text-[10px]">Tie — pick winner:
                                                                             <button onClick={() => setBracket(prev => ({ ...prev, final: { ...prev.final, winner: prev.final.t1 } }))} className={`ml-1 text-[10px] font-bold ${bracket.final.winner === bracket.final.t1 ? 'text-yellow-400' : 'text-gray-400 hover:text-white'} transition`}>{mdTeamName(bracket.final.t1)}</button>
@@ -6853,7 +6875,7 @@ function SubCategoryPage() {
                                                                             <button onClick={() => setBracket(prev => ({ ...prev, final: { ...prev.final, winner: prev.final.t2 } }))} className={`text-[10px] font-bold ${bracket.final.winner === bracket.final.t2 ? 'text-yellow-400' : 'text-gray-400 hover:text-white'} transition`}>{mdTeamName(bracket.final.t2)}</button>
                                                                         </span>
                                                                     ) : null; })()}
-                                                                    <button onClick={mdConfirmFinal} className="ml-auto bg-yellow-500/80 hover:bg-yellow-500 text-black text-[10px] font-black px-2 py-1 rounded-lg transition">✓ Confirm Final</button>
+                                                                    <button onClick={mdConfirmFinal} className="ml-auto bg-yellow-500/80 hover:bg-yellow-500 text-black text-[10px] font-black px-2 py-1 rounded-lg transition">{t('websc.confirm_final')}</button>
                                                                 </div>
                                                             </div>
                                                         )}
@@ -6861,11 +6883,11 @@ function SubCategoryPage() {
                                                     {bracket.phase === 'done' && bracket.final.winner != null && (
                                                         <div className="text-center pt-2 space-y-3">
                                                             <p className="text-4xl mb-1">🏆</p>
-                                                            <p className="text-yellow-400 font-black text-base">CHAMPION</p>
+                                                            <p className="text-yellow-400 font-black text-base">{t('websc.champion')}</p>
                                                             <p className="text-white font-bold text-sm mt-0.5">{mdTeamFull(bracket.final.winner)}</p>
                                                             {isCreator && managingTournament?.id && (
                                                                 <button onClick={async () => {
-                                                                    if (!confirm('Archive this tournament? The bracket will be saved permanently and removed from active view.')) return;
+                                                                    if (!confirm(t('websc.archive_bracket'))) return;
                                                                     try {
                                                                         await api.post(`/tournaments/${managingTournament.id}/complete`, { bracketData: bracket });
                                                                         localStorage.removeItem(`bracket_${managingTournament.id}`);
@@ -6875,8 +6897,8 @@ function SubCategoryPage() {
                                                                         setManagingTournament(null);
                                                                         setTournamentView(null);
                                                                         setTournaments(prev => prev.filter(t => t.id !== managingTournament.id));
-                                                                        alert('Tournament archived! View it in the Archive page.');
-                                                                    } catch (e) { alert(e?.response?.data?.message || 'Error archiving tournament'); }
+                                                                        alert(t('websc.tourn_archived'));
+                                                                    } catch (e) { alert(e?.response?.data?.message || t('websc.archive_tourn_error')); }
                                                                 }} className="mx-auto block bg-green-600/80 hover:bg-green-600 text-white font-bold px-6 py-2 rounded-xl text-sm transition">
                                                                     📦 Archive Tournament
                                                                 </button>
@@ -6896,13 +6918,13 @@ function SubCategoryPage() {
                                 <div className="flex items-center gap-3">
                                     <button onClick={() => setTournamentView(null)} className="text-gray-400 hover:text-white text-xl transition">←</button>
                                     <h3 className="text-white font-bold">
-                                        {tournamentView === 'singles' ? '🏆 Singles Elimination' : '👥 Team Tournament (4v4)'}
+                                        {tournamentView === 'singles' ? t('websc.singles_elim') : t('websc.team_tourn_4')}
                                     </h3>
                                 </div>
                                 <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800">
                                     <p className="text-4xl mb-3">🚧</p>
-                                    <p className="text-white font-bold">Coming Soon</p>
-                                    <p className="text-gray-500 text-sm mt-1">This tournament type is under development.</p>
+                                    <p className="text-white font-bold">{t('websc.coming_soon')}</p>
+                                    <p className="text-gray-500 text-sm mt-1">{t('websc.tourn_in_dev')}</p>
                                 </div>
                             </div>
                         );
@@ -6973,16 +6995,16 @@ function SubCategoryPage() {
                                     <div className="flex items-center gap-3">
                                         <button onClick={() => setTournamentView('mix_double')} className="text-gray-400 hover:text-white text-xl transition">←</button>
                                         <div className="flex-1">
-                                            <h3 className="text-white font-bold">🎾 Mix Double Surprise Tournament</h3>
+                                            <h3 className="text-white font-bold">{t('websc.mix_surprise')}</h3>
                                             <p className="text-gray-500 text-xs">
-                                                {bracket.phase === 'league' ? `${bracket.matches.filter(m => m.played).length}/${bracket.matches.length} matches played` : bracket.phase === 'final' ? '🏆 Final' : '🏆 Finished'}
+                                                {bracket.phase === 'league' ? `${bracket.matches.filter(m => m.played).length}/${bracket.matches.length} matches played` : bracket.phase === 'final' ? t('websc.final') : t('websc.finished')}
                                             </p>
                                         </div>
                                     </div>
 
                                     {/* TEAMS */}
                                     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-                                        <h4 className="text-white font-bold text-sm mb-3">👫 16 Teams</h4>
+                                        <h4 className="text-white font-bold text-sm mb-3">{t('websc.teams_16')}</h4>
                                         <div className="grid grid-cols-2 gap-1.5">
                                             {bracket.teams.map(t => (
                                                 <div key={t.id} className="bg-gray-800 rounded-xl px-3 py-2 text-xs flex items-center gap-1.5">
@@ -7028,21 +7050,21 @@ function SubCategoryPage() {
 
                                     {/* OVERALL STANDINGS */}
                                     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-                                        <h4 className="text-white font-bold text-sm mb-3">📊 Overall Standings</h4>
+                                        <h4 className="text-white font-bold text-sm mb-3">{t('websc.overall_standings')}</h4>
                                         <div className="overflow-x-auto">
                                             <table className="w-full text-xs">
                                                 <thead>
                                                     <tr className="border-b border-gray-800 text-[10px] uppercase tracking-wide text-gray-500">
                                                         <th className="text-left py-1 w-5">#</th>
-                                                        <th className="text-left py-1 pr-2">Team</th>
+                                                        <th className="text-left py-1 pr-2">{t('websc.team')}</th>
                                                         <th className="text-center w-6">P</th>
                                                         <th className="text-center w-6">W</th>
                                                         <th className="text-center w-6">L</th>
-                                                        <th className="text-center w-8">GW</th>
-                                                        <th className="text-center w-8">GL</th>
-                                                        <th className="text-center w-8">GD</th>
-                                                        <th className="text-center w-10">Avg</th>
-                                                        <th className="text-center w-8 text-yellow-400">Pts</th>
+                                                        <th className="text-center w-8">{t('websc.gw')}</th>
+                                                        <th className="text-center w-8">{t('websc.gl')}</th>
+                                                        <th className="text-center w-8">{t('websc.gd')}</th>
+                                                        <th className="text-center w-10">{t('websc.avg')}</th>
+                                                        <th className="text-center w-8 text-yellow-400">{t('websc.pts')}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -7077,7 +7099,7 @@ function SubCategoryPage() {
 
                                     {(bracket.phase === 'final' || bracket.phase === 'done') && bracket.final && (
                                         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 space-y-3">
-                                            <h4 className="text-yellow-400 font-bold text-sm">🏆 Final</h4>
+                                            <h4 className="text-yellow-400 font-bold text-sm">{t('websc.final')}</h4>
                                             <div className={`flex items-center gap-2 rounded-xl px-3 py-2 ${bracket.final.played ? 'bg-gray-800/60' : 'bg-gray-800'}`}>
                                                 <span className={`text-xs font-bold flex-1 truncate ${bracket.final.played && bracket.final.winner === bracket.final.t1 ? 'text-yellow-400' : 'text-white'}`}>{teamFull(bracket.final.t1)}</span>
                                                 {bracket.final.played ? (
@@ -7095,7 +7117,7 @@ function SubCategoryPage() {
                                             {bracket.phase === 'done' && bracket.final.winner != null && (
                                                 <div className="text-center pt-2">
                                                     <p className="text-4xl mb-1">🏆</p>
-                                                    <p className="text-yellow-400 font-black text-base">CHAMPION</p>
+                                                    <p className="text-yellow-400 font-black text-base">{t('websc.champion')}</p>
                                                     <p className="text-white font-bold text-sm mt-0.5">{teamFull(bracket.final.winner)}</p>
                                                 </div>
                                             )}
@@ -7111,11 +7133,11 @@ function SubCategoryPage() {
                     {/* COACHES TAB */}
                     {activeTab === 'coaches' && (() => {
                         const CRED_LEVELS = [
-                            { id: 'CERTIFIED',   label: 'Certified Coach',     emoji: '🏅', color: 'text-yellow-400' },
-                            { id: 'LICENSED',    label: 'Licensed Coach',      emoji: '📜', color: 'text-blue-400'   },
-                            { id: 'CLUB_COACH',  label: 'Club / Academy Coach', emoji: '🏫', color: 'text-green-400' },
-                            { id: 'INDEPENDENT', label: 'Independent Coach',   emoji: '🎯', color: 'text-purple-400' },
-                            { id: 'AMATEUR',     label: 'Amateur / Hobbyist',  emoji: '⭐', color: 'text-gray-400'   },
+                            { id: 'CERTIFIED',   label: t('websc.coach_certified'),     emoji: '🏅', color: 'text-yellow-400' },
+                            { id: 'LICENSED',    label: t('websc.coach_licensed'),      emoji: '📜', color: 'text-blue-400'   },
+                            { id: 'CLUB_COACH',  label: t('websc.coach_club'), emoji: '🏫', color: 'text-green-400' },
+                            { id: 'INDEPENDENT', label: t('websc.coach_independent'),   emoji: '🎯', color: 'text-purple-400' },
+                            { id: 'AMATEUR',     label: t('websc.coach_hobby'),  emoji: '⭐', color: 'text-gray-400'   },
                         ];
                         const DAYS = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
                         const DAY_LABEL = { MON:'Mon', TUE:'Tue', WED:'Wed', THU:'Thu', FRI:'Fri', SAT:'Sat', SUN:'Sun' };
@@ -7152,7 +7174,7 @@ function SubCategoryPage() {
 
                             const submit = async () => {
                                 if (!f.location || (!f.individual && !f.group))
-                                    return alert('Please fill location and select at least one lesson type.');
+                                    return alert(t('websc.fill_lesson'));
                                 setSubmitting(true);
                                 try {
                                     const { data } = await api.post('/coaches', {
@@ -7172,13 +7194,13 @@ function SubCategoryPage() {
                             return (
                                 <div className="bg-gray-900 border border-gray-700 rounded-2xl p-5 space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <p className="text-white font-bold">🎓 Post Coach Listing</p>
+                                        <p className="text-white font-bold">{t('websc.post_coach')}</p>
                                         <button onClick={onClose} className="text-gray-500 hover:text-white text-lg">✕</button>
                                     </div>
 
                                     {/* Credential level */}
                                     <div>
-                                        <p className="text-gray-400 text-xs font-bold mb-2">Credential Level</p>
+                                        <p className="text-gray-400 text-xs font-bold mb-2">{t('websc.credential_level')}</p>
                                         <div className="grid grid-cols-2 gap-2">
                                             {CRED_LEVELS.map(c => (
                                                 <button key={c.id} onClick={() => set('credentialLevel', c.id)}
@@ -7195,11 +7217,11 @@ function SubCategoryPage() {
                                         <div>
                                             <p className="text-gray-400 text-xs font-bold mb-1">Certification Name <span className="text-gray-600">(optional)</span></p>
                                             <input value={f.certName} onChange={e => set('certName', e.target.value)}
-                                                placeholder="e.g. ITF Level 2"
+                                                placeholder={t('websc.itf_ph')}
                                                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
                                         </div>
                                         <div>
-                                            <p className="text-gray-400 text-xs font-bold mb-1">Years of Experience</p>
+                                            <p className="text-gray-400 text-xs font-bold mb-1">{t('websc.years_exp')}</p>
                                             <input type="number" min="0" max="50" value={f.experience} onChange={e => set('experience', e.target.value)}
                                                 placeholder="0"
                                                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
@@ -7208,33 +7230,33 @@ function SubCategoryPage() {
 
                                     {/* Lesson types */}
                                     <div>
-                                        <p className="text-gray-400 text-xs font-bold mb-2">Lesson Types</p>
+                                        <p className="text-gray-400 text-xs font-bold mb-2">{t('websc.lesson_types')}</p>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className={`border rounded-xl p-3 transition cursor-pointer ${f.individual ? 'border-purple-500 bg-purple-600/10' : 'border-gray-700 bg-gray-800'}`}
                                                 onClick={() => set('individual', !f.individual)}>
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-white text-xs font-bold">👤 Individual</span>
+                                                    <span className="text-white text-xs font-bold">{t('websc.individual')}</span>
                                                     <div className={`w-4 h-4 rounded-full border-2 ${f.individual ? 'bg-purple-500 border-purple-500' : 'border-gray-600'}`} />
                                                 </div>
                                                 {f.individual && (
                                                     <input type="number" min="0" value={f.priceIndividual}
                                                         onChange={e => { e.stopPropagation(); set('priceIndividual', e.target.value); }}
                                                         onClick={e => e.stopPropagation()}
-                                                        placeholder="Price / hour (₺)"
+                                                        placeholder={t('websc.price_hour')}
                                                         className="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500" />
                                                 )}
                                             </div>
                                             <div className={`border rounded-xl p-3 transition cursor-pointer ${f.group ? 'border-purple-500 bg-purple-600/10' : 'border-gray-700 bg-gray-800'}`}
                                                 onClick={() => set('group', !f.group)}>
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-white text-xs font-bold">👥 Group</span>
+                                                    <span className="text-white text-xs font-bold">{t('websc.group')}</span>
                                                     <div className={`w-4 h-4 rounded-full border-2 ${f.group ? 'bg-purple-500 border-purple-500' : 'border-gray-600'}`} />
                                                 </div>
                                                 {f.group && (
                                                     <div className="space-y-1.5" onClick={e => e.stopPropagation()}>
                                                         <input type="number" min="0" value={f.priceGroup}
                                                             onChange={e => set('priceGroup', e.target.value)}
-                                                            placeholder="Price / person (₺)"
+                                                            placeholder={t('websc.price_person')}
                                                             className="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500" />
                                                         <select value={f.maxGroupSize} onChange={e => set('maxGroupSize', Number(e.target.value))}
                                                             className="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500">
@@ -7249,22 +7271,22 @@ function SubCategoryPage() {
                                     {/* Location */}
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <p className="text-gray-400 text-xs font-bold mb-1">Location / Venue *</p>
+                                            <p className="text-gray-400 text-xs font-bold mb-1">{t('websc.location_venue')}</p>
                                             <input value={f.location} onChange={e => set('location', e.target.value)}
-                                                placeholder="Club name, court, address..."
+                                                placeholder={t('websc.club_ph')}
                                                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
                                         </div>
                                         <div>
-                                            <p className="text-gray-400 text-xs font-bold mb-1">City</p>
+                                            <p className="text-gray-400 text-xs font-bold mb-1">{t('websc.city_plain')}</p>
                                             <input value={f.city} onChange={e => set('city', e.target.value)}
-                                                placeholder="Istanbul, Ankara..."
+                                                placeholder={t('websc.cities_ph')}
                                                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
                                         </div>
                                     </div>
 
                                     {/* Days */}
                                     <div>
-                                        <p className="text-gray-400 text-xs font-bold mb-2">Available Days</p>
+                                        <p className="text-gray-400 text-xs font-bold mb-2">{t('websc.available_days')}</p>
                                         <div className="flex gap-1.5 flex-wrap">
                                             {DAYS.map(d => (
                                                 <button key={d} onClick={() => toggleDay(d)}
@@ -7278,7 +7300,7 @@ function SubCategoryPage() {
 
                                     {/* Time range */}
                                     <div>
-                                        <p className="text-gray-400 text-xs font-bold mb-2">Available Hours</p>
+                                        <p className="text-gray-400 text-xs font-bold mb-2">{t('websc.available_hours')}</p>
                                         <div className="flex items-center gap-2">
                                             <input type="time" value={f.timeFrom} onChange={e => set('timeFrom', e.target.value)}
                                                 className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
@@ -7292,7 +7314,7 @@ function SubCategoryPage() {
                                     <div>
                                         <p className="text-gray-400 text-xs font-bold mb-1">About / Description <span className="text-gray-600">(optional)</span></p>
                                         <textarea value={f.description} onChange={e => set('description', e.target.value)}
-                                            rows={3} placeholder="Introduce yourself, your coaching style, specialties..."
+                                            rows={3} placeholder={t('websc.coach_intro')}
                                             className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500 resize-none" />
                                     </div>
 
@@ -7307,7 +7329,7 @@ function SubCategoryPage() {
 
                                     <button onClick={submit} disabled={submitting}
                                         className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-3 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50`}>
-                                        {submitting ? 'Posting...' : '🎓 Post Listing'}
+                                        {submitting ? 'Posting...' : t('websc.post_listing')}
                                     </button>
                                 </div>
                             );
@@ -7341,7 +7363,7 @@ function SubCategoryPage() {
                             };
 
                             const submit = async () => {
-                                if (!f.location) return alert('Please fill location.');
+                                if (!f.location) return alert(t('websc.fill_location'));
                                 setSubmitting(true);
                                 try {
                                     const { data } = await api.post('/referees', {
@@ -7381,7 +7403,7 @@ function SubCategoryPage() {
                                         <div>
                                             <p className="text-gray-400 text-xs font-bold mb-1">{t('coaches.cert_name')}</p>
                                             <input value={f.certName} onChange={e => set('certName', e.target.value)}
-                                                placeholder="e.g. TFF C License"
+                                                placeholder={t('websc.tff_ph')}
                                                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
                                         </div>
                                         <div>
@@ -7403,13 +7425,13 @@ function SubCategoryPage() {
                                         <div>
                                             <p className="text-gray-400 text-xs font-bold mb-1">{t('coaches.location_venue')} *</p>
                                             <input value={f.location} onChange={e => set('location', e.target.value)}
-                                                placeholder="Club name, court, address..."
+                                                placeholder={t('websc.club_ph')}
                                                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
                                         </div>
                                         <div>
                                             <p className="text-gray-400 text-xs font-bold mb-1">{t('coaches.city')}</p>
                                             <input value={f.city} onChange={e => set('city', e.target.value)}
-                                                placeholder="Istanbul, Ankara..."
+                                                placeholder={t('websc.cities_ph')}
                                                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
                                         </div>
                                     </div>
@@ -7441,14 +7463,14 @@ function SubCategoryPage() {
                                     <div>
                                         <p className="text-gray-400 text-xs font-bold mb-1">{t('referees.achievements')} <span className="text-gray-600">({t('coaches.about_optional')})</span></p>
                                         <input value={f.achievements} onChange={e => set('achievements', e.target.value)}
-                                            placeholder="e.g. 50+ league matches officiated"
+                                            placeholder={t('websc.matches_officiated')}
                                             className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
                                     </div>
 
                                     <div>
                                         <p className="text-gray-400 text-xs font-bold mb-1">{t('coaches.about')} <span className="text-gray-600">({t('coaches.about_optional')})</span></p>
                                         <textarea value={f.description} onChange={e => set('description', e.target.value)}
-                                            rows={3} placeholder="Introduce yourself, your officiating style, specialties..."
+                                            rows={3} placeholder={t('websc.ref_intro')}
                                             className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500 resize-none" />
                                     </div>
 
@@ -7607,10 +7629,10 @@ function SubCategoryPage() {
                                         <h3 className="text-white font-bold">🎓 {isCoachExpanded ? t('coaches.support_title') : t('coaches.title')}</h3>
                                         <CityAlertControl sub={sub} config={config} tab={coachSubTab === 'referees' ? 'referees' : coachSubTab === 'clubs' ? 'clubs' : 'coaches'}
                                             desc={coachSubTab === 'referees'
-                                                ? 'Şehrinde yeni hakem ilanı açılınca bildirim al'
+                                                ? t('websc.alert_city_ref')
                                                 : coachSubTab === 'clubs'
-                                                    ? 'Şehrinde yeni kulüp ilanı açılınca bildirim al'
-                                                    : 'Şehrinde yeni antrenör ilanı açılınca bildirim al'} />
+                                                    ? t('websc.alert_city_club')
+                                                    : t('websc.alert_city_coach')} />
                                     </div>
                                     {coachSubTab === 'cvs' ? null : coachSubTab === 'clubs' ? (
                                         <button onClick={() => setShowCreateClub(v => !v)}
@@ -7784,7 +7806,7 @@ function SubCategoryPage() {
                                                                     </span>
                                                                 </div>
                                                                 <div className="space-y-1 text-xs text-gray-400 mb-2">
-                                                                    {post.matchDate && <p>📅 {new Date(post.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{post.matchTime ? ` · ${post.matchTime}` : ''}</p>}
+                                                                    {post.matchDate && <p>📅 {new Date(post.matchDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' })}{post.matchTime ? ` · ${post.matchTime}` : ''}</p>}
                                                                     {post.location && <p>📍 {post.location}</p>}
                                                                     {post.refereePayment && <p className="text-green-400 font-bold">💰 {post.refereePayment}</p>}
                                                                     {post.message && <p className="text-gray-300 italic">"{post.message}"</p>}
@@ -8116,17 +8138,17 @@ function SubCategoryPage() {
 
                         const RefereeNeededForm = ({ onClose, onPosted }) => {
                             const DURATIONS = [
-                                { value: 60,  label: '60 min' },
-                                { value: 90,  label: '90 min' },
-                                { value: 120, label: '120 min' },
-                                { value: 999, label: '120 min + ET' },
+                                { value: 60,  key: 'dur_m60' },
+                                { value: 90,  key: 'dur_m90' },
+                                { value: 120, key: 'dur_m120' },
+                                { value: 999, key: 'dur_et' },
                             ];
                             const [f, setF] = useState({ matchDate: '', matchTime: '', duration: 90, location: '', teamSize: 5, fee: '', message: '' });
                             const [submitting, setSubmitting] = useState(false);
                             return (
                                 <div className="bg-gray-900 border border-yellow-500/30 rounded-2xl p-4 space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <p className="text-white font-bold">📋 Need a Referee</p>
+                                        <p className="text-white font-bold">{t('websc.need_referee')}</p>
                                         <button onClick={onClose} className="text-gray-500 hover:text-white text-lg">✕</button>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2">
@@ -8135,21 +8157,21 @@ function SubCategoryPage() {
                                         <TimeSelect value={f.matchTime} onChange={v => setF(p => ({ ...p, matchTime: v }))} className="w-full" />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <span className="text-gray-400 text-xs">Match duration:</span>
+                                        <span className="text-gray-400 text-xs">{t('websc.match_duration')}</span>
                                         <div className="flex gap-2">
                                             {DURATIONS.map(d => (
                                                 <button key={d.value} type="button" onClick={() => setF(p => ({ ...p, duration: d.value }))}
                                                     className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition ${f.duration === d.value ? 'bg-yellow-500 border-yellow-500 text-black' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-yellow-500/50'}`}>
-                                                    {d.label}
+                                                    {t('websc.' + d.key)}
                                                 </button>
                                             ))}
                                         </div>
                                     </div>
                                     <input value={f.location} onChange={e => setF(p => ({ ...p, location: e.target.value }))}
-                                        placeholder="City / Location"
+                                        placeholder={t('websc.city_location')}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500" />
                                     <div className="space-y-1.5">
-                                        <span className="text-gray-400 text-xs">Match size:</span>
+                                        <span className="text-gray-400 text-xs">{t('websc.match_size')}</span>
                                         <div className="flex flex-wrap gap-2">
                                             {[2,3,4,5,6,7,8,9,10,11].map(n => (
                                                 <button key={n} type="button" onClick={() => setF(p => ({ ...p, teamSize: n }))}
@@ -8160,10 +8182,10 @@ function SubCategoryPage() {
                                         </div>
                                     </div>
                                     <input value={f.fee} onChange={e => setF(p => ({ ...p, fee: e.target.value }))}
-                                        placeholder="Fee offered (e.g. 300 TL, negotiable...)"
+                                        placeholder={t('websc.fee_offered')}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500" />
                                     <textarea value={f.message} onChange={e => setF(p => ({ ...p, message: e.target.value }))}
-                                        placeholder="Additional info (e.g. league, experience required...)"
+                                        placeholder={t('websc.additional_info')}
                                         rows={2}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500 resize-none" />
                                     <button disabled={submitting || !f.matchDate || !f.location}
@@ -8183,7 +8205,7 @@ function SubCategoryPage() {
                                             } catch (e) { console.error(e); } finally { setSubmitting(false); }
                                         }}
                                         className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-2.5 rounded-xl text-sm transition disabled:opacity-50">
-                                        {submitting ? 'Posting...' : '📋 Post Referee Listing'}
+                                        {submitting ? 'Posting...' : t('websc.post_ref_listing')}
                                     </button>
                                 </div>
                             );
@@ -8195,23 +8217,23 @@ function SubCategoryPage() {
                             return (
                                 <div className="bg-gray-900 border border-green-500/30 rounded-2xl p-4 space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <p className="text-white font-bold">🟩 I'm a Referee — Post My Profile</p>
+                                        <p className="text-white font-bold">{t('websc.im_referee')}</p>
                                         <button onClick={onClose} className="text-gray-500 hover:text-white text-lg">✕</button>
                                     </div>
                                     <input value={f.experience} onChange={e => setF(p => ({ ...p, experience: e.target.value }))}
-                                        placeholder="Years of experience (e.g. 5 years, UEFA C license...)"
+                                        placeholder={t('websc.years_exp_ph')}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-green-500" />
                                     <input value={f.certifications} onChange={e => setF(p => ({ ...p, certifications: e.target.value }))}
-                                        placeholder="Certifications (e.g. TFF Grassroots, UEFA B...)"
+                                        placeholder={t('websc.certs_ph')}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-green-500" />
                                     <input value={f.rate} onChange={e => setF(p => ({ ...p, rate: e.target.value }))}
-                                        placeholder="Rate per match (e.g. 300 TL, negotiable...)"
+                                        placeholder={t('websc.rate_ph')}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-green-500" />
                                     <input value={f.availability} onChange={e => setF(p => ({ ...p, availability: e.target.value }))}
-                                        placeholder="Availability (e.g. Weekends, evenings...)"
+                                        placeholder={t('websc.availability_ph')}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-green-500" />
                                     <textarea value={f.bio} onChange={e => setF(p => ({ ...p, bio: e.target.value }))}
-                                        placeholder="Short bio / notes..."
+                                        placeholder={t('websc.bio_ph')}
                                         rows={2}
                                         className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-green-500 resize-none" />
                                     <button disabled={submitting || !f.rate}
@@ -8235,7 +8257,7 @@ function SubCategoryPage() {
                                             } catch (e) { console.error(e); } finally { setSubmitting(false); }
                                         }}
                                         className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-2.5 rounded-xl text-sm transition disabled:opacity-50">
-                                        {submitting ? 'Posting...' : '🟩 Post My Referee Profile'}
+                                        {submitting ? 'Posting...' : t('websc.post_my_ref')}
                                     </button>
                                 </div>
                             );
@@ -8252,7 +8274,7 @@ function SubCategoryPage() {
                             <div className="space-y-4">
                                 {/* Header: title + post buttons */}
                                 <div className="flex items-center justify-between">
-                                    <h3 className="text-white font-bold">🟨 Find Referee</h3>
+                                    <h3 className="text-white font-bold">{t('websc.find_referee')}</h3>
                                     <div className="flex gap-2">
                                         <button onClick={() => setRefereeForm(v => v === 'cv' ? null : 'cv')}
                                             className="bg-green-600/20 hover:bg-green-600/40 border border-green-500/40 text-green-400 font-bold text-xs px-3 py-1.5 rounded-xl transition">
@@ -8307,13 +8329,13 @@ function SubCategoryPage() {
                                         <input
                                             value={refereesLocFilter}
                                             onChange={e => setRefereesLocFilter(e.target.value)}
-                                            placeholder="🔍 Filter by location..."
+                                            placeholder={t('websc.filter_location')}
                                             className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-green-500"
                                         />
                                         {filteredOffers.length === 0 ? (
                                             <div className="text-center py-14 bg-gray-900 rounded-2xl border border-gray-800">
                                                 <p className="text-4xl mb-2">🟩</p>
-                                                <p className="text-white font-bold mb-1">No referees yet</p>
+                                                <p className="text-white font-bold mb-1">{t('websc.no_referees')}</p>
                                                 <p className="text-gray-400 text-sm">{refereesLocFilter ? 'No match for this location.' : 'Referees who post their profiles will appear here.'}</p>
                                             </div>
                                         ) : filteredOffers.map(post => (
@@ -8328,7 +8350,7 @@ function SubCategoryPage() {
                                                             <p className="text-gray-500 text-xs">@{post.sender?.username}</p>
                                                         </div>
                                                     </div>
-                                                    <span className="text-green-400 text-xs font-bold bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-full flex-shrink-0">🟩 Available</span>
+                                                    <span className="text-green-400 text-xs font-bold bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-full flex-shrink-0">{t('websc.available')}</span>
                                                 </div>
                                                 <div className="space-y-1 text-xs text-gray-400 mb-3">
                                                     {post.refereePayment && <p className="text-green-400 font-bold">💰 {post.refereePayment}</p>}
@@ -8354,13 +8376,13 @@ function SubCategoryPage() {
                                         <input
                                             value={listingsLocFilter}
                                             onChange={e => setListingsLocFilter(e.target.value)}
-                                            placeholder="🔍 Filter by location..."
+                                            placeholder={t('websc.filter_location')}
                                             className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
                                         />
                                         {filteredNeeded.length === 0 ? (
                                             <div className="text-center py-14 bg-gray-900 rounded-2xl border border-gray-800">
                                                 <p className="text-4xl mb-2">📋</p>
-                                                <p className="text-white font-bold mb-1">No referee listings yet</p>
+                                                <p className="text-white font-bold mb-1">{t('websc.no_ref_listings')}</p>
                                                 <p className="text-gray-400 text-sm">{listingsLocFilter ? 'No match for this location.' : 'Teams looking for a referee will appear here.'}</p>
                                             </div>
                                         ) : filteredNeeded.map(post => (
@@ -8375,17 +8397,17 @@ function SubCategoryPage() {
                                                             <p className="text-gray-500 text-xs">@{post.sender?.username}</p>
                                                         </div>
                                                     </div>
-                                                    <span className="text-yellow-400 text-xs font-bold bg-yellow-500/10 border border-yellow-500/30 px-2 py-0.5 rounded-full flex-shrink-0">🟨 Referee Needed</span>
+                                                    <span className="text-yellow-400 text-xs font-bold bg-yellow-500/10 border border-yellow-500/30 px-2 py-0.5 rounded-full flex-shrink-0">{t('websc.referee_needed')}</span>
                                                 </div>
                                                 <div className="space-y-1 text-xs text-gray-400 mb-3">
                                                     {post.teamSize && <p>⚽ {post.teamSize}v{post.teamSize}</p>}
-                                                    {post.matchDate && <p>📅 {new Date(post.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{post.matchTime ? ` · ${post.matchTime}` : ''}</p>}
+                                                    {post.matchDate && <p>📅 {new Date(post.matchDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' })}{post.matchTime ? ` · ${post.matchTime}` : ''}</p>}
                                                     {post.duration && <p>⏱️ {post.duration === 150 ? '120 min + Extra Time' : `${post.duration} min`}</p>}
                                                     {post.location && <p>📍 {post.location}</p>}
                                                     {post.courtName && <p>🏟️ {post.courtName}</p>}
                                                     {post.refereePayment
                                                         ? <p className="text-green-400 font-bold">💰 Fee: {post.refereePayment}</p>
-                                                        : <p className="text-gray-600">💰 Fee not specified</p>}
+                                                        : <p className="text-gray-600">{t('websc.fee_unspecified')}</p>}
                                                     {post.message && <p className="text-gray-300 italic">"{post.message}"</p>}
                                                 </div>
                                                 {post.senderId !== myId && (
@@ -8393,7 +8415,7 @@ function SubCategoryPage() {
                                                         onClick={async () => {
                                                             try {
                                                                 await api.post(`/rivals/${post.id}/respond`, {});
-                                                                alert('✅ Application sent!');
+                                                                alert(t('websc.application_sent'));
                                                             } catch (e) {
                                                                 alert(e?.response?.data?.message || 'Error occurred.');
                                                             }
@@ -8419,12 +8441,12 @@ function SubCategoryPage() {
                                                     <div key={m.id} className="bg-gray-900 border border-yellow-500/40 rounded-2xl p-4">
                                                         <div className="flex items-center justify-between mb-2">
                                                             <span className="text-yellow-400 text-xs font-black uppercase tracking-wide">🟨 {isReferee ? 'You are the Referee' : 'Your Listing — Matched'}</span>
-                                                            <span className="text-green-400 text-xs font-bold bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-full">✓ Confirmed</span>
+                                                            <span className="text-green-400 text-xs font-bold bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-full">{t('websc.confirmed')}</span>
                                                         </div>
                                                         <div className="space-y-1 text-xs text-gray-400">
                                                             {m.teamSize && <p>⚽ {m.teamSize}v{m.teamSize}</p>}
                                                             {m.matchDate && (
-                                                                <p>📅 {new Date(m.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}{m.matchTime ? ` · ${m.matchTime}` : ''}</p>
+                                                                <p>📅 {new Date(m.matchDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short', year: 'numeric' })}{m.matchTime ? ` · ${m.matchTime}` : ''}</p>
                                                             )}
                                                             {m.duration && <p>⏱️ {m.duration === 150 ? '120 min + Extra Time' : `${m.duration} min`}</p>}
                                                             {m.location && <p>📍 {m.location}</p>}
@@ -8436,7 +8458,7 @@ function SubCategoryPage() {
                                                             </div>
                                                             <div className="flex-1 min-w-0">
                                                                 <p className="text-white text-xs font-bold truncate">{m.sender?.fullName || m.sender?.username}</p>
-                                                                <p className="text-gray-500 text-[10px]">Match organizer</p>
+                                                                <p className="text-gray-500 text-[10px]">{t('websc.organizer')}</p>
                                                             </div>
                                                             {isReferee && m.senderId !== myId && (
                                                                 <button
@@ -8542,7 +8564,7 @@ function SubCategoryPage() {
                                     {['NEW', 'USED'].map(c => (
                                         <button key={c} onClick={() => setEquipmentForm(f => ({ ...f, condition: c }))}
                                             className={`flex-1 py-2 rounded-lg text-sm font-bold border transition ${equipmentForm.condition === c ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-900 border-gray-700 text-gray-400'}`}>
-                                            {c === 'NEW' ? '🆕 Sıfır' : '♻️ İkinci El'}
+                                            {c === 'NEW' ? t('websc.cond_new') : t('websc.cond_used')}
                                         </button>
                                     ))}
                                 </div>
@@ -8620,7 +8642,7 @@ function SubCategoryPage() {
                                     <div className="bg-amber-500/20 rounded-lg py-1.5 text-center mb-3">
                                         <p className="text-amber-400 font-bold text-sm">
                                             {t(selectedEquipment.reservedForUserId === myId ? 'equipment.reserved_for_you_badge' : 'equipment.reserved_badge',
-                                                { date: new Date(selectedEquipment.reservedUntil).toLocaleDateString('tr-TR') })}
+                                                { date: new Date(selectedEquipment.reservedUntil).toLocaleDateString(uiLocale()) })}
                                         </p>
                                     </div>
                                 )}
@@ -8929,7 +8951,7 @@ function SubCategoryPage() {
 
                                 {/* Filters */}
                                 <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 space-y-2">
-                                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wide">Filter</p>
+                                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wide">{t('websc.filter')}</p>
                                     <div className="grid grid-cols-2 gap-2">
                                         <input value={archiveFilter.city} onChange={e => setArchiveFilter(p => ({ ...p, city: e.target.value }))}
                                             placeholder={t('archive.filter_city')} className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-purple-500" />
@@ -8951,7 +8973,7 @@ function SubCategoryPage() {
                                     const participants = Array.isArray(match.participants) ? match.participants.filter(Boolean) : [];
                                     const score = match.score;
                                     const dateStr = (match.matchDate || match.completedAt)
-                                        ? new Date(match.matchDate || match.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                                        ? new Date(match.matchDate || match.completedAt).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
                                         : '—';
 
                                     if (kind === 'noScore') {
@@ -8962,7 +8984,7 @@ function SubCategoryPage() {
                                                     <p className="text-gray-300 text-sm font-bold">vs @{other?.username || '?'}</p>
                                                     <p className="text-gray-600 text-xs mt-0.5">📅 {dateStr} · No score entered</p>
                                                 </div>
-                                                <span className="text-gray-600 text-xs bg-gray-800 px-2 py-1 rounded-lg">No Score</span>
+                                                <span className="text-gray-600 text-xs bg-gray-800 px-2 py-1 rounded-lg">{t('websc.no_score')}</span>
                                             </div>
                                         );
                                     }
@@ -8983,8 +9005,8 @@ function SubCategoryPage() {
                                                 <div className="flex items-center justify-between mb-2">
                                                     <span className="text-gray-300 text-sm font-bold">vs @{other?.username || '?'}</span>
                                                     {isDisputed
-                                                        ? <span className="text-red-400 text-xs font-bold bg-red-500/10 px-2 py-0.5 rounded-full">⚠️ Disputed</span>
-                                                        : <span className="text-yellow-400 text-xs font-bold bg-yellow-500/10 px-2 py-0.5 rounded-full">⏳ Awaiting confirmation</span>
+                                                        ? <span className="text-red-400 text-xs font-bold bg-red-500/10 px-2 py-0.5 rounded-full">{t('websc.disputed')}</span>
+                                                        : <span className="text-yellow-400 text-xs font-bold bg-yellow-500/10 px-2 py-0.5 rounded-full">{t('websc.awaiting_confirm')}</span>
                                                     }
                                                 </div>
                                                 <p className="text-gray-600 text-xs mb-3">📅 {dateStr}</p>
@@ -8996,21 +9018,21 @@ function SubCategoryPage() {
                                                                 const { data } = await api.patch(`/rivals/${match.id}/confirm-score`);
                                                                 setCompletedMatches(prev => prev.filter(m => m.id !== match.id));
                                                                 setArchivedMatches(prev => [data, ...prev]);
-                                                            }} className="flex-1 bg-green-600/80 hover:bg-green-600 text-white font-bold py-2 rounded-xl text-sm transition">✓ Confirm Score</button>
+                                                            }} className="flex-1 bg-green-600/80 hover:bg-green-600 text-white font-bold py-2 rounded-xl text-sm transition">{t('websc.confirm_score')}</button>
                                                             <button onClick={async () => {
                                                                 await api.patch(`/rivals/${match.id}/dispute-score`);
                                                                 setCompletedMatches(prev => prev.map(m => m.id === match.id ? { ...m, scoreStatus: 'DISPUTED' } : m));
-                                                            }} className="flex-1 bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold py-2 rounded-xl text-sm transition">✕ Dispute</button>
+                                                            }} className="flex-1 bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold py-2 rounded-xl text-sm transition">{t('websc.dispute')}</button>
                                                         </div>
                                                     )}
                                                     {score && match.scoreStatus === 'PENDING' && mySideScored && (
-                                                        <div className="flex-1 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs font-bold py-2 rounded-xl text-center">⏳ Waiting for opponent to confirm</div>
+                                                        <div className="flex-1 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs font-bold py-2 rounded-xl text-center">{t('websc.waiting_opponent')}</div>
                                                     )}
                                                     {isDisputed && isInvolved && (
                                                         <button onClick={async () => {
                                                             await api.post(`/rivals/${match.id}/report-dispute`, { reason: 'Score disagreement' });
-                                                            alert('📋 Report filed. An admin will review.');
-                                                        }} className="w-full bg-red-600/10 border border-red-500/30 text-red-400 font-bold py-2 rounded-xl text-sm hover:bg-red-600/20 transition">📋 Report to Admin</button>
+                                                            alert(t('websc.report_filed'));
+                                                        }} className="w-full bg-red-600/10 border border-red-500/30 text-red-400 font-bold py-2 rounded-xl text-sm hover:bg-red-600/20 transition">{t('websc.report_admin')}</button>
                                                     )}
                                                 </div>
                                             </div>
@@ -9031,7 +9053,7 @@ function SubCategoryPage() {
                                                     <div>
                                                         <p className="text-gray-400 text-xs">
                                                             {match.matchType === 'DOUBLE' ? '2v2' : '1v1'}
-                                                            {match.matchMode === 'COMPETITIVE' && <span className="ml-1 text-red-400">⚔️ Ranked</span>}
+                                                            {match.matchMode === 'COMPETITIVE' && <span className="ml-1 text-red-400">{t('websc.ranked')}</span>}
                                                             {' · '}{dateStr}
                                                             {match.matchTime && ` · ${match.matchTime}`}
                                                         </p>
@@ -9074,21 +9096,21 @@ function SubCategoryPage() {
                                                 {match.scoreStatus === 'CONFIRMED' && !match.scoreAppeal && rosterIds.includes(myId) && (
                                                     <div className="px-4 py-2 border-t border-gray-800">
                                                         <button onClick={async () => {
-                                                            const reason = prompt('İtiraz sebebinizi yazın (opsiyonel):');
+                                                            const reason = prompt(t('websc.dispute_prompt'));
                                                             if (reason === null) return;
                                                             try {
                                                                 await api.patch(`/rivals/${match.id}/appeal-score`, { reason: reason.trim() || undefined });
-                                                                alert('✓ İtirazınız admin\'e iletildi.');
+                                                                alert(t('websc.dispute_sent'));
                                                                 setArchivedMatches(prev => prev.map(m => m.id === match.id ? { ...m, scoreAppeal: true, scoreAppealReason: reason } : m));
                                                             } catch (e) { alert(e?.response?.data?.message || 'Hata'); }
                                                         }} className="text-red-400 hover:text-red-300 text-xs font-bold transition">
-                                                            ⚠️ Skora İtiraz Et
+                                                            {t('websc.dispute_btn')}
                                                         </button>
                                                     </div>
                                                 )}
                                                 {match.scoreAppeal && (
                                                     <div className="px-4 py-2 border-t border-gray-800">
-                                                        <span className="text-orange-400 text-xs font-bold">⚠️ İtiraz edildi{match.scoreAppealReason ? `: "${match.scoreAppealReason}"` : ''}</span>
+                                                        <span className="text-orange-400 text-xs font-bold">{t('websc.disputed_prefix')}{match.scoreAppealReason ? `: "${match.scoreAppealReason}"` : ''}</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -9116,7 +9138,7 @@ function SubCategoryPage() {
                                                         <p className="text-white font-bold text-sm truncate">{t.name}</p>
                                                         <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                                                             <span className="text-gray-500 text-xs">{TYPE_LABEL[t.type]}</span>
-                                                            {t.completedAt && <span className="text-gray-600 text-xs">{new Date(t.completedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                                                            {t.completedAt && <span className="text-gray-600 text-xs">{new Date(t.completedAt).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
                                                             {(t.city || t.location) && <span className="text-gray-600 text-xs">📍 {(t.city || t.location).split(',')[0]}</span>}
                                                         </div>
                                                     </div>
@@ -9169,7 +9191,7 @@ function SubCategoryPage() {
                                                             <p className="text-white font-bold text-sm truncate">{t.name}</p>
                                                             <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                                                                 {winTeam && <span className="text-yellow-400 text-xs font-bold">🏆 {teamFull(winTeam)}</span>}
-                                                                {t.completedAt && <span className="text-gray-600 text-xs">{new Date(t.completedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                                                                {t.completedAt && <span className="text-gray-600 text-xs">{new Date(t.completedAt).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
                                                                 {(t.city || t.location) && <span className="text-gray-600 text-xs">📍 {(t.city || t.location).split(',')[0]}</span>}
                                                             </div>
                                                         </div>
@@ -9190,7 +9212,7 @@ function SubCategoryPage() {
                                                                 const t2w  = sets.filter(s => (parseInt(s.t2)||0) > (parseInt(s.t1)||0)).length;
                                                                 return (
                                                                     <div className="px-4 py-3 bg-yellow-500/5">
-                                                                        <p className="text-yellow-500 text-[10px] font-bold uppercase tracking-widest mb-2">🏆 Final</p>
+                                                                        <p className="text-yellow-500 text-[10px] font-bold uppercase tracking-widest mb-2">{t('websc.final')}</p>
                                                                         <div className="flex items-center gap-3 text-sm">
                                                                             <span className={`flex-1 font-bold truncate ${f.winner === f.t1 ? 'text-yellow-400' : 'text-gray-500'}`}>{teamFull(tA)}</span>
                                                                             <div className="flex-shrink-0 text-center">
@@ -9206,15 +9228,15 @@ function SubCategoryPage() {
                                                             {/* Standings */}
                                                             {sorted.length > 0 && (
                                                                 <div className="px-4 py-3">
-                                                                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">📊 Standings</p>
+                                                                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">{t('websc.standings')}</p>
                                                                     <div className="flex gap-2 text-gray-600 text-[10px] font-bold uppercase mb-1 px-1">
                                                                         <span className="w-5">#</span>
-                                                                        <span className="flex-1">Team</span>
+                                                                        <span className="flex-1">{t('websc.team')}</span>
                                                                         <span className="w-6 text-center">W</span>
                                                                         <span className="w-6 text-center">L</span>
-                                                                        <span className="w-8 text-center">SW</span>
-                                                                        <span className="w-8 text-center">SL</span>
-                                                                        <span className="w-10 text-right text-purple-500">Pts</span>
+                                                                        <span className="w-8 text-center">{t('websc.sw')}</span>
+                                                                        <span className="w-8 text-center">{t('websc.sl')}</span>
+                                                                        <span className="w-10 text-right text-purple-500">{t('websc.pts')}</span>
                                                                     </div>
                                                                     {sorted.map((row, idx) => {
                                                                         const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx <= 3 ? '🥉' : `${idx + 1}.`;
@@ -9238,7 +9260,7 @@ function SubCategoryPage() {
                                                             {/* Match results by round */}
                                                             {rounds.length > 0 && (
                                                                 <div className="px-4 py-3 space-y-3">
-                                                                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Match Results</p>
+                                                                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">{t('websc.match_results')}</p>
                                                                     {rounds.map(rnd => (
                                                                         <div key={rnd}>
                                                                             <p className="text-gray-600 text-[10px] font-bold mb-1.5 uppercase tracking-wide">{roundLabel(rnd)}</p>
@@ -9285,7 +9307,7 @@ function SubCategoryPage() {
                         <textarea
                             value={newTextPost}
                             onChange={e => setNewTextPost(e.target.value)}
-                            placeholder={isWellness ? `Share your ${config.name} experience... ${config.emoji}` : `What's on your mind? ${config.emoji}`}
+                            placeholder={isWellness ? t('websc.share_exp', { name: config.name, emoji: config.emoji }) : t('websc.mind_emoji', { emoji: config.emoji })}
                             className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 border border-gray-700 focus:outline-none focus:border-purple-500 resize-none text-sm"
                             rows={3}
                         />
@@ -9330,7 +9352,7 @@ function SubCategoryPage() {
                                                 <p className="text-gray-500 text-xs">@{post.user?.username}</p>
                                             </div>
                                             <p className="text-gray-600 text-xs flex-shrink-0">
-                                                {new Date(post.createdAt).toLocaleDateString()}
+                                                {new Date(post.createdAt).toLocaleDateString(uiLocale())}
                                             </p>
                                         </div>
                                         <p className="text-gray-200 text-sm mb-2 line-clamp-3">{post.content}</p>
@@ -9375,7 +9397,7 @@ function SubCategoryPage() {
                                                     value={newComment}
                                                     onChange={e => setNewComment(e.target.value)}
                                                     onKeyDown={e => e.key === 'Enter' && handleAddComment(post.id)}
-                                                    placeholder="Write a comment..."
+                                                    placeholder={t('websc.comment_ph')}
                                                     className="flex-1 bg-gray-800 text-white rounded-xl px-3 py-1.5 text-xs border border-gray-700 focus:outline-none focus:border-purple-500"
                                                 />
                                                 <button
@@ -9451,12 +9473,12 @@ function SubCategoryPage() {
                 <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
                     <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-sm max-h-[70vh] flex flex-col">
                         <div className="flex justify-between items-center px-5 py-4 border-b border-gray-800">
-                            <h4 className="text-white font-bold text-sm">👥 Invite a Partner</h4>
+                            <h4 className="text-white font-bold text-sm">{t('websc.invite_partner')}</h4>
                             <button onClick={() => setJoinInvitePicker(null)} className="text-gray-400 hover:text-white text-lg">✕</button>
                         </div>
                         <div className="flex-1 overflow-y-auto px-5 py-3">
                             {joinInvitePicker.candidates.length === 0 ? (
-                                <p className="text-gray-500 text-sm text-center py-6">No other solo applicants to invite yet</p>
+                                <p className="text-gray-500 text-sm text-center py-6">{t('websc.no_solo')}</p>
                             ) : joinInvitePicker.candidates.map(c => (
                                 <button key={c.userId}
                                     onClick={() => setMyRivalJoinPartner(joinInvitePicker.rivalId, c.userId)}
@@ -9534,7 +9556,7 @@ function SubCategoryPage() {
                                 <p className="text-white font-bold leading-tight">
                                     {team.player2Name} <span className="text-gray-400 text-[11px] font-normal">({playerDisplay(team.player2Id)})</span>
                                 </p>
-                                <p className="text-purple-300 text-[11px] font-bold mt-0.5">Takım Ort: {avgDisplay}</p>
+                                <p className="text-purple-300 text-[11px] font-bold mt-0.5">{t('websc.team_avg')} {avgDisplay}</p>
                             </div>
                         );
                     }
@@ -9575,7 +9597,7 @@ function SubCategoryPage() {
                                     )}
                                     {m.status === 'BYE' && <p className="text-gray-500 text-xs mt-0.5">BYE</p>}
                                     {m.status === 'PENDING' && m.deadline && (
-                                        <p className="text-gray-500 text-[11px] mt-0.5">⏰ {new Date(m.deadline).toLocaleDateString('tr-TR')}</p>
+                                        <p className="text-gray-500 text-[11px] mt-0.5">⏰ {new Date(m.deadline).toLocaleDateString(uiLocale())}</p>
                                     )}
                                     {formatAgreed(m.scheduleData?.agreed) && (
                                         <p className="text-green-400 text-[11px] font-bold mt-0.5">📍 {formatAgreed(m.scheduleData.agreed)}</p>
@@ -9626,7 +9648,7 @@ function SubCategoryPage() {
                                         </div>
                                     ))}
                                     <div className="flex items-center gap-2">
-                                        <button onClick={() => setScoreSets(prev => [...prev, { p1: '', p2: '' }])} className="text-purple-400 text-[11px] font-bold">+ Add set</button>
+                                        <button onClick={() => setScoreSets(prev => [...prev, { p1: '', p2: '' }])} className="text-purple-400 text-[11px] font-bold">{t('websc.add_set_plus')}</button>
                                         <div className="flex-1" />
                                         <button onClick={() => setScoreEntryMatchId(null)} className="text-gray-400 text-xs font-bold px-2">Cancel</button>
                                         <button onClick={() => submitMatchScore(mt.id, m)} disabled={matchActionLoading}
@@ -9680,7 +9702,7 @@ function SubCategoryPage() {
                             <div className="overflow-y-auto p-4 space-y-4 flex-1">
                                 {matchTab === 'matches' ? (
                                     matches.length === 0 ? (
-                                        <p className="text-gray-500 text-sm text-center py-8">No matches yet.</p>
+                                        <p className="text-gray-500 text-sm text-center py-8">{t('websc.no_matches')}</p>
                                     ) : (
                                         <>
                                             {roundsOf(groupMatches).map(r => (
@@ -9703,18 +9725,18 @@ function SubCategoryPage() {
                                     )
                                 ) : matchTab === 'standings' ? (
                                     standings.length === 0 ? (
-                                        <p className="text-gray-500 text-sm text-center py-8">No completed group matches yet.</p>
+                                        <p className="text-gray-500 text-sm text-center py-8">{t('websc.no_group_matches')}</p>
                                     ) : (
                                         <table className="w-full text-xs">
                                             <thead>
                                                 <tr className="text-gray-500 text-left border-b border-gray-800">
                                                     <th className="py-2 pr-2">#</th>
-                                                    <th className="py-2 pr-2">Player/Team</th>
+                                                    <th className="py-2 pr-2">{t('websc.player_team')}</th>
                                                     <th className="py-2 px-1 text-center">P</th>
                                                     <th className="py-2 px-1 text-center">W</th>
                                                     <th className="py-2 px-1 text-center">L</th>
-                                                    <th className="py-2 px-1 text-center">±Set</th>
-                                                    <th className="py-2 pl-1 text-center">Pts</th>
+                                                    <th className="py-2 px-1 text-center">{t('websc.set_diff')}</th>
+                                                    <th className="py-2 pl-1 text-center">{t('websc.pts')}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -9736,7 +9758,7 @@ function SubCategoryPage() {
                                     <div className="flex flex-col h-full">
                                         <div className="flex-1 space-y-3 mb-3">
                                             {tournChatMessages.length === 0 ? (
-                                                <p className="text-gray-500 text-sm text-center py-8">No messages yet.</p>
+                                                <p className="text-gray-500 text-sm text-center py-8">{t('websc.no_messages')}</p>
                                             ) : tournChatMessages.map(msg => (
                                                 <div key={msg.id} className={`flex ${msg.senderId === myId ? 'justify-end' : 'justify-start'}`}>
                                                     <div className={`max-w-[75%] rounded-xl px-3 py-2 ${msg.senderId === myId ? `bg-gradient-to-r ${config.color} text-white` : 'bg-gray-800 text-gray-200'}`}>
@@ -9755,7 +9777,7 @@ function SubCategoryPage() {
                                 <div className="flex items-center gap-2 p-3 border-t border-gray-800 flex-shrink-0">
                                     <input value={tournChatInput} onChange={e => setTournChatInput(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && sendTournChat(mt.id)}
-                                        placeholder="Type a message..."
+                                        placeholder={t('websc.type_message')}
                                         className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500" />
                                     <button onClick={() => sendTournChat(mt.id)}
                                         className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm`}>
@@ -9790,7 +9812,7 @@ function SubCategoryPage() {
                         </div>
                         <div className="flex-1 overflow-y-auto px-5 py-3">
                             {tournInvitePicker.candidates.length === 0 ? (
-                                <p className="text-gray-500 text-sm text-center py-6">No other solo applicants to invite yet</p>
+                                <p className="text-gray-500 text-sm text-center py-6">{t('websc.no_solo')}</p>
                             ) : tournInvitePicker.candidates.map(c => (
                                 <button key={c.userId}
                                     onClick={() => setMyTournamentPartner(tournInvitePicker.tournamentId, c.userId)}

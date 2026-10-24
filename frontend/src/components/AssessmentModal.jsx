@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
 import api from '../services/api';
 
@@ -11,22 +12,38 @@ const LEVEL_CONFIG = {
 
 const FOOTBALL_POSITIONS = {
     en: [
-        { id: 'goalkeeper',  label: 'Goalkeeper',      emoji: '🧤', desc: 'Guards the goal line' },
-        { id: 'defender',    label: 'Defender',        emoji: '🛡️', desc: 'Defensive line player' },
-        { id: 'midfielder',  label: 'Midfielder',      emoji: '⚙️', desc: 'Playmaker / central role' },
+        { id: 'goalkeeper',  label: 'Goalkeeper',       emoji: '🧤', desc: 'Guards the goal line' },
+        { id: 'defender',    label: 'Defender',         emoji: '🛡️', desc: 'Defensive line player' },
+        { id: 'midfielder',  label: 'Midfielder',       emoji: '⚙️', desc: 'Playmaker / central role' },
         { id: 'forward',     label: 'Forward / Winger', emoji: '⚡', desc: 'Goal-scoring player' },
-        { id: 'allrounder',  label: 'All Positions',   emoji: '🌟', desc: 'I can play any position' },
+        { id: 'allrounder',  label: 'All Positions',    emoji: '🌟', desc: 'I can play any position' },
     ],
     tr: [
-        { id: 'goalkeeper',  label: 'Kaleci',          emoji: '🧤', desc: 'Gol çizgisini koruyan' },
-        { id: 'defender',    label: 'Defans',          emoji: '🛡️', desc: 'Savunma hattı oyuncusu' },
-        { id: 'midfielder',  label: 'Orta Saha',       emoji: '⚙️', desc: 'Oyun kurucu / merkez' },
-        { id: 'forward',     label: 'Forvet / Kanat',  emoji: '⚡', desc: 'Gol üreten oyuncu' },
-        { id: 'allrounder',  label: 'Her Mevkide',     emoji: '🌟', desc: 'Her pozisyonda oynayabilirim' },
+        { id: 'goalkeeper',  label: 'Kaleci',           emoji: '🧤', desc: 'Gol çizgisini koruyan' },
+        { id: 'defender',    label: 'Defans',           emoji: '🛡️', desc: 'Savunma hattı oyuncusu' },
+        { id: 'midfielder',  label: 'Orta Saha',        emoji: '⚙️', desc: 'Oyun kurucu / merkez' },
+        { id: 'forward',     label: 'Forvet / Kanat',   emoji: '⚡', desc: 'Gol üreten oyuncu' },
+        { id: 'allrounder',  label: 'Her Mevkide',      emoji: '🌟', desc: 'Her pozisyonda oynayabilirim' },
+    ],
+    ru: [
+        { id: 'goalkeeper',  label: 'Вратарь',              emoji: '🧤', desc: 'Защищает линию ворот' },
+        { id: 'defender',    label: 'Защитник',             emoji: '🛡️', desc: 'Игрок линии обороны' },
+        { id: 'midfielder',  label: 'Полузащитник',         emoji: '⚙️', desc: 'Плеймейкер / центр' },
+        { id: 'forward',     label: 'Нападающий / вингер',  emoji: '⚡', desc: 'Игрок, забивающий голы' },
+        { id: 'allrounder',  label: 'Все позиции',          emoji: '🌟', desc: 'Могу играть на любой позиции' },
+    ],
+    de: [
+        { id: 'goalkeeper',  label: 'Torwart',            emoji: '🧤', desc: 'Hält die Torlinie' },
+        { id: 'defender',    label: 'Abwehr',             emoji: '🛡️', desc: 'Spieler der Abwehrreihe' },
+        { id: 'midfielder',  label: 'Mittelfeld',         emoji: '⚙️', desc: 'Spielmacher / zentrale Rolle' },
+        { id: 'forward',     label: 'Stürmer / Flügel',   emoji: '⚡', desc: 'Torschütze' },
+        { id: 'allrounder',  label: 'Alle Positionen',    emoji: '🌟', desc: 'Ich kann jede Position spielen' },
     ],
 };
 
 export default function AssessmentModal({ interestId, subCategory, categoryColor, onClose, onComplete }) {
+    const { t } = useTranslation();
+
     const lang = useSelector(state => state.lang.lang);
     const positions = FOOTBALL_POSITIONS[lang] || FOOTBALL_POSITIONS.en;
 
@@ -168,7 +185,7 @@ export default function AssessmentModal({ interestId, subCategory, categoryColor
                     <div className="flex-1 flex items-center justify-center py-12">
                         <div className="text-center">
                             <div className="w-10 h-10 rounded-full border-4 border-purple-500 border-t-transparent animate-spin mx-auto mb-3" />
-                            <p className="text-gray-400 text-sm">Loading questions...</p>
+                            <p className="text-gray-400 text-sm">{t('shell.sh_0588')}</p>
                         </div>
                     </div>
 

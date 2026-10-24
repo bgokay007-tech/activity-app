@@ -24,6 +24,8 @@ const LEVEL_BADGE = {
 };
 
 function Avatar({ user, size = 'lg' }) {
+    const { t } = useTranslation();
+
     const sizes = { sm: 'w-8 h-8 text-sm', md: 'w-12 h-12 text-lg', lg: 'w-20 h-20 text-3xl', xl: 'w-28 h-28 text-4xl' };
     if (user?.avatar) return <img src={user.avatar} alt={user.username} className={`${sizes[size]} rounded-full object-cover flex-shrink-0`} />;
     return (
@@ -40,6 +42,8 @@ const GENDER_OPTIONS = [
 ];
 
 function EditProfileModal({ user, onClose, onSave }) {
+    const { t } = useTranslation();
+
     const [form, setForm] = useState({ fullName: user.fullName || '', bio: user.bio || '', isPublic: user.isPublic ?? true, gender: user.gender || '' });
     const [isSaving, setIsSaving] = useState(false);
     const handleSubmit = async (e) => {
@@ -53,17 +57,17 @@ function EditProfileModal({ user, onClose, onSave }) {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
             <div className="bg-gray-900 rounded-2xl border border-gray-700 p-6 w-full max-w-md">
                 <div className="flex justify-between items-center mb-5">
-                    <h3 className="text-white font-bold text-lg">Edit Profile</h3>
+                    <h3 className="text-white font-bold text-lg">{t('shell.sh_0530')}</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="text-gray-400 text-xs mb-1 block">Full Name</label>
+                        <label className="text-gray-400 text-xs mb-1 block">{t('shell.sh_0531')}</label>
                         <input value={form.fullName} onChange={e => setForm({ ...form, fullName: e.target.value })}
                             className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500" />
                     </div>
                     <div>
-                        <label className="text-gray-400 text-xs mb-1 block">Gender</label>
+                        <label className="text-gray-400 text-xs mb-1 block">{t('shell.sh_0532')}</label>
                         <div className="flex gap-2">
                             {GENDER_OPTIONS.map(g => (
                                 <button key={g.value} type="button"
@@ -75,17 +79,17 @@ function EditProfileModal({ user, onClose, onSave }) {
                         </div>
                     </div>
                     <div>
-                        <label className="text-gray-400 text-xs mb-1 block">Bio</label>
+                        <label className="text-gray-400 text-xs mb-1 block">{t('shell.sh_0533')}</label>
                         <textarea value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })} rows={3}
                             placeholder="Tell something about yourself..."
                             className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 resize-none" />
                     </div>
                     <div className="flex items-center gap-3 bg-gray-800 rounded-xl px-4 py-3">
                         <input type="checkbox" id="isPublic" checked={form.isPublic} onChange={e => setForm({ ...form, isPublic: e.target.checked })} className="w-4 h-4 accent-purple-500 cursor-pointer" />
-                        <label htmlFor="isPublic" className="text-gray-300 text-sm cursor-pointer select-none">Public profile</label>
+                        <label htmlFor="isPublic" className="text-gray-300 text-sm cursor-pointer select-none">{t('shell.sh_0534')}</label>
                     </div>
                     <div className="flex gap-3 pt-1">
-                        <button type="button" onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 hover:bg-gray-700 transition">Cancel</button>
+                        <button type="button" onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 hover:bg-gray-700 transition">{t('shell.sh_0535')}</button>
                         <button type="submit" disabled={isSaving} className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2.5 rounded-xl disabled:opacity-50 transition hover:opacity-90">
                             {isSaving ? 'Saving...' : 'Save'}
                         </button>
@@ -96,26 +100,31 @@ function EditProfileModal({ user, onClose, onSave }) {
     );
 }
 
-const PRIVACY_MODES = [
-    { value: 'PUBLIC',           label: '🌍 Herkese Açık' },
-    { value: 'FRIENDS',          label: '👥 Sadece Arkadaşlarım' },
-    { value: 'FOLLOWERS',        label: '🔔 Takipçilerim' },
-    { value: 'FRIENDS_EXCEPT',   label: '🚫 Seçili Arkadaşlar Hariç' },
-    { value: 'FRIENDS_SELECTED', label: '✅ Sadece Seçili Arkadaşlar' },
-    { value: 'NOBODY',           label: '🔒 Kimseye Gösterme' },
-];
+function PRIVACY_MODES(t) {
+    return [
+    { value: 'PUBLIC',           label: t('shell.sh_0030') },
+    { value: 'FRIENDS',          label: t('shell.sh_0032') },
+    { value: 'FOLLOWERS',        label: t('shell.sh_0035') },
+    { value: 'FRIENDS_EXCEPT',   label: t('shell.sh_0036') },
+    { value: 'FRIENDS_SELECTED', label: t('shell.sh_0027') },
+    { value: 'NOBODY',           label: t('shell.sh_0034') },
+    ];
+}
 
 function PrivacySelect({ value, onChange }) {
+    const { t } = useTranslation();
     return (
         <select value={value} onChange={e => onChange(e.target.value)}
             className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 text-xs focus:outline-none focus:border-purple-500 shrink-0">
-            {PRIVACY_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            {PRIVACY_MODES(t).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
         </select>
     );
 }
 
 function FriendPicker({ friends, selected, onToggle }) {
-    if (friends.length === 0) return <p className="text-gray-600 text-xs mt-2">Henüz arkadaşın yok.</p>;
+    const { t } = useTranslation();
+
+    if (friends.length === 0) return <p className="text-gray-600 text-xs mt-2">{t('shell.sh_0536')}</p>;
     return (
         <div className="mt-2 max-h-32 overflow-y-auto space-y-1 bg-gray-800/50 rounded-lg p-2">
             {friends.map(f => (
@@ -129,6 +138,8 @@ function FriendPicker({ friends, selected, onToggle }) {
 }
 
 function PersonalInfoModal({ user, onClose, onSave }) {
+    const { t } = useTranslation();
+
     const [form, setForm] = useState({
         city:              user.city || '',
         cityPrivacy:       user.cityPrivacy || 'PUBLIC',
@@ -185,28 +196,28 @@ function PersonalInfoModal({ user, onClose, onSave }) {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
             <div className="bg-gray-900 rounded-2xl border border-gray-700 p-6 w-full max-w-md max-h-[85vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-5">
-                    <h3 className="text-white font-bold text-lg">🪪 Kişisel Bilgiler</h3>
+                    <h3 className="text-white font-bold text-lg">{t('shell.sh_0537')}</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
                 </div>
 
                 <div className="bg-gray-800/30 rounded-xl p-3 mb-4 text-xs text-gray-500">
-                    <p><span className="text-gray-400 font-bold">Ad Soyad:</span> {user.fullName || '—'}</p>
-                    <p><span className="text-gray-400 font-bold">Cinsiyet:</span> {user.gender || '—'}</p>
-                    <p><span className="text-gray-400 font-bold">Doğum Tarihi:</span> {user.birthDate ? new Date(user.birthDate).toLocaleDateString('tr-TR') : '—'}</p>
-                    <p className="mt-1.5 italic">Bu alanları değiştirmek için lütfen destek ile iletişime geçin.</p>
+                    <p><span className="text-gray-400 font-bold">{t('shell.sh_0538')}</span> {user.fullName || '—'}</p>
+                    <p><span className="text-gray-400 font-bold">{t('shell.sh_0539')}</span> {user.gender || '—'}</p>
+                    <p><span className="text-gray-400 font-bold">{t('shell.sh_0540')}</span> {user.birthDate ? new Date(user.birthDate).toLocaleDateString('tr-TR') : '—'}</p>
+                    <p className="mt-1.5 italic">{t('shell.sh_0541')}</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-3">
-                    <Field label="📍 Şehir" valueKey="city" privacyKey="cityPrivacy" selectedKey="cityExclude" placeholder="Şehir" />
+                    <Field label={t('shell.sh_0033')} valueKey="city" privacyKey="cityPrivacy" selectedKey="cityExclude" placeholder={t('shell.sh_0024')} />
                     <Field label="📞 Telefon" valueKey="contactPhone" privacyKey="phonePrivacy" selectedKey="phoneSelected" placeholder="+90..." />
                     <Field label="✈️ Telegram" valueKey="contactTelegram" privacyKey="telegramPrivacy" selectedKey="telegramSelected" placeholder="@kullaniciadi" />
                     <Field label="📧 E-posta" valueKey="contactEmail" privacyKey="cEmailPrivacy" selectedKey="cEmailSelected" placeholder="ornek@mail.com" />
-                    <Field label="📸 Instagram" valueKey="contactInstagram" privacyKey="instagramPrivacy" selectedKey="instagramSelected" placeholder="@kullaniciadi" />
+                    <Field label={t('shell.sh_0403')} valueKey="contactInstagram" privacyKey="instagramPrivacy" selectedKey="instagramSelected" placeholder="@kullaniciadi" />
 
                     <div className="flex gap-3 pt-1">
-                        <button type="button" onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 hover:bg-gray-700 transition">İptal</button>
+                        <button type="button" onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 hover:bg-gray-700 transition">{t('shell.sh_0436')}</button>
                         <button type="submit" disabled={saving} className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2.5 rounded-xl disabled:opacity-50 transition hover:opacity-90">
-                            {saving ? 'Kaydediliyor...' : 'Kaydet'}
+                            {saving ? 'Kaydediliyor...' : t('shell.sh_0385')}
                         </button>
                     </div>
                 </form>
@@ -219,6 +230,8 @@ const ENABLED_SUBS = new Set(['tennis', 'padel', 'pickleball', 'volleyball', 'ba
 const WAGERED_GAMES = new Set(['okey', 'batak']);
 
 function AddActivityModal({ currentInterests, onClose, onAdd, onRemove }) {
+    const { t } = useTranslation();
+
     const [categories, setCategories] = useState([]);
     const [activeCategory, setActiveCategory] = useState('SPORTS');
     const [loadingId, setLoadingId] = useState(null);
@@ -242,8 +255,8 @@ function AddActivityModal({ currentInterests, onClose, onAdd, onRemove }) {
         const isWagered = category === 'GAMES' && WAGERED_GAMES.has(subCategory);
         if (isWagered || matchCount >= 3) {
             const msg = isWagered
-                ? 'Puanlı oyun aktiviteleri tamamen silinemez, sadece gizlenebilir. Tekrar eklediğinde puanın aynen geri gelir. Gizlemek ister misin?'
-                : `Bu branşta ${matchCount} maç oynadığın için tamamen silinemez, sadece gizlenebilir. Tekrar eklediğinde puanın aynen geri gelir. Gizlemek ister misin?`;
+                ? t('shell.sh_0317')
+                : t('shell.sh_0650', { p0: matchCount });
             if (!confirm(msg)) return;
             setLoadingId(key);
             try { await api.patch(`/interests/${interest.id}/hide`); onRemove(interest.id); }
@@ -261,7 +274,7 @@ function AddActivityModal({ currentInterests, onClose, onAdd, onRemove }) {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
             <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-lg max-h-[85vh] flex flex-col">
                 <div className="flex justify-between items-center px-6 py-5 border-b border-gray-800 flex-shrink-0">
-                    <h3 className="text-white font-bold text-lg">🎯 Manage Activities</h3>
+                    <h3 className="text-white font-bold text-lg">{t('shell.sh_0542')}</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
                 </div>
                 <div className="flex gap-2 px-6 py-3 border-b border-gray-800 flex-shrink-0">
@@ -273,7 +286,7 @@ function AddActivityModal({ currentInterests, onClose, onAdd, onRemove }) {
                     ))}
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-4">
-                    {!activeCat ? <p className="text-gray-500 text-center py-8 text-sm">Loading...</p> : (
+                    {!activeCat ? <p className="text-gray-500 text-center py-8 text-sm">{t('shell.sh_0543')}</p> : (
                         <div className="grid grid-cols-2 gap-2">
                             {activeCat.subCategories.map(sub => {
                                 const key = `${activeCategory}__${sub.id}`;
@@ -308,7 +321,7 @@ function AddActivityModal({ currentInterests, onClose, onAdd, onRemove }) {
                     )}
                 </div>
                 <div className="px-6 py-4 border-t border-gray-800 flex-shrink-0">
-                    <button onClick={onClose} className="w-full bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 hover:bg-gray-700 transition text-sm">Done</button>
+                    <button onClick={onClose} className="w-full bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 hover:bg-gray-700 transition text-sm">{t('shell.sh_0544')}</button>
                 </div>
             </div>
         </div>
@@ -451,6 +464,7 @@ function PostActions({ post, isOwner, onEdit, onToggleHide, onDelete }) {
 
 // Edit modal — works for Post, Reel, Story
 function EditPostModal({ post, onClose, onSave }) {
+    const { t } = useTranslation();
     const [content, setContent]       = useState(post.content || '');
     const [muteVideo, setMuteVideo]   = useState(post.muteVideo || false);
     const [musicUrl, setMusicUrl]     = useState(post.musicUrl || '');
@@ -525,7 +539,7 @@ function EditPostModal({ post, onClose, onSave }) {
                                 <div className="flex items-center gap-3">
                                     <span className="text-xl">{muteVideo ? '🔇' : '🔊'}</span>
                                     <div>
-                                        <p className="text-white text-sm font-bold">Mute original audio</p>
+                                        <p className="text-white text-sm font-bold">{t('shell.sh_0545')}</p>
                                         <p className="text-gray-500 text-xs">{muteVideo ? 'Original audio muted' : 'Original audio playing'}</p>
                                     </div>
                                 </div>
@@ -536,7 +550,7 @@ function EditPostModal({ post, onClose, onSave }) {
 
                             {/* Music */}
                             <div className="space-y-2">
-                                <p className="text-gray-400 text-xs font-bold">🎵 Background Music</p>
+                                <p className="text-gray-400 text-xs font-bold">{t('shell.sh_0546')}</p>
                                 {musicUrl ? (
                                     <div className="bg-gray-800 rounded-xl px-4 py-3 flex items-center gap-3 border border-purple-500/30">
                                         <span className="text-2xl">🎵</span>
@@ -563,7 +577,7 @@ function EditPostModal({ post, onClose, onSave }) {
                 </div>
 
                 <div className="px-6 py-4 border-t border-gray-800 flex gap-3">
-                    <button onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 hover:bg-gray-700 transition text-sm">Cancel</button>
+                    <button onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 hover:bg-gray-700 transition text-sm">{t('shell.sh_0535')}</button>
                     <button onClick={handleSave} disabled={isSaving} className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-2.5 rounded-xl disabled:opacity-50 transition text-sm">
                         {isSaving ? 'Saving...' : 'Save'}
                     </button>
@@ -575,6 +589,7 @@ function EditPostModal({ post, onClose, onSave }) {
 
 // Comment section shown below media posts
 function CommentSection({ postId }) {
+    const { t } = useTranslation();
     const [open, setOpen]         = useState(false);
     const [comments, setComments] = useState([]);
     const [loading, setLoading]   = useState(false);
@@ -619,7 +634,7 @@ function CommentSection({ postId }) {
             </button>
             {open && (
                 <div className="space-y-2">
-                    {loading && <p className="text-gray-600 text-xs">Loading...</p>}
+                    {loading && <p className="text-gray-600 text-xs">{t('shell.sh_0543')}</p>}
                     {comments.map(c => (
                         <div key={c.id} className="flex items-start gap-2">
                             <div className="w-6 h-6 rounded-full bg-gradient-to-b from-purple-500 to-blue-500 flex items-center justify-center text-white text-[9px] font-black flex-shrink-0">
@@ -650,6 +665,7 @@ function CommentSection({ postId }) {
 }
 
 function PostCard({ post: initialPost, isOwner, onOpen, onDelete, showComments = false }) {
+    const { t } = useTranslation();
     const [post, setPost] = useState(initialPost);
     const [liked, setLiked] = useState(post.isLiked);
     const [likeCount, setLikeCount] = useState(post._count?.likes || 0);
@@ -700,7 +716,7 @@ function PostCard({ post: initialPost, isOwner, onOpen, onDelete, showComments =
                         />
                     </div>
                     {post.hidden && (
-                        <p className="text-gray-600 text-xs mb-2">🙈 Hidden from branches</p>
+                        <p className="text-gray-600 text-xs mb-2">{t('shell.sh_0547')}</p>
                     )}
                     {Array.isArray(post.targets) && post.targets.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-3">
@@ -927,7 +943,7 @@ function ActivityCard({ interest, navigate, isOwn, subjectId }) {
                         onClick={handleShowMatches}
                         className={`w-full flex items-center justify-between px-4 py-2.5 border-t ${cfg.border} text-xs font-bold transition hover:opacity-80`}
                     >
-                        <span className={`bg-gradient-to-r ${cfg.color} bg-clip-text text-transparent`}>🗃️ Match Records</span>
+                        <span className={`bg-gradient-to-r ${cfg.color} bg-clip-text text-transparent`}>{t('shell.sh_0548')}</span>
                         <span className="text-gray-500">{showMatches ? '▲' : '▼'}</span>
                     </button>
 
@@ -949,9 +965,9 @@ function ActivityCard({ interest, navigate, isOwn, subjectId }) {
             {showMatches && (
                 <div className="px-4 pb-4 space-y-3 border-t border-gray-800/50 pt-3">
                     {loadingMatches ? (
-                        <p className="text-gray-500 text-xs text-center py-4">Loading...</p>
+                        <p className="text-gray-500 text-xs text-center py-4">{t('shell.sh_0543')}</p>
                     ) : archivedMatches.length === 0 ? (
-                        <p className="text-gray-600 text-xs text-center py-4">No archived matches yet.</p>
+                        <p className="text-gray-600 text-xs text-center py-4">{t('shell.sh_0549')}</p>
                     ) : (
                         archivedMatches.map(match => {
                             const parts = Array.isArray(match.participants) ? match.participants : [];
@@ -983,7 +999,7 @@ function ActivityCard({ interest, navigate, isOwn, subjectId }) {
                                                 {isWin ? '🏆 Win' : '❌ Loss'}
                                             </span>
                                         )}
-                                        {!score && <span className="text-[10px] text-gray-600">No score</span>}
+                                        {!score && <span className="text-[10px] text-gray-600">{t('shell.sh_0550')}</span>}
                                     </div>
 
                                     {isPlayerWanted ? (
@@ -1270,17 +1286,17 @@ function ProfilePage() {
         const { status, isSender } = friendship;
         if (status === 'ACCEPTED') return (
             <div className="flex gap-2">
-                <button onClick={() => navigate(`/messages/${targetId}`)} className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold px-4 py-2.5 rounded-xl text-sm hover:opacity-90 transition">💬 Message</button>
-                <button onClick={handleUnfriend} disabled={actionLoading} className="bg-gray-700 text-gray-300 hover:bg-red-600/20 hover:text-red-400 font-bold px-4 py-2.5 rounded-xl text-sm border border-gray-600 hover:border-red-500 transition">Unfriend</button>
+                <button onClick={() => navigate(`/messages/${targetId}`)} className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold px-4 py-2.5 rounded-xl text-sm hover:opacity-90 transition">{t('shell.sh_0551')}</button>
+                <button onClick={handleUnfriend} disabled={actionLoading} className="bg-gray-700 text-gray-300 hover:bg-red-600/20 hover:text-red-400 font-bold px-4 py-2.5 rounded-xl text-sm border border-gray-600 hover:border-red-500 transition">{t('shell.sh_0552')}</button>
             </div>
         );
         if (status === 'PENDING' && isSender) return (
-            <button disabled className="w-full bg-gray-700 text-gray-400 font-bold py-2.5 rounded-xl text-sm border border-gray-600 cursor-not-allowed">⏳ Request Sent</button>
+            <button disabled className="w-full bg-gray-700 text-gray-400 font-bold py-2.5 rounded-xl text-sm border border-gray-600 cursor-not-allowed">{t('shell.sh_0553')}</button>
         );
         if (status === 'PENDING' && !isSender) return (
             <div className="flex gap-2">
-                <button onClick={() => handleRespondRequest('accept')} disabled={actionLoading} className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition">✓ Accept</button>
-                <button onClick={() => handleRespondRequest('reject')} disabled={actionLoading} className="flex-1 bg-gray-700 text-gray-300 font-bold py-2.5 rounded-xl text-sm border border-gray-600 hover:bg-gray-600 transition">✕ Reject</button>
+                <button onClick={() => handleRespondRequest('accept')} disabled={actionLoading} className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition">{t('shell.sh_0554')}</button>
+                <button onClick={() => handleRespondRequest('reject')} disabled={actionLoading} className="flex-1 bg-gray-700 text-gray-300 font-bold py-2.5 rounded-xl text-sm border border-gray-600 hover:bg-gray-600 transition">{t('shell.sh_0555')}</button>
             </div>
         );
         return (
@@ -1304,15 +1320,15 @@ function ProfilePage() {
 
             <div className="w-full px-4 py-6">
                 {isLoading ? (
-                    <p className="text-gray-400 text-center py-16">Loading...</p>
+                    <p className="text-gray-400 text-center py-16">{t('shell.sh_0543')}</p>
                 ) : !profile ? (
-                    <p className="text-gray-400 text-center py-16">User not found.</p>
+                    <p className="text-gray-400 text-center py-16">{t('shell.sh_0556')}</p>
                 ) : profile.isPrivate ? (
                     <div className="text-center py-16 bg-gray-900 rounded-2xl border border-gray-800 max-w-md mx-auto">
                         <Avatar user={profile} size="xl" />
                         <h2 className="text-white font-bold text-2xl mt-4">{profile.fullName || profile.username}</h2>
                         <p className="text-gray-400 mt-1">@{profile.username}</p>
-                        <p className="text-gray-500 mt-4">🔒 This account is private.</p>
+                        <p className="text-gray-500 mt-4">{t('shell.sh_0557')}</p>
                         <div className="mt-6 max-w-xs mx-auto">{renderFriendButton()}</div>
                     </div>
                 ) : (
@@ -1344,7 +1360,7 @@ function ProfilePage() {
                                             <button
                                                 onClick={() => setShowInfoModal(true)}
                                                 className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-600 hover:bg-blue-500 rounded-full flex items-center justify-center text-white font-black text-xs border-2 border-gray-900 transition z-10"
-                                                title="Kişisel Bilgiler"
+                                                title={t('shell.sh_0274')}
                                             >🪪</button>
                                         )}
                                     </div>
