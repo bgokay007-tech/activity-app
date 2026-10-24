@@ -30986,8 +30986,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </Modal>
 
                                             {/* Müzik seçici sheet */}
-                                            <Modal visible={musicSheetOpen} animationType="slide" onRequestClose={() => setMusicSheetOpen(false)}>
-                                                <View style={{ flex: 1, backgroundColor: colors.bg }}>
+                                            <Modal visible={musicSheetOpen} animationType="slide" statusBarTranslucent onRequestClose={() => setMusicSheetOpen(false)}>
+                                                <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', padding: 13, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                                                         <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16, flex: 1 }}>{t.musicPickTitle}</Text>
                                                         <TouchableOpacity onPress={() => setMusicSheetOpen(false)}>
