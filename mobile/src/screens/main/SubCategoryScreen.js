@@ -23890,7 +23890,18 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [showPostsDateRange, setShowPostsDateRange] = useState(false);
     const [showMediaShare, setShowMediaShare] = useState(false);
     const [mediaShareUri, setMediaShareUri] = useState(null);
+    const [mediaShareSec, setMediaShareSec] = useState(0);
+    const [mediaShareIsVideo, setMediaShareIsVideo] = useState(false);
     const [mediaShareCaption, setMediaShareCaption] = useState('');
+    // Paylaşılacak video üstte kalsın diye oynatıcı koşulun dışında. Kaynak seçilince değişir.
+    const shareClipPlayer = useVideoPlayer(null);
+    useEffect(() => {
+        if (!showMediaShare || !mediaShareIsVideo || !mediaShareUri) {
+            try { shareClipPlayer.pause(); } catch { /* hazır değilse sessiz */ }
+            return;
+        }
+        shareClipPlayer.replaceAsync(mediaShareUri).catch(() => {});
+    }, [showMediaShare, mediaShareIsVideo, mediaShareUri]);
     const [submittingMediaShare, setSubmittingMediaShare] = useState(false);
     const [equipmentListings, setEquipmentListings] = useState([]);
     const [equipmentCondition, setEquipmentCondition] = useState('ALL');
@@ -25981,6 +25992,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 musicSoundRef.current = null;
             }
         } catch {}
+        try { shareClipPlayer.pause(); } catch { /* video yoksa */ }
         setPreviewPlaying(false);
     };
 
@@ -25998,8 +26010,10 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (!dur) dur = musicClipMaxRef.current;
         setMusicDuration(dur);
         musicDurationRef.current = dur;
-        applyMusicWindow(0, Math.min(15, musicClipMaxRef.current, dur));
-        setMusicTrimOpen(true);
+        // Video varsa seçili aralık videonun süresi kadar başlar; fotoğrafta kısa bir kesit.
+        const fit = mediaShareIsVideo && mediaShareSec > 0 ? mediaShareSec : 15;
+        applyMusicWindow(0, Math.min(fit, musicClipMaxRef.current, dur));
+        setMusicTrimOpen(false);
         setMusicSheetOpen(false);
     };
 
@@ -26016,6 +26030,9 @@ export default function SubCategoryScreen({ route, navigation }) {
             );
             musicSoundRef.current = sound;
             setPreviewPlaying(true);
+            if (mediaShareIsVideo) {
+                try { shareClipPlayer.currentTime = 0; shareClipPlayer.play(); } catch { /* önizleme yine de duyulsun */ }
+            }
             sound.setOnPlaybackStatusUpdate(status => {
                 if (status.didJustFinish || (status.isPlaying && status.positionMillis >= end * 1000)) {
                     stopMusicPreview();
@@ -26120,6 +26137,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                     return;
                 }
             }
+            const isVideo = asset.type === 'video' || /\.(mp4|mov|m4v|webm)(\?|$)/i.test(asset.uri || '');
+            const rawDur = Number(asset.duration) || 0;
+            const durSec = rawDur > 1000 ? rawDur / 1000 : rawDur;
+            setMediaShareIsVideo(isVideo);
+            setMediaShareSec(isVideo ? Math.max(1, Math.round(durSec) || 15) : 0);
             setMediaShareUri(asset.uri);
             setShowMediaShare(true);
         }
@@ -26164,6 +26186,8 @@ export default function SubCategoryScreen({ route, navigation }) {
             }
             setShowMediaShare(false);
             setMediaShareUri(null);
+            setMediaShareSec(0);
+            setMediaShareIsVideo(false);
             setMediaShareCaption('');
             setShareMusic(null);
             setShareLocation('');
@@ -30792,15 +30816,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </Modal>
 
                                 {/* Medya paylaş modal */}
-                                <Modal visible={showMediaShare} animationType="slide" transparent onRequestClose={() => setShowMediaShare(false)}>
-                                    <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
-                                        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, paddingBottom: 33 }}>
+                                <Modal visible={showMediaShare} animationType="slide" transparent={!shareMusic} statusBarTranslucent={!!shareMusic} onRequestClose={() => setShowMediaShare(false)}>
+                                    <View style={shareMusic ? { flex: 1, backgroundColor: colors.bg, paddingTop: insets.top } : { flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
+                                        <KeyboardAwareForm adjustWindow={false} scrollEnabled={!!shareMusic} style={shareMusic ? { flex: 1, backgroundColor: colors.bg } : { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20 }} contentContainerStyle={{ padding: 17, paddingBottom: shareMusic ? (insets.bottom || 0) + 28 : 33 }}>
                                             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', marginBottom: 12 }}>
                                                 {mediaShareType === 'STORY' ? '⭕ Hikaye Paylaş' : mediaShareType === 'REEL' ? `🎬 ${lang === 'tr' ? 'Film Rulosu' : lang === 'ru' ? 'Ролики' : lang === 'de' ? 'Reels' : 'Reels'} Paylaş` : '🖼️ Gönderi Paylaş'}
                                             </Text>
                                             {mediaShareUri && (
-                                                <View style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: shareMusic ? 0 : 12, overflow: 'hidden' }}>
-                                                    <Image source={{ uri: mediaShareUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                                <View style={{ width: '100%', height: shareMusic ? 300 : 200, borderRadius: 12, marginBottom: shareMusic ? 10 : 12, overflow: 'hidden', backgroundColor: '#000' }}>
+                                                    {mediaShareIsVideo ? (
+                                                        <VideoView player={shareClipPlayer} style={{ width: '100%', height: '100%' }} contentFit="cover" nativeControls={false} />
+                                                    ) : (
+                                                        <Image source={{ uri: mediaShareUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                                    )}
                                                     {mediaShareType === 'STORY' && !!mediaShareCaption && (
                                                         <View style={{ position: 'absolute', left: 12, right: 12, bottom: 12, alignItems: 'center' }}>
                                                             <View style={{ backgroundColor: '#00000065', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 5 }}>
@@ -30810,28 +30838,31 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     )}
                                                 </View>
                                             )}
-                                            {/* Müzik trim çizgisi — fotoğrafın hemen altında */}
+                                            {/* Seçilen parça, fotoğrafın veya videonun hemen altında. Aralık videonun süresine oturur. */}
                                             {shareMusic && (() => {
-                                                const totalDur = musicDurationRef.current || 30;
-                                                const s = trimStartRef.current;
-                                                const e = trimEndRef.current;
+                                                const totalDur = musicDuration || musicDurationRef.current || 30;
+                                                const s = parseFloat(trimStart) || 0;
+                                                const e = parseFloat(trimEnd) || 0;
                                                 const leftPct = (s / totalDur) * 100;
-                                                const rightPct = (1 - e / totalDur) * 100;
+                                                const widthPct = Math.max(2, ((e - s) / totalDur) * 100);
+                                                const videoFit = mediaShareIsVideo ? Math.min(mediaShareSec || (e - s), mediaShareType === 'REEL' ? 90 : 60) : 0;
                                                 return (
                                                     <View style={{ backgroundColor: '#0a0a14', borderRadius: 10, paddingHorizontal: 11, paddingTop: 7, paddingBottom: 11, marginBottom: 12 }}>
-                                                        {/* Müzik başlığı + süre */}
-                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 10 }}>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 8 }}>
                                                             {shareMusic.coverUrl && <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 26, height: 26, borderRadius: 4 }} />}
                                                             <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '800', flex: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>🎵 {shareMusic.title}</Text>
                                                             <Text style={{ color: '#6b7280', fontSize: 11 }}>{s}s – {e}s ({e - s}sn)</Text>
                                                         </View>
+                                                        {videoFit > 0 && (
+                                                            <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>{t.musicFitVideo(videoFit)}</Text>
+                                                        )}
                                                         <View
                                                             {...windowPan.panHandlers}
                                                             onLayout={ev => { trimBarWidthRef.current = ev.nativeEvent.layout.width; }}
                                                             style={{ height: 48, justifyContent: 'center' }}
                                                         >
                                                             <View style={{ height: 28, borderRadius: 8, backgroundColor: '#1f2937', overflow: 'hidden' }}>
-                                                                <View style={{ position: 'absolute', left: `${leftPct}%`, right: `${rightPct}%`, top: 0, bottom: 0, backgroundColor: '#7c3aed' }} />
+                                                                <View style={{ position: 'absolute', left: `${leftPct}%`, width: `${widthPct}%`, top: 0, bottom: 0, backgroundColor: '#7c3aed' }} />
                                                             </View>
                                                             <View
                                                                 {...startHandlePan.panHandlers}
@@ -30842,9 +30873,33 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 style={{ position: 'absolute', left: `${(e / totalDur) * 100}%`, width: 16, height: 36, borderRadius: 6, backgroundColor: '#fff', marginLeft: -8 }}
                                                             />
                                                         </View>
-                                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, marginBottom: 10 }}>
                                                             <Text style={{ color: '#6b7280', fontSize: 10 }}>0s</Text>
-                                                            <Text style={{ color: '#6b7280', fontSize: 10 }}>{totalDur}s</Text>
+                                                            <Text style={{ color: '#6b7280', fontSize: 10 }}>{Math.floor(totalDur)}s</Text>
+                                                        </View>
+                                                        <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 4 }}>{t.musicClipLen}</Text>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                                            <TouchableOpacity onPress={() => applyMusicWindow(s, (e - s) - 1)}
+                                                                style={{ width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
+                                                                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800' }}>−</Text>
+                                                            </TouchableOpacity>
+                                                            <TextInput
+                                                                style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', fontSize: 16, fontWeight: '800', borderWidth: 1, borderColor: colors.border, textAlign: 'center' }}
+                                                                value={String(Math.max(0, e - s))}
+                                                                onChangeText={v => applyMusicWindow(s, parseInt(v.replace(/[^0-9]/g, ''), 10) || 1)}
+                                                                keyboardType="number-pad"
+                                                                placeholderTextColor={colors.textMuted}
+                                                            />
+                                                            <TouchableOpacity onPress={() => applyMusicWindow(s, (e - s) + 1)}
+                                                                style={{ width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
+                                                                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800' }}>+</Text>
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity onPress={previewTrim}
+                                                                style={{ paddingHorizontal: 12, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: previewPlaying ? '#ef444420' : '#7c3aed20', borderWidth: 1, borderColor: previewPlaying ? '#ef444450' : '#7c3aed50' }}>
+                                                                <Text style={{ color: previewPlaying ? '#ef4444' : '#a78bfa', fontWeight: '800', fontSize: 12 }}>
+                                                                    {previewPlaying ? '⏹ Durdur' : '▶ Önizle'}
+                                                                </Text>
+                                                            </TouchableOpacity>
                                                         </View>
                                                     </View>
                                                 );
@@ -30862,7 +30917,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             />
                                             {/* Müzik + Konum butonları */}
                                             <View style={{ flexDirection: 'row', gap: 3, marginBottom: 12 }}>
-                                                <TouchableOpacity onPress={() => shareMusic ? setMusicTrimOpen(true) : setMusicSheetOpen(true)}
+                                                <TouchableOpacity onPress={() => setMusicSheetOpen(true)}
                                                     style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 6, paddingHorizontal: 7, borderRadius: 10, backgroundColor: shareMusic ? '#7c3aed20' : colors.surface2, borderWidth: 1, borderColor: shareMusic ? '#7c3aed60' : colors.border }}>
                                                     {shareMusic?.coverUrl
                                                         ? <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 22, height: 22, borderRadius: 4 }} />
@@ -30889,7 +30944,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 </TouchableOpacity>
                                             </View>
                                             <View style={{ flexDirection: 'row', gap: 3 }}>
-                                                <TouchableOpacity onPress={() => { setShowMediaShare(false); setMediaShareUri(null); setMediaShareCaption(''); setShareMusic(null); setShareLocation(''); }}
+                                                <TouchableOpacity onPress={() => { setShowMediaShare(false); setMediaShareUri(null); setMediaShareSec(0); setMediaShareIsVideo(false); setMediaShareCaption(''); setShareMusic(null); setShareLocation(''); }}
                                                     style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
                                                     <Text style={{ color: colors.textMuted, fontWeight: '700' }}>İptal</Text>
                                                 </TouchableOpacity>
@@ -30898,92 +30953,6 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <Text style={{ color: '#fff', fontWeight: '900' }}>{submittingMediaShare ? 'Yükleniyor...' : 'Paylaş'}</Text>
                                                 </TouchableOpacity>
                                             </View>
-
-                                            {/* Müzik Kırp Modal */}
-                                            <Modal visible={musicTrimOpen} animationType="slide" transparent onRequestClose={() => { setMusicTrimOpen(false); stopMusicPreview(); }}>
-                                                <View style={{ flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
-                                                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, paddingBottom: 33 }}>
-                                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                                                            {shareMusic?.coverUrl
-                                                                ? <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 44, height: 44, borderRadius: 8, marginRight: 10 }} />
-                                                                : <Text style={{ fontSize: 30, marginRight: 10 }}>🎵</Text>}
-                                                            <View style={{ flex: 1 }}>
-                                                                <Text style={{ color: '#fff', fontWeight: '900', fontSize: 13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{shareMusic?.title}</Text>
-                                                                <Text style={{ color: colors.textMuted, fontSize: 11 }}>{shareMusic?.artist}</Text>
-                                                            </View>
-                                                            <TouchableOpacity onPress={() => { setMusicTrimOpen(false); stopMusicPreview(); }}>
-                                                                <Text style={{ color: colors.textMuted, fontSize: 22 }}>✕</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-
-                                                        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 10 }}>
-                                                            {t.musicTrackLine(Math.floor(musicDuration || 0))} · {t.musicClipMax(mediaShareType === 'REEL' ? 90 : 60)}
-                                                        </Text>
-                                                        <View
-                                                            {...windowPan.panHandlers}
-                                                            onLayout={ev => { trimBarWidthRef.current = ev.nativeEvent.layout.width; }}
-                                                            style={{ height: 56, justifyContent: 'center', marginBottom: 8 }}
-                                                        >
-                                                            <View style={{ height: 32, borderRadius: 8, backgroundColor: '#1f2937', overflow: 'hidden' }}>
-                                                                <View style={{
-                                                                    position: 'absolute', top: 0, bottom: 0,
-                                                                    left: `${((parseFloat(trimStart) || 0) / (musicDuration || 1)) * 100}%`,
-                                                                    width: `${Math.max(2, ((parseFloat(trimEnd) || 0) - (parseFloat(trimStart) || 0)) / (musicDuration || 1)) * 100}%`,
-                                                                    backgroundColor: '#7c3aed',
-                                                                }} />
-                                                            </View>
-                                                            <View
-                                                                {...startHandlePan.panHandlers}
-                                                                style={{ position: 'absolute', left: `${((parseFloat(trimStart) || 0) / (musicDuration || 1)) * 100}%`, width: 18, height: 40, borderRadius: 6, backgroundColor: '#fff', marginLeft: -9 }}
-                                                            />
-                                                            <View
-                                                                {...endHandlePan.panHandlers}
-                                                                style={{ position: 'absolute', left: `${((parseFloat(trimEnd) || 0) / (musicDuration || 1)) * 100}%`, width: 18, height: 40, borderRadius: 6, backgroundColor: '#fff', marginLeft: -9 }}
-                                                            />
-                                                        </View>
-                                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
-                                                            <Text style={{ color: colors.textMuted, fontSize: 10 }}>0s</Text>
-                                                            <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '800' }}>{trimStart}s – {trimEnd}s</Text>
-                                                            <Text style={{ color: colors.textMuted, fontSize: 10 }}>{Math.floor(musicDuration || 0)}s</Text>
-                                                        </View>
-                                                        <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 4 }}>{t.musicClipLen}</Text>
-                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                                                            <TouchableOpacity onPress={() => applyMusicWindow(parseFloat(trimStart) || 0, (parseFloat(trimEnd) || 0) - (parseFloat(trimStart) || 0) - 1)}
-                                                                style={{ width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
-                                                                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800' }}>−</Text>
-                                                            </TouchableOpacity>
-                                                            <TextInput
-                                                                style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', fontSize: 16, fontWeight: '800', borderWidth: 1, borderColor: colors.border, textAlign: 'center' }}
-                                                                value={String(Math.max(0, (parseFloat(trimEnd) || 0) - (parseFloat(trimStart) || 0)))}
-                                                                onChangeText={v => applyMusicWindow(parseFloat(trimStart) || 0, parseInt(v.replace(/[^0-9]/g, ''), 10) || 1)}
-                                                                keyboardType="number-pad"
-                                                                placeholderTextColor={colors.textMuted}
-                                                            />
-                                                            <TouchableOpacity onPress={() => applyMusicWindow(parseFloat(trimStart) || 0, (parseFloat(trimEnd) || 0) - (parseFloat(trimStart) || 0) + 1)}
-                                                                style={{ width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
-                                                                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800' }}>+</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-
-                                                        <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', marginBottom: 14 }}>
-                                                            Seçilen aralık: <Text style={{ color: '#a78bfa', fontWeight: '800' }}>{Math.max(0, (parseFloat(trimEnd) || 0) - (parseFloat(trimStart) || 0)).toFixed(1)} saniye</Text>
-                                                        </Text>
-
-                                                        <View style={{ flexDirection: 'row', gap: 3 }}>
-                                                            <TouchableOpacity onPress={previewTrim}
-                                                                style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: previewPlaying ? '#ef444420' : '#7c3aed20', borderWidth: 1, borderColor: previewPlaying ? '#ef444450' : '#7c3aed50' }}>
-                                                                <Text style={{ color: previewPlaying ? '#ef4444' : '#a78bfa', fontWeight: '800' }}>
-                                                                    {previewPlaying ? '⏹ Durdur' : '▶ Önizle'}
-                                                                </Text>
-                                                            </TouchableOpacity>
-                                                            <TouchableOpacity onPress={() => { stopMusicPreview(); setMusicTrimOpen(false); }}
-                                                                style={{ flex: 2, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: cfg.color }}>
-                                                                <Text style={{ color: '#fff', fontWeight: '900' }}>✓ Onayla</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    </View>
-                                                </View>
-                                            </Modal>
 
                                             {/* Müzik seçici sheet */}
                                             <Modal visible={musicSheetOpen} animationType="slide" statusBarTranslucent onRequestClose={() => setMusicSheetOpen(false)}>
@@ -31042,7 +31011,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     </ScrollView>
                                                 </View>
                                             </Modal>
-                                        </View>
+                                        </KeyboardAwareForm>
                                     </View>
                                 </Modal>
                             </>
